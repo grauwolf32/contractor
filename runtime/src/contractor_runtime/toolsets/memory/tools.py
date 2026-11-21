@@ -30,8 +30,7 @@ from contractor_runtime.toolsets.common.artifact_write import (
 )
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, _unconfigured_client
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
-from contractor_runtime.toolsets.common.resources import ToolResources
-from contractor_runtime.toolsets.memory.codec import (
+from contractor_runtime.toolsets.common.memory_codec import (
     ARTIFACT_NAME_PREFIX,
     MAXIMUM_EXACT_ORDINAL,
     MAXIMUM_PAYLOAD_BYTES,
@@ -47,6 +46,7 @@ from contractor_runtime.toolsets.memory.codec import (
     normalize_note,
     preview_projection,
 )
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAXIMUM_NOTES = 128

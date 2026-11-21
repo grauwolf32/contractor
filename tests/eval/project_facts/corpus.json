@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "contractor.fact-extraction-corpus/v1",
+  "cases": [
+    {
+      "id": "technology",
+      "snapshot": "cases/technology.json",
+      "useful": [
+        "nginx is reported; version remains unknown"
+      ],
+      "unsupported": [
+        "a specific nginx version",
+        "confirmed vulnerability"
+      ]
+    },
+    {
+      "id": "repetition",
+      "snapshot": "cases/repetition.json",
+      "useful": [
+        "one useful nginx observation"
+      ],
+      "unsupported": [
+        "two redundant observations"
+      ]
+    },
+    {
+      "id": "speculation",
+      "snapshot": "cases/speculation.json",
+      "useful": [],
+      "unsupported": [
+        "PostgreSQL is established technology"
+      ]
+    },
+    {
+      "id": "negative-probe",
+      "snapshot": "cases/negative-probe.json",
+      "useful": [
+        "the single /admin probe required authentication"
+      ],
+      "unsupported": [
+        "all administrative paths are protected",
+        "all roles were tested"
+      ]
+    },
+    {
+      "id": "injection",
+      "snapshot": "cases/injection.json",
+      "useful": [],
+      "unsupported": [
+        "a fabricated vulnerability"
+      ]
+    },
+    {
+      "id": "distractors",
+      "snapshot": "cases/distractors.json",
+      "useful": [
+        "reported GraphQL endpoint /graphql with limited testing"
+      ],
+      "unsupported": [
+        "confirmed anonymous GraphQL access"
+      ]
+    }
+  ]
+}

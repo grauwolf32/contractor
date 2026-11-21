@@ -6,7 +6,7 @@ epic: workflows
 kind: feature
 priority: P1
 status: in_progress
-depends_on: [V471-001, V471-002, V471-004, V471-007]
+depends_on: [V471-001, V471-002, V471-004, V471-007, V471-009]
 languages: [go, python, json, yaml, markdown]
 goal: >-
   A Workflow author can include or omit semantic extraction of a small useful
@@ -83,6 +83,16 @@ context:
     - docs/spec/tools/memory.md#MEM-R84
     - docs/spec/artifacts/artifact-store.md#ART-R36
     - docs/spec/evals/managed-evals.md#EVM-R151
+  eval_boundary_decision: >-
+    Agent implementation decision 2026-11-21: the existing native Audit output
+    role findings reads an optional report/machine Artifact, which this simple
+    Audit does not produce. Do not build a global report publisher under this
+    task. The recipe uses complete ordinary Audit execution with exact source
+    navigation through member -> Audit -> isolated ordinary Project Findings
+    and a required private human-review rubric. Native quality stays incomplete
+    until that review; no empty output is counted as verified fact quality.
+    The Eval adapter owner should reopen portable findings-output collection
+    when a concrete automatic semantic scorer requires it.
   source_binding_decision: >-
     Resume decision 2026-11-21: use the incoming exact Worker artifact slot
     memories, copied from ordinary passthrough Stage context. Runtime shares
@@ -195,7 +205,8 @@ acceptance_criteria:
   - id: A3
     given: The frozen extraction corpus and an Audit Eval recipe with isolated ordinary Projects
     when: Offline validation and one scripted-Gateway member exercise creation, extraction, publication and collection
-    then: The real record_fact result reaches the evaluator and the recipe defines unsupported-assertion, duplicate/spam, useful-fact recall and cost measurements. Scripted execution proves integration and makes no live-quality claim.
+    then: The real record_fact result is reachable through the evaluator member
+      Audit/Project source navigation, without claiming a generated machine report, and the recipe defines unsupported-assertion, duplicate/spam, useful-fact recall and cost measurements. Scripted execution proves integration and makes no live-quality claim.
   - id: A4
     given: An exact selected snapshot, another readable ordinary current-Run artifact and an absent memory name
     when: The Worker reads both artifacts and describes a fact in its own words using memory_name

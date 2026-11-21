@@ -48,6 +48,7 @@ The current user-facing Workflow set is:
   `project-findings-review@1` discovers current Project findings and retains an explicit exact selection;
 - `audit-openapi-nuclei-scan@1` and `audit-openapi-sqlmap-scan@1` for the
   `openapi-nuclei-scan@1` and `openapi-sqlmap-scan@1` AuditProfiles;
+- `project-facts-extract@1` for optional observation selection from an exact Memory snapshot, using one passthrough Worker and common record_fact;
 - `artifact-copy@2` as the ordinary artifact smoke fixture;
 - `podman-python-check@2` as the explicitly selected offline Podman execution fixture.
 

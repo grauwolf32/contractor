@@ -8,6 +8,7 @@ import uuid
 from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
 from google.adk.agents import LlmAgent
@@ -417,6 +418,9 @@ class AdkWorkerRuntime:
         invocation_phase: InvocationPhase = "failed"
         outcome: WorkerResult | WorkerFailure
         state_snapshot: dict[str, Any] | None = None
+        self._resources.invocation_artifacts = MappingProxyType(
+            {key: ref.model_copy(deep=True) for key, ref in request.artifacts.items()}
+        )
         try:
             budget.start()
             if self._completion is not None:
@@ -492,6 +496,7 @@ class AdkWorkerRuntime:
             self._metrics.record_outcome("failed")
             invocation_phase = "failed"
         finally:
+            self._resources.invocation_artifacts = MappingProxyType({})
             try:
                 if self._completion is not None and invocation_phase != "succeeded":
                     code = "worker_cancelled" if invocation_phase == "cancelled" else outcome.code

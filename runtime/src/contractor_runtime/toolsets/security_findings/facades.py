@@ -126,6 +126,9 @@ class RecordFactTool(_FindingFacade):
         evidence_refs: Exact artifact references copied from tool output. At most four
             sources including a selected HTTP exchange; authored content is at most 32 KiB.
         request_id: Optional local HTTP/Caido request ID; saves its captured exchange.
+        memory_name: Optional exact memory name from the assigned memories snapshot.
+            Attaches its complete original content, description and tags; no quotation
+            is required. Describe uncertainty and inference in your own words.
         item_key: Optional assigned Audit member key to retain Task origin.
         incidental: True retains Run/Audit origin without a hypothesis. Set false
             to derive the selected Task's exact hypothesis; batch tasks need item_key.
@@ -137,6 +140,7 @@ class RecordFactTool(_FindingFacade):
         description: str,
         tool_context: ToolContext,
         evidence_refs: list[ExactEvidenceRef] | None = None,
+        memory_name: str | None = None,
         request_id: LineNumber | None = None,
         item_key: str | None = None,
         incidental: bool = True,
@@ -148,6 +152,7 @@ class RecordFactTool(_FindingFacade):
             context=tool_context,
             cwe=None,
             evidence_refs=evidence_refs,
+            memory_name=memory_name,
             request_id=request_id,
             severity_suggestion="informational",
             _tool_name=self.name,
@@ -335,6 +340,7 @@ class GeneralFindingsToolsetFactory:
             runtime_secrets(runtime_settings),
             resources,
             artifacts=client,
+            namespace=namespace,
         )
         result = {}
         if "finding" in selected:

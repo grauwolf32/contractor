@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from contractor_runtime.toolsets.memory.codec import (
+from contractor_runtime.toolsets.common.memory_codec import (
     ARTIFACT_NAME_PREFIX,
     MAXIMUM_ARTIFACT_NAME_BYTES,
     MAXIMUM_DESCRIPTION_BYTES,

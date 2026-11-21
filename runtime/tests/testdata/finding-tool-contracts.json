@@ -291,7 +291,7 @@
   },
   "fact": {
     "name": "record_fact",
-    "description": "Save one informational Project observation with exact evidence.\n\nAn active Project and selected exact evidence are required. Describe what the\nsource actually reports, including uncertainty; a note is a reported claim.\nThe record has no automatic analyst verdict or severity assessment.\n\nArgs:\n    title: Short non-empty observation title.\n    description: Observation, source quality, conditions and limitations.\n    evidence_refs: Exact artifact references copied from tool output. At most four\n        sources including a selected HTTP exchange; authored content is at most 32 KiB.\n    request_id: Optional local HTTP/Caido request ID; saves its captured exchange.\n    item_key: Optional assigned Audit member key to retain Task origin.\n    incidental: True retains Run/Audit origin without a hypothesis. Set false\n        to derive the selected Task's exact hypothesis; batch tasks need item_key.",
+    "description": "Save one informational Project observation with exact evidence.\n\nAn active Project and selected exact evidence are required. Describe what the\nsource actually reports, including uncertainty; a note is a reported claim.\nThe record has no automatic analyst verdict or severity assessment.\n\nArgs:\n    title: Short non-empty observation title.\n    description: Observation, source quality, conditions and limitations.\n    evidence_refs: Exact artifact references copied from tool output. At most four\n        sources including a selected HTTP exchange; authored content is at most 32 KiB.\n    request_id: Optional local HTTP/Caido request ID; saves its captured exchange.\n    memory_name: Optional exact memory name from the assigned memories snapshot.\n        Attaches its complete original content, description and tags; no quotation\n        is required. Describe uncertainty and inference in your own words.\n    item_key: Optional assigned Audit member key to retain Task origin.\n    incidental: True retains Run/Audit origin without a hypothesis. Set false\n        to derive the selected Task's exact hypothesis; batch tasks need item_key.",
     "parameters": {
       "$defs": {
         "ExactEvidenceRef": {
@@ -343,6 +343,18 @@
           ],
           "default": null,
           "title": "Evidence Refs"
+        },
+        "memory_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Memory Name"
         },
         "request_id": {
           "anyOf": [

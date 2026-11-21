@@ -25,7 +25,7 @@ from contractor_runtime.artifacts import (
     ArtifactWriteValue,
 )
 from contractor_runtime.contracts import API_VERSION, ArtifactRef, RuntimeSettings
-from contractor_runtime.toolsets.memory.codec import (
+from contractor_runtime.toolsets.common.memory_codec import (
     MAXIMUM_NAME_BYTES,
     MAXIMUM_PAYLOAD_BYTES,
     MEDIA_TYPE,

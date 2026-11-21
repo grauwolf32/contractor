@@ -215,7 +215,7 @@ flowchart TD
     A --> T["Stage extract-facts<br/>passthrough@1, один Worker"]
     T --> W["LLM: факт своими словами<br/>+ memory_name"]
     W --> R["Общий record_fact<br/>найти оригинал в выбранном snapshot"]
-    R --> E["Детерминированно сохранить оригинальную memory<br/>как обычный exact evidence"]
+    R --> E["Детерминированно сохранить оригинальную memory<br/>как singleton memory-snapshot/v1<br/>обычный exact evidence"]
     E --> F["Общий Finding intake<br/>корреляция по evidence + receipt"]
     F --> P["Project Finding и его источники"]
     P -.->|"по явному выбору"| H["Точный материал hypothesis.sources"]
@@ -242,9 +242,9 @@ snapshot, а не позднейшая mutable версия.
 подчиняются обычным Artifact/Finding evidence правилам. Наблюдение из memories
 показывается как reported: сам источник не означает независимого подтверждения.
 
-Граница snapshot-binding в общий инструмент ещё требует конкретизации при
-возобновлении V471-003: предпочтительно существующий exact Stage input с одним
-явно заданным slot. Не искать подходящий snapshot среди всех артефактов и не
+Граница snapshot-binding конкретизирована: точный Artifact передаётся в
+существующем Worker task slot `memories`. Runtime держит readonly-привязку
+только в пределах invocation и очищает её при любом исходе. Не искать подходящий snapshot среди всех артефактов и не
 угадывать Namespace по имени memory. Возможность сохранять факт прямо из текущей
 mutable Memory вне extraction Stage в этот срез не включена.
 
@@ -422,8 +422,9 @@ flowchart LR
 его Workflow и интерфейс второй группы (003/005/006) не приняты. После начала
 003 пользователь приостановил реализацию для пересмотра интерфейсов. Удалён
 непоставленный вариант с обязательными цитатами; новая правка request ID
-выделена в V471-007. После исправления тестовых fixtures (V471-008) в пакете восемь задач;
-пять выполнены. Реализация группы 2 возобновлена пользователем.
+выделена в V471-007. Исправления тестовых fixtures (V471-008) и чтения Findings
+по точному ID служебного Eval Project (V471-009) — отдельные предпосылки.
+В пакете девять задач; шесть приняты, реализация группы 2 возобновлена пользователем.
 
 
 Пользовательское решение 2026-11-21: выполнить шесть задач двумя группами по три,
@@ -464,7 +465,9 @@ release gate V471-006, проверку lifecycle, масштаба и инте�
 | [V471-002](../../tasks/done/v471-002-memory-snapshot-operation.yml) | 1 | Явно подключаемый snapshot выбранных заметок | — |
 | [V471-004](../../tasks/done/v471-004-fact-deduplication-and-selection.yml) | 1 | Базовое равенство evidence на существующей корреляции | 001 |
 | [V471-007](../../tasks/done/v471-007-local-http-request-identifiers.yml) | предпосылка 2 | Локальный request_id для HTTP/Caido и общих publishers | 001 |
-| [V471-003](../../tasks/v471-003-workflow-fact-extraction.yml) | 2 | Отдельный Stage с passthrough@1, общим publisher и проверкой повторных попыток | 001, 002, 004, 007 |
+| [V471-008](../../tasks/done/v471-008-repair-process-catalog-fixtures.yml) | предпосылка 2 | Собственные инструкции process fixtures после обновления каталога | 001 |
+| [V471-009](../../tasks/done/v471-009-eval-project-finding-navigation.yml) | предпосылка 2 | Чтение Findings выбранного Eval execution Project без открытия глобального discovery | 001 |
+| [V471-003](../../tasks/v471-003-workflow-fact-extraction.yml) | 2 | Отдельный Stage с passthrough@1, общим publisher и проверкой повторных попыток | 001, 002, 004, 007, 009 |
 | [V471-005](../../tasks/v471-005-project-facts-interface.yml) | 2 | Отдельный понятный интерфейс поверх тех же записей | 003 |
 | [V471-006](../../tasks/v471-006-project-facts-release-gate.yml) | 2 | Проверка интегрированного пути, масштаба и удаления | 005 |
 

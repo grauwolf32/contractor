@@ -2161,3 +2161,37 @@ same broad artifact can merge; changed bytes can leave separate cards. Every
 receipt preserves its original claim for inspection. The Finding owner enforces
 this rule; observed over-merging or disruptive duplication is the condition for
 reopening it. No title discriminator or semantic repair is implicit.
+
+
+### Original memories as informational evidence
+
+**FND-R238.** Common `record_fact` additionally accepts optional `memory_name`.
+The selected Worker task supplies an exact ordinary Artifact in its `memories`
+slot. Runtime resolves the name only inside that frozen Memory snapshot
+(MEM-R100/R101); it never reads mutable Memory or searches other artifacts.
+The statement remains free text. No quotation, substring, locator or semantic
+truth check is required. Invalid, absent or ambiguous selection is a permanent
+tool input error before Finding admission; no fallback source is substituted.
+Ordinary authorized reads remain available (ART-R36).
+
+Runtime preserves the selected original namespace, name, content, description
+and tags as a canonical singleton `contractor.memory-snapshot/v1` ordinary
+JSON Artifact in the selected Worker namespace. Its content-derived binding
+uses ordinary create-only Artifact CAS and exact-byte reconciliation. The
+common publisher selects that exact Artifact as one evidence source, retains
+informational severity and the existing item_key/incidental semantics. Other
+selected evidence follows FND-R210 and counts toward the same source limit.
+Repeated selected original contents use the evidence correlation of FND-R236;
+provenance remains on the ordinary source receipt. Memory-derived evidence is a
+reported statement, never an independent verification badge.
+
+**FND-R239.** When the exact `memories` input is selected, Runtime admits at most
+eight distinct `record_fact` call identities per invocation (LIM-FND-60). The
+small private quota is checked before source work, counts repair attempts, lets
+an existing call reconcile without consuming a new slot and resets for a fresh
+invocation. It adds no durable receipt store. Accepted Finding receipts survive
+later model, report or Run failure. A separate optional passthrough Stage uses
+one ordinary model-backed Worker and no Planner model; omitting it adds no hook.
+A report completing with zero selected observations is valid. An unusable blank
+model reply alone does not establish completion. Existing Worker budgets,
+cancellation, response recovery and result assembly remain authoritative.
