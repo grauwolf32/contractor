@@ -41,7 +41,7 @@ acceptance_criteria:
   - id: A2
     text: Full integrated verification passes with current library matrices and no old production profile reintroduced.
 tests:
-  - command: "go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestAuditCommonObservationProfilesAcrossProductionProcesses$'"
+  - command: "go test -json -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestAuditCommonObservationProfilesAcrossProductionProcesses$'"
     covers: [A1, A2]
   - command: make release-verify
     covers: [A1, A2]
