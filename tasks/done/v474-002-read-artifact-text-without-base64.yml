@@ -5,7 +5,7 @@ milestone: runtime-artifact-cache-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - python
@@ -91,3 +91,13 @@ tests:
   covers: [A3]
 - command: go test -tags=e2e -count=1 ./tests/ui-stack -run '^TestManagedEvalAssertionsUseCurrentDomainContract$'
   covers: [A3]
+implementation_commit: b5d60d94bd3f9b12adf9cbaa29b7d7eacd38c02d
+verification:
+  date: '2026-11-22'
+  result: >-
+    Full Runtime tests passed (6383 passed, 135 declared skips), including the actual Worker/Gateway
+    multibyte paging transcript. Configuration, recipe, fixture and UI contract helper checks passed.
+    Both listed real-process roots passed in 77.765 seconds after fixing the current Eval recipe
+    selector. Final make lint passed with all four import contracts kept. Frozen v1 recipe bytes
+    remain unchanged. Full combined acceptance remains required by V474-010; earlier failed full
+    process runs are not passing evidence.

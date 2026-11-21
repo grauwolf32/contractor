@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 12 in progress, 45 pending, 13 deferred. 1630 finished: 1612 completed, 18 archived.
+69 open tasks: 11 in progress, 45 pending, 13 deferred. 1631 finished: 1613 completed, 18 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V474-002](v474-002-read-artifact-text-without-base64.yml) | projects-artifacts | feature | P1 | Serve bounded UTF-8 text through the common read_artifact tool |
 | [V474-003](v474-003-publish-artifact-bytes-without-model-encoding.yml) | projects-artifacts | feature | P1 | Publish existing workspace files by local reference |
 | [V474-004](v474-004-keyed-audit-result-submissions.yml) | audits | feature | P1 | Record Audit conclusions with separate scalar and keyed batch tools |
 
@@ -40,8 +39,8 @@ the epics are in [epics.yml](epics.yml).
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | — | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 | [V469-001](v469-001-opencode-audit-prototype.yml) | chore | P1 | — | Prove two ordinary Runs can reuse one OpenCode Audit container |
-| [V474-005](v474-005-image-artifact-model-transport.yml) | feature | P2 | V474-002 | Deliver image artifacts to vision-capable models through read_artifact |
-| [V474-010](v474-010-tool-interface-acceptance.yml) | chore | P1 | V474-002, V474-003, V474-004, V474-005 | Verify the combined model-facing tool interfaces |
+| [V474-005](v474-005-image-artifact-model-transport.yml) | feature | P2 | — | Deliver image artifacts to vision-capable models through read_artifact |
+| [V474-010](v474-010-tool-interface-acceptance.yml) | chore | P1 | V474-003, V474-004, V474-005 | Verify the combined model-facing tool interfaces |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -172,7 +171,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
 | Findings tools and collections (`findings`) | 0 | 21 | 15 | 11 | 27 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 39 | 40 | 20 | 72 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 39 | 40 | 20 | 72 |
 | Audits (`audits`) | 11 | 71 | 98 | 42 | 171 |
 | Evaluations (`evals`) | 4 | 23 | 46 | 20 | 54 |
 | Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
