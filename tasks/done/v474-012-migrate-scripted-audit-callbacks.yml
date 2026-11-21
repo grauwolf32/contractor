@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 introduced_by: V474-004
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V474-004]
 languages: [go]
 goal: Findings and HTTP process fixtures send the assigned item key and prove every intended scalar submission was recorded.
@@ -41,3 +41,12 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A2]
+implementation_commit: 1d368856c8ace8e3c58795d60cfbc5efe2464438
+verification:
+  date: '2026-11-22'
+  result: >-
+    The complete untagged E2E helper package and full make lint passed. All three listed
+    real-process roots passed in 123.283 seconds, including all five collection-retention
+    subcases. The HTTP scenario now checks both scalar responses are recorded, so its
+    second call cannot be silently rejected after an earlier success. Both callback-built
+    argument paths use the existing assigned-key helper. No production source changed.
