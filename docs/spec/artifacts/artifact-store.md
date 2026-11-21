@@ -393,6 +393,16 @@ model-visible artifact tools:
    `run-artifacts@1`, which exports exactly `list_artifacts`, `read_artifact`
    and `write_artifact` for explicit current-Run refs.
 
+`write_artifact(namespace, name, source_path, media_type, expected_revision?)`
+reads an existing file through the Worker's project-workspace owner and publishes
+its actual bytes. The sole model-supplied source is a relative local path.
+Inline content, including encoded bytes alongside a path, is rejected before
+publication. Existing workspace path, file-kind, size and cancellation bounds
+apply. Missing workspace/files and inaccessible sources give an explicit source
+error. Destination authority and CAS remain governed by ART-R35, ART-R37 and
+ART-R58; the existing exact-byte publication reconciliation handles a lost reply.
+Model-authored text remains available through `write_text_artifact`.
+
 **ART-R32.** No generic Artifact tool is injected implicitly: an
 AgentTemplate must select `run-artifacts@1` and list each operation it wants
 the model to see ([Toolsets](../tools/toolsets.md)). Selecting only

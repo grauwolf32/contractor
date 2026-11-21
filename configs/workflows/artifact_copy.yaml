@@ -1,0 +1,41 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: artifact-copy
+  version: "3"
+
+spec:
+  parameters: {}
+
+  inputs:
+    source:
+      required: true
+      mediaTypes: [text/plain]
+
+  outputs:
+    result:
+      required: true
+      mediaTypes: [text/plain]
+
+  entryStage: copy
+  stages:
+    copy:
+      objective: Copy the assigned exact artifact through ArtifactStore
+      operation:
+        ref: artifact-copy@1
+        arguments: {}
+      context:
+        artifacts:
+          source: {namespace: inputs, name: source, required: true}
+      result:
+        artifacts:
+          copied:
+            required: true
+            mediaTypes: [text/plain]
+            from: {namespace: builder, name: copied}
+      workflowOutputs: {result: copied}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

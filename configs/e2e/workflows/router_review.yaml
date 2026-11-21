@@ -41,13 +41,13 @@ spec:
     review:
       objective: ROUTER_E2E_GLOBAL choose the reviewer for the exact source
       instructions:
-        ref: instructions/copy-planner.md
+        ref: instructions/report-planner.md
       planner: router@1
       agents:
         builder:
-          template: artifact_builder@1
+          template: artifact_builder@4
         reviewer:
-          template: artifact_reviewer@1
+          template: artifact_reviewer@2
           namespace: review
       context:
         artifacts:

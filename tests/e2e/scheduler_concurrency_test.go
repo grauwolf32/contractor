@@ -142,8 +142,8 @@ func TestSchedulerConcurrencyAcrossProductionProcesses(t *testing.T) {
 
 	uploaded := uploadInput(t, publicClient, publicBaseURL)
 	serialRuns := []string{
-		createWorkflowRun(t, publicClient, publicBaseURL, "artifact-copy@1", "scheduler-default-1", uploaded),
-		createWorkflowRun(t, publicClient, publicBaseURL, "artifact-copy@1", "scheduler-default-2", uploaded),
+		createWorkflowRun(t, publicClient, publicBaseURL, "artifact-report-fixture@1", "scheduler-default-1", uploaded),
+		createWorkflowRun(t, publicClient, publicBaseURL, "artifact-report-fixture@1", "scheduler-default-2", uploaded),
 	}
 	waitForGatewayInitialCalls(t, ctx, server, runtimes, gateway, 1)
 	select {
@@ -170,9 +170,9 @@ func TestSchedulerConcurrencyAcrossProductionProcesses(t *testing.T) {
 	}
 
 	concurrentRuns := []string{
-		createWorkflowRun(t, publicClient, publicBaseURL, "artifact-copy@1", "scheduler-concurrent-1", uploaded),
-		createWorkflowRun(t, publicClient, publicBaseURL, "artifact-copy@1", "scheduler-concurrent-2", uploaded),
-		createWorkflowRun(t, publicClient, publicBaseURL, "artifact-copy@1", "scheduler-concurrent-3", uploaded),
+		createWorkflowRun(t, publicClient, publicBaseURL, "artifact-report-fixture@1", "scheduler-concurrent-1", uploaded),
+		createWorkflowRun(t, publicClient, publicBaseURL, "artifact-report-fixture@1", "scheduler-concurrent-2", uploaded),
+		createWorkflowRun(t, publicClient, publicBaseURL, "artifact-report-fixture@1", "scheduler-concurrent-3", uploaded),
 	}
 	waitForGatewayInitialCalls(t, ctx, server, runtimes, gateway, 2)
 

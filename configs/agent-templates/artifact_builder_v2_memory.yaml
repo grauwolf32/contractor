@@ -3,13 +3,13 @@ kind: AgentTemplate
 
 metadata:
   name: artifact_builder
-  version: "2"
+  version: "3"
 
 spec:
-  description: Reads a declared input and writes the requested result
+  description: Reads declared materials and authors the requested text report
   runtime: adk@1
   instructions:
-    ref: instructions/artifact-builder-memory.md
+    ref: instructions/artifact-builder-authored-text.md
   summarizer:
     instructions:
       ref: instructions/terminal-summarizer.md
@@ -27,5 +27,7 @@ spec:
       tools:
         - list_artifacts
         - read_artifact
-        - write_artifact
+    - ref: text-artifacts@1
+      tools:
+        - write_text_artifact
   sandboxProfile: local-workdir@1

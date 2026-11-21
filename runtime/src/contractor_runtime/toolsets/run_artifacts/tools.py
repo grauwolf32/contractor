@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import base64
-import binascii
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -16,15 +14,19 @@ from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import (
     ArtifactClient,
     ArtifactTransportError,
+    ArtifactValue,
 )
 from contractor_runtime.contracts import (
+    API_VERSION,
     ARTIFACT_LIST_CURSOR_PATTERN,
     ARTIFACT_NAME_PATTERN,
     ArtifactRef,
+    ArtifactWriteResult,
     RuntimeSettings,
 )
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.tool_metrics import ToolMetrics
+from contractor_runtime.projectfs.storage import WorkspaceReader, WorkspaceStorageError
 from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.shared_config import artifact_list_max_items, artifact_payload_max_bytes
 from contractor_runtime.toolsets.common.artifact_media import is_binary_media_type
@@ -37,6 +39,10 @@ from contractor_runtime.toolsets.common.artifact_visibility import (
     is_model_hidden_binding,
     require_model_visible_binding,
     require_model_visible_namespace,
+)
+from contractor_runtime.toolsets.common.artifact_write import (
+    definite_write_rejection,
+    write_artifact_exact,
 )
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
@@ -57,6 +63,7 @@ LIST_PAGE_SIZE = 100
 
 class RunArtifactsToolsetFactory:
     ref = "run-artifacts@1"
+    workspace_access = "read"
     exported_tools = frozenset({"list_artifacts", "read_artifact", "write_artifact"})
     infrastructure_channels = MappingProxyType({})
 
@@ -88,7 +95,7 @@ class RunArtifactsToolsetFactory:
         constructors = {
             "list_artifacts": ListArtifactsTool,
             "read_artifact": partial(ReadArtifactTool, cache=cache),
-            "write_artifact": WriteArtifactTool,
+            "write_artifact": partial(WriteArtifactTool, source=project_workspace),
         }
         return {name: constructors[name](client, metrics, secrets) for name in selected}
 
@@ -263,58 +270,70 @@ def _refuse_binary_media_type(media_type: str) -> None:
 
 class WriteArtifactTool(ArtifactTool):
     name = "write_artifact"
-    description = """Create or update an artifact in this Workflow Run from base64 bytes.
+    description = """Publish an existing workspace file as an artifact in this Workflow Run.
 
-    Updates require the expected current revision to prevent overwriting a
-    concurrent write.
+    Runtime reads and publishes the actual file bytes. An available project
+    workspace is required. Updates require the current destination revision.
 
     Args:
         namespace: Destination artifact namespace.
         name: Destination artifact binding name.
-        media_type: MIME type describing the decoded bytes.
-        data_base64: Canonical base64 payload within the configured decoded artifact limit.
-        expected_revision: Current destination revision for an update; omit only
-            to create a new binding.
+        source_path: Existing file path relative to the Worker's project workspace.
+        media_type: MIME type describing that file.
+        expected_revision: Current destination revision for an update; omit to create.
 
     Returns:
-        Saved artifact metadata including its exact revision, mediaType and size.
+        Saved artifact metadata with its exact revision, mediaType and size.
     """
+
+    def __init__(self, client, metrics, secrets, *, source: WorkspaceReader | None = None):
+        super().__init__(client, metrics, secrets)
+        self._source = source
 
     async def __call__(
         self,
         namespace: str,
         name: str,
+        source_path: str,
         media_type: str,
-        data_base64: str,
         expected_revision: str | None = None,
     ) -> dict[str, Any]:
         arguments = {
             "namespace": namespace,
             "name": name,
+            "source_path": source_path,
             "media_type": media_type,
-            "data_base64": data_base64,
             "expected_revision": expected_revision,
         }
         with self._recorded(arguments) as call:
             require_model_visible_binding(namespace, name)
-            if not isinstance(data_base64, str):
-                raise ToolInputError("data_base64 must be a canonical base64 string")
-            if len(data_base64) > ((artifact_payload_max_bytes() + 2) // 3) * 4:
-                raise ToolInputError(
-                    "base64 artifact payload exceeds the configured Artifact limit"
-                )
+            if self._source is None:
+                raise ToolInputError("source_path requires an available project workspace")
             try:
-                data = base64.b64decode(data_base64, validate=True)
-            except (binascii.Error, ValueError) as error:
-                raise ToolInputError("data_base64 is not valid canonical base64") from error
-            if base64.b64encode(data).decode("ascii") != data_base64:
-                raise ToolInputError("data_base64 is not valid canonical base64")
-            result = await self._client.write_artifact(
+                data = await self._source.read_bytes(source_path)
+            except WorkspaceStorageError as error:
+                raise ToolInputError(f"source_path is unavailable ({error})") from None
+            if len(data) > artifact_payload_max_bytes():
+                raise ToolInputError("source file exceeds the configured Artifact limit")
+            result = await write_artifact_exact(
+                self._client,
                 ArtifactRef(namespace=namespace, name=name),
                 data=data,
                 media_type=media_type,
                 expected_revision=expected_revision,
+                max_bytes=artifact_payload_max_bytes(),
+                reject_first=definite_write_rejection,
+                reject_replay=lambda error: (
+                    definite_write_rejection(error) and error.code != "artifact_conflict"
+                ),
             )
+            if isinstance(result, ArtifactValue):
+                result = ArtifactWriteResult(
+                    apiVersion=API_VERSION,
+                    artifact=result.artifact,
+                    mediaType=result.media_type,
+                    size=len(result.data),
+                )
             serialized = result.model_dump(by_alias=True)
             call.succeed(
                 {

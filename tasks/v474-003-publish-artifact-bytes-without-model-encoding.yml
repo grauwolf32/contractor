@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: feature
 priority: P1
 status: in_progress
-depends_on: []
+depends_on: [V474-009]
 languages:
 - python
 - go
@@ -16,7 +16,9 @@ goal: A Worker identifies an existing output file by its local workspace referen
 demonstration: >-
   Run the podman-python-check fixture. After check.py creates report.json, the scripted model supplies
   report.json as the source path. Verify builder/check_report against the file bytes and the exact
-  revision in the receipt. In a separate case, omit the file and observe a source error.
+  revision in the receipt. The ordinary local-workdir process fixture additionally publishes a
+  ZIP-hydrated file with Unicode and trailing whitespace, then proves a missing source publishes
+  nothing. The native Linux Podman allocation fixture covers execution-created files.
 context:
   authority: >-
     User decision 2026-11-21 requires a local file reference as the sole source argument from the
@@ -26,6 +28,7 @@ context:
   - docs/spec/artifacts/artifact-store.md#ART-R37
   - docs/spec/artifacts/artifact-store.md#ART-R58
   - docs/spec/tools/workspace.md#WSP-R13
+  - docs/spec/execution/server-operations.md#SOP-R13
   callers: configs/instructions/podman-python-fixer-memory.md:13 requires the exact UTF-8 bytes of report.json.
     configs/workflows/artifact_copy_v2_memory.yaml copies a text/plain artifact. run_artifacts/tools.py:239
     also supports controlled writes to explicit namespaces. A namespace-fixed text writer alone changes
@@ -51,7 +54,7 @@ scope:
   - Publish changed shipped manifests and instruction paths under fresh identities, repin dependent configurations
     and Eval fixtures, and validate the catalog lock. Update the owning specs in the same implementation.
   out:
-  - New upload service, broader filesystem or cross-namespace grants, UI changes and private transport
+  - New upload service, broader filesystem or cross-namespace grants, UI redesign and private transport
     encoding changes.
 requirements:
 - id: R1

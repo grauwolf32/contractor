@@ -86,6 +86,8 @@ type resultFinalizerInput struct {
 	ResultText string `json:"resultText"`
 }
 
+const e2eReport = "Source inspected; report authored.\n"
+
 func TestModelGatewayFindsNamedInputAfterParameterBlock(t *testing.T) {
 	request := map[string]any{"messages": []any{map[string]any{
 		"content": "String parameters:\n{\"objective\":\"inspect\"}\n\nNamed input artifacts:\n" +
@@ -219,7 +221,7 @@ func (g *modelGateway) nextStreamline(
 		wantTools = withMemoryTools(wantTools)
 	} else if hasTool("read_artifact") && strings.Contains(payload, streamlineWorkerMarker) {
 		scenario = "streamline-worker"
-		wantTools = withMemoryTools([]string{"list_artifacts", "read_artifact", "write_artifact"})
+		wantTools = withMemoryTools([]string{"list_artifacts", "read_artifact", "write_text_artifact"})
 	} else {
 		return nil, "", "", fmt.Errorf("unexpected streamline model/context %q", model)
 	}
@@ -271,13 +273,13 @@ func (g *modelGateway) nextStreamline(
 			"namespace": "inputs", "name": "source", "revision": nil,
 		}), "tool_calls", model, nil
 	case 2:
-		data, found := lastStringValue(request, "dataBase64")
+		data, found := lastStringValue(request, "text")
 		if !found || data == "" {
 			return nil, "", "", errors.New("streamline Worker did not observe input bytes")
 		}
-		return toolCallMessage("streamline-write", "write_artifact", map[string]any{
-			"namespace": "builder", "name": "copied", "media_type": "text/plain",
-			"data_base64": data, "expected_revision": nil,
+		return toolCallMessage("streamline-write", "write_text_artifact", map[string]any{
+			"name": "copied", "media_type": "text/plain",
+			"text": e2eReport, "expected_revision": nil,
 		}), "tool_calls", model, nil
 	case 3:
 		_, found := lastExactArtifact(request, "builder", "copied")
@@ -285,7 +287,7 @@ func (g *modelGateway) nextStreamline(
 			return nil, "", "", errors.New("streamline Worker did not observe output revision")
 		}
 		return map[string]any{
-			"role": "assistant", "content": "streamline Worker copied the source",
+			"role": "assistant", "content": "streamline Worker authored the report",
 		}, "stop", model, nil
 	default:
 		return nil, "", "", errors.New("streamline Worker exceeded its script")
@@ -634,7 +636,7 @@ func requestHasNoModelTools(request map[string]any) bool {
 
 func expectedResultFinalizerCandidate(result string) bool {
 	switch result {
-	case "streamline Worker copied the source",
+	case "streamline Worker authored the report",
 		"Dependency inventory published",
 		"Project inventory published",
 		"OpenAPI candidate built and validated",

@@ -36,6 +36,7 @@ var contractsImporters = map[string][]string{
 	"internal/operations/memorysnapshot":          {"ArtifactRef", "APIVersion"},
 	"internal/operations/publishfindings":         {"ArtifactRef", "APIVersion", "TerminationError"},
 	"internal/operations/openapiwork":             {"ArtifactRef", "APIVersion"},
+	"internal/operations/artifactcopy":            {"ArtifactRef", "APIVersion"},
 	"internal/configload/configloadtest":          {"ResolvedAgentTemplate"},
 	"internal/operations":                         {"ArtifactRef", "ValidResourceID"},
 	"internal/operations/sitemapjoin":             {"ArtifactRef", "APIVersion"},

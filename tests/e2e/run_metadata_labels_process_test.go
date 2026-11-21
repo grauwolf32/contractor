@@ -306,7 +306,7 @@ func metadataRunBody(
 	labels map[string]string,
 ) map[string]any {
 	body := map[string]any{
-		"workflow": "artifact-copy@1", "parameters": map[string]string{},
+		"workflow": "artifact-report-fixture@1", "parameters": map[string]string{},
 		"artifacts":     map[string]artifactRef{"source": input},
 		"runtimeLabels": append([]string(nil), runtimeLabels...),
 	}
@@ -436,7 +436,7 @@ func assertMetadataRunResult(
 	}
 	var result stageresult.StageContentResult
 	if err := json.Unmarshal(status.Attempts[0].Result, &result); err != nil ||
-		result.Outcome != stageresult.StageSucceeded || result.Summary != "Source artifact copied byte-for-byte" {
+		result.Outcome != stageresult.StageSucceeded || result.Summary != "Source inspected and report authored" {
 		t.Fatalf("metadata Run Worker result = (%+v, %v)", result, err)
 	}
 	output, ok := status.Outputs["result"]
@@ -446,7 +446,7 @@ func assertMetadataRunResult(
 	payload, mediaType := download(
 		t, client, baseURL+"/v1/runs/"+url.PathEscape(status.RunID)+"/outputs/result",
 	)
-	if string(payload) != e2eInput || mediaType != e2eMediaType {
+	if string(payload) != e2eReport || mediaType != e2eMediaType {
 		t.Fatalf("metadata Run output = (%q, %q)", payload, mediaType)
 	}
 }

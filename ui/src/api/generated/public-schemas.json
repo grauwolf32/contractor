@@ -11689,6 +11689,7 @@
         "ref": {
           "type": "string",
           "enum": [
+            "artifact-copy@1",
             "sitemap-openapi-join@1",
             "sitemap-apply-openapi@1",
             "openapi-prepare-work@1",

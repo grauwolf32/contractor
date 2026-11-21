@@ -49,8 +49,8 @@ The current user-facing Workflow set is:
 - `audit-openapi-nuclei-scan@1` and `audit-openapi-sqlmap-scan@1` for the
   `openapi-nuclei-scan@1` and `openapi-sqlmap-scan@1` AuditProfiles;
 - `project-facts-extract@4` for optional observation selection from an exact Memory snapshot, using one passthrough Worker and common record_fact;
-- `artifact-copy@2` as the ordinary artifact smoke fixture;
-- `podman-python-check@2` as the explicitly selected offline Podman execution fixture.
+- `artifact-copy@3` as a deterministic Server copy over an exact source, without a Worker;
+- `podman-python-check@3` as the explicitly selected offline Podman execution fixture.
 
 The passthrough stages of the workspace and analysis-based OpenAPI/LikeC4
 Workflows, security analysis, taint tracing and both findings-review Workflows
@@ -149,8 +149,8 @@ hydrated sources. An unchanged Stage therefore exports an identity state and
 empty diff. These are internal lineage artifacts retained for future explicit
 Workflow composition; no join behavior or implicit workspace sharing exists.
 
-`podman-python-check@2` is a separate opt-in **direct** workspace example. It
-selects `podman_python_fixer@2`, fixes a small offline Python fixture and publishes
+`podman-python-check@3` is a separate opt-in **direct** workspace example. It
+selects `podman_python_fixer@3`, fixes a small offline Python fixture and publishes
 only an explicitly written JSON report. It neither exports nor imports overlay
 state, mounts Skills nor downloads packages. See the [local Podman setup and
 source ZIP recipe](../runtime/README.md#local-podman-workflow). Existing agents

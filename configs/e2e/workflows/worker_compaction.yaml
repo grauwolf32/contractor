@@ -32,7 +32,7 @@ spec:
     compact:
       objective: Exercise Workflow-selected Worker context compaction
       instructions:
-        ref: instructions/copy-planner.md
+        ref: instructions/report-planner.md
       planner: passthrough@1
       agents:
         builder:

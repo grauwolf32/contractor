@@ -3,7 +3,6 @@
 package e2e
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -179,7 +178,7 @@ func (g *routingGateway) next(
 		"add_subtask", "execute_current_subtask", "finish", "get_worker_tool_usage", "list_subtasks",
 	}
 	if worker {
-		wantTools = []string{"read_artifact", "write_artifact"}
+		wantTools = []string{"read_artifact", "write_text_artifact"}
 	}
 	if strings.HasPrefix(scenario, "observation-") {
 		wantTools = []string{
@@ -936,17 +935,17 @@ func routingWorkerResponse(
 		if !ok || data == "" {
 			return nil, "", "", fmt.Errorf("%s did not observe read_artifact bytes", scenario)
 		}
-		return toolCallMessage(scenario+"-write", "write_artifact", map[string]any{
-			"namespace": namespace, "name": "copied", "media_type": "text/plain",
-			"data_base64": base64.StdEncoding.EncodeToString([]byte(data)), "expected_revision": nil,
-		}), "tool_calls", "write_artifact", nil
+		return toolCallMessage(scenario+"-write", "write_text_artifact", map[string]any{
+			"name": "copied", "media_type": "text/plain",
+			"text": e2eReport, "expected_revision": nil,
+		}), "tool_calls", "write_text_artifact", nil
 	case 3:
 		_, ok := lastExactArtifact(request, namespace, "copied")
 		if !ok {
 			return nil, "", "", fmt.Errorf("%s did not observe write_artifact revision", scenario)
 		}
 		return map[string]any{
-			"role": "assistant", "content": scenario + " copied the source",
+			"role": "assistant", "content": scenario + " authored the report",
 		}, "stop", "<final>", nil
 	default:
 		return nil, "", "", fmt.Errorf("%s exceeded its three-call script", scenario)

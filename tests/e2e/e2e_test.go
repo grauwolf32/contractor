@@ -37,6 +37,7 @@ import (
 
 const (
 	e2eInput        = "contractor-e2e-input\n"
+	e2eReport       = "Source inspected; report authored.\n"
 	e2eMediaType    = "text/plain"
 	publicToken     = "contractor-e2e-public-token"
 	llmGatewayToken = "contractor-e2e-gateway-token"
@@ -236,8 +237,8 @@ func TestLocalGoToPythonArtifactCopy(t *testing.T) {
 	}
 
 	data, mediaType := download(t, publicClient, publicBaseURL+"/v1/runs/"+url.PathEscape(runID)+"/outputs/result")
-	if string(data) != e2eInput || mediaType != e2eMediaType {
-		t.Fatalf("output = (%q, %q), want (%q, %q)", data, mediaType, e2eInput, e2eMediaType)
+	if string(data) != e2eReport || mediaType != e2eMediaType {
+		t.Fatalf("output = (%q, %q), want (%q, %q)", data, mediaType, e2eReport, e2eMediaType)
 	}
 	originalURL := publicBaseURL + "/v1/artifacts/projects/source?revision=" + url.QueryEscape(*uploaded.Revision)
 	original, originalMediaType := download(t, publicClient, originalURL)
@@ -315,7 +316,7 @@ func uploadInput(t *testing.T, client *http.Client, baseURL string) artifactRef 
 }
 
 func createRun(t *testing.T, client *http.Client, baseURL string, input artifactRef) string {
-	return createWorkflowRun(t, client, baseURL, "artifact-copy@1", "e2e-create-run", input)
+	return createWorkflowRun(t, client, baseURL, "artifact-report-fixture@1", "e2e-create-run", input)
 }
 
 func createWorkflowRun(
@@ -483,12 +484,12 @@ func assertDurableExecution(
 		got  *int64
 		want int64
 	}{
-		"llm_calls":      {workerMetrics.ModelCalls, 4},
-		"input_tokens":   {workerMetrics.InputTokens, 28},
-		"output_tokens":  {workerMetrics.OutputTokens, 12},
-		"total_tokens":   {workerMetrics.TotalTokens, 40},
-		"read_artifact":  {workerMetrics.Tools["read_artifact"].Calls, 1},
-		"write_artifact": {workerMetrics.Tools["write_artifact"].Calls, 1},
+		"llm_calls":           {workerMetrics.ModelCalls, 4},
+		"input_tokens":        {workerMetrics.InputTokens, 28},
+		"output_tokens":       {workerMetrics.OutputTokens, 12},
+		"total_tokens":        {workerMetrics.TotalTokens, 40},
+		"read_artifact":       {workerMetrics.Tools["read_artifact"].Calls, 1},
+		"write_text_artifact": {workerMetrics.Tools["write_text_artifact"].Calls, 1},
 	}
 	for key, counter := range wantCounters {
 		if counter.got == nil || *counter.got != counter.want {

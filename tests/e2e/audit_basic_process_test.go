@@ -150,7 +150,7 @@ type basicTask struct {
 func basicCopyStage() domainGatewayStage { return artifactCopyGatewayStage("basic-copy") }
 
 func basicConclusionStage(withFinding bool) domainGatewayStage {
-	stage := domainGatewayStage{name: "basic-check", tools: []string{"list_artifacts", "read_artifact", "write_artifact", "finding", "read_file", "read_audit_task", "submit_check_result"}, steps: []domainGatewayStep{
+	stage := domainGatewayStage{name: "basic-check", tools: []string{"list_artifacts", "read_artifact", "write_text_artifact", "finding", "read_file", "read_audit_task", "submit_check_result"}, steps: []domainGatewayStep{
 		toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
 		toolGatewayStep("read_artifact", fixedArguments(map[string]any{"namespace": "inputs", "name": "material", "revision": nil})),
 		toolGatewayStep("read_file", fixedArguments(map[string]any{"path": "app.py", "start_line": 1, "max_lines": 100})),
@@ -281,11 +281,11 @@ func basicTaskArtifact(t *testing.T, h *findingsHarness, auditID string, task ba
 func installBasicAuditProgram(t *testing.T, root string) {
 	t.Helper()
 	// Source ZIP is ordinary input/output material, never an Audit task package.
-	copyWorkflow, err := os.ReadFile(filepath.Join(root, "workflows", "artifact_copy_v2_memory.yaml"))
+	copyWorkflow, err := os.ReadFile(filepath.Join(root, "workflows", "artifact_report_memory.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	copyText := strings.Replace(string(copyWorkflow), "name: artifact-copy", "name: basic-copy", 1)
+	copyText := strings.Replace(string(copyWorkflow), "name: artifact-report-memory-fixture", "name: basic-copy", 1)
 	copyText = strings.Replace(copyText, "version: \"2\"", "version: \"1\"", 1)
 
 	files := map[string]string{"instructions/basic-process-checker.md": "Read the assigned Audit tasks, inspect selected source and record each check with exact evidence. Publish an evidenced problem with finding; finish after all assigned results are recorded.\n", "workflows/basic_copy.yaml": copyText, "agent-templates/basic_check.yaml": basicCheckTemplate, "workflows/basic_check.yaml": basicCheckWorkflow, "audit-profiles/basic_process.yaml": basicProcessProgram}
@@ -304,7 +304,8 @@ spec:
   runtime: adk@1
   instructions: {ref: instructions/basic-process-checker.md}
   toolsets:
-    - {ref: run-artifacts@1, tools: [list_artifacts, read_artifact, write_artifact]}
+    - {ref: run-artifacts@1, tools: [list_artifacts, read_artifact]}
+    - {ref: text-artifacts@1, tools: [write_text_artifact]}
     - {ref: security-findings-code@1, tools: [finding]}
     - {ref: filesystem@1, tools: [read_file]}
     - {ref: audit-results@2, tools: [read_audit_task, submit_check_result]}

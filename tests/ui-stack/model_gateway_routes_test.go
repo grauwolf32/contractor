@@ -16,7 +16,7 @@ func TestBrowserGatewayGeneratedModelRoutes(t *testing.T) {
 			tools := withMemoryTools([]string{"add_subtask", "execute_current_subtask", "finish", "get_worker_tool_usage", "list_subtasks"})
 			marker := streamlineGlobalMarker
 			if role == "worker" {
-				tools = withMemoryTools([]string{"list_artifacts", "read_artifact", "write_artifact"})
+				tools = withMemoryTools([]string{"list_artifacts", "read_artifact", "write_text_artifact"})
 				marker = streamlineWorkerMarker
 			}
 			declarations := make([]any, 0, len(tools))

@@ -256,7 +256,7 @@ func (g *sharedMemoryGateway) sharedMemoryScenario(modelName, payload string) (s
 		}
 	}
 	if g.workerModel != "" && modelName == g.workerModel {
-		if strings.Contains(payload, "Copy the source artifact into the declared result artifact") {
+		if strings.Contains(payload, "Inspect the source and author the requested report") {
 			return "production-copy-worker", true, nil
 		}
 		for marker, scenario := range map[string]string{
@@ -840,7 +840,7 @@ func validateSharedMemoryTools(request map[string]any, scenario string, worker, 
 	}
 	if production {
 		if worker {
-			want = []string{"append_memory", "list_artifacts", "list_memories", "list_memory_tags", "read_artifact", "read_memory", "search_memory", "write_artifact", "write_memory"}
+			want = []string{"append_memory", "list_artifacts", "list_memories", "list_memory_tags", "read_artifact", "read_memory", "search_memory", "write_text_artifact", "write_memory"}
 		} else {
 			want = append(want, "search_memory", "list_memory_tags")
 			sort.Strings(want)

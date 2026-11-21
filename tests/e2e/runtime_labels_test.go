@@ -220,7 +220,7 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 
 	// No labels resolves only the built-in empty patch and therefore preserves
 	// the authored Workflow executionConfig and direct Gateway behavior.
-	baseline := operations.createRun("artifact-copy@1", "runtime-label-baseline", uploaded, nil)
+	baseline := operations.createRun("artifact-report-fixture@1", "runtime-label-baseline", uploaded, nil)
 	baselineStatus := waitForRunAcross(
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, baseline.RunID,
 	)
@@ -262,7 +262,7 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 	)
 	updatedPrincipal := operations.replacePrincipalLabels(telemetryPrincipal, []string{"agent-debug"})
 
-	debug := operations.createRun("artifact-copy@1", "runtime-label-debug-agent", uploaded, []string{"debug"})
+	debug := operations.createRun("artifact-report-fixture@1", "runtime-label-debug-agent", uploaded, []string{"debug"})
 	debugStatus := waitForRunAcross(
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, debug.RunID,
 	)
@@ -282,7 +282,7 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 	// Delivery failure remains telemetry-only and the same physical slot is
 	// released for later work.
 	runCollector.setReject(true)
-	failedExport := operations.createRun("artifact-copy@1", "runtime-label-debug-failed-export", uploaded, []string{"debug"})
+	failedExport := operations.createRun("artifact-report-fixture@1", "runtime-label-debug-failed-export", uploaded, []string{"debug"})
 	failedExportStatus := waitForRunAcross(
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, failedExport.RunID,
 	)
@@ -315,7 +315,7 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 		}},
 	})
 	operations.createRuntimeLabel("caido", caidoOld)
-	pinnedOld := operations.createRun("artifact-copy@1", "runtime-label-caido-old", uploaded, []string{"caido"})
+	pinnedOld := operations.createRun("artifact-report-fixture@1", "runtime-label-caido-old", uploaded, []string{"caido"})
 	oldProxy.waitForFirstRequest(t, ctx)
 	oldAllocation := onlyRunAllocation(t, ctx, store, pinnedOld.RunID)
 	foreignIdentity := telemetryIdentity
@@ -338,7 +338,7 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 	}
 	gateway.ResetScenario()
 
-	pinnedNew := operations.createRun("artifact-copy@1", "runtime-label-caido-new", uploaded, []string{"caido"})
+	pinnedNew := operations.createRun("artifact-report-fixture@1", "runtime-label-caido-new", uploaded, []string{"caido"})
 	newStatus := waitForRunAcross(
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, pinnedNew.RunID,
 	)
@@ -365,7 +365,7 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 	})
 	operations.createRuntimeLabel("caido-refused", refused)
 	refusedRun := operations.createRun(
-		"artifact-copy@1", "runtime-label-caido-refused", uploaded, []string{"caido-refused"},
+		"artifact-report-fixture@1", "runtime-label-caido-refused", uploaded, []string{"caido-refused"},
 	)
 	refusedStatus := waitForRunStateAcross(
 		t, ctx, server, runtimes, publicClient, publicBaseURL, refusedRun.RunID, "waiting",
@@ -391,7 +391,7 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 	// run only on the OTLP specialist and caido only on the proxy specialist.
 	runCollector.setReject(false)
 	reuseTelemetry := operations.createRun(
-		"artifact-copy@1", "runtime-label-reuse-telemetry", uploaded, []string{"debug"},
+		"artifact-report-fixture@1", "runtime-label-reuse-telemetry", uploaded, []string{"debug"},
 	)
 	if status := waitForRunAcross(
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, reuseTelemetry.RunID,
@@ -403,7 +403,7 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 	}
 	gateway.ResetScenario()
 	reuseProxy := operations.createRun(
-		"artifact-copy@1", "runtime-label-reuse-proxy", uploaded, []string{"caido"},
+		"artifact-report-fixture@1", "runtime-label-reuse-proxy", uploaded, []string{"caido"},
 	)
 	if status := waitForRunAcross(
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, reuseProxy.RunID,

@@ -63,13 +63,13 @@ def test_finding_rejects_invalid_types_and_unicode_with_repair(field, value):
 
 
 @pytest.mark.parametrize("payload", [None, 12, {}, [], "%%%", "\ud800", "Zh=="])
-def test_artifact_write_rejects_noncanonical_base64_without_write(payload):
+def test_artifact_write_requires_an_available_source_file(payload):
     async def scenario():
         client, metrics = FakeArtifactClient(), MetricsState()
         tool = WriteArtifactTool(client, metrics, ())
         with pytest.raises(ToolInputError) as caught:
-            await tool("worker", "artifact", "application/octet-stream", payload)
-        assert_repair(caught.value, "data_base64", metrics)
+            await tool("worker", "artifact", payload, "application/octet-stream")
+        assert_repair(caught.value, "source_path", metrics)
         assert client.write_calls == 0
 
     asyncio.run(scenario())

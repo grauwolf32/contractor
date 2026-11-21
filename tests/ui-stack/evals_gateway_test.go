@@ -96,13 +96,13 @@ func managedEvalGatewayMessage(request map[string]any) (map[string]any, string, 
 		if !completed["read_artifact"] {
 			return call("read_artifact", map[string]any{"namespace": "inputs", "name": "source", "revision": nil})
 		}
-		if !completed["write_artifact"] {
-			data, found := lastStringValue(request, "dataBase64")
+		if !completed["write_text_artifact"] {
+			_, found := lastStringValue(request, "text")
 			if !found {
 				return nil, "", model, errors.New("Workflow source bytes missing")
 			}
-			return call("write_artifact", map[string]any{"namespace": "builder", "name": "copied",
-				"media_type": "text/plain", "data_base64": data, "expected_revision": nil})
+			return call("write_text_artifact", map[string]any{"name": "copied",
+				"media_type": "text/plain", "text": e2eReport, "expected_revision": nil})
 		}
 	}
 	return map[string]any{"role": "assistant", "content": managedEvalWorkerSummary}, "stop", model, nil
@@ -136,7 +136,7 @@ func stageManagedEvalConfiguration(t *testing.T, root, target string) {
 		}
 	}
 	for _, arm := range []string{"a", "b"} {
-		copyVariant("configs/e2e/workflows/artifact_copy.yaml", "workflows", "artifact-copy", "eval-copy-"+arm)
+		copyVariant("configs/e2e/workflows/artifact_report.yaml", "workflows", "artifact-report-fixture", "eval-copy-"+arm)
 		// Keep the current Program's two-assertion batch, including both exact
 		// item results in the ordinary Audit-owned child Run.
 		copyVariant("configs/audit-profiles/source_checklist.yaml", "audit-profiles", "source-checklist", "eval-audit-"+arm)

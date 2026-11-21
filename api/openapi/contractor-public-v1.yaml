@@ -17559,7 +17559,7 @@ components:
       additionalProperties: false
       required: [ref, arguments]
       properties:
-        ref: {type: string, enum: [sitemap-openapi-join@1, sitemap-apply-openapi@1, openapi-prepare-work@1, publish-findings@1, memory-snapshot@1]}
+        ref: {type: string, enum: [artifact-copy@1, sitemap-openapi-join@1, sitemap-apply-openapi@1, openapi-prepare-work@1, publish-findings@1, memory-snapshot@1]}
         arguments:
           type: object
           maxProperties: 32

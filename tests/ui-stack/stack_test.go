@@ -892,7 +892,7 @@ func adaptUIStackCopyWorkflow(t *testing.T, source []byte) []byte {
 		t.Fatal("UI copy fixture must select exactly one worker@1 policy")
 	}
 	result := bytes.ReplaceAll(source, []byte("modelPolicy: planner@1"), []byte("modelPolicy: planner@2"))
-	result = bytes.ReplaceAll(result, []byte("artifact_builder@1"), []byte("artifact_builder@2"))
+	result = bytes.ReplaceAll(result, []byte("artifact_builder@4"), []byte("artifact_builder@3"))
 	// Template v2 has a terminal summarizer. Keep its original summarizer@1
 	// selection explicit now that Workflows own all model selections.
 	return bytes.Replace(result, workerPolicy,

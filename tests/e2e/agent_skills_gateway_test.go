@@ -4,7 +4,6 @@ package e2e
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -67,22 +66,22 @@ func renameGatewayStage(stage domainGatewayStage, name string) domainGatewayStag
 
 func artifactCopyGatewayStage(name string) domainGatewayStage {
 	return domainGatewayStage{
-		name: name, tools: withMemoryTools([]string{"list_artifacts", "read_artifact", "write_artifact"}),
+		name: name, tools: withMemoryTools([]string{"list_artifacts", "read_artifact", "write_text_artifact"}),
 		steps: []domainGatewayStep{
 			toolGatewayStep("read_artifact", fixedArguments(map[string]any{
 				"namespace": "inputs", "name": "source", "revision": nil,
 			})),
-			toolGatewayStep("write_artifact", func(request map[string]any) (map[string]any, error) {
+			toolGatewayStep("write_text_artifact", func(request map[string]any) (map[string]any, error) {
 				data, ok := lastStringValue(request, "text")
 				if !ok || data == "" {
 					return nil, errors.New("copy input was not returned by read_artifact")
 				}
 				return map[string]any{
-					"namespace": "builder", "name": "copied", "media_type": "text/plain",
-					"data_base64": base64.StdEncoding.EncodeToString([]byte(data)), "expected_revision": nil,
+					"name": "copied", "media_type": "text/plain",
+					"text": e2eReport, "expected_revision": nil,
 				}, nil
 			}),
-			finalGatewayStep("Source artifact copied", map[string]domainArtifactBinding{
+			finalGatewayStep("Source report authored", map[string]domainArtifactBinding{
 				"copied": {namespace: "builder", name: "copied"},
 			}),
 		},

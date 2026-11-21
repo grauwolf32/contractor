@@ -27,13 +27,13 @@ spec:
   entryStage: copy
   stages:
     copy:
-      objective: Copy the source artifact byte-for-byte into the declared result artifact
+      objective: Inspect the source and author the declared report
       instructions:
-        ref: instructions/copy-planner.md
+        ref: instructions/report-planner.md
       planner: passthrough@1
       agents:
         builder:
-          template: capability_copy_builder@1
+          template: capability_copy_builder@2
       context:
         artifacts:
           source:

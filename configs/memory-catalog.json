@@ -2,9 +2,9 @@
   "schema_version": 2,
   "templates": [
     {
-      "active": "artifact_builder@2",
+      "active": "artifact_builder@3",
       "active_file": "configs/agent-templates/artifact_builder_v2_memory.yaml",
-      "retired": "artifact_builder@1"
+      "retired": "artifact_builder@2"
     },
     {
       "active": "audit_asvs_source_verifier@1",
@@ -103,11 +103,6 @@
     }
   ],
   "workflows": [
-    {
-      "active": "artifact-copy@2",
-      "active_file": "configs/workflows/artifact_copy_v2_memory.yaml",
-      "retired": "artifact-copy@1"
-    },
     {
       "active": "audit-asvs-source-verification@1",
       "active_file": "configs/workflows/audit_asvs_source_verification.yaml",

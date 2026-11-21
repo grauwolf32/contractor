@@ -766,7 +766,7 @@ func assertRoutingOutput(
 	data, mediaType := download(
 		t, client, baseURL+"/v1/runs/"+url.PathEscape(runID)+"/outputs/result",
 	)
-	if string(data) != e2eInput || mediaType != e2eMediaType {
+	if string(data) != e2eReport || mediaType != e2eMediaType {
 		t.Fatalf("Run %s output = (%q, %q), want exact input", runID, data, mediaType)
 	}
 	var frozen bool

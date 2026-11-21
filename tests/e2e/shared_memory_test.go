@@ -218,7 +218,7 @@ func runSharedMemoryProcesses(t *testing.T, production bool) {
 			t.Fatalf("Memory replaced domain output: %+v", status.Outputs)
 		}
 		data, mediaType := download(t, publicClient, publicBaseURL+"/v1/runs/"+url.PathEscape(runID)+"/outputs/result")
-		if string(data) != e2eInput || mediaType != e2eMediaType {
+		if string(data) != e2eReport || mediaType != e2eMediaType {
 			t.Fatalf("production domain output = %q (%s)", data, mediaType)
 		}
 		assertPersistedMemory(t, ctx, pool, runID, "builder", "copy_progress", "", []string{}, []string{"Input inspected; produce the declared copied artifact"})

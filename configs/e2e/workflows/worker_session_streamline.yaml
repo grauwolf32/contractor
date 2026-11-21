@@ -25,7 +25,7 @@ spec:
     isolated:
       objective: SESSION_MODE_STREAMLINE_ISOLATED_STAGE
       instructions:
-        ref: instructions/copy-planner.md
+        ref: instructions/report-planner.md
       planner: streamline@1
       agents:
         builder:
@@ -45,7 +45,7 @@ spec:
     after:
       objective: SESSION_MODE_STREAMLINE_AFTER_STAGE
       instructions:
-        ref: instructions/copy-planner.md
+        ref: instructions/report-planner.md
       planner: streamline@1
       agents:
         builder:

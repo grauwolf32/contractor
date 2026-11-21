@@ -118,7 +118,7 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
           builder: {compactorModelPolicy: worker_compactor@1}
     workers:`, 1)
 		text = strings.Replace(text, "planner: passthrough@1", "planner: router@1", 1)
-		text = strings.Replace(text, "      agents:\n        builder:", "      agents:\n        observer: {template: artifact_builder@1}\n        builder:", 1)
+		text = strings.Replace(text, "      agents:\n        builder:", "      agents:\n        observer: {template: artifact_builder@4}\n        builder:", 1)
 		if err := os.WriteFile(path, []byte(text), 0600); err != nil {
 			t.Fatal(err)
 		}
