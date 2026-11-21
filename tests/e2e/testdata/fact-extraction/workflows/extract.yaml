@@ -44,7 +44,7 @@ spec:
       instructions: {ref: instructions/fact-extractor-v1.md}
       planner: passthrough@1
       agents:
-        extractor: {template: fact_extractor@1, namespace: facts}
+        extractor: {template: fact_extractor@2, namespace: facts}
       context:
         artifacts:
           memories: {namespace: snapshot, name: selected-notes, required: true}
