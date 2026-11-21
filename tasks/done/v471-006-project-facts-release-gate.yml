@@ -5,7 +5,7 @@ milestone: project-facts-2026-11
 epic: quality
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V471-005, V471-010, V471-011, V471-012, V471-013]
 languages: [go, python, typescript, yaml, markdown]
 goal: >-
@@ -68,6 +68,7 @@ context:
     sources; purging B must release its registry while keeping the Project fact.
     This adds integration evidence only, with no reverse index or domain store.
   proposal: docs/proposals/0055-project-facts-through-findings.md
+  evidence: tasks/evidence/v471-006-20261121.json
   specification:
     - docs/spec/findings/findings.md
     - docs/spec/tools/memory.md
@@ -157,3 +158,12 @@ test_prerequisites:
   - Real PostgreSQL and Server/Runtime processes are required; unset infrastructure produces unproven coverage, not acceptance.
   - Heavy-I/O fixtures remain explicit opt-in and disabled skips are not passes. Never enable the flag implicitly.
   - Use one disposable database, stop all processes/pools, then drop it and remove only owned test resources; no global prune/reset.
+
+implementation_commit: 3bcb633263db50ae7542b664f22053d9f366f26d
+verification:
+  - Full findingintake integration passed on real PostgreSQL (92.624 s), including the new Audit A/B memory-source lifecycle regression. The focused process extraction also verifies a public one-receipt collection ZIP against original memory bytes.
+  - The required focused Facts, snapshot and UI targets passed together; the shared process suite executed 23 required cases (571.818 s), alongside 294 Runtime Finding cases, the frozen Eval recipe and sixteen browser cases.
+  - Full make -k release-verify passed on 74558b83b049eb7c12772cfde2b352fb2b487f56: process shards 19/16/24 roots without skips, real PostgreSQL, both race groups, complete Runtime/UI suites, shared fixtures, catalog, generated clients, lint and build gates.
+  - Informational predicates, exact source selection, replay/fencing, partial/new-attempt publication, Audit/Run/Project deletion and bounded scale/pagination are covered through existing production paths. Semantic model quality and live cost are not measured by scripted traffic.
+  - The owned test database was dropped after zero remaining clients, its private PostgreSQL stopped/removed, and only its temporary tree removed. No container/network was created; protected primary files and modes remain unchanged. Detailed counts, skips and report hashes are in the evidence file.
+  - Final make lint passed after the acceptance metadata and diagram-document updates. Executable sources, contracts, shipped configs and tests still exactly match the successful full-release revision; the separate lint temporary directory was removed after all checks joined.
