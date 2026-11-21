@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -131,7 +132,7 @@ func (g *schedulerConcurrencyGateway) serveHTTP(w http.ResponseWriter, r *http.R
 		g.respond(w, request, toolCallMessage(
 			fmt.Sprintf("scheduler-write-%d", time.Now().UnixNano()), "write_artifact", map[string]any{
 				"namespace": "builder", "name": "copied", "media_type": "text/plain",
-				"data_base64": data, "expected_revision": nil,
+				"data_base64": base64.StdEncoding.EncodeToString([]byte(data)), "expected_revision": nil,
 			},
 		), "tool_calls")
 		return
