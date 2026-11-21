@@ -1,6 +1,6 @@
 schema_version: '1.0'
 id: V474-002
-title: Return bounded UTF-8 text when a Worker reads an artifact
+title: Serve bounded UTF-8 text through the common read_artifact tool
 milestone: runtime-artifact-cache-2026-10
 epic: projects-artifacts
 kind: feature
@@ -16,9 +16,9 @@ goal: A Worker can use an exact artifact as text immediately and continue a long
 demonstration: Use a configured Worker fixture with an exact revision, fetch a multibyte line across two
   bounded pages and recover its full text using only the returned continuation.
 context:
-  authority: User decision 2026-11-21 accepts removing base64 from model-facing artifact content. A common
-    read_artifact name for text and images was suggested. The initial text representation is independent
-    of image transport.
+  authority: User decision 2026-11-21 approves one model-facing read_artifact for text and images,
+    including delivery of images to vision-capable models. This task delivers the text path.
+    V474-005 extends that reader for images.
   specification:
   - docs/spec/artifacts/artifact-store.md#ART-R31
   - docs/spec/artifacts/artifact-store.md#ART-R117
@@ -27,13 +27,12 @@ context:
     already owns bounded line windows. Check artifact_builder@2, fact_extractor@1, the findings analysts,
     the hypothesis generator, and document@1 recovery allowlists in Go and Python. V2-001 recorded the
     earlier byte-tool contract.
-  decision_needed: User suggested a single reader. Recommend moving text consumers to read_artifact and
-    removing the redundant text reader in one versioned cutover. The smaller option changes only the byte-reader
-    result while retaining two selectable readers. Confirm consolidation before retiring the second export.
 scope:
   in:
   - Reuse the current text-window and exact-cache implementation. Return the exact ref, text and continuation.
-    Follow the outcome for the second reader in tool selection, recovery allowlists, profiles and prompts.
+    Migrate read_text_artifact callers to read_artifact and remove the redundant model-visible export.
+    Preserve each caller's read grants and selections when updating toolsets, recovery allowlists,
+    profiles and prompts. Retain write_text_artifact for text authoring.
   - Publish changed shipped manifests and instruction paths under fresh identities, repin dependent configurations
     and Eval fixtures, and validate the catalog lock. Update the owning specs in the same implementation.
   out:
@@ -66,8 +65,8 @@ acceptance_criteria:
     UTF-8 and binary metadata. Reject known unsupported binary media before payload download.
 - id: A3
   text: All selected readers and document recovery consumers agree in Runtime, Server, shipped catalog
-    and isolated tests. The chosen tool surface has a production caller and old config identities retain
-    their pins.
+    and isolated tests. Capture the selected Gateway declarations for a migrated fixture. It sees one
+    read_artifact and can resume the returned page using its exact ref. Catalog pins remain immutable.
 tests:
 - command: make test-runtime
   covers:
