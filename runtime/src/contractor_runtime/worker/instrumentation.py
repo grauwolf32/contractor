@@ -649,8 +649,11 @@ class WorkerInstrumentationPlugin(BasePlugin):
             if known:
                 capture_span_content(pending.span, input=lambda: tool_args)
             rejection = None
-            raw_argument_error = getattr(owner, "contractor_raw_argument_error", None)
-            if known and callable(raw_argument_error):
+            validators = (owner, tool) if tool is not owner else (owner,)
+            for validator in validators if known else ():
+                raw_argument_error = getattr(validator, "contractor_raw_argument_error", None)
+                if not callable(raw_argument_error):
+                    continue
                 try:
                     rejection = raw_argument_error(tool_args)
                 except asyncio.CancelledError:
@@ -663,6 +666,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     rejection = _RecordedToolFailure(
                         "tool_argument_validation_failed", retryable=False
                     )
+                if rejection is not None:
+                    break
             if rejection is not None:
                 pending.error = rejection
             await self._publish_locked(tool_context)

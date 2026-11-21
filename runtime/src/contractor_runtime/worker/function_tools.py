@@ -9,6 +9,9 @@ from types import UnionType
 from typing import Annotated, Any, Union, get_args, get_origin, get_type_hints
 
 from google.adk.tools import FunctionTool
+from google.genai import types
+
+from contractor_runtime.core.input_errors import ToolInputError
 
 
 class _LogicalToolContext:
@@ -43,6 +46,31 @@ class ContractorFunctionTool(FunctionTool):
         self._integer_parameters = _integer_parameters(func)
         self._logical_invocation_id = logical_invocation_id
 
+    def _get_declaration(self) -> types.FunctionDeclaration | None:
+        declaration = super()._get_declaration()
+        if declaration is None:
+            return None
+        schema = declaration.parameters_json_schema
+        if schema is None and declaration.parameters is not None:
+            schema = declaration.parameters.model_dump(by_alias=True, exclude_none=True)
+            declaration.parameters = None
+        if schema is not None:
+            _close_records(schema)
+            declaration.parameters_json_schema = schema
+        return declaration
+
+    def contractor_raw_argument_error(self, args: dict[str, Any]) -> ToolInputError | None:
+        declaration = self._get_declaration()
+        if declaration is None:
+            raise RuntimeError("selected callable has no declaration")
+        schema = declaration.parameters_json_schema or {"additionalProperties": False}
+        path = _unknown_field(args, schema, schema, "arguments")
+        if path is not None:
+            return ToolInputError(
+                f"{path} contains an undeclared field; use only declared arguments"
+            )
+        return None
+
     def _preprocess_args(self, args: dict[str, Any]) -> dict[str, Any]:
         original = {key: value for key, value in args.items() if key in self._integer_parameters}
         remaining = {key: value for key, value in args.items() if key not in original}
@@ -50,9 +78,63 @@ class ContractorFunctionTool(FunctionTool):
 
     async def run_async(self, *, args: dict[str, Any], tool_context: Any) -> Any:
         logical_id = self._logical_invocation_id(tool_context)
+        rejection = self.contractor_raw_argument_error(args)
+        if rejection is not None:
+            raise rejection
         return await super().run_async(
             args=args, tool_context=_LogicalToolContext(tool_context, logical_id)
         )
+
+
+def _close_records(schema: Any) -> None:
+    if not isinstance(schema, dict):
+        return
+    if schema.get("type") == "object" and "properties" in schema:
+        schema.setdefault("additionalProperties", False)
+    for value in schema.values():
+        if isinstance(value, dict):
+            _close_records(value)
+        elif isinstance(value, list):
+            for item in value:
+                _close_records(item)
+
+
+def _unknown_field(value: Any, schema: Any, root: dict[str, Any], path: str) -> str | None:
+    if not isinstance(schema, dict):
+        return None
+    if reference := schema.get("$ref"):
+        target: Any = root
+        for component in reference.removeprefix("#/").split("/"):
+            target = target[component.replace("~1", "/").replace("~0", "~")]
+        return _unknown_field(value, target, root, path)
+    for keyword in ("anyOf", "oneOf"):
+        if keyword in schema:
+            # Only object/array variants can contain unknown fields. A null
+            # variant must not let a supplied structured value bypass checks.
+            if not isinstance(value, dict | list):
+                return None
+            expected_type = "object" if isinstance(value, dict) else "array"
+            variants = [
+                option for option in schema[keyword] if option.get("type") in (None, expected_type)
+            ]
+            errors = [_unknown_field(value, option, root, path) for option in variants]
+            return next(iter(errors), None) if all(errors) else None
+    if isinstance(value, dict):
+        properties = schema.get("properties", {})
+        additional = schema.get("additionalProperties", True)
+        for key, item in value.items():
+            if key not in properties and additional is False:
+                return path
+            child = properties.get(key, additional)
+            # Paths use declaration-owned property names, never supplied keys.
+            child_path = f"{path}.{key}" if key in properties else path
+            if error := _unknown_field(item, child, root, child_path):
+                return error
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            if error := _unknown_field(item, schema.get("items"), root, f"{path}[{index}]"):
+                return error
+    return None
 
 
 def _integer_parameters(func: Callable[..., Any]) -> frozenset[str]:
