@@ -5,7 +5,7 @@ milestone: model-policy-runtime-correctness
 epic: planner-worker
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V474-002]
 languages: [python, go, typescript, yaml]
 goal: A Worker using a configured vision-capable model can inspect a supported image by reading its exact artifact.
@@ -98,3 +98,19 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A3]
+implementation_commit: af856f18bd4a847559b00c5913004efef7f8fc3c
+verification:
+  date: '2026-11-22'
+  result: >-
+    Full Runtime passed with warnings treated as errors: 6446 passed and 135 declared skips;
+    all 577 compaction cases passed. Image/policy/digest regressions passed 43 tests, and the
+    Gateway/conformance/proxy suites passed 76. The real Server/Runtime/PostgreSQL process
+    scenario passed in 37.383 seconds, verifying exact PNG bytes and decoded pixels and no
+    image download on an unconfirmed route. Real PostgreSQL Go packages, configuration,
+    API and cross-language wire checks passed (403 fixtures, 455 Go and 287 Python readers;
+    one optional heavy fixture skipped, not passing coverage). UI verification passed 228
+    files / 2581 tests plus one expected failure; 12 browser cases passed, including all
+    three capability values at 390 px in light/dark/black. Final lint kept all four import
+    contracts. The first Runtime run exposed outdated proxy fixtures; those are repaired
+    and the full run above passed. These are protocol-fixture results, not live model
+    quality or arbitrary Gateway compatibility. Combined full process acceptance is V474-010.
