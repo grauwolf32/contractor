@@ -6,7 +6,7 @@ epic: execution-core
 kind: defect
 introduced_by: V410-005
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: A deterministic domain conflict cannot request another attempt of the same Server operation.
@@ -38,3 +38,7 @@ tests:
   covers: [A1, A2, A3]
 - command: make lint
   covers: [A1, A2, A3]
+implementation_commit: a572233ce67edb8527f5c787354c3aad884a73ee
+verification:
+  date: '2026-11-22'
+  result: Registry regression tests and make lint passed. Real PostgreSQL copy collision and claim-fence scenarios also passed through dispatch while exercising V474-003.

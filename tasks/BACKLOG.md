@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-71 open tasks: 12 in progress, 46 pending, 13 deferred. 1627 finished: 1609 completed, 18 archived.
+70 open tasks: 11 in progress, 46 pending, 13 deferred. 1628 finished: 1610 completed, 18 archived.
 
 ## In progress
 
@@ -22,7 +22,6 @@ the epics are in [epics.yml](epics.yml).
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V474-002](v474-002-read-artifact-text-without-base64.yml) | projects-artifacts | feature | P1 | Serve bounded UTF-8 text through the common read_artifact tool |
 | [V474-003](v474-003-publish-artifact-bytes-without-model-encoding.yml) | projects-artifacts | feature | P1 | Publish existing workspace files by local reference |
-| [V474-009](v474-009-server-operation-conflicts.yml) | execution-core | defect | P1 | Keep Server operation domain conflicts permanent |
 
 ## Pending
 
@@ -162,7 +161,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 4 | 50 | 71 | 40 | 107 |
+| Run execution core (`execution-core`) | 3 | 50 | 71 | 40 | 107 |
 | Planners and the Worker model boundary (`planner-worker`) | 7 | 41 | 60 | 41 | 94 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
