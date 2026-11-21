@@ -5,15 +5,15 @@ milestone: project-facts-2026-11
 epic: ui
 kind: feature
 priority: P1
-status: pending
+status: completed
 depends_on: [V471-003]
-languages: [typescript, css, go, yaml, markdown]
+languages: [typescript, javascript, json, yaml, markdown]
 goal: >-
   Users can inspect informational Project Findings in the Facts view, filter
   the common records by severity, see their sources and select exact grounds
   for hypotheses without facing a global tangled graph.
 demonstration: >-
-  A Project has a technology fact with two sources, a note-derived inference and
+  A Project has a technology fact with two sources, a memory-derived inference and
   an informational security issue, a low-severity issue and a record of unknown
   severity. Facts shows the informational records from either facade. Needs review
   includes the unassessed low and unknown records. Opening a record shows
@@ -23,6 +23,10 @@ demonstration: >-
 context:
   execution_group: 2
   authority: >-
+    User decision 2026-11-21 resumes implementation and delivery into main after
+    the interface discussion. Preserve existing item_key/incidental semantics;
+    introduce no link_hypothesis parameter. Local request_id applies to ordinary
+    finding, HTTP finding and record_fact alike.
     User decisions 2026-11-20: provide a separate facts interface with the same
     Project Finding beneath it, include technology observations, preserve clarity
     and produce diagrams. Focused lists, exact-source navigation and bounded local
@@ -47,6 +51,29 @@ context:
     each executed in one continuous pass. The dependency-based allocation and
     group entry/exit rules live in the proposal; this task keeps its own acceptance,
     required checks and implementation commit. Grouping adds no functional scope.
+    Latest user request 2026-11-21 explicitly assigns implementation of group 2
+    (V471-003, V471-005, V471-006) in one continuous pass and merging into main.
+    This supersedes earlier planning-only restrictions for these tasks. Existing
+    Project requirements and evidence-only correlation remain unchanged; live
+    model calls, configured model changes and deployment remain unassigned.
+    Latest user decisions 2026-11-21 supersede mandatory quote/locator checks:
+    keep the model interface simple, let the model describe a fact in its own
+    words and select an existing memory by name, and attach the original memory
+    deterministically. Use the vocabulary memories and memory_name, not a new
+    notes API or note_name. Reuse common record_fact, without an extraction-only
+    creation facade. After pausing group 2 to discuss interfaces, the user explicitly resumes
+    implementation while preserving incidental and postponing the broader redesign.
+    The user also requests local request identifiers for HTTP/Caido and removal
+    of caido_request_id from finding and record_fact. V471-007 owns that separate
+    prerequisite; broader authoring-interface redesign is for later discussion.
+  reader_decision: >-
+    Agent implementation decision 2026-11-21: reuse the existing bounded Project
+    Finding reader and a fixed informational preset at /facts. Counts describe
+    loaded records; each explicit load reads at most five ordinary pages. The
+    Issues view retains the common severity filters. Opening a fact uses the same
+    canonical detail and exact Artifact reader. No new API or Fact discriminator.
+    Memory snapshots remain ordinary source previews with a reported-statement
+    annotation, without another parser, validation engine or source registry.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/ui/ui.md
@@ -76,14 +103,14 @@ requirements:
     text: >-
       Views use the shared V471-001 severity and needs-review projections with the
       canonical Finding identity. Facts includes every informational record. Show
-      producer suggestion separately from analyst assessment. Note-derived evidence
-      is labelled as a statement from notes. Unknown severity remains visible in
+      producer suggestion separately from analyst assessment. Memory-derived evidence
+      is labelled as a statement from memories. Unknown severity remains visible in
       needs review while unassessed. Authoritative severity changes update view
       membership and counts while preserving identity and exact sources.
   - id: R2
     text: >-
       Main navigation is list -> selected record -> existing submission history ->
-      exact evidence/citations. Display the canonical cards and source entries
+      original memories and exact evidence. Display the canonical cards and source entries
       actually returned by Server: equal evidence contents share one card, while
       independent source receipts retain their original titles/evidence. Use existing
       source counts and pages, without unique-material counters or grouping. An
@@ -140,3 +167,11 @@ tests:
 test_prerequisites:
   - Add the named browser target in this task with nonzero cases; scripted mocks do not replace the real process/storage acceptance in V471-006.
   - UI tests use testdata/fixtures and theme tokens; do not read the live configs tree outside permitted process suites.
+
+implementation_commit: 06c59b1d2881acdc11d1d874bc4dcc4ebb45ec1f
+verification:
+  - make ui-verify passed: 228 files, 2572 passing tests and one declared expected negative test, plus typecheck, format, lint, static-service tests and production build.
+  - make test-project-facts-ui passed 16 browser cases across Facts, independent sources and hypothesis versions, with no skips.
+  - make verify-public-api and make lint passed. No public contract or generated client was changed.
+  - The 10000-record fixture proves five 50-row pages per explicit load, canonical informational placement, low/unknown needs review, later analyst assessment, two paged source receipts, unavailable-source retry, exact memory revision and safe literal text.
+  - Inspected 390px black and 1440px light screenshots; all three themes at both widths passed overflow and accessible-control checks. The shared Issues suites passed again after the final copy change (83 tests); all 17 static-service tests passed.

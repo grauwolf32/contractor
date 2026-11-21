@@ -6,10 +6,11 @@ AllocationContext owns their lifetime; consumers receive this explicit bundle.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Protocol
 
+from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.telemetry.metrics import MetricsState
 from contractor_runtime.toolsets.common.artifact_read_cache import ExactArtifactReadCache
 from contractor_runtime.toolsets.common.execution import WorkerExecutionState
@@ -34,6 +35,7 @@ class ProposalCollector(Protocol):
 
 @dataclass(slots=True)
 class ToolResources:
+    invocation_artifacts: Mapping[str, ArtifactRef] = field(default_factory=dict)
     metrics: MetricsState = field(default_factory=MetricsState)
     execution: WorkerExecutionState = field(default_factory=WorkerExecutionState)
     artifact_read_cache: ExactArtifactReadCache = field(default_factory=ExactArtifactReadCache)

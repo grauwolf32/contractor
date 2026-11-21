@@ -14,6 +14,7 @@ from test_caido_read_tools import (
     FakeArtifactClient,
     close_tools,
     create_tools,
+    local_request,
     representative_responses,
     request_detail,
 )
@@ -192,7 +193,7 @@ def test_scope_replay_automate_and_workflow_actions_are_exact_and_bounded(
         assert f"X-Request-Id: {replay['request_tag']}\r\n".encode() in replay_submitted
 
         automate = await tools["caido_automate_run"](
-            "request-1",
+            local_request(tools, "request-1"),
             targets=["TARGET"],
             payloads=["recognizable-payload-one", "recognizable-payload-two"],
             strategy="ALL",
@@ -220,7 +221,9 @@ def test_scope_replay_automate_and_workflow_actions_are_exact_and_bounded(
         assert converted["output_truncated"] is True
         assert converted["output"].startswith("converted-")
         assert converted["output_artifact"]["name"].startswith(CAIDO_OUTPUT_ARTIFACT_PREFIX)
-        active = await tools["caido_workflow_run"]("workflow-active", request_id="request-1")
+        active = await tools["caido_workflow_run"](
+            "workflow-active", request_id=local_request(tools, "request-1")
+        )
         assert active["status"] == "started"
         assert active["task_id"] == "workflow-task"
 
@@ -433,11 +436,15 @@ def test_automate_rejects_limits_and_overlapping_targets_before_mutation(
             selected={"caido_automate_run"},
         )
         with pytest.raises(CaidoToolError) as too_many:
-            await tools["caido_automate_run"]("request-1", targets=["a"], payloads=["x"] * 1001)
+            await tools["caido_automate_run"](
+                local_request(tools, "request-1"), targets=["a"], payloads=["x"] * 1001
+            )
         assert too_many.value.code == "caido_request_invalid"
         assert observed == []
         with pytest.raises(CaidoToolError) as overlap:
-            await tools["caido_automate_run"]("request-1", targets=["abc", "bc"], payloads=["x"])
+            await tools["caido_automate_run"](
+                local_request(tools, "request-1"), targets=["abc", "bc"], payloads=["x"]
+            )
         assert overlap.value.code == "caido_request_invalid"
         assert observed == ["RequestDetail"]
         await handle.close()
@@ -508,7 +515,7 @@ def test_automate_accepts_maximum_matrix_with_tagged_utf8_byte_offsets(
             selected={"caido_automate_run"},
         )
         result = await tools["caido_automate_run"](
-            "request-1",
+            local_request(tools, "request-1"),
             targets=targets,
             payloads=payloads,
         )
@@ -576,7 +583,9 @@ def test_domain_rejection_is_bounded_and_mismatched_identity_is_invalid(
         )
         assert rejected == {"status": "rejected", "error_code": "InvalidGlobTerms"}
         with pytest.raises(CaidoToolError) as invalid:
-            await tools["caido_workflow_run"]("workflow", request_id="request-1")
+            await tools["caido_workflow_run"](
+                "workflow", request_id=local_request(tools, "request-1")
+            )
         assert invalid.value.code == "caido_response_invalid"
         assert calls == 3
         await handle.close()
@@ -639,7 +648,7 @@ def test_unlisted_user_error_types_are_rejections_not_invalid_responses(
         )
         assert (replay["status"], replay["error_code"]) == ("rejected", "FutureUserError")
         automate = await tools["caido_automate_run"](
-            "request-1", targets=["TARGET"], payloads=["one"]
+            local_request(tools, "request-1"), targets=["TARGET"], payloads=["one"]
         )
         assert (automate["status"], automate["error_code"]) == ("rejected", "FutureUserError")
         await handle.close()
@@ -762,10 +771,10 @@ def payload_handler(observed: list[str]) -> tuple[Any, dict[str, bytes]]:
     detail_request = b"GET /large HTTP/1.1\r\nHost: target.example\r\n" + GATEWAY_AUTHORIZATION
     detail_request += b"\r\n"
     large_response_blob = base64.b64encode(large_response).decode()
+    large_detail = request_detail(detail_request, large_response)
+    large_detail["id"] = "large-request"
     bodies = {
-        "large_detail": json.dumps(
-            {"data": {"request": request_detail(detail_request, large_response)}}
-        ).encode(),
+        "large_detail": json.dumps({"data": {"request": large_detail}}).encode(),
         "stored_detail": json.dumps(
             {"data": {"request": request_detail(STORED_REQUEST, b"HTTP/1.1 200 OK\r\n\r\n")}}
         ).encode(),
@@ -900,7 +909,7 @@ def payload_handler(observed: list[str]) -> tuple[Any, dict[str, bytes]]:
 
 def payload_call(path: str, tools: dict[str, Any]) -> Any:
     if path == "request_detail":
-        return tools["caido_request_detail"]("large-request")
+        return tools["caido_request_detail"](local_request(tools, "large-request"))
     if path == "replay":
         return tools["caido_replay"](
             raw_request=(
@@ -911,9 +920,11 @@ def payload_call(path: str, tools: dict[str, Any]) -> Any:
     if path == "workflow":
         return tools["caido_workflow_run"]("workflow-convert", input="convert this")
     if path == "replay_stored":
-        return tools["caido_replay"](request_id="request-1", wait=False)
+        return tools["caido_replay"](request_id=local_request(tools, "request-1"), wait=False)
     if path == "automate_run":
-        return tools["caido_automate_run"]("request-1", targets=["TARGET"], payloads=["one"])
+        return tools["caido_automate_run"](
+            local_request(tools, "request-1"), targets=["TARGET"], payloads=["one"]
+        )
     return tools["caido_automate_results"]("session-1")
 
 
@@ -930,7 +941,7 @@ async def assert_payload_result(
         assert result["response"]["raw"]["truncated"] is True
         assert "echo [REDACTED]" in result["response"]["raw"]["data"]
         assert "Authorization: [runtime-credential]" in result["raw"]["data"]
-        capture = (await state.resources.http_captures.get("caido", "request-1"))["attempts"][0]
+        capture = (await state.resources.http_captures.get("caido", "large-request"))["attempts"][0]
         message = capture["response"]["message"]["data_base64"]
         assert base64.b64decode(message) == response
         assert base64.b64decode(capture["request"]["message"]["data_base64"]) == scrubbed(

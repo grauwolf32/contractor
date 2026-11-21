@@ -1,0 +1,49 @@
+schema_version: "1.0"
+id: V471-008
+title: Repair process catalog fixtures after Project Finding catalog changes
+milestone: project-facts-2026-11
+epic: quality
+kind: chore
+introduced_by: V471-001
+priority: P1
+status: completed
+depends_on: [V471-001]
+languages: [go, markdown]
+goal: The existing process configuration gate loads its own Audit checker instruction and verifies the current shipped Planner continuation inventory.
+context:
+  authority: >-
+    User request 2026-11-21 resumes the second group and its delivery into main.
+    During required V471-007 hardening, two pre-existing configuration fixtures
+    fail before HTTP/Caido tests. This narrow prerequisite repairs the fixtures
+    without changing production behavior or widening the Findings design.
+  finding: >-
+    tests/e2e/audit_basic_process_test.go:305 and :330 select an instruction
+    removed by V471-001 commit 41fc498a72f6bb8ace9a566a8d012f8b0df42fbc.
+    tests/e2e/production_memory_configuration_test.go:185 expects 21 summarized
+    continuations while the shipped catalog contains 22. Reproduced through
+    make test-http-caido-hardening configuration checks.
+  siblings: >-
+    Both checker template and Stage instruction references are updated together;
+    the shared installer serves basic and prepared-256 Audit process fixtures.
+    Production catalog and immutable lock remain unchanged by this chore.
+scope:
+  in:
+    - Give the test-only basic checker an instruction owned by its existing installer.
+    - Reconcile the explicit Planner continuation count with the complete current catalog, retaining per-Stage policy checks.
+  out:
+    - Changing runtime tools, shipped Workflow behavior, catalog identities or live model selection.
+acceptance_criteria:
+  - id: A1
+    text: TestAuditCommonFixtureConfigurationLoads and TestProductionMemoryConfigurationStaging execute nonzero cases and pass on the actual staged and shipped catalogs.
+  - id: A2
+    text: Both basic checker references resolve to the test-owned resource; every shipped modeled Planner and continuation still validates the selected compact policy.
+tests:
+  - command: "go test -tags=e2e -count=1 ./tests/e2e -run '^(TestAuditCommonFixtureConfigurationLoads|TestProductionMemoryConfigurationStaging)$'"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+
+implementation_commit: 1997981f653eb553f8269e2a3239d838e7c06a80
+verification:
+  - Focused process configuration gate passed, including both required test roots.
+  - make lint passed on the combined V471-007 working tree; fixture repair changes no production behavior.

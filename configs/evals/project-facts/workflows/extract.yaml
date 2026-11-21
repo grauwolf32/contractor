@@ -1,0 +1,32 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: fact-extraction-audit-eval, version: "1"}
+spec:
+  parameters: {}
+  inputs:
+    memories: {required: true, mediaTypes: [application/json]}
+    context: {required: true, mediaTypes: [application/json]}
+  outputs:
+    result: {required: true, primary: true, mediaTypes: [application/json]}
+  executionConfig:
+    workers: {llmGateway: local-litellm@1, credential: development-worker, modelPolicy: worker@2}
+  entryStage: extract
+  stages:
+    extract:
+      objective: Select useful reported observations from the exact memories and record the assigned exploration
+      instructions: {ref: instructions/fact-extractor-audit-eval-v1.md}
+      planner: passthrough@1
+      agents:
+        extractor: {template: fact_extractor_audit_eval@1, namespace: facts}
+      context:
+        artifacts:
+          memories: {namespace: inputs, name: memories, required: true}
+          context: {namespace: inputs, name: context, required: true}
+      result:
+        artifacts:
+          result: {required: true, mediaTypes: [application/json], from: {namespace: facts, name: result}}
+      workflowOutputs: {result: result}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

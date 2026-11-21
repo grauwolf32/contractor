@@ -288,7 +288,7 @@ func installBasicAuditProgram(t *testing.T, root string) {
 	copyText := strings.Replace(string(copyWorkflow), "name: artifact-copy", "name: basic-copy", 1)
 	copyText = strings.Replace(copyText, "version: \"2\"", "version: \"1\"", 1)
 
-	files := map[string]string{"workflows/basic_copy.yaml": copyText, "agent-templates/basic_check.yaml": basicCheckTemplate, "workflows/basic_check.yaml": basicCheckWorkflow, "audit-profiles/basic_process.yaml": basicProcessProgram}
+	files := map[string]string{"instructions/basic-process-checker.md": "Read the assigned Audit tasks, inspect selected source and record each check with exact evidence. Publish an evidenced problem with finding; finish after all assigned results are recorded.\n", "workflows/basic_copy.yaml": copyText, "agent-templates/basic_check.yaml": basicCheckTemplate, "workflows/basic_check.yaml": basicCheckWorkflow, "audit-profiles/basic_process.yaml": basicProcessProgram}
 	for name, content := range files {
 		if err := os.WriteFile(filepath.Join(root, name), []byte(content), 0600); err != nil {
 			t.Fatal(err)
@@ -302,7 +302,7 @@ metadata: {name: basic_check, version: "1"}
 spec:
   description: Inspect selected exact source and record ordinary conclusions
   runtime: adk@1
-  instructions: {ref: instructions/audit-openapi-operation-tracer-worker.md}
+  instructions: {ref: instructions/basic-process-checker.md}
   toolsets:
     - {ref: run-artifacts@1, tools: [list_artifacts, read_artifact, write_artifact]}
     - {ref: security-findings-code@1, tools: [finding]}
@@ -327,7 +327,7 @@ spec:
   stages:
     check:
       objective: Inspect the exact selected source and record bounded exploration
-      instructions: {ref: instructions/audit-openapi-operation-tracer-worker.md}
+      instructions: {ref: instructions/basic-process-checker.md}
       planner: passthrough@1
       agents:
         checker: {template: basic_check@1, namespace: checker}

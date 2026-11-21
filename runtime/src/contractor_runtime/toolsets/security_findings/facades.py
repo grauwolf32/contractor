@@ -61,9 +61,8 @@ class GeneralFindingTool(_FindingFacade):
         title: Short non-empty finding title.
         description: Observation, impact, prerequisites and reproduction details.
         locations: Optional explicit source or web locations.
-        request_id: Optional recent http_request ID from this invocation.
-        caido_request_id: Optional Caido ID inspected in this invocation. Select
-            one HTTP source; selected exchanges are saved automatically.
+        request_id: Optional local HTTP/Caido request_id inspected in this invocation.
+            The selected captured exchange is saved automatically.
         cwe: Optional CWE-NNN weakness identifier from the pinned catalog.
         evidence_refs: Optional exact artifact references copied from tool output.
             With any selected exchange they total at most 64 MiB; a larger set
@@ -89,7 +88,6 @@ class GeneralFindingTool(_FindingFacade):
         tool_context: ToolContext,
         locations: list[Location] | None = None,
         request_id: LineNumber | None = None,
-        caido_request_id: str | None = None,
         cwe: str | None = None,
         evidence_refs: list[ExactEvidenceRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
@@ -111,7 +109,6 @@ class GeneralFindingTool(_FindingFacade):
             item_key=item_key,
             incidental=incidental,
             request_id=request_id,
-            caido_request_id=caido_request_id,
         )
 
 
@@ -128,8 +125,10 @@ class RecordFactTool(_FindingFacade):
         description: Observation, source quality, conditions and limitations.
         evidence_refs: Exact artifact references copied from tool output. At most four
             sources including a selected HTTP exchange; authored content is at most 32 KiB.
-        request_id: Optional recent HTTP request ID; saves its captured exchange.
-        caido_request_id: Optional inspected Caido ID, instead of request_id.
+        request_id: Optional local HTTP/Caido request ID; saves its captured exchange.
+        memory_name: Optional exact memory name from the assigned memories snapshot.
+            Attaches its complete original content, description and tags; no quotation
+            is required. Describe uncertainty and inference in your own words.
         item_key: Optional assigned Audit member key to retain Task origin.
         incidental: True retains Run/Audit origin without a hypothesis. Set false
             to derive the selected Task's exact hypothesis; batch tasks need item_key.
@@ -141,8 +140,8 @@ class RecordFactTool(_FindingFacade):
         description: str,
         tool_context: ToolContext,
         evidence_refs: list[ExactEvidenceRef] | None = None,
+        memory_name: str | None = None,
         request_id: LineNumber | None = None,
-        caido_request_id: str | None = None,
         item_key: str | None = None,
         incidental: bool = True,
     ) -> dict[str, Any]:
@@ -153,8 +152,8 @@ class RecordFactTool(_FindingFacade):
             context=tool_context,
             cwe=None,
             evidence_refs=evidence_refs,
+            memory_name=memory_name,
             request_id=request_id,
-            caido_request_id=caido_request_id,
             severity_suggestion="informational",
             _tool_name=self.name,
             item_key=item_key,
@@ -242,10 +241,8 @@ class HTTPFindingTool(_FindingFacade):
         description: Observations, impact, prerequisites and reproduction details.
         url: Absolute HTTP/HTTPS URL of the affected endpoint.
         method: Explicit HTTP method; no default method is inferred.
-        request_id: Optional ID returned by http_request in this invocation.
-        caido_request_id: Optional ID from caido_request_detail or a completed
-            caido_replay in this invocation. Select this or request_id; finding
-            saves the selected exchange automatically without sending traffic.
+        request_id: Optional local HTTP/Caido request_id inspected in this invocation.
+            Saves the selected captured exchange automatically without sending traffic.
         cwe: Optional CWE-NNN weakness identifier from the pinned catalog.
         evidence_refs: Optional exact artifact references copied from tool output.
             With any selected exchange they total at most 64 MiB; a larger set
@@ -272,7 +269,6 @@ class HTTPFindingTool(_FindingFacade):
         method: str,
         tool_context: ToolContext,
         request_id: LineNumber | None = None,
-        caido_request_id: str | None = None,
         cwe: str | None = None,
         evidence_refs: list[ExactEvidenceRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
@@ -294,7 +290,6 @@ class HTTPFindingTool(_FindingFacade):
             item_key=item_key,
             incidental=incidental,
             request_id=request_id,
-            caido_request_id=caido_request_id,
         )
 
 
@@ -345,6 +340,7 @@ class GeneralFindingsToolsetFactory:
             runtime_secrets(runtime_settings),
             resources,
             artifacts=client,
+            namespace=namespace,
         )
         result = {}
         if "finding" in selected:

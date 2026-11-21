@@ -96,7 +96,7 @@ def test_all_read_tools_use_static_operations_and_normalize_bounded_results(
         expected_time = "2026-09-01T00:00:00.000Z" if numeric_timestamps else "2026-09-01T00:00:00Z"
         assert history["requests"][0]["created_at"] == expected_time
 
-        detail = await tools["caido_request_detail"]("request-1")
+        detail = await tools["caido_request_detail"](history["requests"][0]["request_id"])
         assert detail["raw"]["truncated"] is True
         assert detail["created_at"] == expected_time
         assert detail["response"]["raw"]["kind"] == "binary"
@@ -133,7 +133,7 @@ def test_all_read_tools_use_static_operations_and_normalize_bounded_results(
             "truncated": False,
         }
         findings = await tools["caido_workflow_findings"](limit=10)
-        assert findings["findings"][0]["request_id"] == "request-1"
+        assert findings["findings"][0]["request_id"] == history["requests"][0]["request_id"]
 
         assert [item["operationName"] for item in observed] == [
             "Scopes",
@@ -415,3 +415,8 @@ class FakeArtifactClient:
         self.media_types[key] = media_type
         self._known.append(exact)
         return SimpleNamespace(artifact=exact)
+
+
+def local_request(tools, provider_id):
+    tool = next(iter(tools.values()))
+    return tool._session._captures.local_id("caido", provider_id)

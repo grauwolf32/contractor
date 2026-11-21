@@ -102,6 +102,11 @@ test-context-compaction-eval-fixtures: runtime-venv
 # The common Findings gate includes the Project facts process and rejects skips.
 .PHONY: test-project-facts-e2e
 test-project-facts-e2e: test-findings-e2e
+	$(call run-family-test,go test -count=1 ./tests/eval/project_facts)
 
 .PHONY: test-memory-snapshot-e2e
 test-memory-snapshot-e2e: test-findings-e2e
+
+.PHONY: test-project-facts-ui
+test-project-facts-ui: ui-install
+	node ui/server/project-facts-gate.mjs

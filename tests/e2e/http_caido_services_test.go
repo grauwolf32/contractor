@@ -237,11 +237,11 @@ func (c *fakeCaidoControl) serveHTTP(w http.ResponseWriter, r *http.Request) {
 			"count": map[string]any{"value": count}, "nodes": []any{node},
 		}}
 	case "RequestDetail":
-		if request.Variables["id"] != "detail-"+c.name {
+		if request.Variables["id"] != "request-"+c.name {
 			c.recordFailure("unexpected detail selection")
 		}
 		node := fakeCaidoSelectedRequest(c.name, "/detail-only")
-		node["id"], node["method"], node["response"] = "detail-"+c.name, "DELETE", nil
+		node["id"], node["method"], node["response"] = "request-"+c.name, "DELETE", nil
 		node["createdAt"] = "2026-09-01T03:01:00+03:00"
 		node["raw"] = base64.StdEncoding.EncodeToString([]byte("DELETE /detail-only HTTP/1.1\r\nHost: target.example\r\n\r\n"))
 		data = map[string]any{"request": node}

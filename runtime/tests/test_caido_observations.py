@@ -13,6 +13,7 @@ from test_caido_read_tools import (
     FakeArtifactClient,
     close_tools,
     create_tools,
+    local_request,
     representative_responses,
     request_summary,
 )
@@ -79,7 +80,7 @@ def test_selected_reads_emit_only_metadata_before_output_redaction(tmp_path):
             # Invalid facts become a bounded omission locally, not an invented
             # attempt or a malformed Server row. The following valid row survives.
             assert sink.gaps == [{"reason": "projection", "count": 1}]
-            detail = await tools["caido_request_detail"]("request-1")
+            detail = await tools["caido_request_detail"](local_request(tools, "request-1"))
             assert CAIDO_TOKEN not in detail["path"]
             assert detail["created_at"] == "2026-09-01T03:00:00.000+03:00"
             assert sink.rows[-1] == sink.rows[0]

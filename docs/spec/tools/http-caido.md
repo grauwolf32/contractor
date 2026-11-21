@@ -143,7 +143,7 @@ Each allocation of `http-tools@1` holds this state in memory:
 | Default headers | Session default request headers | Non-sensitive values; redaction markers for sensitive headers |
 | Authentication | `none`, `bearer` or `basic` | `auth_kind` |
 | History | Recent request summaries and explicit failed outcomes | `http_history`; the history count |
-| Outgoing exchange store | Shared bounded HTTP/Caido capture buffer, including attempts, available response bytes and invocation ownership | HTTP bodies through `http_read_body`; selection through `finding(request_id=...)` or `finding(caido_request_id=...)`; selected current-invocation Runtime HTTP capture through Audit result `http_request_ids` (AWC-R126) |
+| Outgoing exchange store | Shared bounded HTTP/Caido capture buffer, including attempts, available response bytes and invocation ownership | HTTP bodies through `http_read_body`; selection through `finding(request_id=...)` or `record_fact(request_id=...)`; selected current-invocation Runtime HTTP capture through Audit result `http_request_ids` (AWC-R126) |
 | Project target | Target URL, derived `Authorization` header and source secret | Never |
 
 ### One `http_request` call
@@ -678,9 +678,18 @@ Replacing the same source and request ID releases its previous bytes.
 
 **HTP-R72.** The buffer is allocation-owned; finding selection additionally
 requires the same invocation that captured or inspected the source. HTTP and
-Caido identities are disjoint. Buffer bytes never enter serialized Worker state.
+Caido tool selectors share one allocation-local positive integer allocator.
+Local IDs are never reused for another request during the allocation and remain
+bounded by the existing retained-request count (LIM-HTP-19). History may expose
+a locator before capture; only an exchange inspected in the same invocation
+can be published. Unknown, expired, wrong-source or foreign-invocation selections
+fail before provider actions or publication. HTTP-specific readers/results accept
+only HTTP-backed records. Caido adapters resolve local selectors to provider IDs;
+the normalized capture retains provider identity. Session/workflow/scope IDs and
+provider query expressions keep their own meanings. Buffer bytes and locator
+mappings never enter serialized Worker state.
 
-**HTP-R73.** `finding(request_id=...)` or `finding(caido_request_id=...)`
+**HTP-R73.** `finding(request_id=...)` or `record_fact(request_id=...)`
 selects one buffered exchange without replay. An expired or foreign-invocation
 ID fails explicitly. A request with an absent or incomplete response can be
 selected with its explicit outcome; selection does not claim successful execution.
@@ -859,7 +868,7 @@ under the existing allocation Artifact client contract (HTP-R93).
 
 **HTP-R89.** Request detail validates and decodes both available Caido Blobs
 before buffering one exchange (FAIL-HTP-5). The request is mandatory; a response
-may be absent. `finding(caido_request_id=...)` selects the inspected exchange
+may be absent. `finding(request_id=...)` selects the inspected exchange
 from the same invocation without another GraphQL read or replay.
 
 **HTP-R90.** Caido capture preserves scrubbed raw request and response bytes
@@ -1025,13 +1034,13 @@ handles (LIFE-HTP-4).
 
 ### Checked-in templates and the Caido Skill
 
-**HTP-R116.** The checked-in `caido_analyst@1` template is a closed assignment.
+**HTP-R116.** The checked-in `caido_analyst@5` template is a closed assignment.
 It selects all ten `caido@1` operations, the bounded `http_request`,
 `http_read_body` and `http_history` operations, text artifact read and write,
-and the versionless `skills/caido` ref. `security-analysis@2` uses that
+and the versionless `skills/caido-local-requests` ref. `security-analysis@6` uses that
 template in one passthrough Stage.
 
-**HTP-R117.** `http_explorer@1` is the reusable HTTP-only template; it selects
+**HTP-R117.** `http_explorer@3` is the reusable HTTP-only template; it selects
 all six `http-tools@1` operations without a Caido Skill or adapter requirement.
 
 **HTP-R118.** The Workflow, these templates, their instructions and the Skill
@@ -1080,7 +1089,7 @@ Toolset call counters and Runtime adapter metrics remain the only ones.
   (HTP-R34), `http_session_get` and `http_session_clear` (HTP-R19); the ten
   Caido tools (HTP-R78).
 - Finding evidence selection: `finding(request_id=...)` or
-  `finding(caido_request_id=...)` (HTP-R73), specified in
+  `finding(request_id=...)` (HTP-R73), specified in
   [Findings](../findings/findings.md).
 - Adapter: `caido-graphql@1` with the private handle `caido-graphql-client` and
   the client `execute(operation, variables)` (HTP-R13, HTP-R17).

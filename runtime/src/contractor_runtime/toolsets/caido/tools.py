@@ -550,6 +550,8 @@ class _CaidoSession:
                 self._redaction,
                 name="caido-request-detail",
             )
+            if request["id"] != selected_id:
+                raise CaidoToolError("caido_response_invalid")
             response = request["response"]
             if self._observation_sink is not None:
                 await self._notify_observations(
@@ -1300,6 +1302,37 @@ class _CaidoTool(ArtifactObservingTool):
     async def close(self) -> None:
         await self._session.close()
 
+    def _provider_request_id(self, request_id: int | None, *, optional=False) -> str:
+        if optional and request_id is None:
+            return ""
+        try:
+            return self._session._captures.resolve(request_id, source="caido")[1]
+        except ValueError:
+            raise CaidoToolError("caido_request_invalid") from None
+
+    def _localize_requests(self, result: dict[str, Any]) -> dict[str, Any]:
+        # Translate only adapter-owned request fields, never arbitrary workflow
+        # output or IDs of sessions, entries, findings and workflows.
+        identity_rows = []
+        if self.name == "caido_history":
+            identity_rows = result["requests"]
+        elif self.name == "caido_request_detail" and "id" in result:
+            identity_rows = [result]
+        for row in identity_rows:
+            row["request_id"] = self._session._captures.local_id("caido", row.pop("id"))
+        rows = []
+        if self.name in {"caido_replay", "caido_request_detail", "caido_workflow_run"}:
+            if "request_id" in result and not identity_rows:
+                rows = [result]
+        elif self.name == "caido_automate_results":
+            rows = result.get("results", [])
+        elif self.name == "caido_workflow_findings":
+            rows = result["findings"]
+        for row in rows:
+            if row.get("request_id") is not None:
+                row["request_id"] = self._session._captures.local_id("caido", row["request_id"])
+        return result
+
     async def _call(
         self,
         arguments: Mapping[str, Any],
@@ -1315,7 +1348,12 @@ class _CaidoTool(ArtifactObservingTool):
             arguments,
             secrets=self._session.metric_secrets,
         ) as call:
-            result = self._session.redact_result(await operation())
+            provider_result = await operation()
+            try:
+                result = self._localize_requests(provider_result)
+            except ValueError:
+                raise CaidoToolError("caido_request_invalid") from None
+            result = self._session.redact_result(result)
             call.succeed(summary(result))
             return result
 
@@ -1424,17 +1462,17 @@ class CaidoRequestDetailTool(_CaidoTool):
     Call this after caido_history to inspect an exchange before replay or automate.
 
     Args:
-        request_id: Exact string ID from Caido history or another Caido result.
+        request_id: Local integer request_id from Caido history or another Caido result.
 
     Returns:
         Request/response metadata and bounded raw previews. Use finding with
-        caido_request_id to retain this exchange as durable evidence.
+        request_id to retain this exchange as durable evidence.
     """
 
     async def __call__(
-        self, request_id: str, tool_context: ToolContext | None = None
+        self, request_id: int, tool_context: ToolContext | None = None
     ) -> dict[str, Any]:
-        arguments = {"hasRequestId": bool(request_id) if isinstance(request_id, str) else False}
+        arguments = {"hasRequestId": bool(request_id) if type(request_id) is int else False}
         return await self._call(
             arguments,
             lambda result: {
@@ -1442,7 +1480,8 @@ class CaidoRequestDetailTool(_CaidoTool):
                 "hasResponse": result.get("response") is not None,
             },
             lambda: self._session.request_detail(
-                request_id, tool_context.invocation_id if tool_context else None
+                self._provider_request_id(request_id),
+                tool_context.invocation_id if tool_context else None,
             ),
         )
 
@@ -1454,7 +1493,7 @@ class CaidoReplayTool(_CaidoTool):
     Choose either request_id or raw_request with connection details.
 
     Args:
-        request_id: Captured request ID to replay; leave empty for a raw request.
+        request_id: Local integer request_id to replay; omit for a raw request.
         raw_request: Full HTTP request text, including headers and blank line;
             leave empty when using request_id. Limited to 1 MiB.
         host: Target host for raw_request; leave empty when using request_id.
@@ -1470,7 +1509,7 @@ class CaidoReplayTool(_CaidoTool):
 
     async def __call__(
         self,
-        request_id: str = "",
+        request_id: int | None = None,
         raw_request: str = "",
         host: str = "",
         port: int = 80,
@@ -1480,7 +1519,7 @@ class CaidoReplayTool(_CaidoTool):
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         arguments = {
-            "source": "id" if isinstance(request_id, str) and request_id else "raw",
+            "source": "id" if type(request_id) is int and request_id else "raw",
             "rawBytes": len(raw_request.encode(errors="replace"))
             if isinstance(raw_request, str)
             else -1,
@@ -1492,7 +1531,7 @@ class CaidoReplayTool(_CaidoTool):
             arguments,
             lambda result: {"status": result["status"]},
             lambda: self._session.replay(
-                request_id=request_id,
+                request_id=self._provider_request_id(request_id, optional=True),
                 raw_request=raw_request,
                 host=host,
                 port=port,
@@ -1512,7 +1551,7 @@ class CaidoAutomateRunTool(_CaidoTool):
     caido_automate_results to inspect responses.
 
     Args:
-        request_id: Captured request ID to use as the template.
+        request_id: Local integer request_id to use as the template.
         targets: From 1 to 32 literal substrings marking injection points.
             Only the first occurrence of each is selected; spans must not overlap.
         payloads: From 1 to 1000 string values to inject.
@@ -1526,7 +1565,7 @@ class CaidoAutomateRunTool(_CaidoTool):
 
     async def __call__(
         self,
-        request_id: str,
+        request_id: int,
         targets: list[str],
         payloads: list[str],
         strategy: str = "ALL",
@@ -1534,7 +1573,7 @@ class CaidoAutomateRunTool(_CaidoTool):
         delay_ms: int = 0,
     ) -> dict[str, Any]:
         arguments = {
-            "hasRequestId": bool(request_id) if isinstance(request_id, str) else False,
+            "hasRequestId": bool(request_id) if type(request_id) is int else False,
             "targetCount": len(targets) if isinstance(targets, list) else 0,
             "payloadCount": len(payloads) if isinstance(payloads, list) else 0,
             "strategy": (
@@ -1549,7 +1588,7 @@ class CaidoAutomateRunTool(_CaidoTool):
             arguments,
             lambda result: {"status": result["status"]},
             lambda: self._session.automate_run(
-                request_id=request_id,
+                request_id=self._provider_request_id(request_id),
                 targets=targets,
                 payloads=payloads,
                 strategy=strategy,
@@ -1698,7 +1737,7 @@ class CaidoWorkflowRunTool(_CaidoTool):
     Args:
         workflow_id: Exact installed workflow ID.
         input: Text for a convert workflow; leave empty for an active workflow.
-        request_id: Captured request ID for an active workflow; empty selects convert.
+        request_id: Local integer request_id for an active workflow; omit to select convert.
 
     Returns:
         Convert output with bounded preview and artifact reference when needed,
@@ -1706,10 +1745,10 @@ class CaidoWorkflowRunTool(_CaidoTool):
     """
 
     async def __call__(
-        self, workflow_id: str, input: str = "", request_id: str = ""
+        self, workflow_id: str, input: str = "", request_id: int | None = None
     ) -> dict[str, Any]:
         arguments = {
-            "mode": "active" if isinstance(request_id, str) and request_id else "convert",
+            "mode": "active" if type(request_id) is int and request_id else "convert",
             "inputBytes": len(input.encode(errors="replace")) if isinstance(input, str) else -1,
             "hasWorkflowId": bool(workflow_id) if isinstance(workflow_id, str) else False,
         }
@@ -1720,7 +1759,9 @@ class CaidoWorkflowRunTool(_CaidoTool):
                 "status": result.get("status", "completed"),
                 "hasArtifact": result.get("output_artifact") is not None,
             },
-            lambda: self._session.workflow_run(workflow_id, input, request_id),
+            lambda: self._session.workflow_run(
+                workflow_id, input, self._provider_request_id(request_id, optional=True)
+            ),
         )
 
 

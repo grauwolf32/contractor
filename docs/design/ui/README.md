@@ -48,6 +48,7 @@ history.
 | Artifact (source ZIP, OpenAPI)    | Materials: "Source code", "API spec"             |
 | Coverage or check item            | Endpoint (API checks) or requirement (standards) |
 | Project Finding (unassessed)      | Possible issue · needs your review               |
+| Informational Project Finding | Fact · source observation, not independently verified |
 | Confirmed finding                 | Issue                                            |
 | Report acceptance                 | Report                                           |
 | Runtime, allocation, queue, slots | Operations area only (admins)                    |

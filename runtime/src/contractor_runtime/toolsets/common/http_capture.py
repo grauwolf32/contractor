@@ -220,7 +220,70 @@ class RecentHTTPCaptures:
     def __init__(self) -> None:
         self._entries: OrderedDict[tuple[str, str], tuple[str | None, bytes]] = OrderedDict()
         self._bytes = 0
+        self._next_local_id = 1
+        self._locators: OrderedDict[int, tuple[str, str]] = OrderedDict()
+        self._local_ids: dict[tuple[str, str], int] = {}
         self._observations: dict[tuple[str, str], HTTPObservation] = {}
+
+    def _issue_id(self) -> int:
+        if self._next_local_id > MAX_EXACT_INTEGER:
+            raise ValueError("local HTTP request identity exhausted")
+        result = self._next_local_id
+        self._next_local_id += 1
+        return result
+
+    def new_http_request(self) -> int:
+        local_id = self._issue_id()
+        self._retain_locator(local_id, ("http", str(local_id)))
+        return local_id
+
+    def local_id(self, source: str, provider_id: str) -> int:
+        if source not in {"http", "caido"} or not isinstance(provider_id, str):
+            raise ValueError("invalid HTTP request locator")
+        if (
+            not provider_id
+            or len(provider_id.encode()) > 256
+            or any(ord(char) < 32 for char in provider_id)
+        ):
+            raise ValueError("invalid HTTP request locator")
+        key = (source, provider_id)
+        existing = self._local_ids.get(key)
+        if existing is not None:
+            self._locators.move_to_end(existing)
+            return existing
+        # HTTP's native identity is already allocated here. A request that was
+        # in flight during discovery eviction keeps that original identity.
+        local_id = int(provider_id) if source == "http" else self._issue_id()
+        if source == "http" and (
+            str(local_id) != provider_id or not 0 < local_id < self._next_local_id
+        ):
+            raise ValueError("HTTP request was not allocated locally")
+        self._retain_locator(local_id, key)
+        return local_id
+
+    def _retain_locator(self, local_id: int, key: tuple[str, str]) -> None:
+        self._locators[local_id] = key
+        self._local_ids[key] = local_id
+        while len(self._locators) > MAX_HISTORY:
+            _, expired_key = self._locators.popitem(last=False)
+            self._local_ids.pop(expired_key)
+            self._remove_capture(expired_key)
+
+    def resolve(self, local_id: int, *, source: str | None = None) -> tuple[str, str]:
+        if type(local_id) is not int or not 1 <= local_id <= MAX_EXACT_INTEGER:
+            raise ValueError("request_id must be a local positive integer")
+        key = self._locators.get(local_id)
+        if key is None or (source is not None and key[0] != source):
+            raise ValueError("request_id is unavailable for this tool; inspect recent history")
+        return key
+
+    def _remove_capture(self, key: tuple[str, str]) -> None:
+        previous = self._entries.pop(key, None)
+        observation = self._observations.pop(key, None)
+        if previous is not None:
+            self._bytes -= len(previous[1])
+        if observation is not None:
+            self._bytes -= observation.size_bytes
 
     async def put(
         self,
@@ -249,6 +312,7 @@ class RecentHTTPCaptures:
         metadata_bytes = observation.size_bytes if observation is not None else 0
         if len(encoded) + metadata_bytes > MAX_CAPTURE_BUFFER_BYTES:
             raise ValueError("HTTP evidence exceeds the allocation capture budget")
+        self.local_id(*key)
         previous = self._entries.pop(key, None)
         if previous is not None:
             self._bytes -= len(previous[1])
@@ -297,6 +361,10 @@ class RecentHTTPCaptures:
         return (source, request_id) in self._entries
 
     def clear(self, source: str) -> None:
+        for local_id, key in tuple(self._locators.items()):
+            if key[0] == source:
+                self._locators.pop(local_id)
+                self._local_ids.pop(key)
         for key in tuple(self._entries):
             if key[0] == source:
                 _, data = self._entries.pop(key)

@@ -29,6 +29,10 @@ from contractor_runtime.toolsets.security_findings.anchors import (
     ExactSourceCache,
     prepare_anchors,
 )
+from contractor_runtime.toolsets.security_findings.memories import (
+    MAX_MEMORY_FACT_CALLS,
+    memory_evidence,
+)
 from contractor_runtime.toolsets.security_findings.submission import (
     build_submission,
     validate_informational_payload,
@@ -52,12 +56,16 @@ class FindingPublisher:
         secrets: tuple[str, ...],
         resources: ToolResources,
         artifacts: ArtifactClient | None = None,
+        namespace: str = "facts",
     ):
         self.client = client
         self.metrics = metrics
         self.secrets = secrets
         self.resources = resources
         self.artifacts = artifacts
+        self.namespace = namespace
+        self._fact_invocation: str | None = None
+        self._fact_calls: set[str] = set()
         # The publisher lives as long as the allocation's tools.
         self.sources = ExactSourceCache()
 
@@ -73,7 +81,7 @@ class FindingPublisher:
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
         request_id: int | None = None,
-        caido_request_id: str | None = None,
+        memory_name: str | None = None,
         severity_suggestion: str | None = None,
         item_key: str | None = None,
         incidental: bool = False,
@@ -92,6 +100,16 @@ class FindingPublisher:
             )
         )
         with recording as call:
+            if _tool_name == "record_fact" and "memories" in self.resources.invocation_artifacts:
+                if self._fact_invocation != context.invocation_id:
+                    self._fact_invocation = context.invocation_id
+                    self._fact_calls.clear()
+                key = call_client_key(context)
+                if key not in self._fact_calls and len(self._fact_calls) >= MAX_MEMORY_FACT_CALLS:
+                    raise ToolInputError(
+                        "Fact extraction permits at most eight calls per invocation"
+                    )
+                self._fact_calls.add(key)
             normalized = normalize_locations(locations)
             # ADK leaves the whole list as raw values if any model item fails
             # conversion. The submission validator supplies bounded repair text.
@@ -114,9 +132,17 @@ class FindingPublisher:
             for reference in cwe_reference(cwe):
                 if reference not in standards:
                     standards.append(reference)
-            exchange = await self._http_evidence(
-                request_id, caido_request_id, context.invocation_id
-            )
+            exchange = await self._http_evidence(request_id, context.invocation_id)
+            if memory_name is not None:
+                if self.artifacts is None:
+                    raise RuntimeError("Memory evidence requires an Artifact client")
+                snapshot = self.resources.invocation_artifacts.get("memories")
+                if snapshot is None:
+                    raise ToolInputError(
+                        "memory_name requires the assigned exact memories snapshot"
+                    )
+                ref = await memory_evidence(self.artifacts, snapshot, memory_name, self.namespace)
+                refs.append(ref.model_dump(exclude_none=True))
             request = build_submission(
                 invocation_id=context.invocation_id,
                 client_key=call_client_key(context),
@@ -165,44 +191,32 @@ class FindingPublisher:
             }
             if "findingId" in receipt:
                 result["finding_id"] = receipt["findingId"]
-            if exchange is not None:
+            if exchange is not None or memory_name is not None:
                 result["evidence_refs"] = [item["ref"] for item in receipt["evidence"]]
             call.succeed(result, arguments={"location_count": len(normalized)})
             return result
 
     async def _http_evidence(
-        self, request_id: int | None, caido_request_id: str | None, invocation_id: str
+        self, request_id: int | None, invocation_id: str
     ) -> dict[str, Any] | None:
-        if request_id is None and caido_request_id is None:
+        if request_id is None:
             return None
-        if request_id is not None and caido_request_id is not None:
-            raise ToolInputError("select request_id or caido_request_id, not both")
-        if request_id is not None and (type(request_id) is not int or request_id <= 0):
-            raise ToolInputError("request_id must be an integer returned by http_request")
-        if caido_request_id is not None and (
-            not isinstance(caido_request_id, str) or not caido_request_id
-        ):
-            raise ToolInputError("caido_request_id must be an ID from inspected Caido traffic")
         captures = self.resources.http_captures
         if not isinstance(captures, RecentHTTPCaptures):
-            raise ToolInputError(
-                "captured HTTP evidence requires this worker's HTTP or Caido session"
-            )
+            raise ToolInputError("captured HTTP evidence requires this worker's HTTP session")
         try:
-            return await captures.get(
-                "http" if request_id is not None else "caido",
-                str(request_id) if request_id is not None else caido_request_id,
-                invocation_id=invocation_id,
-            )
+            source, provider_id = captures.resolve(request_id)
+            return await captures.get(source, provider_id, invocation_id=invocation_id)
         except ValueError:
             raise ToolInputError(
-                "HTTP evidence is unavailable in this invocation; "
-                "inspect a recent request or omit the ID"
+                "HTTP evidence is unavailable in this invocation; inspect a recent request"
             ) from None
 
     def close(self) -> None:
         self.secrets = ()
         self.sources.close()
+        self._fact_calls.clear()
+        self._fact_invocation = None
 
 
 def _bounded_finding_error(error: Exception) -> Exception:

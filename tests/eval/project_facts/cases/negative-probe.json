@@ -1,0 +1,1 @@
+{"namespace":"writer","notes":[{"content":"One GET /admin probe returned 401; no other paths or roles were tested.","description":"","name":"probe","tags":[]}],"schemaVersion":"contractor.memory-snapshot/v1"}

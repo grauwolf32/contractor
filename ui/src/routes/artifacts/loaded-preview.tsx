@@ -216,6 +216,12 @@ export function LoadedArtifactPreview({
   if (plan.kind === "source") {
     return (
       <div className="materials-preview-source">
+        {plan.memorySnapshot ? (
+          <p className="ui-caption">
+            Statements from memories · not independently verified. Names,
+            content, descriptions and tags below are the saved originals.
+          </p>
+        ) : null}
         {mediaType === "application/json" ? (
           <ScanReportSummary source={source} />
         ) : null}

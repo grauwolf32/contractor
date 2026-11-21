@@ -13,6 +13,7 @@ project pages ([build contract](../../../../docs/design/ui/v3b-build-contract.md
 | `/issues/:auditId/:findingId`                                    | The same list with one possible issue in the detail pane. `?review=<requestId>` names a review request; one that no longer matches closes the decision until the user refreshes or drops it. |
 | `/projects/:projectId/audits/:auditId/findings`                  | The check's possible issues (`AuditFindings`): server-side `state`, `verdict`, `severity` filters, paged with `cursor` / `auditRevision`.                                                    |
 | `/projects/:projectId/audits/:auditId/findings?finding=&review=` | One possible issue in full inside its check, with the stale-review warning.                                                                                                                  |
+| `/projects/:projectId/facts`                                     | The Project Facts preset over the same canonical records: informational severity, loaded counts and explicit pagination; detail reuses `/issues/:projectId/:findingId`.                      |
 | `/projects/:projectId/findings`                                  | The project's Issues tab (`ProjectFindingsRoute`): `q`, `audit`, `state`, `severity`, `verdict`.                                                                                             |
 
 Build links with `links.ts`: `issuePath(auditId, findingId)`,

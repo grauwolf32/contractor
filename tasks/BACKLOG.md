@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-68 open tasks: 9 in progress, 46 pending, 13 deferred. 1615 finished: 1597 completed, 18 archived.
+65 open tasks: 9 in progress, 43 pending, 13 deferred. 1625 finished: 1607 completed, 18 archived.
 
 ## In progress
 
@@ -65,7 +65,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | — | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
 | [V425-043](v425-043-resolve-historical-run-model-policy-snapshots.yml) | defect | P2 | — | Resolve historical Run snapshots after Workflow-owned model selection |
-| [V471-003](v471-003-workflow-fact-extraction.yml) | feature | P1 | — | Extract bounded Project facts in an optional passthrough Worker Stage |
 
 ### Audits (`audits`)
 
@@ -100,13 +99,12 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the ordinary HTTP Audit setup and evidence UI journey |
-| [V471-005](v471-005-project-facts-interface.yml) | feature | P1 | V471-003 | Show focused Project facts separately while reusing Finding sources and hypothesis grounds |
 
 ### Operations, authentication, CLI and deployment (`operations`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V473-003](v473-003-model-recovery-diagnostics.yml) | feature | P1 | V471-003 | Explain model recovery costs and verify zero and partial fact extraction |
+| [V473-003](v473-003-model-recovery-diagnostics.yml) | feature | P1 | — | Explain model recovery costs and verify zero and partial fact extraction |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -132,7 +130,6 @@ the epics are in [epics.yml](epics.yml).
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
 | [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | — | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
 | [V469-005](v469-005-opencode-audit-release.yml) | chore | P1 | V469-004 | Accept the minimal OpenCode Audit environment through real release gates |
-| [V471-006](v471-006-project-facts-release-gate.yml) | chore | P1 | V471-005 | Accept the shared Finding facts path through real process, lifecycle and scale gates |
 
 ## Deferred
 
@@ -166,16 +163,16 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 24 | 37 | 15 | 38 |
+| HTTP and Caido tools (`http-tools`) | 5 | 25 | 37 | 15 | 38 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
-| Findings tools and collections (`findings`) | 0 | 20 | 14 | 11 | 23 |
-| Workflow catalog and document workflows (`workflows`) | 7 | 21 | 17 | 16 | 26 |
+| Findings tools and collections (`findings`) | 0 | 20 | 15 | 11 | 27 |
+| Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 26 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 20 | 70 |
-| Audits (`audits`) | 10 | 70 | 98 | 42 | 170 |
+| Audits (`audits`) | 10 | 70 | 98 | 42 | 171 |
 | Evaluations (`evals`) | 4 | 23 | 46 | 20 | 54 |
 | Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
-| Web UI (`ui`) | 2 | 56 | 81 | 34 | 79 |
+| Web UI (`ui`) | 1 | 56 | 81 | 34 | 80 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
-| Quality, CI and process (`quality`) | 12 | 1 | 34 | 148 | 32 |
+| Quality, CI and process (`quality`) | 11 | 1 | 34 | 153 | 32 |

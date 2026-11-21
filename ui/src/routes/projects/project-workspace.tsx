@@ -27,7 +27,7 @@ import "../primary-actions.css";
 /**
  * The selected project in the Projects detail pane: header with the
  * project's name, description, ID and actions; the section tabs; and the
- * section (Overview, Materials, Checks, Issues, Settings, Runs, Workflows)
+ * section (Overview, Materials, Checks, Issues, Facts, Settings, Runs, Workflows)
  * through the router Outlet. While the project is being deleted the pane
  * shows the deletion progress instead and polls until the Server answers 404,
  * then returns to /projects.

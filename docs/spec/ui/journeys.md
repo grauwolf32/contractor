@@ -738,3 +738,11 @@ block submission, and values over 4,096 UTF-8 bytes are rejected. Authentication
 uses a credential ID assigned by engagement; secrets are entered through
 Credentials. The form explains that Nuclei uses HTTP rules and rejects unsupported
 controlled HTTP constructs. Traffic limits are owned by engagement.
+
+
+**UIJ-R119.** In Project Facts, users browse informational observations, open
+the same canonical Finding and inspect paged original submissions and exact
+evidence. Memory statements retain their original source and uncertainty.
+Existing hypothesis views link to explicitly selected exact grounds separately
+from check results. Missing sources and stale revisions stay explicit; no latest
+substitution or reverse fact-to-hypothesis navigation is inferred.

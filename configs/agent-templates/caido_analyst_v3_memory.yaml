@@ -3,13 +3,13 @@ kind: AgentTemplate
 
 metadata:
   name: caido_analyst
-  version: "4"
+  version: "5"
 
 spec:
   description: Performs bounded authorized HTTP and Caido analysis and publishes an evidence report
   runtime: adk@1
   instructions:
-    ref: instructions/caido-analyst-worker-memory-project-findings.md
+    ref: instructions/caido-analyst-worker-local-requests.md
   summarizer:
     instructions:
       ref: instructions/terminal-summarizer.md
@@ -49,5 +49,5 @@ spec:
         - write_text_artifact
   skills:
     - namespace: skills
-      name: caido
+      name: caido-local-requests
   sandboxProfile: local-workdir@1

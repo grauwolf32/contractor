@@ -37,17 +37,18 @@ The current user-facing Workflow set is:
   for the same document contracts with a modeled single-Worker Planner;
 - `openapi-from-analysis@4` and `likec4-from-analysis@5` when the caller already
   has exact dependency and project reports;
-- `security-analysis@4` and `taint-trace-from-workspace@4` for their explicit
+- `security-analysis@6` and `taint-trace-from-workspace@4` for their explicit
   focused analysis contracts, and `taint-trace-from-workspace-compact@1`, the
   same trace with opt-in Worker context compaction;
 - `audit-openapi-operation-observe@1` for graph-backed operation analysis in
   the limited `openapi-operation-observe@1` comparison variant;
-- `audit-openapi-operation-trace@1` for graph-backed analysis and finding proposals
-  in `openapi-operation-trace@1`, plus `findings-review@2` for a supplied collection
+- `audit-openapi-operation-trace@2` for graph-backed analysis and finding proposals
+  in `openapi-operation-trace@2`, plus `findings-review@2` for a supplied collection
   and `source-findings-review@1` for exact source-backed proposal review;
   `project-findings-review@1` discovers current Project findings and retains an explicit exact selection;
 - `audit-openapi-nuclei-scan@1` and `audit-openapi-sqlmap-scan@1` for the
   `openapi-nuclei-scan@1` and `openapi-sqlmap-scan@1` AuditProfiles;
+- `project-facts-extract@1` for optional observation selection from an exact Memory snapshot, using one passthrough Worker and common record_fact;
 - `artifact-copy@2` as the ordinary artifact smoke fixture;
 - `podman-python-check@2` as the explicitly selected offline Podman execution fixture.
 
@@ -103,7 +104,7 @@ remove copies published into a separate managed or operator catalog. Frozen
 instruction-evaluation inputs retain their own exact catalog under `tests/eval`.
 
 The shipped Audit catalog contains six common programs:
-`openapi-operation-observe@1`, `openapi-operation-trace@1`,
+`openapi-operation-observe@1`, `openapi-operation-trace@2`,
 `openapi-sqlmap-scan@1`, `openapi-nuclei-scan@1`,
 `source-openapi-sqlmap-scan@1` and `web-scan@1`.
 Eight checklist/standard profiles execute fixed assertions through the common
@@ -293,11 +294,11 @@ capability requirements are recorded in its `assets/provenance.md`. It is seeded
 into the owner Skill catalog without changing existing Workflow selections.
 See [the Skill guide](../docs/guides/agent-skills.md) for selection and execution.
 
-`security-analysis@4` is an opt-in single-Stage workflow for authorized HTTP
+`security-analysis@6` is an opt-in single-Stage workflow for authorized HTTP
 and Caido analysis. It requires the caller to provide `objective`, `target` and
 `authorization_scope` string parameters, accepts one optional text context
-artifact, and freezes one Markdown report. Its `caido_analyst@3` template pins
-the versionless `skills/caido` artifact and explicitly selects every HTTP and
+artifact, and freezes one Markdown report. Its `caido_analyst@5` template pins
+the versionless `skills/caido-local-requests` artifact and explicitly selects every HTTP and
 Caido operation named by that package. `http_explorer@3` provides a reusable
 HTTP-only template without the Caido Skill or adapter requirement.
 

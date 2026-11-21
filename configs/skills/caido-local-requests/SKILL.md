@@ -1,5 +1,5 @@
 ---
-name: caido
+name: caido-local-requests
 description: "Use visible bounded Caido and HTTP operations for authorized replay, fuzzing, workflow, discovery, and evidence-review procedures."
 compatibility: "Contractor adk@1 native Agent Skill disclosure; requires explicit authorized-target operations in the current Worker invocation"
 metadata:
@@ -70,7 +70,7 @@ analysis or when starting from a captured request. Every replay has a fresh
   `offset=next_offset` before concluding a workflow is missing. IDs are
   instance-specific: resolve by name each time rather than assuming an ID.
 - `caido_workflow_run(workflow_id, input="...")` runs a convert workflow;
-  `caido_workflow_run(workflow_id, request_id="...")` starts an active
+  `caido_workflow_run(workflow_id, request_id=42)` starts an active
   workflow. Supply exactly one input form. Large or binary convert output is an
   exact `caido.output.*` artifact plus a bounded preview.
 - `caido_workflow_findings(limit=20, offset=0)` reads newest findings raised by
@@ -89,7 +89,7 @@ analysis or when starting from a captured request. Every replay has a fresh
    workflows analyze traffic already seen by Caido.
 6. Read `caido_workflow_findings`, correlate relevant request IDs, and report
    evidence plus limitations. Record relevant observations through `finding`,
-   selecting `caido_request_id` after inspecting the exchange, or `request_id`
+   selecting the local integer `request_id` after inspecting the exchange, or `request_id`
    for a recent `http_request`. Finding automatically saves the selected request
    and available response and returns exact evidence refs. Ordinary tool calls
    do not save HTTP artifacts. The recent shared buffer holds at most 128
@@ -102,3 +102,8 @@ Useful recipes commonly include Copy As Python Requests, GraphQL Introspection
 Query, Clean HTTP Request and CORS Checker. Names and availability vary. Prefer
 ordinary reasoning for simple encoding and decoding, and do not delegate the
 assessment to an external AI workflow.
+
+Request selectors use local integer request_id values returned by the tools. HTTP
+and Caido share this local space; Caido actions require a Caido-backed ID. Provider
+request IDs are internal. History discovery alone does not capture evidence: inspect
+the exchange in the current invocation before publishing it.

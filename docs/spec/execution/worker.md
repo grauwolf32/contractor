@@ -2091,3 +2091,14 @@ reset it. The last output-limited reply retains worker_output_limit_exceeded
 after exhaustion. Cancellation, the invocation deadline and hard cumulative
 budgets retain their owning precedence. Use the explicit finish reason to distinguish a completed STOP at the numeric
 output cap from a truncated response.
+
+
+**WRK-R199.** Tools may consume the incoming task's exact artifact roles through
+an allocation-private readonly invocation binding. The Worker copies the admitted
+StageContentRequest artifacts after taking invocation ownership and clears the
+binding on success, failure and cancellation before releasing that invocation.
+It never serializes these private bindings into model-editable State. The bound
+collection has the existing StageContentRequest row/byte bounds; role lookup is
+a point lookup. This exposes no new tool or Artifact grant. The concrete
+`record_fact(memory_name=...)` consumer is specified by FND-R238 in
+[Findings](../findings/findings.md).

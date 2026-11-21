@@ -12,7 +12,9 @@ func TestAuditCommonObservationProfilesAcrossProductionProcesses(t *testing.T) {
 	for _, mode := range []string{"observe", "trace"} {
 		t.Run(mode, func(t *testing.T) {
 			tools := []string{"list_skills", "load_skill", "load_skill_resource", "ls", "glob", "read_file", "grep", "search_def", "list_symbols", "graph_summary", "find_symbol", "find_callers", "find_callees", "paths_between", "entrypoint_paths_to", "attack_surface", "complexity_hotspots", "functions_that_raise", "read_audit_task", "submit_check_result"}
+			version := "1"
 			if mode == "trace" {
+				version = "2"
 				tools = append(tools, "write_text_artifact", "finding", "annotate_trace", "annotate_validate", "annotate_sink", "changed_paths", "diff", "rollback_changes")
 			}
 			stage := domainGatewayStage{name: "common-operation-" + mode, tools: withMemoryTools(tools), steps: []domainGatewayStep{
@@ -27,7 +29,7 @@ func TestAuditCommonObservationProfilesAcrossProductionProcesses(t *testing.T) {
 			source := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "source", "application/zip", projectSourceArchive(t))
 			contract := []byte(`{"openapi":"3.1.0","info":{"title":"Widget fixture","version":"1"},"paths":{"/widgets/{widget_id}":{"get":{"operationId":"getWidget","parameters":[{"name":"widget_id","in":"path","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Widget availability"}}}}}}`)
 			api := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "openapi", "application/json", contract)
-			draft, _ := basicAuditRequest(t, h, http.MethodPost, "/v1/projects/"+project.ProjectID+"/audits", map[string]any{"profile": map[string]string{"name": "openapi-operation-" + mode, "version": "1"}, "inputs": map[string]artifactRef{"source": source, "openapi": api}, "scope": map[string]string{"objective": "Explore one exact operation against source"}}, "draft", 0, http.StatusCreated)
+			draft, _ := basicAuditRequest(t, h, http.MethodPost, "/v1/projects/"+project.ProjectID+"/audits", map[string]any{"profile": map[string]string{"name": "openapi-operation-" + mode, "version": version}, "inputs": map[string]artifactRef{"source": source, "openapi": api}, "scope": map[string]string{"objective": "Explore one exact operation against source"}}, "draft", 0, http.StatusCreated)
 			auditID := draft["auditId"].(string)
 			basicAuditRequest(t, h, http.MethodPost, "/v1/audits/"+auditID+"/start", nil, "start", uint64(draft["revision"].(float64)), http.StatusOK)
 			tasks := waitBasicTask(t, h, auditID, 2, "settled")

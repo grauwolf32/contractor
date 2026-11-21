@@ -1,14 +1,19 @@
-# Working catalog with shared Memory
+# Historical shared Memory rollout
 
-Use the active selectors below for new Runs and Audits. They select all six
-`memory-tools@1` operations explicitly. The retired selectors have been removed
-from the default catalog and are not aliases. Existing complete Run/Audit
+This document and `memory-catalog.json` record the earlier Memory rollout and
+its catalog reset. The table identities describe that historical transition, not
+the current catalog. For new Runs and Audits, use the current manifest metadata
+or the catalog API; published successors can have newer versions. Current
+configuration examples are in [README.md](README.md).
+
+The rollout templates selected all six `memory-tools@1` operations explicitly.
+Removed selectors had no compatibility aliases. Existing complete Run/Audit
 snapshots remain readable. Custom templates continue to opt in explicitly.
 
-The machine-readable inventory is [memory-catalog.json](memory-catalog.json).
-Schema version 2 records `retired`, `active` and `active_file`; only the active
-files are shipped. New requests for retired selectors fail resolution, and
-Repeat reports blocking `workflow_unavailable` when its exact Workflow is absent.
+The historical machine-readable inventory is [memory-catalog.json](memory-catalog.json).
+Schema version 2 records `retired`, `active` and `active_file`; active
+files are listed for that transition. At that point removed selectors failed
+resolution and Repeat reported blocking `workflow_unavailable` when its exact Workflow was absent.
 Removing these source files does not delete independently published managed or
 operator-owned resources. Frozen V40 evaluation inputs and isolated test
 catalogs retain their own exact definitions outside the default catalog.
@@ -29,7 +34,7 @@ This reset does not promise compatibility with pre-reset demo catalogs.
 | `audit_openapi_operation_tracer@4` | [`audit_openapi_operation_tracer@1`](agent-templates/audit_openapi_operation_tracer.yaml) |
 | `audit_risk_source_checker@3` | [`audit_risk_source_checker@1`](agent-templates/audit_risk_source_checker.yaml) |
 | `audit_source_checker@3` | [`audit_source_checker@1`](agent-templates/audit_source_checker.yaml) |
-| `caido_analyst@1` | [`caido_analyst@3`](agent-templates/caido_analyst_v3_memory.yaml) |
+| `caido_analyst@1` | [`caido_analyst@5`](agent-templates/caido_analyst_v3_memory.yaml) |
 | `findings_analyst@1` | [`findings_analyst@2`](agent-templates/findings_analyst_v2_memory.yaml) |
 | `http_explorer@1` | [`http_explorer@3`](agent-templates/http_explorer_v3_memory.yaml) |
 | `likec4_builder@2` | [`likec4_builder@4`](agent-templates/likec4_builder_v4_memory.yaml) |
@@ -62,7 +67,7 @@ This reset does not promise compatibility with pre-reset demo catalogs.
 | `openapi-from-workspace@5` | [`openapi-from-workspace@7`](workflows/openapi_from_workspace_v7_memory.yaml) |
 | `openapi-from-workspace-streamline@1` | [`openapi-from-workspace-streamline@2`](workflows/openapi_from_workspace_streamline_v2_memory.yaml) |
 | `podman-python-check@1` | [`podman-python-check@2`](workflows/podman_python_check_v2_memory.yaml) |
-| `security-analysis@2` | [`security-analysis@4`](workflows/security_analysis_v4_memory.yaml) |
+| `security-analysis@2` | [`security-analysis@6`](workflows/security_analysis_v4_memory.yaml) |
 | `taint-trace-from-workspace@2` | [`taint-trace-from-workspace@4`](workflows/taint_trace_from_workspace_v4_memory.yaml) |
 
 ## AuditProfile

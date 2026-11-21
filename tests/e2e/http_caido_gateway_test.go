@@ -109,7 +109,7 @@ func httpCaidoCaidoGatewayStage(name, scopeName string) domainGatewayStage {
 				validate: composeGatewayValidation(
 					requireToolOutput("available_skills"), requireToolOutput("caido"),
 				),
-				arguments: fixedArguments(map[string]any{"skill_name": "caido"}),
+				arguments: fixedArguments(map[string]any{"skill_name": "caido-local-requests"}),
 			},
 			{
 				tool: "caido_history", validate: requireToolOutput("Caido analysis"),
@@ -153,7 +153,7 @@ func sitemapCaidoGatewayStage(stage domainGatewayStage, instance string) domainG
 		if step.tool != "caido_history" {
 			continue
 		}
-		detail := toolGatewayStep("caido_request_detail", fixedArguments(map[string]any{"request_id": "detail-" + instance}))
+		detail := toolGatewayStep("caido_request_detail", fixedArguments(map[string]any{"request_id": 1}))
 		detail.validate = requireToolOutput("/observed")
 		replay := toolGatewayStep("caido_replay", fixedArguments(map[string]any{
 			"raw_request": "POST /replayed?password=unretained-value HTTP/1.1\r\nHost: target.example\r\nContent-Length: 0\r\n\r\n",

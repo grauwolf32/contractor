@@ -1,0 +1,247 @@
+{
+  "task": "V471-006",
+  "date": "2026-11-21",
+  "implementation_commit": "3bcb633263db50ae7542b664f22053d9f366f26d",
+  "verified_revision": "74558b83b049eb7c12772cfde2b352fb2b487f56",
+  "result": "Optional passthrough@1 memory extraction, common record_fact, Project Facts UI and existing Finding correlation/retention work together through real Server, PostgreSQL and Runtime. The model describes a fact freely and selects memory_name; Runtime attaches the selected original deterministically. No quote checker, separate Fact store or extraction-only creation tool remains.",
+  "checks": [
+    {
+      "command": "go test -tags=integration -count=1 ./internal/findingintake",
+      "outcome": "passed",
+      "seconds": 92.624,
+      "log_sha256": "a17c7457f884da636af683432ee4fbc619d4e924a8bb7aadf00af4b51bc077a7"
+    },
+    {
+      "command": "make test-project-facts-e2e test-memory-snapshot-e2e test-project-facts-ui",
+      "outcome": "passed",
+      "shared_process_seconds": 571.818,
+      "required_process_cases": 23,
+      "runtime_finding_cases": 294,
+      "browser_cases": 16,
+      "frozen_eval_recipe": "passed",
+      "log_sha256": "6c6797adb6bf1540e665464555ecaf6640709c786b0465af941038143d3023d6"
+    },
+    {
+      "command": "make -k release-verify",
+      "outcome": "passed",
+      "exit_code": 0,
+      "verified_revision": "74558b83b049eb7c12772cfde2b352fb2b487f56",
+      "completed_at": "2026-11-21T16:23:21.342327+00:00",
+      "report_manifest_sha256": "f7bbc05920b1e44ae9b41fb7814c64434d9afa4fd50b5c67b7e0b14c77f75f11"
+    },
+    {
+      "command": "make lint",
+      "outcome": "passed after final task/proposal/evidence edits",
+      "database": "unset for this final static check after completed real-store release verification and cleanup",
+      "log_sha256": "1a8450f94a664f621dc605e8b538fffbb86cca91b1fdb0efb6c1e18ed07159fb",
+      "script_unittests": {
+        "run": 228,
+        "declared_skips": 4,
+        "skips_are_passing_coverage": false
+      }
+    }
+  ],
+  "release_reports": {
+    "go-unit.jsonl": {
+      "passed_case_events": 11198,
+      "failed_case_events": 0,
+      "skipped_case_events": 17,
+      "passed_roots": 3194,
+      "package_pass_events": 123,
+      "skipped_tests": [
+        "TestSourcePushRejectsRuntimeUnopenableBundleBeforeArtifactRequest/file_and_directory_collide_after_NFC",
+        "TestPinnedLiteLLMContract",
+        "TestPostgresAuditClaimReadsOnlyTheReconcilableAudits",
+        "TestReadRejectsFileOwnedByAnotherUser",
+        "TestLocalNVIDIAGPU",
+        "TestSharedBuildAcceptsOnlyRuntimeOpenableFixtureBundles/file_and_directory_names_collide_after_NFC_normalization",
+        "TestPlannerOTLPCollectorProjection",
+        "TestBuildStillRejectsDistinctUnicodeNamesThatNormalizeTogether",
+        "TestLiveProjectWorkflows",
+        "TestLiveGatewayToolCall",
+        "TestLiveRouterWorkflow",
+        "TestPostgresIntegration64MiBPayloadBoundary",
+        "TestPostgresSitemapSingleRunExceedsRemovedPublicationCaps",
+        "TestPostgresAuditReadsAtFindingScale",
+        "TestPostgresArtifactSelectiveQueryPlans",
+        "TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes",
+        "TestSharedPostgresCommonTaskPagesAndPurgeAtCeiling"
+      ]
+    },
+    "go-integration.jsonl": {
+      "passed_case_events": 467,
+      "failed_case_events": 0,
+      "skipped_case_events": 4,
+      "passed_roots": 155,
+      "package_pass_events": 19,
+      "skipped_tests": [
+        "TestPostgresRunRevisionLimitAndBoundedPurge",
+        "TestPostgresRunRevisionLimitIsNotRefundedByHistoryRetention",
+        "TestSharedPostgresCommonTaskPagesAndPurgeAtCeiling",
+        "TestPostgresHydratesNineMaximumSizeProposalsAcrossBatches"
+      ]
+    },
+    "audit-research-ui.jsonl": {
+      "passed_case_events": 1,
+      "failed_case_events": 0,
+      "skipped_case_events": 0,
+      "passed_roots": 1,
+      "package_pass_events": 1,
+      "skipped_tests": []
+    },
+    "go-process-a.jsonl": {
+      "passed_case_events": 36,
+      "failed_case_events": 0,
+      "skipped_case_events": 0,
+      "passed_roots": 19,
+      "package_pass_events": 1,
+      "skipped_tests": []
+    },
+    "go-process-b.jsonl": {
+      "passed_case_events": 66,
+      "failed_case_events": 0,
+      "skipped_case_events": 0,
+      "passed_roots": 16,
+      "package_pass_events": 1,
+      "skipped_tests": []
+    },
+    "go-process-c.jsonl": {
+      "passed_case_events": 65,
+      "failed_case_events": 0,
+      "skipped_case_events": 0,
+      "passed_roots": 24,
+      "package_pass_events": 1,
+      "skipped_tests": []
+    }
+  },
+  "runtime": {
+    "passed": 6363,
+    "skipped": 135,
+    "failed": 0,
+    "errors": 0
+  },
+  "wire": {
+    "fixtures": 401,
+    "go_shared_tests": 453,
+    "python_shared_tests": 286,
+    "optional_disk_heavy_skipped": 1
+  },
+  "ui": {
+    "test_files": 228,
+    "tests_passed": 2572,
+    "intentional_negative_tests": 1,
+    "static_server_tests": 17,
+    "mocked_api_browser_cases": 246,
+    "real_ui_stack_a_browser_journeys": 119,
+    "real_ui_stack_a_seconds": 498.449,
+    "audit_research_seconds": 107.945,
+    "real_ui_stack_b_seconds": 319.768,
+    "skipped_unexpected_flaky_browser_cases": 0,
+    "responsive_review": "All six retained source-detail screenshots inspected at 390/1440 px in light/dark/black; no layout issue."
+  },
+  "additional_full_gate_coverage": [
+    "Both Go race groups, all touched packages, filesystem backend packages, generated public clients, catalog locks/config validation, layers and strict schemas passed.",
+    "Compaction verifier confirmed five selected process cases; Findings verifier passed after the final process shard."
+  ],
+  "mechanism_evidence": [
+    "Real memory writer -> model-free snapshot operation -> separate passthrough@1 Stage, exactly one Runtime Worker and no Planner LLM. Unknown memory_name rejects before intake; free-form descriptions retain the exact original memory.",
+    "Actual public Finding collection selects one exact receipt, downloads its ZIP and checks original memory bytes. Later memory updates do not rewrite retained sources.",
+    "Equal complete evidence content sets share one informational Finding across new calls/attempts while preserving independent receipts. Same-call replay adds no receipt. Titles do not participate. Non-informational correlation remains unchanged.",
+    "A real PostgreSQL Audit A fact is selected into Audit B hypothesis grounds. Purging A and its Run preserves B grounds and Project sources; purging B releases its registry/grounds, and Project materials survive. Existing Project purge coverage drains owned data.",
+    "Existing cancellation, claim fencing, response recovery, source pagination and scale paths pass. Facts UI is a severity-filtered view of the existing Finding reader; analyst severity changes membership without changing identity.",
+    "Ordinary finding, HTTP finding, record_fact and Caido discovery/inspection/replay use local request_id. Provider identifiers stay within adapters/provenance.",
+    "The native Audit Eval member publishes a fact into its isolated execution Project and exact Project navigation works, with cross-owner denials intact."
+  ],
+  "quality": {
+    "frozen_cases": 6,
+    "fixture_validation": "All six memory inputs pass the production Runtime selector; private expectations stay outside model input. The recipe and actual scripted Audit Eval path pass.",
+    "live_model_calls": false,
+    "semantic_quality_measured": false,
+    "latency_or_cost_comparison_measured": false,
+    "human_review": "A separate explicitly run repeated live Eval and human review are still needed for semantic-quality conclusions."
+  },
+  "skips": "No required fact/UI/process case was skipped. Four named integration disk-heavy skips, seventeen unit case skip events, 135 Runtime skips and one optional shared fixture disk-heavy skip are recorded separately and are not passing coverage. No heavy-I/O opt-in was enabled.",
+  "accepted_approximation": "Different claims over the same complete evidence contents can share a card; changed evidence bytes can create separate cards. Independent receipts retain their original claim and exact sources. No title, provider, semantic or material-group matching is added.",
+  "not_in_this_slice": [
+    "Automatic extraction at every Run end",
+    "Reverse fact-to-hypothesis navigation or research graph",
+    "Semantic duplicate matching",
+    "Broader tool-authoring interface redesign",
+    "Live-model quality assessment, remote push or demo deployment"
+  ],
+  "cleanup": {
+    "recorded_at": "2026-11-21T16:23:26.826067+00:00",
+    "release_exit_code": 0,
+    "database_dropped": true,
+    "private_cluster_stopped": true,
+    "private_cluster_removed": true,
+    "owned_test_tmp_removed": true,
+    "containers_created": false,
+    "private_server_identity_verified": true,
+    "prior_client_sessions": 0,
+    "permission_fixture_directories_unlocked": 3,
+    "complete": true,
+    "completed_at": "2026-11-21T16:24:02.652967+00:00",
+    "metadata_lint_tmp_removed": true
+  },
+  "post_gate_metadata_validation": {
+    "outcome": "passed",
+    "executable_sources_equal_verified_revision": "74558b83b049eb7c12772cfde2b352fb2b487f56",
+    "remaining_changes": "Task status/moves, generated backlog, proposal wording/links and release evidence only.",
+    "final_lint_log_sha256": "1a8450f94a664f621dc605e8b538fffbb86cca91b1fdb0efb6c1e18ed07159fb",
+    "owned_metadata_tmp_removed": true
+  },
+  "primary_work_preservation": {
+    "original_main": "892f561d668e1166aa6e4beeb3ebeed8dc64d2dd",
+    "protected_files_and_modes": 6,
+    "staged_delta": "unchanged at the last pre-delivery check; rechecked by the guarded main delivery",
+    "checked_before_delivery": true
+  },
+  "accepted_report_files": [
+    {
+      "path": "reports/audit-research-ui.jsonl",
+      "bytes": 30871,
+      "sha256": "b56b671dd6f2c091530fd0db35dbb01b8b2599c361f6f1c78e367531685894ad"
+    },
+    {
+      "path": "reports/go-integration.jsonl",
+      "bytes": 930177,
+      "sha256": "632b07d0c1e7e40fb01c700f7b8f3f643d8482d0aea80ed06ba49343b0f37d26"
+    },
+    {
+      "path": "reports/go-process-a.jsonl",
+      "bytes": 261005,
+      "sha256": "36abda9028edbad78772285850ca394f3298e568cba9a0ea853e78aeb41ff0d5"
+    },
+    {
+      "path": "reports/go-process-b.jsonl",
+      "bytes": 310969,
+      "sha256": "945ae54b216393f266024325b5180439e05adeee61a94bd61aa7cd2ad06c8f06"
+    },
+    {
+      "path": "reports/go-process-c.jsonl",
+      "bytes": 410721,
+      "sha256": "97bd9dcfc6c45fb55ab7ae051b59ae1665a9293f8eb1206b4bd6e1115db49612"
+    },
+    {
+      "path": "reports/go-unit.jsonl",
+      "bytes": 12663999,
+      "sha256": "51f8958b904ac89f5dc452ff172279029c27eeeef4eb6ef8c3af8b994fc88182"
+    },
+    {
+      "path": "reports/runtime.xml",
+      "bytes": 20748360,
+      "sha256": "196f1409799df697e6cf3f56d5930de8192084ae01ece75584dd15ac289d69e3"
+    },
+    {
+      "path": "reports/shared-fixture-reads.log",
+      "bytes": 699266,
+      "sha256": "142d405d37cbbbeff05d8aee33259f3132dbea85666244c470a92d781d368801"
+    },
+    {
+      "path": "release.log",
+      "bytes": 14960265,
+      "sha256": "5edb287d5341a33442200723cdcd005da0ee59a67784921260c64d31cc4548be"
+    }
+  ]
+}

@@ -106,6 +106,15 @@ export function applicationRoutes(): RouteObject[] {
                     ({ ProjectFindingsRoute }) => <ProjectFindingsRoute />,
                   ),
                 },
+                {
+                  path: "facts",
+                  lazy: lazyElement(
+                    projectFindings,
+                    ({ ProjectFindingsRoute }) => (
+                      <ProjectFindingsRoute facts />
+                    ),
+                  ),
+                },
                 { path: "settings", lazy: projectSection("settings") },
               ],
             },

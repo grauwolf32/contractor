@@ -1,0 +1,12 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: fact_extractor_audit_eval, version: "1"}
+spec:
+  description: Selects reported memory observations and records the ordinary assigned Audit check
+  runtime: adk@1
+  instructions: {ref: instructions/fact-extractor-audit-eval-v1.md}
+  toolsets:
+    - {ref: text-artifacts@1, tools: [read_text_artifact]}
+    - {ref: security-findings@1, tools: [record_fact]}
+    - {ref: audit-results@2, tools: [read_audit_task, submit_check_result]}
+  sandboxProfile: local-workdir@1

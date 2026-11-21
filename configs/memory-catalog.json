@@ -32,7 +32,7 @@
       "retired": "audit_source_checker@3"
     },
     {
-      "active": "caido_analyst@3",
+      "active": "caido_analyst@5",
       "active_file": "configs/agent-templates/caido_analyst_v3_memory.yaml",
       "retired": "caido_analyst@1"
     },
@@ -174,7 +174,7 @@
       "retired": "podman-python-check@1"
     },
     {
-      "active": "security-analysis@4",
+      "active": "security-analysis@6",
       "active_file": "configs/workflows/security_analysis_v4_memory.yaml",
       "retired": "security-analysis@2"
     },

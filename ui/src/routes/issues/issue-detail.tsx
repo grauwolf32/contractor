@@ -4,6 +4,7 @@ import { useEffect, useId, useLayoutEffect, useRef } from "react";
 import { useSearchParams } from "react-router";
 import {
   getProjectFinding,
+  findingSeverity,
   type ProjectFindingEditResult,
 } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
@@ -103,8 +104,11 @@ export function IssueDetail({
   }, [projectId, findingId, listedRevision, shownRevision, client]);
   const shown = finding.data;
   const identity = shown ?? listed?.finding;
-  const kind =
-    shown?.state === "confirmed"
+  const fact =
+    identity !== undefined && findingSeverity(identity) === "informational";
+  const kind = fact
+    ? "Fact"
+    : shown?.state === "confirmed"
       ? capitalize(TERMS.issue)
       : capitalize(TERMS.possibleIssue);
   const bar = (
@@ -117,7 +121,7 @@ export function IssueDetail({
           <Button
             className="issues-step"
             size="xs"
-            aria-label="Previous possible issue"
+            aria-label={fact ? "Previous fact" : "Previous possible issue"}
             aria-keyshortcuts="K"
             disabled={onPrevious === undefined}
             onClick={onPrevious}
@@ -144,7 +148,7 @@ export function IssueDetail({
           <Button
             className="issues-step"
             size="xs"
-            aria-label="Next possible issue"
+            aria-label={fact ? "Next fact" : "Next possible issue"}
             aria-keyshortcuts="J"
             disabled={onNext === undefined}
             onClick={onNext}
@@ -152,9 +156,9 @@ export function IssueDetail({
             Next ›
           </Button>
           <ContextLink
-            returnLabel="Possible issue"
+            returnLabel={fact ? "Fact" : "Possible issue"}
             className="issues-detail-check"
-            to={`/projects/${encodeURIComponent(projectId)}/findings`}
+            to={`/projects/${encodeURIComponent(projectId)}/${fact ? "facts" : "findings"}`}
           >
             View in Project
             <Icon name="chevron-right" size={14} />
@@ -164,6 +168,12 @@ export function IssueDetail({
       {identity === undefined ? null : (
         <>
           <IssueIdentity finding={identity} />
+          {fact ? (
+            <p className="ui-caption">
+              Informational observation. The source suggestion and any analyst
+              assessment remain separate from verification.
+            </p>
+          ) : null}
           <Tabs
             label="Review sections"
             items={[

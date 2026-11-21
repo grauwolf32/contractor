@@ -521,7 +521,7 @@ test("Workflow overview leads with Run setup in a dismissible drawer", async ({
   const technical = page.locator("details.workflow-technical-details");
   await expect(configure).toBeInViewport();
   await expect(
-    page.getByRole("heading", { name: "Inputs and results" }),
+    page.getByRole("region", { name: "Inputs and results" }),
   ).toBeInViewport();
   await expect(setup).toHaveCount(0);
   await expect(technical).not.toHaveAttribute("open", "");
@@ -650,7 +650,7 @@ for (const theme of ["light", "dark", "black"] as const) {
       const navigation = page.getByRole("navigation", {
         name: "Project sections",
       });
-      await expect(navigation.getByRole("link")).toHaveCount(7);
+      await expect(navigation.getByRole("link")).toHaveCount(8);
       await expect(
         navigation.getByRole("link", { name: "Workflows", exact: true }),
       ).toHaveAttribute("aria-current", "page");
