@@ -73,7 +73,6 @@ class FindingPublisher:
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
         request_id: int | None = None,
-        caido_request_id: str | None = None,
         severity_suggestion: str | None = None,
         item_key: str | None = None,
         incidental: bool = False,
@@ -114,9 +113,7 @@ class FindingPublisher:
             for reference in cwe_reference(cwe):
                 if reference not in standards:
                     standards.append(reference)
-            exchange = await self._http_evidence(
-                request_id, caido_request_id, context.invocation_id
-            )
+            exchange = await self._http_evidence(request_id, context.invocation_id)
             request = build_submission(
                 invocation_id=context.invocation_id,
                 client_key=call_client_key(context),
@@ -171,33 +168,19 @@ class FindingPublisher:
             return result
 
     async def _http_evidence(
-        self, request_id: int | None, caido_request_id: str | None, invocation_id: str
+        self, request_id: int | None, invocation_id: str
     ) -> dict[str, Any] | None:
-        if request_id is None and caido_request_id is None:
+        if request_id is None:
             return None
-        if request_id is not None and caido_request_id is not None:
-            raise ToolInputError("select request_id or caido_request_id, not both")
-        if request_id is not None and (type(request_id) is not int or request_id <= 0):
-            raise ToolInputError("request_id must be an integer returned by http_request")
-        if caido_request_id is not None and (
-            not isinstance(caido_request_id, str) or not caido_request_id
-        ):
-            raise ToolInputError("caido_request_id must be an ID from inspected Caido traffic")
         captures = self.resources.http_captures
         if not isinstance(captures, RecentHTTPCaptures):
-            raise ToolInputError(
-                "captured HTTP evidence requires this worker's HTTP or Caido session"
-            )
+            raise ToolInputError("captured HTTP evidence requires this worker's HTTP session")
         try:
-            return await captures.get(
-                "http" if request_id is not None else "caido",
-                str(request_id) if request_id is not None else caido_request_id,
-                invocation_id=invocation_id,
-            )
+            source, provider_id = captures.resolve(request_id)
+            return await captures.get(source, provider_id, invocation_id=invocation_id)
         except ValueError:
             raise ToolInputError(
-                "HTTP evidence is unavailable in this invocation; "
-                "inspect a recent request or omit the ID"
+                "HTTP evidence is unavailable in this invocation; inspect a recent request"
             ) from None
 
     def close(self) -> None:

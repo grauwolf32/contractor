@@ -272,7 +272,10 @@ def test_caido_finding_selects_inspected_bytes_without_another_graphql_call(tmp_
         artifacts = CaidoArtifacts()
         caido, state, handle = await create_caido(tmp_path, handler, artifacts)
         try:
-            detail = await caido["caido_request_detail"]("request-1", tool_context=context())
+            history = await caido["caido_history"]()
+            detail = await caido["caido_request_detail"](
+                history["requests"][0]["request_id"], tool_context=context()
+            )
             client = FakeFindingClient()
             tool = await finding_tool(HTTPFindingsToolsetFactory, client, state)
             result = await tool(
@@ -280,7 +283,7 @@ def test_caido_finding_selects_inspected_bytes_without_another_graphql_call(tmp_
                 description="Captured behavior",
                 url="https://target.example/probe",
                 method="POST",
-                caido_request_id=detail["id"],
+                request_id=detail["request_id"],
                 tool_context=context(),
             )
             capture = client.requests[0]["httpEvidence"]
@@ -294,7 +297,7 @@ def test_caido_finding_selects_inspected_bytes_without_another_graphql_call(tmp_
             else:
                 assert "response" not in attempt and attempt["error"] == "response_unavailable"
             assert result["evidence_refs"][-1]["namespace"] == "http-exchanges"
-            assert observed == ["RequestDetail"]
+            assert observed == ["RequestsByOffset", "RequestDetail"]
             assert artifacts.payloads == {}
             with pytest.raises(ToolInputError, match="unavailable"):
                 await tool(
@@ -302,7 +305,7 @@ def test_caido_finding_selects_inspected_bytes_without_another_graphql_call(tmp_
                     description="D",
                     url="https://target.example",
                     method="GET",
-                    caido_request_id="request-1",
+                    request_id=detail["request_id"],
                     tool_context=context(invocation_id="foreign"),
                 )
         finally:

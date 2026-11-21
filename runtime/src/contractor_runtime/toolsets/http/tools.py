@@ -350,7 +350,6 @@ class _HTTPSession:
         self._auth_kind: Literal["none", "basic", "bearer"] = "none"
         self._auth_username: str | None = None
         self._auth_secret: str | None = None
-        self._next_request_id = 1
         self._nonce = secrets.token_hex(8)
         self._closed = False
         self._checkpoint = checkpoint
@@ -389,8 +388,10 @@ class _HTTPSession:
         async with self._lock:
             self._require_open()
             self._checkpoint.require_confirmed()
-            request_id = self._next_request_id
-            self._next_request_id += 1
+            try:
+                request_id = self._captures.new_http_request()
+            except ValueError:
+                raise HTTPToolError("http_request_invalid") from None
             started_ns = time.perf_counter_ns()
             selected_method = _method(method)
             selected_url = _url_with_query(url, query)

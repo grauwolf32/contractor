@@ -3,7 +3,7 @@ kind: Workflow
 
 metadata:
   name: security-analysis
-  version: "5"
+  version: "6"
 
 spec:
   parameters:
@@ -45,7 +45,7 @@ spec:
       planner: passthrough@1
       agents:
         analyst:
-          template: caido_analyst@4
+          template: caido_analyst@5
           namespace: security
       context:
         artifacts:

@@ -29,7 +29,7 @@ This reset does not promise compatibility with pre-reset demo catalogs.
 | `audit_openapi_operation_tracer@4` | [`audit_openapi_operation_tracer@1`](agent-templates/audit_openapi_operation_tracer.yaml) |
 | `audit_risk_source_checker@3` | [`audit_risk_source_checker@1`](agent-templates/audit_risk_source_checker.yaml) |
 | `audit_source_checker@3` | [`audit_source_checker@1`](agent-templates/audit_source_checker.yaml) |
-| `caido_analyst@1` | [`caido_analyst@3`](agent-templates/caido_analyst_v3_memory.yaml) |
+| `caido_analyst@1` | [`caido_analyst@5`](agent-templates/caido_analyst_v3_memory.yaml) |
 | `findings_analyst@1` | [`findings_analyst@2`](agent-templates/findings_analyst_v2_memory.yaml) |
 | `http_explorer@1` | [`http_explorer@3`](agent-templates/http_explorer_v3_memory.yaml) |
 | `likec4_builder@2` | [`likec4_builder@4`](agent-templates/likec4_builder_v4_memory.yaml) |
@@ -62,7 +62,7 @@ This reset does not promise compatibility with pre-reset demo catalogs.
 | `openapi-from-workspace@5` | [`openapi-from-workspace@7`](workflows/openapi_from_workspace_v7_memory.yaml) |
 | `openapi-from-workspace-streamline@1` | [`openapi-from-workspace-streamline@2`](workflows/openapi_from_workspace_streamline_v2_memory.yaml) |
 | `podman-python-check@1` | [`podman-python-check@2`](workflows/podman_python_check_v2_memory.yaml) |
-| `security-analysis@2` | [`security-analysis@4`](workflows/security_analysis_v4_memory.yaml) |
+| `security-analysis@2` | [`security-analysis@6`](workflows/security_analysis_v4_memory.yaml) |
 | `taint-trace-from-workspace@2` | [`taint-trace-from-workspace@4`](workflows/taint_trace_from_workspace_v4_memory.yaml) |
 
 ## AuditProfile

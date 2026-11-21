@@ -390,9 +390,9 @@ source bytes.
 ### Selected HTTP evidence
 
 **FND-R42.** The HTTP facade requires `url` and `method` even without a
-captured source. The general and HTTP facades accept optional `request_id`
-or `caido_request_id`, mutually exclusive. Omitting both permits a finding
-without captured HTTP evidence.
+captured source. The general and HTTP facades and `record_fact` accept an optional local integer
+`request_id` shared by HTTP and Caido tools (HTP-R72). Omitting it permits
+publication without captured HTTP evidence, subject to the ordinary evidence rules.
 
 **FND-R43.** A supplied source resolves only against the allocation's
 bounded HTTP/Caido buffer, with the same-invocation ownership rule of

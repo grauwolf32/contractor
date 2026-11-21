@@ -12,6 +12,7 @@ import pytest
 from test_caido_read_tools import (
     FakeArtifactClient,
     create_tools,
+    local_request,
     representative_responses,
     request_detail,
 )
@@ -83,7 +84,7 @@ def test_malformed_or_partial_responses_fail_without_artifact_selection(
             if "unexpected" in responses["RequestDetail"] or (
                 isinstance(request_value, dict) and request_value.get("raw") == "not-base64"
             ):
-                await tools["caido_request_detail"]("request-1")
+                await tools["caido_request_detail"](local_request(tools, "request-1"))
             elif responses["RequestsByOffset"]["requestsByOffset"]["count"]["value"] == -1:
                 await tools["caido_history"]()
             else:
@@ -108,8 +109,8 @@ def test_null_domain_results_are_explicit_and_result_size_is_bounded(
 
     async def scenario() -> None:
         tools, _state, handle = await create_tools(tmp_path, handler, FakeArtifactClient())
-        assert await tools["caido_request_detail"]("missing") == {
-            "request_id": "missing",
+        assert await tools["caido_request_detail"](local_request(tools, "missing")) == {
+            "request_id": local_request(tools, "missing"),
             "status": "not_found",
         }
         assert await tools["caido_automate_results"]("missing") == {
@@ -144,7 +145,7 @@ def test_noncanonical_blob_and_graphql_error_are_content_free(
     async def scenario() -> None:
         tools, state, handle = await create_tools(tmp_path, handler, FakeArtifactClient())
         with pytest.raises(CaidoToolError) as invalid:
-            await tools["caido_request_detail"]("request-1")
+            await tools["caido_request_detail"](local_request(tools, "request-1"))
         assert invalid.value.code == "caido_response_invalid"
         with pytest.raises(CaidoToolError) as failed:
             await tools["caido_scope"]()
@@ -208,7 +209,7 @@ def test_response_over_adapter_bound_fails_before_tool_payload_processing(
         artifacts = FakeArtifactClient()
         tools, state, handle = await create_tools(tmp_path, handler, artifacts)
         with pytest.raises(CaidoToolError) as failure:
-            await tools["caido_request_detail"]("request-1")
+            await tools["caido_request_detail"](local_request(tools, "request-1"))
         assert failure.value.code == "caido_response_too_large"
         assert failure.value.retryable is False
         assert decoded == []

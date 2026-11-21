@@ -170,6 +170,7 @@ def test_unavailable_selection_has_no_result_mutation_or_artifact(kind):
         captures = RecentHTTPCaptures()
         collector, tool, transport, _, _ = result_tool(captures)
         if kind != "missing":
+            captures.new_http_request()
             await captures.put(
                 capture("1"),
                 "other" if kind == "foreign" else "invocation-1",
@@ -203,6 +204,7 @@ def test_full_recent_buffer_selection_and_two_member_evidence_bound():
         for batch, key in enumerate(collector.owner.item_keys):
             ids = list(range(1 + batch * 128, 129 + batch * 128))
             for request_id in ids:
+                assert captures.new_http_request() == request_id
                 await captures.put(
                     capture(str(request_id)),
                     "invocation-1",
@@ -234,6 +236,7 @@ def test_batch_foreign_capture_rejects_before_any_publication():
 
         captures = RecentHTTPCaptures()
         for request_id, invocation in [(1, "invocation-1"), (2, "foreign")]:
+            assert captures.new_http_request() == request_id
             await captures.put(
                 capture(str(request_id)),
                 invocation,
@@ -269,6 +272,7 @@ def test_selected_bytes_are_bounded_before_publication(monkeypatch):
 
         monkeypatch.setattr(module, "MAX_COLLECTED_BYTES", 64)
         captures = RecentHTTPCaptures()
+        captures.new_http_request()
         await captures.put(
             capture("1"), "invocation-1", observation=HTTPObservation("2026-11-06T18:20:00Z")
         )
@@ -481,6 +485,7 @@ def test_cancellation_joins_publication_and_never_claims_result_acceptance(commi
         from test_http_capture import capture
 
         captures = RecentHTTPCaptures()
+        captures.new_http_request()
         await captures.put(
             capture("1"), "invocation-1", observation=HTTPObservation("2026-11-06T18:20:00Z")
         )

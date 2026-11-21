@@ -10,7 +10,7 @@ from typing import Any
 
 import httpx
 import pytest
-from test_caido_read_tools import CAIDO_TOKEN, request_detail
+from test_caido_read_tools import CAIDO_TOKEN, local_request, request_detail
 from test_caido_read_tools import FakeArtifactClient as CaidoArtifactClient
 from test_caido_read_tools import close_tools as close_caido_tools
 from test_caido_read_tools import create_tools as create_caido_tools
@@ -305,8 +305,8 @@ def test_caido_results_and_artifacts_scrub_runtime_injected_credentials(
             factory=caido_credential_factory(artifacts),
             runtime_settings=caido_credential_settings(TARGET_TOKEN),
         )
-        detail = await tools["caido_request_detail"]("request-1")
-        replay = await tools["caido_replay"](request_id="request-1")
+        detail = await tools["caido_request_detail"](local_request(tools, "request-1"))
+        replay = await tools["caido_replay"](request_id=local_request(tools, "request-1"))
         findings = await tools["caido_workflow_findings"]()
         converted = await tools["caido_workflow_run"]("workflow-convert", input="source")
 
@@ -381,7 +381,7 @@ def test_caido_short_injected_credentials_are_replaced_as_whole_header_values(
             factory=caido_credential_factory(artifacts),
             runtime_settings=caido_credential_settings(short_token),
         )
-        detail = await tools["caido_request_detail"]("request-1")
+        detail = await tools["caido_request_detail"](local_request(tools, "request-1"))
         assert detail["raw"]["data"] == (
             "GET / HTTP/2\r\n"
             "host: target.example\r\n"

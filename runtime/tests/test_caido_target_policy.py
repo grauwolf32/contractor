@@ -9,7 +9,13 @@ from pathlib import Path
 import httpx
 import pytest
 from http_cookie_store import HTTPToolsetFactory
-from test_caido_read_tools import FakeArtifactClient, close_tools, create_tools, request_detail
+from test_caido_read_tools import (
+    FakeArtifactClient,
+    close_tools,
+    create_tools,
+    local_request,
+    request_detail,
+)
 from test_http_toolset import close_tools as close_http_tools
 from test_http_toolset import make_tools
 
@@ -142,11 +148,13 @@ def test_captured_request_actions_deny_before_mutation(
         try:
             with pytest.raises(CaidoToolError) as denied:
                 if action == "caido_replay":
-                    await tools[action](request_id="request-1", wait=False)
+                    await tools[action](request_id=local_request(tools, "request-1"), wait=False)
                 elif action == "caido_automate_run":
-                    await tools[action]("request-1", targets=["TARGET"], payloads=["probe"])
+                    await tools[action](
+                        local_request(tools, "request-1"), targets=["TARGET"], payloads=["probe"]
+                    )
                 else:
-                    await tools[action]("workflow-1", request_id="request-1")
+                    await tools[action]("workflow-1", request_id=local_request(tools, "request-1"))
             assert denied.value.code == "caido_target_denied"
             assert denied.value.retryable is False
             assert operations == ["RequestDetail"]

@@ -14,7 +14,7 @@ active findings against observed traffic and state what was not tested.
 
 Record each supported possible issue with `finding`, an explicit URL and method,
 and its captured evidence. Select `request_id` from a recent `http_request`, or
-`caido_request_id` from a request inspected with `caido_request_detail` or a
+`request_id` from a request inspected with `caido_request_detail` or a
 completed `caido_replay` in this invocation. Finding saves the selected request
 and available response automatically. Inspection alone keeps exchanges only in
 the bounded recent buffer; other proxied traffic remains in Caido. Cite the

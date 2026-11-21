@@ -76,6 +76,7 @@ def test_capture_buffer_count_ownership_replacement_and_clear():
     async def scenario():
         buffer = RecentHTTPCaptures()
         for number in range(1, 131):
+            assert buffer.new_http_request() == number
             await buffer.put(capture(str(number)), "invocation-1")
         assert len(buffer._entries) == 128
         with pytest.raises(ValueError, match="unavailable"):
@@ -110,6 +111,7 @@ def test_capture_buffer_real_response_bound_evicts_by_bytes():
                 "complete": True,
                 "message": {"kind": "structured", "headers": [], "body_base64": body},
             }
+            assert buffer.new_http_request() == number
             await buffer.put(value, "invocation-1")
             assert buffer._bytes <= 64 * 1024 * 1024
         assert len(buffer._entries) == 2
@@ -130,6 +132,7 @@ def test_capture_buffer_byte_eviction_is_independent_of_count(monkeypatch):
         )
         monkeypatch.setattr(http_capture, "MAX_CAPTURE_BUFFER_BYTES", len(encoded) * 2)
         for number in range(1, 5):
+            assert buffer.new_http_request() == number
             await buffer.put(capture(str(number)), "invocation-1")
         assert len(buffer._entries) == 2
         assert not buffer.contains("http", "2") and buffer.contains("http", "4")
@@ -149,6 +152,7 @@ def test_observation_metadata_shares_capture_ownership_eviction_and_byte_budget(
     async def scenario():
         metadata = http_capture.HTTPObservation("2026-10-27T12:00:00Z", "deployment-test")
         buffer = RecentHTTPCaptures()
+        buffer.new_http_request()
         await buffer.put(capture(), "owner", observation=metadata)
         body, selected = buffer.select_observation("1", "owner")
         assert selected == metadata
@@ -156,6 +160,7 @@ def test_observation_metadata_shares_capture_ownership_eviction_and_byte_budget(
         with pytest.raises(ValueError, match="unavailable"):
             buffer.select_observation("1", "foreign")
         monkeypatch.setattr(http_capture, "MAX_CAPTURE_BUFFER_BYTES", buffer._bytes + 10)
+        buffer.new_http_request()
         await buffer.put(capture("2"), "owner", observation=metadata)
         assert len(buffer._entries) == len(buffer._observations) == 1
         with pytest.raises(ValueError, match="unavailable"):

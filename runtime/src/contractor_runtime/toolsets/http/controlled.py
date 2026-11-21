@@ -65,7 +65,6 @@ class ControlledHTTPSession(_HTTPSession):
         self._deployment_marker = deployment_marker
         self._cached_body = None
         self._default_headers = {}
-        self._next_request_id = 1
         self._nonce = secrets.token_hex(8)
         self._closed = False
         transport.attach_response_buffer(self._erase_response_buffer)
@@ -161,8 +160,10 @@ class ControlledHTTPSession(_HTTPSession):
             selected_headers = body_headers(
                 self._default_headers, validate_headers(headers), content_type
             )
-            request_id = self._next_request_id
-            self._next_request_id += 1
+            try:
+                request_id = self._captures.new_http_request()
+            except ValueError:
+                raise ControlledHTTPError("http_request_invalid") from None
             started = time.monotonic()
             tag = f"r{self._nonce}-h{request_id:06d}"
             selected_headers = merge_headers(selected_headers, {"X-Request-Id": tag})
