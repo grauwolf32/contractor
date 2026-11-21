@@ -521,7 +521,7 @@ test("Workflow overview leads with Run setup in a dismissible drawer", async ({
   const technical = page.locator("details.workflow-technical-details");
   await expect(configure).toBeInViewport();
   await expect(
-    page.getByRole("heading", { name: "Inputs and results" }),
+    page.getByRole("region", { name: "Inputs and results" }),
   ).toBeInViewport();
   await expect(setup).toHaveCount(0);
   await expect(technical).not.toHaveAttribute("open", "");

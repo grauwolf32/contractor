@@ -427,7 +427,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   // leave and return in the same tab, then submit the retained exact request.
   await page.goto("/catalog/workflows");
   await page
-    .getByRole("link", { name: "streamline-copy", exact: true })
+    .locator('a[href="/catalog/workflows/streamline-copy/1"]')
     .click();
   await page
     .getByRole("button", { name: "Configure Run", exact: true })
