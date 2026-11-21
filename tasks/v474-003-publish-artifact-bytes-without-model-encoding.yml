@@ -24,6 +24,10 @@ context:
     User decision 2026-11-21 requires a local file reference as the sole source argument from the
     model when publishing an existing file. Instructions and tools must never require the model to
     supply exact source content, in plain text, base64 or any other encoding.
+  verification_grouping: >-
+    Agent execution decision 2026-11-22 follows the user's request to minimize passes. This task
+    runs its real-process publication and migrated-caller regressions; V474-010 owns the unchanged
+    mandatory full process gate on the combined implementation. Earlier failed full runs are not passes.
   specification:
   - docs/spec/artifacts/artifact-store.md#ART-R37
   - docs/spec/artifacts/artifact-store.md#ART-R58
@@ -101,7 +105,7 @@ tests:
 - command: make test-config
   covers:
   - A2
-- command: make test-e2e
+- command: go test -tags=e2e -count=1 ./tests/e2e -run '^(TestArtifactFilePublicationAcrossProcesses|TestLocalGoToPythonArtifactCopy|TestProductionMemoryTemplatesAcrossProcesses|TestRoutingAndEscalationProductionBoundaries|TestAgentSkillsMVPProcesses|TestAuditBasicExactHandoffAcrossProductionProcesses|TestAuditWorkspaceAcrossProductionProcesses)$'
   covers:
   - A1
   - A2
