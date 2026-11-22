@@ -108,12 +108,12 @@ func managedEvalGatewayMessage(request map[string]any) (map[string]any, string, 
 			return call("read_artifact", map[string]any{"namespace": "inputs", "name": "source"})
 		}
 		if !completed["write_text_artifact"] {
-			_, found := lastStringValue(request, "text")
+			text, found := lastStringValue(request, "text")
 			if !found {
 				return nil, "", model, errors.New("Workflow source bytes missing")
 			}
 			return call("write_text_artifact", map[string]any{"name": "copied",
-				"media_type": "text/plain", "text": e2eReport})
+				"media_type": "text/plain", "text": text})
 		}
 	}
 	return map[string]any{"role": "assistant", "content": managedEvalWorkerSummary}, "stop", model, nil

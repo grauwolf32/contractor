@@ -16,10 +16,21 @@ def check(producer, root):
     shared = json.loads((root / "api/testdata/audit-common/results.json").read_text())
     example = shared["cases"][0]
     context = json.loads(example["context"])
-    context["workflow_ref"] = "audit-source-check@4"
+    context["workflow_ref"] = "audit-source-check@8"
     source_items = fixture["audit_assertion_source"]()["items"]
     template = context["items"][0]
     outcomes, accepted, tasks = [], [], {}
+    entries, material_paths = [], {}
+
+    def add_material(key, material, data):
+        if any(entry["material"] == material for entry in entries):
+            return
+        entries.append({"key": key, "material": material})
+        query = urllib.parse.urlencode(
+            {"key": key, "revision": material["ref"]["revision"]}
+        )
+        material_paths["/v1/audits/audit-1/artifacts?" + query] = data
+
     context["items"] = []
     for index, source in enumerate(source_items):
         item = copy.deepcopy(template)
@@ -36,21 +47,71 @@ def check(producer, root):
             "allowed_methods": encoded(source["allowed_methods"]).decode(),
             "required_evidence": encoded(source["required_evidence"]).decode(),
         }
-        item["evidence"][0].update(scope_kind="run", scope_id="run-1")
+        item["evidence"][0].update(
+            scope_kind="run",
+            scope_id="run-1",
+            digest=fixture["digest"](fixture["OUTPUT"]),
+            size_bytes=len(fixture["OUTPUT"]),
+        )
         item["evidence"][0]["ref"].update(namespace="inputs", name="source")
         context["items"].append(item)
         outcome = copy.deepcopy(json.loads(example["document"])["items"][0])
-        outcome.update(
-            item_key=item["item_key"],
-            evidence=item["evidence"],
-        )
+        outcome.update(item_key=item["item_key"])
         retained = copy.deepcopy(item["evidence"][0])
         retained.update(scope_kind="audit", scope_id="audit-1")
         retained["ref"].update(namespace="audit-inputs", revision="audit-source-1")
+        add_material("baseline/source", retained, fixture["OUTPUT"])
+        selected = copy.deepcopy(retained)
+        selected["ref"].update(namespace="audit-selected", revision="selected-source-1")
+        add_material("evidence-source/source", selected, fixture["OUTPUT"])
+        local = copy.deepcopy(selected)
+        local.update(scope_kind="run", scope_id="run-1")
+        local["ref"] = {
+            "namespace": "inputs",
+            "name": "selected-"
+            + fixture["digest"](encoded(item["evidence"][0]["ref"]))[7:],
+            "revision": "snapshot-1",
+        }
+        note = {
+            "schema": "contractor.audit.evidence.v1",
+            "request_digest": "sha256:" + "c" * 64,
+            "origin": {
+                "audit_id": "audit-1",
+                "execution_id": "execution-1",
+                "run_id": "run-1",
+                "task_id": item["task_id"],
+                "hypothesis": {"id": hypothesis["id"], "revision": 1},
+                "allocation_id": "allocation-1",
+                "stage_execution_id": "stage-1",
+                "logical_agent_name": "worker",
+                "invocation_id": "invocation-1",
+                "submission_id": f"call-{index}",
+            },
+            "sources": [selected],
+            "selected_sources": [local],
+            "interpretation": "Scoped interpretation of explicitly selected source",
+            "tested_conditions": outcome["tested_conditions"],
+            "limitations": [],
+        }
+        note_bytes = encoded(note)
+        annotation = {
+            "scope_kind": "audit",
+            "scope_id": "audit-1",
+            "ref": {
+                "namespace": "audit-selected",
+                "name": f"note-{index}",
+                "revision": "note-1",
+            },
+            "digest": fixture["digest"](note_bytes),
+            "media_type": "application/json",
+            "size_bytes": len(note_bytes),
+        }
+        add_material(f"evidence/execution-1/receipt-{index}", annotation, note_bytes)
+        outcome["evidence"] = sorted([selected, annotation], key=encoded)
         accepted.append(
             {
                 **outcome,
-                "evidence": [retained],
+                "evidence": outcome["evidence"],
                 "origin": {
                     "audit_id": "audit-1",
                     "run_id": "run-1",
@@ -81,8 +142,8 @@ def check(producer, root):
     wrapper = {"schema": "contractor.audit.result.v1", "items": accepted}
     wrapper_raw = encoded(wrapper)
     retained_context = copy.deepcopy(context)
-    for item in retained_context["items"]:
-        item["evidence"] = list(tasks[item["task_id"]]["document"]["inputs"].values())
+    for item, outcome in zip(retained_context["items"], outcomes, strict=True):
+        item["evidence"] = copy.deepcopy(outcome["evidence"])
     for task in tasks.values():
         task["result"] = {
             "scope_kind": "audit",
@@ -104,6 +165,9 @@ def check(producer, root):
         "/v1/runs/run-1/artifacts/inputs/context?revision=context-1": encoded(context),
         "/v1/runs/run-1/artifacts/outputs/result?revision=result-1": raw,
     }
+
+    paths.update(material_paths)
+    paths["/v1/runs/run-1/artifacts/inputs/source?revision=rev-1"] = fixture["OUTPUT"]
 
     def wrapper_path(task_id, revision="task-result-1"):
         return "/v1/audits/audit-1/artifacts?" + urllib.parse.urlencode(
@@ -147,6 +211,7 @@ def check(producer, root):
             self.reads = []
             self.report = {"status": "unavailable"}
             self.paths = paths.copy()
+            self.entries = copy.deepcopy(entries)
             self.tasks = copy.deepcopy(tasks)
             self.run = {
                 "inputs": {
@@ -166,6 +231,11 @@ def check(producer, root):
                 "/v1/runs/run-1": self.run,
             }[path]
 
+        def stable_pages(self, path):
+            assert path == "/v1/audits/audit-1/materials"
+            self.reads.append(path)
+            return self.entries, None
+
         def get_bytes(self, path):
             self.reads.append(path)
             return self.paths[path]
@@ -184,7 +254,7 @@ def check(producer, root):
         "sizeBytes": len(raw),
     }
     assert result["usage"] == row["usage"]
-    assert len(api.reads) == 8 and set(paths) <= set(api.reads)
+    assert len(api.reads) <= 20 and set(paths) <= set(api.reads)
 
     class Response:
         def __init__(self):
@@ -371,7 +441,7 @@ def check(producer, root):
         invalid_wrappers.append(invalid)
     return {
         "result": result,
-        "context": context,
+        "context": retained_context,
         "document": document,
         "rejections": rejected,
         "dataset": audit,
