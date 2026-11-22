@@ -35,7 +35,12 @@ context:
     sources as the shared model-facing selection of code, HTTP and exact artifact materials for record_evidence,
     finding and record_fact. Evidence is a relation to the particular check/claim; a Finding need not consume
     an Audit evidence record or have a hypothesis. Preserve independent owners and reuse exact material bytes.
-    This does not approve unrelated pending choices or authorize implementation/merge.'
+    This does not approve unrelated pending choices or authorize implementation/merge. User decision 2026-11-22:
+    publish evidenced security problems through finding even when unrelated to the assigned hypothesis, and
+    explicitly instruct the Worker how to use evidence. Publication must precede final result submission when
+    feasible; independent discoveries keep honest incidental origin. This approves publication/evidence guidance
+    in the task plan, not a new mandatory result flag, a minimum Finding count, semantic auto-detection, implementation
+    or merge.'
   implementation_gate: Keep pending. Do not implement, deploy, launch an Audit or merge this task plan into
     main until the user reviews and agrees to the concrete tasks. Record that agreement and resolve context.decision_needed
     before implementation; task-plan approval alone does not authorize implementation.
@@ -153,6 +158,13 @@ requirements:
     claim and authority; Finding/Fact callers may publish independently of a hypothesis. Reuse exact prepared
     source artifacts and keep current source-specific validation, HTTP/Caido identity and trace mapping guarantees.
     Model arguments never grant Project/Audit/Run/hypothesis identity.
+- id: R12
+  text: Agent-facing sources and record_evidence guidance must explain when to select and retain sources during
+    work, how code coordinates bind to an exact version, how local HTTP IDs select actual captures without
+    replay, and how to cite an existing exact artifact. Distinguish interpretation, factual source and uncertainty.
+    Reading/saving a material alone does not register evidence for a check. Reuse the same exact source with
+    an independent interpretation for another claim, without counting it as corroboration or requiring a prior
+    Audit evidence record for a Finding.
 failure_outcomes:
 - operation: Publish an observation and attach its exact artifact to Audit-owned retention
   permanent: Reject invalid membership, foreign/exact-revision mismatches, quota violations and malformed input
@@ -224,6 +236,13 @@ acceptance_criteria:
   then: All use the common selector contract without universal obs IDs or an obligatory Audit evidence record;
     trusted origins remain separate, exact sources survive their owner lifecycle and no new independent evidence
     store is introduced.
+- id: A6
+  given: The effective Worker instructions and declarations for source, HTTP and mixed-source investigation
+  when: Scripted real-tool scenarios select evidence during work and reuse sources for an incidental Finding
+  then: The model-facing guidance specifies exact selection, persistence acknowledgement, interpretation and
+    limitations. Check evidence and independent Finding sources remain distinct; no invented handles, target
+    replay or automatic Project fact publication occurs. These checks establish interface wiring, not live-model
+    compliance.
 tests:
 - command: make test-runtime
   covers:
@@ -232,6 +251,7 @@ tests:
   - A3
   - A4
   - A5
+  - A6
 - command: go test -tags=integration -count=1 ./internal/artifacts/... ./internal/auditstore/... ./internal/auditservice/...
     ./internal/auditimport/... ./internal/httpapi/privateartifacts/... ./internal/findingintake/...
   covers:
@@ -252,6 +272,7 @@ tests:
   - A2
   - A3
   - A4
+  - A6
 - command: make test-wire-cross-language
   covers:
   - A1
@@ -273,9 +294,11 @@ tests:
   covers:
   - A4
   - A5
+  - A6
 - command: make test-code-analysis-e2e
   covers:
   - A5
+  - A6
 verification_notes: Commands below are required implementation gates, not results of task planning. Use one
   owned disposable PostgreSQL database, explicitly drop it after pools/processes stop, and never implicitly
   enable CONTRACTOR_TEST_HEAVY_IO. Zero matched cases and skipped required database/process cases fail acceptance.

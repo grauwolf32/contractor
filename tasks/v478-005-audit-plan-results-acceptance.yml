@@ -40,7 +40,12 @@ context:
     sources as the shared model-facing selection of code, HTTP and exact artifact materials for record_evidence,
     finding and record_fact. Evidence is a relation to the particular check/claim; a Finding need not consume
     an Audit evidence record or have a hypothesis. Preserve independent owners and reuse exact material bytes.
-    This does not approve unrelated pending choices or authorize implementation/merge.'
+    This does not approve unrelated pending choices or authorize implementation/merge. User decision 2026-11-22:
+    publish evidenced security problems through finding even when unrelated to the assigned hypothesis, and
+    explicitly instruct the Worker how to use evidence. Publication must precede final result submission when
+    feasible; independent discoveries keep honest incidental origin. This approves publication/evidence guidance
+    in the task plan, not a new mandatory result flag, a minimum Finding count, semantic auto-detection, implementation
+    or merge.'
   implementation_gate: Keep pending. Do not implement, deploy, launch an Audit or merge this task plan into
     main until the user reviews and agrees to the concrete tasks. Record that agreement and resolve context.decision_needed
     before implementation; task-plan approval alone does not authorize implementation.
@@ -135,6 +140,12 @@ requirements:
   text: Verify common sources across code/HTTP/artifact and independent Audit/Finding/Fact consumers. Existing
     Findings evidence remains exact selected material; it must not be confused with a required Audit-owned
     evidence receipt. Include mixed-source and no-hypothesis cases.
+- id: R11
+  text: Integrated acceptance includes task-related and incidental Findings recorded before final submission,
+    with code/HTTP/mixed sources and preserved exact origin after interruption. The UI shows an incidental
+    problem independently of the assigned hypothesis conclusion. Verify effective instructions and publication
+    receipts without interpreting deterministic scripted calls as proof of live-model compliance or imposing
+    a minimum finding count.
 failure_outcomes:
 - operation: Read/project retained plan progress and render a stable result snapshot
   permanent: Reject invalid membership, foreign/exact-revision mismatches, quota violations and malformed input
@@ -182,12 +193,21 @@ acceptance_criteria:
   when: Integration review checks active contracts and lifecycle cleanup
   then: New names and common result semantics agree end to end; obsolete active paths are removed, independent
     pending tasks retain ownership and no live quality/deployment claim is made.
+- id: A4
+  given: An assigned assertion, an unrelated evidenced problem and a zero-problem control, using singleton
+    and batch contexts
+  when: The composed gate publishes through the selected finding tool before final submission and interrupts
+    another attempt after publication
+  then: Findings are real Project records with retained sources, incidental discoveries do not acquire an unrelated
+    hypothesis or close its check, the control needs no Finding, and accepted publications survive stop. Effective
+    evidence/publication guidance is present in actual prompts/tool declarations.
 tests:
 - command: make test-audit-basic-e2e
   covers:
   - A1
   - A2
   - A3
+  - A4
 - command: make test-audit-completion-e2e
   covers:
   - A1
@@ -203,11 +223,13 @@ tests:
   - A1
   - A2
   - A3
+  - A4
 - command: make test-runtime
   covers:
   - A1
   - A2
   - A3
+  - A4
 - command: go test -tags=integration -count=1 ./internal/auditdomain/... ./internal/auditcontroller/... ./internal/auditimport/...
     ./internal/auditservice/... ./internal/auditstore/... ./internal/artifacts/... ./internal/httpapi/public/...
   covers:
@@ -234,6 +256,9 @@ tests:
   - A1
   - A2
   - A3
+- command: make test-findings-e2e
+  covers:
+  - A4
 verification_notes: Commands below are required implementation gates, not results of task planning. Use one
   owned disposable PostgreSQL database, explicitly drop it after pools/processes stop, and never implicitly
   enable CONTRACTOR_TEST_HEAVY_IO. Zero matched cases and skipped required database/process cases fail acceptance.

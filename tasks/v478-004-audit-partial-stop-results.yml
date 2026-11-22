@@ -25,7 +25,12 @@ context:
     The user corrected the assumption that limits reveal completed/remaining semantic steps: execution facts
     do not establish semantic coverage. The user proposed submit_result and explicitly requested joint review
     and agreement before merging these tasks into main. This is planning authorization only. Names, retention
-    policy and stop representation below are agent recommendations pending review, not accepted user decisions.'
+    policy and stop representation below are agent recommendations pending review, not accepted user decisions.
+    User decision 2026-11-22: publish evidenced security problems through finding even when unrelated to the
+    assigned hypothesis, and explicitly instruct the Worker how to use evidence. Publication must precede final
+    result submission when feasible; independent discoveries keep honest incidental origin. This approves publication/evidence
+    guidance in the task plan, not a new mandatory result flag, a minimum Finding count, semantic auto-detection,
+    implementation or merge.'
   implementation_gate: Keep pending. Do not implement, deploy, launch an Audit or merge this task plan into
     main until the user reviews and agrees to the concrete tasks. Record that agreement and resolve context.decision_needed
     before implementation; task-plan approval alone does not authorize implementation.
@@ -105,6 +110,11 @@ requirements:
     and never trigger Run success. Separate durable partial judgments from the immutable all-item terminal
     publication; revise the existing all-or-nothing/cancel-discard rules explicitly in their owning specs and
     importer, not through a parallel permissive reader.
+- id: R9
+  text: Already accepted incidental Findings survive a later check limit/cancel/failure independently of the
+    check result and without a hypothesis association. A rejected or unconfirmed Finding call is not promoted
+    to a published Finding by stop reconciliation. Preserve accepted evidence and actual publication diagnostics,
+    without an extra post-stop model/target call.
 failure_outcomes:
 - operation: Reconcile an interrupted attempt against durable observations and accepted judgments
   permanent: Reject invalid membership, foreign/exact-revision mismatches, quota violations and malformed input
@@ -154,12 +164,19 @@ acceptance_criteria:
   when: The real store and process lifecycle gates execute
   then: Fences and receipts determine acceptance, old evidence remains exact/readable, purge releases owned
     data, and no HTTP effect is automatically replayed.
+- id: A4
+  given: An incidental Finding accepted before a limit, alongside a separate rejected or unconfirmed publication
+  when: The Worker stops before final submit and the Server reconciles the attempt
+  then: The accepted Project Finding and its exact sources survive without a fabricated hypothesis; the other
+    publication remains failed/unknown unless its original receipt is reconciled. No new semantic Finding is
+    manufactured at stop.
 tests:
 - command: make test-runtime
   covers:
   - A1
   - A2
   - A3
+  - A4
 - command: go test -tags=integration -count=1 ./internal/auditcontroller/... ./internal/auditimport/... ./internal/auditstore/...
     ./internal/auditservice/... ./internal/runservice/... ./internal/artifacts/...
   covers:
@@ -171,6 +188,7 @@ tests:
   - A1
   - A2
   - A3
+  - A4
 - command: make test-audit-completion-e2e
   covers:
   - A1
@@ -191,6 +209,9 @@ tests:
   - A1
   - A2
   - A3
+- command: make test-findings-e2e
+  covers:
+  - A4
 verification_notes: Commands below are required implementation gates, not results of task planning. Use one
   owned disposable PostgreSQL database, explicitly drop it after pools/processes stop, and never implicitly
   enable CONTRACTOR_TEST_HEAVY_IO. Zero matched cases and skipped required database/process cases fail acceptance.
