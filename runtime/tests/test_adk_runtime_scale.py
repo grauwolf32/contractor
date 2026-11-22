@@ -72,9 +72,12 @@ def test_long_real_gateway_session_preserves_results_and_bounds_work(
     else:
         assert work["max_read_events"] <= max_events
     assert work["max_event_scan"] <= max_events
-    # Exact supported SDK projection has three full passes per main request
-    # plus one pass per logical invocation. Tool callbacks add no such pass.
-    assert work["event_scans"] <= 3 * turns * subtasks + subtasks
+    # ADK 2.15 visits the metered list five times per main request: auth,
+    # confirmation, two content/rewind passes and resume selection. Routing,
+    # scope and user-event setup add seven per logical invocation. These are
+    # SDK reads, not a per-tool allowance; the width comparison below guards
+    # that parallel tool callbacks add no whole-history passes.
+    assert work["event_scans"] <= 5 * turns * subtasks + 7 * subtasks
     assert work["event_visits"] <= work["event_scans"] * max_events
     assert work["session_reads"] <= 4 * subtasks
     assert work["read_event_copies"] <= 4 * subtasks * max_events

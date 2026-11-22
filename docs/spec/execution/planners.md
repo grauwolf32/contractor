@@ -182,9 +182,14 @@ Scheduler sees only the framework-neutral
 `router@1` each construct one Google ADK Go `LlmAgent` behind the same
 boundary, share that Go ADK dependency and use the same bounded subtask plan
 and `finish` operation. The supported Server dependency is
-`google.golang.org/adk/v2` v2.6.0, installed through the committed Go module
+`google.golang.org/adk/v2` v2.8.0, installed through the committed Go module
 graph. Native session compaction and SDK resumability remain disabled;
 Contractor keeps its own Gateway, A2A, budgets and reduced durable facts.
+The main Runner receives the resolved Contractor model-call limit explicitly;
+ADK's default and process environment cannot replace the pinned ModelPolicy.
+The domain admission callback owns the classified budget failure. The one-shot
+compactor allows two SDK calls so its existing model wrapper can reject a repair
+attempt before a second provider operation.
 
 **PLN-R3.** ADK types do not enter Scheduler, RunStore, A2A or
 artifact contracts.

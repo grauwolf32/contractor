@@ -348,7 +348,7 @@ func (t experimentObserveTransport) RoundTrip(r *http.Request) (*http.Response, 
 
 func TestConnectionReuseExperimentResponseBounds(t *testing.T) {
 	for _, reuse := range []bool{false, true} {
-		for _, scenario := range []string{"known_length", "chunked", "oversize_length", "oversize_chunked", "malformed", "truncated", "valid_prefix_unread_tail"} {
+		for _, scenario := range []string{"known_length", "chunked", "oversize_length", "oversize_chunked", "malformed", "truncated", "valid_prefix_extra_value", "valid_prefix_unread_tail"} {
 			t.Run(fmt.Sprintf("reuse_%t/%s", reuse, scenario), func(t *testing.T) {
 				var bytesRead, closes, calls atomic.Int64
 				f := newConnectionExperiment(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -375,9 +375,11 @@ func TestConnectionReuseExperimentResponseBounds(t *testing.T) {
 						_, _ = io.WriteString(w, "invalid JSON")
 					case "truncated":
 						_, _ = io.WriteString(w, `{"jsonrpc":"2.0","result":`)
+					case "valid_prefix_extra_value":
+						_, _ = w.Write(append(data, []byte(`{}`)...))
 					case "valid_prefix_unread_tail":
-						// The entity never finishes; SDK must return after one object,
-						// close the body and cancel the server before any tail is sent.
+						// One decoded object is insufficient: the SDK must verify
+						// the whole entity, fail at its bounded deadline and close it.
 						_, _ = w.Write(data)
 						w.(http.Flusher).Flush()
 						<-r.Context().Done()
@@ -397,7 +399,7 @@ func TestConnectionReuseExperimentResponseBounds(t *testing.T) {
 				for n := 0; n < 2; n++ {
 					before := bytesRead.Load()
 					_, err = sdkClient.SendMessage(context.Background(), &sdk.SendMessageRequest{Tenant: "allocation-1", Message: sdk.NewMessage(sdk.MessageRoleUser, sdk.NewDataPart(stageRequest()))})
-					wantSuccess := scenario == "known_length" || scenario == "chunked" || scenario == "valid_prefix_unread_tail"
+					wantSuccess := scenario == "known_length" || scenario == "chunked"
 					if (err == nil) != wantSuccess {
 						t.Fatalf("success=%t error=%v", wantSuccess, err)
 					}
@@ -417,7 +419,7 @@ func TestConnectionReuseExperimentResponseBounds(t *testing.T) {
 				}
 				// Malformed short entities can be fully buffered and reused; the
 				// required bound here is closure, not unconditional pool eviction.
-				if scenario != "malformed" && scenario != "truncated" && f.accepts.Load() != wantConnections {
+				if scenario != "malformed" && scenario != "truncated" && scenario != "valid_prefix_extra_value" && f.accepts.Load() != wantConnections {
 					t.Fatalf("connections=%d want=%d", f.accepts.Load(), wantConnections)
 				}
 				t.Logf("connections=%d handshakes=%d responses=%d read_bytes=%d body_closes=%d success=%t", f.accepts.Load(), f.handshakes.Load(), calls.Load(), bytesRead.Load(), closes.Load(), err == nil)

@@ -11,6 +11,7 @@ languages: [python, go, markdown]
 goal: Run the merged tool interfaces on Python ADK 2.15.0 and Go ADK 2.8.0 with unchanged Contractor execution guarantees and a verified dependency closure.
 context:
   authority: 'User decision 2026-11-22: update both ADK versions in one implementation pass after the tool-interface work has merged. This assigns dependency migration and necessary compatibility fixes, not the previously discussed optional framework features.'
+  evidence: tasks/evidence/v475-adk-upgrade.json
   baseline: 'main 97288cba7 includes the model-tool interface merge e51e6f9bf; the primary checkout was clean before creating codex/adk-python215-go28.'
   specification:
     - docs/spec/execution/planners.md#PLN-R2

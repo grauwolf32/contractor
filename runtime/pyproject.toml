@@ -7,7 +7,7 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
   "a2a-sdk[http-server]==1.1.2",
   "cryptography>=45,<51",
-  "google-adk==2.13.0",
+  "google-adk==2.15.0",
   "httpx>=0.28,<1",
   "idna>=3,<4",
   "jcs>=0.2,<1",
@@ -42,12 +42,11 @@ dev = [
 ]
 
 [tool.uv]
-constraint-dependencies = ["urllib3>=2.8.0", "certifi>=2026.10.19"]
-# ADK2.13 declares <=1.44; the fixed API/SDK cohort is tested explicitly.
-# Keep this narrow, reproducible resolver override until upstream lifts its cap.
-override-dependencies = [
-  "opentelemetry-api==1.45.1",
-  "opentelemetry-sdk==1.45.1",
+constraint-dependencies = [
+  "urllib3>=2.8.0",
+  "certifi>=2026.10.19",
+  "opentelemetry-api>=1.45.1",
+  "opentelemetry-sdk>=1.45.1",
 ]
 
 [tool.hatch.build.targets.wheel]

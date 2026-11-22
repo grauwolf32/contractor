@@ -20,7 +20,7 @@ from contractor_runtime.llm.openai import OpenAICompatibleGatewayLlm
 
 
 def test_pinned_adk_and_a2a_dependencies_construct_used_classes() -> None:
-    assert version("google-adk") == "2.13.0"
+    assert version("google-adk") == "2.15.0"
     assert version("a2a-sdk") == "1.1.2"
     assert importlib.util.find_spec("openai") is None
     assert importlib.util.find_spec("litellm") is None
@@ -181,7 +181,7 @@ def test_fixed_otel_refuses_oversized_tracestate_before_regex_or_raw_logging(
     assert header not in caplog.text
 
 
-def test_patched_otel_cohort_has_only_the_documented_adk_metadata_overrides() -> None:
+def test_patched_otel_cohort_satisfies_all_dependency_metadata_without_overrides() -> None:
     import tomllib
     from importlib.metadata import distributions
     from pathlib import Path
@@ -190,25 +190,18 @@ def test_patched_otel_cohort_has_only_the_documented_adk_metadata_overrides() ->
     from packaging.version import Version
 
     project = tomllib.loads((Path(__file__).parents[1] / "pyproject.toml").read_text())
-    overrides = {
-        Requirement(value).name: Requirement(value)
-        for value in project["tool"]["uv"].get("override-dependencies", [])
-    }
-    assert set(overrides) == {"opentelemetry-api", "opentelemetry-sdk"}
-    assert version("opentelemetry-api") == version("opentelemetry-sdk") == "1.45.1"
+    assert not project["tool"]["uv"].get("override-dependencies", [])
+    assert version("opentelemetry-api") == version("opentelemetry-sdk")
+    assert Version(version("opentelemetry-api")) >= Version("1.45.1")
     assert Version(version("certifi")) >= Version("2026.10.19")
     # The custom OTLP encoder has an independent, unchanged protobuf cohort.
     assert version("opentelemetry-proto") == "1.42.1"
-    conflicts = set()
     for distribution in distributions():
         for text in distribution.requires or []:
             requirement = Requirement(text)
             if requirement.marker is not None and not requirement.marker.evaluate({"extra": ""}):
                 continue
             installed = Version(version(requirement.name))
-            if installed not in requirement.specifier:
-                assert distribution.metadata["Name"] == "google-adk"
-                assert requirement.name in overrides
-                conflicts.add(requirement.name)
-                assert installed in overrides[requirement.name].specifier
-    assert conflicts == set(overrides)
+            assert installed in requirement.specifier, (
+                f"{distribution.metadata['Name']} requires {requirement}, installed {installed}"
+            )

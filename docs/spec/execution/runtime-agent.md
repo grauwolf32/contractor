@@ -211,14 +211,13 @@ preparation before the Planner starts (FAIL-RTA-3).
 in-process adapter without changing Workflow Scheduler or Planner contracts.
 
 **RTA-R118.** The supported Runtime dependency closure is installed from the
-committed uv lock. For ADK 2.13.0 it selects OpenTelemetry API and SDK 1.45.1
-through exactly two explicit resolver overrides of ADK's declared upper cap;
-this does not patch the SDK or install a second runtime. The custom OTLP proto
-cohort and public telemetry schema remain independently pinned. Dependency
-checks record the known metadata exception and reject unexpected mismatches.
+committed uv lock. ADK 2.15.0 supports the patched OpenTelemetry API/SDK cohort
+without resolver overrides. Both packages remain at least 1.45.1, use the same
+version and satisfy upstream dependency metadata. The custom OTLP proto cohort
+and public telemetry schema remain independently pinned. Dependency checks reject
+resolver overrides and metadata mismatches.
 Certifi is at least 2026.10.19 in both the Runtime closure and the independently
-hash-pinned advisory scanner. The override is reconsidered when an accepted
-ADK release permits the patched API/SDK cohort.
+hash-pinned advisory scanner.
 
 **RTA-R103.** The Worker runtime's dependencies live in the Runtime Agent
 deployment, not in Contractor Server.
@@ -889,7 +888,7 @@ starts, so a google-adk version that renames or removes one fails startup.
 Rationale: the Runtime has one allocation slot, so the caches hold no other
 allocation's entries when release clears them, and a new allocation's tool
 instances would miss them anyway; the cost is one declaration build per tool
-per allocation. The caches belong to google-adk (2.13.0 is pinned), which the
+per allocation. The caches belong to google-adk (2.15.0 is pinned), which the
 Runtime does not patch. Handing `FunctionTool` an allocation-agnostic wrapper
 that reaches the tool through a weak reference was rejected: ADK derives the
 declaration and the call from the wrapped callable's signature, type hints,

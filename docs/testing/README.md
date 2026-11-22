@@ -10,7 +10,7 @@ UI dependencies. Choose a check by the boundary you changed:
 | Formatting, language tests, builds, shipped configuration and UI checks | `make verify` | Go, Python/uv, Node/Corepack |
 | PostgreSQL repositories | `make test-postgres` | Test database |
 | Live advisory scans of the Go commands and the Runtime lock | `make advisories` | Go, uv and access to the Go and PyPI advisory services |
-| Worker context compaction, bounded history and ordinary/Audit continuation | `make test-worker-compaction-e2e` | Disposable test database, pinned Go and locked ADK 2.13 Runtime; scripted Gateway |
+| Worker context compaction, bounded history and ordinary/Audit continuation | `make test-worker-compaction-e2e` | Disposable test database, pinned Go and locked ADK 2.15 Runtime; scripted Gateway |
 | Server/Runtime process integration | `make test-e2e` | Test database and locked Runtime environment |
 | Real scanner process and browser integration | `make test-scan-e2e` | Test database, Chromium, and host `nuclei`, `naabu`, `sqlmap`, `ffuf`, `katana` |
 | Controlled ffuf, private credentials, normalized sitemap results and termination | `make test-pentest-scanner-e2e` | Disposable PostgreSQL, locked Runtime, provisioned ffuf 2.3.0 and an active RFC1918 interface; no model calls |

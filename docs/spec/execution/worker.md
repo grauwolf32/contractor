@@ -923,6 +923,11 @@ Only a call whose tool callback was never admitted receives
 cancellation receives `tool_call_outcome_unknown`. Neither dispatched outcome
 claims that a remote effect was rolled back or absent. Existing operation
 receipts remain authoritative before any retry of an uncertain effect.
+ADK's synthetic `INVOCATION_ABORTED` event passes through the public event
+callback as a content-free abort marker. Runtime removes its generic function
+responses before append so they cannot replace known results or acknowledge
+unsettled effects. The joined history ledger then publishes the outcomes above;
+SDK sources and private Runner methods are not patched.
 
 **WRK-R175.** The invocation-local history ledger admits at most 10,000
 observed tool-call identities cumulatively across SDK turns (LIM-WRK-22),

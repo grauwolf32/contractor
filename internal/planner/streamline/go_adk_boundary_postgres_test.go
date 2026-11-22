@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -21,6 +22,47 @@ import (
 	"google.golang.org/adk/v2/model"
 	adksession "google.golang.org/adk/v2/session"
 )
+
+func TestPostgresModeledPlannerCallBudgetOverridesSDKDefaults(t *testing.T) {
+	// A process-wide SDK setting cannot replace the pinned ModelPolicy.
+	t.Setenv("ADK_MAX_LLM_CALLS", "1")
+	for _, profile := range []string{"streamline", "router"} {
+		for _, budget := range []int{2, 501} {
+			t.Run(fmt.Sprintf("%s/%d", profile, budget), func(t *testing.T) {
+				ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+				defer cancel()
+				pool := isolatedStreamlinePool(t, ctx)
+				store := newMigrationBoundaryStore(t, ctx, pool)
+				sessions := migrationBoundarySession(t, store)
+				llm := &scriptedModel{fallback: functionStep("list_subtasks", map[string]any{})}
+				workers := appendProbeWorkers()
+				factory := migrationBoundaryFactory(t, profile, sessions, workers, llm)
+				invocation := appendProbeInvocation(profile)
+				invocation.ModelAccess.ModelPolicy.MaxModelCalls = budget
+				instance, err := factory.Create(invocation)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, err = instance.Run(ctx)
+				assertPlannerCode(t, err, "planner_model_call_limit")
+				if llm.callCount() != budget || len(workers.bindingCalls()) != 0 {
+					t.Fatalf("model/Worker calls = %d/%d, want %d/0", llm.callCount(), len(workers.bindingCalls()), budget)
+				}
+				// The real completion receipt must replay the same domain failure
+				// without running a new SDK conversation or admitting more calls.
+				recovered, err := factory.Create(invocation)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, err = recovered.Run(ctx)
+				assertPlannerCode(t, err, "planner_model_call_limit")
+				if llm.callCount() != budget {
+					t.Fatal("completion recovery admitted another model call")
+				}
+			})
+		}
+	}
+}
 
 // The database commit is real; only the acknowledgement loss is injected by
 // the forwarding Store. This must fence the turn, never repeat its append.

@@ -195,7 +195,10 @@ func (p *streamlinePlanner) Run(
 			p.invocation.StageExecutionID,
 			identity.SessionID,
 			message,
-			agent.RunConfig{},
+			// The domain callback runs before ADK counts the call and owns
+			// budget classification. Explicitly mirror its limit so SDK
+			// defaults and ADK_MAX_LLM_CALLS cannot change the pinned policy.
+			agent.RunConfig{MaxLLMCalls: p.limits.MaxModelCalls},
 		) {
 			if eventErr != nil {
 				iterationErr = eventErr
