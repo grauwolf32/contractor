@@ -366,6 +366,19 @@ large traversal use joined threads outside session/accounting locks. This is a
 declared model-input representation; canonical records, public/wire readers,
 unselected tools and the raw unknown-field guard remain strict.
 
+**TLS-R42.** Opted-in tools construct argument diagnostics at their own validation
+sites using their existing error code/envelope. Safe details identify the declared
+`field`, `expected_type` and fixed JSON `actual_type` where applicable, with a
+Runtime-authored repair message. Paths contain declared property names and bounded
+indices, never supplied map keys, values or parser/provider text (LIM-TLS-5).
+One invalid attempt consumes one ordinary call and fails before effects; correction
+requires another model call. A successful representation decode may add
+`normalization.fields` (field/from_type/to_type only) and an explicit `omitted`
+count under LIM-TLS-6. Normalization is success, not a retry or failure. HTTP
+telemetry remains metadata-only; exception/infrastructure/cancellation and
+possibly-sent semantics retain their owners. Instrumentation transports diagnostics
+without interpreting argument semantics or adding synthetic calls.
+
 - The model-facing API of a Toolset is the set of declarations of its selected
   tools, including their descriptions (TLS-R29 to TLS-R36).
 - The AgentTemplate `spec.toolsets` wire shape is specified in

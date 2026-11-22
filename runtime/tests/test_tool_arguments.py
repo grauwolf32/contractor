@@ -34,6 +34,14 @@ def test_native_and_serialized_http_containers_reach_sockets_once(tmp_path, rout
             encoded = {**native, **{k: json.dumps(native[k]) for k in ("headers", "query", "body")}}
             results = await run_calls(tmp_path, tool, state, [native, encoded])
             assert all(result["status"] == 200 for result in results)
+            assert "normalization" not in results[0]
+            assert results[1]["normalization"] == {
+                "fields": [
+                    {"field": name, "from_type": "string", "to_type": "object"}
+                    for name in ("headers", "query", "body")
+                ],
+                "omitted": 0,
+            }
             assert len(requests) == 2
             for request in requests:
                 target, headers, body = received(request)
@@ -124,7 +132,7 @@ def test_invalid_http_containers_never_send(tmp_path, value):
 
 
 def test_incremental_byte_depth_node_bounds_and_nested_strings():
-    def invalid(field, message):
+    def invalid(field, message, **details):
         return ToolInputError(field + ": " + message)
 
     def decode(value, **bounds):
@@ -238,7 +246,7 @@ def test_real_structural_limits_native_and_serialized():
             max_bytes=1 << 20,
             max_depth=MAX_CONTAINER_DEPTH,
             max_nodes=MAX_CONTAINER_NODES,
-            invalid=lambda field, message: ToolInputError(field + ": " + message),
+            invalid=lambda field, message, **details: ToolInputError(field + ": " + message),
         )
 
     nested = []
@@ -287,5 +295,107 @@ def test_cancelled_parsing_joins_before_return(monkeypatch, tmp_path):
             finally:
                 release.set()
                 await tool.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("route", ["direct", "proxy", "controlled"])
+def test_http_field_error_then_correction_is_counted_once(tmp_path, route):
+    async def scenario():
+        async with http_receiver(tmp_path, route) as (tool, state, url, requests):
+            results = await run_calls(
+                tmp_path,
+                tool,
+                state,
+                [
+                    {"url": url, "headers": '{"secret-canary":'},
+                    {"url": url, "headers": '{"X-Note":"secret-canary"}'},
+                ],
+            )
+            error = results[0]["error"]
+            assert error["field"] == "headers"
+            assert error["expected_type"] == "object"
+            assert error["actual_type"] == "string"
+            assert error["code"] == "http_request_invalid" and not error["retryable"]
+            assert "Provide one strict JSON object" in error["message"]
+            assert "secret-canary" not in json.dumps(error)
+            assert "secret-canary" not in json.dumps(results[1]["normalization"])
+            assert len(requests) == 1 and results[1]["status"] == 200
+            assert state.metrics.counters["tool_calls"] == 2
+            assert state.metrics.counters["tool_errors"] == 1
+            assert "secret-canary" not in repr(state.metrics.tool_calls)
+            report = state.metrics.build_report(report_id="arguments", duration_ms=1)
+            assert report.metrics.worker_budget.observed_tool_calls == 2
+
+    asyncio.run(scenario())
+
+
+def test_audit_preserves_inner_field_diagnostic_through_runner_correction(tmp_path):
+    from datetime import UTC, datetime, timedelta
+
+    from fakes.model import text_result, tool_call
+    from test_adk_runtime import stage_request
+    from test_audit_completion_runtime import runtime_for
+
+    async def scenario():
+        expected, _ = assigned(batch=True)
+        good = [arguments(item.value, keyed=True) for item in expected.items]
+        bad = [good[0], {**good[1], "limitations": '["secret-canary"'}]
+        worker, _, client, state, _ = await runtime_for(
+            tmp_path,
+            [
+                tool_call("submit_check_results", {"items": json.dumps(bad)}, call_id="invalid"),
+                tool_call("submit_check_results", {"items": json.dumps(good)}, call_id="fixed"),
+                text_result("Done"),
+            ],
+            batch=True,
+            total_tokens=10000,
+        )
+        try:
+            assert (await worker.invoke(stage_request())).failure is None
+            session = await worker._session_service.get_session(
+                app_name=worker._app_name,
+                user_id=worker._user_id,
+                session_id=worker._session_lifecycle.shared_session_id,
+            )
+            results = [
+                part.function_response.response
+                for event in session.events
+                for part in (event.content.parts if event.content else []) or []
+                if part.function_response is not None
+            ]
+            error = results[0]["error"]
+            assert error["field"] == "items[1].limitations"
+            assert error["expected_type"] == "array" and error["actual_type"] == "string"
+            assert error["code"] == "audit_result_invalid" and not error["retryable"]
+            assert "secret-canary" not in json.dumps(error)
+            assert results[1]["complete"] and len(client.writes) == 1
+            assert state.metrics.counters["tool_calls"] == 2
+            assert state.metrics.counters["tool_errors"] == 1
+        finally:
+            await worker.finalize(datetime.now(UTC) + timedelta(seconds=5))
+
+    asyncio.run(scenario())
+
+
+def test_normalization_notices_are_bounded_and_never_contain_values():
+    from types import SimpleNamespace
+
+    from contractor_runtime.toolsets.common.argument_diagnostics import MAX_NORMALIZATION_NOTICES
+
+    async def scenario():
+        expected, inputs = assigned(count=64)
+        collector = InvocationAuditCollector(inputs, CanonicalAuditResultEncoder())
+        tool = SubmitCheckResultsTool(collector, WorkerState().metrics)
+        items = [arguments(item.value, keyed=True) for item in expected.items]
+        for item in items:
+            for field in ("tested_conditions", "limitations", "evidence"):
+                item[field] = json.dumps(item[field])
+        result = await tool(SimpleNamespace(invocation_id="invocation-1"), json.dumps(items))
+        assert result["complete"]
+        notice = result["normalization"]
+        assert len(notice["fields"]) == MAX_NORMALIZATION_NOTICES
+        assert notice["omitted"] == 1 + 64 * 3 - MAX_NORMALIZATION_NOTICES
+        assert "evidence-000" not in json.dumps(notice)
 
     asyncio.run(scenario())

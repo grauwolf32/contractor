@@ -14,11 +14,16 @@ from contractor_runtime.adapters.http_transport import HTTPTransport, HTTPTransp
 from contractor_runtime.core.http_limits import MAX_HISTORY
 from contractor_runtime.core.tool_errors import ToolResultDiagnostic
 from contractor_runtime.threads import to_thread_until_done
+from contractor_runtime.toolsets.common.argument_diagnostics import json_type
 from contractor_runtime.toolsets.common.credentials import RUNTIME_CREDENTIAL
 from contractor_runtime.toolsets.common.http_capture import HTTPObservation, RecentHTTPCaptures
 from contractor_runtime.toolsets.http.capture import CapturedAttempt, CapturedExchange
-from contractor_runtime.toolsets.http.errors import HTTPToolError, controlled_http_message
-from contractor_runtime.toolsets.http.headers import body_headers, merge_headers, validate_headers
+from contractor_runtime.toolsets.http.errors import (
+    HTTPArgumentError,
+    HTTPToolError,
+    controlled_http_message,
+)
+from contractor_runtime.toolsets.http.headers import body_headers, merge_headers, request_headers
 from contractor_runtime.toolsets.http.tools import (
     _encode_body,
     _HTTPSession,
@@ -113,7 +118,7 @@ class ControlledHTTPSession(_HTTPSession):
         try:
             timeout = _timeout(options.pop("timeout_seconds", None), self._timeout_cap_seconds)
             return await self._request(deadline=time.monotonic() + timeout, **options)
-        except ControlledHTTPError:
+        except (ControlledHTTPError, HTTPArgumentError):
             raise
         except HTTPToolError as error:
             raise ControlledHTTPError(error.code) from None
@@ -134,33 +139,19 @@ class ControlledHTTPSession(_HTTPSession):
         invocation_id=None,
         credential_id=None,
     ):
-        try:
-            selected_method = _method(method)
-        except HTTPToolError:
-            raise ControlledHTTPError(
-                "http_request_invalid",
-                message="Use a supported HTTP method from the authorized scope.",
-            ) from None
+        selected_method = _method(method)
         if credential_id is not None and credential_id not in {
             entry["credential_id"] for entry in self.credential_catalog()
         }:
             raise ControlledHTTPError("http_credential_unavailable")
-        try:
-            selected_url = _url_with_query(url, query)
-        except HTTPToolError:
-            raise ControlledHTTPError(
-                "http_request_invalid", message="Use an absolute HTTP(S) URL and a query mapping."
-            ) from None
-        try:
-            payload, content_type = _request_body(body_type, body)
-        except HTTPToolError:
-            raise ControlledHTTPError(
-                "http_request_invalid",
-                message="Match body to body_type: none, json, form (mapping), or text (string).",
-            ) from None
+        selected_url = _url_with_query(url, query)
+        payload, content_type = _request_body(body_type, body)
         if type(follow_redirects) is not bool:
-            raise ControlledHTTPError(
-                "http_request_invalid", message="follow_redirects must be a boolean."
+            raise HTTPArgumentError(
+                "follow_redirects",
+                "Use a JSON boolean.",
+                expected_type="boolean",
+                actual_type=json_type(follow_redirects),
             )
         try:
             async with asyncio.timeout_at(deadline):
@@ -173,7 +164,7 @@ class ControlledHTTPSession(_HTTPSession):
         try:
             self._require_open()
             selected_headers = body_headers(
-                self._default_headers, validate_headers(headers), content_type
+                self._default_headers, request_headers(headers), content_type
             )
             try:
                 request_id = self._captures.new_http_request()
@@ -308,7 +299,7 @@ class ControlledHTTPSession(_HTTPSession):
             or type(replace_headers) is not bool
         ):
             raise ControlledHTTPError("http_request_invalid")
-        selected = validate_headers(headers)
+        selected = request_headers(headers)
         if any(name.lower() in {"authorization", "cookie"} for name in selected):
             raise ControlledHTTPError("http_request_invalid")
         async with self._lock:

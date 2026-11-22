@@ -29,10 +29,11 @@ from contractor_runtime.toolsets.audit_results.contracts import (
     AuditVerdict,
     NormalizedAuditItem,
 )
+from contractor_runtime.toolsets.common.argument_diagnostics import NormalizationNotices
 from contractor_runtime.toolsets.common.resources import ToolResources
 
 
-def _normalize(key, value, path=""):
+def _normalize(key, value, notices, path=""):
     if not isinstance(key, str) or not key:
         raise AuditCollectionError("item_key", "Every conclusion requires its assigned item_key.")
     allowed = {
@@ -45,29 +46,40 @@ def _normalize(key, value, path=""):
         "http_request_ids",
     }
     if not isinstance(value, dict) or set(value) - allowed:
-        raise AuditCollectionError("result", "Use only declared conclusion fields.")
+        raise AuditArgumentError(
+            path.rstrip(".") or "result",
+            "Use only declared conclusion fields.",
+            expected_type="object",
+            actual_type="object",
+        )
     try:
         return NormalizedAuditItem(
             item_key=key,
             rationale=value.get("rationale"),
             tested_conditions=tuple(
                 array_argument(
-                    path + "tested_conditions", value.get("tested_conditions"), MAX_VALUES
+                    path + "tested_conditions", value.get("tested_conditions"), MAX_VALUES, notices
                 )
             ),
             limitations=tuple(
-                array_argument(path + "limitations", value.get("limitations"), MAX_VALUES)
+                array_argument(path + "limitations", value.get("limitations"), MAX_VALUES, notices)
             ),
             evidence=tuple(
-                array_argument(path + "evidence", value.get("evidence", []), MAX_EVIDENCE)
+                array_argument(path + "evidence", value.get("evidence", []), MAX_EVIDENCE, notices)
             ),
             verdict=value.get("verdict"),
             http_request_ids=tuple(
                 array_argument(
-                    path + "http_request_ids", value.get("http_request_ids", []), MAX_EVIDENCE
+                    path + "http_request_ids",
+                    value.get("http_request_ids", []),
+                    MAX_EVIDENCE,
+                    notices,
+                    int,
                 )
             ),
         )
+    except AuditArgumentError:
+        raise
     except (ValueError, TypeError, UnicodeError):
         raise AuditCollectionError(
             "result", "Use bounded nonempty text, distinct arrays and the declared verdicts."
@@ -76,17 +88,18 @@ def _normalize(key, value, path=""):
 
 def _prepare_single(value, expected_revision):
     admit_arguments({**value, "expected_revision": expected_revision})
-    return _normalize(value["item_key"], value)
+    notices = NormalizationNotices()
+    return _normalize(value["item_key"], value, notices), notices
 
 
 def _prepare_batch(items):
     admit_arguments({"items": items})
-    return tuple(
-        _normalize(
-            value.get("item_key") if isinstance(value, dict) else None, value, f"items[{index}]."
-        )
-        for index, value in enumerate(array_argument("items", items, MAX_ITEMS))
+    notices = NormalizationNotices()
+    values = tuple(
+        _normalize(value.get("item_key"), value, notices, f"items[{index}].")
+        for index, value in enumerate(array_argument("items", items, MAX_ITEMS, notices, dict))
     )
+    return values, notices
 
 
 class ReadAuditTaskTool:
@@ -170,8 +183,8 @@ class SubmitCheckResultTool:
     retain their types; request IDs must be integers, never strings or booleans.
 
     Returns:
-        Local revisions, missing item keys and completeness. Runtime publishes
-        the accepted conclusions after Worker completion.
+        Local revisions, missing item keys, completeness and any normalization notice.
+        Runtime publishes the accepted conclusions after Worker completion.
     """
 
     @property
@@ -219,7 +232,7 @@ class SubmitCheckResultTool:
         try:
             collector = self._collector
             collector.check_invocation(tool_context.invocation_id)
-            values = await to_thread_until_done(prepare, name="audit-tool-arguments")
+            values, notices = await to_thread_until_done(prepare, name="audit-tool-arguments")
             receipt = await submit(collector, values)
             binding = getattr(self, "completion_binding", None)
             if binding is not None:
@@ -232,6 +245,7 @@ class SubmitCheckResultTool:
                 "missingItemKeys": list(receipt.missing_item_keys),
                 "complete": receipt.complete,
             }
+            notices.attach(result)
         except (AuditCollectionError, AuditArgumentError) as error:
             failure, result = error, {"status": "error", "error": error.as_dict()}
         except asyncio.CancelledError:
@@ -265,7 +279,8 @@ class SubmitCheckResultsTool(SubmitCheckResultTool):
             http_request_ids default to []. Supply verdict only for a hypothesis.
 
     Returns:
-        Local revisions in assignment order, missing keys and completeness.
+        Local revisions in assignment order, missing keys, completeness and any
+        normalization notice.
     """
 
     async def __call__(

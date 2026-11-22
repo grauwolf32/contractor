@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import Any
 
 from contractor_runtime.strict_json import strict_json_loads
+from contractor_runtime.toolsets.common.argument_diagnostics import json_type
 
 MAX_CONTAINER_DEPTH = 32
 MAX_CONTAINER_NODES = 65536
@@ -96,6 +97,12 @@ def container_argument(
     """Decode at most one layer, preserving every nested value and its type."""
     normalized = type(value) is str
     expected = " or ".join("object" if kind is dict else "array" for kind in kinds)
+    error_factory = invalid
+    actual = json_type(value)
+
+    def invalid(field, message):
+        return error_factory(field, message, expected_type=expected, actual_type=actual)
+
     if normalized:
         if len(value) > max_bytes:
             raise invalid(field, f"Use at most {max_bytes} UTF-8 representation bytes.")
