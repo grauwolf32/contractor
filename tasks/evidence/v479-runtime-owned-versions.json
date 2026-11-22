@@ -225,7 +225,27 @@
       "catalog_limit": "Trace factory constructs only finding despite additional inherited registered exports; catalog marks those inherited interfaces unavailable. V478 remains unmerged and untouched.",
       "full_suites_run": false,
       "live_models_run": false,
-      "deployed": false
+      "deployed": false,
+      "canonical_catalog": {
+        "source_main": "b8698af47e839a4c6ea3ef2dd6ae6ce3bd39c912",
+        "interfaces": 150,
+        "schemas_without_version_inputs": 150,
+        "utf8_bom": true,
+        "early_charset": true,
+        "javascript_errors": 0,
+        "widths": [
+          1060,
+          736,
+          390,
+          320
+        ],
+        "statuses": {
+          "done": 20,
+          "proposal": 10,
+          "kept": 3
+        },
+        "result": "passed"
+      }
     }
   },
   "verified_source_digests": {
@@ -406,5 +426,11 @@
     "tests/e2e/worker_compaction_test.go": "5cbd2cfd46a2d6476ff57b6e7c4bc761071b3ab4cb234589c02af4caf827d7d6",
     "tests/e2e/worker_summarizer_gateway_test.go": "7faeab6d8e5f2cd45dee64942465744ded2ec6977f0ef24c5a04581eec02c59c"
   },
-  "resource_cleanup": "Pending final catalog extraction; all database/process test commands have completed."
+  "resource_cleanup": "Owned contractor_test_v479 dropped and absence verified; dedicated PG17 on port 55479 stopped; only owned PG data and canonical test TMPDIR removed.",
+  "integration": {
+    "main_merge": "b8698af47e839a4c6ea3ef2dd6ae6ce3bd39c912",
+    "implementation_tip": "d1c53158854a3c2ef1681d58168c461cd0758bb7",
+    "source_digests_match": true,
+    "note": "Final task-only acceptance commit does not change verified tool sources. Canonical external catalog is regenerated for that final main HEAD."
+  }
 }

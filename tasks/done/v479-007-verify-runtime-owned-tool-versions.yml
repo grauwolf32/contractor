@@ -5,7 +5,7 @@ milestone: runtime-owned-tool-versions-2026-11
 epic: planner-worker
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V479-005
 - V479-006
@@ -200,3 +200,5 @@ input_validation_review: "Keep malformed portable material names within the reso
 existing_catalog_limit: "TraceFindingsToolsetFactory creates only finding although it inherits additional registered exports. The HTML marks those inherited interfaces unavailable and extracts TraceFindingTool itself for the actual facade. No new caller or capability repair is introduced by V479; revisit the owning trace factory when selecting one of those extra operations. Model schema inventory counts registered declarations, not one allocation tool roster."
 
 catalog_consumer_reconciliation: "Hypothesis and MaterialSet process fixtures pin the shipped generation Workflow. Migrate their selected identity from @2 to the new immutable @4 produced by V479-002/005; initial generation must validate before Server readiness. Include the complete affected process roots in focused acceptance."
+
+implementation_commit: d1c53158854a3c2ef1681d58168c461cd0758bb7
