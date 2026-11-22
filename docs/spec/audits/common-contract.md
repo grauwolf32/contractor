@@ -403,3 +403,21 @@ membership nor durability. Import validates the Server-owned association and
 exact hypothesis pin before admitting retained material for a conclusion. The
 same original source may support independent claims without copying its bytes
 or being counted as independent corroboration.
+
+**ACT-R19.** A normalized accepted model result has `author: model`. A Task or
+attempt may instead expose `stop` with `author: system`,
+`meaning: no_accepted_conclusion`, observed `reason` (`source`, `code`, `message`)
+and exact retained `evidence` materials. A hypothesis-bound stop additionally
+has `verdict: inconclusive`; exploration omits it. The system record carries no
+model rationale, tested-condition inventory or semantic-progress denominator.
+Task `result` and `stop` are mutually exclusive. Stop metadata is retained on
+existing owner rows, not charged as a new evidence Artifact when quota is spent.
+A retry may clear the current Task projection; immutable earlier attempt
+provenance and selected materials remain available under ordinary retention.
+
+**ACT-R20.** Task attempt reads expose an exact retained `result` and
+`result_key` where available, independently of technical outcome, or the
+attributed `stop`. A failed/cancelled attempt can have an accepted model result.
+Reads validate exact material metadata and Task/hypothesis membership, remain
+paged and byte-bounded, and preserve original Run identity after producer purge.
+An obsolete or foreign revision is never repaired with a current binding.

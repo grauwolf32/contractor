@@ -1149,9 +1149,9 @@ Shared rules are in
 
 ## Non-goals
 
-- Durable per-item checkpoints inside a still-running Run. Accepting partial
-  in-flight progress requires a separate idempotent receipt contract and is
-  not implied by artifact writes.
+- An independent progress journal or a general execution-resume engine.
+  Per-item acceptance uses the existing Artifact/owner receipt contract in
+  AWC-R134; an arbitrary artifact write does not establish acceptance.
 - A strict aggregate token or spend cap across child Runs. Such a hard
   aggregate token/spend limit would require conservative per-Run reservations
   and must reserve unknown consumption rather than treating it as zero.
@@ -1234,3 +1234,10 @@ RunService materializes declared native materials and Run-local configured roles
 existing claims, mutation and collection receipts own dispatch/intake. A cursor
 accounts for new work without defining all Workflow research inputs. No other
 controller or intake engine exists.
+
+**AUX-R113.** Common completion collection preserves AWC-R134–AWC-R138 receipts
+and ACT-R19 stop metadata in the existing claimed terminal transaction. Accepted
+model results survive failure/cancellation and are not automatically retried.
+Only missing judgments receive system interruption metadata, with the original
+observed Run reason and no post-stop model or target work. Result/source aliases
+reuse ordinary Audit retention; already held bytes are not charged again.

@@ -13,7 +13,8 @@
       "TestAuditHypothesisContinuationAcrossProductionProcesses/initial=false",
       "TestAuditHypothesisContinuationAcrossProductionProcesses/initial=true",
       "TestWorkflowMaterialSetsAcrossProductionProcesses",
-      "TestAuditIncrementalEvidenceAcrossProcesses"
+      "TestAuditIncrementalEvidenceAcrossProcesses",
+      "TestAuditPartialJudgmentsAcrossProcesses"
     ]
   },
   "programs": {

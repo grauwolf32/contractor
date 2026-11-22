@@ -173,8 +173,8 @@ class SubmitResultTool:
     in this call. Conditions and sources come from earlier accepted evidence.
 
     Returns:
-        Local revisions, missing item keys, completeness and any normalization notice.
-        Runtime publishes the accepted conclusions after Worker completion.
+        Server acceptance, saved materials, completeness and correction metadata.
+        Runtime separately publishes the complete result after Worker completion.
     """
 
     @property
@@ -265,8 +265,7 @@ class SubmitResultsTool(SubmitResultTool):
             accepted evidence; do not send a final evidence inventory.
 
     Returns:
-        Local revisions in assignment order, missing keys, completeness and any
-        normalization notice.
+        Server acceptance and completion metadata in assignment order.
     """
 
     async def __call__(

@@ -172,6 +172,7 @@ type basicTask struct {
 	Attempts      int                                `json:"attempts"`
 	LastExecution *string                            `json:"last_execution_id"`
 	Result        *auditcontract.Material            `json:"result"`
+	Stop          *auditcontract.TaskStop            `json:"stop"`
 	GapCode       *string                            `json:"gap_code"`
 }
 
