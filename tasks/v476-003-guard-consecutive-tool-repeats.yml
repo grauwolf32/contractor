@@ -5,7 +5,7 @@ milestone: model-runtime-guidance-2026-11
 epic: planner-worker
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V475-001
 languages:
@@ -25,7 +25,8 @@ context:
     consecutive calls and reject the third and later calls in that series; the Worker continues under its ordinary
     budgets, without a new automatic stop. First scope is read_artifact with an explicitly supplied exact revision.
     Only consecutive calls count; reset the series after a successfully committed compaction checkpoint. Other
-    tools retain their behavior. The follow-up confirmation explicitly accepts this scope and checkpoint reset.'
+    tools retain their behavior. The follow-up confirmation explicitly accepts this scope and checkpoint reset.
+    User assignment 2026-11-22: implement all V476 in one continuous pass.'
   baseline: Local main 4807373ec907584ac7b44432faf4ff860eafb1bf; Python ADK 2.15.0 and Go ADK 2.8.0 are merged.
     Recheck the affected owners if main advances.
   specification:

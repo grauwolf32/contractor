@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 13 in progress, 44 pending, 13 deferred. 1640 finished: 1622 completed, 18 archived.
+69 open tasks: 12 in progress, 44 pending, 13 deferred. 1641 finished: 1623 completed, 18 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V476-001](v476-001-project-current-planner-guidance.yml) | planner-worker | feature | P1 | Show the Planner its current plan and remaining call capacity |
 | [V476-002](v476-002-describe-effective-http-limits.yml) | http-tools | feature | P1 | Expose effective HTTP limits in the existing tool description |
 | [V476-003](v476-003-guard-consecutive-tool-repeats.yml) | planner-worker | feature | P1 | Reject consecutive redundant artifact reads through tool-owned repeat rules |
 
@@ -41,8 +40,8 @@ the epics are in [epics.yml](epics.yml).
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | — | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 | [V469-001](v469-001-opencode-audit-prototype.yml) | chore | P1 | — | Prove two ordinary Runs can reuse one OpenCode Audit container |
-| [V476-004](v476-004-project-worker-call-capacity.yml) | feature | P1 | V476-001, V476-003 | Show the Worker truthful call capacity across context checkpoints |
-| [V476-005](v476-005-runtime-guidance-acceptance.yml) | chore | P1 | V476-001, V476-002, V476-003, V476-004 | Verify runtime guidance and consecutive-repeat control together |
+| [V476-004](v476-004-project-worker-call-capacity.yml) | feature | P1 | V476-003 | Show the Worker truthful call capacity across context checkpoints |
+| [V476-005](v476-005-runtime-guidance-acceptance.yml) | chore | P1 | V476-002, V476-003, V476-004 | Verify runtime guidance and consecutive-repeat control together |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -162,7 +161,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 3 | 50 | 71 | 40 | 107 |
-| Planners and the Worker model boundary (`planner-worker`) | 9 | 44 | 60 | 46 | 94 |
+| Planners and the Worker model boundary (`planner-worker`) | 8 | 44 | 60 | 46 | 94 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |

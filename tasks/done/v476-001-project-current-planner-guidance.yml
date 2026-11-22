@@ -5,7 +5,7 @@ milestone: model-runtime-guidance-2026-11
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V475-001
 languages:
@@ -129,3 +129,8 @@ verification_policy: Use one disposable PostgreSQL database with CONTRACTOR_TEST
   session tests; an unreachable configured database fails. Run all tests in the affected Go packages, not all
   Go packages. Drop the owned database after pools stop. Include shared request-guidance fixtures in these
   suites.
+implementation_commit: 1bf8daccc0b6126d492c3a497f5b99aa7560a569
+verification:
+  date: '2026-11-22'
+  result: 'Both affected Planner package race suites passed with the owned UTF-8 PostgreSQL database: Streamline
+    101.869s, Router 2.135s. check_spec.py passed (51 documents). No full suite or live models.'
