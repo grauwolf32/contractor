@@ -154,7 +154,7 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
         assert runtime._agent is not None
         assert runtime._agent.output_schema is None
         assert runtime._app.plugins == [runtime._plugin, runtime._repeats]
-        assert runtime._agent.before_model_callback is None
+        assert runtime._agent.before_model_callback == runtime._prepare_model_request
         assert runtime._agent.after_model_callback is None
         assert runtime._agent.on_model_error_callback is None
         assert runtime._pipeline.finalizer is not None

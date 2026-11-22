@@ -253,6 +253,7 @@ receives typed settings and never interprets label names.
 AgentTemplate behavioral instructions, the Planner-supplied objective and task
 instructions, the exact opaque `subtask_id`, immutable string parameters and
 named exact input ArtifactRefs, and its explicitly selected tools and skills.
+It also receives the bounded Runtime-authored current call facts of WRK-R203.
 It sees no Contractor result schema or lifecycle envelope.
 
 **WRK-R166.** Every ADK agent that Runtime Agent constructs (the main
@@ -2140,3 +2141,16 @@ retained as failed calls in history/metrics exactly once. The Worker continues
 under ordinary budgets. State is one current series and already-admitted
 in-flight reservations, cleared at logical invocation boundaries and committed
 checkpoints, never failed compaction or SDK turns. No argument history is kept.
+
+**WRK-R203.** Each admitted main-model request receives one current factual
+capacity block after compaction projection/image reconciliation, including
+when both features are disabled. The budget owner supplies additional model
+calls after this admission, remaining tool calls, context-management mode and
+committed generation. `compact@1` labels the current call window; other modes
+label the logical invocation. Only committed checkpoints renew windows; no
+token/context estimate, private deadline or stop-early instruction is shown.
+Ordinary finalization shares existing model capacity; the block grants no
+reserve or additional calls. Compactor, finalizer and summarizer requests
+receive no such block. Preparation replaces only its own request object,
+never persists events or modifies authored instructions (LIM-WRK-39). There
+is no independent counter store; existing budget/stop rules remain authoritative.
