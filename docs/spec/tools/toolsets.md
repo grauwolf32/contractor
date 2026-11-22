@@ -489,7 +489,11 @@ same explicit `sources` array, native or serialized once under TLS-R41:
 optional `workspace` (false by default). Objects are closed and strict: nested
 revisions, scope IDs, unknown keys and coercion of scalar elements are rejected.
 Each selection is bounded to 256 selectors and the common container limits;
-consumer quotas may be tighter. Code ranges contain 1–400 lines. The code adapter
+consumer quotas may be tighter. Before any prepared artifact is published,
+HTTP envelopes and code proofs share an aggregate 8 MiB preparation allowance
+(LIM-TLS-9). Referenced artifact payloads keep their owning consumer quotas.
+Unavailable HTTP selectors are safe source-argument errors, distinct from an
+adapter/schema failure. Code ranges contain 1–400 lines. The code adapter
 captures an exact pinned archive region, or verifies an available workspace
 mapping and retains its proof and original source. HTTP adapters select actual
 captures without target replay. Artifact selectors resolve only through the

@@ -24,9 +24,15 @@ from contractor_runtime.toolsets.common.artifact_write import (
     definite_write_rejection,
     write_artifact_exact,
 )
-from contractor_runtime.toolsets.common.http_publication import HTTPExchangePublisher
+from contractor_runtime.toolsets.common.http_publication import (
+    HTTPExchangePublisher,
+    HTTPSelectionLimitError,
+    HTTPSelectionUnavailableError,
+)
 from contractor_runtime.toolsets.common.trace_source import trace_source
 from contractor_runtime.toolsets.common.versions import MaterialSelector
+
+MAX_PREPARED_SOURCE_BYTES = 8 * 1024 * 1024
 
 
 class ArtifactSource(MaterialSelector):
@@ -159,6 +165,7 @@ class SourcePreparer:
         refs = []
         # Resolve all selectors before publishing any prepared bytes.
         prepared = []
+        prepared_bytes = 0
         for index, source in enumerate(sources):
             if isinstance(source, ArtifactSource):
                 try:
@@ -169,9 +176,22 @@ class SourcePreparer:
                     raise SourceArgumentError("sources", str(error)) from None
                 refs.append(ref)
             elif isinstance(source, HTTPSource):
-                pending = await self.http.prepare(
-                    invocation_id, [source.request_id], max_bytes=8 * 1024 * 1024
-                )
+                try:
+                    pending = await self.http.prepare(
+                        invocation_id,
+                        [source.request_id],
+                        max_bytes=MAX_PREPARED_SOURCE_BYTES - prepared_bytes,
+                    )
+                except HTTPSelectionLimitError:
+                    raise SourceArgumentError(
+                        "sources", "Selected source bytes exceed the preparation budget."
+                    ) from None
+                except HTTPSelectionUnavailableError:
+                    raise SourceArgumentError(
+                        f"sources[{index}].request_id",
+                        "The selected HTTP capture is unavailable in this invocation.",
+                    ) from None
+                prepared_bytes += len(pending[0][1])
                 prepared.append(("http", source.request_id, pending[0][1]))
             else:
                 target = ArtifactRef(
@@ -205,6 +225,11 @@ class SourcePreparer:
                 )
                 if len(raw) > 1024 * 1024:
                     raise ToolInputError("sources: code proof exceeds its byte bound")
+                prepared_bytes += len(raw)
+                if prepared_bytes > MAX_PREPARED_SOURCE_BYTES:
+                    raise SourceArgumentError(
+                        "sources", "Selected source bytes exceed the preparation budget."
+                    )
                 refs.append(ArtifactRef.model_validate(proof["source"]["artifact"]))
                 prepared.append(("code", target, raw))
         addresses = {(ref.namespace, ref.name, ref.revision) for ref in refs}
