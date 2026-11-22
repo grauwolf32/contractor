@@ -374,6 +374,13 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: model-runtime-guidance-2026-11
+    exit_task: V476-005
+    outcome: >-
+      Models receive bounded current Planner/Worker call facts and effective HTTP limits;
+      a separate ADK plugin enforces tool-owned consecutive-repeat rules for exact artifact
+      reads while preserving checkpoint rereading, accounting and completion. Focused
+      deterministic acceptance does not claim live-model quality improvement.
   - id: adk-python215-go28-2026-11
     exit_task: V475-001
     outcome: Python ADK 2.15.0 and Go ADK 2.8.0 execute the merged tools with preserved Worker and Planner contracts, consistent dependency metadata, real-store and process verification.

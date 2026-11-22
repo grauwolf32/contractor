@@ -1,0 +1,129 @@
+schema_version: '1.0'
+id: V476-001
+title: Show the Planner its current plan and remaining call capacity
+milestone: model-runtime-guidance-2026-11
+epic: planner-worker
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V475-001
+languages:
+- go
+- markdown
+goal: Before each reasoning step, Streamline and Router can see their current subtask, unfinished work, available
+  plan slots and remaining calls, so they need not reconstruct these facts from old results.
+demonstration: A real Planner with maxSubtasks=32 creates 30 records, completes 27 and fails one. Its next
+  scripted Gateway request reports 30/32 used, 2 available, 27 succeeded, 1 failed, 2 pending and the current
+  subtask. After dispatch and a committed compaction checkpoint the following request reflects the new owner
+  state, with exactly one guidance block. A1-A3 prove this through the actual ADK path.
+context:
+  authority: 'User request 2026-11-22: plan runtime guidance and tool-owned repeat rules enforced by a separate
+    ADK plugin. Planning only; implementation, live experiments and deployment are not assigned. User testing
+    constraint: run only checks for changed components, not full Runtime, Go, lint or release suites.'
+  baseline: Local main 4807373ec907584ac7b44432faf4ff860eafb1bf; Python ADK 2.15.0 and Go ADK 2.8.0 are merged.
+    Recheck the affected owners if main advances.
+  specification:
+  - docs/spec/execution/planners.md#PLN-R27
+  - docs/spec/execution/planners.md#PLN-R32
+  - docs/spec/execution/planners.md#PLN-R73
+  - docs/spec/execution/planners.md#PLN-R81
+  - docs/spec/execution/planners.md#PLN-R128
+  sources:
+  - internal/planner/streamline/planner.go
+  - internal/planner/streamline/state.go
+  - internal/planner/streamline/compaction.go
+  design_decision: 'Agent proposal: project one request-only factual block after compaction and state.beforeModel(),
+    before model-input telemetry. This covers the first request as well as continuations. The simpler alternative,
+    extending only plan tool results, misses the first request and intervening reasoning. Reuse or generalize
+    planView rather than copy its status-counting logic. Reopen the placement only if the pinned SDK cannot
+    preserve model request/session separation under the actual Runner tests.'
+  implementation_boundary: Update the owning numbered specifications with implementation; these tasks describe
+    planned behavior, not shipped behavior. Reuse state, budget, validation and receipt owners. No hint registry,
+    status tool, new persistence, generic policy DSL or new public/wire fields.
+scope:
+  in:
+  - One common projection for Streamline and Router, including document recovery and compaction continuations.
+  - Current plan revision, status counts, current subtask ID/status, used/max/free plan slots and model/Worker
+    call capacity.
+  - A bounded explanation of plan-level blockers to successful finish, derived from the existing completion
+    predicate.
+  out:
+  - Token or time countdowns, advice to hurry or finish early, full plan duplication and new stored state.
+  - New limit enforcement, changed finalization rules, passthrough tools and live-model efficacy claims.
+requirements:
+- id: R1
+  text: Derive all facts from the pinned plan controller and executionState. Terminal records still consume
+    maxSubtasks slots. A current model call is already charged; label its remaining count as additional calls
+    after the current one. Do not reserve or replenish calls merely to display guidance.
+- id: R2
+  text: Show only plan-level finish blockers such as pending/running work or no succeeded task. An empty blocker
+    set does not promise that candidate artifact validation will succeed; do not perform extra ArtifactStore
+    reads or duplicate finish validation while constructing the block.
+- id: R3
+  text: Add one current block to the outbound main request after any compaction projection. Do not append it
+    to session events or summaries, mutate the stable instruction prefix, remove genuine past tool errors or
+    overwrite real user content. Request preparation repeated on the same request is idempotent.
+- id: R4
+  text: Render fixed safe labels and scalar values, not a second copy of objectives/instructions or raw session
+    state. Bound the added UTF-8 content to 2 KiB; register the shared request-guidance ceiling once for the
+    Planner and Worker consumers and test both against the same small fixture.
+- id: R5
+  text: Preserve all existing admission, Gateway failure, compaction, session receipt and completion classifications.
+failure_outcomes:
+- operation: Prepare factual guidance for an already admitted main-model request
+  permanent: An internal inconsistent snapshot is an infrastructure failure through the existing owner; never
+    fabricate available capacity.
+  retryable: Existing Gateway/session classifications remain authoritative; guidance adds no external call
+    or retry loop.
+  ambiguous: No mutation is added; any existing ambiguous dispatch or completion follows its existing receipt.
+  cancelled: Respect the invocation cancellation; no guidance task or timer outlives request preparation.
+  timeout: The original Planner deadline owns preparation and the subsequent model call.
+cardinality:
+- collection: The current invocation's plan and outbound request
+  expected: Up to the default 32 subtasks and one small state block.
+  maximum: Existing maxSubtasks ceiling 1000; one added block of at most 2 KiB.
+  bound: One bounded plan snapshot/pass per main request, constant-sized output, no history or ArtifactStore
+    traversal.
+lifecycle:
+- entity: Request-only factual plan projection
+  delete: Discard with its model request; reconstruct from current owners on the next request.
+  cascade: Original plan/session lifecycle remains unchanged.
+  retention: No independent persistence or cached mutable counters.
+acceptance_criteria:
+- id: A1
+  given: Both modeled Planners with empty, partially completed and maximum-size plans
+  when: Their real ADK path prepares initial and subsequent scripted model requests
+  then: Counts, pinned limits, current subtask and additional-call semantics match the owner, including zero
+    capacity and terminal records.
+- id: A2
+  given: Successful/failed compaction and one-shot document recovery paths
+  when: The next main request is prepared, including preparation twice on the same request
+  then: Exactly one current block reaches the Gateway; durable sessions contain no inserted guidance events
+    and recovery restrictions remain intact.
+- id: A3
+  given: Pending/running/all-failed/finished plans and retryable artifact verification failures
+  when: Guidance is rendered and finish is attempted
+  then: Guidance truthfully states plan blockers; the existing finish owner independently accepts or rejects
+    the candidate without new artifact reads.
+- id: A4
+  given: 1000 subtasks, boundary counts, cancellation and actual session persistence
+  when: Focused real-PostgreSQL/race tests and request-bound fixtures run
+  then: Added output stays within 2 KiB, no history rescans occur, and existing admission/session failure behavior
+    passes.
+tests:
+- command: go test -race -count=1 ./internal/planner/streamline ./internal/planner/router
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: python3 scripts/check_spec.py
+  covers:
+  - A1
+  - A3
+  - A4
+verification_policy: Use one disposable PostgreSQL database with CONTRACTOR_TEST_DATABASE_URL set for owning
+  session tests; an unreachable configured database fails. Run all tests in the affected Go packages, not all
+  Go packages. Drop the owned database after pools stop. Include shared request-guidance fixtures in these
+  suites.
