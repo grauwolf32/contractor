@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-72 open tasks: 11 in progress, 48 pending, 13 deferred. 1648 finished: 1630 completed, 18 archived.
+71 open tasks: 10 in progress, 48 pending, 13 deferred. 1649 finished: 1631 completed, 18 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V479-001](v479-001-hide-artifact-write-preconditions.yml) | projects-artifacts | feature | P1 | Manage artifact and document write preconditions inside Runtime |
 
 ## Pending
 
@@ -39,7 +38,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | — | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 | [V469-001](v469-001-opencode-audit-prototype.yml) | chore | P1 | — | Prove two ordinary Runs can reuse one OpenCode Audit container |
-| [V479-004](v479-004-resolve-read-versions-and-repeats.yml) | feature | P1 | V479-001, V479-002, V479-003 | Resolve artifact read versions in Runtime and preserve V476 repeats |
+| [V479-004](v479-004-resolve-read-versions-and-repeats.yml) | feature | P1 | V479-002, V479-003 | Resolve artifact read versions in Runtime and preserve V476 repeats |
 | [V479-006](v479-006-resolve-planner-finish-revisions.yml) | feature | P1 | V479-004 | Assemble exact Planner finish references without model revisions |
 | [V479-007](v479-007-verify-runtime-owned-tool-versions.yml) | chore | P1 | V479-005, V479-006 | Verify revision-free model inputs across the integrated tool surface |
 
@@ -80,7 +79,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V479-003](v479-003-hide-sitemap-write-preconditions.yml) | feature | P1 | V479-001 | Apply sitemap edits against the Runtime-held reviewed view |
+| [V479-003](v479-003-hide-sitemap-write-preconditions.yml) | feature | P1 | — | Apply sitemap edits against the Runtime-held reviewed view |
 
 ### Audits (`audits`)
 
@@ -95,7 +94,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | — | Drive the cumulative 64 MiB machine report check to its rejection in a test |
 | [V469-004](v469-004-opencode-audit-workflow.yml) | feature | P1 | V469-003 | Ship the minimal OpenCode Audit workflow and environment view |
-| [V479-002](v479-002-hide-audit-correction-revisions.yml) | feature | P1 | V479-001 | Replace Audit conclusions by item key without revision arguments |
+| [V479-002](v479-002-hide-audit-correction-revisions.yml) | feature | P1 | — | Replace Audit conclusions by item key without revision arguments |
 
 ### Evaluations (`evals`)
 
@@ -184,7 +183,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
 | Findings tools and collections (`findings`) | 1 | 22 | 15 | 11 | 27 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 41 | 40 | 20 | 74 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 41 | 40 | 20 | 74 |
 | Audits (`audits`) | 11 | 72 | 98 | 42 | 172 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 21 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |

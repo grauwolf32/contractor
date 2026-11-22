@@ -5,7 +5,7 @@ milestone: runtime-owned-tool-versions-2026-11
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V474-003
 - V476-005
@@ -202,3 +202,4 @@ verification_policy: Commands listed here are required implementation checks, no
   and selected process checks; extend only to actually affected sibling owners. Changed pinned catalog content
   needs new immutable identities/paths and lock entries; tests use testdata fixtures, not the live configs
   tree. Do not change the configured model or claim measured quality improvement.
+implementation_commit: 00a17bf0c7d18e21fd52882a564cdaeccb73fc05
