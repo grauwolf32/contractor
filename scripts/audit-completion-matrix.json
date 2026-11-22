@@ -47,6 +47,17 @@
       "TestAuditCompletionGateRejectsFalseGreenGoReports",
       "TestAuditCompletionGateRejectsIncompleteRuntimeReports",
       "TestAuditCompletionGateRequiresPrerequisites"
+    ],
+    "github.com/grauwolf32/contractor/internal/auditservice": [
+      "TestSharedPostgresJudgmentCorrectionReplayAndFences",
+      "TestSharedPostgresJudgmentSiblingConflictAndAtomicBatch",
+      "TestSharedPostgresJudgmentBatchAndEvidenceMembership",
+      "TestSharedPostgresPartialMixedJudgmentsKeepUnassignedWorkUnchanged",
+      "TestSharedPostgresPartialJudgmentAndSystemStopSurviveExhaustedEvidenceBudget"
+    ],
+    "github.com/grauwolf32/contractor/internal/contracts/auditcontract": [
+      "TestSharedTaskStopReadContract",
+      "TestJudgmentSubmissionStrictGenerationAndBounds"
     ]
   },
   "python": {
@@ -225,6 +236,11 @@
     "tests.test_audit_compaction::test_audit_checkpoint_termination_discards_partial_collection_and_joins": 3,
     "tests.test_audit_compaction::test_incomplete_audit_keeps_its_reminder_budget_and_partial_results_after_checkpoint": 1,
     "tests.test_audit_compaction::test_later_isolated_invocation_or_replacement_cannot_read_archive_or_inherit_results": 2,
-    "tests.test_audit_compaction::test_complete_collector_waits_for_parallel_tool_join_before_publication": 1
+    "tests.test_audit_compaction::test_complete_collector_waits_for_parallel_tool_join_before_publication": 1,
+    "tests.test_audit_judgment_persistence::test_lost_ack_reconciles_identical_body_without_another_semantic_revision": 1,
+    "tests.test_audit_judgment_persistence::test_unknown_commit_then_later_response_recovers_server_base_without_old_retry_rollback": 1,
+    "tests.test_audit_judgment_persistence::test_cancel_after_commit_retains_owner_value_without_claiming_local_acceptance": 1,
+    "tests.test_audit_judgment_persistence::test_definite_rejection_is_not_retried_or_locally_accepted": 1,
+    "tests.test_audit_stop_contract::test_shared_system_stop_read_contract": 13
   }
 }

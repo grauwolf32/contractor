@@ -34,6 +34,11 @@ type judgmentFixture struct {
 
 func newJudgmentFixture(t *testing.T, count int, checking bool) judgmentFixture {
 	t.Helper()
+	return newJudgmentSelectionFixture(t, count, count, checking)
+}
+
+func newJudgmentSelectionFixture(t *testing.T, count, selected int, checking bool) judgmentFixture {
+	t.Helper()
 	f := newCommonTaskServiceFixture(t, func(p *auditcontract.Program) {
 		p.Limits.MaxEvidenceBytes = 16 << 20
 		binding := p.Workflows["inspect"]
@@ -103,7 +108,7 @@ func newJudgmentFixture(t *testing.T, count int, checking bool) judgmentFixture 
 		t.Fatalf("tasks=%d error=%v", len(page.Tasks), err)
 	}
 	ids := make([]string, 0, count)
-	for _, task := range page.Tasks {
+	for _, task := range page.Tasks[:selected] {
 		ids = append(ids, task.Document.TaskID)
 	}
 	execution, _, err := store.SelectTasks(ctx, auditstore.SelectTasksParams{Claim: claim, TaskIDs: ids})
@@ -292,6 +297,99 @@ func TestSharedPostgresJudgmentBatchAndEvidenceMembership(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+func TestSharedPostgresPartialMixedJudgmentsKeepUnassignedWorkUnchanged(t *testing.T) {
+	f := newJudgmentSelectionFixture(t, 5, 4, true)
+	ctx := t.Context()
+	storage := artifactpgtest.NewStorage()
+	store := auditstoretest.NewStore(f.pool, storage)
+	art := artifacts.NewService(storage.Repository(f.pool))
+	runScope, _ := art.Run(f.grant.RunID)
+	written, err := runScope.Write(ctx, contracts.ArtifactRef{Namespace: f.grant.Namespace, Name: "mixed-observation"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("an explicitly selected source")}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var supportedNote auditcontract.EvidenceReceipt
+	for _, index := range []int{0, 2} {
+		note, err := f.service.RecordEvidence(ctx, f.grant, auditcontract.EvidenceSubmission{APIVersion: contracts.APIVersion, InvocationID: "invocation", SubmissionID: fmt.Sprintf("note-%d", index), ItemKey: auditcontract.ExecutionItemKey(index), Sources: []contracts.ArtifactRef{written.Ref}, Interpretation: "Attributed reading of selected source", TestedConditions: []string{"this source only"}, Limitations: []string{}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if index == 0 {
+			supportedNote = note
+		}
+	}
+	for index, verdict := range []string{"supported", "inconclusive"} {
+		input := judgmentInput(auditcontract.ExecutionItemKey(index), "An accepted model judgment", fmt.Sprintf("judgment-%d", index), 0)
+		input.Items[0].Conclusion.Verdict = &verdict
+		if index == 0 {
+			input.Items[0].Conclusion.TestedConditions = []string{"this source only"}
+			input.Items[0].Conclusion.Evidence = append(supportedNote.Sources, supportedNote.Material)
+		} else {
+			input.Items[0].Conclusion.Limitations = []string{"No scoped judgment can be made from available data"}
+		}
+		if _, err := f.service.RecordJudgments(ctx, f.grant, input); err != nil {
+			t.Fatal(err)
+		}
+	}
+	runs := runstore.NewPostgresStore(f.pool, storage)
+	if _, err := runs.TransitionRun(ctx, f.grant.RunID, runstore.RunRunning, runstore.RunFailed, runstore.Reason{Code: "worker_model_calls_exceeded", Message: "Configured call limit reached"}); err != nil {
+		t.Fatal(err)
+	}
+	cursor, err := runs.GetRunEventCursor(ctx, f.grant.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	execution, err := store.ObserveTerminal(ctx, auditstore.ObserveTerminalParams{Claim: f.claim, ExecutionID: f.execution.ExecutionID, RunID: f.grant.RunID, Generation: cursor.Generation, Sequence: uint64(cursor.Sequence)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(ctx, `UPDATE audits SET state='cancelling' WHERE audit_id=$1`, f.audit.AuditID); err != nil {
+		t.Fatal(err)
+	}
+	audit, err := store.Get(ctx, "owner", f.audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	access, err := auditimport.NewArtifactAccess(art, hookstore.NewClaimedArtifacts(f.pool, storage))
+	if err != nil {
+		t.Fatal(err)
+	}
+	collector, err := auditimport.New(store, store, runs, access)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := collector.Collect(ctx, f.claim, auditstore.ReconcileSnapshot{Audit: audit}, execution); err != nil || !changed {
+		t.Fatalf("collect mixed results: %t %v", changed, err)
+	}
+	for index, original := range f.tasks {
+		task, err := store.GetTask(ctx, "owner", audit.AuditID, original.Document.TaskID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		switch index {
+		case 0, 1:
+			if task.State != auditstore.TaskSettled || task.Result == nil || task.Stop != nil {
+				t.Fatalf("accepted model result was replaced: %+v", task)
+			}
+		case 2, 3:
+			if task.State != auditstore.TaskSettled || task.Result != nil || task.Stop == nil || task.Stop.Author != "system" || task.Stop.Meaning != "no_accepted_conclusion" || task.Stop.Reason.Source != "run" || task.Stop.Reason.Code != "worker_model_calls_exceeded" {
+				t.Fatalf("missing system disposition: %+v", task)
+			}
+			expected := 0
+			if index == 2 {
+				expected = 2
+			}
+			if len(task.Stop.Evidence) != expected {
+				t.Fatalf("recorded activity manufactured or lost: %+v", task.Stop)
+			}
+		case 4:
+			if task.State != auditstore.TaskReady || task.Attempts != 0 || task.LastExecution != nil || task.Result != nil || task.Stop != nil {
+				t.Fatalf("unassigned work acquired a fabricated attempt: %+v", task)
+			}
+		}
+	}
 }
 
 func TestSharedPostgresPartialJudgmentAndSystemStopSurviveExhaustedEvidenceBudget(t *testing.T) {
