@@ -5,7 +5,7 @@ milestone: runtime-owned-tool-versions-2026-11
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V479-001]
 languages: [python, markdown]
 goal: Model tools omit revision arguments while deterministic tool Workers retain exact configured preconditions and artifact inputs.
@@ -67,3 +67,4 @@ tests:
     covers: [A1, A2]
   - command: cd runtime && uv run ruff check src/contractor_runtime/worker/tool_runtime.py src/contractor_runtime/toolsets/sitemap
     covers: [A1, A2]
+implementation_commit: 3dc1d1b4ce3c2d459199838d6313766d32945de1

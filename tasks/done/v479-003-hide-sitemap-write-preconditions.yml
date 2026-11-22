@@ -5,7 +5,7 @@ milestone: runtime-owned-tool-versions-2026-11
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V479-001
 languages:
@@ -202,3 +202,4 @@ additional_verification: Run the full affected internal/projectsitemap Go packag
   including the shared manual-source identity fixture.
 verification_environment: Go filesystem-backed tests use an owned canonical TMPDIR under /private/tmp, because
   the macOS /var temporary path includes a symlink rejected by the strict blob directory owner.
+implementation_commit: 3dc1d1b4ce3c2d459199838d6313766d32945de1
