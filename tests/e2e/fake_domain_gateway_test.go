@@ -629,7 +629,7 @@ func workspaceDiscoveryGatewayStage(name string, tools []string, dependency bool
 			"path": "", "cursor": "", "limit": 50,
 		})))
 	} else {
-		steps = append(steps, toolGatewayStep("read_artifact", stageRefArguments("dependency_report", nil)))
+		steps = append(steps, toolGatewayStep("read_artifact", stageReadArguments("dependency_report", nil)))
 	}
 	steps = append(steps, toolGatewayStep("read_file", fixedArguments(map[string]any{
 		"path": "app.py", "start_line": 1, "max_lines": 100,
@@ -638,7 +638,6 @@ func workspaceDiscoveryGatewayStage(name string, tools []string, dependency bool
 		steps = append(steps,
 			toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{
 				"name": "dependencies", "text": dependencyReport, "media_type": "text/markdown",
-				"expected_revision": nil,
 			})),
 			finalGatewayStep("Dependency inventory published", map[string]domainArtifactBinding{
 				"dependency_report": {namespace: "analysis", name: "dependencies"},
@@ -648,7 +647,6 @@ func workspaceDiscoveryGatewayStage(name string, tools []string, dependency bool
 		steps = append(steps,
 			toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{
 				"name": "project", "text": projectReport, "media_type": "text/markdown",
-				"expected_revision": nil,
 			})),
 			finalGatewayStep("Project inventory published", map[string]domainArtifactBinding{
 				"project_report": {namespace: "analysis", name: "project"},
@@ -690,14 +688,14 @@ func workspaceLikeC4ValidateGatewayStage(tools []string) domainGatewayStage {
 
 func openAPIBuildGatewayStage(tools []string) domainGatewayStage {
 	return domainGatewayStage{name: "openapi/openapi_build", tools: tools, steps: []domainGatewayStep{
-		toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),
-		toolGatewayStep("read_artifact", stageRefArguments("dependency_report", nil)),
-		toolGatewayStep("read_artifact", stageRefArguments("project_report", nil)),
+		toolGatewayStep("open_source_archive", stageSourceArguments("source", nil)),
+		toolGatewayStep("read_artifact", stageReadArguments("dependency_report", nil)),
+		toolGatewayStep("read_artifact", stageReadArguments("project_report", nil)),
 		toolGatewayStep("read_source", fixedArguments(map[string]any{
 			"path": "app.py", "start_line": 1, "max_lines": 100,
 		})),
-		toolGatewayStep("load_openapi", stageRefArguments("existing_openapi", map[string]any{
-			"target_name": "openapi", "expected_revision": nil,
+		toolGatewayStep("load_openapi", stageSourceArguments("existing_openapi", map[string]any{
+			"target_name": "openapi",
 		})),
 		toolGatewayStep("upsert_openapi_component", fixedArguments(map[string]any{
 			"section": "schemas", "name": "WidgetResponse",
@@ -741,11 +739,11 @@ func openAPIBuildGatewayStage(tools []string) domainGatewayStage {
 
 func openAPIValidateGatewayStage(tools []string) domainGatewayStage {
 	return domainGatewayStage{name: "openapi/openapi_validate", tools: tools, steps: []domainGatewayStep{
-		toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),
-		toolGatewayStep("read_artifact", stageRefArguments("dependency_report", nil)),
-		toolGatewayStep("read_artifact", stageRefArguments("project_report", nil)),
-		toolGatewayStep("load_openapi", stageRefArguments("openapi_candidate", map[string]any{
-			"target_name": "openapi", "expected_revision": nil,
+		toolGatewayStep("open_source_archive", stageSourceArguments("source", nil)),
+		toolGatewayStep("read_artifact", stageReadArguments("dependency_report", nil)),
+		toolGatewayStep("read_artifact", stageReadArguments("project_report", nil)),
+		toolGatewayStep("load_openapi", stageSourceArguments("openapi_candidate", map[string]any{
+			"target_name": "openapi",
 		})),
 		toolGatewayStep("validate_openapi", fixedArguments(nil)),
 		toolGatewayStep("get_openapi_path", fixedArguments(map[string]any{
@@ -754,7 +752,7 @@ func openAPIValidateGatewayStage(tools []string) domainGatewayStage {
 		toolGatewayStep("validate_openapi", fixedArguments(nil)),
 		toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{
 			"name": "validation-report", "text": openAPIValidationReport,
-			"media_type": "text/markdown", "expected_revision": nil,
+			"media_type": "text/markdown",
 		})),
 		finalGatewayStep("OpenAPI candidate is clean", map[string]domainArtifactBinding{
 			"openapi":           {namespace: "openapi", name: "openapi"},
@@ -765,14 +763,14 @@ func openAPIValidateGatewayStage(tools []string) domainGatewayStage {
 
 func likeC4BuildGatewayStage(tools []string) domainGatewayStage {
 	return domainGatewayStage{name: "likec4/likec4_build", tools: tools, steps: []domainGatewayStep{
-		toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),
-		toolGatewayStep("read_artifact", stageRefArguments("dependency_report", nil)),
-		toolGatewayStep("read_artifact", stageRefArguments("project_report", nil)),
+		toolGatewayStep("open_source_archive", stageSourceArguments("source", nil)),
+		toolGatewayStep("read_artifact", stageReadArguments("dependency_report", nil)),
+		toolGatewayStep("read_artifact", stageReadArguments("project_report", nil)),
 		toolGatewayStep("read_source", fixedArguments(map[string]any{
 			"path": "app.py", "start_line": 1, "max_lines": 100,
 		})),
-		toolGatewayStep("load_likec4", stageRefArguments("existing_likec4", map[string]any{
-			"target_name": "architecture", "expected_revision": nil,
+		toolGatewayStep("load_likec4", stageSourceArguments("existing_likec4", map[string]any{
+			"target_name": "architecture",
 		})),
 		toolGatewayStep("validate_likec4", fixedArguments(nil)),
 		toolGatewayStep("append_likec4", fixedArguments(map[string]any{"content": likeC4ModelBlock})),
@@ -787,11 +785,11 @@ func likeC4BuildGatewayStage(tools []string) domainGatewayStage {
 
 func likeC4ValidateGatewayStage(tools []string) domainGatewayStage {
 	return domainGatewayStage{name: "likec4/likec4_validate", tools: tools, steps: []domainGatewayStep{
-		toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),
-		toolGatewayStep("read_artifact", stageRefArguments("dependency_report", nil)),
-		toolGatewayStep("read_artifact", stageRefArguments("project_report", nil)),
-		toolGatewayStep("load_likec4", stageRefArguments("architecture_candidate", map[string]any{
-			"target_name": "architecture", "expected_revision": nil,
+		toolGatewayStep("open_source_archive", stageSourceArguments("source", nil)),
+		toolGatewayStep("read_artifact", stageReadArguments("dependency_report", nil)),
+		toolGatewayStep("read_artifact", stageReadArguments("project_report", nil)),
+		toolGatewayStep("load_likec4", stageSourceArguments("architecture_candidate", map[string]any{
+			"target_name": "architecture",
 		})),
 		toolGatewayStep("validate_likec4", fixedArguments(nil)),
 		toolGatewayStep("read_likec4", fixedArguments(map[string]any{
@@ -800,7 +798,7 @@ func likeC4ValidateGatewayStage(tools []string) domainGatewayStage {
 		toolGatewayStep("validate_likec4", fixedArguments(nil)),
 		toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{
 			"name": "validation-report", "text": likeC4ValidationReport,
-			"media_type": "text/markdown", "expected_revision": nil,
+			"media_type": "text/markdown",
 		})),
 		finalGatewayStep("LikeC4 candidate is clean", map[string]domainArtifactBinding{
 			"architecture":      {namespace: "likec4", name: "architecture"},
@@ -951,4 +949,36 @@ func equalStringSlices(left, right []string) bool {
 		}
 	}
 	return true
+}
+
+// Model readers use Runtime-issued positions; reference metadata remains informational.
+func stageReadArguments(slot string, extra map[string]any) func(map[string]any) (map[string]any, error) {
+	return func(request map[string]any) (map[string]any, error) {
+		if len(extra) > 0 {
+			return stageSourceArguments(slot, extra)(request)
+		}
+		cursor := ""
+		walkDomainJSON(request, func(object map[string]any) {
+			if ref, ok := object[slot].(map[string]any); ok {
+				if value, ok := ref["readCursor"].(string); ok {
+					cursor = value
+				}
+			}
+		})
+		if cursor == "" {
+			return nil, fmt.Errorf("Stage input %q has no exact read cursor", slot)
+		}
+		return map[string]any{"cursor": cursor}, nil
+	}
+}
+
+func stageSourceArguments(slot string, extra map[string]any) func(map[string]any) (map[string]any, error) {
+	return func(request map[string]any) (map[string]any, error) {
+		args, err := stageRefArguments(slot, extra)(request)
+		if err != nil {
+			return nil, err
+		}
+		delete(args, "revision")
+		return args, nil
+	}
 }

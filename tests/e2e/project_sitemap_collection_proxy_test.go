@@ -204,7 +204,7 @@ func sitemapHTTPGatewayStage(stage domainGatewayStage) domainGatewayStage {
 				entry, _ := raw.(map[string]any)
 				value, _ := entry["value"].(map[string]any)
 				if entry["kind"] == "member" && value["path"] == "/manual-canary" {
-					return map[string]any{"expected_revision": result["revision"], "member_ids": []any{entry["memberId"]}, "note": "unified-editor"}, nil
+					return map[string]any{"member_ids": []any{entry["memberId"]}, "note": "unified-editor"}, nil
 				}
 			}
 		}

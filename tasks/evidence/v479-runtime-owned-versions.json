@@ -53,6 +53,25 @@
       "result": "passed",
       "evidence_task": "V479-003",
       "notes": "Atomic delivery with the first concrete Sitemap owner. Strict model and tool@1 facets share owner identity/lifecycle; complete tool Worker and deadline tests plus real production process pass."
+    },
+    "V479-004": {
+      "runtime_tests": 433,
+      "runtime_result": "passed",
+      "additional_owner_cases": 245,
+      "process_tests": [
+        "TestRuntimeManagedMaterialVersionsAcrossProcesses",
+        "TestRuntimeGuidanceAcrossProductionProcesses",
+        "TestArtifactImagesAcrossProcesses"
+      ],
+      "process_result": "passed",
+      "process_seconds": 117.3,
+      "checks": [
+        "targeted Ruff",
+        "four import contracts",
+        "specifications",
+        "catalog lock and validation"
+      ],
+      "notes": "Current reads, pinned start cursors, exact continuations, native images, checkpoint/repeat lifecycle verified. Scripted e2e callers reject removed input fields rather than relying on compatibility."
     }
   }
 }

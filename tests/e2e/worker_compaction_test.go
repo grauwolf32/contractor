@@ -643,7 +643,7 @@ func (g *compactionGateway) serveMain(w http.ResponseWriter, request map[string]
 	}
 	write := func(id, name, body string) map[string]any {
 		return toolCallMessage(id, "write_text_artifact", map[string]any{
-			"name": name, "text": body, "media_type": "text/plain", "expected_revision": nil,
+			"name": name, "text": body, "media_type": "text/plain",
 		})
 	}
 	switch call {

@@ -122,7 +122,6 @@ class _LikeC4Session(DocumentSession[str]):
     max_bytes = MAX_DOCUMENT_UTF8_BYTES
     reload_tool = "load_likec4"
     read_tool = "read_likec4"
-    seed_revision_message = "a LikeC4 seed outside the Worker namespace requires an exact revision"
     seed_too_large_message = "LikeC4 document exceeds the 1 MiB tool limit"
     seed_media_type_message = f"LikeC4 seed media type must be {TARGET_MEDIA_TYPE} or text/plain"
     not_loaded_message = "load_likec4 or write_likec4 must be called first"
@@ -282,7 +281,6 @@ class LoadLikeC4Tool(_BaseLikeC4Tool):
     Args:
         namespace: Source artifact namespace.
         name: Source artifact binding name.
-        revision: Source revision; required for a source outside the Worker's namespace.
         target_name: Destination binding in the Worker's namespace; default "architecture".
 
     Returns:
@@ -293,13 +291,11 @@ class LoadLikeC4Tool(_BaseLikeC4Tool):
         self,
         namespace: str,
         name: str,
-        revision: str | None = None,
         target_name: str = DEFAULT_TARGET_NAME,
     ) -> dict[str, Any]:
         arguments = {
             "namespace": namespace,
             "name": name,
-            "revision": revision,
             "target_name": target_name,
         }
         return await self._call(
@@ -307,7 +303,6 @@ class LoadLikeC4Tool(_BaseLikeC4Tool):
             self._session.load(
                 namespace=namespace,
                 name=name,
-                revision=revision,
                 target_name=target_name,
             ),
             _artifact_metric,

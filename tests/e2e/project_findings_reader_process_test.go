@@ -80,7 +80,7 @@ func projectFindingsReview(t *testing.T, responseFailure string) {
 			return exact["ref"].(map[string]any), nil
 		}))
 	}
-	reader.steps = append(reader.steps, toolGatewayStep("read_artifact", stageRefArguments("check_results", nil)), toolGatewayStep("write_text_artifact", func(request map[string]any) (map[string]any, error) {
+	reader.steps = append(reader.steps, toolGatewayStep("read_artifact", stageReadArguments("check_results", nil)), toolGatewayStep("write_text_artifact", func(request map[string]any) (map[string]any, error) {
 		reads := findingsToolResponses(request, "read_artifact")
 		if len(reads) != 3 {
 			return nil, fmt.Errorf("missing full selected evidence or negative result")

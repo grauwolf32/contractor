@@ -188,9 +188,6 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
     max_bytes = MAX_DOCUMENT_BYTES
     reload_tool = "load_openapi"
     read_tool = "read_openapi_document"
-    seed_revision_message = (
-        "an OpenAPI seed outside the Worker namespace requires an exact revision"
-    )
     seed_too_large_message = DOCUMENT_BYTES_MESSAGE
     seed_media_type_message = "OpenAPI seed media type must be application/yaml or application/json"
     not_loaded_message = "load_openapi or initialize_openapi must be called first"
@@ -596,7 +593,6 @@ class LoadOpenAPITool(_BaseOpenAPITool):
     Args:
         namespace: Source artifact namespace.
         name: Source artifact binding name.
-        revision: Source revision; required for a source outside the Worker's namespace.
         target_name: Destination binding in the Worker's namespace; defaults to "openapi".
 
     Returns:
@@ -607,13 +603,11 @@ class LoadOpenAPITool(_BaseOpenAPITool):
         self,
         namespace: str,
         name: str,
-        revision: str | None = None,
         target_name: str = DEFAULT_TARGET_NAME,
     ) -> dict[str, Any]:
         arguments = {
             "namespace": namespace,
             "name": name,
-            "revision": revision,
             "target_name": target_name,
         }
         return await self._call(
@@ -621,7 +615,6 @@ class LoadOpenAPITool(_BaseOpenAPITool):
             self._session.load(
                 namespace=namespace,
                 name=name,
-                revision=revision,
                 target_name=target_name,
             ),
             _artifact_metric,

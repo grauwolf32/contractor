@@ -304,7 +304,7 @@ func (g *summarizerGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		message := toolCallMessage("summary-write-"+mode, "write_text_artifact", map[string]any{
 			"name": name, "text": "artifact produced for " + mode,
-			"media_type": "text/plain", "expected_revision": nil,
+			"media_type": "text/plain",
 		})
 		// This text is model-visible history, but neither a result nor an
 		// artifact. It proves that the bounded transcript reaches only the live

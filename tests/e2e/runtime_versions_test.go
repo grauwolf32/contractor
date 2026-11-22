@@ -208,3 +208,70 @@ spec:
 		t.Fatal(h.gateway.Failures())
 	}
 }
+
+func TestRuntimeManagedMaterialVersionsAcrossProcesses(t *testing.T) {
+	var h *findingsHarness
+	const originalTail = "old-tail\n"
+	original := strings.Repeat("old-line\n", 200) + originalTail
+	const newer = "new-head\nnew-tail\n"
+	first := toolGatewayStep("read_artifact", fixedArguments(map[string]any{"namespace": "inputs", "name": "source"}))
+	first.validate = func(request map[string]any) error {
+		ref, ok := stageArtifact(request, "source")
+		if !ok {
+			return fmt.Errorf("missing pinned source")
+		}
+		pool, err := pgxpool.New(h.ctx, h.databaseURL)
+		if err != nil {
+			return err
+		}
+		defer pool.Close()
+		var run string
+		if err = pool.QueryRow(h.ctx, `SELECT scope_id FROM artifact_bindings WHERE scope_kind='run' AND namespace='inputs' AND name='source'`).Scan(&run); err != nil {
+			return err
+		}
+		scoped, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Run(run)
+		if err != nil {
+			return err
+		}
+		rev := ref["revision"].(string)
+		_, err = scoped.Write(h.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"}, artifacts.Payload{MediaType: "text/plain", Data: []byte(newer)}, &rev)
+		return err
+	}
+	next := toolGatewayStep("read_artifact", func(request map[string]any) (map[string]any, error) {
+		responses := findingsToolResponses(request, "read_artifact")
+		if len(responses) != 2 {
+			return nil, fmt.Errorf("read responses=%v", responses)
+		}
+		return map[string]any{"cursor": responses[1]["nextCursor"]}, nil
+	})
+	final := finalGatewayStep("Current reads and exact continuation preserve distinct versions", nil)
+	final.validate = func(request map[string]any) error {
+		results := findingsToolResponses(request, "read_artifact")
+		if len(results) != 4 {
+			return fmt.Errorf("expected four reads: %v", results)
+		}
+		fresh, _ := results[0]["artifact"].(map[string]any)
+		pinned, _ := results[1]["artifact"].(map[string]any)
+		continued, _ := results[2]["artifact"].(map[string]any)
+		if fresh["revision"] == pinned["revision"] || pinned["revision"] != continued["revision"] || results[0]["text"] != newer || results[2]["text"] != originalTail || results[3]["text"] != newer {
+			return fmt.Errorf("mixed current/pinned versions: %v", results)
+		}
+		return nil
+	}
+	stage := domainGatewayStage{name: "current-and-pinned-material", tools: []string{"read_artifact"}, steps: []domainGatewayStep{first, toolGatewayStep("read_artifact", stageReadArguments("source", nil)), next, toolGatewayStep("read_artifact", fixedArguments(map[string]any{"namespace": "inputs", "name": "source"})), final}}
+	h = startConfiguredFindingsHarness(t, []domainGatewayStage{stage}, func(root string) {
+		workflow := strings.ReplaceAll(imageFixtureWorkflow, "image/png", "text/plain")
+		files := map[string]string{"agent-templates/artifact-image-fixture.yaml": imageFixtureTemplate, "workflows/artifact-image-fixture.yaml": workflow, "model-policies/image-fixture.yaml": imageFixturePolicy, "instructions/artifact-image-fixture.md": "Read current by namespace/name; use task readCursor and nextCursor for exact sources.", "instructions/artifact-image-planner-fixture.md": "Inspect selected input."}
+		for name, data := range files {
+			if err := os.WriteFile(filepath.Join(root, name), []byte(data), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+	input := uploadProjectArtifact(t, h.client, h.baseURL, "material-source", "text/plain", []byte(original))
+	run := createWorkflowRun(t, h.client, h.baseURL, "artifact-image-fixture@1", "current-pinned", input)
+	waitForFindingsRun(t, h, run, "succeeded")
+	if h.gateway.CompletedStages() != 1 || len(h.gateway.Failures()) != 0 {
+		t.Fatal(h.gateway.Failures())
+	}
+}

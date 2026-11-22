@@ -3,13 +3,13 @@ kind: AgentTemplate
 
 metadata:
   name: openapi_validator
-  version: "4"
+  version: "5"
 
 spec:
   description: Validates and minimally repairs a candidate OpenAPI document against project evidence
   runtime: adk@1
   instructions:
-    ref: instructions/openapi-validator-worker-memory.md
+    ref: instructions/openapi-validator-worker-memory-cursor-reads.md
   summarizer:
     instructions:
       ref: instructions/terminal-summarizer.md

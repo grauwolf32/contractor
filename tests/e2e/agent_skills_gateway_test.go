@@ -78,7 +78,7 @@ func artifactReportGatewayStage(name string) domainGatewayStage {
 				}
 				return map[string]any{
 					"name": "copied", "media_type": "text/plain",
-					"text": e2eReport, "expected_revision": nil,
+					"text": e2eReport,
 				}, nil
 			}),
 			finalGatewayStep("Source report authored", map[string]domainArtifactBinding{

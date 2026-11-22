@@ -134,17 +134,12 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
             [
                 tool_call(
                     "read_artifact",
-                    {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                    {"namespace": "inputs", "name": "source"},
                     call_id="read-1",
                 ),
                 tool_call(
                     "write_text_artifact",
-                    {
-                        "name": "report",
-                        "media_type": "application/json",
-                        "text": "{}",
-                        "expected_revision": None,
-                    },
+                    {"name": "report", "media_type": "application/json", "text": "{}"},
                     call_id="write-1",
                 ),
                 terminal_text("Report created"),
@@ -328,7 +323,7 @@ def test_adk_worker_sessions_mirror_the_canonical_contractor_state(
         client = FakeArtifactClient()
         state = WorkerState()
         tools = await selected_tools(tmp_path, client, state)
-        read = {"namespace": "inputs", "name": "source", "revision": "input-r1"}
+        read = {"namespace": "inputs", "name": "source"}
         model = scripted_model(
             [
                 tool_call("read_artifact", read, call_id="read-1"),
@@ -538,7 +533,7 @@ def test_adk_worker_emits_content_free_model_tool_and_a2a_hooks(tmp_path: Path) 
             [
                 tool_call(
                     "read_artifact",
-                    {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                    {"namespace": "inputs", "name": "source"},
                     call_id="read-for-telemetry",
                 ),
                 terminal_text("Telemetry-safe result"),
@@ -598,7 +593,7 @@ def test_a2a_task_span_counts_are_per_invocation_and_absent_on_rejection(
             [
                 tool_call(
                     "read_artifact",
-                    {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                    {"namespace": "inputs", "name": "source"},
                     call_id="first-task-read",
                 ),
                 terminal_text("First task complete"),
@@ -695,7 +690,7 @@ def test_failing_telemetry_sink_cannot_change_the_worker_outcome(
             [
                 tool_call(
                     "read_artifact",
-                    {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                    {"namespace": "inputs", "name": "source"},
                     call_id="read-with-failing-sink",
                 ),
                 terminal_text("Result despite telemetry"),
@@ -1359,12 +1354,7 @@ def test_adk_worker_builds_typed_result_with_trusted_artifacts(tmp_path: Path) -
             [
                 tool_call(
                     "write_text_artifact",
-                    {
-                        "name": "report",
-                        "media_type": "application/json",
-                        "text": "{}",
-                        "expected_revision": None,
-                    },
+                    {"name": "report", "media_type": "application/json", "text": "{}"},
                     call_id="write-before-invalid-result",
                 ),
                 terminal_text("Report created"),
@@ -1437,12 +1427,7 @@ def test_adk_worker_does_not_reuse_artifact_observed_by_an_earlier_invocation(
             [
                 tool_call(
                     "write_text_artifact",
-                    {
-                        "name": "report",
-                        "media_type": "application/json",
-                        "text": "{}",
-                        "expected_revision": None,
-                    },
+                    {"name": "report", "media_type": "application/json", "text": "{}"},
                     call_id="first-write",
                 ),
                 terminal_text("First task completed"),
@@ -1800,12 +1785,7 @@ def test_adk_worker_does_not_start_a_serializer_when_structured_result_is_missin
             [
                 tool_call(
                     "write_text_artifact",
-                    {
-                        "name": "report",
-                        "media_type": "application/json",
-                        "text": "{}",
-                        "expected_revision": None,
-                    },
+                    {"name": "report", "media_type": "application/json", "text": "{}"},
                     call_id="write-before-missing-result",
                 ),
                 thought_result("The report is complete."),
@@ -1933,12 +1913,12 @@ def test_adk_worker_tool_budget_stops_before_extra_side_effect(tmp_path: Path) -
             [
                 tool_call(
                     "read_artifact",
-                    {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                    {"namespace": "inputs", "name": "source"},
                     call_id="read-1",
                 ),
                 tool_call(
                     "read_artifact",
-                    {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                    {"namespace": "inputs", "name": "source"},
                     call_id="read-2",
                 ),
             ]
@@ -1972,13 +1952,13 @@ def test_tool_budget_does_not_poison_next_invocation_payload(
         tools = await selected_tools(tmp_path, client, state)
         first_call = tool_call(
             "read_artifact",
-            {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+            {"namespace": "inputs", "name": "source"},
             call_id="first-call",
         )
         responses = [first_call]
         second_call = tool_call(
             "read_artifact",
-            {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+            {"namespace": "inputs", "name": "source"},
             call_id="unanswered-call",
         )
         if parallel:
@@ -2089,7 +2069,7 @@ def test_adk_worker_token_budget_stops_before_response_tool_side_effect(
         tools = await selected_tools(tmp_path, client, state)
         response = tool_call(
             "read_artifact",
-            {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+            {"namespace": "inputs", "name": "source"},
             call_id="read-over-token-budget",
         )
         assert response.usage_metadata is not None
@@ -2176,7 +2156,7 @@ def test_adk_worker_uses_one_terminal_summarizer_at_a_safe_tool_boundary(
         tools = await selected_tools(tmp_path, client, state)
         first_response = tool_call(
             "read_artifact",
-            {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+            {"namespace": "inputs", "name": "source"},
             call_id="read-before-summary",
         )
         expected_normal_total = 10
@@ -2188,7 +2168,7 @@ def test_adk_worker_uses_one_terminal_summarizer_at_a_safe_tool_boundary(
                 first_response.content.parts.extend(
                     tool_call(
                         "read_artifact",
-                        {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                        {"namespace": "inputs", "name": "source"},
                         call_id=f"overflow-{index}",
                     ).content.parts
                 )
@@ -2368,7 +2348,7 @@ def test_adk_worker_without_a_summarizer_records_no_transcript(
             [
                 tool_call(
                     "read_artifact",
-                    {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                    {"namespace": "inputs", "name": "source"},
                     call_id="read-1",
                 ),
                 terminal_text("Source read"),
@@ -2401,7 +2381,7 @@ def test_adk_worker_summarizer_receives_the_recorded_redacted_transcript(
         tools = await selected_tools(tmp_path, client, state)
         first_response = tool_call(
             "read_artifact",
-            {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+            {"namespace": "inputs", "name": "source"},
             call_id="read-before-summary",
         )
         assert first_response.content is not None and first_response.content.parts is not None
@@ -2468,7 +2448,7 @@ def test_adk_worker_summary_includes_provider_reasoning_only_when_enabled(
         for index in range(2):
             response = tool_call(
                 "read_artifact",
-                {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                {"namespace": "inputs", "name": "source"},
                 call_id=f"read-with-reasoning-{index}",
             )
             assert response.content is not None and response.content.parts is not None

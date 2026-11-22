@@ -89,13 +89,7 @@ def test_read_artifact_pages_large_payloads() -> None:
         revision = page["artifact"]["revision"]
         collected = page["text"]
         while page["truncated"]:
-            page = await read(
-                "inputs",
-                "source",
-                revision,
-                start_line=page["nextStartLine"],
-                line_offset=page["nextLineOffset"],
-            )
+            page = await read(cursor=page["nextCursor"])
             collected += page["text"]
         assert collected.encode() == client.read_data
         assert client.read_calls == 1
@@ -125,7 +119,11 @@ def test_text_pages_of_a_32_mib_artifact_validate_utf8_once(monkeypatch) -> None
         read = (await create_tools(factory, WorkerState(), ["read_artifact"]))["read_artifact"]
         for start_line in range(1, 4001, 400):
             page = await read(
-                "inputs", "source", "revision-read", start_line=start_line, max_lines=400
+                cursor=read._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="source", revision="revision-read"),
+                    start_line=start_line,
+                    max_lines=400,
+                )
             )
             assert page["text"].encode() == line * 400
             assert page["size"] == len(payload)
@@ -136,7 +134,11 @@ def test_text_pages_of_a_32_mib_artifact_validate_utf8_once(monkeypatch) -> None
         await read.close()
         for _ in range(2):
             with pytest.raises(ToolInputError, match="not valid UTF-8"):
-                await read("inputs", "source", "revision-read")
+                await read(
+                    cursor=read._cursors.issue(
+                        ArtifactRef(namespace="inputs", name="source", revision="revision-read")
+                    )
+                )
         assert client.read_calls == 2 and counted.validations == 2
 
     asyncio.run(scenario())
@@ -349,11 +351,21 @@ def test_memory_artifacts_are_hidden_from_generic_list_read_write_and_known_refs
                 await tools["list_artifacts"](hidden_namespace)
         assert client.list_calls == list_calls_before
         with pytest.raises(ValueError, match="purpose-specific"):
-            await tools["read_artifact"]("skills", "likec4", "revision-skill")
+            await tools["read_artifact"](
+                cursor=tools["read_artifact"]._cursors.issue(
+                    ArtifactRef(namespace="skills", name="likec4", revision="revision-skill")
+                )
+            )
         with pytest.raises(ValueError, match="purpose-specific"):
             await tools["write_artifact"]("skills", "likec4", "application/octet-stream", "")
         with pytest.raises(ValueError, match="purpose-specific"):
-            await tools["read_artifact"]("analysis", "memory.hidden", "revision-hidden")
+            await tools["read_artifact"](
+                cursor=tools["read_artifact"]._cursors.issue(
+                    ArtifactRef(
+                        namespace="analysis", name="memory.hidden", revision="revision-hidden"
+                    )
+                )
+            )
         with pytest.raises(ValueError, match="purpose-specific"):
             await tools["write_artifact"](
                 "analysis",
@@ -362,7 +374,13 @@ def test_memory_artifacts_are_hidden_from_generic_list_read_write_and_known_refs
                 "missing.json",
             )
         with pytest.raises(ValueError, match="purpose-specific"):
-            await tools["read_artifact"]("analysis", "http.body.hidden", "revision-http")
+            await tools["read_artifact"](
+                cursor=tools["read_artifact"]._cursors.issue(
+                    ArtifactRef(
+                        namespace="analysis", name="http.body.hidden", revision="revision-http"
+                    )
+                )
+            )
         with pytest.raises(ValueError, match="purpose-specific"):
             await tools["write_artifact"](
                 "analysis",
@@ -395,7 +413,11 @@ def test_reserved_skills_namespace_is_hidden_before_generic_client_access() -> N
         with pytest.raises(ValueError, match="purpose-specific"):
             await tools["list_artifacts"]("skills")
         with pytest.raises(ValueError, match="purpose-specific"):
-            await tools["read_artifact"]("skills", "likec4", "revision-skill")
+            await tools["read_artifact"](
+                cursor=tools["read_artifact"]._cursors.issue(
+                    ArtifactRef(namespace="skills", name="likec4", revision="revision-skill")
+                )
+            )
         with pytest.raises(ValueError, match="purpose-specific"):
             await tools["write_artifact"]("skills", "likec4", "application/octet-stream", "")
         assert (client.list_calls, client.read_calls, client.write_calls) == calls_before

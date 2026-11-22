@@ -43,6 +43,7 @@ from contractor_runtime.llm.image_parts import (
 from contractor_runtime.projectfs.storage import WorkspaceReader, WorkspaceStorageError
 from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.shared_config import artifact_list_max_items, artifact_payload_max_bytes
+from contractor_runtime.toolsets.common.artifact_cursors import ArtifactReadCursors
 from contractor_runtime.toolsets.common.artifact_images import (
     ImageInputBudget,
     ImageReservation,
@@ -118,7 +119,12 @@ class RunArtifactsToolsetFactory:
         cache = allocation_artifact_read_cache(resources) if "read_artifact" in selected else None
         constructors = {
             "list_artifacts": ListArtifactsTool,
-            "read_artifact": partial(ReadArtifactTool, cache=cache, images=resources.image_input),
+            "read_artifact": partial(
+                ReadArtifactTool,
+                cache=cache,
+                images=resources.image_input,
+                cursors=resources.artifact_cursors,
+            ),
             "write_artifact": partial(WriteArtifactTool, source=project_workspace),
         }
         return {name: constructors[name](client, metrics, secrets) for name in selected}
@@ -129,7 +135,7 @@ class ListArtifactsTool(ArtifactTool):
     description = f"""List current artifacts visible in this Workflow Run, one page at a time.
 
     Artifacts are ordered by namespace and name. Listed references carry no
-    revision; read_artifact without a revision reads the current one. When
+    revision; read_artifact by namespace/name reads the current one. When
     nextCursor is not null, call again with the same namespace and cursor set
     to nextCursor for the next page.
 
@@ -188,31 +194,32 @@ class ReadArtifactTool(ArtifactTool):
     {MAX_CONTEXT_IMAGE_BYTES // (1024 * 1024)} MiB.
     Unavailable image delivery returns metadata and a reason, without image bytes.
     Image attachments are transient: after history recovery or compaction, read the
-    exact revision again when the image itself is needed.
+    returned readCursor again when the image itself is needed.
 
-    At most {MAX_CONSECUTIVE_EXACT_READS} consecutive successful reads of the same explicit
-    revision/window are allowed; further identical calls are refused. Another tool/window
-    or a committed context checkpoint starts a new series. Failed reads may be retried.
+    At most {MAX_CONSECUTIVE_EXACT_READS} consecutive successful reads of the same cursor-selected
+    version/window are allowed; further identical calls are refused. Another tool/window
+    or a committed context checkpoint starts a new series. Fresh current reads
+    are unguarded. Failed reads may be retried.
 
     Text output is limited to 128 KiB; inspect truncated and partialLine before treating
-    the window as complete. Page with nextStartLine and nextLineOffset: a line
-    longer than the output limit is returned in parts, continued by passing
-    line_offset.
+    the window as complete. Continue with nextCursor alone; it fixes version and
+    position even if the binding changes. A fresh namespace/name call reads current.
+    Use the task input readCursor for its pinned version. Old/foreign cursors fail
+    rather than selecting current. Long lines continue through the same cursor flow.
 
     Args:
         namespace: Artifact namespace.
         name: Exact artifact binding name.
-        revision: Exact revision to read; omit for the current revision. Use the
-            exact revision supplied in Stage context when available.
+        cursor: Returned readCursor/nextCursor or task input readCursor; use alone.
         start_line: First line to read, 1-based and inclusive; defaults to 1.
         max_lines: Maximum lines to return, from 1 to 400; defaults to 200.
-        line_offset: UTF-8 byte offset into start_line to continue a partial
-            line; use the returned nextLineOffset. Defaults to 0.
+        line_offset: UTF-8 byte offset into start_line for a fresh window; defaults to 0.
+            For continuation use nextCursor instead.
 
     Returns:
         Exact artifact metadata, text, startLine, endLine, totalLines, truncated,
-        partialLine, and nextStartLine/nextLineOffset (null when the artifact
-        has been read to its end); or image metadata and a native image part.
+        partialLine, readCursor and nextCursor (null at end); or image metadata
+        with readCursor and a native image part.
         An unavailable image result contains authorized metadata and its reason.
     """
 
@@ -224,19 +231,43 @@ class ReadArtifactTool(ArtifactTool):
         *,
         cache: ExactArtifactReadCache | None = None,
         images: ImageInputBudget | None = None,
+        cursors: ArtifactReadCursors | None = None,
     ) -> None:
         super().__init__(client, metrics, secrets)
         self._cache = cache or ExactArtifactReadCache()
         self._images = images or ImageInputBudget()
+        self._cursors = cursors or ArtifactReadCursors()
+
+    def _selection(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
+        cursor = arguments.get("cursor")
+        if cursor is not None:
+            if (
+                arguments.get("namespace") is not None
+                or arguments.get("name") is not None
+                or any(
+                    type(arguments.get(key, default)) is not int
+                    or arguments.get(key, default) != default
+                    for key, default in (
+                        ("start_line", 1),
+                        ("max_lines", DEFAULT_TEXT_READ_LINES),
+                        ("line_offset", 0),
+                    )
+                )
+            ):
+                raise ToolInputError("Use cursor alone, without namespace/name or window overrides")
+            return self._cursors.decode(cursor)
+        return dict(arguments)
 
     def contractor_repeat_rule(self, arguments: Mapping[str, Any]) -> RepeatRule | None:
-        revision = arguments.get("revision")
-        if not isinstance(revision, str) or not revision.strip():
+        if arguments.get("cursor") is None:
             return None
-        namespace, name = arguments.get("namespace"), arguments.get("name")
-        start = arguments.get("start_line", 1)
-        lines = arguments.get("max_lines", DEFAULT_TEXT_READ_LINES)
-        offset = arguments.get("line_offset", 0)
+        try:
+            selected = self._selection(arguments)
+        except ToolInputError:
+            return None
+        revision = selected["revision"]
+        namespace, name = selected["namespace"], selected["name"]
+        start, lines, offset = (selected[key] for key in ("start_line", "max_lines", "line_offset"))
         if (
             not _matches(ARTIFACT_NAME_PATTERN, namespace)
             or not _matches(ARTIFACT_NAME_PATTERN, name)
@@ -258,7 +289,7 @@ class ReadArtifactTool(ArtifactTool):
             ),
             MAX_CONSECUTIVE_EXACT_READS,
             "This exact artifact window was already read consecutively. Reuse its result or "
-            "continue with nextStartLine/nextLineOffset. "
+            "continue with nextCursor. "
             "After a context checkpoint, reread if needed.",
         )
 
@@ -268,22 +299,37 @@ class ReadArtifactTool(ArtifactTool):
 
     async def __call__(
         self,
-        namespace: str,
-        name: str,
-        revision: str | None = None,
+        namespace: str | None = None,
+        name: str | None = None,
         start_line: int = 1,
         max_lines: int = DEFAULT_TEXT_READ_LINES,
         line_offset: int = 0,
+        cursor: str | None = None,
     ) -> dict[str, Any]:
         arguments = {
             "namespace": namespace,
             "name": name,
-            "revision": revision,
             "start_line": start_line,
             "max_lines": max_lines,
             "line_offset": line_offset,
+            "cursor": cursor,
         }
         with self._recorded(arguments) as call:
+            selected = self._selection(arguments)
+            namespace, name = selected.get("namespace"), selected.get("name")
+            revision = selected.get("revision")
+            start_line, max_lines, line_offset = (
+                selected.get(key, default)
+                for key, default in (
+                    ("start_line", 1),
+                    ("max_lines", DEFAULT_TEXT_READ_LINES),
+                    ("line_offset", 0),
+                )
+            )
+            if not _matches(ARTIFACT_NAME_PATTERN, namespace) or not _matches(
+                ARTIFACT_NAME_PATTERN, name
+            ):
+                raise ToolInputError("Supply namespace and name for a fresh read, or cursor alone")
             require_model_visible_binding(namespace, name)
             _validate_line_window(start_line, max_lines)
             if isinstance(line_offset, bool) or not isinstance(line_offset, int) or line_offset < 0:
@@ -343,6 +389,8 @@ class ReadArtifactTool(ArtifactTool):
                         )
                     result = {
                         "artifact": value.artifact.model_dump(by_alias=True),
+                        "readCursor": self._cursors.issue(value.artifact),
+                        "nextCursor": None,
                         "mediaType": value.media_type,
                         "size": len(value.data),
                         "width": width,
@@ -360,6 +408,8 @@ class ReadArtifactTool(ArtifactTool):
             except _ImageUnavailable as error:
                 result = {
                     "artifact": error.metadata.artifact.model_dump(by_alias=True),
+                    "readCursor": self._cursors.issue(error.metadata.artifact),
+                    "nextCursor": None,
                     "mediaType": error.metadata.media_type,
                     "size": error.metadata.size,
                     "imageDelivery": "unavailable",
@@ -396,8 +446,14 @@ class ReadArtifactTool(ArtifactTool):
                 "text": selected,
                 "truncated": truncated,
                 "partialLine": partial_line,
-                "nextStartLine": window.next_start_line if truncated else None,
-                "nextLineOffset": window.next_line_offset if truncated else None,
+                "readCursor": self._cursors.issue(
+                    value.artifact, start_line, max_lines, line_offset
+                ),
+                "nextCursor": self._cursors.issue(
+                    value.artifact, window.next_start_line, max_lines, window.next_line_offset
+                )
+                if truncated
+                else None,
             }
             call.succeed(
                 {

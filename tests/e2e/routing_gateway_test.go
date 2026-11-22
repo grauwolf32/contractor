@@ -557,7 +557,7 @@ func observationWorkerResponse(
 			}
 			return toolCallMessage(scenario+"-write", "write_text_artifact", map[string]any{
 				"name": "report", "text": fixture.ReviewerReport,
-				"media_type": "text/markdown", "expected_revision": nil,
+				"media_type": "text/markdown",
 			}), "tool_calls", "write_text_artifact", nil
 		case 3:
 			if _, ok := lastExactArtifact(request, "review", "report"); !ok {
@@ -605,7 +605,7 @@ func observationWorkerResponse(
 		}
 		return toolCallMessage(scenario+"-write", "write_text_artifact", map[string]any{
 			"name": "report", "text": fixture.BuilderReport,
-			"media_type": "text/markdown", "expected_revision": nil,
+			"media_type": "text/markdown",
 		}), "tool_calls", "write_text_artifact", nil
 	case 6:
 		if _, ok := lastExactArtifact(request, "builder", "report"); !ok {
@@ -937,7 +937,7 @@ func routingWorkerResponse(
 		}
 		return toolCallMessage(scenario+"-write", "write_text_artifact", map[string]any{
 			"name": "copied", "media_type": "text/plain",
-			"text": e2eReport, "expected_revision": nil,
+			"text": e2eReport,
 		}), "tool_calls", "write_text_artifact", nil
 	case 3:
 		_, ok := lastExactArtifact(request, namespace, "copied")

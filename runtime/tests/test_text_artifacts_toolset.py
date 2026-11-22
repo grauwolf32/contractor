@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import random
 import tracemalloc
 from dataclasses import dataclass, field
@@ -32,6 +33,7 @@ from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.lines import split_lines
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.llm.openai import _tools
+from contractor_runtime.toolsets.common.cursors import b64url_decode
 from contractor_runtime.toolsets.run_artifacts.tools import (
     MAX_VISIBLE_TEXT_BYTES,
     RunArtifactsToolsetFactory,
@@ -59,13 +61,13 @@ def test_text_tools_page_utf8_and_enforce_namespace_cas(tmp_path: Path) -> None:
         tools = await make_tools(tmp_path, client, state)
 
         read = await tools["read_artifact"](
-            namespace="inputs",
-            name="report",
-            revision=source.revision,
-            start_line=2,
-            max_lines=2,
+            cursor=tools["read_artifact"]._cursors.issue(
+                ArtifactRef(namespace="inputs", name="report", revision=source.revision),
+                start_line=2,
+                max_lines=2,
+            )
         )
-        assert read == {
+        assert window_projection(read) == {
             "artifact": {
                 "namespace": "inputs",
                 "name": "report",
@@ -103,7 +105,7 @@ def test_text_tools_page_utf8_and_enforce_namespace_cas(tmp_path: Path) -> None:
                 name="analysis",
                 text="# Stale\n",
                 media_type="text/markdown",
-                )
+            )
         current = await client.read_artifact(ArtifactRef(namespace="worker-space", name="analysis"))
         assert current.data == b"# Concurrent\n"
         assert state.metrics.counters["tool_calls.read_artifact"] == 1
@@ -129,34 +131,70 @@ def test_read_artifact_pages_through_an_oversized_line(tmp_path: Path) -> None:
         tools = await make_tools(tmp_path, client, WorkerState())
         read = tools["read_artifact"]
 
-        first = await read("inputs", "log", source.revision, start_line=1, max_lines=3)
+        first = await read(
+            cursor=read._cursors.issue(
+                ArtifactRef(namespace="inputs", name="log", revision=source.revision),
+                start_line=1,
+                max_lines=3,
+            )
+        )
         assert first["text"] == "head\n"
-        assert (first["nextStartLine"], first["nextLineOffset"]) == (2, 0)
+        assert (cursor_position(first, "start_line"), cursor_position(first, "line_offset")) == (
+            2,
+            0,
+        )
 
         parts: list[str] = []
         start, offset = 2, 0
         while True:
             page = await read(
-                "inputs", "log", source.revision, start_line=start, max_lines=1, line_offset=offset
+                cursor=read._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="log", revision=source.revision),
+                    start_line=start,
+                    max_lines=1,
+                    line_offset=offset,
+                )
             )
             parts.append(page["text"])
             assert len(page["text"].encode()) <= MAX_VISIBLE_TEXT_BYTES
             if not page["partialLine"]:
                 break
-            start, offset = page["nextStartLine"], page["nextLineOffset"]
+            start, offset = (
+                cursor_position(page, "start_line"),
+                cursor_position(page, "line_offset"),
+            )
         assert "".join(parts) == long_line
-        last = await read("inputs", "log", source.revision, start_line=3)
+        last = await read(
+            cursor=read._cursors.issue(
+                ArtifactRef(namespace="inputs", name="log", revision=source.revision), start_line=3
+            )
+        )
         assert last["text"] == "tail\n"
         assert last["truncated"] is False
-        assert (last["nextStartLine"], last["nextLineOffset"]) == (None, None)
+        assert (cursor_position(last, "start_line"), cursor_position(last, "line_offset")) == (
+            None,
+            None,
+        )
         assert client.read_calls == 1
 
         with pytest.raises(ValueError, match="line_offset"):
-            await read("inputs", "log", source.revision, start_line=1, line_offset=5)
+            await read(
+                cursor=read._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="log", revision=source.revision),
+                    start_line=1,
+                    line_offset=5,
+                )
+            )
         with pytest.raises(ValueError, match="line_offset"):
-            await read("inputs", "log", source.revision, start_line=1, line_offset=-1)
+            await read("inputs", "log", start_line=1, line_offset=-1)
         with pytest.raises(ValueError, match="UTF-8 character"):
-            await read("inputs", "log", source.revision, start_line=2, line_offset=1)
+            await read(
+                cursor=read._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="log", revision=source.revision),
+                    start_line=2,
+                    line_offset=1,
+                )
+            )
 
     asyncio.run(scenario())
 
@@ -185,12 +223,22 @@ def test_exact_artifact_cache_is_shared_bounded_and_cleared_on_close(
         read_text = text_tools["read_artifact"]
         cache = state.resources.artifact_read_cache
         try:
-            first = await read_bytes("inputs", "report", source.revision, max_lines=1)
-            assert first["size"] == 8 and first["nextStartLine"] == 2
+            first = await read_bytes(
+                cursor=read_bytes._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="report", revision=source.revision),
+                    max_lines=1,
+                )
+            )
+            assert first["size"] == 8 and cursor_position(first, "start_line") == 2
             cursor = text_client.observation_cursor
-            assert (await read_text("inputs", "report", source.revision, start_line=2))[
-                "text"
-            ] == "two\n"
+            assert (
+                await read_text(
+                    cursor=read_text._cursors.issue(
+                        ArtifactRef(namespace="inputs", name="report", revision=source.revision),
+                        start_line=2,
+                    )
+                )
+            )["text"] == "two\n"
             assert run_client.read_calls == 1 and text_client.read_calls == 0
             assert text_client.observed_exact_refs_since(cursor) == (source,)
             assert cache._entry is not None and len(cache._entry.value.data) == 8
@@ -204,12 +252,26 @@ def test_exact_artifact_cache_is_shared_bounded_and_cleared_on_close(
 
             await read_bytes.close()
             assert cache._entry is None
-            assert (await read_text("inputs", "report", updated.revision))["text"] == "new\n"
+            assert (
+                await read_text(
+                    cursor=read_text._cursors.issue(
+                        ArtifactRef(namespace="inputs", name="report", revision=updated.revision)
+                    )
+                )
+            )["text"] == "new\n"
             assert text_client.read_calls == 2
             monkeypatch.setattr(read_cache, "artifact_read_cache_max_bytes", lambda: 3)
-            await read_text("inputs", "report", source.revision)
+            await read_text(
+                cursor=read_text._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="report", revision=source.revision)
+                )
+            )
             assert cache._entry is None
-            await read_text("inputs", "report", source.revision)
+            await read_text(
+                cursor=read_text._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="report", revision=source.revision)
+                )
+            )
             assert text_client.read_calls == 4
         finally:
             await read_text.close()
@@ -245,18 +307,42 @@ def test_ten_pages_of_a_32_mib_artifact_prepare_once_and_decode_only_their_windo
         pages = []
         start, offset = 1, 0
         for _ in range(8):
-            page = await read("inputs", "log", source.revision, start, 400, offset)
+            page = await read(
+                cursor=read._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="log", revision=source.revision),
+                    start,
+                    400,
+                    offset,
+                )
+            )
             pages.append(page)
-            start, offset = page["nextStartLine"], page["nextLineOffset"]
-        pages.append(await read("inputs", "log", source.revision, start_line=total // 2))
-        pages.append(await read("inputs", "log", source.revision, start_line=total))
+            start, offset = (
+                cursor_position(page, "start_line"),
+                cursor_position(page, "line_offset"),
+            )
+        pages.append(
+            await read(
+                cursor=read._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="log", revision=source.revision),
+                    start_line=total // 2,
+                )
+            )
+        )
+        pages.append(
+            await read(
+                cursor=read._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="log", revision=source.revision),
+                    start_line=total,
+                )
+            )
+        )
 
         for page in pages:
             expected = range(page["startLine"], page["endLine"] + 1)
             assert page["text"] == "".join(numbered_line(number) for number in expected)
             assert page["totalLines"] == total and page["partialLine"] is False
         assert pages[7]["endLine"] == 3200
-        assert pages[-1]["truncated"] is False and pages[-1]["nextStartLine"] is None
+        assert pages[-1]["truncated"] is False and cursor_position(pages[-1], "start_line") is None
         # One download and one full-payload derivation serve all ten pages.
         assert client.read_calls == 1
         assert (counted.validations, counted.indexes) == (1, 1)
@@ -292,10 +378,20 @@ def test_cache_budget_holds_for_worst_case_inputs_of_the_largest_artifact(
 
         tracemalloc.start()
         try:
-            first = await read("inputs", "large", source.revision, max_lines=400)
+            first = await read(
+                cursor=read._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="large", revision=source.revision),
+                    max_lines=400,
+                )
+            )
             if fixture == "short-lines":
                 assert (first["totalLines"], first["text"]) == (MAX_ARTIFACT_BYTES, "\n" * 400)
-                last = await read("inputs", "large", source.revision, MAX_ARTIFACT_BYTES - 1)
+                last = await read(
+                    cursor=read._cursors.issue(
+                        ArtifactRef(namespace="inputs", name="large", revision=source.revision),
+                        MAX_ARTIFACT_BYTES - 1,
+                    )
+                )
                 assert (last["text"], last["endLine"], last["truncated"]) == (
                     "\n\n",
                     MAX_ARTIFACT_BYTES,
@@ -304,9 +400,16 @@ def test_cache_budget_holds_for_worst_case_inputs_of_the_largest_artifact(
             else:
                 assert first["totalLines"] == 1 and first["partialLine"] is True
                 assert len(first["text"].encode()) <= MAX_VISIBLE_TEXT_BYTES
-                assert first["nextLineOffset"] == len(first["text"].encode())
+                assert cursor_position(first, "line_offset") == len(first["text"].encode())
                 tail = MAX_ARTIFACT_BYTES - 2 * len(emoji)
-                last = await read("inputs", "large", source.revision, 1, 1, tail)
+                last = await read(
+                    cursor=read._cursors.issue(
+                        ArtifactRef(namespace="inputs", name="large", revision=source.revision),
+                        1,
+                        1,
+                        tail,
+                    )
+                )
                 assert last["text"] == data[tail:].decode()
                 assert (last["partialLine"], last["truncated"]) == (False, False)
             _, peak = tracemalloc.get_traced_memory()
@@ -347,11 +450,23 @@ def test_concurrent_first_reads_share_one_preparation(
         read = (await make_tools(tmp_path, client, state))["read_artifact"]
         cursor = client.observation_cursor
 
-        first = asyncio.create_task(read("inputs", "log", source.revision))
+        first = asyncio.create_task(
+            read(
+                cursor=read._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="log", revision=source.revision)
+                )
+            )
+        )
         second = asyncio.create_task(read("inputs", "log", start_line=2))
         # A read of another revision waits too: it cannot evict the entry
         # while its preparation runs.
-        replacing = asyncio.create_task(read("inputs", "other", other.revision))
+        replacing = asyncio.create_task(
+            read(
+                cursor=read._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="other", revision=other.revision)
+                )
+            )
+        )
         assert await asyncio.to_thread(held.started.wait, 60)
         for _ in range(5):
             await asyncio.sleep(0)
@@ -381,7 +496,13 @@ def test_cancelled_preparation_is_joined_discarded_and_blocks_close(
         read = (await make_tools(tmp_path, client, state))["read_artifact"]
         cache = state.resources.artifact_read_cache
 
-        reading = asyncio.create_task(read("inputs", "log", source.revision))
+        reading = asyncio.create_task(
+            read(
+                cursor=read._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="log", revision=source.revision)
+                )
+            )
+        )
         assert await asyncio.to_thread(held.started.wait, 60)
         reading.cancel()
         for _ in range(5):
@@ -394,13 +515,25 @@ def test_cancelled_preparation_is_joined_discarded_and_blocks_close(
         # The payload stays cached, its derived state is discarded.
         entry = cache._entry
         assert entry is not None and (entry.utf8, entry.lines) == (None, None)
-        assert (await read("inputs", "log", source.revision))["text"] == "one\ntwo\n"
+        assert (
+            await read(
+                cursor=read._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="log", revision=source.revision)
+                )
+            )
+        )["text"] == "one\ntwo\n"
         assert (client.read_calls, held.calls) == (1, 2)
 
         await cache.clear()
         held.started.clear()
         held.release.clear()
-        reading = asyncio.create_task(read("inputs", "log", source.revision))
+        reading = asyncio.create_task(
+            read(
+                cursor=read._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="log", revision=source.revision)
+                )
+            )
+        )
         assert await asyncio.to_thread(held.started.wait, 60)
         reading.cancel()
         closing = asyncio.create_task(read.close())
@@ -427,7 +560,13 @@ def test_replaced_revision_takes_no_derived_state_from_its_predecessor(
         old = client.seed("inputs", "log", "text/plain", b"a\nb\nc\n")
         read = (await make_tools(tmp_path, client, WorkerState()))["read_artifact"]
 
-        assert (await read("inputs", "log", old.revision, start_line=3))["text"] == "c\n"
+        assert (
+            await read(
+                cursor=read._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="log", revision=old.revision), start_line=3
+                )
+            )
+        )["text"] == "c\n"
         new = client.seed("inputs", "log", "text/plain", b"only\n")
         current = await read("inputs", "log")
         assert current["artifact"]["revision"] == new.revision
@@ -435,15 +574,27 @@ def test_replaced_revision_takes_no_derived_state_from_its_predecessor(
         assert (client.read_calls, counted.indexes) == (2, 2)
 
         cursor = client.observation_cursor
-        cached = await read("inputs", "log", new.revision)
+        cached = await read(
+            cursor=read._cursors.issue(
+                ArtifactRef(namespace="inputs", name="log", revision=new.revision)
+            )
+        )
         assert cached["text"] == "only\n"
         assert client.observed_exact_refs_since(cursor) == (new,)
         assert (client.read_calls, counted.indexes) == (2, 2)
 
-        again = await read("inputs", "log", old.revision, start_line=3)
+        again = await read(
+            cursor=read._cursors.issue(
+                ArtifactRef(namespace="inputs", name="log", revision=old.revision), start_line=3
+            )
+        )
         assert (again["text"], again["totalLines"]) == ("c\n", 3)
         with pytest.raises(ToolInputError, match="start_line exceeds"):
-            await read("inputs", "log", new.revision, start_line=2)
+            await read(
+                cursor=read._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="log", revision=new.revision), start_line=2
+                )
+            )
         # Every download is validated and indexed once, for its own revision.
         assert (client.read_calls, counted.indexes, counted.validations) == (4, 4, 4)
 
@@ -471,10 +622,28 @@ def test_run_and_text_readers_share_one_utf8_validation(
             resources=state.resources,
         )
         read_bytes = run_tools["read_artifact"]
-        assert (await read_bytes("inputs", "log", source.revision))["size"] == 11
+        assert (
+            await read_bytes(
+                cursor=read_bytes._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="log", revision=source.revision)
+                )
+            )
+        )["size"] == 11
         assert (counted.validations, counted.indexes) == (1, 1)
-        assert (await text_read("inputs", "log", source.revision))["totalLines"] == 2
-        assert (await read_bytes("inputs", "log", source.revision))["size"] == 11
+        assert (
+            await text_read(
+                cursor=text_read._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="log", revision=source.revision)
+                )
+            )
+        )["totalLines"] == 2
+        assert (
+            await read_bytes(
+                cursor=read_bytes._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="log", revision=source.revision)
+                )
+            )
+        )["size"] == 11
         assert (counted.validations, counted.indexes, client.read_calls) == (1, 1, 1)
 
     asyncio.run(scenario())
@@ -492,9 +661,22 @@ def test_utf8_validation_spans_chunks_and_rejects_like_strict_decoding(
         valid = client.seed("inputs", "valid", "text/plain", straddling)
         tools = await make_tools(tmp_path, client, WorkerState())
         read = tools["read_artifact"]
-        page = await read("inputs", "valid", valid.revision)
+        page = await read(
+            cursor=read._cursors.issue(
+                ArtifactRef(namespace="inputs", name="valid", revision=valid.revision)
+            )
+        )
         assert (page["text"], page["partialLine"]) == ("a" * MAX_VISIBLE_TEXT_BYTES, True)
-        assert (await read("inputs", "valid", valid.revision, 1, 1, chunk - 2))["text"] == "😀\n"
+        assert (
+            await read(
+                cursor=read._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="valid", revision=valid.revision),
+                    1,
+                    1,
+                    chunk - 2,
+                )
+            )
+        )["text"] == "😀\n"
 
         truncated = b"a" * (2 * chunk) + emoji[:3]
         surrogate = b"a" * chunk + "\ud800".encode("utf-8", "surrogatepass")
@@ -504,7 +686,11 @@ def test_utf8_validation_spans_chunks_and_rejects_like_strict_decoding(
             invalid = client.seed("inputs", name, "application/octet-stream", data)
             for _ in range(2):
                 with pytest.raises(ToolInputError) as caught:
-                    await read("inputs", name, invalid.revision)
+                    await read(
+                        cursor=read._cursors.issue(
+                            ArtifactRef(namespace="inputs", name=name, revision=invalid.revision)
+                        )
+                    )
                 assert str(caught.value) == "artifact is not valid UTF-8"
 
     asyncio.run(scenario())
@@ -593,14 +779,23 @@ def test_indexed_pages_match_whole_text_pages(
                     for line_offset in offsets:
                         case = (document, start_line, max_lines, line_offset)
                         expected = reference_text_page(*case, visible)
-                        call = read("inputs", name, source.revision, *case[1:])
+                        call = read(
+                            cursor=read._cursors.issue(
+                                ArtifactRef(
+                                    namespace="inputs", name=name, revision=source.revision
+                                ),
+                                *case[1:],
+                            )
+                        )
                         if isinstance(expected, str):
                             with pytest.raises(ToolInputError) as caught:
                                 await call
                             assert str(caught.value) == expected, case
                         else:
                             page = await call
-                            assert {key: page[key] for key in expected} == expected, case
+                            assert {
+                                key: window_projection(page)[key] for key in expected
+                            } == expected, case
                         compared += 1
         assert compared > 5000
 
@@ -616,7 +811,7 @@ def test_reader_schema_exposes_supported_arguments(tmp_path: Path) -> None:
         ]
         assert set(schema["properties"]) == {
             "name",
-            "revision",
+            "cursor",
             "max_lines",
             "namespace",
             "line_offset",
@@ -634,11 +829,21 @@ def test_read_artifact_numbers_lines_like_read_file(tmp_path: Path) -> None:
         source = client.seed("inputs", "log", "text/plain", document.encode())
         tools = await make_tools(tmp_path, client, WorkerState())
         read = tools["read_artifact"]
-        whole = await read("inputs", "log", source.revision)
+        whole = await read(
+            cursor=read._cursors.issue(
+                ArtifactRef(namespace="inputs", name="log", revision=source.revision)
+            )
+        )
         assert whole["totalLines"] == 3 and whole["text"] == document
-        second = await read("inputs", "log", source.revision, start_line=2, max_lines=1)
+        second = await read(
+            cursor=read._cursors.issue(
+                ArtifactRef(namespace="inputs", name="log", revision=source.revision),
+                start_line=2,
+                max_lines=1,
+            )
+        )
         assert second["text"] == "second\r"
-        assert second["nextStartLine"] == 3
+        assert cursor_position(second, "start_line") == 3
 
     asyncio.run(scenario())
 
@@ -651,9 +856,17 @@ def test_text_tools_reject_invalid_windows_utf8_and_oversize(tmp_path: Path) -> 
         tools = await make_tools(tmp_path, client, state)
 
         with pytest.raises(ValueError, match="positive integer"):
-            await tools["read_artifact"]("inputs", "binary", invalid.revision, 0, 1)
+            await tools["read_artifact"](
+                cursor=tools["read_artifact"]._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="binary", revision=invalid.revision), 0, 1
+                )
+            )
         with pytest.raises(ValueError, match="valid UTF-8"):
-            await tools["read_artifact"]("inputs", "binary", invalid.revision)
+            await tools["read_artifact"](
+                cursor=tools["read_artifact"]._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="binary", revision=invalid.revision)
+                )
+            )
         with pytest.raises(ValueError, match="1 MiB"):
             await tools["write_text_artifact"](
                 "too-large",
@@ -673,7 +886,12 @@ def test_read_artifact_rejects_binary_media_types_before_download(tmp_path: Path
 
         for revision in (None, archive.revision):
             with pytest.raises(ValueError, match=r"binary \(application/zip\)"):
-                await tools["read_artifact"]("inputs", "source", revision)
+                arguments = (
+                    {"namespace": "inputs", "name": "source"}
+                    if revision is None
+                    else {"cursor": tools["read_artifact"]._cursors.issue(archive)}
+                )
+                await tools["read_artifact"](**arguments)
         assert client.metadata_calls == 2 and client.read_calls == 0
 
     asyncio.run(scenario())
@@ -712,7 +930,13 @@ def test_text_tools_enforce_shared_memory_binding_visibility(tmp_path: Path) -> 
 
         calls_before = (client.read_calls, client.write_calls)
         with pytest.raises(ValueError, match="purpose-specific"):
-            await tools["read_artifact"](hidden.namespace, hidden.name, hidden.revision)
+            await tools["read_artifact"](
+                cursor=tools["read_artifact"]._cursors.issue(
+                    ArtifactRef(
+                        namespace=hidden.namespace, name=hidden.name, revision=hidden.revision
+                    )
+                )
+            )
         with pytest.raises(ValueError, match="purpose-specific"):
             await tools["write_text_artifact"](
                 hidden.name,
@@ -722,7 +946,13 @@ def test_text_tools_enforce_shared_memory_binding_visibility(tmp_path: Path) -> 
         assert (client.read_calls, client.write_calls) == calls_before
         assert client.bindings[(hidden.namespace, hidden.name)].data == b"hidden"
 
-        visible = await tools["read_artifact"](allowed.namespace, allowed.name, allowed.revision)
+        visible = await tools["read_artifact"](
+            cursor=tools["read_artifact"]._cursors.issue(
+                ArtifactRef(
+                    namespace=allowed.namespace, name=allowed.name, revision=allowed.revision
+                )
+            )
+        )
         assert visible["text"] == "allowed"
         observed = {
             (ref.namespace, ref.name) for tool in tools.values() for ref in tool.known_exact_refs
@@ -967,10 +1197,12 @@ def test_worker_gateway_transcript_continues_an_exact_multibyte_line(tmp_path: P
         model = TranscriptModel(
             model="fixture",
             responses=[
-                tool_call("read_artifact", exact.model_dump(exclude_none=True), call_id="page-one"),
+                tool_call(
+                    "read_artifact", {"cursor": reader._cursors.issue(exact)}, call_id="page-one"
+                ),
                 tool_call(
                     "read_artifact",
-                    {**exact.model_dump(exclude_none=True), "start_line": 1, "line_offset": cut},
+                    {"cursor": reader._cursors.issue(exact, line_offset=cut)},
                     call_id="page-two",
                 ),
                 text_result("Inspected the assigned material"),
@@ -989,7 +1221,10 @@ def test_worker_gateway_transcript_continues_an_exact_multibyte_line(tmp_path: P
 
             pages = [json.loads(message["content"]) for message in tool_messages]
             assert len(pages) == 2
-            assert pages[0]["nextStartLine"] == 1 and pages[0]["nextLineOffset"] == cut
+            assert (
+                cursor_position(pages[0], "start_line") == 1
+                and cursor_position(pages[0], "line_offset") == cut
+            )
             assert all(page["artifact"] == exact.model_dump() for page in pages)
             assert "".join(page["text"] for page in pages).encode() == content
             assert all("dataBase64" not in page for page in pages)
@@ -999,3 +1234,16 @@ def test_worker_gateway_transcript_continues_an_exact_multibyte_line(tmp_path: P
             await runtime.finalize(datetime.now(UTC) + timedelta(seconds=2))
 
     asyncio.run(scenario())
+
+
+def cursor_position(page, field):
+    if page["nextCursor"] is None:
+        return None
+    return json.loads(b64url_decode(page["nextCursor"].split(".", 1)[0]))[field]
+
+
+def window_projection(page):
+    result = {key: value for key, value in page.items() if key not in ("readCursor", "nextCursor")}
+    result["nextStartLine"] = cursor_position(page, "start_line")
+    result["nextLineOffset"] = cursor_position(page, "line_offset")
+    return result

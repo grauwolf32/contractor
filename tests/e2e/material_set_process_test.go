@@ -50,7 +50,7 @@ func TestWorkflowMaterialSetsAcrossProductionProcesses(t *testing.T) {
 }
 
 func materialSetReadSteps() []domainGatewayStep {
-	steps := []domainGatewayStep{toolGatewayStep("read_artifact", stageRefArguments("materials", nil))}
+	steps := []domainGatewayStep{toolGatewayStep("read_artifact", stageReadArguments("materials", nil))}
 	for _, index := range []int{0, 16} {
 		steps = append(steps, toolGatewayStep("read_artifact", func(request map[string]any) (map[string]any, error) {
 			responses := findingsToolResponses(request, "read_artifact")

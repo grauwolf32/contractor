@@ -24,7 +24,7 @@ func TestEvalFindingProjectNavigationAcrossProcesses(t *testing.T) {
 	stage := func(name string) domainGatewayStage {
 		return domainGatewayStage{name: name, tools: []string{"read_artifact", "record_fact", "read_audit_task", "submit_check_result", "submit_check_results"}, steps: []domainGatewayStep{
 			toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
-			toolGatewayStep("read_artifact", stageRefArguments("memories", nil)),
+			toolGatewayStep("read_artifact", stageReadArguments("memories", nil)),
 			toolGatewayStep("record_fact", func(request map[string]any) (map[string]any, error) {
 				reads := findingsToolResponses(request, "read_artifact")
 				tasks := findingsToolResponses(request, "read_audit_task")

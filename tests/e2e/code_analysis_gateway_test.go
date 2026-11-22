@@ -270,7 +270,7 @@ func codeAnalysisShallowScenario(name string) codeAnalysisScenario {
 			},
 			arguments: fixedArguments(map[string]any{
 				"name": "report", "text": codeAnalysisReport,
-				"media_type": "text/markdown", "expected_revision": nil,
+				"media_type": "text/markdown",
 			}),
 		},
 		{final: true},
@@ -301,7 +301,7 @@ func codeAnalysisGraphScenario(name string, mutate bool) codeAnalysisScenario {
 				},
 				arguments: fixedArguments(map[string]any{
 					"name": "report", "text": codeAnalysisReport,
-					"media_type": "text/markdown", "expected_revision": nil,
+					"media_type": "text/markdown",
 				}),
 			},
 			{final: true},
@@ -437,7 +437,7 @@ func codeAnalysisGraphScenario(name string, mutate bool) codeAnalysisScenario {
 			},
 			arguments: fixedArguments(map[string]any{
 				"name": "report", "text": codeAnalysisReport,
-				"media_type": "text/markdown", "expected_revision": nil,
+				"media_type": "text/markdown",
 			}),
 		},
 		{final: true},

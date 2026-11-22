@@ -58,9 +58,9 @@ def test_source_read_prepares_only_the_requested_window_off_loop(tmp_path, monke
     async def scenario():
         client = ReadOnlyArtifactClient()
         payload = b"x\n" * (MAX_FILE_UNCOMPRESSED_BYTES // 2)
-        ref = client.seed("inputs", "source", "application/zip", make_zip({"large.py": payload}))
+        client.seed("inputs", "source", "application/zip", make_zip({"large.py": payload}))
         tools = await make_tools(tmp_path, client, WorkerState())
-        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        await tools["open_source_archive"]("inputs", "source")
         try:
             result = await tools["read_source"]("large.py", start_line=2, max_lines=1)
             assert result == {
@@ -86,9 +86,9 @@ def test_source_read_prepares_only_the_requested_window_off_loop(tmp_path, monke
 def test_source_read_streamed_windows_keep_response_semantics(tmp_path, content):
     async def scenario():
         client = ReadOnlyArtifactClient()
-        ref = client.seed("inputs", "source", "application/zip", make_zip({"source.py": content}))
+        client.seed("inputs", "source", "application/zip", make_zip({"source.py": content}))
         tools = await make_tools(tmp_path, client, WorkerState())
-        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        await tools["open_source_archive"]("inputs", "source")
         lines = split_lines(content, keepends=True)
         try:
             for start in [1, 2, len(lines) + 1]:
@@ -138,9 +138,9 @@ def test_cancelled_source_read_keeps_preparation_owned_until_close(tmp_path, mon
 
     async def scenario():
         client = ReadOnlyArtifactClient()
-        ref = client.seed("inputs", "source", "application/zip", make_zip({"source.py": "x\n"}))
+        client.seed("inputs", "source", "application/zip", make_zip({"source.py": "x\n"}))
         tools = await make_tools(tmp_path, client, WorkerState())
-        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        await tools["open_source_archive"]("inputs", "source")
         reading = asyncio.create_task(tools["read_source"]("source.py"))
         closing = None
         try:
@@ -230,7 +230,7 @@ def test_source_archive_tools_return_bounded_file_line_evidence(tmp_path: Path) 
         state = WorkerState()
         tools = await make_tools(tmp_path, client, state)
 
-        opened = await tools["open_source_archive"]("inputs", "source", source.revision)
+        opened = await tools["open_source_archive"]("inputs", "source")
         assert opened["artifact"] == {
             "namespace": "inputs",
             "name": "source",
@@ -257,7 +257,7 @@ def test_source_archive_tools_return_bounded_file_line_evidence(tmp_path: Path) 
         assert read["startLine"] == 2 and read["endLine"] == 3 and read["truncated"]
 
         # Opening the same exact revision is idempotent and does not fetch it again.
-        assert await tools["open_source_archive"]("inputs", "source", source.revision) == opened
+        assert await tools["open_source_archive"]("inputs", "source") == opened
         assert client.read_calls == 1
 
         serialized_metrics = repr(state.metrics.snapshot())
@@ -278,7 +278,7 @@ def test_source_archive_tools_return_bounded_file_line_evidence(tmp_path: Path) 
 def test_source_files_named_like_ignored_directories_remain_visible(tmp_path: Path) -> None:
     async def scenario() -> None:
         client = ReadOnlyArtifactClient()
-        source = client.seed(
+        client.seed(
             "inputs",
             "named-files",
             "application/zip",
@@ -299,7 +299,7 @@ def test_source_files_named_like_ignored_directories_remain_visible(tmp_path: Pa
             ),
         )
         tools = await make_tools(tmp_path, client, WorkerState())
-        opened = await tools["open_source_archive"]("inputs", "named-files", source.revision)
+        opened = await tools["open_source_archive"]("inputs", "named-files")
         assert opened["fileCount"] == 6
         assert opened["ignoredCount"] == 5
         named = {"scripts/build", "bin/target", "docs/coverage", "src/dist", "vendor"}
@@ -310,15 +310,13 @@ def test_source_files_named_like_ignored_directories_remain_visible(tmp_path: Pa
         for path in named:
             assert (await tools["read_source"](path))["text"] == f"needle {Path(path).name}\n"
 
-        with_vendor_dir = client.seed(
+        client.seed(
             "inputs",
             "vendor-directory",
             "application/zip",
             make_zip({"vendor/lib/x.go": "ignored", "src/app.py": "visible"}),
         )
-        reopened = await tools["open_source_archive"](
-            "inputs", "vendor-directory", with_vendor_dir.revision
-        )
+        reopened = await tools["open_source_archive"]("inputs", "vendor-directory")
         assert reopened["fileCount"] == 1 and reopened["ignoredCount"] == 1
         assert [item["path"] for item in (await tools["list_source_files"]())["files"]] == [
             "src/app.py"
@@ -341,10 +339,10 @@ def test_source_files_named_like_ignored_directories_remain_visible(tmp_path: Pa
 def test_open_rejects_unsafe_paths_without_escape(tmp_path: Path, unsafe_path: str) -> None:
     async def scenario() -> None:
         client = ReadOnlyArtifactClient()
-        ref = client.seed("inputs", "source", "application/zip", make_zip({unsafe_path: "unsafe"}))
+        client.seed("inputs", "source", "application/zip", make_zip({unsafe_path: "unsafe"}))
         tools = await make_tools(tmp_path, client, WorkerState())
         with pytest.raises(ValueError, match="unsafe member path"):
-            await tools["open_source_archive"]("inputs", "source", ref.revision)
+            await tools["open_source_archive"]("inputs", "source")
         assert not (tmp_path / "source").exists()
         assert not (tmp_path.parent / "escape.py").exists()
         assert not any(path.name.startswith(".source-staging-") for path in tmp_path.iterdir())
@@ -362,19 +360,19 @@ def test_open_rejects_links_invalid_zip_media_and_versionless_refs(tmp_path: Pat
             output.writestr(symlink, "../../outside")
 
         client = ReadOnlyArtifactClient()
-        link_ref = client.seed("inputs", "link", "application/zip", archive.getvalue())
-        bad_ref = client.seed("inputs", "bad", "application/zip", b"not-a-zip")
-        text_ref = client.seed("inputs", "text", "text/plain", make_zip({"ok.py": "ok"}))
+        client.seed("inputs", "link", "application/zip", archive.getvalue())
+        client.seed("inputs", "bad", "application/zip", b"not-a-zip")
+        client.seed("inputs", "text", "text/plain", make_zip({"ok.py": "ok"}))
         tools = await make_tools(tmp_path, client, WorkerState())
 
         with pytest.raises(ValueError, match="link or special"):
-            await tools["open_source_archive"]("inputs", "link", link_ref.revision)
+            await tools["open_source_archive"]("inputs", "link")
         with pytest.raises(ValueError, match="valid bounded ZIP"):
-            await tools["open_source_archive"]("inputs", "bad", bad_ref.revision)
+            await tools["open_source_archive"]("inputs", "bad")
         with pytest.raises(ValueError, match="application/zip"):
-            await tools["open_source_archive"]("inputs", "text", text_ref.revision)
-        with pytest.raises(ValueError, match="revision is required"):
-            await tools["open_source_archive"]("inputs", "text", None)
+            await tools["open_source_archive"]("inputs", "text")
+        with pytest.raises(TypeError, match="revision"):
+            await tools["open_source_archive"]("inputs", "text", revision=None)
 
     asyncio.run(scenario())
 
@@ -384,17 +382,17 @@ def test_failed_reopen_preserves_previous_exact_tree_and_valid_reopen_replaces_i
 ) -> None:
     async def scenario() -> None:
         client = ReadOnlyArtifactClient()
-        first = client.seed("inputs", "first", "application/zip", make_zip({"one.py": "one"}))
-        broken = client.seed("inputs", "broken", "application/zip", b"broken")
-        second = client.seed("inputs", "second", "application/zip", make_zip({"two.go": "two"}))
+        client.seed("inputs", "first", "application/zip", make_zip({"one.py": "one"}))
+        client.seed("inputs", "broken", "application/zip", b"broken")
+        client.seed("inputs", "second", "application/zip", make_zip({"two.go": "two"}))
         tools = await make_tools(tmp_path, client, WorkerState())
 
-        await tools["open_source_archive"]("inputs", "first", first.revision)
+        await tools["open_source_archive"]("inputs", "first")
         with pytest.raises(ValueError):
-            await tools["open_source_archive"]("inputs", "broken", broken.revision)
+            await tools["open_source_archive"]("inputs", "broken")
         assert (await tools["read_source"]("one.py"))["text"] == "one"
 
-        await tools["open_source_archive"]("inputs", "second", second.revision)
+        await tools["open_source_archive"]("inputs", "second")
         assert [item["path"] for item in (await tools["list_source_files"]())["files"]] == [
             "two.go"
         ]
@@ -406,7 +404,7 @@ def test_failed_reopen_preserves_previous_exact_tree_and_valid_reopen_replaces_i
 def test_search_and_read_validation_is_bounded(tmp_path: Path) -> None:
     async def scenario() -> None:
         client = ReadOnlyArtifactClient()
-        ref = client.seed(
+        client.seed(
             "inputs",
             "source",
             "application/zip",
@@ -415,7 +413,7 @@ def test_search_and_read_validation_is_bounded(tmp_path: Path) -> None:
         tools = await make_tools(tmp_path, client, WorkerState())
         with pytest.raises(ValueError, match="called first"):
             await tools["list_source_files"]()
-        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        await tools["open_source_archive"]("inputs", "source")
         with pytest.raises(ValueError, match="valid regular expression"):
             await tools["search_source"]("(", regex=True)
         with pytest.raises(ValueError, match="start_line"):
@@ -432,9 +430,9 @@ def test_search_and_read_number_lines_like_read_file(tmp_path: Path) -> None:
         # vertical tab, numbering "seven" as line 8 instead of line 4.
         content = "one\x0ctwo\u2028three\nfour\x85five\x0bsix\rsixth\r\nseven\n"
         client = ReadOnlyArtifactClient()
-        ref = client.seed("inputs", "source", "application/zip", make_zip({"main.py": content}))
+        client.seed("inputs", "source", "application/zip", make_zip({"main.py": content}))
         tools = await make_tools(tmp_path, client, WorkerState())
-        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        await tools["open_source_archive"]("inputs", "source")
 
         found = await tools["search_source"]("seven")
         assert [(item["path"], item["line"]) for item in found["matches"]] == [("main.py", 4)]
@@ -465,14 +463,14 @@ def test_single_star_matches_only_top_level_files(
 ) -> None:
     async def scenario() -> None:
         client = ReadOnlyArtifactClient()
-        ref = client.seed(
+        client.seed(
             "inputs",
             "source",
             "application/zip",
             make_zip({"main.py": "hit\n", "src/a.py": "hit\n", "src/x/a.py": "hit\n"}),
         )
         tools = await make_tools(tmp_path, client, WorkerState())
-        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        await tools["open_source_archive"]("inputs", "source")
         listed = await tools["list_source_files"](pattern)
         assert [item["path"] for item in listed["files"]] == expected
         found = await tools["search_source"]("hit", pattern)
@@ -486,9 +484,9 @@ def test_search_deadline_is_checked_between_lines(
 ) -> None:
     async def scenario() -> None:
         client = ReadOnlyArtifactClient()
-        ref = client.seed("inputs", "source", "application/zip", make_zip({"big.py": "hit\n" * 50}))
+        client.seed("inputs", "source", "application/zip", make_zip({"big.py": "hit\n" * 50}))
         tools = await make_tools(tmp_path, client, WorkerState())
-        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        await tools["open_source_archive"]("inputs", "source")
         session = tools["search_source"]._session
         ticks = iter([0.0, 0.0, 0.0])
         monkeypatch.setattr(
@@ -524,14 +522,14 @@ def test_source_globs_treat_double_star_as_recursive(
 
     async def scenario() -> None:
         client = ReadOnlyArtifactClient()
-        ref = client.seed(
+        client.seed(
             "inputs",
             "source",
             "application/zip",
             make_zip({"main.py": "hit\n", "src/a.py": "hit\n", "src/x/a.py": "hit\n"}),
         )
         tools = await make_tools(tmp_path, client, WorkerState())
-        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        await tools["open_source_archive"]("inputs", "source")
         monkeypatch.setattr(paths_module, "normalize_project_glob", counted)
         listed = await tools["list_source_files"](pattern)
         assert [item["path"] for item in listed["files"]] == expected
@@ -569,9 +567,9 @@ def test_source_path_selection_runs_off_the_event_loop_at_the_entry_bound(
 
     async def scenario() -> None:
         client = ReadOnlyArtifactClient()
-        ref = client.seed("inputs", "source", "application/zip", archive)
+        client.seed("inputs", "source", "application/zip", archive)
         tools = await make_tools(tmp_path, client, WorkerState(), settings)
-        opened = await tools["open_source_archive"]("inputs", "source", ref.revision)
+        opened = await tools["open_source_archive"]("inputs", "source")
         assert opened["fileCount"] == entries
         session = tools["list_source_files"]._session
         # The inline implementation this change replaced, computed before the
@@ -620,14 +618,14 @@ def test_cancelled_path_selection_keeps_the_session_until_its_thread_returns(
 ) -> None:
     async def scenario() -> None:
         client = ReadOnlyArtifactClient()
-        ref = client.seed(
+        client.seed(
             "inputs",
             "source",
             "application/zip",
             make_zip({"main.py": "hit\n", "src/a.py": "hit\n"}),
         )
         tools = await make_tools(tmp_path, client, WorkerState())
-        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        await tools["open_source_archive"]("inputs", "source")
         source = tmp_path / "source"
         probe = OffLoopProbe(monkeypatch)
         removed_after_selection: list[bool] = []
@@ -673,9 +671,9 @@ def test_invalid_selection_is_rejected_before_a_worker_step(
 ) -> None:
     async def scenario() -> None:
         client = ReadOnlyArtifactClient()
-        ref = client.seed("inputs", "source", "application/zip", make_zip({"main.py": "hit\n"}))
+        client.seed("inputs", "source", "application/zip", make_zip({"main.py": "hit\n"}))
         tools = await make_tools(tmp_path, client, WorkerState())
-        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        await tools["open_source_archive"]("inputs", "source")
         probe = OffLoopProbe(monkeypatch)
         listing, search = tools["list_source_files"], tools["search_source"]
         rejected: tuple[Callable[[], Awaitable[object]], ...] = (
@@ -717,13 +715,11 @@ def test_source_tools_enforce_shared_memory_binding_visibility(tmp_path: Path) -
         calls_before = client.read_calls
 
         with pytest.raises(ValueError, match="purpose-specific"):
-            await tools["open_source_archive"](hidden.namespace, hidden.name, hidden.revision)
+            await tools["open_source_archive"](hidden.namespace, hidden.name)
         assert client.read_calls == calls_before
         assert not (tmp_path / "source").exists()
 
-        opened = await tools["open_source_archive"](
-            allowed.namespace, allowed.name, allowed.revision
-        )
+        opened = await tools["open_source_archive"](allowed.namespace, allowed.name)
         assert opened["fileCount"] == 1
         observed = {
             (ref.namespace, ref.name) for tool in tools.values() for ref in tool.known_exact_refs
@@ -979,6 +975,16 @@ class ReadOnlyArtifactClient:
         self.history[(namespace, name, revision)] = StoredArtifact(revision, media_type, data)
         return ArtifactRef(namespace=namespace, name=name, revision=revision)
 
+    async def read_artifact_metadata(self, ref):
+        from types import SimpleNamespace
+
+        candidates = [key for key in self.history if key[:2] == (ref.namespace, ref.name)]
+        if ref.revision is not None:
+            candidates = [key for key in candidates if key[2] == ref.revision]
+        if not candidates:
+            raise KeyError("missing source")
+        return SimpleNamespace(artifact=ref.model_copy(update={"revision": candidates[-1][2]}))
+
     async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
         exact = ref.require_exact()
         assert exact.revision is not None
@@ -1023,7 +1029,7 @@ def test_server_source_limits_reach_factory_and_extraction(tmp_path: Path) -> No
             workspace=AllocationWorkspace(root=tmp_path, path=work),
             resources=WorkerState().resources,
         )
-        result = await selected["open_source_archive"](ref.namespace, ref.name, ref.revision)
+        result = await selected["open_source_archive"](ref.namespace, ref.name)
         assert result["fileCount"] == 1
         assert result["totalUncompressedBytes"] == len(payload)
         assert (work / "source" / "large.py").read_bytes() == payload

@@ -424,6 +424,7 @@ class AdkWorkerRuntime:
         outcome: WorkerResult | WorkerFailure
         state_snapshot: dict[str, Any] | None = None
         self._resources.selected_versions.clear()
+        self._resources.selected_versions.assign(request.artifacts.values())
         self._resources.invocation_artifacts = MappingProxyType(
             {key: ref.model_copy(deep=True) for key, ref in request.artifacts.items()}
         )
@@ -507,6 +508,7 @@ class AdkWorkerRuntime:
             self._guidance = None
             self._resources.invocation_artifacts = MappingProxyType({})
             self._resources.selected_versions.clear()
+            self._resources.artifact_cursors.reset()
             try:
                 if self._completion is not None and invocation_phase != "succeeded":
                     code = "worker_cancelled" if invocation_phase == "cancelled" else outcome.code
@@ -587,7 +589,7 @@ class AdkWorkerRuntime:
             return _failure(
                 "worker_draining", "Worker is no longer accepting A2A work", True
             ), False
-        prompt = _task_prompt(request)
+        prompt = _task_prompt(request, self._resources.artifact_cursors)
         # Only an enabled terminal summarizer consumes the normal-loop
         # transcript (WRK-R147); without one no transcript is built.
         summary_secrets: tuple[str, ...] = ()

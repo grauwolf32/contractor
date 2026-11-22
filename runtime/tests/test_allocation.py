@@ -1512,7 +1512,7 @@ def read_write_script() -> object:
         [
             tool_call(
                 "read_artifact",
-                {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                {"namespace": "inputs", "name": "source"},
                 call_id="read-1",
             ),
             tool_call(
@@ -1867,7 +1867,7 @@ def test_next_allocation_rebuilds_identical_tool_declarations(
             responses=[
                 tool_call(
                     "read_artifact",
-                    {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                    {"namespace": "inputs", "name": "source"},
                     call_id="read-1",
                 ),
                 text_result("Read the source"),
