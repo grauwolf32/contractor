@@ -168,7 +168,7 @@
     "tests.test_audit_result_collector::test_cancellation_joins_admission_before_discard_and_keeps_prior_revision": 1,
     "tests.test_audit_result_collector::test_context_and_invocation_authority_are_checked_before_admission": 1,
     "tests.test_audit_result_collector::test_exploration_and_hypothesis_use_the_same_collector_without_fabricated_verdict": 1,
-    "tests.test_audit_result_collector::test_invalid_arguments_leave_collection_unchanged_without_echo": 8,
+    "tests.test_audit_result_collector::test_invalid_arguments_leave_collection_unchanged_without_echo": 6,
     "tests.test_audit_result_collector::test_parallel_64_members_use_trusted_order_and_read_copies": 1,
     "tests.test_audit_result_collector::test_real_eight_mib_prospective_limit_preserves_accepted_revision": 1,
     "tests.test_audit_result_collector::test_revision_replay_and_concurrent_updates_have_one_winner": 1,
