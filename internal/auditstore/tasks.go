@@ -50,6 +50,7 @@ type Task struct {
 	Attempts      int
 	LastExecution *string
 	Result        *auditcontract.Material
+	Stop          *auditcontract.TaskStop
 	GapCode       *string
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
@@ -137,6 +138,7 @@ type TaskCollection struct {
 	ExecutionItemID string                  `json:"execution_item_id"`
 	TaskID          string                  `json:"task_id"`
 	Result          *auditcontract.Material `json:"task_result,omitempty"`
+	Stop            *auditcontract.TaskStop `json:"stop_record,omitempty"`
 	GapCode         *string                 `json:"gap_code,omitempty"`
 	Retryable       bool                    `json:"retryable"`
 }

@@ -54,6 +54,9 @@ func ValidateCollect(p auditstore.CollectParams) error {
 		if task.Result == nil && task.GapCode == nil && task.Findings == nil {
 			return auditstore.ErrInvalid
 		}
+		if task.Stop != nil && (task.Result != nil || task.Findings != nil || task.Stop.Validate(p.Claim.AuditID, task.Stop.Verdict != nil) != nil) {
+			return auditstore.ErrInvalid
+		}
 		if task.Findings != nil && (!validCanonicalFindingResult(task.Findings) || task.Result != nil || task.Retryable) {
 			return auditstore.ErrInvalid
 		}
@@ -71,6 +74,17 @@ func ValidateCollect(p auditstore.CollectParams) error {
 				return auditstore.ErrInvalid
 			}
 		}
+		if task.Stop != nil {
+			for _, source := range task.Stop.Evidence {
+				found := false
+				for _, link := range p.Retained {
+					found = found || link.Scope == artifacts.ScopeAudit && link.Artifact.Ref.SameExact(source.Ref) && link.Artifact.Digest == source.Digest && link.Artifact.MediaType == source.MediaType && link.Artifact.SizeBytes == source.SizeBytes
+				}
+				if !found {
+					return auditstore.ErrInvalid
+				}
+			}
+		}
 	}
 	encoded, err := strictjson.Canonical(struct {
 		Tasks    []auditstore.TaskCollection
@@ -85,13 +99,11 @@ func ValidateCollect(p auditstore.CollectParams) error {
 func prepareTaskCollection(p auditstore.CollectParams) json.RawMessage {
 	items := make([]map[string]any, 0, len(p.Tasks))
 	for _, task := range p.Tasks {
-		item := map[string]any{"execution_item_id": task.ExecutionItemID, "task_id": task.TaskID, "disposition": p.Disposition, "retryable": task.Retryable, "gap_code": task.GapCode, "finding_result": task.Findings}
+		item := map[string]any{"execution_item_id": task.ExecutionItemID, "task_id": task.TaskID, "disposition": p.Disposition, "retryable": task.Retryable, "gap_code": task.GapCode, "finding_result": task.Findings, "stop_record": task.Stop}
 		if task.Result != nil {
 			item["task_result"] = task.Result
-			if p.Disposition == auditstore.CollectionAccepted {
-				item["result_ref"] = task.Result.Ref
-				item["result_digest"] = task.Result.Digest
-			}
+			item["result_ref"] = task.Result.Ref
+			item["result_digest"] = task.Result.Digest
 		}
 		items = append(items, item)
 	}

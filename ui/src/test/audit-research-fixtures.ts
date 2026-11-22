@@ -17,10 +17,11 @@ export const RESEARCH_PROJECT = "project_shop",
   RESEARCH_AUDIT = "audit_research";
 
 export function researchFixture(state = "normal") {
+  const interrupted = state === "interrupted";
   let current = audit(
     RESEARCH_PROJECT,
     RESEARCH_AUDIT,
-    state === "active" ? "active" : "paused",
+    interrupted ? "cancelled" : state === "active" ? "active" : "paused",
     {
       profile: { name: "source-checklist", version: "1", digest },
       scope: {
@@ -28,7 +29,7 @@ export function researchFixture(state = "normal") {
         target: "Shop API · order and invoice endpoints",
       },
       taskCount: 8,
-      submittedRunCount: 5,
+      submittedRunCount: interrupted ? 7 : 5,
       outstandingRunCount: state === "active" ? 1 : 0,
       revision: 3,
       createdAt: at,
@@ -142,6 +143,7 @@ export function researchFixture(state = "normal") {
             schema: "contractor.audit.result.v1",
             items: [
               {
+                author: "model",
                 item_key: "item-" + index,
                 ...(verdicts[index] ? { verdict: verdicts[index] } : {}),
                 rationale: rationales[index],
@@ -196,10 +198,69 @@ export function researchFixture(state = "normal") {
           }
         : {}),
       ...(index === 4 ? { gap_code: "proposal-ground-unavailable" } : {}),
+      ...(interrupted && index === 0
+        ? { attempts: 2, gap_code: "execution-failed" }
+        : {}),
+      ...(interrupted && index === 5
+        ? { state: "ready" as const, attempts: 0 }
+        : {}),
+      ...(interrupted && [4, 7].includes(index)
+        ? {
+            state: "settled" as const,
+            attempts: 1,
+            gap_code: "worker_model_calls_exceeded",
+            stop: {
+              author: "system" as const,
+              meaning: "no_accepted_conclusion" as const,
+              ...(h ? { verdict: "inconclusive" as const } : {}),
+              reason:
+                index === 7
+                  ? {
+                      source: "run" as const,
+                      code: "worker_model_calls_exceeded",
+                      message: "The configured model call limit was reached",
+                    }
+                  : {
+                      source: "unknown" as const,
+                      code: "unknown",
+                      message: "",
+                    },
+              evidence: [observations],
+            },
+          }
+        : {}),
       created_at: at,
       updated_at: at,
     });
   });
+  const previousResultKey = "judgment/execution_old/receipt_old";
+  const previousResult = interrupted
+    ? material(
+        "previous-judgment",
+        JSON.stringify({
+          schema: "contractor.audit.result.v1",
+          items: [
+            {
+              author: "model",
+              item_key: "item-0",
+              verdict: "inconclusive",
+              rationale: "Earlier accepted assessment from a separate attempt",
+              tested_conditions: [],
+              limitations: ["The old target conditions may have changed"],
+              evidence: [observations],
+              origin: {
+                audit_id: RESEARCH_AUDIT,
+                task_id: "task_0",
+                run_id: "run_old",
+                hypothesis: { id: hypotheses[0]!.document.id, revision: 1 },
+              },
+            },
+          ],
+        }),
+        "application/json",
+        previousResultKey,
+      )
+    : undefined;
   const problem = finding(
     RESEARCH_PROJECT,
     "finding_order",
@@ -311,9 +372,12 @@ export function researchFixture(state = "normal") {
         : json(
             workspace(current, {
               totalTasks: 8,
-              completedTasks: 4,
-              gaps: 1,
-              pendingTasks: 3,
+              completedTasks: tasks.filter(
+                (t) => t.state === "settled" && !t.gap_code,
+              ).length,
+              gaps: tasks.filter((t) => t.state === "settled" && t.gap_code)
+                .length,
+              pendingTasks: tasks.filter((t) => t.state !== "settled").length,
               findings: 1,
               needsReviewFindings: 1,
             }),
@@ -367,6 +431,42 @@ export function researchFixture(state = "normal") {
       return json(
         page(h ? tasks.filter((t) => t.document.hypothesis?.id === h) : tasks),
       );
+    }
+    if (interrupted && path.endsWith("/attempts")) {
+      const task = tasks.find(
+        (t) => t.document.task_id === path.split("/").at(-2),
+      )!;
+      const older = url.searchParams.get("cursor") === "older";
+      const history = task.document.task_id === "task_0";
+      return json({
+        items: [
+          {
+            attempt: history && !older ? 2 : 1,
+            execution_id: older ? "execution_old" : "execution_1",
+            run_id: older ? "run_old" : "run_1",
+            run_deleted: true,
+            state: "settled",
+            outcome: "failed",
+            collection_disposition: "execution-failed",
+            created_at: at,
+            collected_at: at,
+            ...(older
+              ? { result: previousResult, result_key: previousResultKey }
+              : task.result
+                ? {
+                    result: task.result,
+                    result_key: `task/${task.document.task_id}/result`,
+                  }
+                : {}),
+            ...(task.stop ? { stop: task.stop } : {}),
+          },
+        ],
+        page:
+          history && !older
+            ? { hasMore: true, nextCursor: "older" }
+            : { hasMore: false },
+        auditRevision: current.revision,
+      });
     }
     if (path.endsWith("/attempts"))
       return json({

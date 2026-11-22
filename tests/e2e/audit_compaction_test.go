@@ -337,7 +337,20 @@ func (g *auditCompactionGateway) serveHTTP(w http.ResponseWriter, r *http.Reques
 			tokens = 100
 		}
 		if g.main >= 7 && g.main <= 9 {
-			extra := toolCallMessage(fmt.Sprintf("audit-extra-read-%d", g.main), "read_audit_task", map[string]any{})
+			extraName, extraArgs := "read_audit_task", map[string]any{}
+			keys, err := assignedAuditKeys(request)
+			if err != nil || len(keys) != 3 {
+				fail("extra call lost trusted membership")
+				return
+			}
+			if g.main == 7 {
+				extraName = "evidence"
+				extraArgs = map[string]any{"item_key": keys[1], "sources": []any{map[string]any{"kind": "artifact", "namespace": "inputs", "name": "made-up"}}, "interpretation": "An unselected source must not acquire evidence authority", "tested_conditions": []string{}, "limitations": []string{}}
+			} else if g.main == 9 {
+				extraName = "finding"
+				extraArgs = map[string]any{"item_key": keys[0], "title": "Query concatenation in lookup", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 10}, "cwe": "CWE-89", "sources": []any{map[string]any{"kind": "artifact", "namespace": "inputs", "name": "material"}}}
+			}
+			extra := toolCallMessage(fmt.Sprintf("audit-extra-%d", g.main), extraName, extraArgs)
 			message["tool_calls"] = append(message["tool_calls"].([]any), extra["tool_calls"].([]any)...)
 		}
 		prompt = tokens
@@ -371,19 +384,17 @@ func auditCompactionStep(request map[string]any, n int) (string, map[string]any,
 		key, _ := row["item_key"].(string)
 		return key
 	}
-	if n == 4 {
-		evidence, ok := lastExactArtifact(request, "inputs", "material")
-		if !ok {
-			return "", nil, 0, errors.New("Finding has no exact evidence read")
+	if n == 4 || n == 8 {
+		index := 0
+		if n == 8 {
+			index = 1
 		}
-		return "finding", map[string]any{"item_key": member(0), "title": "Query concatenation in lookup", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 10}, "cwe": "CWE-89", "sources": []any{artifactSourceSelector(evidence)}}, 100, nil
+		return "evidence", map[string]any{"item_key": member(index), "sources": []any{map[string]any{"kind": "artifact", "namespace": "inputs", "name": "material"}}, "interpretation": "Selected source supports only this scoped judgment", "tested_conditions": []string{"Selected fixture and actor only"}, "limitations": []string{}}, 100, nil
 	}
 	index, verdict, tokens := 0, "supported", 100
 	switch n {
 	case 5:
 	case 7:
-	case 8:
-		index = 1
 	case 9:
 		index, verdict, tokens = 1, "refuted", 150
 	case 12:
@@ -391,12 +402,9 @@ func auditCompactionStep(request map[string]any, n int) (string, map[string]any,
 	default:
 		return "", nil, 0, errors.New("unexpected extra main call")
 	}
-	args := map[string]any{"item_key": member(index), "verdict": verdict, "rationale": "Scoped judgment from selected real materials", "tested_conditions": []string{"Selected fixture and actor only"}, "limitations": []string{"No global or live-exploit claim"}, "evidence": []string{"evidence-000", "evidence-001"}}
+	args := map[string]any{"item_key": member(index), "verdict": verdict, "rationale": "Scoped judgment from selected real materials", "limitations": []string{"No global or live-exploit claim"}}
 	if n == 7 {
 		args["item_key"] = "invented-task"
-	}
-	if n == 8 {
-		args["evidence"] = []string{"made-up"}
 	}
 	return "submit_result", args, tokens, nil
 }

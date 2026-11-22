@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from audit_fixtures import accept_fixture_sources, arguments, assigned
+from fakes.audit_judgments import acknowledged_judgments
 from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 from google.genai import types
@@ -21,7 +22,9 @@ CONTEXT = SimpleNamespace(invocation_id="invocation-1")
 
 def setup(*, batch=False):
     expected, inputs = assigned(batch=batch)
-    collector = InvocationAuditCollector(inputs, CanonicalAuditResultEncoder())
+    collector = InvocationAuditCollector(
+        inputs, CanonicalAuditResultEncoder(), persist=acknowledged_judgments(inputs)
+    )
     metrics = WorkerState().metrics
     return (
         expected,

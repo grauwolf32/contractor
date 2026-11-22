@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import jcs
 import pytest
 from audit_fixtures import accept_fixture_sources, arguments, assigned, context_document, digest
+from fakes.audit_judgments import acknowledged_judgments
 from fakes.worker_state import WorkerState
 from test_audit_result_publication import BlockingEncode
 
@@ -29,7 +30,9 @@ CONTEXT = SimpleNamespace(invocation_id="invocation-1")
 
 
 async def tool_for(inputs):
-    collector = InvocationAuditCollector(inputs, CanonicalAuditResultEncoder())
+    collector = InvocationAuditCollector(
+        inputs, CanonicalAuditResultEncoder(), persist=acknowledged_judgments(inputs)
+    )
     await accept_fixture_sources(collector)
     metrics = WorkerState().metrics
     return collector, SubmitResultTool(collector, metrics), metrics

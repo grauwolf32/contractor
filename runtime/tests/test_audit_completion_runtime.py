@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 from audit_fixtures import arguments
+from fakes.audit_judgments import JudgmentTransport
 from fakes.model import scripted_model, text_result, thought_result, tool_call
 from google.genai import types
 from test_adk_runtime import build_context, stage_request
@@ -48,6 +49,7 @@ class AuditClient:
 
     def __init__(self, inputs):
         self.inputs = inputs
+        self.transport = JudgmentTransport(inputs)
         self.reads = []
         self.writes = []
         self.on_write = None

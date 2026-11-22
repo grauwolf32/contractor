@@ -862,6 +862,24 @@ func (e AuditReportSummaryArtifactMediaType) Valid() bool {
 	}
 }
 
+// Defines values for AuditResultStopSource.
+const (
+	AuditResultStopSourceRun     AuditResultStopSource = "run"
+	AuditResultStopSourceUnknown AuditResultStopSource = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the AuditResultStopSource enum.
+func (e AuditResultStopSource) Valid() bool {
+	switch e {
+	case AuditResultStopSourceRun:
+		return true
+	case AuditResultStopSourceUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AuditStandardApplicabilityMode.
 const (
 	Always      AuditStandardApplicabilityMode = "always"
@@ -930,34 +948,34 @@ func (e AuditStandardEntryKind) Valid() bool {
 
 // Defines values for AuditStandardEvidenceContractAssessments.
 const (
-	Blocked       AuditStandardEvidenceContractAssessments = "blocked"
-	Inconclusive  AuditStandardEvidenceContractAssessments = "inconclusive"
-	NotApplicable AuditStandardEvidenceContractAssessments = "not-applicable"
-	NotTested     AuditStandardEvidenceContractAssessments = "not-tested"
-	Refuted       AuditStandardEvidenceContractAssessments = "refuted"
-	Satisfied     AuditStandardEvidenceContractAssessments = "satisfied"
-	Supported     AuditStandardEvidenceContractAssessments = "supported"
-	Violated      AuditStandardEvidenceContractAssessments = "violated"
+	AuditStandardEvidenceContractAssessmentsBlocked       AuditStandardEvidenceContractAssessments = "blocked"
+	AuditStandardEvidenceContractAssessmentsInconclusive  AuditStandardEvidenceContractAssessments = "inconclusive"
+	AuditStandardEvidenceContractAssessmentsNotApplicable AuditStandardEvidenceContractAssessments = "not-applicable"
+	AuditStandardEvidenceContractAssessmentsNotTested     AuditStandardEvidenceContractAssessments = "not-tested"
+	AuditStandardEvidenceContractAssessmentsRefuted       AuditStandardEvidenceContractAssessments = "refuted"
+	AuditStandardEvidenceContractAssessmentsSatisfied     AuditStandardEvidenceContractAssessments = "satisfied"
+	AuditStandardEvidenceContractAssessmentsSupported     AuditStandardEvidenceContractAssessments = "supported"
+	AuditStandardEvidenceContractAssessmentsViolated      AuditStandardEvidenceContractAssessments = "violated"
 )
 
 // Valid indicates whether the value is a known member of the AuditStandardEvidenceContractAssessments enum.
 func (e AuditStandardEvidenceContractAssessments) Valid() bool {
 	switch e {
-	case Blocked:
+	case AuditStandardEvidenceContractAssessmentsBlocked:
 		return true
-	case Inconclusive:
+	case AuditStandardEvidenceContractAssessmentsInconclusive:
 		return true
-	case NotApplicable:
+	case AuditStandardEvidenceContractAssessmentsNotApplicable:
 		return true
-	case NotTested:
+	case AuditStandardEvidenceContractAssessmentsNotTested:
 		return true
-	case Refuted:
+	case AuditStandardEvidenceContractAssessmentsRefuted:
 		return true
-	case Satisfied:
+	case AuditStandardEvidenceContractAssessmentsSatisfied:
 		return true
-	case Supported:
+	case AuditStandardEvidenceContractAssessmentsSupported:
 		return true
-	case Violated:
+	case AuditStandardEvidenceContractAssessmentsViolated:
 		return true
 	default:
 		return false
@@ -1246,6 +1264,51 @@ func (e AuditTaskState) Valid() bool {
 	case AuditTaskStateSelected:
 		return true
 	case AuditTaskStateSettled:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditTaskStopAuthor.
+const (
+	System AuditTaskStopAuthor = "system"
+)
+
+// Valid indicates whether the value is a known member of the AuditTaskStopAuthor enum.
+func (e AuditTaskStopAuthor) Valid() bool {
+	switch e {
+	case System:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditTaskStopMeaning.
+const (
+	NoAcceptedConclusion AuditTaskStopMeaning = "no_accepted_conclusion"
+)
+
+// Valid indicates whether the value is a known member of the AuditTaskStopMeaning enum.
+func (e AuditTaskStopMeaning) Valid() bool {
+	switch e {
+	case NoAcceptedConclusion:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditTaskStopVerdict.
+const (
+	AuditTaskStopVerdictInconclusive AuditTaskStopVerdict = "inconclusive"
+)
+
+// Valid indicates whether the value is a known member of the AuditTaskStopVerdict enum.
+func (e AuditTaskStopVerdict) Valid() bool {
+	switch e {
+	case AuditTaskStopVerdictInconclusive:
 		return true
 	default:
 		return false
@@ -7365,6 +7428,16 @@ type AuditReportSummaryArtifact struct {
 // AuditReportSummaryArtifactMediaType defines model for AuditReportSummaryArtifact.MediaType.
 type AuditReportSummaryArtifactMediaType string
 
+// AuditResultStop defines model for AuditResultStop.
+type AuditResultStop struct {
+	Code    string                `json:"code"`
+	Message string                `json:"message"`
+	Source  AuditResultStopSource `json:"source"`
+}
+
+// AuditResultStopSource defines model for AuditResultStop.Source.
+type AuditResultStopSource string
+
 // AuditRuntimeSnapshot defines model for AuditRuntimeSnapshot.
 type AuditRuntimeSnapshot struct {
 	Default AuditPinnedRuntimeLabel   `json:"default"`
@@ -7556,6 +7629,7 @@ type AuditTask struct {
 	Result             *AuditTaskMaterial       `json:"result,omitempty"`
 	Source             AuditTaskSource          `json:"source"`
 	State              AuditTaskState           `json:"state"`
+	Stop               *AuditTaskStop           `json:"stop,omitempty"`
 	UpdatedAt          time.Time                `json:"updated_at"`
 }
 
@@ -7574,9 +7648,14 @@ type AuditTaskAttempt struct {
 	CreatedAt             time.Time                   `json:"created_at"`
 	ExecutionId           ResourceId                  `json:"execution_id"`
 	Outcome               *AuditTerminalOutcome       `json:"outcome,omitempty"`
-	RunDeleted            bool                        `json:"run_deleted"`
-	RunId                 *ResourceId                 `json:"run_id,omitempty"`
-	State                 AuditExecutionItemState     `json:"state"`
+	Result                *AuditTaskMaterial          `json:"result,omitempty"`
+
+	// ResultKey The logical key of one committed Audit receipt link, at most 512 UTF-8 bytes (LIM-AUD-39).
+	ResultKey  *AuditArtifactKey       `json:"result_key,omitempty"`
+	RunDeleted bool                    `json:"run_deleted"`
+	RunId      *ResourceId             `json:"run_id,omitempty"`
+	State      AuditExecutionItemState `json:"state"`
+	Stop       *AuditTaskStop          `json:"stop,omitempty"`
 }
 
 // AuditTaskAttemptPage defines model for AuditTaskAttemptPage.
@@ -7667,6 +7746,24 @@ type AuditTaskSourceKind string
 
 // AuditTaskState defines model for AuditTaskState.
 type AuditTaskState string
+
+// AuditTaskStop defines model for AuditTaskStop.
+type AuditTaskStop struct {
+	Author   AuditTaskStopAuthor   `json:"author"`
+	Evidence []AuditTaskMaterial   `json:"evidence"`
+	Meaning  AuditTaskStopMeaning  `json:"meaning"`
+	Reason   AuditResultStop       `json:"reason"`
+	Verdict  *AuditTaskStopVerdict `json:"verdict,omitempty"`
+}
+
+// AuditTaskStopAuthor defines model for AuditTaskStop.Author.
+type AuditTaskStopAuthor string
+
+// AuditTaskStopMeaning defines model for AuditTaskStop.Meaning.
+type AuditTaskStopMeaning string
+
+// AuditTaskStopVerdict defines model for AuditTaskStop.Verdict.
+type AuditTaskStopVerdict string
 
 // AuditTerminalOutcome defines model for AuditTerminalOutcome.
 type AuditTerminalOutcome string

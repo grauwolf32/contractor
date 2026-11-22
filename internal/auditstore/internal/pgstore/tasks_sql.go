@@ -67,12 +67,13 @@ func taskStateFilterSQL(state *auditstore.TaskState) string {
 // SQL for the common accepted-task owner. The candidate LIMIT runs before the
 // metadata window, so a page never examines the containing Audit history.
 const taskColumnSQL = `document,source_key,source,ordinal,iteration,batch_digest,
-state,attempts,last_execution_id,result,gap_code,created_at,updated_at,hypothesis_snapshot,attention,finding_result`
+state,attempts,last_execution_id,result,gap_code,created_at,updated_at,hypothesis_snapshot,attention,finding_result,stop_record`
 
 const taskPageSQL = `
 WITH candidates AS MATERIALIZED (
     SELECT document,source_key,source,ordinal,iteration,batch_digest,state,attempts,
-           last_execution_id,result,gap_code,created_at,updated_at,hypothesis_snapshot,attention,finding_result,metadata_bytes
+           last_execution_id,result,gap_code,created_at,updated_at,hypothesis_snapshot,attention,finding_result,stop_record,
+           metadata_bytes+coalesce(octet_length(stop_record::text),0) AS metadata_bytes
       FROM audit_tasks
      WHERE audit_id=$1 AND ordinal>$2 %s
      ORDER BY ordinal

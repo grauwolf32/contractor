@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from audit_fixtures import assigned
+from fakes.audit_judgments import acknowledged_judgments
 from fakes.engagement_socket import SocketTarget, preflight
 from fakes.worker_state import WorkerState
 from test_artifacts import TIMESTAMP_HEADERS, json_response
@@ -140,7 +141,9 @@ def result_tool(captures, *, lose_reply=False, batch=False):
     state.resources.http_captures = captures
     client = ArtifactClient("allocation-1", transport)
     encoder = CanonicalAuditResultEncoder()
-    collector = InvocationAuditCollector(inputs, encoder)
+    collector = InvocationAuditCollector(
+        inputs, encoder, persist=acknowledged_judgments(inputs, encoder)
+    )
     tool = SubmitResultTool(collector, state.metrics)
     tool.evidence = EvidenceTool(lambda: collector, client, state.resources, "run-1", "worker", 5)
     return collector, tool, transport, encoder, inputs

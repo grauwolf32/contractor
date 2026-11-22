@@ -10,6 +10,7 @@ dereference(auditSchema as Schema, lookup);
 
 /** A display projection validated against the owning shared document schema. */
 interface ScopedTaskResult {
+  author: "model";
   verdict?: "supported" | "refuted" | "inconclusive";
   rationale: string;
   tested_conditions: string[];

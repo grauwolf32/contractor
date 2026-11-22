@@ -461,6 +461,8 @@
   background: var(--sunken);
 }
 .research-result {
+  min-width: 0;
+  overflow-wrap: anywhere;
   display: grid;
   gap: var(--space-4);
   padding: var(--space-4);

@@ -3,6 +3,7 @@
   "readers": {
     "sitemap-editor-source-id.json": {"readers": ["go", "python"]},
     "audit-evidence-snapshot-refs.json": {"readers": ["go", "python"]},
+    "audit-stops.json": {"readers": ["go", "python"]},
     "v1alpha1/model-image-support-cases.json": {"readers": ["go", "python", "ui"]},
     "server-operation-artifact-copy.json": {"readers": ["go", "ui"], "reason": "Server and Studio share the exact copy operation identity. Runtime receives no Server operation calls."},
     "finding-memory-sources.json": {"readers": ["go", "python", "ui"], "reason": "Server and Runtime validate the frozen export; UI labels its declared source format without interpreting claims. Fact-call quota is Runtime-only."},

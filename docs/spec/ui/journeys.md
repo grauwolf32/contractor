@@ -746,3 +746,11 @@ evidence. Memory statements retain their original source and uncertainty.
 Existing hypothesis views link to explicitly selected exact grounds separately
 from check results. Missing sources and stale revisions stay explicit; no latest
 substitution or reverse fact-to-hypothesis navigation is inferred.
+
+**UIJ-R120.** After a check stops, the user opens its existing work item to
+inspect saved model conclusions, selected sources and a separately attributed
+system interruption where no conclusion was accepted (UI-R246). The user can
+read an older attempt's retained result after its producing Run is deleted,
+without replacing it with the current result (UI-R247). Pending work without
+recorded activity remains explicit; activity and result counts do not claim
+semantic coverage of the target.

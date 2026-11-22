@@ -8,6 +8,7 @@ from functools import partial
 import jcs
 
 from contractor_runtime import threads
+from contractor_runtime.audit_judgments import JudgmentStaleError
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.worker_completion import WorkerCompletionError
 from contractor_runtime.toolsets.audit_results.contracts import (
@@ -58,18 +59,23 @@ class InvocationAuditCollector:
     """One invocation owns drafts, revisions and a final immutable seal.
 
     Admission encodes at most 64 members and 8 MiB off the event loop. The lock
-    serializes updates, sealing and discard; cancellation joins owned encoding
-    before releasing it. Nothing survives the invocation except normal artifacts.
+    serializes updates, Server acceptance, sealing and discard. Private state
+    clears on exit; acknowledged immutable Audit artifacts survive independently.
     """
 
     def __init__(
         self,
         inputs: AuditTrustedInputs,
         encoder: CanonicalAuditResultEncoder,
+        *,
+        persist,
     ):
         self._inputs, self._encoder = inputs, encoder
         self._tasks = encoder.trusted_inputs(inputs).items
         self._items: dict[str, RecordedAuditItem] = {}
+        self._persist = persist
+        self._known_generations: dict[str, int] = {}
+        self._accepted_materials: dict[str, bytes] = {}
         self._evidence: dict[str, dict] = {}
         self._response_revisions: dict[str, int] | None = None
         self._proposals: dict[str, frozenset] = {}
@@ -269,18 +275,62 @@ class InvocationAuditCollector:
                 if key in self._items
             ),
             tuple(key for key in self.owner.item_keys if key not in self._items),
+            materials=tuple(sorted(set(self._accepted_materials.values()))),
         )
 
     def begin_response(self) -> None:
-        self._response_revisions = {key: item.revision for key, item in self._items.items()}
+        self._response_revisions = dict(self._known_generations)
 
     def item_base(self, item_key: str) -> int | None:
         if not isinstance(item_key, str):
             return None
         if self._response_revisions is not None:
             return self._response_revisions.get(item_key)
-        item = self._items.get(item_key)
-        return item.revision if item else None
+        return self._known_generations.get(item_key)
+
+    async def _accept(self, prospective, keys, bases, mode):
+        snapshot = AuditSnapshot(
+            self.owner,
+            tuple(prospective[key] for key in self.owner.item_keys if key in keys),
+        )
+        try:
+            receipt = await self._persist(snapshot, bases, mode)
+        except JudgmentStaleError as error:
+            if set(error.generations) != set(keys):
+                raise RuntimeError("Audit owner returned foreign generations") from None
+            for key, generation in error.generations.items():
+                if type(generation) is not int or not 0 <= generation <= MAX_REVISION:
+                    raise RuntimeError("Audit owner returned invalid generations") from None
+                if generation:
+                    self._known_generations[key] = generation
+                else:
+                    self._known_generations.pop(key, None)
+            # An older acknowledged value remains durable history, but cannot
+            # satisfy normal completion after the owner reports a newer value.
+            self._items = {
+                key: item
+                for key, item in self._items.items()
+                if self._known_generations.get(key) == item.revision
+            }
+            self._accepted_materials = {
+                key: value for key, value in self._accepted_materials.items() if key in self._items
+            }
+            raise AuditCollectionError(
+                "item_key", "The saved result changed; submit a judgment in a later response."
+            ) from None
+        generations = receipt["generations"]
+        if set(generations) != set(keys) or any(
+            type(value) is not int or not 1 <= value <= MAX_REVISION
+            for value in generations.values()
+        ):
+            raise RuntimeError("Audit owner returned invalid accepted generations")
+        material = jcs.canonicalize(receipt["material"])
+        for key in keys:
+            prospective[key] = RecordedAuditItem(prospective[key].value, generations[key])
+            self._known_generations[key] = generations[key]
+            self._accepted_materials[key] = material
+        self._items = prospective
+        return self._receipt()
 
     async def record(self, item: NormalizedAuditItem, *, expected_revision=_CURRENT):
         if expected_revision is _CURRENT:
@@ -290,24 +340,22 @@ class InvocationAuditCollector:
             item = self._validate(self._with_evidence(item))
             key = item.item_key
             current = self._items.get(key)
-            if current is not None and current.value == item:
+            known = self._known_generations.get(key)
+            if current is not None and current.value == item and current.revision == known:
                 return self._receipt()
-            if (current.revision if current else None) != expected_revision:
+            if known != expected_revision:
                 raise AuditCollectionError(
                     "item_key",
                     "This item changed in the same response; submit again in a later turn.",
                     item_key=key,
                     current_revision=current.revision if current else None,
                 )
-            revision = 1 if current is None else current.revision + 1
+            revision = 1 if known is None else known + 1
             if revision > MAX_REVISION:
                 raise AuditCollectionError("item_key", "Revision limit reached.", item_key=key)
             prospective = {**self._items, key: RecordedAuditItem(item, revision)}
             await self._admit(prospective)
-            # The lock is still held: nothing changed the collection while
-            # the prospective set was encoded, so the replacement is atomic.
-            self._items = prospective
-            return self._receipt()
+            return await self._accept(prospective, (key,), {key: expected_revision}, "single")
 
     async def record_batch(self, items: tuple[NormalizedAuditItem, ...]):
         async with self._lock:
@@ -332,8 +380,17 @@ class InvocationAuditCollector:
                 if current is None:
                     prospective[item.item_key] = RecordedAuditItem(item, 1)
             await self._admit(prospective)
-            self._items = prospective
-            return self._receipt()
+            if all(
+                key in self._items and self._items[key].revision == self._known_generations.get(key)
+                for key in self.owner.item_keys
+            ):
+                return self._receipt()
+            return await self._accept(
+                prospective,
+                self.owner.item_keys,
+                {key: self._known_generations.get(key) for key in self.owner.item_keys},
+                "batch",
+            )
 
     async def snapshot(self):
         async with self._lock:
@@ -356,5 +413,7 @@ class InvocationAuditCollector:
             self._discarded = True
             self._items.clear()
             self._response_revisions = None
+            self._known_generations.clear()
+            self._accepted_materials.clear()
             self._proposals.clear()
             self._evidence.clear()

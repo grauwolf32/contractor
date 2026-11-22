@@ -53,6 +53,10 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 	if err != nil {
 		return false, err
 	}
+	partials, err := i.readPartialResults(ctx, snapshot, execution, tasks)
+	if err != nil {
+		return false, err
+	}
 	params := auditstore.CollectParams{Claim: claim, ExecutionID: execution.ExecutionID, ReceiptID: auditdomain.DeterministicID("receipt", execution.ExecutionID), RequestDigest: digest, Disposition: auditstore.CollectionAccepted, Retained: []auditstore.ArtifactLink{}}
 	findingResults := map[string]*auditstore.CanonicalFindingResult{}
 	commit := func(code string, retryable bool, result *auditcontract.Material) (bool, error) {
@@ -63,7 +67,11 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 				value := code
 				gap = &value
 			}
-			params.Tasks = append(params.Tasks, auditstore.TaskCollection{ExecutionItemID: auditdomain.DeterministicID("attempt", execution.ExecutionID, task.Document.TaskID), TaskID: task.Document.TaskID, Findings: findingResults[task.Document.TaskID], Result: result, GapCode: gap, Retryable: retryable})
+			collection := auditstore.TaskCollection{ExecutionItemID: auditdomain.DeterministicID("attempt", execution.ExecutionID, task.Document.TaskID), TaskID: task.Document.TaskID, Findings: findingResults[task.Document.TaskID], Result: result, GapCode: gap, Retryable: retryable}
+			if err := partials.selectTask(execution, task, &collection, &params.Retained); err != nil {
+				return false, err
+			}
+			params.Tasks = append(params.Tasks, collection)
 		}
 		if code != "" {
 			params.ErrorCode = &code
@@ -110,10 +118,10 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 			params.Disposition = auditstore.CollectionContractInvalid
 			return commit("collection-contract-invalid", false, nil)
 		}
-		run, readErr := i.runs.GetRun(ctx, *execution.RunID)
-		if readErr != nil {
-			return false, readErr
+		if partials.run == nil {
+			return false, fmt.Errorf("%w: missing terminal Run", ErrPermanent)
 		}
+		run := *partials.run
 		if run.RunID != *execution.RunID || run.OwnerID != snapshot.Audit.OwnerID || run.ProjectID == nil || *run.ProjectID != snapshot.Audit.ProjectID || run.PublicationMode != runstore.PublicationAuditManaged || run.AuditExecutionID == nil || *run.AuditExecutionID != execution.ExecutionID || run.AuditSubmissionKey == nil || *run.AuditSubmissionKey != execution.SubmissionKey || run.State != runstore.RunFailed {
 			params.Disposition = auditstore.CollectionContractInvalid
 			return commit("collection-contract-invalid", false, nil)
@@ -271,7 +279,7 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 		if output.logical != "result" || *execution.TerminalOutcome != auditstore.TerminalSucceeded {
 			continue
 		}
-		data, err := i.normalizeTaskResult(ctx, snapshot.Audit, execution, pinned, tasks, *output)
+		data, err := i.normalizeTaskResult(ctx, snapshot.Audit, execution, pinned, tasks, *output, partials)
 		if errors.Is(err, ErrPermanent) {
 			params.Disposition = auditstore.CollectionInvalidResult
 			params.SourceOutput = sourceOutput
@@ -389,7 +397,7 @@ func permanentTaskCollectionError(err error) bool {
 	return errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, blob.ErrIntegrity) || errors.Is(err, blob.ErrMissing) || artifacts.IsExactReferenceRejection(err) || artifactpostgres.IsExactRevisionMissing(err) || errors.As(err, &classified) && (classified.ErrorKind() == apierror.InvalidRequest || classified.ErrorKind() == apierror.AuditDocumentInvalid)
 }
 
-func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Audit, execution auditstore.Execution, pinned auditprofile.PinnedProgram, tasks []auditstore.Task, output taskOutput) ([]byte, error) {
+func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Audit, execution auditstore.Execution, pinned auditprofile.PinnedProgram, tasks []auditstore.Task, output taskOutput, partials partialTaskResults) ([]byte, error) {
 	invalid := func() ([]byte, error) { return nil, fmt.Errorf("%w: invalid common Task result", ErrPermanent) }
 	if output.source.MediaType != "application/json" || output.source.SizeBytes > auditcontract.MaximumDocumentBytes {
 		return invalid()
@@ -421,6 +429,9 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 	}
 	_, raw, err := i.artifacts.ReadRunExact(ctx, *execution.RunID, output.source.Ref)
 	if err != nil {
+		return nil, err
+	}
+	if err := partials.verifyAcceptedFinal(tasks, raw); err != nil {
 		return nil, err
 	}
 	trusted, raw, err = i.taskFindingContext(ctx, audit.OwnerID, execution, trusted, raw)

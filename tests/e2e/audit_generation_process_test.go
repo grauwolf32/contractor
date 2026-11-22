@@ -29,7 +29,8 @@ func TestAuditHypothesisContinuationAcrossProductionProcesses(t *testing.T) {
 
 // The production browser resumes the same retained scenario through session/CSRF APIs.
 func TestAuditResearchUIAcrossProductionProcesses(t *testing.T) {
-	exerciseAuditHypothesisContinuation(t, false, true)
+	t.Run("continuation", func(t *testing.T) { exerciseAuditHypothesisContinuation(t, false, true) })
+	t.Run("interrupted", func(t *testing.T) { testAuditInterruptedRetention(t, true, true) })
 }
 
 func exerciseAuditHypothesisContinuation(t *testing.T, initial, browser bool) {
@@ -84,7 +85,7 @@ func exerciseAuditHypothesisContinuation(t *testing.T, initial, browser bool) {
 	h.restartServer()
 	current = basicAuditGet(t, h, id)
 	if browser {
-		runResearchBrowser(t, h, project.ProjectID, id)
+		runResearchBrowser(t, h, project.ProjectID, id, "continuation")
 	} else {
 		basicAuditRequest(t, h, http.MethodPost, "/v1/audits/"+id+"/resume", nil, "generation-resume", uint64(current["revision"].(float64)), http.StatusOK)
 	}

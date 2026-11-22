@@ -5,10 +5,12 @@ milestone: audit-evidence-results-2026-11
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: completed
+implementation_commit: b130d8035d33849a218a8069e4d4f0de12070e27
 depends_on:
 - V478-002
 - V478-003
+- V478-019
 languages:
 - go
 - python
@@ -69,6 +71,29 @@ context:
     semantic assessment. Server reconciliation derives interrupted presentation from retained records and terminal
     ownership even when Runtime cannot send a final message. Partial artifacts are not a successful terminal
     result package; Run failure/cancellation semantics remain authoritative.
+  implementation_boundary: >-
+    Reuse frozen Audit Artifact bindings and audit_artifact_links as natural
+    mutation receipts; do not add a journal, table or parallel result store.
+    Allocation-bound intake validates normalized conclusions against immutable
+    Task membership and explicitly accepted evidence. Runtime privately captures
+    base generations; Server serializes comparison, exact retention and receipt
+    publication under existing Run/Project/Audit fences. Retry the same frozen
+    mutation identity, never target traffic. Terminal collection selects the
+    latest accepted generation and creates system records only for assigned
+    missing judgments, using observed Run reason/source without an LLM call.
+    The ordinary result schema/read path distinguishes model and system authors;
+    normal Worker intake rejects system-authored stop records. Existing attempt
+    refs retain failed/cancelled partial results; no new attempt/retry policy.
+  stop_storage_decision: >-
+    Store system interruption metadata on the existing Task/attempt rows in the
+    terminal collection transaction. An additional frozen stop Artifact could
+    fail exactly when the selected-material budget is exhausted; owner metadata
+    must remain available then. Existing accepted judgment Artifacts remain the
+    model result. The common read contract exposes the distinct system stop
+    record, with exact already-held evidence references and observed Run reason.
+    No second journal, semantic revision, new execution state or target call is
+    introduced. Reopen this placement only if Task/attempt owner metadata gains
+    a separate storage budget that cannot retain the bounded stop record.
   sources:
   - runtime/src/contractor_runtime/toolsets/audit_results/completion.py
   - runtime/src/contractor_runtime/toolsets/audit_results/collector.py
@@ -268,6 +293,28 @@ tests:
 - command: make test-findings-e2e
   covers:
   - A4
-verification_notes: Listed commands are required implementation gates, not results of task planning. Use one
-  owned disposable PostgreSQL database, explicitly drop it after pools/processes stop, and never implicitly
-  enable CONTRACTOR_TEST_HEAVY_IO. Zero matched cases and skipped required database/process cases fail acceptance.
+verification_notes: >-
+  Accepted 2026-11-23 against implementation b130d8035d33849a218a8069e4d4f0de12070e27
+  and the separately verified V478-019 aggregate-gate prerequisite. Runtime:
+  6637 passed, 134 declared skips, including 577 required compaction cases.
+  Full listed Go packages passed with actual PostgreSQL. The private Artifact
+  handler and common contract packages passed separately. Basic process gate:
+  14 required cases, 391.884 seconds, no selected skips. Completion gate:
+  223 Go and 482 Runtime cases, no selected skips. Public API PostgreSQL race
+  gate passed. Wire gate: 407 fixtures, 466 Go and 293 Python shared readers,
+  1602 Runtime shared cases; one explicitly disabled disk-heavy case is not
+  passing coverage. Full lint passed. Findings gate: 310 Runtime cases and
+  all 25 required process cases passed on the same implementation plus the
+  bounded aggregate-budget fix. No live model or implicit heavy-I/O call.
+  Real-store regressions cover mixed supported/model-inconclusive/system-stop
+  and unassigned work, A/B correction and old replay, concurrency, exhausted
+  selected-material quota, failed/cancelled attempt reads and exact retention.
+  Actual processes cover a committed withheld acknowledgement, Runtime death,
+  Server restart and producer Run purge without additional target/model calls.
+  Logs: /tmp/v478-004-runtime-final.log, /tmp/v478-004-go-final3.log,
+  /tmp/v478-004-basic-final2.log, /tmp/v478-004-completion-final3.log,
+  /tmp/v478-004-wire-final3.log, /tmp/v478-004-api-final.log,
+  /tmp/v478-004-lint-final2.log, /tmp/v478-019-findings-final.log.
+  Earlier overloaded PostgreSQL/shared-lock and stale-source report failures
+  are superseded by the listed stable successful reruns. Owned test resources
+  remain in this continuous implementation lane until V478-005 finishes.

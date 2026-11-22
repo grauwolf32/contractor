@@ -156,17 +156,21 @@ class SealedAuditSnapshot(AuditSnapshot):
 
 @dataclass(frozen=True, slots=True)
 class AuditRecordReceipt:
-    """Local acceptance only; this is neither an artifact nor importer acceptance."""
+    """Acknowledged Audit ownership; all-item completion and Run outcome are separate."""
 
     owner: AuditInvocationOwner
     revisions: tuple[tuple[str, int], ...]
     missing_item_keys: tuple[str, ...]
     status: Literal["recorded"] = "recorded"
+    materials: tuple[bytes, ...] = field(default=(), repr=False)
 
     def __post_init__(self):
         if not isinstance(self.owner, AuditInvocationOwner) or self.status != "recorded":
             raise ValueError("invalid Audit collection receipt")
         _tuple(self.revisions, MAX_ITEMS)
+        _tuple(self.materials, MAX_ITEMS)
+        if any(not isinstance(value, bytes) for value in self.materials):
+            raise ValueError("Audit receipts require exact retained materials")
         _tuple(self.missing_item_keys, MAX_ITEMS)
         for pair in self.revisions:
             if (

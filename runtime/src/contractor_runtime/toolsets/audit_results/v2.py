@@ -1,6 +1,7 @@
 """audit-results@2: bounded judgments recorded in the active invocation."""
 
 import asyncio
+import json
 import time
 from collections.abc import Callable
 from functools import partial
@@ -172,8 +173,8 @@ class SubmitResultTool:
     in this call. Conditions and sources come from earlier accepted evidence.
 
     Returns:
-        Local revisions, missing item keys, completeness and any normalization notice.
-        Runtime publishes the accepted conclusions after Worker completion.
+        Server acceptance, saved materials, completeness and correction metadata.
+        Runtime separately publishes the complete result after Worker completion.
     """
 
     @property
@@ -227,6 +228,8 @@ class SubmitResultTool:
                 "totalCount": receipt.total_count,
                 "missingItemKeys": list(receipt.missing_item_keys),
                 "complete": receipt.complete,
+                "persistence": "accepted",
+                "materials": [json.loads(value) for value in receipt.materials],
             }
             notices.attach(result)
         except (AuditCollectionError, AuditArgumentError) as error:
@@ -262,8 +265,7 @@ class SubmitResultsTool(SubmitResultTool):
             accepted evidence; do not send a final evidence inventory.
 
     Returns:
-        Local revisions in assignment order, missing keys, completeness and any
-        normalization notice.
+        Server acceptance and completion metadata in assignment order.
     """
 
     async def __call__(

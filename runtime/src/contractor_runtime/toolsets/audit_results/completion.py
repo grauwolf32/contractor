@@ -7,6 +7,7 @@ from functools import partial
 
 from contractor_runtime import threads
 from contractor_runtime.artifacts import ArtifactValue
+from contractor_runtime.audit_judgments import AuditJudgmentClient
 from contractor_runtime.contracts import (
     AUDIT_COMPLETION_TOOLS,
     ArtifactRef,
@@ -145,7 +146,9 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
         inputs = replace(
             self._inputs, owner=replace(self._inputs.owner, invocation_id=invocation_id)
         )
-        self._collector = InvocationAuditCollector(inputs, self._encoder)
+        self._collector = InvocationAuditCollector(
+            inputs, self._encoder, persist=AuditJudgmentClient(self._client, self._encoder, inputs)
+        )
         self._reminders = 0
         self.reset_diagnostics()
 

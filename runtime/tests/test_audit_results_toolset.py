@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 import pytest
 from audit_fixtures import accept_fixture_sources, arguments, assigned
+from fakes.audit_judgments import JudgmentTransport
 from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 from google.genai import types
@@ -29,8 +30,9 @@ def contract():
 class ExactClient:
     allocation_id = "allocation-1"
 
-    def __init__(self, data):
-        self.data = data
+    def __init__(self, inputs):
+        self.data = inputs.context
+        self.transport = JudgmentTransport(inputs)
         self.reads = []
 
     async def read_artifact(self, ref, *, max_bytes):
@@ -44,7 +46,7 @@ def test_adk_schema_exposes_only_judgment_and_selected_evidence():
     async def scenario():
         _, inputs = assigned()
         state = WorkerState()
-        client = ExactClient(inputs.context)
+        client = ExactClient(inputs)
         settings = type("Settings", (), {"request_timeout_seconds": 10})()
         tools = await AuditResultsToolsetFactory(lambda *_: client).create_selected(
             selected=["read_audit_task", "submit_result", "submit_results", "evidence"],
@@ -104,7 +106,7 @@ def test_adk_schema_exposes_only_judgment_and_selected_evidence():
 def test_preparation_rejects_nonexact_or_malformed_context_before_model(change):
     async def scenario():
         _, inputs = assigned()
-        client = ExactClient(inputs.context)
+        client = ExactClient(inputs)
         original = client.read_artifact
 
         async def read(ref, *, max_bytes):

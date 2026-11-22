@@ -213,11 +213,13 @@ export function taskStatus(task: ResearchTask): {
   label: string;
   tone: StatusTone;
 } {
-  return task.gap_code
-    ? { label: "Technical gap", tone: "warning" }
-    : task.state === "settled"
-      ? { label: "Collected", tone: "info" }
-      : task.state === "selected"
-        ? { label: "Run selected", tone: "progress" }
-        : { label: "Accepted", tone: "idle" };
+  return task.stop
+    ? { label: "No accepted conclusion", tone: "warning" }
+    : task.gap_code
+      ? { label: "Technical gap", tone: "warning" }
+      : task.state === "settled"
+        ? { label: "Collected", tone: "info" }
+        : task.state === "selected"
+          ? { label: "Run selected", tone: "progress" }
+          : { label: "Accepted", tone: "idle" };
 }

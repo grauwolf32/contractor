@@ -146,7 +146,7 @@ func (s *Service) RecordEvidence(ctx context.Context, grant controlplane.Allocat
 		if err != nil {
 			return err
 		}
-		if err := owners.AdmitEvidenceCollection(ctx, audit.AuditID, "evidence/"+*run.AuditExecutionID+"/", len(input.Sources), int64(len(data))+bytes); err != nil {
+		if err := owners.AdmitEvidenceCollection(ctx, audit.AuditID, *run.AuditExecutionID, len(input.Sources), int64(len(data))+bytes); err != nil {
 			return err
 		}
 		payload := artifacts.Payload{MediaType: "application/json", Data: data}

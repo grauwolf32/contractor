@@ -1146,3 +1146,11 @@ original key/body/revision.
 - A separate analyst role or second approval system (REV-R54).
 - Formal Audit approval requests (ACT-R9) and historical `text/plain` report summaries
   (REV-R75).
+
+**REV-R204.** Existing Task, attempt, material and result readers distinguish
+an acknowledged model judgment from ACT-R19 system interruption and ordinary
+technical Run outcome. System inconclusive means no accepted conclusion, not a
+model assessment of evidence sufficiency. Unknown activity/progress stays
+unknown; absence of a note is not proof that work never began. Model limitations
+and explicit source interpretations keep their attribution. Incidental Findings
+remain independently visible and neither replace nor settle the assigned check.
