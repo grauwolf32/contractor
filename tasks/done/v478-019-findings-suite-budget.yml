@@ -1,0 +1,55 @@
+schema_version: '1.0'
+id: V478-019
+title: Bound the complete Findings process suite without truncating its last case
+milestone: audit-evidence-results-2026-11
+epic: quality
+kind: defect
+introduced_by: V43-005
+priority: P2
+status: completed
+implementation_commit: 92e8dfa62ff9940547051790644ea0c38a8c6c0d
+depends_on: [V478-017]
+languages: [python]
+goal: The complete mandatory Findings process suite can finish under one bounded aggregate deadline while every individual harness keeps its own deadline.
+context:
+  authority: 'Implementation follow-up 2026-11-23 to the user-assigned V478 package and requested lease investigation; no production timeout or model change.'
+  finding: >-
+    scripts/test-findings-e2e.py:162 still applies the original ten-minute
+    package budget to fifteen process roots. The 2026-11-22/23 full run passed
+    the preceding cases, including both simultaneous Servers, but Go killed
+    TestTraceFindingCoordinatesAcrossProcesses twelve seconds after it started
+    when the aggregate reached 600 seconds. The current collection includes
+    V478-017 isolation regressions in addition to the original suite.
+  siblings: >-
+    This is the single aggregate command of test-findings-e2e. Individual
+    Findings harnesses retain four-minute deadlines, and their browser mode
+    retains eight minutes. Other process family gates have independent bounds
+    and are not changed by this task.
+  decision: >-
+    Increase only the aggregate package timeout to fifteen minutes. Keep every
+    mandatory case and skip/failure verifier. Do not replace the lease fix with
+    a longer individual wait or relax any production deadline.
+scope:
+  in: [Increase the aggregate Findings package timeout and execute the complete real-process gate.]
+  out: [Production lease or timeout changes, live models, demo data, removal of required cases.]
+acceptance_criteria:
+- id: A1
+  text: The mandatory Runtime cases and all required real Server/Runtime/PostgreSQL process cases finish and pass without skipped selected cases.
+- id: A2
+  text: The aggregate remains bounded at fifteen minutes; per-harness deadlines, case inventory and false-green report verification remain unchanged.
+tests:
+- command: make test-findings-e2e
+  covers: [A1, A2]
+- command: uv run --project runtime --locked python -m unittest discover -s scripts -p test_release_test_reports.py
+  covers: [A2]
+- command: uv run --project runtime --locked python scripts/check_tasks.py
+  covers: [A2]
+verification_notes: >-
+  Accepted 2026-11-23. make test-findings-e2e passed: 310 Runtime
+  cases and all 25 required process cases, including both independent
+  Servers, in 586.531 seconds of process execution. The previous loaded
+  run stopped its final case at the 600-second aggregate bound; individual
+  harness deadlines and mandatory case verification are unchanged.
+  The 21 report-verifier unit tests and task checker passed.
+  Logs: /tmp/v478-019-findings-final.log, /tmp/v478-019-report-tests.log.
+  No live model, deployment or production timeout change.
