@@ -1061,5 +1061,3 @@ its owning requirement.
 
 | `LIM-PLN-21` | 4096 exact refs | Latest accepted material refs across logical Workers per Planner invocation | modeled Planner finish adapter | [PLN-R134](../execution/planners.md) |
 | `LIM-PLN-22` | 4 MiB encoded metadata | Latest accepted material refs across logical Workers per Planner invocation | modeled Planner finish adapter | [PLN-R134](../execution/planners.md) |
-
-

@@ -19,6 +19,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 )
 
 // The Server commits while its reply is withheld. Runtime dies before it can
@@ -47,6 +48,9 @@ func testAuditInterruptedRetention(t *testing.T, withJudgment, browser bool) {
 	t.Cleanup(func() { releaseOnce.Do(func() { close(release) }) })
 	stage := basicConclusionStage(false)
 	stage.tools = append(stage.tools, "http_request")
+	if browser {
+		stage.tools = append(stage.tools, "open_source_archive", "read_source")
+	}
 	stage.steps = stage.steps[:2]
 	for _, path := range []string{"/control", "/test"} {
 		stage.steps = append(stage.steps, toolGatewayStep("http_request", fixedArguments(map[string]any{
@@ -76,8 +80,31 @@ func testAuditInterruptedRetention(t *testing.T, withJudgment, browser bool) {
 	stage.steps = append(stage.steps, recordSources(0))
 	if withJudgment {
 		stage.steps = append(stage.steps, recordSources(1))
+		if browser {
+			stage.steps = append(stage.steps,
+				toolGatewayStep("open_source_archive", fixedArguments(map[string]any{"namespace": "inputs", "name": "source"})),
+				toolGatewayStep("read_source", fixedArguments(map[string]any{"path": "app.py", "start_line": 1, "max_lines": 100})),
+				toolGatewayStep("finding", func(request map[string]any) (map[string]any, error) {
+					exchanges := findingsToolResponses(request, "http_request")
+					notes := findingsToolResponses(request, "evidence")
+					if len(exchanges) != 2 || len(notes) != 2 || notes[0]["persistence"] != "accepted" {
+						return nil, fmt.Errorf("mixed sources were not captured and retained")
+					}
+					selected, ok := notes[0]["sourceSelectors"].([]any)
+					if !ok || len(selected) != 3 {
+						return nil, fmt.Errorf("missing reusable exact source selectors")
+					}
+					return map[string]any{"title": "Incidental query concatenation observation", "description": findingsEvidence + " The local HTTP response supplies observation context only; it does not prove exploitation.", "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 10}, "cwe": "CWE-89", "incidental": true, "sources": []any{map[string]any{"kind": "code", "file": "app.py", "start_line": 4, "end_line": 10}, map[string]any{"kind": "http", "request_id": exchanges[0]["request_id"]}, selected[0]}}, nil
+				}))
+		}
 		for _, text := range []string{"Preliminary fixture judgment A", "Latest accepted correction B"} {
 			stage.steps = append(stage.steps, toolGatewayStep("submit_result", func(request map[string]any) (map[string]any, error) {
+				if browser {
+					published := findingsToolResponses(request, "finding")
+					if len(published) != 1 || published[0]["finding_id"] == nil {
+						return nil, fmt.Errorf("incidental Finding was not acknowledged: %v", published)
+					}
+				}
 				keys, err := assignedAuditKeys(request)
 				if err != nil || len(keys) != 2 {
 					return nil, fmt.Errorf("expected two assigned hypotheses: %v", err)
@@ -88,7 +115,11 @@ func testAuditInterruptedRetention(t *testing.T, withJudgment, browser bool) {
 	}
 	h := startFindingsHarnessForBrowser(t, []domainGatewayStage{stage}, browser, func(root string) {
 		installBasicAuditProgram(t, root)
-		if err := os.WriteFile(filepath.Join(root, "agent-templates/basic_check.yaml"), []byte(strings.Replace(basicCheckTemplate, "  sandboxProfile:", "    - {ref: http-tools@1, tools: [http_request]}\n  sandboxProfile:", 1)), 0600); err != nil {
+		template := strings.Replace(basicCheckTemplate, "  sandboxProfile:", "    - {ref: http-tools@1, tools: [http_request]}\n  sandboxProfile:", 1)
+		if browser {
+			template = strings.Replace(template, "  sandboxProfile:", "    - {ref: source-analysis@1, tools: [open_source_archive, read_source]}\n  sandboxProfile:", 1)
+		}
+		if err := os.WriteFile(filepath.Join(root, "agent-templates/basic_check.yaml"), []byte(template), 0600); err != nil {
 			t.Fatal(err)
 		}
 		program := replaceAuditFixture(t, basicSeededProcessProgram(t), "  inputs:\n", "  inputs:\n    engagement: {required: true, media_types: [application/vnd.contractor.engagement+json]}\n")
@@ -345,6 +376,14 @@ waitForAcceptance:
 		}
 	}
 	readRetained(false)
+	var incidental findingintake.Receipt
+	if browser {
+		receipts := findingsReceipts(t, h, runID)
+		if len(receipts) != 1 || receipts[0].FindingID == nil || receipts[0].Origin.Audit == nil || receipts[0].Origin.Audit.AuditID != id || receipts[0].Origin.Audit.TaskID != "" || receipts[0].Origin.Audit.Hypothesis != nil || len(receipts[0].ProjectEvidence) != 4 {
+			t.Fatalf("incidental mixed-source Finding was lost or acquired a hypothesis: %+v", receipts)
+		}
+		incidental = receipts[0]
+	}
 	if withJudgment {
 		var run struct {
 			State string `json:"state"`
@@ -360,6 +399,20 @@ waitForAcceptance:
 	foundHTTP = map[string]bool{}
 	readRetained(true)
 	if browser {
+		var saved findingintake.Receipt
+		auditProgramGET(t, h.client, h.baseURL+"/v1/projects/"+project.ProjectID+"/finding-sources/"+incidental.ReceiptID, &saved)
+		if saved.FindingID == nil || *saved.FindingID != *incidental.FindingID || !saved.Origin.RunDeleted || saved.Origin.Audit == nil || saved.Origin.Audit.Hypothesis != nil || saved.Origin.Audit.TaskID != "" || len(saved.ProjectEvidence) != 4 {
+			t.Fatalf("producer purge changed incidental provenance: %+v", saved)
+		}
+		for _, source := range saved.ProjectEvidence {
+			if source.Ref.Revision == nil {
+				t.Fatal("Finding source is not exact")
+			}
+			data, _ := download(t, h.client, h.baseURL+"/v1/projects/"+project.ProjectID+"/artifacts/"+source.Ref.Namespace+"/"+source.Ref.Name+"?revision="+url.QueryEscape(*source.Ref.Revision))
+			if auditdomain.DigestBytes(data) != source.Digest || int64(len(data)) != source.SizeBytes {
+				t.Fatal("retained mixed Finding source bytes changed")
+			}
+		}
 		runResearchBrowser(t, h, project.ProjectID, id, "interrupted")
 	}
 	if requests.Load() != 2 || len(h.gateway.Failures()) != 0 {
