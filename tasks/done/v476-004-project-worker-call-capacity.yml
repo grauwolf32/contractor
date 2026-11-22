@@ -5,7 +5,7 @@ milestone: model-runtime-guidance-2026-11
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V476-001
 - V476-003
@@ -146,3 +146,10 @@ tests:
 verification_policy: Add test_worker_guidance.py with actual Runner request capture and the shared fixture
   reader. Reuse passing V476-003 evidence only where source and dependency inputs remain unchanged; rerun affected
   Worker tests after callback integration. Full Runtime and unrelated suites are not required.
+implementation_commit: ff9a268596e99894a8543c1eb2cdeec82b3cb71f
+verification:
+  date: '2026-11-22'
+  result: 426 affected Worker cases passed in 59.22s, including ordinary/Audit compaction, native image rereading,
+    finalizer, summarizer, strict arguments and repeat control. The final guidance-only file adds terminal@1
+    coverage (5 passed); all production inputs are unchanged. Ruff, four import contracts and specs passed.
+    No full suite.
