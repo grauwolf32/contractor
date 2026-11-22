@@ -32,7 +32,8 @@ class EvidenceTool(ArtifactTool):
     Inspect persistence=accepted before considering this evidence durable. This does
     not publish a problem Finding or settle an item. A collection is bounded to
     256 annotation/source occurrences and 8 MiB with reserved result/stop space.
-    On a limit or unknown receipt, report the persistence gap; do not repeat traffic. Publish evidenced problems,
+    On a limit or unknown receipt, report the persistence gap; do not repeat traffic.
+    Publish evidenced problems,
     including incidental ones, through finding before final result submission.
 
     Args:

@@ -596,7 +596,7 @@ func ordinaryFindingsProducerStage(name string) domainGatewayStage {
 	for _, tool := range stage.tools {
 		if tool != "read_audit_task" && tool != "submit_check_result" && tool != "submit_check_results" &&
 			tool != "annotate_trace" && tool != "annotate_validate" && tool != "annotate_sink" &&
-			tool != "changed_paths" && tool != "diff" && tool != "rollback_changes" {
+			tool != "changed_paths" && tool != "diff" && tool != "rollback_changes" && tool != "evidence" {
 			tools = append(tools, tool)
 		}
 	}
