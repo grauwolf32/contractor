@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-69 open tasks: 12 in progress, 44 pending, 13 deferred. 1671 finished: 1653 completed, 18 archived.
+69 open tasks: 13 in progress, 43 pending, 13 deferred. 1671 finished: 1653 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V478-004](v478-004-audit-partial-stop-results.yml) | audits | feature | P1 | Preserve partial Audit results without inventing coverage at stop |
 | [V478-017](v478-017-process-database-siblings.yml) | execution-core | defect | P1 | Share database isolation across every process Server harness |
 | [V478-018](v478-018-process-contract-callers.yml) | audits | defect | P1 | Align browser and offline Workflow fixtures with current tool contracts |
 
@@ -81,7 +82,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V478-005, V411-015, V411-014 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | — | Drive the cumulative 64 MiB machine report check to its rejection in a test |
 | [V469-004](v469-004-opencode-audit-workflow.yml) | feature | P1 | V469-003 | Ship the minimal OpenCode Audit workflow and environment view |
-| [V478-004](v478-004-audit-partial-stop-results.yml) | feature | P1 | — | Preserve partial Audit results without inventing coverage at stop |
 | [V478-005](v478-005-audit-results-acceptance.yml) | feature | P1 | V478-004 | Expose honest Audit results and gate partial-result lifecycle |
 
 ### Evaluations (`evals`)
