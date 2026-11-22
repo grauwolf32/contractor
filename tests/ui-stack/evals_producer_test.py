@@ -117,6 +117,7 @@ def check(producer, root):
         accepted.append(
             {
                 **outcome,
+                "author": "model",
                 "evidence": outcome["evidence"],
                 "origin": {
                     "audit_id": "audit-1",

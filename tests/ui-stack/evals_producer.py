@@ -494,6 +494,7 @@ def audit_task_evidence(client, parent, inventory):
             assert read_material(material) == source_bytes
         normalized[item["item_key"]] = {
             **outcome,
+            "author": "model",
             "origin": origin,
             "evidence": outcome["evidence"],
         }
