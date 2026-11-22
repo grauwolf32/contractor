@@ -51,4 +51,4 @@ tests:
 - command: make lint
   covers: [A1, A2, A3]
 
-verification_results: "Actual two-Server/Runtime regression and database cleanup pass (27.337s); the same test rejects the original schema-only helper. Full internal/app package passes (15.807s), lease integration passes under race (4.270s), and make lint passes. Full Findings gate is additionally running on the immutable implementation in its own worktree."
+verification_results: "Actual two-Server/Runtime regression and database cleanup pass (27.337s); the same test rejects the original schema-only helper. Full internal/app package passes (15.807s), lease integration passes under race (4.270s), and make lint passes. Full make test-findings-e2e also passes: 25 required process cases and 310 Runtime contracts, with no required process skips (572.964s). The isolated lane database and harness-owned databases are removed."
