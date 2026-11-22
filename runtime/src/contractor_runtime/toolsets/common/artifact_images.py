@@ -26,6 +26,7 @@ class ImageInputBudget:
     count: int = 0
     size: int = 0
     pending: int = 0
+    generation: int = 0
     decode_lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
 
     def reserve(self, size: int) -> ImageReservation:
@@ -42,7 +43,10 @@ class ImageInputBudget:
     def reconcile(self, contents: Sequence[types.Content]) -> None:
         if self.pending:
             raise RuntimeError("image reads have not joined before the model request")
-        self.count, self.size = image_context_size(contents)
+        count, size = image_context_size(contents)
+        if count < self.count or size < self.size:
+            self.generation += 1
+        self.count, self.size = count, size
 
 
 @dataclass(slots=True)

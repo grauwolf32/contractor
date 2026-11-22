@@ -831,3 +831,8 @@ Assembled from every document.
 | `interactsh_response_too_large` | — | no | Callback response exceeds its byte bound | [Interactsh](../tools/interactsh.md) |
 
 <!-- /registry-table -->
+
+`tool_repeat_limit` is a model-facing nonretryable tool-result rejection before
+callable execution, not a Worker stop or HTTP API error. It remains in ordinary
+history/budget/metrics; another action or a committed checkpoint permits progress
+([WRK-R202](../execution/worker.md)).

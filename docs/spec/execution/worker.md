@@ -2129,3 +2129,14 @@ current request, includes parallel reads in flight and releases failed/cancelled
 reservations. Limit exhaustion returns a bounded tool error; it does not drop a
 current image. A custom session backend that cannot release attachments is refused
 for image compaction. Ordinary session finalization releases all native parts.
+
+**WRK-R202.** The separate repeat plugin runs after instrumentation admission
+and raw argument validation. It reserves successful/in-flight calls atomically
+without I/O, and settles through the instrumentation owner even when ADK
+short-circuits on an error. Failed reads release reservations; old-series
+settlements cannot modify new series. Excess calls return `tool_repeat_limit`
+(nonretryable for the unchanged action), consume normal tool capacity and are
+retained as failed calls in history/metrics exactly once. The Worker continues
+under ordinary budgets. State is one current series and already-admitted
+in-flight reservations, cleared at logical invocation boundaries and committed
+checkpoints, never failed compaction or SDK turns. No argument history is kept.

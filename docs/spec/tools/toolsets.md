@@ -448,3 +448,11 @@ operations of `likec4@1` but omit `validate_likec4` when only that operation
 depends on the executable. A template that selects `validate_likec4` cannot be
 placed there, while a template selecting only the advertised editing operations
 can ([Control Plane](../execution/control-plane.md)).
+
+**TLS-R40.** A selected callable may declare a private repeat rule: equivalence
+key, allowed consecutive successful/in-flight calls and safe repair text.
+Tools own resource interpretation and rule text; a separate Worker ADK plugin
+owns bounded series admission. No rule means no suppression. Another call
+(including a raw-validation rejection) breaks a series. Function-call IDs and
+SDK turn changes do not. Domain receipts and transport retries remain owned
+by their existing components; this is not mutation idempotency or result replay.

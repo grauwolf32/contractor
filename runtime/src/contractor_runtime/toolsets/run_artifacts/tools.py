@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -67,10 +68,12 @@ from contractor_runtime.toolsets.common.artifacts import (
     _unconfigured_client,
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.repeats import RepeatRule
 from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.common.tool_base import ArtifactTool
 from contractor_runtime.workspace import AllocationWorkspace
 
+MAX_CONSECUTIVE_EXACT_READS = 2
 MAX_TEXT_READ_LINES = 400
 DEFAULT_TEXT_READ_LINES = 200
 MAX_VISIBLE_TEXT_BYTES = 128 * 1024
@@ -184,6 +187,10 @@ class ReadArtifactTool(ArtifactTool):
     Image attachments are transient: after history recovery or compaction, read the
     exact revision again when the image itself is needed.
 
+    At most {MAX_CONSECUTIVE_EXACT_READS} consecutive successful reads of the same explicit
+    revision/window are allowed; further identical calls are refused. Another tool/window
+    or a committed context checkpoint starts a new series. Failed reads may be retried.
+
     Text output is limited to 128 KiB; inspect truncated and partialLine before treating
     the window as complete. Page with nextStartLine and nextLineOffset: a line
     longer than the output limit is returned in parts, continued by passing
@@ -218,6 +225,39 @@ class ReadArtifactTool(ArtifactTool):
         super().__init__(client, metrics, secrets)
         self._cache = cache or ExactArtifactReadCache()
         self._images = images or ImageInputBudget()
+
+    def contractor_repeat_rule(self, arguments: Mapping[str, Any]) -> RepeatRule | None:
+        revision = arguments.get("revision")
+        if not isinstance(revision, str) or not revision.strip():
+            return None
+        namespace, name = arguments.get("namespace"), arguments.get("name")
+        start = arguments.get("start_line", 1)
+        lines = arguments.get("max_lines", DEFAULT_TEXT_READ_LINES)
+        offset = arguments.get("line_offset", 0)
+        if (
+            not _matches(ARTIFACT_NAME_PATTERN, namespace)
+            or not _matches(ARTIFACT_NAME_PATTERN, name)
+            or any(type(value) is not int for value in (start, lines, offset))
+            or start < 1
+            or not 1 <= lines <= MAX_TEXT_READ_LINES
+            or offset < 0
+        ):
+            return None
+        return RepeatRule(
+            (
+                namespace,
+                name,
+                hashlib.sha256(revision.encode()).hexdigest(),
+                start,
+                lines,
+                offset,
+                self._images.generation,
+            ),
+            MAX_CONSECUTIVE_EXACT_READS,
+            "This exact artifact window was already read consecutively. Reuse its result or "
+            "continue with nextStartLine/nextLineOffset. "
+            "After a context checkpoint, reread if needed.",
+        )
 
     async def close(self) -> None:
         await self._cache.clear()

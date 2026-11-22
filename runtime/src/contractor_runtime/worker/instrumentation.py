@@ -146,8 +146,12 @@ class WorkerInstrumentationPlugin(BasePlugin):
         completion_ready: Callable[[], Awaitable[bool]] | None = None,
         clock: Callable[[], float] = time.monotonic,
         compactor_model_alias: str | None = None,
+        tool_rejected: Callable[[], None] | None = None,
+        tool_settled: Callable[[Any, bool], None] | None = None,
     ) -> None:
         super().__init__(name="contractor_worker_instrumentation")
+        self._tool_rejected = tool_rejected
+        self._tool_settled = tool_settled
         self._state = state
         self._execution = execution
         self._metrics: MetricsState = state.metrics
@@ -678,6 +682,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     break
             if rejection is not None:
                 pending.error = rejection
+                if self._tool_rejected is not None:
+                    self._tool_rejected()
             await self._publish_locked(tool_context)
             return _safe_tool_response(pending.name, rejection) if rejection is not None else None
 
@@ -705,6 +711,15 @@ class WorkerInstrumentationPlugin(BasePlugin):
             async with self._lock:
                 self._settling_tools.discard(id(tool_context))
                 failed = pending.error is not None or _result_is_failure(result)
+                if pending.error is None and isinstance(result, dict):
+                    detail = result.get("error")
+                    if isinstance(detail, dict) and isinstance(detail.get("code"), str):
+                        pending.error = _RecordedToolFailure(
+                            detail["code"]
+                            if SAFE_ERROR_CODE.fullmatch(detail["code"])
+                            else "tool_failed",
+                            retryable=bool(detail.get("retryable")),
+                        )
                 if pending.known:
                     capture_span_content(
                         pending.span, output=lambda: image_result_metadata(result, replay=False)
@@ -937,6 +952,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
     ) -> None:
         failed = self._record_tool_metric_locked(pending, failed=failed, error=error) or failed
         self._require_reducer().record_tool_call(pending.name, failed=failed)
+        if self._tool_settled is not None and callback_context is not None:
+            self._tool_settled(callback_context, failed)
         if not failed and pending.observation_cursor is not None:
             try:
                 self._observe_artifacts(pending.owner, pending.observation_cursor)

@@ -99,6 +99,7 @@ from contractor_runtime.worker.prompts import (
     _summarizer_secrets,
     _task_prompt,
 )
+from contractor_runtime.worker.repeats import ToolRepeatPlugin
 from contractor_runtime.worker.sessions import (
     WorkerSessionLifecycle,
     WorkerSessionLifecycleError,
@@ -196,7 +197,10 @@ class AdkWorkerRuntime:
                     metrics=self._metrics,
                 )
             )
+        self._repeats = ToolRepeatPlugin()
         self._plugin = WorkerInstrumentationPlugin(
+            tool_rejected=self._repeats.interrupt,
+            tool_settled=self._repeats.settled,
             response_recovery=context.response_recovery == "document@1",
             state=self._worker_state,
             compactor_model_alias=(
@@ -255,7 +259,7 @@ class AdkWorkerRuntime:
         self._app = App(
             name=self._app_name,
             root_agent=self._agent,
-            plugins=[self._plugin],
+            plugins=[self._plugin, self._repeats],
         )
         self._runner = Runner(
             app=self._app,
@@ -426,6 +430,7 @@ class AdkWorkerRuntime:
         )
         try:
             budget.start()
+            self._repeats.reset()
             if self._completion is not None:
                 self._completion.reset_diagnostics()
             self._plugin.prepare_invocation(
@@ -499,6 +504,7 @@ class AdkWorkerRuntime:
             self._metrics.record_outcome("failed")
             invocation_phase = "failed"
         finally:
+            self._repeats.reset()
             self._resources.invocation_artifacts = MappingProxyType({})
             try:
                 if self._completion is not None and invocation_phase != "succeeded":
@@ -997,6 +1003,7 @@ class AdkWorkerRuntime:
             self._admit_semantic_work()
             if self._invocation.budget is not None:
                 self._invocation.budget.commit_call_checkpoint(compaction.generation)
+            self._repeats.reset()
             outcome, cause = "succeeded", ""
         except BaseException as error:
             primary_error = error
