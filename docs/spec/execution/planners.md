@@ -1320,3 +1320,14 @@ effects. The ordinary finish validator, session receipt and candidate publicatio
 own acceptance. Budget and deadline exhaustion, session failure, filtering,
 unknown finish metadata and malformed responses retain their classifications.
 The model-free passthrough strategy never calls a Planner model.
+
+**PLN-R133.** Before every admitted main request, both modeled Planners project
+one current factual block after context compaction and before input telemetry.
+It shows plan revision/status counts/current ID and status, used/max/free plan
+slots, additional model calls after this admission and remaining Worker calls.
+The existing successful-finish predicate supplies the plan blocker; absence of
+that blocker promises no artifact-validation success. This projection does no
+artifact reads, does not alter limits or recovery, and carries no task text,
+token/time countdown or raw SDK State. It is request-only (LIM-WRK-39), never a
+session event or compactor input. Repeated preparation replaces only its own
+object. Counters come from their existing owners; no parallel store is added.
