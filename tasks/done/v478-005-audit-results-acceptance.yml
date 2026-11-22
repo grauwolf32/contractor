@@ -1,0 +1,367 @@
+schema_version: '1.0'
+id: V478-005
+title: Expose honest Audit results and gate partial-result lifecycle
+milestone: audit-evidence-results-2026-11
+epic: audits
+kind: feature
+priority: P1
+status: completed
+implementation_commit: 44a29331cb04cea6697aa8a9b2f011288cc16dc7
+depends_on:
+- V478-001
+- V478-002
+- V478-003
+- V478-004
+- V479-007
+languages:
+- go
+- python
+- typescript
+- css
+- json
+- markdown
+goal: Users can inspect existing Audit assignments, attributed conclusions, selected evidence, findings and
+  unresolved work after normal completion or interruption, with real-process evidence of integrated behavior.
+demonstration: 'The ordinary Audit Task/result views show existing tasks after a limit: an accepted conclusive
+  judgment, a model inconclusive, a system interruption with retained evidence and a pending task with no recorded
+  activity. The same facts remain readable after permitted Run deletion, without requiring a new plan or deriving
+  coverage from activity counts.'
+context:
+  authority: 'User request 2026-11-22: prepare tasks for a concrete Audit check plan, evidence collected during
+    work, a thin result submission tool, and partial results on interruption without invented coverage conclusions.
+    The user corrected the assumption that limits reveal completed/remaining semantic steps: execution facts
+    do not establish semantic coverage. The user proposed submit_result and explicitly requested joint review
+    and agreement before merging these tasks into main. This is planning authorization only. The decisions below supersede the initial agent proposals.
+    User review question 2026-11-22: clarify the relationship between Project facts and check-specific evidence,
+    including whether a fact may serve as evidence. The user suggests facts as reusable system knowledge and
+    evidence as specific to a hypothesis; the distinction was initially proposed for joint review. User decision
+    2026-11-22: accept the distinction between reusable Project facts, exact observations/materials, and evidence
+    selected for a specific claim. Fact summaries do not automatically verify their claims; original exact
+    sources may be explicitly reused with applicability and attribution preserved. This agreement settles that
+    distinction only, not other open task choices, implementation or merge. User decision 2026-11-22: accept
+    sources as the shared model-facing selection of code, HTTP and exact artifact materials for record_evidence,
+    finding and record_fact. Evidence is a relation to the particular check/claim; a Finding need not consume
+    an Audit evidence record or have a hypothesis. Preserve independent owners and reuse exact material bytes.
+    This does not approve unrelated pending choices or authorize implementation/merge. User decision 2026-11-22:
+    publish evidenced security problems through finding even when unrelated to the assigned hypothesis, and
+    explicitly instruct the Worker how to use evidence. Publication must precede final result submission when
+    feasible; independent discoveries keep honest incidental origin. This approves publication/evidence guidance
+    in the task plan, not a new mandatory result flag, a minimum Finding count, semantic auto-detection, implementation
+    or merge. User decision 2026-11-22 supersedes the earlier fixed-plan proposal: decide how an Audit plans
+    its work separately. For this package make a small scenario-independent instruction improvement using existing
+    assignments; no mandatory frozen check-plan document, new criterion/step contract, per-endpoint Task expansion,
+    ReAct planner tools or automatic plan generation. Future options include scenario-specific coverage instructions,
+    Worker planner tools or executor discretion; none is selected here. User decision 2026-11-22: durably retain
+    explicitly selected sources through evidence, finding and fact, with the guarantee beginning at Server
+    acknowledgement. Rename the proposed record_evidence tool to evidence and the existing record_fact tool
+    to fact; no compatibility aliases. Automatic archival of every observation is not part of this package.
+    User decision 2026-11-22 accepts review points 3 and 4: inconclusive can settle an attempt and the Audit
+    can finish with visible unresolved conclusions, without mandatory automatic repeats. When an assigned hypothesis
+    check stops without an accepted conclusion, expose a system-authored inconclusive with observed stop reason
+    and source, meaning no conclusion was accepted. Preserve existing accepted judgments, keep hypothesis-free
+    exploration without a verdict, and never turn a failed/cancelled Run into success.
+    User request 2026-11-22: review this package against updated main and reconcile affected tasks. Apply
+    the already merged V479 contracts for Runtime-owned versions and correction generations; this review
+    does not assign feature implementation or change the agreed retention/stop policy.'
+  implementation_gate: 'User assignment 2026-11-22 supersedes the planning gate: implement the full reviewed V478 package in one continuous pass. Do not deploy or launch a live Audit. Earlier review gate follows as historical context. All product review decisions recorded below are settled for the task draft. Keep tasks
+    pending: this thread is planning/review, not an implementation assignment. Do not deploy or launch an Audit.
+    The user requested review before merging the task package into main; report the reconciled package before
+    integration. Implementation must follow these task contracts; an unforeseen consequential prerequisite
+    needs its own review, not silent scope growth.'
+  baseline: Reviewed main cd2974674def375c1838b496c8f288e86989dc8a, including completed V479-001 through
+    V479-009. The earlier Invoice Lab run motivates this package; it is not a current live quality benchmark.
+  specification:
+  - docs/spec/audits/common-contract.md
+  - docs/spec/audits/worker-completion.md
+  - docs/spec/audits/execution.md
+  - docs/spec/audits/review-and-reports.md
+  - docs/spec/ui/ui.md
+  - docs/spec/ui/journeys.md
+  - docs/spec/api/public-api.md
+  - docs/testing/README.md
+  - docs/spec/findings/findings.md
+  - docs/spec/audits/hypotheses.md
+  - docs/spec/artifacts/artifact-store.md#ART-R147
+  - docs/spec/artifacts/artifact-store.md#ART-R148
+  - docs/spec/findings/findings.md#FND-R240
+  - docs/spec/audits/worker-completion.md#AWC-R48
+  boundary: Extend existing common Task/hypothesis, Runtime collector, Artifact and Audit intake owners. Source
+    adapters own observation extraction; Server owns assignment, authority, exact retention and lifecycle.
+    No alternate execution engine or coverage ledger. Update numbered owning specs and all API/wire/schema
+    readers as part of implementation; these task drafts alone do not change runtime behavior.
+  boundary_decision: Read models project accepted owner facts; UI never reconstructs a verdict from Run status
+    or request count. This milestone gates the selected evidence/result/stop path and general instructions,
+    not plan generation. V411-020 retains larger HTTP composition and V411-021 retains repeated live quality
+    measurements.
+  facts_evidence_decision: Observation/material is an exact retained source. A Project fact is a reusable attributed
+    statement about a scoped system, with its own sources and observation context; it is not universally true
+    merely because it is called a fact. Evidence is the explicit use of selected sources for an assigned check/claim
+    with a stated role and applicability. A fact may be a ground/context for a hypothesis; its exact underlying
+    sources may be reused as evidence after explicit authorized selection. A fact card or Memory summary is
+    not automatically independent evidence of its claim. Evidence may also support an exploratory observation
+    or a Finding without a hypothesis. These are semantic roles over existing owners/artifacts, not three new
+    stores.
+  sources_interface_decision: Use common sources with typed selectors for code, local HTTP request IDs
+    and artifact materials. Model artifact selectors reuse MaterialSelector (namespace/name only); assigned
+    source handles may refer to trusted input roles, never to a model-supplied revision. Reuse SelectedVersions
+    to resolve trusted inputs and successful content selections into exact internal refs; reject unknown,
+    hidden or ambiguous sources without looking up latest as a fallback. Metadata-only listings grant
+    no evidence selection. Code adapters preserve exact pinned source versus workspace capture and reject
+    unsupported mappings; HTTP adapters use actual local captures without replay. Runtime-issued cursors
+    remain exact read-continuation inputs, not replacement write/version preconditions. No universal obs_id,
+    new version registry or changes to every reader. Exact retained sources can support independent check/Finding/Fact
+    claims; shared bytes are not independent corroboration.
+  planning_boundary: Audit planning is a separate open design question. This task consumes existing assignments/hypotheses
+    when present, and also supports exploration without a hypothesis. Do not introduce a frozen-plan requirement,
+    new criterion_key/step schema or semantic coverage gate as an evidence/result prerequisite. V478-001 provides
+    only general methodology guidance.
+  collection_decision: Explicit selection only through evidence, finding and fact; acknowledged Server acceptance
+    is the durability boundary. Unselected volatile captures or unsaved thoughts may be lost at stop. Retain
+    the selected sources using existing owners and quotas; do not build an automatic observation archive.
+  presentation_decision: Use existing Audit Task/material/result views and retained snapshots for evidence,
+    conclusion authorship, stop reasons and uncertainty. No separate plan editor/dashboard or inferred application-wide
+    coverage percentage. The broader V411 report/setup tasks consume these common reads.
+  main_reconciliation_2026_11_22: V479-007 already verifies the integrated revision-free tool surface.
+    Extend its actual ADK schema guard and existing version/compaction process cases for evidence/fact/submit_result
+    and common sources, updating the expected tool inventory for the new evidence export. Keep trusted
+    internal tool@1/API preconditions distinct from model facades. V479-009 Project/Run isolation remains
+    part of source selection; no new map or cursor is an Audit retention receipt. This gate proves the
+    new durable evidence/result path while preserving the completed version work, not reimplementing it.
+  sources:
+  - runtime/tests/test_tool_version_surfaces.py
+  - runtime/tests/test_tool_versions.py
+  - runtime/tests/test_artifact_cursors.py
+  - runtime/tests/test_audit_result_collector.py
+  - tests/e2e/runtime_versions_test.go
+  - tests/e2e/audit_compaction_test.go
+scope:
+  in:
+  - Update existing public Task/material/result reads and Audit UI consumers for current assignments, exact
+    selected evidence, model/system authorship, stop reasons and unresolved judgments.
+  - Render explicit gaps in ordinary retained snapshots without a new report store or mandatory finalization
+    model.
+  - Register deterministic real Server/Runtime/PostgreSQL process cases and truthful report verification in
+    the existing release graph.
+  - Review active callers and retire superseded result assembly, names and duplicated coverage logic; maintain
+    generated API clients through their generators.
+  out:
+  - Independent HTTP setup redesign, endpoint discovery, new dashboards, global traffic accounting or automatic
+    security certification.
+  - Live-model quality claims, new demo deployment/audit, and prerequisites on optional sitemap/browser/scanner
+    integration.
+  - Mandatory frozen-plan authoring or admission, new criterion fields and planning tools.
+requirements:
+- id: R1
+  text: Display technical attempt outcome, accepted result, evidence persistence and semantic conclusion as
+    separate facts. Label system interruption as no accepted conclusion, not a model uncertainty assessment.
+- id: R2
+  text: Show known assignments and explicit unresolved judgments/limitations without inventing a denominator
+    for the whole system. Preserve existing authored-standard denominators only where already configured; no
+    new plan requirement. Record counts and system inconclusive markers never imply verified/complete-security
+    coverage.
+- id: R3
+  text: A missing activity record is displayed as no recorded activity, not proof of never executed. Model-authored
+    tested conditions/remaining-work notes retain attribution; unknown values remain unknown.
+- id: R4
+  text: Use existing pagination and bounded server aggregates, refetch terminal changes, stop settled polling
+    and show stale reads/conflicts. Validate 390px and light/dark/black themes; bump UI version for implementation
+    release.
+- id: R5
+  text: Real-process matrix covers one-result early finish, all-conclusive completion, model inconclusive,
+    hard limit, cancellation, crash, ambiguous writes, invalid membership, quota bounds, compaction and deletion.
+    Evidence contains executed case counts and no skipped database case claimed passing.
+- id: R6
+  text: Pin independent vulnerable/fixed fixture behavior outside agent-visible materials. Scripted models
+    prove plumbing and contract behavior only; do not claim they prove useful semantic judgments by small live
+    models.
+- id: R7
+  text: Reuse one owned disposable database and cleanup owned processes/resources; no global prune, implicit
+    heavy-I/O fixture enablement, live gateway calls or configured model changes.
+- id: R8
+  text: Verify that system stop records cannot satisfy the normal completion gate or convert a cancelled/failed
+    Run to success. A valid model-authored inconclusive may settle an attempt while leaving semantic coverage
+    unresolved.
+- id: R9
+  text: Existing readers distinguish Project fact/grounds, retained observation, selected check evidence and
+    attributed interpretation. Show known original source context and applicability limitations; avoid independent-verification
+    badges for Memory-derived or repeated sources. No new Facts dashboard or change to the existing informational
+    Finding correlation policy.
+- id: R10
+  text: Verify common sources across code/HTTP/artifact and independent Audit/Finding/Fact consumers. Existing
+    Findings evidence remains exact selected material; it must not be confused with a required Audit-owned
+    evidence receipt. Include mixed-source and no-hypothesis cases.
+- id: R11
+  text: Integrated acceptance includes task-related and incidental Findings recorded before final submission,
+    with code/HTTP/mixed sources and preserved exact origin after interruption. The UI shows an incidental
+    problem independently of the assigned hypothesis conclusion. Verify effective instructions and publication
+    receipts without interpreting deterministic scripted calls as proof of live-model compliance or imposing
+    a minimum finding count.
+- id: R12
+  text: The integrated actual ADK declarations have no model revision/expected_revision or replacement
+    token, including nested sources. Preserve the existing trusted-tool/API exact-reference boundary,
+    V479 same-response conflicts, scalar correction/replay, atomic batches, cursor continuation and compaction.
+    Update the registered-tool surface guard for the renamed/new exports. Show source selection, local
+    recording and acknowledged durable acceptance separately; received revision metadata does not imply
+    an Audit hold or accepted conclusion.
+failure_outcomes:
+- operation: Read/project retained Audit evidence and result facts and render a stable snapshot
+  permanent: Reject invalid membership, foreign/exact-revision mismatches, quota violations and malformed input
+    before mutation using owning classified errors. No retry of deterministic invalid input; specify any new
+    public code/status in the owning error registry and OpenAPI in the implementation.
+  retryable: Use existing bounded storage_transaction_conflict 503 and Artifact retry contracts, original receipt
+    identity and owning deadline. Never retry target traffic to recover a persistence failure.
+  ambiguous: Reconcile the same natural Artifact binding or existing keyed Audit mutation receipt. Return unknown/unconfirmed
+    persistence if reconciliation fails; do not claim durable acceptance or create another logical effect.
+  cancelled: Honor existing allocation/Run/Audit fences. Join owned I/O before cleanup; retained committed
+    records survive. Do not send additional target/model calls to repair a partial result.
+  timeout: Use existing operation and invocation deadlines; terminal persistence uses only the existing owner-authorized
+    bounded drain/reconciliation path, never an unbounded extension of model execution.
+cardinality:
+- collection: Existing assigned items and explicitly selected evidence/annotations
+  expected: One exploratory task or a small existing multi-item assignment; tens of selected sources.
+  maximum: Keep the existing 64-item assignment and Audit collection bounds of 256 selected evidence records
+    / 8 MiB encoded evidence plus conclusions; Audit maxEvidenceBytes also applies. Independent Finding/Fact
+    callers retain their existing tighter or owner-specific limits, including four selected sources for informational
+    facts.
+  bound: Bound each operation by rows and bytes, use existing paged reads, and never hydrate the whole Audit
+    in one transaction. Repeated annotations and revisions consume their owning bounds; no new frozen-plan
+    denominator is introduced.
+lifecycle:
+- entity: Task/attempt-associated exact artifacts and results under existing Run/Audit/Project ownership
+  delete: Use ordinary drained deletion and purge authorization. A held evidence artifact must remain readable
+    after permitted producer Run deletion.
+  cascade: Register any added relation/read/hold in existing ownership and purge mechanisms; no independent
+    journal, queue, receipt store or retention service.
+  retention: Only acknowledged durable records carry a persistence guarantee. Release existing Audit-owned
+    holds through the ordinary Audit/Project lifecycle; volatile or unacknowledged observations may be unavailable.
+acceptance_criteria:
+- id: A1
+  given: Normal and interrupted Audits over existing exploratory/singleton/batch assignments with attributed
+    model and system results
+  when: Users open Task/result/material views on desktop and 390px layouts
+  then: Users identify retained evidence and unresolved judgments without reading traces; no complete-security
+    or unstarted assertion is invented and no new plan setup is required.
+- id: A2
+  given: The composed real-process fault and maximum-cardinality matrix
+  when: Required gates and report verification run
+  then: Every named case executes through production owners with nonzero case counts, stable identities, bounded
+    reads, no repeated target mutations and retained evidence after source deletion.
+- id: A3
+  given: Current shipped configs, API clients, Runtime tools, report snapshots and broader V411 consumers
+  when: Integration review checks active contracts and lifecycle cleanup
+  then: New names and common result semantics agree end to end; obsolete active paths are removed, independent
+    pending tasks retain ownership and no live quality/deployment claim is made.
+- id: A4
+  given: An assigned assertion, an unrelated evidenced problem and a zero-problem control, using singleton
+    and batch contexts
+  when: The composed gate publishes through the selected finding tool before final submission and interrupts
+    another attempt after publication
+  then: Findings are real Project records with retained sources, incidental discoveries do not acquire an unrelated
+    hypothesis or close its check, the control needs no Finding, and accepted publications survive stop. Effective
+    evidence/publication guidance is present in actual prompts/tool declarations.
+- id: A5
+  given: The merged V479 version/schema guards and real material-version/compaction process cases, extended
+    with common sources and thin result tools
+  when: The composed V478 gate exercises source selection, scalar corrections and interruption after acknowledgement
+    loss
+  then: Model inputs remain revision-free while stored refs stay exact, current aliases and Project reads
+    cannot change retained Run sources, old retries cannot roll back accepted results, and private selection/local
+    recording are never displayed as durable acceptance. Existing gates have nonzero executed cases and
+    new exports appear in the actual schema inventory.
+tests:
+- command: make test-audit-basic-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-audit-completion-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A5
+- command: make test-http-caido-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-audit-research-ui
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: go test -tags=integration -count=1 ./internal/auditdomain/... ./internal/auditcontroller/... ./internal/auditimport/...
+    ./internal/auditservice/... ./internal/auditstore/... ./internal/artifacts/... ./internal/httpapi/public/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A5
+- command: make verify-public-api-postgres
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+  - A5
+- command: make ui-verify
+  covers:
+  - A1
+  - A2
+  - A3
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-findings-e2e
+  covers:
+  - A4
+- command: go test -tags=e2e -count=1 -run '^(TestRuntimeManagedMaterialVersionsAcrossProcesses|TestAuditCompactionPreservesTrustedCompletionAcrossProcesses|TestProjectFindingsReaderAcrossProcesses)$'
+    -timeout=30m ./tests/e2e
+  covers:
+  - A3
+  - A5
+verification_notes: >-
+  Accepted 2026-11-23. The ordinary UI distinguishes saved model assessments,
+  system no-accepted-conclusion records, technical outcomes and work without
+  recorded activity; prior attempt reads use the exact retained key/revision.
+  UI version is 0.11.43. Actual Server/Runtime/PostgreSQL/browser continuation
+  and interrupted scenarios passed, including an incidental mixed code/HTTP/
+  artifact Finding before stop, no false hypothesis association, unchanged Run
+  outcome, two target calls only, and retained exact source bytes after Run purge.
+  Desktop and 390px light/dark/black were executed and visually inspected.
+  All 249 mocked browser cases passed. Full UI verification passed with two
+  Vitest workers: 228 files, 2584 passes and one declared expected failure;
+  no case or timeout was relaxed. The terminal off-page refresh regression
+  exposed duplicate sibling React keys; distinct result/attempt identities fix
+  the stale empty-state DOM, with a red/green actual browser regression.
+  The three version/compaction/Project-reader process roots passed; both
+  compaction and lease-loss cases also passed, preserving original budgets.
+  Basic gate passed 14 cases, full listed Go packages used real PostgreSQL,
+  public API race gate passed nine cases, HTTP/Caido process gate and full lint
+  passed. Completed V478-004 Runtime/completion/wire and V478-019 Findings
+  gates are reused after verifying identical owning internal/runtime/api/configs
+  Git trees; counts and SHA-256 log digests are in
+  tasks/evidence/v478-005-audit-results-20261123.json.
+  Earlier transient overloaded test timeouts and superseded fixture/selector
+  failures are not accepted evidence. No live quality or complete release-verify
+  claim. All owned test processes were joined; v478_test was dropped and its
+  absence verified. The independent review lane removed its own databases;
+  the now-unused owned PostgreSQL cluster was then stopped. No other database,
+  demo data, configured model or main branch was changed.

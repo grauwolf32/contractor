@@ -28,6 +28,10 @@ class HTTPSelectionLimitError(ValueError):
     """The existing result evidence budget cannot admit the selected bytes."""
 
 
+class HTTPSelectionUnavailableError(ValueError):
+    """A selector has no retained capture owned by this invocation."""
+
+
 class HTTPExchangePublisher:
     """No traffic or independent journal; only explicitly selected captures persist."""
 
@@ -37,10 +41,13 @@ class HTTPExchangePublisher:
     async def prepare(self, invocation_id, request_ids, *, max_bytes):
         # Resolve the whole selection before writing anything; foreign/evicted
         # captures cannot cause partial selection or mutation of a result.
-        captures = [
-            (request_id, self.captures.select_observation(str(request_id), invocation_id)[0])
-            for request_id in request_ids
-        ]
+        try:
+            captures = [
+                (request_id, self.captures.select_observation(str(request_id), invocation_id)[0])
+                for request_id in request_ids
+            ]
+        except ValueError:
+            raise HTTPSelectionUnavailableError() from None
         if sum(len(raw) for _, raw in captures) > max_bytes:
             raise HTTPSelectionLimitError()
         selected = []

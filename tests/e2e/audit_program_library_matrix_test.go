@@ -20,7 +20,7 @@ type auditProgramLibraryMatrix struct {
 }
 
 func validateAuditProgramLibraryMatrix(root string, m auditProgramLibraryMatrix) error {
-	expected := []string{"openapi-operation-observe@2", "openapi-operation-trace@3", "openapi-sqlmap-scan@1", "openapi-nuclei-scan@1", "web-scan@1", "source-openapi-sqlmap-scan@2"}
+	expected := []string{"openapi-operation-observe@6", "openapi-operation-trace@7", "openapi-sqlmap-scan@1", "openapi-nuclei-scan@1", "web-scan@1", "source-openapi-sqlmap-scan@3"}
 	if m.SchemaVersion != "2.0" || m.Scope == "" || m.Gate != "make test-audit-common-programs-e2e" || len(m.Programs) != len(expected) {
 		return fmt.Errorf("invalid common program matrix")
 	}

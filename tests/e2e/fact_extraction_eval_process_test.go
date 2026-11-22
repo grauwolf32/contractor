@@ -11,10 +11,10 @@ import (
 
 func TestFactExtractionAuditEvalAcrossProcesses(t *testing.T) {
 	stage := func(name string) domainGatewayStage {
-		return domainGatewayStage{name: name, tools: []string{"read_artifact", "record_fact", "read_audit_task", "submit_check_result", "submit_check_results"}, steps: []domainGatewayStep{
+		return domainGatewayStage{name: name, tools: []string{"read_artifact", "fact", "read_audit_task", "submit_result", "submit_results", "evidence"}, steps: []domainGatewayStep{
 			toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
 			toolGatewayStep("read_artifact", stageReadArguments("memories", nil)),
-			toolGatewayStep("record_fact", func(request map[string]any) (map[string]any, error) {
+			toolGatewayStep("fact", func(request map[string]any) (map[string]any, error) {
 				tasks := findingsToolResponses(request, "read_audit_task")
 				if len(tasks) != 1 {
 					return nil, fmt.Errorf("expected assigned Audit task")
@@ -29,7 +29,7 @@ func TestFactExtractionAuditEvalAcrossProcesses(t *testing.T) {
 				}
 				return map[string]any{"title": "Reported nginx", "description": "The original memory reports nginx; no version or independent verification is claimed.", "memory_name": "banner", "item_key": member["item_key"]}, nil
 			}),
-			toolGatewayStep("submit_check_result", auditResultArguments(map[string]any{"rationale": "Selected the useful reported technology observation", "tested_conditions": []string{"Read the exact exported memories"}, "limitations": []string{"No independent probe"}, "evidence": []string{}})),
+			toolGatewayStep("submit_result", auditResultArguments(map[string]any{"rationale": "Selected the useful reported technology observation", "limitations": []string{"No independent probe"}})),
 			finalGatewayStep("Recorded memory observations", nil),
 		}}
 	}
@@ -38,5 +38,5 @@ func TestFactExtractionAuditEvalAcrossProcesses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runFindingEvalNavigation(t, stage, root, source, filepath.Join(repoRoot(t), "tests", "eval", "project_facts", "experiment-template-v3.json"))
+	runFindingEvalNavigation(t, stage, root, source, filepath.Join(repoRoot(t), "tests", "eval", "project_facts", "experiment-template-v5.json"))
 }

@@ -86,7 +86,7 @@ def test_shared_input_error_diagnostics_keep_repair_reason_and_redact_secrets(er
     state = MetricsState()
     error = error_type("completed", f"Use the requested coverage. {SECRET}")
     error.details["invalidValue"] = "untrusted-input-must-not-be-logged"
-    state.record_tool_call("submit_check_result", arguments={}, error=error, secrets=(SECRET,))
+    state.record_tool_call("submit_result", arguments={}, error=error, secrets=(SECRET,))
     report = state.build_report(report_id="worker-input-error", duration_ms=1)
     message = report.tool_calls[0].error.message
     assert message == "completed: Use the requested coverage. [REDACTED]"

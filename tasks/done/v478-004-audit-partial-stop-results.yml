@@ -1,0 +1,320 @@
+schema_version: '1.0'
+id: V478-004
+title: Preserve partial Audit results without inventing coverage at stop
+milestone: audit-evidence-results-2026-11
+epic: audits
+kind: feature
+priority: P1
+status: completed
+implementation_commit: b130d8035d33849a218a8069e4d4f0de12070e27
+depends_on:
+- V478-002
+- V478-003
+- V478-019
+languages:
+- go
+- python
+- json
+- markdown
+goal: An interrupted Audit retains acknowledged observations, notes, findings and accepted conclusions, while
+  clearly distinguishing a missing judgment from a model judgment of uncertainty.
+demonstration: 'Use existing assigned tasks: accept one conclusive result and one model-authored inconclusive
+  result, retain evidence for another and leave a pending task without recorded activity. Stop on an injected
+  limit. Read the accepted results and remaining dispositions without a final LLM call, new check-plan contract,
+  fabricated step counts or loss of accepted findings.'
+context:
+  authority: 'User request 2026-11-22: prepare tasks for a concrete Audit check plan, evidence collected during
+    work, a thin result submission tool, and partial results on interruption without invented coverage conclusions.
+    The user corrected the assumption that limits reveal completed/remaining semantic steps: execution facts
+    do not establish semantic coverage. The user proposed submit_result and explicitly requested joint review
+    and agreement before merging these tasks into main. This is planning authorization only. The decisions below supersede the initial agent proposals.
+    User decision 2026-11-22: publish evidenced security problems through finding even when unrelated to the
+    assigned hypothesis, and explicitly instruct the Worker how to use evidence. Publication must precede final
+    result submission when feasible; independent discoveries keep honest incidental origin. This approves publication/evidence
+    guidance in the task plan, not a new mandatory result flag, a minimum Finding count, semantic auto-detection,
+    implementation or merge. User decision 2026-11-22 supersedes the earlier fixed-plan proposal: decide how
+    an Audit plans its work separately. For this package make a small scenario-independent instruction improvement
+    using existing assignments; no mandatory frozen check-plan document, new criterion/step contract, per-endpoint
+    Task expansion, ReAct planner tools or automatic plan generation. Future options include scenario-specific
+    coverage instructions, Worker planner tools or executor discretion; none is selected here. User decision
+    2026-11-22: durably retain explicitly selected sources through evidence, finding and fact, with the guarantee
+    beginning at Server acknowledgement. Rename the proposed record_evidence tool to evidence and the existing
+    record_fact tool to fact; no compatibility aliases. Automatic archival of every observation is not part
+    of this package. User decision 2026-11-22 accepts review points 3 and 4: inconclusive can settle an attempt
+    and the Audit can finish with visible unresolved conclusions, without mandatory automatic repeats. When
+    an assigned hypothesis check stops without an accepted conclusion, expose a system-authored inconclusive
+    with observed stop reason and source, meaning no conclusion was accepted. Preserve existing accepted judgments,
+    keep hypothesis-free exploration without a verdict, and never turn a failed/cancelled Run into success.
+    User request 2026-11-22: review this package against updated main and reconcile affected tasks. Apply
+    the already merged V479 contracts for Runtime-owned versions and correction generations; this review
+    does not assign feature implementation or change the agreed retention/stop policy.'
+  implementation_gate: 'User assignment 2026-11-22 supersedes the planning gate: implement the full reviewed V478 package in one continuous pass. Do not deploy or launch a live Audit. Earlier review gate follows as historical context. All product review decisions recorded below are settled for the task draft. Keep tasks
+    pending: this thread is planning/review, not an implementation assignment. Do not deploy or launch an Audit.
+    The user requested review before merging the task package into main; report the reconciled package before
+    integration. Implementation must follow these task contracts; an unforeseen consequential prerequisite
+    needs its own review, not silent scope growth.'
+  baseline: Reviewed main cd2974674def375c1838b496c8f288e86989dc8a, including completed V479-001 through
+    V479-009. The earlier Invoice Lab run motivates this package; it is not a current live quality benchmark.
+  specification:
+  - docs/spec/audits/common-contract.md
+  - docs/spec/audits/worker-completion.md
+  - docs/spec/audits/execution.md
+  - docs/spec/audits/review-and-reports.md
+  - docs/spec/audits/worker-completion.md#AWC-R48
+  - docs/spec/audits/worker-completion.md#AWC-R49
+  - docs/spec/artifacts/artifact-store.md#ART-R147
+  boundary: Extend existing common Task/hypothesis, Runtime collector, Artifact and Audit intake owners. Source
+    adapters own observation extraction; Server owns assignment, authority, exact retention and lifecycle.
+    No alternate execution engine or coverage ledger. Update numbered owning specs and all API/wire/schema
+    readers as part of implementation; these task drafts alone do not change runtime behavior.
+  boundary_decision: Existing Run/Controller owners supply observed technical stop facts; the model supplies
+    semantic assessment. Server reconciliation derives interrupted presentation from retained records and terminal
+    ownership even when Runtime cannot send a final message. Partial artifacts are not a successful terminal
+    result package; Run failure/cancellation semantics remain authoritative.
+  implementation_boundary: >-
+    Reuse frozen Audit Artifact bindings and audit_artifact_links as natural
+    mutation receipts; do not add a journal, table or parallel result store.
+    Allocation-bound intake validates normalized conclusions against immutable
+    Task membership and explicitly accepted evidence. Runtime privately captures
+    base generations; Server serializes comparison, exact retention and receipt
+    publication under existing Run/Project/Audit fences. Retry the same frozen
+    mutation identity, never target traffic. Terminal collection selects the
+    latest accepted generation and creates system records only for assigned
+    missing judgments, using observed Run reason/source without an LLM call.
+    The ordinary result schema/read path distinguishes model and system authors;
+    normal Worker intake rejects system-authored stop records. Existing attempt
+    refs retain failed/cancelled partial results; no new attempt/retry policy.
+  stop_storage_decision: >-
+    Store system interruption metadata on the existing Task/attempt rows in the
+    terminal collection transaction. An additional frozen stop Artifact could
+    fail exactly when the selected-material budget is exhausted; owner metadata
+    must remain available then. Existing accepted judgment Artifacts remain the
+    model result. The common read contract exposes the distinct system stop
+    record, with exact already-held evidence references and observed Run reason.
+    No second journal, semantic revision, new execution state or target call is
+    introduced. Reopen this placement only if Task/attempt owner metadata gains
+    a separate storage budget that cannot retain the bounded stop record.
+  sources:
+  - runtime/src/contractor_runtime/toolsets/audit_results/completion.py
+  - runtime/src/contractor_runtime/toolsets/audit_results/collector.py
+  - internal/auditcontroller
+  - internal/auditimport
+  result_fields: 'Agreed result information: result origin (model/system), optional hypothesis verdict, observed
+    stop reason/source, exact retained observation references, and attributed notes. Unknown semantic progress
+    remains absent/unknown; neither completed_steps nor remaining_steps is synthesized from tool activity.'
+  planning_boundary: Audit planning is a separate open design question. This task consumes existing assignments/hypotheses
+    when present, and also supports exploration without a hypothesis. Do not introduce a frozen-plan requirement,
+    new criterion_key/step schema or semantic coverage gate as an evidence/result prerequisite. V478-001 provides
+    only general methodology guidance.
+  collection_decision: Explicit selection only through evidence, finding and fact; acknowledged Server acceptance
+    is the durability boundary. Unselected volatile captures or unsaved thoughts may be lost at stop. Retain
+    the selected sources using existing owners and quotas; do not build an automatic observation archive.
+  stop_decision: For an assigned hypothesis check lacking an accepted conclusion at stop, expose a system-authored
+    inconclusive with observed reason/source meaning no accepted conclusion, not evidence insufficiency assessed
+    by the system. Preserve hypothesis-free exploration without verdict and existing pending/unassigned work
+    without claiming execution. Model-authored inconclusive may settle an attempt; no new automatic retry policy
+    is added. System interruption records never satisfy normal Worker success.
+  main_reconciliation_2026_11_22: V479 correction generations and source versions are private invocation
+    state, preserved through compaction but cleared on exit; the Audit collector still discards local
+    items on failure. These changes do not satisfy durable partial-result retention. Extend the existing
+    owner/receipts so the latest Server-accepted correction survives stop, preserving V479 replay ordering.
+    Never rebuild accepted evidence from current aliases or model summaries after private state disappears.
+scope:
+  in:
+  - Retain accepted per-item judgments during submission rather than relying solely on an all-item terminal
+    package; reuse existing result artifacts and Audit-owned association mechanisms.
+  - Record or project stop source/reason and system-vs-model authorship through the common result/read contract,
+    with real consumers in existing Audit Task/material APIs.
+  - Handle budget/deadline exhaustion, explicit cancellation, observed target unavailability, Runtime loss
+    and storage ambiguity without last-chance model dependence.
+  - Preserve old attempt evidence when a separately authorized subsequent attempt starts; expose exact prior
+    observations as ordinary selected inputs.
+  out:
+  - Automatically retrying HTTP mutations, continuing after user cancellation, new resumable execution engine,
+    or auto-generating unknown completed/remaining steps.
+  - Mandatory final summarizer, silently extending budgets, overwriting accepted conclusions or changing a
+    cancelled/failed Run to succeeded.
+  - New planning/coverage machinery, compulsory repeat attempts after inconclusive results or a new Audit state
+    solely for semantic coverage.
+requirements:
+- id: R1
+  text: Stop reconciliation preserves the latest durably accepted conclusion per item and accepted Finding
+    receipts as-is; it does not roll back a correction, create a new semantic revision or replace a judgment
+    with system inconclusive. For a stopped assigned hypothesis check lacking an accepted conclusion,
+    system inconclusive means no accepted conclusion, not an evidence-sufficiency assessment.
+- id: R2
+  text: Record observed stop facts separately from semantic limitations, including their source and uncertainty.
+    Use the owning finite error/reason vocabulary; missing telemetry yields unknown, never guessed budget_exhausted
+    or target_unavailable. A transient HTTP failure alone does not stop the entire Audit.
+- id: R3
+  text: Record only observed tool activity and attributed model assessments. No accepted conclusion does not
+    imply not started; an acknowledged observation does not imply a completed semantic step. Completed/remaining
+    semantic steps are unknown unless explicitly assessed, and any assessment retains its author.
+- id: R4
+  text: Existing pending/unassigned work retains its scheduling facts and unresolved status. Do not fabricate
+    an invocation, evidence record or model conclusion for it. Hypothesis-free exploration keeps verdict absent;
+    this feature adds no required plan or obligation registry.
+- id: R5
+  text: Durable observation/result commits before the stop fence survive; late writes and ambiguous acknowledgements
+    reconcile through existing owners. Crash before commit exposes only acknowledged/reconciled data. No promise
+    of recovering every sent exchange or unsaved model thought.
+- id: R6
+  text: Terminal reconciliation works without an LLM call and without post-stop target work. Preserve original
+    Run outcome and existing bounded continuation/attempt policy. A model-authored inconclusive may settle
+    an attempt and allow work to end with explicit gaps; it never counts as a conclusive security judgment
+    and does not require automatic repeat attempts.
+- id: R7
+  text: Subsequent attempts preserve immutable earlier records, recheck state-dependent preconditions and never
+    treat old evidence as proof of unchanged current target state. Store/source deletion honors ordinary Audit
+    retention.
+- id: R8
+  text: System stop records never enter the normal Worker ready_to_finish collection as model-submitted conclusions
+    and never trigger Run success. Separate durable partial judgments from the immutable all-item terminal
+    publication; revise the existing all-or-nothing/cancel-discard rules explicitly in their owning specs and
+    importer, not through a parallel permissive reader.
+- id: R9
+  text: Already accepted incidental Findings survive a later check limit/cancel/failure independently of the
+    check result and without a hypothesis association. A rejected or unconfirmed Finding call is not promoted
+    to a published Finding by stop reconciliation. Preserve accepted evidence and actual publication diagnostics,
+    without an extra post-stop model/target call.
+- id: R10
+  text: Durable result acceptance preserves Runtime-owned generations and original mutation identity.
+    After committed A then B, a lost acknowledgement or old retry of A cannot restore A over B. If B never
+    committed, retain A and an observed unconfirmed tail; reconcile a committed but unacknowledged B by
+    existing owner receipt. Private selected-version state/cursors and local recorded receipts are not
+    durable acceptance. Stop recovery uses retained exact sources, not current bindings or a new model
+    call.
+failure_outcomes:
+- operation: Reconcile an interrupted attempt against durable observations and accepted judgments
+  permanent: Reject invalid membership, foreign/exact-revision mismatches, quota violations and malformed input
+    before mutation using owning classified errors. No retry of deterministic invalid input; specify any new
+    public code/status in the owning error registry and OpenAPI in the implementation.
+  retryable: Use existing bounded storage_transaction_conflict 503 and Artifact retry contracts, original receipt
+    identity and owning deadline. Never retry target traffic to recover a persistence failure.
+  ambiguous: Reconcile the same natural Artifact binding or existing keyed Audit mutation receipt. Return unknown/unconfirmed
+    persistence if reconciliation fails; do not claim durable acceptance or create another logical effect.
+  cancelled: Honor existing allocation/Run/Audit fences. Join owned I/O before cleanup; retained committed
+    records survive. Do not send additional target/model calls to repair a partial result.
+  timeout: Use existing operation and invocation deadlines; terminal persistence uses only the existing owner-authorized
+    bounded drain/reconciliation path, never an unbounded extension of model execution.
+cardinality:
+- collection: Existing assigned items and explicitly selected evidence/annotations
+  expected: One exploratory task or a small existing multi-item assignment; tens of selected sources.
+  maximum: Keep the existing 64-item assignment and Audit collection bounds of 256 selected evidence records
+    / 8 MiB encoded evidence plus conclusions; Audit maxEvidenceBytes also applies. Independent Finding/Fact
+    callers retain their existing tighter or owner-specific limits, including four selected sources for informational
+    facts.
+  bound: Bound each operation by rows and bytes, use existing paged reads, and never hydrate the whole Audit
+    in one transaction. Repeated annotations and revisions consume their owning bounds; no new frozen-plan
+    denominator is introduced.
+lifecycle:
+- entity: Task/attempt-associated exact artifacts and results under existing Run/Audit/Project ownership
+  delete: Use ordinary drained deletion and purge authorization. A held evidence artifact must remain readable
+    after permitted producer Run deletion.
+  cascade: Register any added relation/read/hold in existing ownership and purge mechanisms; no independent
+    journal, queue, receipt store or retention service.
+  retention: Only acknowledged durable records carry a persistence guarantee. Release existing Audit-owned
+    holds through the ordinary Audit/Project lifecycle; volatile or unacknowledged observations may be unavailable.
+acceptance_criteria:
+- id: A1
+  given: One accepted supported result, one model inconclusive, one observed unfinished check and one item
+    without recorded activity
+  when: Budget exhaustion or explicit cancellation occurs before final submit
+  then: Accepted results survive; only missing judgments receive system stop disposition, authorship remains
+    distinct, no semantic step counts are inferred and Run outcome is preserved.
+- id: A2
+  given: Runtime dies or storage loses acknowledgement before/after observation or judgment commit
+  when: Server reconciliation and restart run without a model
+  then: Committed records are recovered once; uncommitted/unknown data is not invented, no final LLM/target
+    call occurs and unknown stop causes stay unknown.
+- id: A3
+  given: Cancellation races with submit, partial capture publication, Run deletion and a later separately admitted
+    attempt
+  when: The real store and process lifecycle gates execute
+  then: Fences and receipts determine acceptance, old evidence remains exact/readable, purge releases owned
+    data, and no HTTP effect is automatically replayed.
+- id: A4
+  given: An incidental Finding accepted before a limit, alongside a separate rejected or unconfirmed publication
+  when: The Worker stops before final submit and the Server reconciles the attempt
+  then: The accepted Project Finding and its exact sources survive without a fabricated hypothesis; the other
+    publication remains failed/unknown unless its original receipt is reconciled. No new semantic Finding is
+    manufactured at stop.
+- id: A5
+  given: An accepted result A, a later correction B and an old retry of A, with stop or acknowledgement
+    loss on either side of the B commit
+  when: Real Server/store reconciliation runs after Runtime loss and its private version state is gone
+  then: The latest committed result survives exactly once, old retries never roll it back, an uncommitted
+    correction is not reported accepted, and original sources remain readable without latest substitution,
+    target replay or model-authored version recovery.
+tests:
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: go test -tags=integration -count=1 ./internal/auditcontroller/... ./internal/auditimport/... ./internal/auditstore/...
+    ./internal/auditservice/... ./internal/runservice/... ./internal/artifacts/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A5
+- command: make test-audit-basic-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-audit-completion-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A5
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+  - A5
+- command: make verify-public-api-postgres
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-findings-e2e
+  covers:
+  - A4
+verification_notes: >-
+  Accepted 2026-11-23 against implementation b130d8035d33849a218a8069e4d4f0de12070e27
+  and the separately verified V478-019 aggregate-gate prerequisite. Runtime:
+  6637 passed, 134 declared skips, including 577 required compaction cases.
+  Full listed Go packages passed with actual PostgreSQL. The private Artifact
+  handler and common contract packages passed separately. Basic process gate:
+  14 required cases, 391.884 seconds, no selected skips. Completion gate:
+  223 Go and 482 Runtime cases, no selected skips. Public API PostgreSQL race
+  gate passed. Wire gate: 407 fixtures, 466 Go and 293 Python shared readers,
+  1602 Runtime shared cases; one explicitly disabled disk-heavy case is not
+  passing coverage. Full lint passed. Findings gate: 310 Runtime cases and
+  all 25 required process cases passed on the same implementation plus the
+  bounded aggregate-budget fix. No live model or implicit heavy-I/O call.
+  Real-store regressions cover mixed supported/model-inconclusive/system-stop
+  and unassigned work, A/B correction and old replay, concurrency, exhausted
+  selected-material quota, failed/cancelled attempt reads and exact retention.
+  Actual processes cover a committed withheld acknowledgement, Runtime death,
+  Server restart and producer Run purge without additional target/model calls.
+  Logs: /tmp/v478-004-runtime-final.log, /tmp/v478-004-go-final3.log,
+  /tmp/v478-004-basic-final2.log, /tmp/v478-004-completion-final3.log,
+  /tmp/v478-004-wire-final3.log, /tmp/v478-004-api-final.log,
+  /tmp/v478-004-lint-final2.log, /tmp/v478-019-findings-final.log.
+  Earlier overloaded PostgreSQL/shared-lock and stale-source report failures
+  are superseded by the listed stable successful reruns. Owned test resources
+  remain in this continuous implementation lane until V478-005 finishes.

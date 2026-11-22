@@ -9,9 +9,9 @@ from google.genai import types
 from contractor_runtime.llm.openai import _tools
 from contractor_runtime.toolsets.security_findings.facades import (
     CodeFindingTool,
+    FactTool,
     GeneralFindingTool,
     HTTPFindingTool,
-    RecordFactTool,
 )
 from contractor_runtime.toolsets.security_findings.reader import ListFindingsTool
 
@@ -19,7 +19,7 @@ from contractor_runtime.toolsets.security_findings.reader import ListFindingsToo
 def provider_contracts() -> dict:
     tools = {
         "general": GeneralFindingTool(None),
-        "fact": RecordFactTool(None),
+        "fact": FactTool(None),
         "code": CodeFindingTool(None),
         "http": HTTPFindingTool(None),
         "reader": ListFindingsTool((), "sha256:" + "a" * 64, None, ()),

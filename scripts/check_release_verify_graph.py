@@ -28,6 +28,8 @@ EXPECTED_PROCESS_TESTS = {
     "TestAuditHypothesisContinuationAcrossProductionProcesses",
     "TestAuditBasicExactHandoffAcrossProductionProcesses",
     "TestAuditFixedHypothesesAcrossProductionProcesses",
+    "TestAuditIncrementalEvidenceAcrossProcesses",
+    "TestAuditPartialJudgmentsAcrossProcesses",
     "TestAuditCompactionPreservesTrustedCompletionAcrossProcesses",
     "TestAuditCompactionLeaseLossAcrossProcesses",
     "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
@@ -79,6 +81,7 @@ EXPECTED_PROCESS_TESTS = {
 }
 
 EXPECTED_BROWSER_STACK_TESTS = {
+    "TestUIProcessDatabaseIsolation",
     "TestBrowserUIBuildSurvivesSiblingRebuild",
     "TestBrowserGatewayGeneratedModelRoutes",
     "TestBrowserOperationsStack",
@@ -97,6 +100,7 @@ EXPECTED_CONFIG_TESTS = {
     "TestAuditCommonFixtureConfigurationLoads",
     "TestCodeAnalysisE2EConfigurationLoads",
     "TestAuditProgramsE2EConfigurationLoads",
+    "TestAuditInvestigationInstructionCatalog",
     "TestAuditProgramCatalogRemovalConfigurationClosure",
     "TestDomainGatewayFindsNamedInputAfterParameterBlock",
     "TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure",

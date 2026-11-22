@@ -5,7 +5,8 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
-from audit_fixtures import arguments, assigned
+from audit_fixtures import accept_fixture_sources, arguments, assigned
+from fakes.audit_judgments import JudgmentTransport
 from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 from google.genai import types
@@ -29,8 +30,9 @@ def contract():
 class ExactClient:
     allocation_id = "allocation-1"
 
-    def __init__(self, data):
-        self.data = data
+    def __init__(self, inputs):
+        self.data = inputs.context
+        self.transport = JudgmentTransport(inputs)
         self.reads = []
 
     async def read_artifact(self, ref, *, max_bytes):
@@ -44,35 +46,31 @@ def test_adk_schema_exposes_only_judgment_and_selected_evidence():
     async def scenario():
         _, inputs = assigned()
         state = WorkerState()
-        client = ExactClient(inputs.context)
+        client = ExactClient(inputs)
         settings = type("Settings", (), {"request_timeout_seconds": 10})()
         tools = await AuditResultsToolsetFactory(lambda *_: client).create_selected(
-            selected=["read_audit_task", "submit_check_result", "submit_check_results"],
+            selected=["read_audit_task", "submit_result", "submit_results", "evidence"],
             allocation_id="allocation-1",
             namespace="check",
             runtime_settings=settings,
             resources=state.resources,
             completion_contract=contract(),
         )
-        declaration = FunctionTool(tools["submit_check_result"])._get_declaration()
+        declaration = FunctionTool(tools["submit_result"])._get_declaration()
         wire = _tools([types.Tool(function_declarations=[declaration])])[0]["function"]
         fields = set(wire["parameters"]["properties"])
         assert fields == {
             "item_key",
             "rationale",
-            "tested_conditions",
             "limitations",
-            "evidence",
-            "http_request_ids",
             "verdict",
         }
         assert set(wire["parameters"]["required"]) == {
             "item_key",
             "rationale",
-            "tested_conditions",
             "limitations",
         }
-        batch = FunctionTool(tools["submit_check_results"])._get_declaration()
+        batch = FunctionTool(tools["submit_results"])._get_declaration()
         batch_wire = _tools([types.Tool(function_declarations=[batch])])[0]["function"]
         assert set(batch_wire["parameters"]["properties"]) == {"items"}
         assert batch_wire["parameters"]["required"] == ["items"]
@@ -80,7 +78,6 @@ def test_adk_schema_exposes_only_judgment_and_selected_evidence():
         assert set(record["required"]) == {
             "item_key",
             "rationale",
-            "tested_conditions",
             "limitations",
         }
         assert "expected_revision" not in record["properties"]
@@ -89,9 +86,14 @@ def test_adk_schema_exposes_only_judgment_and_selected_evidence():
         binding.begin("invocation-1")
         context = type("Context", (), {"invocation_id": "invocation-1"})()
         read = await tools["read_audit_task"](context)
-        assert read["tasks"][0]["evidence"][0]["handle"] == "evidence-000"
+        assert read["tasks"][0]["materials"][0]["source"] == {
+            "kind": "artifact",
+            "namespace": "inputs",
+            "name": "source",
+        }
+        await accept_fixture_sources(binding.current())
         assert (
-            await tools["submit_check_result"](
+            await tools["submit_result"](
                 context, **arguments(assigned()[0].items[0].value, keyed=True)
             )
         )["complete"]
@@ -104,7 +106,7 @@ def test_adk_schema_exposes_only_judgment_and_selected_evidence():
 def test_preparation_rejects_nonexact_or_malformed_context_before_model(change):
     async def scenario():
         _, inputs = assigned()
-        client = ExactClient(inputs.context)
+        client = ExactClient(inputs)
         original = client.read_artifact
 
         async def read(ref, *, max_bytes):

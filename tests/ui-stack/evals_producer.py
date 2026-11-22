@@ -15,6 +15,7 @@ from pathlib import Path
 
 PRIVATE = "PRIVATE_MANAGED_EVAL_RELEASE_TRUTH"
 OUTPUT = b"Deterministic managed evaluation source\n"
+AUDIT_SOURCE_CODE = b"def fixture():\n    return True\n"
 MEMBERS = 8
 CHECK_DIGEST = "sha256:" + hashlib.sha256(b"release-fixture-check@1").hexdigest()
 
@@ -191,7 +192,7 @@ def seed(client, directory):
     source = upload(client, project_id, "plain-source", "text/plain", OUTPUT)
     archive = io.BytesIO()
     with zipfile.ZipFile(archive, "w") as package:
-        package.writestr("app.py", "def fixture():\n    return True\n")
+        package.writestr("app.py", AUDIT_SOURCE_CODE)
     audit_source = upload(
         client, project_id, "source-archive", "application/zip", archive.getvalue()
     )
@@ -364,7 +365,7 @@ def audit_task_evidence(client, parent, inventory):
     context = json.loads(read(run["inputs"]["context"]))
     assert context["schema"] == "contractor.audit.context.v1", context
     assert (context["audit_id"], context["run_id"]) == (audit_id, run_id), context
-    assert context["workflow_ref"] == "audit-source-check@4", context
+    assert context["workflow_ref"] == "audit-source-check@8", context
     raw = read(run["outputs"]["result"])
     conclusions = json.loads(raw)
     assert conclusions["schema"] == "contractor.audit.conclusions.v1", conclusions
@@ -373,6 +374,34 @@ def audit_task_evidence(client, parent, inventory):
     assert [item["item_key"] for item in context["items"]] == ["item-00", "item-01"]
     outcomes = {item["item_key"]: item for item in conclusions["items"]}
     assert set(outcomes) == {item["item_key"] for item in context["items"]}
+    entries, _ = client.stable_pages(f"/v1/audits/{audit_id}/materials")
+    materials = {encoded(entry["material"]): entry for entry in entries}
+
+    def read_material(material):
+        entry = materials[encoded(material)]
+        query = urllib.parse.urlencode(
+            {"key": entry["key"], "revision": material["ref"]["revision"]}
+        )
+        data = client.get_bytes(f"/v1/audits/{audit_id}/artifacts?" + query)
+        assert digest(data) == material["digest"], material
+        assert len(data) == material["size_bytes"], material
+        return data
+
+    notes = {}
+    for entry in entries:
+        if not entry["key"].startswith("evidence/" + child["intentId"] + "/"):
+            continue
+        note = json.loads(read_material(entry["material"]))
+        assert note["schema"] == "contractor.audit.evidence.v1", note
+        origin = note["origin"]
+        assert (origin["audit_id"], origin["execution_id"], origin["run_id"]) == (
+            audit_id,
+            child["intentId"],
+            run_id,
+        ), origin
+        assert origin["task_id"] not in notes, origin
+        notes[origin["task_id"]] = (entry["material"], note)
+    assert len(notes) == 2, notes
     statements = set()
     tasks, normalized = {}, {}
     for item in context["items"]:
@@ -418,29 +447,56 @@ def audit_task_evidence(client, parent, inventory):
         }
         assert outcome["verdict"] == "supported", outcome
         assert outcome["rationale"] and outcome["tested_conditions"], outcome
-        assert outcome["evidence"] == item["evidence"] and outcome["evidence"], outcome
+        ground = item["evidence"][0]
+        assert (ground["scope_kind"], ground["scope_id"]) == ("run", run_id), ground
+        assert ground["ref"] == run["inputs"]["source"], ground
+        source_bytes = read(ground["ref"])
+        assert ground["media_type"] == "application/zip", ground
+        assert digest(source_bytes) == ground["digest"], ground
+        assert len(source_bytes) == ground["size_bytes"], ground
+        with zipfile.ZipFile(io.BytesIO(source_bytes)) as source_archive:
+            assert source_archive.namelist() == ["app.py"]
+            assert source_archive.read("app.py") == AUDIT_SOURCE_CODE
+        annotation, note = notes[item["task_id"]]
+        assert note["origin"]["hypothesis"] == pin, note
+        assert note["interpretation"] and note["tested_conditions"], note
+        assert outcome["tested_conditions"] == note["tested_conditions"], outcome
+        selected = [*note["sources"], annotation]
+        assert sorted(map(encoded, outcome["evidence"])) == sorted(
+            map(encoded, selected)
+        ), outcome
+        assert outcome["evidence"] != item["evidence"], (
+            "grounds were promoted without selection"
+        )
         assert outcome["limitations"] == [], outcome
-        retained = []
-        for material in outcome["evidence"]:
+        assert len(note["sources"]) == len(note["selected_sources"]) == 1, note
+        for material, local in zip(
+            note["sources"], note["selected_sources"], strict=True
+        ):
             assert (material["scope_kind"], material["scope_id"]) == (
-                "run",
-                run_id,
+                "audit",
+                audit_id,
             ), material
-            assert material["ref"]["namespace"] == "inputs", material
-            assert material["ref"] == run["inputs"][material["ref"]["name"]], material
-            original = document["inputs"][material["ref"]["name"]]
+            assert (local["scope_kind"], local["scope_id"]) == ("run", run_id), local
+            assert local["ref"]["namespace"] == "inputs", local
+            assert local["ref"]["name"].startswith("selected-"), local
+            original = document["inputs"]["source"]
             assert (original["scope_kind"], original["scope_id"]) == (
                 "audit",
                 audit_id,
             ), original
             for field in ("digest", "media_type", "size_bytes"):
                 assert material[field] == original[field], (material, original)
-            if original not in retained:
-                retained.append(original)
+                assert local[field] == original[field], (local, original)
+                assert ground[field] == original[field], (ground, original)
+            # Original Task inputs are verified through the exact Run fork and
+            # its metadata; the materials list exposes selected check sources.
+            assert read_material(material) == source_bytes
         normalized[item["item_key"]] = {
             **outcome,
+            "author": "model",
             "origin": origin,
-            "evidence": retained,
+            "evidence": outcome["evidence"],
         }
     assert statements == set(expected), statements
     for task_id, task in tasks.items():

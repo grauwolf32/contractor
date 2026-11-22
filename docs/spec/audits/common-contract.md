@@ -47,7 +47,7 @@ that ID and no second Project hypothesis registry.
 | `proposal_binding` | Frozen configured context/output refs for the current producer Run, owned by its trusted materializer |
 | `prepared-work` | Deterministic work selections and exact ordinary inputs; no assigned Task identity or permission |
 | `prepared-work-context` | Server-local pinned program, trusted producer Run and admitted exact material descriptors |
-| `conclusions` | Model-authored per-item content, conditions, evidence and limitations; no provenance fields |
+| `conclusions` | Runtime-assembled per-item judgments with accepted condition notes, exact evidence and limitations; no provenance fields |
 | `result` | Ordinary output with system-derived origin on each item; no Run status or mandatory finding |
 | `control` | Offline-valid control transition; no live state change or authorization |
 | `mutation` | Bounded slice of task/hypothesis records; no duplicate record identity |
@@ -393,3 +393,31 @@ Audit/task/material projections; offline validation performs no HTTP mutation.
 This boundary adds no controller, collector, ledger, queue, capacity mechanism,
 Project hypothesis registry or compatibility execution path. Actual Run execution,
 Artifact retention and database mutations retain their existing owning APIs.
+
+
+**ACT-R18.** Explicit during-work evidence retention follows AWC-R133. A selected
+source becomes evidence for a particular Task only through its accepted exact
+association and attributed interpretation. Merely supplying a ground, reading a
+fact card, capturing traffic or embedding an Artifact ref grants neither evidence
+membership nor durability. Import validates the Server-owned association and
+exact hypothesis pin before admitting retained material for a conclusion. The
+same original source may support independent claims without copying its bytes
+or being counted as independent corroboration.
+
+**ACT-R19.** A normalized accepted model result has `author: model`. A Task or
+attempt may instead expose `stop` with `author: system`,
+`meaning: no_accepted_conclusion`, observed `reason` (`source`, `code`, `message`)
+and exact retained `evidence` materials. A hypothesis-bound stop additionally
+has `verdict: inconclusive`; exploration omits it. The system record carries no
+model rationale, tested-condition inventory or semantic-progress denominator.
+Task `result` and `stop` are mutually exclusive. Stop metadata is retained on
+existing owner rows, not charged as a new evidence Artifact when quota is spent.
+A retry may clear the current Task projection; immutable earlier attempt
+provenance and selected materials remain available under ordinary retention.
+
+**ACT-R20.** Task attempt reads expose an exact retained `result` and
+`result_key` where available, independently of technical outcome, or the
+attributed `stop`. A failed/cancelled attempt can have an accepted model result.
+Reads validate exact material metadata and Task/hypothesis membership, remain
+paged and byte-bounded, and preserve original Run identity after producer purge.
+An obsolete or foreign revision is never repaired with a current binding.

@@ -432,10 +432,14 @@ pinned `ubuntu-24.04` runner image.
 ## Database and process tests
 
 Provide an explicit disposable test database whose user may create and drop
-schemas and databases (`CREATEDB`). Most tests and the process tests create
-isolated schemas in it and clean them up; some create databases of their own
-on the same server and drop them afterwards. PostgreSQL itself is supplied by
-the caller. Database tests skip only while `CONTRACTOR_TEST_DATABASE_URL` is
+schemas and databases (`CREATEDB`). Repository tests normally create isolated
+schemas. Process harnesses create databases of their own on the same server,
+because separate schemas still share the database-wide active-Server lease.
+Their cleanup joins child processes and closes pools before dropping each owned
+database; parallel harnesses never share a lease. PostgreSQL itself is supplied by
+the caller. E2E, UI-stack and live-eval harnesses all use
+`postgrestest.NewDatabase`; its cleanup is registered before database creation
+and uses an independent bounded context. Database tests skip only while `CONTRACTOR_TEST_DATABASE_URL` is
 unset: once it is set, an unreachable server or a missing privilege fails
 them, and `make lint` rejects helpers that skip after a failed connection.
 The named disk-heavy fixtures are the exception: when not opted in, they skip

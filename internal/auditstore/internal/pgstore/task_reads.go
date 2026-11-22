@@ -18,8 +18,8 @@ import (
 
 func scanTask(row scanner, extra ...any) (auditstore.Task, error) {
 	var task auditstore.Task
-	var document, source, result, hypothesis, findings json.RawMessage
-	values := []any{&document, &task.SourceKey, &source, &task.Ordinal, &task.Iteration, &task.BatchDigest, &task.State, &task.Attempts, &task.LastExecution, &result, &task.GapCode, &task.CreatedAt, &task.UpdatedAt, &hypothesis, &task.Attention, &findings}
+	var document, source, result, hypothesis, findings, stop json.RawMessage
+	values := []any{&document, &task.SourceKey, &source, &task.Ordinal, &task.Iteration, &task.BatchDigest, &task.State, &task.Attempts, &task.LastExecution, &result, &task.GapCode, &task.CreatedAt, &task.UpdatedAt, &hypothesis, &task.Attention, &findings, &stop}
 	if err := row.Scan(append(values, extra...)...); err != nil {
 		return auditstore.Task{}, err
 	}
@@ -55,6 +55,12 @@ func scanTask(row scanner, extra ...any) (auditstore.Task, error) {
 		}
 		exact := contracts.ExactArtifact{Ref: task.Result.Ref, Digest: task.Result.Digest, MediaType: task.Result.MediaType, SizeBytes: task.Result.SizeBytes}
 		if !exact.HasMetadata() || exact.Validate() != nil {
+			return auditstore.Task{}, errStoredTask
+		}
+	}
+	if stop != nil {
+		task.Stop = &auditcontract.TaskStop{}
+		if strictjson.Decode(stop, task.Stop) != nil || task.Stop.Validate(task.Document.AuditID, task.Document.Hypothesis != nil) != nil || task.State != auditstore.TaskSettled || task.Result != nil || task.Findings != nil {
 			return auditstore.Task{}, errStoredTask
 		}
 	}

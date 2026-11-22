@@ -31,4 +31,4 @@ func TestAuditProgramsResolveAsRunnableMVPProfiles(t *testing.T) {
 	}
 }
 
-var commonAuditProfileSelectors = []string{"openapi-operation-observe@2", "openapi-operation-trace@3", "openapi-nuclei-scan@1", "openapi-sqlmap-scan@1", "source-openapi-sqlmap-scan@2", "web-scan@1"}
+var commonAuditProfileSelectors = []string{"openapi-operation-observe@6", "openapi-operation-trace@7", "openapi-nuclei-scan@1", "openapi-sqlmap-scan@1", "source-openapi-sqlmap-scan@3", "web-scan@1"}

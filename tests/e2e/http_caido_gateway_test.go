@@ -133,12 +133,12 @@ func httpCaidoCaidoGatewayStage(name, scopeName string) domainGatewayStage {
 						"title":       "Stored exchange fixture " + scopeName,
 						"description": "Synthetic observation exercises automatic stored evidence attachment",
 						"url":         "https://target.example/detail-only", "method": "DELETE",
-						"request_id": rows[0].(map[string]any)["request_id"],
+						"sources": []any{map[string]any{"kind": "http", "request_id": rows[0].(map[string]any)["request_id"]}},
 					}, nil
 				},
 			},
 			{
-				tool: "caido_scope", validate: requireToolOutput("requests"),
+				tool: "caido_scope", validate: composeGatewayValidation(requireToolOutput("requests"), requireToolOutput("receipt_id")),
 				arguments: fixedArguments(map[string]any{
 					"action": "create", "name": scopeName,
 					"allowlist": []any{"target.example"}, "denylist": []any{},

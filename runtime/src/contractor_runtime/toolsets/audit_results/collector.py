@@ -5,7 +5,10 @@ from copy import deepcopy
 from dataclasses import replace
 from functools import partial
 
+import jcs
+
 from contractor_runtime import threads
+from contractor_runtime.audit_judgments import JudgmentStaleError
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.worker_completion import WorkerCompletionError
 from contractor_runtime.toolsets.audit_results.contracts import (
@@ -14,6 +17,7 @@ from contractor_runtime.toolsets.audit_results.contracts import (
     MAX_ITEMS,
     MAX_PROPOSAL_KEYS,
     MAX_REVISION,
+    MAX_VALUES,
     AuditRecordReceipt,
     AuditSnapshot,
     AuditTrustedInputs,
@@ -24,10 +28,8 @@ from contractor_runtime.toolsets.audit_results.contracts import (
 from contractor_runtime.toolsets.audit_results.encoding import (
     AuditResultError,
     CanonicalAuditResultEncoder,
-    evidence_handles,
 )
 from contractor_runtime.toolsets.common.cwe import CWEReferenceError, check_cwe_reference
-from contractor_runtime.toolsets.common.http_publication import HTTPSelectionLimitError
 
 
 class AuditCollectionError(WorkerCompletionError, ToolInputError):
@@ -57,8 +59,8 @@ class InvocationAuditCollector:
     """One invocation owns drafts, revisions and a final immutable seal.
 
     Admission encodes at most 64 members and 8 MiB off the event loop. The lock
-    serializes updates, sealing and discard; cancellation joins owned encoding
-    before releasing it. Nothing survives the invocation except normal artifacts.
+    serializes updates, Server acceptance, sealing and discard. Private state
+    clears on exit; acknowledged immutable Audit artifacts survive independently.
     """
 
     def __init__(
@@ -66,17 +68,23 @@ class InvocationAuditCollector:
         inputs: AuditTrustedInputs,
         encoder: CanonicalAuditResultEncoder,
         *,
-        http_publisher=None,
+        persist,
     ):
         self._inputs, self._encoder = inputs, encoder
         self._tasks = encoder.trusted_inputs(inputs).items
-        self._http_publisher = http_publisher
-        self._http_selected = {}
         self._items: dict[str, RecordedAuditItem] = {}
+        self._persist = persist
+        self._known_generations: dict[str, int] = {}
+        self._accepted_materials: dict[str, bytes] = {}
+        self._evidence: dict[str, dict] = {}
         self._response_revisions: dict[str, int] | None = None
         self._proposals: dict[str, frozenset] = {}
         self._lock = asyncio.Lock()
         self._sealed = self._discarded = False
+
+    @property
+    def audit_id(self):
+        return self._encoder.trusted_inputs(self.inputs).audit_id
 
     @property
     def owner(self):
@@ -96,9 +104,16 @@ class InvocationAuditCollector:
             self.check_invocation(invocation_id)
             tasks = deepcopy(list(self._tasks.values()))
             for task in tasks:
-                task["evidence"] = [
-                    {"handle": handle, "material": material}
-                    for handle, material in evidence_handles(task).items()
+                task["materials"] = [
+                    {
+                        "material": material,
+                        "source": {
+                            "kind": "artifact",
+                            "namespace": material["ref"]["namespace"],
+                            "name": material["ref"]["name"],
+                        },
+                    }
+                    for material in task.pop("evidence")
                 ]
             return {"batchSize": len(tasks), "tasks": tasks}
 
@@ -143,6 +158,75 @@ class InvocationAuditCollector:
                 raise AuditCollectionError("client_key", "Invocation finding limit reached.")
             self._proposals[client_key] = refs
 
+    async def record_evidence(
+        self, invocation_id, item_key, save, *, tested_conditions=(), limitations=()
+    ):
+        async with self._lock:
+            self._check_live(writing=True)
+            self.check_invocation(invocation_id)
+            if item_key not in self._tasks:
+                raise AuditCollectionError("item_key", "Choose an assigned check.")
+            for field, values in (
+                ("tested_conditions", tested_conditions),
+                ("limitations", limitations),
+            ):
+                combined = {
+                    value
+                    for r in self._evidence.values()
+                    if r["itemKey"] == item_key
+                    for value in r[field]
+                }
+                if len(combined.union(values)) > MAX_VALUES:
+                    raise AuditCollectionError(
+                        field, "Combined evidence notes exceed the result limit."
+                    )
+            receipt = await save()
+            key = jcs.canonicalize(receipt["material"]).decode()
+            if key not in self._evidence and len(self._evidence) >= MAX_EVIDENCE:
+                raise AuditCollectionError("sources", "Selected evidence limit reached.")
+            if receipt["itemKey"] != item_key:
+                raise RuntimeError("Evidence receipt has another item")
+            self._evidence[key] = {
+                **receipt,
+                "tested_conditions": tuple(tested_conditions),
+                "limitations": tuple(limitations),
+            }
+            return receipt
+
+    def _with_evidence(self, item):
+        if not isinstance(item, NormalizedAuditItem) or item.item_key not in self._tasks:
+            raise AuditCollectionError("item_key", "Choose an item key from read_audit_task.")
+        records = [r for r in self._evidence.values() if r["itemKey"] == item.item_key]
+        selected = {jcs.canonicalize(source) for r in records for source in r["sources"]}
+        # Exact annotations preserve authorship and applicability. Their conditions
+        # and gaps are assembled without promoting grounds or incidental Findings.
+        selected.update(jcs.canonicalize(r["material"]) for r in records)
+        conditions = tuple(
+            dict.fromkeys(value for r in records for value in r["tested_conditions"])
+        )
+        gaps = tuple(
+            dict.fromkeys(
+                (*item.limitations, *(value for r in records for value in r["limitations"]))
+            )
+        )
+        if len(conditions) > MAX_VALUES or len(gaps) > MAX_VALUES or len(selected) > MAX_EVIDENCE:
+            raise AuditCollectionError(
+                "limitations", "Combined evidence and judgment exceed the result limits."
+            )
+        return replace(
+            item,
+            tested_conditions=conditions,
+            limitations=gaps,
+            selected_evidence=tuple(sorted(selected)),
+        )
+
+    def _retained_evidence_bytes(self):
+        return sum(
+            record["material"]["size_bytes"]
+            + sum(source["size_bytes"] for source in record["sources"])
+            for record in self._evidence.values()
+        )
+
     def _validate(self, item: NormalizedAuditItem):
         if not isinstance(item, NormalizedAuditItem) or item.item_key not in self._tasks:
             raise AuditCollectionError("item_key", "Choose an item key from read_audit_task.")
@@ -152,15 +236,14 @@ class InvocationAuditCollector:
                 "verdict", "Supply a verdict only for a task with an assigned hypothesis."
             )
         if item.verdict in {"supported", "refuted"} and (
-            not item.tested_conditions or not (item.evidence or item.http_request_ids)
+            not item.tested_conditions or not item.selected_evidence
         ):
             raise AuditCollectionError(
-                "evidence", "A conclusive check needs tested conditions and selected evidence."
+                "verdict",
+                "Call evidence with sources and tested conditions before a conclusive judgment.",
             )
         if item.verdict == "inconclusive" and not item.limitations:
             raise AuditCollectionError("limitations", "Explain why the check is inconclusive.")
-        if any(handle not in evidence_handles(member) for handle in item.evidence):
-            raise AuditCollectionError("evidence", "Use evidence handles from this assigned task.")
         return item
 
     def _snapshot(self, items=None):
@@ -176,16 +259,7 @@ class InvocationAuditCollector:
                 partial(self._encoder.encode, self._snapshot(prospective), inputs=self.inputs),
                 name="audit-admission-encode",
             )
-            selected = {
-                request_id
-                for record in prospective.values()
-                for request_id in record.value.http_request_ids
-            }
-            if (
-                len(selected) > MAX_EVIDENCE
-                or len(encoded.data) + sum(self._http_selected[key][1] for key in selected)
-                > MAX_COLLECTED_BYTES
-            ):
+            if len(encoded.data) + self._retained_evidence_bytes() > MAX_COLLECTED_BYTES:
                 raise AuditResultError("audit_result_size_exceeded")
         except AuditResultError:
             raise AuditCollectionError(
@@ -201,53 +275,94 @@ class InvocationAuditCollector:
                 if key in self._items
             ),
             tuple(key for key in self.owner.item_keys if key not in self._items),
+            materials=tuple(sorted(set(self._accepted_materials.values()))),
         )
 
     def begin_response(self) -> None:
-        self._response_revisions = {key: item.revision for key, item in self._items.items()}
+        self._response_revisions = dict(self._known_generations)
 
     def item_base(self, item_key: str) -> int | None:
         if not isinstance(item_key, str):
             return None
         if self._response_revisions is not None:
             return self._response_revisions.get(item_key)
-        item = self._items.get(item_key)
-        return item.revision if item else None
+        return self._known_generations.get(item_key)
+
+    async def _accept(self, prospective, keys, bases, mode):
+        snapshot = AuditSnapshot(
+            self.owner,
+            tuple(prospective[key] for key in self.owner.item_keys if key in keys),
+        )
+        try:
+            receipt = await self._persist(snapshot, bases, mode)
+        except JudgmentStaleError as error:
+            if set(error.generations) != set(keys):
+                raise RuntimeError("Audit owner returned foreign generations") from None
+            for key, generation in error.generations.items():
+                if type(generation) is not int or not 0 <= generation <= MAX_REVISION:
+                    raise RuntimeError("Audit owner returned invalid generations") from None
+                if generation:
+                    self._known_generations[key] = generation
+                else:
+                    self._known_generations.pop(key, None)
+            # An older acknowledged value remains durable history, but cannot
+            # satisfy normal completion after the owner reports a newer value.
+            self._items = {
+                key: item
+                for key, item in self._items.items()
+                if self._known_generations.get(key) == item.revision
+            }
+            self._accepted_materials = {
+                key: value for key, value in self._accepted_materials.items() if key in self._items
+            }
+            raise AuditCollectionError(
+                "item_key", "The saved result changed; submit a judgment in a later response."
+            ) from None
+        generations = receipt["generations"]
+        if set(generations) != set(keys) or any(
+            type(value) is not int or not 1 <= value <= MAX_REVISION
+            for value in generations.values()
+        ):
+            raise RuntimeError("Audit owner returned invalid accepted generations")
+        material = jcs.canonicalize(receipt["material"])
+        for key in keys:
+            prospective[key] = RecordedAuditItem(prospective[key].value, generations[key])
+            self._known_generations[key] = generations[key]
+            self._accepted_materials[key] = material
+        self._items = prospective
+        return self._receipt()
 
     async def record(self, item: NormalizedAuditItem, *, expected_revision=_CURRENT):
         if expected_revision is _CURRENT:
             expected_revision = self.item_base(item.item_key)
         async with self._lock:
             self._check_live(writing=True)
-            item = self._validate(item)
+            item = self._validate(self._with_evidence(item))
             key = item.item_key
             current = self._items.get(key)
-            if current is not None and replace(current.value, http_evidence=()) == item:
+            known = self._known_generations.get(key)
+            if current is not None and current.value == item and current.revision == known:
                 return self._receipt()
-            if (current.revision if current else None) != expected_revision:
+            if known != expected_revision:
                 raise AuditCollectionError(
                     "item_key",
                     "This item changed in the same response; submit again in a later turn.",
                     item_key=key,
                     current_revision=current.revision if current else None,
                 )
-            revision = 1 if current is None else current.revision + 1
+            revision = 1 if known is None else known + 1
             if revision > MAX_REVISION:
                 raise AuditCollectionError("item_key", "Revision limit reached.", item_key=key)
-            (item,) = await self._resolve_http((item,))
             prospective = {**self._items, key: RecordedAuditItem(item, revision)}
             await self._admit(prospective)
-            # The lock is still held: nothing changed the collection while
-            # the prospective set was encoded, so the replacement is atomic.
-            self._items = prospective
-            return self._receipt()
+            return await self._accept(prospective, (key,), {key: expected_revision}, "single")
 
     async def record_batch(self, items: tuple[NormalizedAuditItem, ...]):
         async with self._lock:
             self._check_live(writing=True)
             if not isinstance(items, tuple) or len(items) != len(self.owner.item_keys):
                 raise AuditCollectionError("items", "Provide every assigned item key exactly once.")
-            values = tuple(self._validate(item) for item in items)
+            values = tuple(self._validate(self._with_evidence(item)) for item in items)
             keyed = {item.item_key: item for item in values}
             if len(keyed) != len(values) or set(keyed) != set(self.owner.item_keys):
                 raise AuditCollectionError("items", "Provide every assigned item key exactly once.")
@@ -255,7 +370,7 @@ class InvocationAuditCollector:
             prospective = dict(self._items)
             for item in values:
                 current = prospective.get(item.item_key)
-                if current is not None and replace(current.value, http_evidence=()) != item:
+                if current is not None and current.value != item:
                     raise AuditCollectionError(
                         "results",
                         "Existing result differs; correct it with a single-item submission.",
@@ -264,57 +379,18 @@ class InvocationAuditCollector:
                     )
                 if current is None:
                     prospective[item.item_key] = RecordedAuditItem(item, 1)
-            resolved = await self._resolve_http(values)
-            for item in resolved:
-                prospective[item.item_key] = RecordedAuditItem(
-                    item, prospective[item.item_key].revision
-                )
             await self._admit(prospective)
-            self._items = prospective
-            return self._receipt()
-
-    async def _resolve_http(self, items):
-        ids = tuple(dict.fromkeys(key for item in items for key in item.http_request_ids))
-        missing = [key for key in ids if key not in self._http_selected]
-        if missing:
-            if self._http_publisher is None:
-                raise AuditCollectionError(
-                    "http_request_ids", "HTTP evidence is unavailable in this invocation."
-                )
-            try:
-                pending = await self._http_publisher.prepare(
-                    self.owner.invocation_id,
-                    missing,
-                    max_bytes=MAX_COLLECTED_BYTES
-                    - sum(size for _, size in self._http_selected.values()),
-                )
-            except HTTPSelectionLimitError:
-                raise AuditCollectionError(
-                    "http_request_ids", "Selected HTTP evidence exceeds the collection budget."
-                ) from None
-            except ValueError:
-                raise AuditCollectionError(
-                    "http_request_ids", "HTTP evidence is unavailable in this invocation."
-                ) from None
-            if (
-                len(self._http_selected) + len(pending) > MAX_EVIDENCE
-                or sum(size for _, size in self._http_selected.values())
-                + sum(len(raw) for _, raw in pending)
-                > MAX_COLLECTED_BYTES
+            if all(
+                key in self._items and self._items[key].revision == self._known_generations.get(key)
+                for key in self.owner.item_keys
             ):
-                raise AuditCollectionError(
-                    "http_request_ids", "Selected HTTP evidence exceeds the collection budget."
-                )
-            for key, raw in pending:
-                material = await self._http_publisher.publish(self.owner.invocation_id, key, raw)
-                self._http_selected[key] = (material, len(raw))
-        return tuple(
-            replace(
-                item,
-                http_evidence=tuple(self._http_selected[key][0] for key in item.http_request_ids),
+                return self._receipt()
+            return await self._accept(
+                prospective,
+                self.owner.item_keys,
+                {key: self._known_generations.get(key) for key in self.owner.item_keys},
+                "batch",
             )
-            for item in items
-        )
 
     async def snapshot(self):
         async with self._lock:
@@ -337,5 +413,7 @@ class InvocationAuditCollector:
             self._discarded = True
             self._items.clear()
             self._response_revisions = None
+            self._known_generations.clear()
+            self._accepted_materials.clear()
             self._proposals.clear()
-            self._http_selected.clear()
+            self._evidence.clear()

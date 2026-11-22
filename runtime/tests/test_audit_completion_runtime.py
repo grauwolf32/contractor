@@ -8,11 +8,12 @@ from types import SimpleNamespace
 
 import pytest
 from audit_fixtures import arguments
+from fakes.audit_judgments import JudgmentTransport
 from fakes.model import scripted_model, text_result, thought_result, tool_call
 from google.genai import types
 from test_adk_runtime import build_context, stage_request
 from test_audit_completion_continuation import CountedState
-from test_audit_result_publication import assigned
+from test_audit_result_publication import assigned as exact_assignment
 
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactValue
 from contractor_runtime.contracts import ArtifactRef, ArtifactWriteResult, WorkerCompletionContract
@@ -22,11 +23,33 @@ from contractor_runtime.worker import completion as worker_runtime
 from contractor_runtime.worker.runtime import AdkWorkerRuntime
 
 
+def assigned(**options):
+    # These tests isolate completion, budgets and lifecycle. No source is
+    # automatically promoted to evidence: a bounded inconclusive judgment can
+    # settle without a fake conclusive claim or extra model calls.
+    snapshot, inputs = exact_assignment(**options)
+    items = tuple(
+        replace(
+            record,
+            value=replace(
+                record.value,
+                tested_conditions=(),
+                selected_evidence=(),
+                verdict="inconclusive" if record.value.verdict is not None else None,
+                limitations=("The fixture selects no check evidence",),
+            ),
+        )
+        for record in snapshot.items
+    )
+    return replace(snapshot, items=items), inputs
+
+
 class AuditClient:
     allocation_id = "allocation-1"
 
     def __init__(self, inputs):
         self.inputs = inputs
+        self.transport = JudgmentTransport(inputs)
         self.reads = []
         self.writes = []
         self.on_write = None
@@ -89,7 +112,7 @@ async def runtime_for(
     if request_timeout_seconds is not None:
         context.runtime_settings.request_timeout_seconds = request_timeout_seconds
     tools = await AuditResultsToolsetFactory(lambda *_: client).create_selected(
-        selected=["read_audit_task", "submit_check_result", "submit_check_results"],
+        selected=["read_audit_task", "submit_result", "submit_results", "evidence"],
         allocation_id="allocation-1",
         namespace="builder",
         runtime_settings=context.runtime_settings,
@@ -115,9 +138,7 @@ async def runtime_for(
 
 
 def submit(item, call="submit-1"):
-    return tool_call(
-        "submit_check_result", {"item_key": item.item_key, **arguments(item)}, call_id=call
-    )
+    return tool_call("submit_result", {"item_key": item.item_key, **arguments(item)}, call_id=call)
 
 
 def test_audit_invocation_can_outlive_one_request_timeout(tmp_path):
@@ -255,7 +276,7 @@ def test_real_runner_continues_once_with_one_owner_and_publishes_on_last_allowed
         metrics = snapshot["lastCompletedInvocation"]["metrics"]
         assert metrics["modelCalls"] == 4 and metrics["toolCalls"] == 2
         assert runtime._plugin._next_tool_ordinal == 3
-        assert completion.result.observations.tools["submit_check_result"].calls == 2
+        assert completion.result.observations.tools["submit_result"].calls == 2
         results = json.loads(client.writes[0])["items"]
         assert [result["item_key"] for result in results] == list(expected.owner.item_keys)
         with pytest.raises(AuditCollectionError):
@@ -272,7 +293,9 @@ def test_missing_partial_invalid_results_cannot_be_bypassed_by_prose(tmp_path, m
         responses = []
         if mode != "missing":
             value = expected.items[0].value
-            responses.append(submit(replace(value, evidence=()) if mode == "invalid" else value))
+            responses.append(
+                submit(replace(value, verdict="supported") if mode == "invalid" else value)
+            )
         responses += [text_result("Everything is complete and published.")] * 3
         runtime, model, client, state, _ = await runtime_for(tmp_path, responses, batch=True)
         result = await runtime.invoke(stage_request())
@@ -406,7 +429,7 @@ def test_shared_session_reuse_never_inherits_accepted_results_or_tool_authority(
         assert first.invocation_id != second.invocation_id
         assert len(client.writes) == 1 and len(client.reads) == 1
         assert state.begins == state.completions == 2
-        stale = await runtime._context.tools["submit_check_result"](
+        stale = await runtime._context.tools["submit_result"](
             SimpleNamespace(invocation_id=first.invocation_id),
             **arguments(expected.items[0].value, keyed=True),
         )
@@ -441,7 +464,7 @@ def test_exact_preparation_rejects_alias_receipt_and_toolset_without_contract(tm
         context = build_context(tmp_path, state, {})
         factory = AuditResultsToolsetFactory(lambda *_: client)
         kwargs = dict(
-            selected=["read_audit_task", "submit_check_result", "submit_check_results"],
+            selected=["read_audit_task", "submit_result", "submit_results", "evidence"],
             allocation_id="allocation-1",
             namespace="builder",
             runtime_settings=context.runtime_settings,
@@ -610,7 +633,12 @@ def test_allocation_preparation_and_registration_require_positive_completion_sup
         spec.agent_template.toolsets = [
             ToolsetSelection(
                 ref=ToolsetRef(toolsetId="audit-results", version="2"),
-                tools=["read_audit_task", "submit_check_result", "submit_check_results"],
+                tools=[
+                    "read_audit_task",
+                    "submit_result",
+                    "submit_results",
+                    "evidence",
+                ],
             )
         ]
         spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
@@ -631,8 +659,8 @@ def test_allocation_preparation_and_registration_require_positive_completion_sup
             toolsets={
                 "audit-results@2": [
                     "read_audit_task",
-                    "submit_check_result",
-                    "submit_check_results",
+                    "submit_result",
+                    "submit_results",
                 ]
             },
         )
@@ -696,9 +724,7 @@ def test_real_runner_batch_publishes_reversed_keys_and_distinct_rationale(tmp_pa
         runtime, _model, client, _state, _ = await runtime_for(
             tmp_path,
             [
-                tool_call(
-                    "submit_check_results", {"items": list(reversed(values))}, call_id="batch"
-                ),
+                tool_call("submit_results", {"items": list(reversed(values))}, call_id="batch"),
                 text_result("Recorded the assigned conclusions"),
             ],
             batch=True,
@@ -709,7 +735,7 @@ def test_real_runner_batch_publishes_reversed_keys_and_distinct_rationale(tmp_pa
             results = json.loads(client.writes[0])["items"]
             assert [item["item_key"] for item in results] == list(expected.owner.item_keys)
             assert [item["rationale"] for item in results] == ["Exact member 0", "Exact member 1"]
-            assert completion.result.observations.tools["submit_check_results"].calls == 1
+            assert completion.result.observations.tools["submit_results"].calls == 1
         finally:
             await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
 
@@ -723,7 +749,7 @@ def test_real_runner_rejects_omitted_singleton_key_before_corrected_submission(t
         runtime, _model, client, _state, _ = await runtime_for(
             tmp_path,
             [
-                tool_call("submit_check_result", arguments(item), call_id="missing-key"),
+                tool_call("submit_result", arguments(item), call_id="missing-key"),
                 submit(item, call="corrected"),
                 text_result("Completed"),
             ],
@@ -732,7 +758,7 @@ def test_real_runner_rejects_omitted_singleton_key_before_corrected_submission(t
             completion = await runtime.invoke(stage_request())
             assert completion.failure is None
             assert len(client.writes) == 1
-            observation = completion.result.observations.tools["submit_check_result"]
+            observation = completion.result.observations.tools["submit_result"]
             assert observation.calls == 2 and observation.failures == 1
         finally:
             await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))

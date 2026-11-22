@@ -40,6 +40,7 @@ class ProposalCollector(Protocol):
 
 @dataclass(slots=True)
 class ToolResources:
+    source_evidence: Callable[[str, int, int], Awaitable[dict]] | None = None
     selected_versions: SelectedVersions = field(default_factory=SelectedVersions)
     artifact_cursors: ArtifactReadCursors = field(default_factory=ArtifactReadCursors)
     invocation_artifacts: Mapping[str, ArtifactRef] = field(default_factory=dict)

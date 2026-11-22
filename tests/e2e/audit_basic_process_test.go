@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 )
 
@@ -132,6 +134,32 @@ func TestAuditBasicExactHandoffAcrossProductionProcesses(t *testing.T) {
 			if int(current["submittedRunCount"].(float64)) != 2 || h.gateway.CompletedStages() != 2 || len(h.gateway.Failures()) != 0 {
 				t.Fatalf("duplicate or failed ordinary Run: %v gateway=%v", current, h.gateway.Failures())
 			}
+			// Retained evidence remains readable after permitted producer purge.
+			// The returned Run aliases are informational; Audit sources own bytes.
+			producer := result.Items[0].Origin.RunID
+			deleteASVSBacktraceRun(t, h.ctx, h.client, h.baseURL, producer)
+			materials, _ := basicAuditRequest(t, h, http.MethodGet, "/v1/audits/"+auditID+"/materials?limit=100", nil, "", 0, http.StatusOK)
+			if materials["page"].(map[string]any)["hasMore"].(bool) {
+				t.Fatal("small retention fixture exceeded its bounded material page")
+			}
+			retained := 0
+			for _, raw := range materials["items"].([]any) {
+				entry := raw.(map[string]any)
+				material := entry["material"].(map[string]any)
+				ref := material["ref"].(map[string]any)
+				if !strings.HasPrefix(ref["name"].(string), "evidence-") && !strings.HasPrefix(ref["name"].(string), "source-") {
+					continue
+				}
+				query := url.Values{"key": {entry["key"].(string)}, "revision": {ref["revision"].(string)}}
+				data, _ := download(t, h.client, h.baseURL+"/v1/audits/"+auditID+"/artifacts?"+query.Encode())
+				if len(data) == 0 {
+					t.Fatal("producer purge lost accepted evidence")
+				}
+				retained++
+			}
+			if retained < 2 {
+				t.Fatal("selected source and annotation were not retained")
+			}
 			assertCommonAuditEventContract(t, h, auditID)
 		})
 	}
@@ -144,6 +172,7 @@ type basicTask struct {
 	Attempts      int                                `json:"attempts"`
 	LastExecution *string                            `json:"last_execution_id"`
 	Result        *auditcontract.Material            `json:"result"`
+	Stop          *auditcontract.TaskStop            `json:"stop"`
 	GapCode       *string                            `json:"gap_code"`
 }
 
@@ -156,21 +185,32 @@ func basicReportStage() domainGatewayStage {
 }
 
 func basicConclusionStage(withFinding bool) domainGatewayStage {
-	stage := domainGatewayStage{name: "basic-check", tools: []string{"list_artifacts", "read_artifact", "write_text_artifact", "finding", "read_file", "read_audit_task", "submit_check_result", "submit_check_results"}, steps: []domainGatewayStep{
+	stage := domainGatewayStage{name: "basic-check", tools: []string{"list_artifacts", "read_artifact", "write_text_artifact", "finding", "read_file", "read_audit_task", "submit_result", "submit_results", "evidence"}, steps: []domainGatewayStep{
 		toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
 		toolGatewayStep("read_artifact", fixedArguments(map[string]any{"namespace": "inputs", "name": "material"})),
 		toolGatewayStep("read_file", fixedArguments(map[string]any{"path": "app.py", "start_line": 1, "max_lines": 100})),
 	}}
+	stage.steps = append(stage.steps, toolGatewayStep("evidence", auditResultArguments(map[string]any{
+		"sources":           []any{map[string]any{"kind": "artifact", "namespace": "inputs", "name": "material"}},
+		"interpretation":    "Selected source supports only the stated source observation.",
+		"tested_conditions": []string{"source inspected; no live target action"},
+		"limitations":       []string{"Source reasoning does not verify deployment behavior"},
+	})))
 	if withFinding {
 		stage.steps = append(stage.steps, toolGatewayStep("finding", func(request map[string]any) (map[string]any, error) {
-			evidence, ok := lastExactArtifact(request, "inputs", "material")
-			if !ok {
-				return nil, fmt.Errorf("assigned exact source was not read")
+			receipts := findingsToolResponses(request, "evidence")
+			if len(receipts) != 1 || receipts[0]["persistence"] != "accepted" {
+				return nil, fmt.Errorf("evidence was not Server accepted: %v", receipts)
 			}
-			return map[string]any{"title": "Query concatenation in lookup", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 10}, "cwe": "CWE-89", "evidence_refs": []any{materialSelector(evidence)}}, nil
+			selected, ok := receipts[0]["sourceSelectors"].([]any)
+			if !ok || len(selected) != 1 {
+				return nil, fmt.Errorf("missing exact reusable source selector")
+			}
+
+			return map[string]any{"title": "Query concatenation in lookup", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 10}, "cwe": "CWE-89", "sources": selected}, nil
 		}))
 	}
-	stage.steps = append(stage.steps, toolGatewayStep("submit_check_result", auditResultArguments(map[string]any{"rationale": findingsEvidence, "tested_conditions": []string{"selected source inspected; no external target action"}, "limitations": []string{"No live exploit was executed"}, "evidence": []string{"evidence-000", "evidence-001"}})), finalGatewayStep("Recorded exploration", nil))
+	stage.steps = append(stage.steps, toolGatewayStep("submit_result", auditResultArguments(map[string]any{"rationale": findingsEvidence, "limitations": []string{"No live exploit was executed"}})), finalGatewayStep("Recorded exploration", nil))
 	return stage
 }
 
@@ -313,7 +353,7 @@ spec:
     - {ref: text-artifacts@1, tools: [write_text_artifact]}
     - {ref: security-findings-code@1, tools: [finding]}
     - {ref: filesystem@1, tools: [read_file]}
-    - {ref: audit-results@2, tools: [read_audit_task, submit_check_result, submit_check_results]}
+    - {ref: audit-results@2, tools: [read_audit_task, submit_result, submit_results, evidence]}
   sandboxProfile: local-workdir@1
 `
 const basicCheckWorkflow = `apiVersion: contractor/v1alpha1
@@ -469,6 +509,53 @@ func assignedAuditKeys(request map[string]any) ([]string, error) {
 	return keys, nil
 }
 
+// The scripted model explicitly selects this trusted source for the indexed item.
+// Task reading alone performs no evidence association.
+func auditSourceEvidenceArguments(index int, conditions []string) func(map[string]any) (map[string]any, error) {
+	return func(request map[string]any) (map[string]any, error) {
+		keys, err := assignedAuditKeys(request)
+		if err != nil {
+			return nil, err
+		}
+		if index < 0 || index >= len(keys) {
+			return nil, fmt.Errorf("missing assigned evidence item")
+		}
+		return map[string]any{"item_key": keys[index], "sources": []any{map[string]any{"kind": "artifact", "namespace": "inputs", "name": "source"}}, "interpretation": "The selected source supports only this scoped fixture interpretation; deployment behavior is independently unverified.", "tested_conditions": conditions, "limitations": []string{}}, nil
+	}
+}
+
+func selectedAuditMaterialKey(t *testing.T, h *findingsHarness, auditID string, material contracts.MaterialDescriptor) string {
+	t.Helper()
+	page, _ := basicAuditRequest(t, h, http.MethodGet, "/v1/audits/"+auditID+"/materials?limit=100", nil, "", 0, http.StatusOK)
+	if page["page"].(map[string]any)["hasMore"].(bool) {
+		t.Fatal("small source fixture exceeded its material page")
+	}
+	wanted, err := json.Marshal(material)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var expected map[string]any
+	if err := json.Unmarshal(wanted, &expected); err != nil {
+		t.Fatal(err)
+	}
+	for _, raw := range page["items"].([]any) {
+		row := raw.(map[string]any)
+		if reflect.DeepEqual(row["material"], expected) {
+			return row["key"].(string)
+		}
+	}
+	t.Fatal("accepted exact material has no ordinary Audit link")
+	return ""
+}
+
+func auditHTTPSourceEvidenceArguments(ids []int, conditions []string) func(map[string]any) (map[string]any, error) {
+	sources := []any{}
+	for _, id := range ids {
+		sources = append(sources, map[string]any{"kind": "http", "request_id": id})
+	}
+	return auditResultArguments(map[string]any{"sources": sources, "interpretation": "Actual captured requests support only the stated fixture observations, not a target vulnerability verdict.", "tested_conditions": conditions, "limitations": []string{}})
+}
+
 func auditResultArguments(value map[string]any) func(map[string]any) (map[string]any, error) {
 	return func(request map[string]any) (map[string]any, error) {
 		args := make(map[string]any, len(value)+1)
@@ -492,7 +579,7 @@ func auditResultArguments(value map[string]any) func(map[string]any) (map[string
 
 func requireRecordedAuditResults(count int) func(map[string]any) error {
 	return func(request map[string]any) error {
-		responses := findingsToolResponses(request, "submit_check_result")
+		responses := findingsToolResponses(request, "submit_result")
 		if len(responses) != count {
 			return fmt.Errorf("scalar result responses = %d, want %d", len(responses), count)
 		}

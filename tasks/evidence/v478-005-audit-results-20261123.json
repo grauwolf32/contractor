@@ -1,0 +1,185 @@
+{
+  "schema_version": "1.0",
+  "task": "V478-005",
+  "status": "passed",
+  "verified_on": "2026-11-23",
+  "implementation_commit": "44a29331cb04cea6697aa8a9b2f011288cc16dc7",
+  "baseline_main": "cd2974674def375c1838b496c8f288e86989dc8a",
+  "unchanged_owner_trees": {
+    "internal": {
+      "tree": "7d1ef56225aba9701efeb3207f978c86fbc4044f",
+      "unchanged_from": "b130d8035d33849a218a8069e4d4f0de12070e27"
+    },
+    "runtime": {
+      "tree": "75570f0905144385d4359e952181b69ed3d6d47f",
+      "unchanged_from": "b130d8035d33849a218a8069e4d4f0de12070e27"
+    },
+    "api": {
+      "tree": "0c1b600646836569e1fbae854395a1a6ac705c83",
+      "unchanged_from": "b130d8035d33849a218a8069e4d4f0de12070e27"
+    },
+    "configs": {
+      "tree": "fd59a977d710d49ab275276370d16c5ae0cad510",
+      "unchanged_from": "b130d8035d33849a218a8069e4d4f0de12070e27"
+    }
+  },
+  "gates": [
+    {
+      "command": "make test-runtime",
+      "passed": 6637,
+      "declared_skips_not_passing_coverage": 134,
+      "reused_unchanged_owner": true,
+      "log": {
+        "path": "/tmp/v478-004-runtime-final.log",
+        "sha256": "sha256:87f874170bb66a326d9caa7a9e5603544487293e137a390e5513b2445b3b8eda"
+      }
+    },
+    {
+      "command": "make test-audit-completion-e2e",
+      "go_cases": 223,
+      "runtime_cases": 482,
+      "required_skips": 0,
+      "reused_unchanged_owner": true,
+      "log": {
+        "path": "/tmp/v478-004-completion-final3.log",
+        "sha256": "sha256:77f028793ac7df66e0cee4f86bb3ad7b81aba86ab93630c2a1585a2f7723bde3"
+      }
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "fixtures": 407,
+      "go_shared_readers": 466,
+      "python_shared_readers": 293,
+      "runtime_cases": 1602,
+      "optional_heavy_skips_not_passing_coverage": 1,
+      "reused_unchanged_owner": true,
+      "log": {
+        "path": "/tmp/v478-004-wire-final3.log",
+        "sha256": "sha256:46f2a0305eff54861b054b443f8eb7fa5e9abb4af6735f9d53710c5a3b08d062"
+      }
+    },
+    {
+      "command": "make test-findings-e2e",
+      "required_process_cases": 25,
+      "runtime_cases": 310,
+      "required_skips": 0,
+      "reused_unchanged_owner": true,
+      "log": {
+        "path": "/tmp/v478-019-findings-final.log",
+        "sha256": "sha256:b9cbbb94dc8636092561e0334978fd0c342b3a91306713c06e814f1a54d84e3c"
+      }
+    },
+    {
+      "command": "make test-audit-basic-e2e",
+      "process_cases": 14,
+      "required_skips": 0,
+      "log": {
+        "path": "/tmp/v478-005-basic-final2.log",
+        "sha256": "sha256:6c8ca8638d00ac7cbcfd4f90940d9974952bd85891c63810258cd75ee472bb3a"
+      }
+    },
+    {
+      "command": "go test -tags=integration -count=1 ./internal/auditdomain/... ./internal/auditcontroller/... ./internal/auditimport/... ./internal/auditservice/... ./internal/auditstore/... ./internal/artifacts/... ./internal/httpapi/public/...",
+      "postgresql": "real",
+      "log": {
+        "path": "/tmp/v478-005-go-final.log",
+        "sha256": "sha256:3d0d5e02ac8c1b3f14fd611d45ff226a96e0eb8a33a5efa0185bfab839423d0e"
+      }
+    },
+    {
+      "command": "make verify-public-api-postgres",
+      "required_race_cases": 9,
+      "log": {
+        "path": "/tmp/v478-005-api-final.log",
+        "sha256": "sha256:46f26b2c651264a6353ca547cb507b6d51c8bd611784f09ad507c4161cf0b57c"
+      }
+    },
+    {
+      "command": "make test-http-caido-e2e",
+      "process_cases": 1,
+      "log": {
+        "path": "/tmp/v478-005-http-final.log",
+        "sha256": "sha256:ba64e6b3260393bcd0de2d2fba31a062d10c1ec2f42dfc5c4b0b8c6abd54e98b"
+      }
+    },
+    {
+      "command": "go test -tags=e2e -count=1 -run '^(TestRuntimeManagedMaterialVersionsAcrossProcesses|TestAuditCompactionPreservesTrustedCompletionAcrossProcesses|TestProjectFindingsReaderAcrossProcesses)$' -timeout=30m ./tests/e2e",
+      "process_roots": 3,
+      "log": {
+        "path": "/tmp/v478-005-versions-final2.log",
+        "sha256": "sha256:9b6fc116c59b18328c7add68387eb186d5e8ec905979ee7dbf117fcb14500600"
+      }
+    },
+    {
+      "command": "make test-audit-research-ui",
+      "process_roots": 1,
+      "production_browser_scenarios": 2,
+      "scenarios": [
+        "continuation",
+        "interrupted-with-incidental-finding"
+      ],
+      "themes": [
+        "light",
+        "dark",
+        "black"
+      ],
+      "viewport_widths": [
+        1440,
+        390
+      ],
+      "log": {
+        "path": "/tmp/v478-005-browser-final3.log",
+        "sha256": "sha256:eda7aff70ae9e3773b86d74d61aeca05171dbf03d5e4d41cd61ed4b367701848"
+      }
+    },
+    {
+      "command": "VITEST_MAX_WORKERS=2 make ui-verify",
+      "unit_test_files": 228,
+      "unit_passed": 2584,
+      "expected_failures_not_counted_as_passes": 1,
+      "note": "Only worker concurrency was bounded; cases and timeouts were unchanged. Generate-check, lint, typecheck, server tests and build passed.",
+      "log": {
+        "path": "/tmp/v478-005-ui-verify-final.log",
+        "sha256": "sha256:ea6eed6e56c1c0a7d47f7839b0336f584f6455e099980137740654f733ba1c76"
+      }
+    },
+    {
+      "command": "make ui-browser-mocked",
+      "browser_cases": 249,
+      "specs": 34,
+      "required_skips": 0,
+      "log": {
+        "path": "/tmp/v478-005-mocked-final3.log",
+        "sha256": "sha256:35f54c6ba48563ea19dbdd0d9f26cf752ad21af6b62b3cc8da4e94fbb34d4cf1"
+      }
+    },
+    {
+      "command": "make lint",
+      "log": {
+        "path": "/tmp/v478-005-lint-final3.log",
+        "sha256": "sha256:d77c0a9e30a5082c6df85e1e97af70ed0ad8aaa02417e8d13f6a68675af7fd43"
+      }
+    }
+  ],
+  "demonstrated": [
+    "Server-acknowledged explicit evidence and thin per-item judgments survive Runtime loss and Server restart",
+    "Latest committed B survives old A replay and acknowledgement loss; Run failure/cancellation is unchanged",
+    "System no-accepted-conclusion is distinct from model inconclusive, with observed reason and exact retained refs",
+    "Unassigned work receives no invented attempt or semantic coverage",
+    "An incidental Finding with pinned code proof, local HTTP and artifact sources retains four exact Project materials after Run purge without Task/hypothesis association",
+    "UI reads older attempt result_key and exact revision without substituting the current result",
+    "Two compactions preserve private source selections, accepted judgments and rejection of invented members/sources",
+    "Two independent process Server/Runtime groups execute concurrently in distinct databases; production lease unchanged",
+    "Terminal off-page refresh removes old empty-state text; result and attempt components have distinct React keys"
+  ],
+  "limitations": [
+    "Scripted models prove contracts and plumbing, not live-model judgment quality",
+    "No live Gateway/model experiment, implicit heavy-I/O run, demo deployment or main merge"
+  ],
+  "cleanup": {
+    "owned_database": "v478_test",
+    "dropped_and_absence_verified": true,
+    "owned_postgresql_cluster_stopped": true,
+    "other_lane_databases": "not modified; the independent review lane removed its databases before cluster shutdown"
+  }
+}

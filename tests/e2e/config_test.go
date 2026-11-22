@@ -111,7 +111,7 @@ func installOrdinaryFindingFixture(t *testing.T, root, templateFile, workflowFil
 	template = strings.ReplaceAll(template, "    - ref: taint-annotations@1\n      tools: [annotate_trace, annotate_validate, annotate_sink]\n", "")
 	template = strings.ReplaceAll(template, "    - ref: workspace-changes@1\n      tools: [changed_paths, diff, rollback_changes]\n", "")
 	template = strings.Replace(template, "  name: "+templateFile+"\n", "  name: "+name+"\n", 1)
-	template = strings.Replace(template, "    - ref: audit-results@2\n      tools: [read_audit_task, submit_check_result, submit_check_results]\n", "", 1)
+	template = strings.Replace(template, "    - ref: audit-results@2\n      tools: [read_audit_task, submit_result, submit_results, evidence]\n", "", 1)
 	if !strings.Contains(template, "ref: text-artifacts@1") {
 		template = strings.Replace(template, "  toolsets:\n", "  toolsets:\n    - ref: text-artifacts@1\n      tools: [write_text_artifact]\n", 1)
 	}

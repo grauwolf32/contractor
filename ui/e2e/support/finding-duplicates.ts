@@ -74,7 +74,7 @@ export async function exerciseFindingDuplicates(
   for (const index of [1, 2]) {
     const run = await post<{ runId: string }>(
       `/v1/projects/${project.projectId}/runs`,
-      { workflow: "source-findings-review@2", artifacts: { source } },
+      { workflow: "source-findings-review@4", artifacts: { source } },
       `correlation-producer-${index}`,
     );
     await expect
@@ -98,7 +98,7 @@ export async function exerciseFindingDuplicates(
       await post<Schemas["Audit"]>(
         `/v1/projects/${project.projectId}/audits`,
         {
-          profile: { name: "owasp-top10-2025-source-risk", version: "2" },
+          profile: { name: "owasp-top10-2025-source-risk", version: "7" },
           inputs: { source },
         },
         `correlation-audit-${index}`,

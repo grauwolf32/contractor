@@ -3,13 +3,13 @@ kind: AgentTemplate
 
 metadata:
   name: audit_risk_source_checker
-  version: "4"
+  version: "7"
 
 spec:
   description: Evaluates one exact standard mapping against source code and may publish an evidence-bound candidate finding
   runtime: adk@1
   instructions:
-    ref: instructions/audit-risk-source-checker-worker-project-findings-keyed-results-runtime-versions.md
+    ref: instructions/audit-risk-source-checker-worker-project-findings-keyed-results-runtime-versions-investigation-sources-thin-results.md
   toolsets:
     - ref: memory-tools@1
       tools:
@@ -24,7 +24,7 @@ spec:
     - ref: security-findings-code@1
       tools: [finding]
     - ref: audit-results@2
-      tools: [read_audit_task, submit_check_result, submit_check_results]
+      tools: [read_audit_task, submit_result, submit_results, evidence]
   skills:
     - namespace: skills
       name: trace

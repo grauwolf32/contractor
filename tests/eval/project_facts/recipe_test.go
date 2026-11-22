@@ -17,7 +17,7 @@ func TestFrozenMemoryExtractionRecipeUsesNativeContracts(t *testing.T) {
 	var lock struct {
 		Files map[string]string `json:"files"`
 	}
-	data, err := os.ReadFile("corpus-v3.lock.json")
+	data, err := os.ReadFile("corpus-v5.lock.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,14 +91,14 @@ func TestOptionalMemoryEvalConfigurationUsesOrdinaryAuditExecution(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile, err := catalog.AuditProfile("project-facts-eval@3")
+	profile, err := catalog.AuditProfile("project-facts-eval@5")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(profile.Program.InitialWork) != 1 {
 		t.Fatal("Eval must use one ordinary Audit task")
 	}
-	workflow, err := catalog.Workflow("fact-extraction-audit-eval@3")
+	workflow, err := catalog.Workflow("fact-extraction-audit-eval@5")
 	if err != nil {
 		t.Fatal(err)
 	}

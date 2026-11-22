@@ -30,6 +30,8 @@ PROCESS_TESTS = (
     "TestEvalFindingProjectNavigationAcrossProcesses",
     "TestProjectDocumentResponseRecoveryAcrossProcesses",
     "TestProjectDocumentOutputLimitRecoveryAcrossProcesses",
+    "TestIndependentFindingsServersAcrossProcesses",
+    "TestProcessDatabaseIsolation",
 )
 REQUIRED_TESTS = frozenset(
     (
@@ -157,7 +159,7 @@ def run(root: Path) -> None:
                     "-json",
                     "-tags=e2e",
                     "-count=1",
-                    "-timeout=10m",
+                    "-timeout=15m",
                     "./tests/e2e",
                     "-run",
                     pattern,

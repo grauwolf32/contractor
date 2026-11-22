@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-65 open tasks: 10 in progress, 42 pending, 13 deferred. 1657 finished: 1639 completed, 18 archived.
+65 open tasks: 10 in progress, 42 pending, 13 deferred. 1679 finished: 1661 completed, 18 archived.
 
 ## In progress
 
@@ -156,23 +156,23 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 50 | 71 | 40 | 107 |
-| Planners and the Worker model boundary (`planner-worker`) | 5 | 49 | 60 | 47 | 94 |
+| Run execution core (`execution-core`) | 3 | 50 | 73 | 41 | 109 |
+| Planners and the Worker model boundary (`planner-worker`) | 5 | 49 | 60 | 48 | 98 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 26 | 38 | 15 | 39 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
-| Findings tools and collections (`findings`) | 0 | 22 | 15 | 11 | 27 |
+| HTTP and Caido tools (`http-tools`) | 5 | 26 | 38 | 16 | 39 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 13 | 30 |
+| Findings tools and collections (`findings`) | 0 | 22 | 15 | 13 | 30 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 20 | 75 |
-| Audits (`audits`) | 10 | 72 | 98 | 42 | 172 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 21 | 76 |
+| Audits (`audits`) | 10 | 77 | 104 | 43 | 179 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 21 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
 | Web UI (`ui`) | 1 | 56 | 81 | 34 | 80 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
-| Quality, CI and process (`quality`) | 11 | 1 | 34 | 153 | 32 |
+| Quality, CI and process (`quality`) | 11 | 1 | 35 | 153 | 32 |

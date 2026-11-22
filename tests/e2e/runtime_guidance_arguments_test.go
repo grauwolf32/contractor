@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 	"testing"
 
@@ -18,7 +17,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
-	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 func runtimeArgumentContractsScenario(t *testing.T) {
@@ -67,9 +65,8 @@ func runtimeArgumentContractsScenario(t *testing.T) {
 		batch := func(bad bool) func(map[string]any) (map[string]any, error) {
 			return func(request map[string]any) (map[string]any, error) {
 				value, err := auditResultArguments(map[string]any{
-					"rationale":         "Observed two explicit HTTP responses, without inferring a vulnerability.",
-					"tested_conditions": `["explicit HTTP probes"]`, "limitations": `["No vulnerability verdict"]`,
-					"evidence": `[]`, "http_request_ids": `[1,2]`,
+					"rationale":   "Observed two explicit HTTP responses, without inferring a vulnerability.",
+					"limitations": `["No vulnerability verdict"]`,
 				})(request)
 				if err != nil {
 					return nil, err
@@ -81,15 +78,15 @@ func runtimeArgumentContractsScenario(t *testing.T) {
 				return map[string]any{"items": string(encoded)}, err
 			}
 		}
-		steps = append(steps, toolGatewayStep("submit_check_results", batch(true)))
-		fixed := toolGatewayStep("submit_check_results", batch(false))
-		fixed.validate = requireArgumentDiagnostic("submit_check_results", "audit_result_invalid", "items[0].limitations", "array")
+		steps = append(steps, toolGatewayStep("evidence", auditHTTPSourceEvidenceArguments([]int{1, 2}, []string{"explicit HTTP probes"})), toolGatewayStep("submit_results", batch(true)))
+		fixed := toolGatewayStep("submit_results", batch(false))
+		fixed.validate = requireArgumentDiagnostic("submit_results", "audit_result_invalid", "items[0].limitations", "array")
 		final := finalGatewayStep("Recorded canonical results", nil)
 		final.validate = func(request map[string]any) error {
 			if err := validateExecutionFacts(request, "remainingToolCalls"); err != nil {
 				return err
 			}
-			results := findingsToolResponses(request, "submit_check_results")
+			results := findingsToolResponses(request, "submit_results")
 			if len(results) != 2 || results[1]["complete"] != true || results[1]["normalization"] == nil {
 				return fmt.Errorf("batch correction did not complete once: %v", results)
 			}
@@ -116,19 +113,18 @@ func runtimeArgumentContractsScenario(t *testing.T) {
 	if err := json.Unmarshal(basicTaskArtifact(t, h.findingsHarness, audit, tasks[0], "result"), &document); err != nil {
 		t.Fatal(err)
 	}
-	if document.Schema != "contractor.audit.result.v1" || len(document.Items) != 1 || len(document.Items[0].Evidence) != 2 || len(document.Items[0].TestedConditions) != 1 {
+	if document.Schema != "contractor.audit.result.v1" || len(document.Items) != 1 || len(document.Items[0].Evidence) != 3 || len(document.Items[0].TestedConditions) != 1 {
 		t.Fatalf("noncanonical result: %+v", document)
 	}
 	var runID string
 	for _, material := range document.Items[0].Evidence {
+		if material.MediaType == "application/json" {
+			continue
+		}
 		if material.ScopeKind != "audit" || material.ScopeID != audit || material.MediaType != auditdomain.HTTPExchangeMediaType {
 			t.Fatalf("foreign evidence: %+v", material)
 		}
-		descriptor, err := strictjson.Canonical(material)
-		if err != nil {
-			t.Fatal(err)
-		}
-		key := "evidence/" + strings.TrimPrefix(contentdigest.Bytes(descriptor), "sha256:")
+		key := selectedAuditMaterialKey(t, h.findingsHarness, audit, material)
 		path := "/v1/audits/" + audit + "/artifacts?" + url.Values{"key": {key}, "revision": {*material.Ref.Revision}}.Encode()
 		request, err := http.NewRequestWithContext(h.ctx, http.MethodGet, h.baseURL+path, nil)
 		if err != nil {
@@ -175,8 +171,8 @@ func runtimeArgumentContractsScenario(t *testing.T) {
 		t.Fatal("unexpected retry")
 	}
 	metrics := status.Attempts[0].Metrics
-	if metrics == nil || !metrics.ReportsComplete || metrics.ToolCalls != 8 || metrics.ToolFailures != 2 {
-		t.Fatalf("argument accounting: %+v, want 8 calls including passthrough / 2 failures", metrics)
+	if metrics == nil || !metrics.ReportsComplete || metrics.ToolCalls != 9 || metrics.ToolFailures != 2 {
+		t.Fatalf("argument accounting: %+v, want 9 calls including evidence and passthrough / 2 failures", metrics)
 	}
 	var captures int
 	if err := pool.QueryRow(h.ctx, `SELECT count(*) FROM artifact_bindings WHERE scope_kind='run' AND scope_id=$1 AND namespace='http-exchanges'`, runID).Scan(&captures); err != nil {

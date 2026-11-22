@@ -1,0 +1,46 @@
+schema_version: '1.0'
+id: V478-032
+title: Make Audit persistence and source preparation explicit
+milestone: audit-evidence-results-2026-11
+epic: audits
+kind: chore
+introduced_by: V478-004
+priority: P3
+status: completed
+implementation_commit: c3a80299175bffb56d94ee7f8374f777dabe9b16
+depends_on: [V478-002, V478-004]
+languages: [go, python]
+goal: Make Audit persistence and source preparation explicit through the existing Artifact and Audit owners.
+context:
+  authority: 'User request 2026-11-23 in the review side conversation: continue with the two reported defects and the proposed readability improvements.'
+  finding: 'internal/auditimport/tasks.go:86, internal/auditservice/judgments.go:134, runtime/src/contractor_runtime/toolsets/common/sources.py:163. Deferred persistence, inline generation decisions and heterogeneous source tuples obscure the operation being reviewed.'
+  siblings: 'Review Runtime prospective admission, Server execution and Audit quotas, normal final import, interrupted collection, scalar and batch judgments, and Finding/Fact source preparation.'
+  boundary: 'Keep existing transaction, authority, exact source and replay ownership. No new store, endpoint, schema variant or model contract.'
+  decision: >-
+    Keep owner transactions and lock order visible. A transient collection helper
+    carries the current attempt to the existing Store commit. Generation comparison
+    is a pure local function. Typed HTTP/code preparations preserve the resolve-all,
+    validate-all, then publish sequence without a provider framework.
+scope:
+  in:
+  - 'Deferred persistence, inline generation decisions and heterogeneous source tuples obscure the operation being reviewed.'
+  - Real-path regressions and the full suites of touched packages.
+  out:
+  - UI acceptance work, live Audits, demo deployment and changes to another checkout.
+acceptance_criteria:
+- id: A1
+  text: 'Make Audit persistence and source preparation explicit; existing fences, exact provenance and replay semantics remain enforced.'
+- id: A2
+  text: 'All sibling paths retain their intended behavior and permanent failures remain atomic.'
+- id: A3
+  text: 'Relevant regressions and complete touched-package suites pass; owning specifications agree with the implementation.'
+tests:
+- command: go test -tags=integration -count=1 ./internal/auditservice ./internal/auditimport ./internal/auditstore/... ./internal/runservice
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+- command: make test-runtime
+  covers: [A1, A2, A3]
+verification_notes: >-
+  Accepted 2026-11-23. Removed deferred persistence, separated generation comparison from store access, introduced a named transient collection attempt, and replaced heterogeneous source tuples with typed HTTP/code preparations. Existing source selection, publication and replay suites pass.
+  Full touched Go suites passed with actual PostgreSQL and integration tags: auditservice, auditimport, auditstore/... and runservice. Focused concurrency and regression cases passed with -race. Both real Server/Runtime interruption process cases passed. The regression overlay restoring old behavior failed as expected at all three quota boundaries and the context-union bound. make lint passed; final touched-package go vet and specification checks passed. make test-runtime passed with 6637 tests, 134 declared skips and 577 required compaction cases. Optional disk-heavy fixtures were not enabled; disabled cases are not passing coverage. All owned pools and processes stopped and the owned disposable database was dropped. No deployment or live model call. Logs: /tmp/v478-review-go-final.log, /tmp/v478-review-race-final.log, /tmp/v478-review-process.log, /tmp/v478-review-runtime.log, /tmp/v478-review-lint.log, /tmp/v478-review-before-fix.log.

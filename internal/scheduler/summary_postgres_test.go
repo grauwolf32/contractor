@@ -147,7 +147,7 @@ func (m *summaryScriptModel) GenerateContent(_ context.Context, request *model.L
 		case 2:
 			name, args = "execute_current_subtask", map[string]any{"subtask_id": "0"}
 		case 3:
-			name, args = "finish", map[string]any{"outcome": "succeeded", "summary": "Report complete", "artifacts": map[string]any{"copied": m.report}}
+			name, args = "finish", map[string]any{"outcome": "succeeded", "summary": "Report complete", "artifacts": map[string]any{"copied": map[string]any{"namespace": m.report.Namespace, "name": m.report.Name}}}
 		default:
 			yield(nil, errors.New("unexpected continuation model call"))
 			return

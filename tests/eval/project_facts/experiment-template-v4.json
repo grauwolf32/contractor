@@ -1,0 +1,62 @@
+{
+  "name": "Optional memory extraction",
+  "controlMode": "server",
+  "draft": {
+    "dataset": {
+      "id": "project-facts-v1",
+      "revision": "REPLACE_WITH_IMPORTED_DATASET_REVISION"
+    },
+    "caseIds": [
+      "technology",
+      "repetition",
+      "speculation",
+      "negative-probe",
+      "injection",
+      "distractors"
+    ],
+    "variants": [
+      {
+        "id": "a",
+        "kind": "audit",
+        "selector": "project-facts-eval@4"
+      },
+      {
+        "id": "b",
+        "kind": "audit",
+        "selector": "project-facts-eval@4"
+      }
+    ],
+    "repetitions": 3,
+    "order": {
+      "kind": "alternating"
+    },
+    "checks": [
+      {
+        "id": "memory-quality",
+        "evaluator": "human-review@1",
+        "rubricRevision": "v1",
+        "required": true
+      }
+    ],
+    "comparison": {
+      "baseline": "a",
+      "candidate": "b",
+      "gates": {
+        "minCandidateEndToEndPass": 1,
+        "maxQualityDrop": 0
+      },
+      "requiredEqual": [
+        "source",
+        "tasks",
+        "scorers"
+      ],
+      "allowedDifferences": []
+    },
+    "budgets": {
+      "maxMembers": 36,
+      "maxInFlight": 1,
+      "wallMs": 3600000,
+      "maxObservedTotalTokens": null
+    }
+  }
+}

@@ -1,0 +1,204 @@
+schema_version: '1.0'
+id: V478-001
+title: Guide systematic investigation through general Worker instructions
+milestone: audit-evidence-results-2026-11
+epic: audits
+kind: feature
+priority: P1
+status: completed
+implementation_commit: c482a6a333d402381e5bee7ca3675bac79d94080
+depends_on:
+- V64-012
+- V479-002
+languages:
+- yaml
+- markdown
+- go
+- python
+goal: Workers systematically investigate the known relevant surface of their existing assignment, preserve
+  evidence and publish problems without treating the first finding or a generic summary as sufficient investigation.
+demonstration: Run source-review and HTTP fixtures through the current ordinary Worker path. Inspect the actual
+  loaded instructions and execute bounded scripted investigations that consider more than one relevant area,
+  publish an incidental problem and report unexamined areas. No new plan schema or planner tool is involved;
+  scripted execution proves wiring, not live-model judgment quality.
+context:
+  authority: 'User decisions 2026-11-22: retain general instructions applicable across scenarios, publish evidenced
+    problems including incidental discoveries and explain evidence use. User decision 2026-11-22 supersedes
+    the earlier fixed-plan proposal: decide how an Audit plans its work separately. For this package make a
+    small scenario-independent instruction improvement using existing assignments; no mandatory frozen check-plan
+    document, new criterion/step contract, per-endpoint Task expansion, ReAct planner tools or automatic plan
+    generation. Future options include scenario-specific coverage instructions, Worker planner tools or executor
+    discretion; none is selected here. User decision 2026-11-22: durably retain explicitly selected sources
+    through evidence, finding and fact, with the guarantee beginning at Server acknowledgement. Rename the
+    proposed record_evidence tool to evidence and the existing record_fact tool to fact; no compatibility aliases.
+    Automatic archival of every observation is not part of this package. User decision 2026-11-22 accepts review
+    points 3 and 4: inconclusive can settle an attempt and the Audit can finish with visible unresolved conclusions,
+    without mandatory automatic repeats. When an assigned hypothesis check stops without an accepted conclusion,
+    expose a system-authored inconclusive with observed stop reason and source, meaning no conclusion was accepted.
+    Preserve existing accepted judgments, keep hypothesis-free exploration without a verdict, and never turn
+    a failed/cancelled Run into success.
+    User request 2026-11-22: review this package against updated main and reconcile affected tasks. Apply
+    the already merged V479 contracts for Runtime-owned versions and correction generations; this review
+    does not assign feature implementation or change the agreed retention/stop policy.'
+  implementation_gate: 'User assignment 2026-11-22 supersedes the planning gate: implement the full reviewed V478 package in one continuous pass. Do not deploy or launch a live Audit. Earlier review gate follows as historical context. All product review decisions recorded below are settled for the task draft. Keep tasks
+    pending: this thread is planning/review, not an implementation assignment. Do not deploy or launch an Audit.
+    The user requested review before merging the task package into main; report the reconciled package before
+    integration. Implementation must follow these task contracts; an unforeseen consequential prerequisite
+    needs its own review, not silent scope growth.'
+  baseline: Reviewed main cd2974674def375c1838b496c8f288e86989dc8a, including completed V479-001 through
+    V479-009. The earlier Invoice Lab run motivates this package; it is not a current live quality benchmark.
+  specification:
+  - docs/spec/configuration/agent-templates.md
+  - docs/spec/configuration/catalog.md
+  - docs/spec/audits/common-contract.md
+  - docs/spec/audits/worker-completion.md
+  - docs/spec/findings/findings.md
+  - docs/spec/audits/worker-completion.md#AWC-R46
+  - docs/spec/artifacts/artifact-store.md#ART-R148
+  boundary_decision: This task owns a small methodology change in effective Worker instructions and their immutable
+    catalog bindings. It uses existing tools and completion contracts. V478-002/003 own adoption of evidence/fact/sources
+    and submit_result later; avoid circular dependencies by not referring to unavailable tools in this first
+    delivery. Existing authored assertions and ordinary Tasks remain supported without being mandatory for
+    exploration.
+  superseded_scope: The earlier V478-001 fixed-plan schema, start-time freezing, obligatory precondition/evidence-role
+    fields, per-check admission changes and plan-specific gate are removed before implementation. This task
+    does not prove that a model can never stop early.
+  separate_planning_question: A future discussion may choose scenario-specific complete-endpoint instructions,
+    ReAct-style planning tools exposed to the Worker, or executor-owned planning. That discussion is outside
+    this package and does not block evidence/result work.
+  worker_guidance:
+  - Start from the assigned objective, permitted scope and available materials. Identify the relevant known
+    parts of the surface and their relationships; use the investigation method appropriate to the supplied
+    scenario.
+  - Investigate the relevant known surface systematically within scope and budgets. A first finding or one
+    general observation is not by itself a reason to finish. Continue with other relevant areas and important
+    control paths when feasible.
+  - Record useful selected evidence during work with the currently available tools. Separate actual observations
+    from interpretation, and preserve conditions, source identity and uncertainty.
+  - Publish each evidenced security problem promptly, including incidental problems outside the current hypothesis
+    but within authorized scope. Inspect the publication result before treating the Finding as saved; publish
+    before final result submission.
+  - When stopping or concluding, state what was actually examined and what remains unexamined or uncertain,
+    including the reasons where known. Do not infer complete coverage or safety from a successful call, absent
+    findings or exhausted budget.
+  scenario_examples: HTTP endpoints/roles and source entry points/call paths/configuration are examples in
+    scenario-appropriate guidance, not universal mandatory dimensions or an Invoice Lab recipe. No automatic
+    endpoint inventory, discovery loop, all-endpoints proof or numerical coverage score is introduced.
+  sources:
+  - configs/instructions/audit-source-checker-worker-project-findings-keyed-results-runtime-versions.md
+  - configs/instructions/audit-wstg-http-verifier-worker-project-findings-keyed-results-runtime-versions.md
+  - configs/instructions/audit-openapi-operation-tracer-worker-project-findings-keyed-results-runtime-versions.md
+  - configs/instructions/audit-openapi-operation-observer-worker-keyed-results-runtime-versions.md
+  - configs/instructions/audit-asvs-source-verifier-worker-project-findings-keyed-results-runtime-versions.md
+  - configs/instructions/audit-standard-source-verifier-worker-project-findings-keyed-results-runtime-versions.md
+  - configs/instructions/audit-risk-source-checker-worker-project-findings-keyed-results-runtime-versions.md
+  - configs/instructions/source-findings-reviewer-project-findings.md
+  main_reconciliation_2026_11_22: V479 already published Runtime-version-aware Audit instructions and
+    bumped their catalog closures. Start from the effective current instructions, including source checker@5,
+    HTTP verifier@5 and operation tracer@4 at this baseline. V479 only changed version/correction wording;
+    the general investigation guidance here is still outstanding. Keep sequential item-key correction
+    and cursor read guidance; publish new identities from the current locked catalog rather than editing
+    old paths.
+scope:
+  in:
+  - Update the effective general investigation instructions and their selected Workflow/AgentTemplate bindings
+    for source, HTTP and trace scenarios.
+  - Keep the instruction change short, test actual loaded prompts and ordinary execution, and give changed
+    catalog content new immutable identities/instruction paths and lock entries.
+  - Preserve current tool contracts in this independently executable slice; V478-003 carries the same guidance
+    into the later renamed interfaces.
+  out:
+  - New planning entities, authored-plan requirements, structured criterion/step schemas, per-endpoint Task
+    admission, planner tools or autonomous plan generation.
+  - Model-independent proof of semantic coverage, minimum request/finding counts, budget increases, benchmark-specific
+    bug hints, live evaluation or demo deployment.
+requirements:
+- id: R1
+  text: Instructions apply to the existing assigned objective and permissions. Encourage systematic investigation
+    of known relevant surface, including applicable entry points and controls, without prescribing an HTTP-only
+    or source-only universal recipe.
+- id: R2
+  text: A first finding does not replace investigation of other relevant areas. The model records actual examined
+    areas and remaining gaps/uncertainty rather than claiming complete coverage; continue only within existing
+    scope, budgets and capability limits.
+- id: R3
+  text: Keep early publication of evidenced task-related and incidental Findings and honest source handling
+    explicit. Evidence, facts, Memory and result prose are not substitutes for a problem Finding.
+- id: R4
+  text: This is model guidance, not a deterministic completeness gate. Do not add required endpoint counters,
+    a mandatory checklist artifact, new states or a structured role evaluator. Existing assignment membership
+    and hypothesis/result semantics remain authoritative.
+- id: R5
+  text: Revise effective selected instruction paths consistently from the current V479 catalog and publish
+    new immutable versions/lock entries. Preserve Runtime-owned item-key corrections and exact cursor
+    reads; never ask the model to copy a revision into an argument. Test fixtures remain self-contained
+    and unit tests do not read live configs. Scripted models validate loaded guidance and tool wiring,
+    not live compliance or coverage quality.
+failure_outcomes:
+- operation: Resolve revised instruction/catalog identities and execute an ordinary investigation
+  permanent: Existing catalog validation rejects unresolved or changed-content identities; tool authorization
+    and input errors retain existing contracts. Do not weaken readers or add compatibility aliases.
+  retryable: Existing bounded model/tool/storage retry policies remain unchanged; no extra model turns or target
+    retries are introduced by instruction validation.
+  ambiguous: Use existing result/Finding publication receipts and exact artifacts; no target request repeats
+    to reconstruct publication.
+  cancelled: Existing Worker cancellation joins work; the instruction does not demand additional target/model
+    calls after stopping.
+  timeout: Keep existing model, invocation and HTTP deadlines; report limitations rather than silently extending
+    them.
+cardinality:
+- collection: Affected instruction/catalog closures and fixture assignments
+  expected: Several source/HTTP/trace callers and two bounded process scenarios.
+  maximum: Existing catalog instruction, context, invocation and tool budgets; this task adds no observation
+    archive or new collection.
+  bound: Use existing bounded readers and deterministic scripted turns; no polling loop or whole-project rescan
+    is added.
+lifecycle:
+- entity: Immutable instruction and catalog versions
+  delete: Ordinary catalog retirement rules apply; do not rewrite historical Run pins.
+  cascade: No new execution/storage entity or lifecycle is introduced.
+  retention: Retained Run snapshots preserve their original exact instructions; new callers select the new
+    immutable versions.
+acceptance_criteria:
+- id: A1
+  given: Source-review, HTTP and trace callers with existing assignments
+  when: Their real loaded instruction/tool context is checked
+  then: General surface investigation, early incidental/problem publication and truthful gaps are instructed
+    without requiring a fixed plan or an unavailable future tool.
+- id: A2
+  given: Source and HTTP fixtures with multiple relevant areas, an incidental issue and a zero-problem control
+  when: Scripted model flows run through real Server/Runtime using current tools
+  then: Ordinary results and Finding receipts preserve existing semantics, no new plan/API fields are required,
+    and observed case counts are not presented as live-model quality proof.
+- id: A3
+  given: Changed instruction content, current catalog closures and historical Run pins
+  when: Configuration and ordinary process validation run
+  then: New immutable identities resolve from the current V479 catalog, old pinned content is not overwritten,
+    guidance preserves revision-free model inputs and deterministic gates contain nonzero executed cases.
+tests:
+- command: make test-config
+  covers:
+  - A1
+  - A3
+- command: make test-audit-basic-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-code-analysis-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-findings-e2e
+  covers:
+  - A2
+- command: make lint
+  covers:
+  - A1
+  - A3
+verification_notes: Listed commands are required implementation gates, not results of task planning. Use one
+  owned disposable PostgreSQL database, explicitly drop it after pools/processes stop, and never implicitly
+  enable CONTRACTOR_TEST_HEAVY_IO. Zero matched cases and skipped required database/process cases fail acceptance.
+
+verification_results: "make test-config passes; make test-audit-basic-e2e passes all 12 selected cases without skips; make test-code-analysis-e2e passes 117 Runtime cases and its real process scenario; make test-findings-e2e passes 310 Runtime contracts and 23 required process cases (571.023s). make lint passes. These are deterministic wiring checks, not live-model coverage evidence."

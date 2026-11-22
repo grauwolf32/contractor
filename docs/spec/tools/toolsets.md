@@ -480,3 +480,25 @@ owns bounded series admission. No rule means no suppression. Another call
 (including a raw-validation rejection) breaks a series. Function-call IDs and
 SDK turn changes do not. Domain receipts and transport retries remain owned
 by their existing components; this is not mutation idempotency or result replay.
+
+
+**TLS-R43.** The claim-owning `evidence`, `finding` and `fact` tools accept the
+same explicit `sources` array, native or serialized once under TLS-R41:
+`kind=artifact` with `namespace` and `name`; `kind=http` with an integer local
+`request_id`; or `kind=code` with `file`, inclusive `start_line`/`end_line` and
+optional `workspace` (false by default). Objects are closed and strict: nested
+revisions, scope IDs, unknown keys and coercion of scalar elements are rejected.
+Each selection is bounded to 256 selectors and the common container limits;
+consumer quotas may be tighter. Before any prepared artifact is published,
+HTTP envelopes and code proofs share an aggregate 8 MiB preparation allowance
+(LIM-TLS-9). Referenced artifact payloads keep their owning consumer quotas.
+Unavailable HTTP selectors are safe source-argument errors, distinct from an
+adapter/schema failure. Code ranges contain 1–400 lines. The code adapter
+captures an exact pinned archive region, or verifies an available workspace
+mapping and retains its proof and original source. HTTP adapters select actual
+captures without target replay. Artifact selectors resolve only through the
+existing private selected-version owner, including its visibility, scope and
+ambiguity rules; listings grant no content selection. Preparation may create
+ordinary Run artifacts before a later owner rejection; only the owning Server
+receipt establishes a durable claim association. Shared bytes do not establish
+independent corroboration, semantic verification or authority for another scope.

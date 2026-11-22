@@ -3,12 +3,12 @@
   "scope": "Six shipped common programs. Assertion programs are temporarily absent and must regain real execution coverage with their rewrite. No model-quality claim.",
   "programs": [
     {
-      "profile": "openapi-operation-observe@2",
+      "profile": "openapi-operation-observe@6",
       "source": "tests/e2e/audit_common_observation_process_test.go",
       "name": "TestAuditCommonObservationProfilesAcrossProductionProcesses"
     },
     {
-      "profile": "openapi-operation-trace@3",
+      "profile": "openapi-operation-trace@7",
       "source": "tests/e2e/audit_common_observation_process_test.go",
       "name": "TestAuditCommonObservationProfilesAcrossProductionProcesses"
     },
@@ -28,7 +28,7 @@
       "name": "TestAuditCommonScanProfilesAcrossProductionProcesses"
     },
     {
-      "profile": "source-openapi-sqlmap-scan@2",
+      "profile": "source-openapi-sqlmap-scan@3",
       "source": "tests/e2e/audit_common_source_process_test.go",
       "name": "TestAuditCommonSourcePreparationAcrossProductionProcesses"
     }

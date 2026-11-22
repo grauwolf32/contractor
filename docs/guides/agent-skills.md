@@ -94,7 +94,7 @@ Workflow assigns the bundled LikeC4 Skill to its builder and validator Workers:
 
 ```shell
 jq -n --argjson source "$SOURCE_REF" --arg objective 'Model the architecture' \
-  '{workflow:"likec4-from-workspace@8",parameters:{objective:$objective},artifacts:{source:$source}}' | \
+  '{workflow:"likec4-from-workspace@9",parameters:{objective:$objective},artifacts:{source:$source}}' | \
   curl --fail --silent --show-error \
     -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
     -H "Idempotency-Key: likec4-skilled-$(date +%s)" \

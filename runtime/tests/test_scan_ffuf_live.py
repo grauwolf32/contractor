@@ -11,7 +11,7 @@ import pytest
 from fakes.worker_state import WorkerState
 from target_policy_fixtures import SCAN_TEST_POLICY
 
-from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.toolsets.scan.tools import FFUFTool, ScanToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -19,6 +19,7 @@ pytestmark = pytest.mark.skipif(
     shutil.which("ffuf") is None, reason="optional ffuf binary is absent"
 )
 REF = {"namespace": "inputs", "name": "wordlist", "revision": "list-1"}
+MODEL_REF = {key: REF[key] for key in ("namespace", "name")}
 
 
 async def make_live_ffuf(tmp_path, data):
@@ -36,6 +37,7 @@ async def make_live_ffuf(tmp_path, data):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     state = WorkerState()
+    state.resources.selected_versions.observe(ArtifactRef.model_validate(REF))
     tools = await factory.create_selected(
         selected=["scan_ffuf"],
         allocation_id="allocation",
@@ -89,7 +91,7 @@ def test_installed_ffuf_preserves_payloads_and_filters_local_responses(
                 port = server.sockets[0].getsockname()[1]
                 result = await tool(
                     f"http://127.0.0.1:{port}/FUZZ",
-                    REF,
+                    MODEL_REF,
                     rate=100,
                     timeout_seconds=10,
                     **{filter_name: filter_value},
@@ -138,7 +140,7 @@ def test_installed_ffuf_transport_errors_are_not_success(tmp_path):
             port = server.sockets[0].getsockname()[1]
             tool, state = await make_live_ffuf(tmp_path, b"probe\n")
             try:
-                result = await tool(f"http://127.0.0.1:{port}/FUZZ", REF, timeout_seconds=10)
+                result = await tool(f"http://127.0.0.1:{port}/FUZZ", MODEL_REF, timeout_seconds=10)
                 assert connections > 0
                 assert result["exitCode"] == 0
                 assert result["status"] == "failed"

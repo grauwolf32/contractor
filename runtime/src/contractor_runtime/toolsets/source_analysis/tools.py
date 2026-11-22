@@ -171,6 +171,7 @@ class SourceAnalysisToolsetFactory:
             operation_timeout_seconds=runtime_settings.request_timeout_seconds,
             limits=runtime_settings.source_archive_limits,
         )
+        resources.source_evidence = session.capture_evidence
         secrets = runtime_secrets(runtime_settings)
         builders: dict[str, Callable[[], Any]] = {
             "open_source_archive": lambda: OpenSourceArchiveTool(session, client, metrics, secrets),
@@ -185,6 +186,7 @@ class SourceAnalysisToolsetFactory:
 class _SourceFile:
     path: str
     size: int
+    digest: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -298,6 +300,32 @@ class _SourceArchiveSession:
                 )
 
             return await self._guard.run(select_and_scan, deadline=self._deadline())
+
+    async def capture_evidence(self, path: str, start_line: int, end_line: int) -> dict:
+        normalized = _validate_requested_path(path)
+        _validate_read_window(start_line, end_line - start_line + 1)
+        async with self._lock:
+            summary = self._require_open()
+            source = self._files.get(normalized)
+            if source is None:
+                raise ToolInputError("selected code source is unavailable")
+            window = await self._guard.run(
+                lambda: self._read_window(source, start_line, end_line - start_line + 1),
+                deadline=self._deadline(),
+            )
+            if window["partialLine"] or window["endLine"] != end_line:
+                raise ToolInputError("selected code range exceeds the source window")
+            return {
+                "schema": "contractor.code-evidence.v1",
+                "source": {
+                    "artifact": summary.artifact.model_dump(exclude_none=True),
+                    "file": normalized,
+                    "startLine": start_line,
+                    "endLine": end_line,
+                },
+                "text": window["text"],
+                "origin": "pinned-source",
+            }
 
     async def read(self, path: str, start_line: int, max_lines: int) -> dict[str, Any]:
         normalized = _validate_requested_path(path)
@@ -446,7 +474,7 @@ class _SourceArchiveSession:
         if path.is_symlink() or not path.is_file():
             raise ValueError("managed source file is absent or no longer regular")
         data = path.read_bytes()
-        if len(data) != source.size:
+        if len(data) != source.size or hashlib.sha256(data).hexdigest() != source.digest:
             raise ValueError("managed source file changed after archive materialization")
         try:
             return data.decode("utf-8", errors="strict")
@@ -656,7 +684,13 @@ def _extract_archive(
                 target = staging.joinpath(*PurePosixPath(normalized).parts)
                 target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
                 target.write_bytes(payload)
-                files.append(_SourceFile(path=normalized, size=len(payload)))
+                files.append(
+                    _SourceFile(
+                        path=normalized,
+                        size=len(payload),
+                        digest=hashlib.sha256(payload).hexdigest(),
+                    )
+                )
     except (zipfile.BadZipFile, zipfile.LargeZipFile) as error:
         raise ValueError("source artifact is not a valid bounded ZIP") from error
     if not files:

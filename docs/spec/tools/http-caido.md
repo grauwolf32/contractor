@@ -143,7 +143,7 @@ Each allocation of `http-tools@1` holds this state in memory:
 | Default headers | Session default request headers | Non-sensitive values; redaction markers for sensitive headers |
 | Authentication | `none`, `bearer` or `basic` | `auth_kind` |
 | History | Recent request summaries and explicit failed outcomes | `http_history`; the history count |
-| Outgoing exchange store | Shared bounded HTTP/Caido capture buffer, including attempts, available response bytes and invocation ownership | HTTP bodies through `http_read_body`; selection through `finding(request_id=...)` or `record_fact(request_id=...)`; selected current-invocation Runtime HTTP capture through Audit result `http_request_ids` (AWC-R126) |
+| Outgoing exchange store | Shared bounded HTTP/Caido capture buffer, including attempts, available response bytes and invocation ownership | HTTP bodies through `http_read_body`; selection through HTTP entries in common `sources` for `evidence`, `finding` and `fact`; check-specific retention through `evidence` (AWC-R126) |
 | Project target | Target URL, derived `Authorization` header and source secret | Never |
 
 ### One `http_request` call
@@ -719,7 +719,8 @@ selectors to provider IDs; the normalized capture retains provider identity.
 Session/workflow/scope IDs and provider query expressions keep their own meanings.
 Buffer bytes and locator mappings never enter serialized Worker state.
 
-**HTP-R73.** `finding(request_id=...)` or `record_fact(request_id=...)` selects
+**HTP-R73.** An HTTP entry in the common `sources` argument of `evidence`,
+`finding` or `fact` selects
 one retained allocation-local exchange without sending or replaying target
 traffic. An unavailable ID fails explicitly. A request with an absent or
 incomplete response can be selected with its explicit outcome; selection does
@@ -1121,8 +1122,8 @@ Toolset call counters and Runtime adapter metrics remain the only ones.
   `http_session_set(cookies, headers, auth, replace_cookies, replace_headers)`
   (HTP-R34), `http_session_get` and `http_session_clear` (HTP-R19); the ten
   Caido tools (HTP-R78).
-- Finding evidence selection: `finding(request_id=...)` or
-  `finding(request_id=...)` (HTP-R73), specified in
+- Finding evidence selection: HTTP entries in `finding(sources=...)` or
+  `fact(sources=...)` (HTP-R73), specified in
   [Findings](../findings/findings.md).
 - Adapter: `caido-graphql@1` with the private handle `caido-graphql-client` and
   the client `execute(operation, variables)` (HTP-R13, HTP-R17).
@@ -1568,16 +1569,16 @@ can delegate to the allocation owner, including a native scanner retry on a
 new proxy connection. This fence is independent of subprocess termination
 scheduling. Controlled ffuf uses this guarantee under SCN-R268.
 
-**HTP-R150.** A model may select invocation-owned Runtime HTTP request IDs with
-`submit_check_result(http_request_ids=[...])`; the scalar and batch result paths
-use the same selection and authority. An entire selection resolves before result
-mutation; missing, evicted or foreign captures are explicit gaps. Execution alone
+**HTP-R150.** A model may select invocation-owned Runtime HTTP request IDs
+through HTTP entries in common `sources` for `evidence`, `finding` and `fact`.
+Audit evidence is selected during work; final `submit_result` and `submit_results`
+accept only judgments. An entire selection resolves before owner acceptance; missing, evicted or foreign captures are explicit gaps. Execution alone
 publishes no exchange. Runtime assembles the standalone envelope defined by
 FND-R160–162 and publishes only selected exchanges through ordinary create-only
 Artifact PUT in `http-exchanges` (ART-R144). The natural binding name uses the
 original invocation/source/request identity, independently of any result or Finding.
 Committed selection/replay uses the same exact content after volatile eviction;
-correction still obeys the collector's expected revision. The existing collection
+judgment correction still obeys the collector's captured internal generation. The existing collection
 limit of 256 selected evidence records and 8 MiB encoded data applies to selected
 Artifact bytes plus conclusion metadata (LIM-AWC-5/6); buffer capacity grants no
 additional durable quota. Two writes and one bounded read-back reconcile an

@@ -86,8 +86,6 @@ type resultFinalizerInput struct {
 	ResultText string `json:"resultText"`
 }
 
-const e2eReport = "Source inspected; report authored.\n"
-
 func TestModelGatewayFindsNamedInputAfterParameterBlock(t *testing.T) {
 	request := map[string]any{"messages": []any{map[string]any{
 		"content": "String parameters:\n{\"objective\":\"inspect\"}\n\nNamed input artifacts:\n" +
@@ -261,7 +259,7 @@ func (g *modelGateway) nextStreamline(
 			}
 			return toolCallMessage("streamline-finish", "finish", map[string]any{
 				"outcome": "succeeded", "summary": "streamline browser flow completed",
-				"artifacts": map[string]any{"copied": artifact},
+				"artifacts": map[string]any{"copied": map[string]any{"namespace": artifact["namespace"], "name": artifact["name"]}},
 			}), "tool_calls", model, nil
 		default:
 			return nil, "", "", errors.New("streamline Planner exceeded its script")
@@ -270,7 +268,7 @@ func (g *modelGateway) nextStreamline(
 	switch step {
 	case 1:
 		return toolCallMessage("streamline-read", "read_artifact", map[string]any{
-			"namespace": "inputs", "name": "source", "revision": nil,
+			"namespace": "inputs", "name": "source",
 		}), "tool_calls", model, nil
 	case 2:
 		data, found := lastStringValue(request, "text")
@@ -279,7 +277,7 @@ func (g *modelGateway) nextStreamline(
 		}
 		return toolCallMessage("streamline-write", "write_text_artifact", map[string]any{
 			"name": "copied", "media_type": "text/plain",
-			"text": e2eReport, "expected_revision": nil,
+			"text": data,
 		}), "tool_calls", model, nil
 	case 3:
 		_, found := lastExactArtifact(request, "builder", "copied")
@@ -413,7 +411,7 @@ func discoveryGatewayStage(name string, tools []string, dependency bool) gateway
 		steps = append(steps,
 			toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{
 				"name": "dependencies", "text": dependencyReport,
-				"media_type": "text/markdown", "expected_revision": nil,
+				"media_type": "text/markdown",
 			})),
 			finalGatewayStep("Dependency inventory published", map[string]artifactBinding{
 				"dependency_report": {namespace: "analysis", name: "dependencies"},
@@ -423,7 +421,7 @@ func discoveryGatewayStage(name string, tools []string, dependency bool) gateway
 		steps = append(steps,
 			toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{
 				"name": "project", "text": projectReport,
-				"media_type": "text/markdown", "expected_revision": nil,
+				"media_type": "text/markdown",
 			})),
 			finalGatewayStep("Project inventory published", map[string]artifactBinding{
 				"project_report": {namespace: "analysis", name: "project"},
@@ -441,7 +439,7 @@ func openAPIBuildGatewayStage(tools []string) gatewayStage {
 			"path": "app.py", "start_line": 1, "max_lines": 100,
 		})),
 		toolGatewayStep("load_openapi", stageRefArguments("existing_openapi", map[string]any{
-			"target_name": "openapi", "expected_revision": nil,
+			"target_name": "openapi",
 		})),
 		toolGatewayStep("upsert_openapi_component", fixedArguments(map[string]any{
 			"section": "schemas", "name": "WidgetResponse",
@@ -485,7 +483,7 @@ func openAPIValidateGatewayStage(tools []string) gatewayStage {
 		toolGatewayStep("read_artifact", stageRefArguments("dependency_report", nil)),
 		toolGatewayStep("read_artifact", stageRefArguments("project_report", nil)),
 		toolGatewayStep("load_openapi", stageRefArguments("openapi_candidate", map[string]any{
-			"target_name": "openapi", "expected_revision": nil,
+			"target_name": "openapi",
 		})),
 		toolGatewayStep("validate_openapi", fixedArguments(nil)),
 		toolGatewayStep("get_openapi_path", fixedArguments(map[string]any{
@@ -494,7 +492,7 @@ func openAPIValidateGatewayStage(tools []string) gatewayStage {
 		toolGatewayStep("validate_openapi", fixedArguments(nil)),
 		toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{
 			"name": "validation-report", "text": openAPIValidationReport,
-			"media_type": "text/markdown", "expected_revision": nil,
+			"media_type": "text/markdown",
 		})),
 		finalGatewayStep("OpenAPI candidate is clean", map[string]artifactBinding{
 			"openapi":           {namespace: "openapi", name: "openapi"},
@@ -532,7 +530,7 @@ func stageRefArguments(
 			return nil, fmt.Errorf("exact Stage artifact %q is absent", slot)
 		}
 		result := make(map[string]any, 3+len(extra))
-		for _, key := range []string{"namespace", "name", "revision"} {
+		for _, key := range []string{"namespace", "name"} {
 			result[key] = artifact[key]
 		}
 		for key, value := range extra {

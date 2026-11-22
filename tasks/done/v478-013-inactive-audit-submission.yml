@@ -1,0 +1,39 @@
+schema_version: '1.0'
+id: V478-013
+title: Classify inactive Audit submissions before reading their generation
+milestone: runtime-owned-tool-versions-2026-11
+epic: audits
+kind: defect
+introduced_by: V479-002
+priority: P2
+status: completed
+implementation_commit: 085127eb068fa76fe87b17a6b0b6e1121a26da67
+depends_on: [V479-002]
+languages: [python]
+goal: A stale submission after invocation exit receives the ordinary safe Audit argument error without retaining authority or raising an unclassified tool exception.
+context:
+  authority: 'User assignment 2026-11-22: implement V478 and required gates in one pass.'
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/audit_results/v2.py:211 obtains
+    self._collector.item_base before entering _submit error handling. After invocation
+    exit current() raises AuditCollectionError outside that boundary. The existing real
+    ADK shared-session reuse test exposes this failure in full Runtime verification.
+  siblings: Scalar and batch submissions must use the same guarded collector admission. Freeze the scalar starting generation before the first await, preserving response concurrency and old-retry behavior.
+scope:
+  in:
+  - Move private generation admission inside the existing guarded submission boundary, before asynchronous validation.
+  - Verify the real Worker shared-session lifecycle and all result collector/facade suites.
+  out:
+  - Completion policy changes, restored invocation authority and new model version arguments.
+acceptance_criteria:
+- id: A1
+  text: The real shared-session reuse test returns a safe error for an exited invocation and performs no extra result write.
+- id: A2
+  text: Scalar corrections, frozen same-response generations and atomic non-replacing batches retain their current behavior.
+tests:
+- command: cd runtime && uv run pytest tests/test_audit_completion_runtime.py tests/test_audit_result_collector.py tests/test_audit_results_toolset.py
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2]
+
+verification_results: "All 59 tests in the three required Audit suites pass, including real shared-session reuse, frozen response generations, scalar corrections and atomic batches. Complete Runtime verification and full make lint pass."

@@ -5,7 +5,8 @@ import json
 import threading
 
 import pytest
-from audit_fixtures import arguments, assigned
+from audit_fixtures import accept_fixture_sources, arguments, assigned
+from fakes.audit_judgments import acknowledged_judgments
 from fakes.tool_arguments import http_receiver, received, run_calls
 from fakes.worker_state import WorkerState
 
@@ -13,7 +14,7 @@ from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.audit_results.collector import InvocationAuditCollector
 from contractor_runtime.toolsets.audit_results.encoding import CanonicalAuditResultEncoder
 from contractor_runtime.toolsets.audit_results.v2 import (
-    SubmitCheckResultsTool,
+    SubmitResultsTool,
 )
 from contractor_runtime.toolsets.common.arguments import container_argument
 from contractor_runtime.worker.function_tools import ContractorFunctionTool
@@ -57,14 +58,14 @@ def test_native_and_serialized_http_containers_reach_sockets_once(tmp_path, rout
 @pytest.mark.parametrize("batch", [False, True])
 @pytest.mark.parametrize("serialized", [False, True])
 def test_audit_declared_arrays_record_canonical_results(tmp_path, batch, serialized):
+    from test_audit_completion_runtime import assigned as completion_assignment
+
     async def scenario():
-        expected, _ = assigned(batch=batch, invocation="invocation-1")
+        expected, _ = completion_assignment(batch=batch, invocation="invocation-1")
         values = [arguments(item.value, keyed=True) for item in expected.items]
         for value in values:
-            value["http_request_ids"] = []
             if serialized:
-                for field in ("tested_conditions", "limitations", "evidence", "http_request_ids"):
-                    value[field] = json.dumps(value[field])
+                value["limitations"] = json.dumps(value["limitations"])
         supplied = {"items": json.dumps(values) if serialized else values} if batch else values[0]
         from datetime import UTC, datetime, timedelta
 
@@ -72,7 +73,7 @@ def test_audit_declared_arrays_record_canonical_results(tmp_path, batch, seriali
         from test_adk_runtime import stage_request
         from test_audit_completion_runtime import runtime_for
 
-        name = "submit_check_results" if batch else "submit_check_result"
+        name = "submit_results" if batch else "submit_result"
         worker, _, client, state, _ = await runtime_for(
             tmp_path,
             [
@@ -162,7 +163,7 @@ def test_incremental_byte_depth_node_bounds_and_nested_strings():
 
 def test_declarations_preserve_closed_records_and_exact_id_types():
     tool = ContractorFunctionTool(
-        SubmitCheckResultsTool(None, None), logical_invocation_id=lambda _: "test"
+        SubmitResultsTool(None, None), logical_invocation_id=lambda _: "test"
     )
     schema = tool._get_declaration().parameters_json_schema
     assert schema["additionalProperties"] is False
@@ -191,8 +192,10 @@ def test_invalid_audit_batch_has_no_partial_mutation(tmp_path, change, serialize
 
     async def scenario():
         expected, inputs = assigned(batch=True)
-        collector = InvocationAuditCollector(inputs, CanonicalAuditResultEncoder())
-        tool = SubmitCheckResultsTool(collector, WorkerState().metrics)
+        collector = InvocationAuditCollector(
+            inputs, CanonicalAuditResultEncoder(), persist=acknowledged_judgments(inputs)
+        )
+        tool = SubmitResultsTool(collector, WorkerState().metrics)
         items = [arguments(item.value, keyed=True) for item in expected.items]
         items[-1].update(change)
         result = await tool(
@@ -214,8 +217,10 @@ def test_whole_audit_call_is_admitted_before_decoding_individual_fields(monkeypa
 
     async def scenario():
         expected, inputs = assigned(count=64)
-        collector = InvocationAuditCollector(inputs, CanonicalAuditResultEncoder())
-        tool = SubmitCheckResultsTool(collector, WorkerState().metrics)
+        collector = InvocationAuditCollector(
+            inputs, CanonicalAuditResultEncoder(), persist=acknowledged_judgments(inputs)
+        )
+        tool = SubmitResultsTool(collector, WorkerState().metrics)
         items = [arguments(item.value, keyed=True) for item in expected.items]
         for item in items:
             item["tested_conditions"] = json.dumps(["x" * 32768] * 8)
@@ -335,17 +340,18 @@ def test_audit_preserves_inner_field_diagnostic_through_runner_correction(tmp_pa
 
     from fakes.model import text_result, tool_call
     from test_adk_runtime import stage_request
+    from test_audit_completion_runtime import assigned as completion_assignment
     from test_audit_completion_runtime import runtime_for
 
     async def scenario():
-        expected, _ = assigned(batch=True)
+        expected, _ = completion_assignment(batch=True)
         good = [arguments(item.value, keyed=True) for item in expected.items]
         bad = [good[0], {**good[1], "limitations": '["secret-canary"'}]
         worker, _, client, state, _ = await runtime_for(
             tmp_path,
             [
-                tool_call("submit_check_results", {"items": json.dumps(bad)}, call_id="invalid"),
-                tool_call("submit_check_results", {"items": json.dumps(good)}, call_id="fixed"),
+                tool_call("submit_results", {"items": json.dumps(bad)}, call_id="invalid"),
+                tool_call("submit_results", {"items": json.dumps(good)}, call_id="fixed"),
                 text_result("Done"),
             ],
             batch=True,
@@ -385,17 +391,19 @@ def test_normalization_notices_are_bounded_and_never_contain_values():
 
     async def scenario():
         expected, inputs = assigned(count=64)
-        collector = InvocationAuditCollector(inputs, CanonicalAuditResultEncoder())
-        tool = SubmitCheckResultsTool(collector, WorkerState().metrics)
+        collector = InvocationAuditCollector(
+            inputs, CanonicalAuditResultEncoder(), persist=acknowledged_judgments(inputs)
+        )
+        await accept_fixture_sources(collector)
+        tool = SubmitResultsTool(collector, WorkerState().metrics)
         items = [arguments(item.value, keyed=True) for item in expected.items]
         for item in items:
-            for field in ("tested_conditions", "limitations", "evidence"):
-                item[field] = json.dumps(item[field])
+            item["limitations"] = json.dumps(["secret-canary"])
         result = await tool(SimpleNamespace(invocation_id="invocation-1"), json.dumps(items))
         assert result["complete"]
         notice = result["normalization"]
         assert len(notice["fields"]) == MAX_NORMALIZATION_NOTICES
-        assert notice["omitted"] == 1 + 64 * 3 - MAX_NORMALIZATION_NOTICES
-        assert "evidence-000" not in json.dumps(notice)
+        assert notice["omitted"] == 1 + 64 - MAX_NORMALIZATION_NOTICES
+        assert "secret-canary" not in json.dumps(notice)
 
     asyncio.run(scenario())

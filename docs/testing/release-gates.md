@@ -147,7 +147,7 @@ If this gate fails:
 - a terminal Run with a non-idle Agent indicates release reconciliation, not a
   reason to increase an unbounded timeout; inspect the final Operations
   snapshot and the bounded child-process diagnostics emitted by the test;
-- PostgreSQL must allow isolated schema create/drop, and Chromium plus
+- PostgreSQL must allow isolated database create/drop (`CREATEDB`), and Chromium plus
   `runtime/.venv` must already be installable as described in the [development setup](../development.md).
 
 Accepted first-slice boundaries remain explicit: there is one active Control
@@ -247,7 +247,7 @@ Playwright. A failure includes bounded, canary-redacted child-process output;
 the most common setup failures are an unavailable PostgreSQL URL, missing
 `runtime/.venv` (fixed by `uv sync --locked`), or missing Chromium. The test
 always releases held model calls, terminates child processes, removes temporary
-keys/certificates/workspaces and drops its isolated schema.
+keys/certificates/workspaces and drops its owned isolated database.
 
 To verify independent releases outside the harness, keep Server running while
 rebuilding/restarting only the service documented in

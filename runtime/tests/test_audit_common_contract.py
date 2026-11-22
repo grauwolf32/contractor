@@ -339,7 +339,8 @@ def _validate_case(case):
         if "hypothesis" in member:
             expected["hypothesis"] = {key: member["hypothesis"][key] for key in ("id", "revision")}
         if value["schema"] == "contractor.audit.result.v1" and (
-            item["origin"] != expected
+            item["author"] != "model"
+            or item["origin"] != expected
             or item.get("finding_receipts") != member.get("finding_receipts")
         ):
             raise ValueError("forged provenance")

@@ -1835,3 +1835,19 @@ Original memories remain ordinary source text: a declared memory-snapshot schema
 adds a reported-statement annotation without another parser or validation engine.
 Preview, source errors, pinned revisions and hypothesis grounds use their existing
 owners; opening a fact creates no new source grant, hold or verification state.
+
+### Attributed check results
+
+**UI-R246.** Existing Task/result views distinguish a saved model conclusion
+from the ACT-R19 system record meaning no accepted conclusion. Model-reported
+conditions and limitations retain attribution. System interruption shows only
+the observed reason, its source or unknown, and retained source references;
+it does not present a model assessment or infer tested work. Work without a
+recorded attempt displays no recorded activity, never a claim that it did not
+execute. Technical outcome and Project possible issues remain separate.
+
+**UI-R247.** Attempt history follows bounded keyset pages and offers restart
+after a stale traversal. A saved prior result uses the owner-provided exact
+result key and revision from ACT-R20; it never falls back to the current Task
+result. Retained model conclusions and system records remain readable after
+producer Run deletion. The existing 390-pixel layout and three themes apply.

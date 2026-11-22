@@ -288,7 +288,6 @@ def worker_model() -> object:
                     "name": "report",
                     "text": REPORT,
                     "media_type": "text/markdown",
-                    "expected_revision": None,
                 },
                 call_id="write-report",
             ),

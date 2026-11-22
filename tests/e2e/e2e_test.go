@@ -28,10 +28,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/localpki"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -903,36 +903,7 @@ func freeAddress(t *testing.T) string {
 
 func isolatedDatabase(t *testing.T, ctx context.Context, databaseURL string) string {
 	t.Helper()
-	parsed, err := url.Parse(databaseURL)
-	if err != nil || parsed.Scheme != "postgres" && parsed.Scheme != "postgresql" {
-		t.Fatalf("CONTRACTOR_TEST_DATABASE_URL must be a PostgreSQL URL")
-	}
-	admin, err := pgxpool.New(ctx, databaseURL)
-	if err != nil {
-		t.Fatalf("open PostgreSQL: %v", err)
-	}
-	if err := admin.Ping(ctx); err != nil {
-		admin.Close()
-		t.Fatalf("ping PostgreSQL: %v", err)
-	}
-	schema := "contractor_e2e_" + randomHex(t, 8)
-	identifier := pgx.Identifier{schema}.Sanitize()
-	if _, err := admin.Exec(ctx, "CREATE SCHEMA "+identifier); err != nil {
-		admin.Close()
-		t.Fatalf("create E2E schema: %v", err)
-	}
-	t.Cleanup(func() {
-		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if _, err := admin.Exec(cleanup, "DROP SCHEMA "+identifier+" CASCADE"); err != nil {
-			t.Logf("drop E2E schema: %v", err)
-		}
-		admin.Close()
-	})
-	query := parsed.Query()
-	query.Set("search_path", schema)
-	parsed.RawQuery = query.Encode()
-	return parsed.String()
+	return postgrestest.NewDatabase(t, ctx, databaseURL)
 }
 
 func randomHex(t *testing.T, size int) string {

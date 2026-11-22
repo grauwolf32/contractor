@@ -53,40 +53,49 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 	if err != nil {
 		return false, err
 	}
-	params := auditstore.CollectParams{Claim: claim, ExecutionID: execution.ExecutionID, ReceiptID: auditdomain.DeterministicID("receipt", execution.ExecutionID), RequestDigest: digest, Disposition: auditstore.CollectionAccepted, Retained: []auditstore.ArtifactLink{}}
-	findingResults := map[string]*auditstore.CanonicalFindingResult{}
-	commit := func(code string, retryable bool, result *auditcontract.Material) (bool, error) {
-		params.Tasks = make([]auditstore.TaskCollection, 0, len(tasks))
-		for _, task := range tasks {
-			var gap *string
-			if code != "" {
-				value := code
-				gap = &value
-			}
-			params.Tasks = append(params.Tasks, auditstore.TaskCollection{ExecutionItemID: auditdomain.DeterministicID("attempt", execution.ExecutionID, task.Document.TaskID), TaskID: task.Document.TaskID, Findings: findingResults[task.Document.TaskID], Result: result, GapCode: gap, Retryable: retryable})
-		}
-		if code != "" {
-			params.ErrorCode = &code
-		}
-		_, changed, err := i.store.Collect(ctx, params)
-		return changed, err
+	partials, err := i.readPartialResults(ctx, snapshot, execution, tasks)
+	if err != nil {
+		return false, err
 	}
-	// A deterministic read/write rejection cannot become an endless retry of
-	// the same frozen output. Preserve a technical receipt without references
-	// whose validity failed. Transport/storage ambiguity keeps its original
-	// error and reconciles the existing natural receipt on the next pass.
-	defer func() {
-		if errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
-			params.Disposition = auditstore.CollectionContractInvalid
-			params.SourceOutput, params.Retained = nil, nil
-			changed, err = commit("evidence-budget-exhausted", false, nil)
-		}
-		if permanentTaskCollectionError(err) {
-			params.Disposition = auditstore.CollectionContractInvalid
-			params.SourceOutput, params.Retained = nil, nil
-			changed, err = commit("collection-contract-invalid", false, nil)
-		}
-	}()
+	collection := taskCollectionState{
+		params: auditstore.CollectParams{
+			Claim:         claim,
+			ExecutionID:   execution.ExecutionID,
+			ReceiptID:     auditdomain.DeterministicID("receipt", execution.ExecutionID),
+			RequestDigest: digest,
+			Disposition:   auditstore.CollectionAccepted,
+			Retained:      []auditstore.ArtifactLink{},
+		},
+		tasks:          tasks,
+		partials:       partials,
+		execution:      execution,
+		findingResults: map[string]*auditstore.CanonicalFindingResult{},
+	}
+	changed, err = i.collectTaskOutputs(ctx, snapshot, &collection)
+	// Classify definite failures explicitly; transport ambiguity is returned
+	// unchanged so the next pass reconciles the existing natural receipt.
+	if errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
+		collection.params.Disposition = auditstore.CollectionContractInvalid
+		collection.params.SourceOutput, collection.params.Retained = nil, nil
+		changed, err = collection.commit(ctx, i.store, "evidence-budget-exhausted", false, nil)
+	}
+	if permanentTaskCollectionError(err) {
+		collection.params.Disposition = auditstore.CollectionContractInvalid
+		collection.params.SourceOutput, collection.params.Retained = nil, nil
+		changed, err = collection.commit(ctx, i.store, "collection-contract-invalid", false, nil)
+	}
+	return changed, err
+}
+
+func (i *Importer) collectTaskOutputs(ctx context.Context, snapshot auditstore.ReconcileSnapshot, collection *taskCollectionState) (bool, error) {
+	claim, execution := collection.params.Claim, collection.execution
+	params, tasks, partials := &collection.params, collection.tasks, collection.partials
+	findingResults := collection.findingResults
+	commit := func(code string, retryable bool, result *auditcontract.Material) (bool, error) {
+		return collection.commit(ctx, i.store, code, retryable, result)
+	}
+	var changed bool
+	var err error
 	if more, err := i.retainTaskFindings(ctx, snapshot, execution); more || err != nil {
 		if errors.Is(err, ErrPermanent) {
 			params.Disposition = auditstore.CollectionContractInvalid
@@ -110,10 +119,10 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 			params.Disposition = auditstore.CollectionContractInvalid
 			return commit("collection-contract-invalid", false, nil)
 		}
-		run, readErr := i.runs.GetRun(ctx, *execution.RunID)
-		if readErr != nil {
-			return false, readErr
+		if partials.run == nil {
+			return false, fmt.Errorf("%w: missing terminal Run", ErrPermanent)
 		}
+		run := *partials.run
 		if run.RunID != *execution.RunID || run.OwnerID != snapshot.Audit.OwnerID || run.ProjectID == nil || *run.ProjectID != snapshot.Audit.ProjectID || run.PublicationMode != runstore.PublicationAuditManaged || run.AuditExecutionID == nil || *run.AuditExecutionID != execution.ExecutionID || run.AuditSubmissionKey == nil || *run.AuditSubmissionKey != execution.SubmissionKey || run.State != runstore.RunFailed {
 			params.Disposition = auditstore.CollectionContractInvalid
 			return commit("collection-contract-invalid", false, nil)
@@ -271,7 +280,7 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 		if output.logical != "result" || *execution.TerminalOutcome != auditstore.TerminalSucceeded {
 			continue
 		}
-		data, err := i.normalizeTaskResult(ctx, snapshot.Audit, execution, pinned, tasks, *output)
+		data, err := i.normalizeTaskResult(ctx, snapshot.Audit, execution, pinned, tasks, *output, partials)
 		if errors.Is(err, ErrPermanent) {
 			params.Disposition = auditstore.CollectionInvalidResult
 			params.SourceOutput = sourceOutput
@@ -389,7 +398,7 @@ func permanentTaskCollectionError(err error) bool {
 	return errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, blob.ErrIntegrity) || errors.Is(err, blob.ErrMissing) || artifacts.IsExactReferenceRejection(err) || artifactpostgres.IsExactRevisionMissing(err) || errors.As(err, &classified) && (classified.ErrorKind() == apierror.InvalidRequest || classified.ErrorKind() == apierror.AuditDocumentInvalid)
 }
 
-func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Audit, execution auditstore.Execution, pinned auditprofile.PinnedProgram, tasks []auditstore.Task, output taskOutput) ([]byte, error) {
+func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Audit, execution auditstore.Execution, pinned auditprofile.PinnedProgram, tasks []auditstore.Task, output taskOutput, partials partialTaskResults) ([]byte, error) {
 	invalid := func() ([]byte, error) { return nil, fmt.Errorf("%w: invalid common Task result", ErrPermanent) }
 	if output.source.MediaType != "application/json" || output.source.SizeBytes > auditcontract.MaximumDocumentBytes {
 		return invalid()
@@ -423,6 +432,9 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 	if err != nil {
 		return nil, err
 	}
+	if err := partials.verifyAcceptedFinal(tasks, raw); err != nil {
+		return nil, err
+	}
 	trusted, raw, err = i.taskFindingContext(ctx, audit.OwnerID, execution, trusted, raw)
 	if err != nil {
 		return nil, err
@@ -431,12 +443,17 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 	if err != nil {
 		return nil, err
 	}
+	assignment := trusted
+	trusted, selectedTranslations, err := i.taskSelectedContext(ctx, execution, trusted, raw)
+	if err != nil {
+		return nil, err
+	}
 	result, err := auditcontract.Decode(raw, trusted)
 	if err != nil {
 		return invalid()
 	}
-	var contextValue, resultValue map[string]any
-	if strictjson.Decode(trusted, &contextValue) != nil || strictjson.Decode(result, &resultValue) != nil {
+	var contextValue, assignmentValue, resultValue map[string]any
+	if strictjson.Decode(trusted, &contextValue) != nil || strictjson.Decode(assignment, &assignmentValue) != nil || strictjson.Decode(result, &resultValue) != nil {
 		return invalid()
 	}
 	workflowDigest, err := contentdigest.CanonicalJSON(pinned.Workflows[execution.WorkflowRole])
@@ -451,14 +468,24 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 		return invalid()
 	}
 	translations := httpTranslations
+	for key, material := range selectedTranslations {
+		translations[key] = material
+	}
 	inputMaterials := map[string]auditcontract.Material{}
-	for _, member := range members {
+	assignedMembers := assignmentValue["items"].([]any)
+	for _, member := range assignedMembers {
 		for _, raw := range member.(map[string]any)["evidence"].([]any) {
 			data, err := strictjson.Canonical(raw)
 			if err != nil {
 				return nil, err
 			}
 			var m auditcontract.Material
+			if strictjson.Decode(data, &m) == nil && m.ScopeKind == "audit" {
+				if _, ok := selectedTranslations[string(data)]; ok {
+					continue
+				}
+				return invalid()
+			}
 			if strictjson.Decode(data, &m) == nil && m.ScopeKind == "run" && m.ScopeID == *execution.RunID && m.Ref.Namespace == artifactpolicy.HTTPExchangeNamespace {
 				continue
 			}
@@ -481,7 +508,7 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 	if err != nil {
 		return nil, err
 	}
-	for index, member := range members {
+	for index, member := range assignedMembers {
 		item := member.(map[string]any)
 		task := tasks[index].Document
 		if item["item_key"] != auditcontract.ExecutionItemKey(index) || item["task_id"] != task.TaskID || item["objective"] != task.Objective {
@@ -493,6 +520,12 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 				return nil, err
 			}
 			var material auditcontract.Material
+			if strictjson.Decode(data, &material) == nil && material.ScopeKind == "audit" {
+				if _, ok := selectedTranslations[string(data)]; ok {
+					continue
+				}
+				return invalid()
+			}
 			if strictjson.Decode(data, &material) == nil && material.ScopeKind == "run" && material.ScopeID == *execution.RunID && material.Ref.Namespace == artifactpolicy.HTTPExchangeNamespace {
 				continue
 			}

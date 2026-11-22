@@ -1,0 +1,49 @@
+schema_version: '1.0'
+id: V478-009
+title: Select the fact fixture material through the Runtime version owner
+milestone: runtime-owned-tool-versions-2026-11
+epic: findings
+kind: chore
+introduced_by: V479-005
+priority: P3
+status: completed
+implementation_commit: 433c0880472bc77ad483edd036ada76d5a999920
+depends_on:
+- V479-005
+languages:
+- go
+goal: The fact facade regression uses revision-free model selection and exact trusted Runtime inputs,
+  so the Findings gate verifies the current interface.
+context:
+  authority: 'User assignment 2026-11-22: implement V478 and its required gates in one pass. Findings
+    acceptance found this pre-existing V479 fixture mismatch.'
+  finding: runtime/tests/test_project_facts.py:46 supplies nested revision to the fact model facade without
+    selecting an exact Runtime input. V479-005 correctly rejects it before publication; one of 310 required
+    Findings tests fails.
+scope:
+  in:
+  - Supply an exact trusted input to the fixture resources and pass namespace/name only through the model
+    facade.
+  - Run the complete fact test file and mandatory Findings gate.
+  out:
+  - Production behavior, lenient selectors and stored revision changes.
+acceptance_criteria:
+- id: A1
+  text: The original failing fact fixture selects the trusted exact material through a revision-free model
+    argument and preserves optional item association.
+- id: A2
+  text: All required fact and Findings cases execute successfully.
+tests:
+- command: cd runtime && uv run pytest tests/test_project_facts.py
+  covers:
+  - A1
+- command: make test-findings-e2e
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A1
+  - A2
+
+verification_results: "cd runtime && uv run pytest tests/test_project_facts.py passes within the complete 310-case Findings Runtime suite. make test-findings-e2e passes 23 required process cases and Runtime contracts; make lint passes."

@@ -15,8 +15,7 @@ from pydantic import ValidationError
 from referencing import Registry, Resource
 from test_adk_runtime import stage_request
 from test_allocation import make_service, make_spec
-from test_audit_completion_runtime import runtime_for, submit
-from test_audit_result_publication import assigned
+from test_audit_completion_runtime import assigned, runtime_for, submit
 
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactTransportError, ArtifactValue
 from contractor_runtime.contracts import (
@@ -148,12 +147,12 @@ def test_shared_completion_diagnostics_gate_the_agent_state_endpoint(
 )
 def test_shared_real_runtime_reports_counts_phases_and_no_fictitious_calls(tmp_path, mode):
     async def scenario():
-        expected, _ = assigned(batch=True)
+        expected, inputs = assigned(batch=True)
         items = [item.value for item in expected.items]
         if mode == "missing":
             responses = [text_result("Finished")] * 3
         elif mode in {"partial", "invalid"}:
-            value = replace(items[0], evidence=()) if mode == "invalid" else items[0]
+            value = replace(items[0], verdict="supported") if mode == "invalid" else items[0]
             responses = [submit(value)] + [text_result("Finished")] * 3
         else:
             responses = [submit(items[0]), submit(items[1], "second"), text_result("Finished")]
@@ -223,7 +222,8 @@ def test_shared_real_runtime_reports_counts_phases_and_no_fictitious_calls(tmp_p
             )
             assert len(client.writes) == (2 if mode == "transport" else 1)
         text = report.model_dump_json(by_alias=True, exclude_none=True)
-        assert items[0].rationale not in text and items[0].evidence[0] not in text
+        assert items[0].rationale not in text
+        assert json.loads(inputs.context)["items"][0]["evidence"][0]["ref"]["revision"] not in text
         assert "itemKey" not in text and "acceptedCoverage" not in text
         assert "private-transport-marker" not in text
         # Report and live-state copies cannot mutate retained terminal facts.

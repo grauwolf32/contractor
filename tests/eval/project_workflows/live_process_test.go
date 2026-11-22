@@ -11,7 +11,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,8 +23,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/localpki"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 )
 
 const liveRetainedLogBytes = 64 << 10
@@ -229,34 +227,7 @@ func liveFreeAddress(t *testing.T) string {
 
 func liveIsolatedDatabase(t *testing.T, ctx context.Context, databaseURL string) string {
 	t.Helper()
-	parsed, err := url.Parse(databaseURL)
-	if err != nil || parsed.Scheme != "postgres" && parsed.Scheme != "postgresql" {
-		t.Fatal("CONTRACTOR_TEST_DATABASE_URL must be a PostgreSQL URL")
-	}
-	admin, err := pgxpool.New(ctx, databaseURL)
-	if err != nil {
-		t.Fatal("open live evaluation PostgreSQL")
-	}
-	if err := admin.Ping(ctx); err != nil {
-		admin.Close()
-		t.Fatal("ping live evaluation PostgreSQL")
-	}
-	schema := "contractor_live_eval_" + liveRandomHex(t, 8)
-	identifier := pgx.Identifier{schema}.Sanitize()
-	if _, err := admin.Exec(ctx, "CREATE SCHEMA "+identifier); err != nil {
-		admin.Close()
-		t.Fatal("create live evaluation schema")
-	}
-	t.Cleanup(func() {
-		cleanup, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		_, _ = admin.Exec(cleanup, "DROP SCHEMA "+identifier+" CASCADE")
-		admin.Close()
-	})
-	query := parsed.Query()
-	query.Set("search_path", schema)
-	parsed.RawQuery = query.Encode()
-	return parsed.String()
+	return postgrestest.NewDatabase(t, ctx, databaseURL)
 }
 
 func liveRandomHex(t *testing.T, size int) string {

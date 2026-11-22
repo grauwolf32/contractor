@@ -13992,6 +13992,28 @@ components:
       - parameters
       - outputs
       type: object
+    AuditResultStop:
+      additionalProperties: false
+      properties:
+        code:
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9_.:-]+$
+          type: string
+        message:
+          maxLength: 4096
+          type: string
+          x-maxUtf8Bytes: 4096
+        source:
+          enum:
+          - run
+          - unknown
+          type: string
+      required:
+      - source
+      - code
+      - message
+      type: object
     AuditTaskMaterial:
       allOf:
       - $ref: '#/components/schemas/WorkflowMaterialDescriptor'
@@ -14004,6 +14026,32 @@ components:
             - project
             - run
             type: string
+    AuditTaskStop:
+      additionalProperties: false
+      properties:
+        author:
+          const: system
+          type: string
+        evidence:
+          items:
+            $ref: '#/components/schemas/AuditTaskMaterial'
+          maxItems: 256
+          type: array
+          uniqueItems: true
+        meaning:
+          const: no_accepted_conclusion
+          type: string
+        reason:
+          $ref: '#/components/schemas/AuditResultStop'
+        verdict:
+          const: inconclusive
+          type: string
+      required:
+      - author
+      - meaning
+      - reason
+      - evidence
+      type: object
     WorkflowMaterialDescriptor:
       additionalProperties: false
       properties:
@@ -14638,6 +14686,8 @@ components:
           $ref: '#/components/schemas/ResourceId'
         result:
           $ref: '#/components/schemas/AuditTaskMaterial'
+        stop:
+          $ref: '#/components/schemas/AuditTaskStop'
         gap_code:
           type: string
           minLength: 1
@@ -15292,6 +15342,9 @@ components:
         collection_disposition: {$ref: '#/components/schemas/AuditCollectionDisposition'}
         created_at: {type: string, format: date-time}
         collected_at: {type: string, format: date-time}
+        result: {$ref: '#/components/schemas/AuditTaskMaterial'}
+        result_key: {$ref: '#/components/schemas/AuditArtifactKey'}
+        stop: {$ref: '#/components/schemas/AuditTaskStop'}
     AuditMaterialPage:
       type: object
       additionalProperties: false

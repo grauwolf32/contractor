@@ -1,0 +1,386 @@
+schema_version: '1.0'
+id: V478-002
+title: Retain explicitly selected evidence through common source selectors
+milestone: audit-evidence-results-2026-11
+epic: audits
+kind: feature
+priority: P1
+status: completed
+implementation_commit: 4edf1b09af1adfe6ae076abefce946ef52f9dd7b
+depends_on:
+- V64-002
+- V64-012
+- V477-001
+- V479-005
+- V479-009
+languages:
+- go
+- python
+- json
+- markdown
+goal: Workers explicitly save selected code, HTTP and artifact sources during work through evidence, finding
+  and fact; acknowledged records remain readable after a later limit or Worker loss.
+demonstration: Issue a control request and a test request for one assigned check, retain them and an attributed
+  observation, then kill the Runtime before result submission. The Server reads the committed check-linked
+  artifacts without replaying either request.
+context:
+  authority: 'User request 2026-11-22: prepare tasks for a concrete Audit check plan, evidence collected during
+    work, a thin result submission tool, and partial results on interruption without invented coverage conclusions.
+    The user corrected the assumption that limits reveal completed/remaining semantic steps: execution facts
+    do not establish semantic coverage. The user proposed submit_result and explicitly requested joint review
+    and agreement before merging these tasks into main. This is planning authorization only. The decisions below supersede the initial agent proposals.
+    User review question 2026-11-22: clarify the relationship between Project facts and check-specific evidence,
+    including whether a fact may serve as evidence. The user suggests facts as reusable system knowledge and
+    evidence as specific to a hypothesis; the distinction was initially proposed for joint review. User decision
+    2026-11-22: accept the distinction between reusable Project facts, exact observations/materials, and evidence
+    selected for a specific claim. Fact summaries do not automatically verify their claims; original exact
+    sources may be explicitly reused with applicability and attribution preserved. This agreement settles that
+    distinction only, not other open task choices, implementation or merge. User decision 2026-11-22: accept
+    sources as the shared model-facing selection of code, HTTP and exact artifact materials for record_evidence,
+    finding and record_fact. Evidence is a relation to the particular check/claim; a Finding need not consume
+    an Audit evidence record or have a hypothesis. Preserve independent owners and reuse exact material bytes.
+    This does not approve unrelated pending choices or authorize implementation/merge. User decision 2026-11-22:
+    publish evidenced security problems through finding even when unrelated to the assigned hypothesis, and
+    explicitly instruct the Worker how to use evidence. Publication must precede final result submission when
+    feasible; independent discoveries keep honest incidental origin. This approves publication/evidence guidance
+    in the task plan, not a new mandatory result flag, a minimum Finding count, semantic auto-detection, implementation
+    or merge. User decision 2026-11-22 supersedes the earlier fixed-plan proposal: decide how an Audit plans
+    its work separately. For this package make a small scenario-independent instruction improvement using existing
+    assignments; no mandatory frozen check-plan document, new criterion/step contract, per-endpoint Task expansion,
+    ReAct planner tools or automatic plan generation. Future options include scenario-specific coverage instructions,
+    Worker planner tools or executor discretion; none is selected here. User decision 2026-11-22: durably retain
+    explicitly selected sources through evidence, finding and fact, with the guarantee beginning at Server
+    acknowledgement. Rename the proposed record_evidence tool to evidence and the existing record_fact tool
+    to fact; no compatibility aliases. Automatic archival of every observation is not part of this package.
+    User decision 2026-11-22 accepts review points 3 and 4: inconclusive can settle an attempt and the Audit
+    can finish with visible unresolved conclusions, without mandatory automatic repeats. When an assigned hypothesis
+    check stops without an accepted conclusion, expose a system-authored inconclusive with observed stop reason
+    and source, meaning no conclusion was accepted. Preserve existing accepted judgments, keep hypothesis-free
+    exploration without a verdict, and never turn a failed/cancelled Run into success.
+    User request 2026-11-22: review this package against updated main and reconcile affected tasks. Apply
+    the already merged V479 contracts for Runtime-owned versions and correction generations; this review
+    does not assign feature implementation or change the agreed retention/stop policy.'
+  implementation_gate: 'User assignment 2026-11-22 supersedes the planning gate: implement the full reviewed V478 package in one continuous pass. Do not deploy or launch a live Audit. Earlier review gate follows as historical context. All product review decisions recorded below are settled for the task draft. Keep tasks
+    pending: this thread is planning/review, not an implementation assignment. Do not deploy or launch an Audit.
+    The user requested review before merging the task package into main; report the reconciled package before
+    integration. Implementation must follow these task contracts; an unforeseen consequential prerequisite
+    needs its own review, not silent scope growth.'
+  baseline: Reviewed main cd2974674def375c1838b496c8f288e86989dc8a, including completed V479-001 through
+    V479-009. The earlier Invoice Lab run motivates this package; it is not a current live quality benchmark.
+  specification:
+  - docs/spec/audits/common-contract.md
+  - docs/spec/audits/worker-completion.md
+  - docs/spec/audits/execution.md
+  - docs/spec/audits/review-and-reports.md
+  - docs/spec/tools/http-caido.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/findings/findings.md
+  - docs/spec/audits/hypotheses.md
+  - docs/spec/artifacts/artifact-store.md#ART-R147
+  - docs/spec/artifacts/artifact-store.md#ART-R148
+  - docs/spec/findings/findings.md#FND-R240
+  boundary: Extend existing common Task/hypothesis, Runtime collector, Artifact and Audit intake owners. Source
+    adapters own observation extraction; Server owns assignment, authority, exact retention and lifecycle.
+    No alternate execution engine or coverage ledger. Update numbered owning specs and all API/wire/schema
+    readers as part of implementation; these task drafts alone do not change runtime behavior.
+  sources:
+  - runtime/src/contractor_runtime/toolsets/common/http_capture.py
+  - runtime/src/contractor_runtime/toolsets/common/http_publication.py
+  - runtime/src/contractor_runtime/toolsets/audit_results/collector.py
+  - runtime/src/contractor_runtime/toolsets/common/versions.py
+  - runtime/src/contractor_runtime/toolsets/common/artifact_cursors.py
+  - runtime/src/contractor_runtime/toolsets/security_findings/publisher.py
+  boundary_decision: Extend existing toolsets.common source/version helpers with concrete adapters for
+    HTTP captures and exact source/proof preparation. Reuse MaterialSelector/SelectedVersions for artifact
+    resolution; preserve the Run-versus-Project scope boundary. evidence adds early acceptance/holds in
+    the existing Audit owner; finding and fact keep existing Project Finding intake/receipts. A Finding
+    needs no prior Audit evidence record. Both HTTP intake forms retain provenance, bounds, masking and
+    receipt behavior; transport unification is not required.
+  facts_evidence_decision: Observation/material is an exact retained source. A Project fact is a reusable attributed
+    statement about a scoped system, with its own sources and observation context; it is not universally true
+    merely because it is called a fact. Evidence is the explicit use of selected sources for an assigned check/claim
+    with a stated role and applicability. A fact may be a ground/context for a hypothesis; its exact underlying
+    sources may be reused as evidence after explicit authorized selection. A fact card or Memory summary is
+    not automatically independent evidence of its claim. Evidence may also support an exploratory observation
+    or a Finding without a hypothesis. These are semantic roles over existing owners/artifacts, not three new
+    stores. Keep fact on its existing deliberate Project publication path; no automatic publication of every
+    observation as a fact. The check-local tool is evidence; collection is explicitly selected and detailed
+    fields follow the owning existing contract patterns.
+  sources_interface_decision: Use common sources with typed selectors for code, local HTTP request IDs
+    and artifact materials. Model artifact selectors reuse MaterialSelector (namespace/name only); assigned
+    source handles may refer to trusted input roles, never to a model-supplied revision. Reuse SelectedVersions
+    to resolve trusted inputs and successful content selections into exact internal refs; reject unknown,
+    hidden or ambiguous sources without looking up latest as a fallback. Metadata-only listings grant
+    no evidence selection. Code adapters preserve exact pinned source versus workspace capture and reject
+    unsupported mappings; HTTP adapters use actual local captures without replay. Runtime-issued cursors
+    remain exact read-continuation inputs, not replacement write/version preconditions. No universal obs_id,
+    new version registry or changes to every reader. Exact retained sources can support independent check/Finding/Fact
+    claims; shared bytes are not independent corroboration.
+  planning_boundary: Audit planning is a separate open design question. This task consumes existing assignments/hypotheses
+    when present, and also supports exploration without a hypothesis. Do not introduce a frozen-plan requirement,
+    new criterion_key/step schema or semantic coverage gate as an evidence/result prerequisite. V478-001 provides
+    only general methodology guidance.
+  collection_decision: Explicit selection only through evidence, finding and fact; acknowledged Server acceptance
+    is the durability boundary. Unselected volatile captures or unsaved thoughts may be lost at stop. Retain
+    the selected sources using existing owners and quotas; do not build an automatic observation archive.
+  model_interface_decision: The check-local tool is evidence, the informational Project tool is fact,
+    and finding keeps its name. All use sources with explicit code/HTTP/artifact selectors and claim-specific
+    interpretation. evidence selects an existing item_key; infrastructure identity and exact versions
+    are system-derived. Do not expose revision, expected_revision, replacement flags or equivalent version
+    tokens at any model argument nesting level. Returned versions remain informational; internal API/CAS
+    checks stay strict. Replace record_fact and superseded active source arguments end to end with new
+    catalog identities, without aliases or historical snapshot rewrites.
+  exact_reuse_implementation: >-
+    SelectedVersions resolves one version per namespace/name. An exact selected source therefore also receives an ordinary frozen Run input fork through the Artifact owner when Server accepts evidence. The tool returns current sourceSelectors for those immutable aliases, so Finding/fact reuse does not ask the model for revisions or silently select a later mutable binding. Audit forks retain the bytes independently of the Run; both forks share existing blobs/lineage. Private selection slots are admitted before the Server operation. No universal handle registry or new retention owner is introduced.
+  preparation_failure_boundary: >-
+    Source extraction may prepare ordinary Run artifacts before the Audit/Finding transaction. A permanent failure accepts no new Audit association or Project Finding/fact; already prepared ordinary Run materials use the existing Run lifecycle. No distributed rollback or durable-acceptance claim is made for preparation alone. This clarifies the existing ownership decision rather than adding automatic observation retention.
+  main_reconciliation_2026_11_22: V479-005 already resolves finding/fact evidence_refs through common
+    MaterialSelector and SelectedVersions; V479-004 owns exact read cursors, and V479-009 prevents Project-target
+    reads from selecting same-address Run versions. Reuse those owners when replacing active source arguments
+    with sources. This task adds code/HTTP/artifact source preparation and early durable Audit association,
+    not another version resolver. The private version map, discovery metadata and cursors add no holds
+    and do not prove Server acceptance.
+  admission_implementation: >-
+    The existing Audit link owner bounds each execution collection to 256 annotation/source occurrences and 8 MiB, including repeated annotations and selected bytes. Early intake reserves 1 MiB from the invocation allowance and min(1 MiB, maxEvidenceBytes/8) from Audit capacity for conclusion/stop metadata. Frozen ordinary Run input aliases support exact later reuse; accepted annotations keep model conditions/limitations privately through compaction. Source forks, note, receipt, links and accounting commit together; no new store or automatic observation archive is introduced.
+scope:
+  in:
+  - Persist explicitly selected source/annotation artifacts and their exact Task/attempt association when evidence
+    is called, using existing receipts, forks and holds.
+  - Return accepted evidence keys/revisions and safe failed/unknown persistence diagnostics through tools and
+    ordinary Audit material reads; do not add a universal handle to every tool observation.
+  - Provide incremental model notes for grouping control/test/postcondition evidence and recording tested conditions/limitations,
+    clearly attributed as interpretations.
+  - Preserve independent Finding receipts and reuse the same exact evidence without copying arbitrary traces
+    into the result.
+  - Apply the agreed common sources selection to evidence, finding and fact, including current general/code/HTTP/trace
+    consumers. Replace superseded model-facing source arguments consistently, with versioned catalog identities;
+    do not require a new generic observation registry or an Audit for incidental Project publications.
+  - Rename the existing record_fact facade to fact in active tool declarations, selection validation, current
+    instructions/configs, tests and consumers, with new immutable catalog identities. Introduce evidence directly
+    under its agreed name; no record_evidence/record_observation alias.
+  out:
+  - Automatically retaining every tool input/output, raw credentials, full transcripts or all direct-Run HTTP
+    traffic.
+  - Provider registry, independent observation database, replay engine, inferred principals from credential
+    labels or inferred semantic step completion.
+  - Automatic durability of all HTTP calls or source reads, mandatory criterion keys/plan schema and independent
+    planning tools.
+  - Reimplementing V479 selected-version resolution or treating its private map/read cursors as durable
+    Audit evidence.
+requirements:
+- id: R1
+  text: Bind every check-local evidence record to the exact assigned item and attempt. A single-item invocation may derive membership;
+    a batch requires explicit validated membership. Never use a mutable global active-check pointer across
+    concurrent calls.
+- id: R2
+  text: Persist captures before claiming durable evidence. Attach acknowledged records to ordinary Audit-owned
+    retention during work, so permitted Run deletion cannot destroy them before a final submit. A pointer alone
+    is not a hold.
+- id: R3
+  text: Distinguish exact selected source material from model interpretation. An evidence annotation records
+    admitted sources, tested conditions and limitations for an existing assigned item; it cannot assert trusted
+    provenance, a verified semantic role or completed coverage. No mandatory structured criterion field is
+    added.
+- id: R4
+  text: Reuse current sanitization and evidence envelopes. Do not automatically promote materials, notes, status
+    codes or tool-call counts into verified evidence of a security claim.
+- id: R5
+  text: Apply 256-record/8 MiB invocation and Audit evidence-byte limits incrementally with reserved result/stop
+    metadata space, including notes and repeated annotations. When capacity is exhausted, expose an explicit
+    persistence gap and stop further collecting work according to the owning policy; do not silently evict
+    acknowledged evidence.
+- id: R6
+  text: A response may arrive before its capture commits. On ambiguous persistence or process death preserve
+    the acknowledged prefix, mark the unconfirmed tail unknown where known, and never resend the target request
+    to reconstruct it.
+- id: R7
+  text: Retries reconcile existing artifact/mutation identities. Compaction, collection updates and further
+    attempts do not duplicate observations, erase prior records or relabel their authorship.
+- id: R8
+  text: fact retains its existing Project Finding/receipt owner and optional Task association. Incremental
+    observation recording does not automatically publish Project facts. Reusing fact sources uses existing
+    exact finding/source selection and artifact authority/retention; a Finding ID or embedded reference alone
+    grants neither readable bytes nor evidence membership.
+- id: R9
+  text: A source becomes check evidence through an explicit accepted association and attributed interpretation,
+    not because it was read, captured or supplied as a ground. The caller records these associations during
+    work; the final result does not require the model to rebuild an evidence inventory.
+- id: R10
+  text: Preserve exact source receipt/revision and the available observation context when reusing evidence;
+    do not substitute the current mutable fact card. Reuse of the same source for several claims is allowed
+    without duplicating bytes or claiming independent corroboration. A note/report supports that someone recorded
+    a claim, not automatic verification of the underlying system property. No recursive fact/source crawler
+    or causal graph engine is introduced.
+- id: R11
+  text: sources identifies materials, not preexisting Audit evidence records. Each consumer supplies its own
+    claim and authority; Finding/Fact callers may publish independently of a hypothesis. Reuse exact prepared
+    source artifacts and keep current source-specific validation, HTTP/Caido identity and trace mapping guarantees.
+    Model arguments never grant Project/Audit/Run/hypothesis identity.
+- id: R12
+  text: Agent-facing sources and evidence guidance must explain when to select and retain sources during work,
+    how code coordinates bind to an exact version, how local HTTP IDs select actual captures without replay,
+    and how to cite an existing exact artifact. Distinguish interpretation, factual source and uncertainty.
+    Reading/saving a material alone does not register evidence for a check. Reuse the same exact source with
+    an independent interpretation for another claim, without counting it as corroboration or requiring a prior
+    Audit evidence record for a Finding.
+- id: R13
+  text: Reuse the existing revision-free MaterialSelector/SelectedVersions boundary, including trusted
+    exact inputs, rejection of unknown/ambiguous/hidden selections, metadata-only exclusion and Project/Run
+    scope isolation. Preserve actual revisions in internal refs and replies; reject removed nested revision
+    fields, including null. Compaction keeps private selections; invocation exit clears them. Apply existing
+    LIM-TLS-7/LIM-TLS-8 bounds independently of Audit retention quotas. Only acknowledged owner association
+    and holds make selected evidence durable; a remembered version or read cursor does not.
+failure_outcomes:
+- operation: Publish an observation and attach its exact artifact to Audit-owned retention
+  permanent: Reject invalid membership, foreign/exact-revision mismatches, quota violations and malformed input
+    before mutation using owning classified errors. No retry of deterministic invalid input; specify any new
+    public code/status in the owning error registry and OpenAPI in the implementation.
+  retryable: Use existing bounded storage_transaction_conflict 503 and Artifact retry contracts, original receipt
+    identity and owning deadline. Never retry target traffic to recover a persistence failure.
+  ambiguous: Reconcile the same natural Artifact binding or existing keyed Audit mutation receipt. Return unknown/unconfirmed
+    persistence if reconciliation fails; do not claim durable acceptance or create another logical effect.
+  cancelled: Honor existing allocation/Run/Audit fences. Join owned I/O before cleanup; retained committed
+    records survive. Do not send additional target/model calls to repair a partial result.
+  timeout: Use existing operation and invocation deadlines; terminal persistence uses only the existing owner-authorized
+    bounded drain/reconciliation path, never an unbounded extension of model execution.
+- operation: Send an assigned HTTP probe and retain its actual capture
+  permanent: Invalid scope/assignment is rejected before send. A legitimate target denial or unexpected response
+    is an observation, not by itself an infrastructure failure or semantic conclusion.
+  retryable: Only the existing HTTP transport policy decides transport retries; observation persistence retries
+    must never resend a probe.
+  ambiguous: A possibly sent request with no confirmed retained capture remains unknown/unavailable. Reconcile
+    persistence by original identity if possible; never reconstruct traffic.
+  cancelled: Join the transport and capture worker; retain only actually committed data and report a known
+    persistence gap if capture did not commit.
+  timeout: HTTP request deadline bounds the exchange; Artifact and owning invocation deadlines separately bound
+    retention. No new model call is required.
+cardinality:
+- collection: Existing assigned items and explicitly selected evidence/annotations
+  expected: One exploratory task or a small existing multi-item assignment; tens of selected sources.
+  maximum: Keep the existing 64-item assignment and Audit collection bounds of 256 selected evidence records
+    / 8 MiB encoded evidence plus conclusions; Audit maxEvidenceBytes also applies. Independent Finding/Fact
+    callers retain their existing tighter or owner-specific limits, including four selected sources for informational
+    facts.
+  bound: Bound each operation by rows and bytes, use existing paged reads, and never hydrate the whole Audit
+    in one transaction. Repeated annotations and revisions consume their owning bounds; no new frozen-plan
+    denominator is introduced.
+lifecycle:
+- entity: Task/attempt-associated exact artifacts and results under existing Run/Audit/Project ownership
+  delete: Use ordinary drained deletion and purge authorization. A held evidence artifact must remain readable
+    after permitted producer Run deletion.
+  cascade: Register any added relation/read/hold in existing ownership and purge mechanisms; no independent
+    journal, queue, receipt store or retention service.
+  retention: Only acknowledged durable records carry a persistence guarantee. Release existing Audit-owned
+    holds through the ordinary Audit/Project lifecycle; volatile or unacknowledged observations may be unavailable.
+acceptance_criteria:
+- id: A1
+  given: Two successful target exchanges and an acknowledged semantic note, but no submitted result
+  when: The Runtime is killed and its producer Run is later deleted through the permitted path
+  then: The exact committed observations remain readable from the Audit; no target/model replay occurs and
+    no semantic verdict is manufactured.
+- id: A2
+  given: An exchange was sent but Artifact acknowledgement is lost; storage is unavailable or quota is reached
+  when: Collection retries or the invocation stops
+  then: Only reconciled records are reported durable, uncertainty/loss is visible, no request is resent, and
+    current bounded quotas and secrecy hold.
+- id: A3
+  given: Two assigned items, concurrent tool calls, foreign handles and maximum record/byte counts
+  when: Observation grouping and reads execute through real owners
+  then: Foreign/unassigned item keys and unauthorized source references are rejected; explicit authorized reuse
+    of one exact source for multiple assigned checks is allowed. Associations remain exact, reads/writes are
+    bounded and deletion releases owned holds.
+- id: A4
+  given: A Project fact with an exact HTTP source, a Memory-derived fact, and one source reused by two checks
+  when: Sources are explicitly selected and linked during work, including a stale/different-scope source and
+    an unauthorized embedded ref
+  then: Primary source and reported statement remain distinguishable; no automatic promotion or authority expansion
+    occurs, shared evidence is not independent corroboration, and uncertain applicability stays attributed/unknown
+    rather than deterministically certified.
+- id: A5
+  given: Code, HTTP and artifact sources selected for an Audit check, an incidental Finding and a Project fact
+  when: The real model-facing facades resolve and publish the same source materials
+  then: All use the common selector contract without universal obs IDs or an obligatory Audit evidence record;
+    trusted origins remain separate, exact sources survive their owner lifecycle and no new independent evidence
+    store is introduced.
+- id: A6
+  given: The effective Worker instructions and declarations for source, HTTP and mixed-source investigation
+  when: Scripted real-tool scenarios select evidence during work and reuse sources for an incidental Finding
+  then: The model-facing guidance specifies exact selection, persistence acknowledgement, interpretation and
+    limitations. Check evidence and independent Finding sources remain distinct; no invented handles, target
+    replay or automatic Project fact publication occurs. These checks establish interface wiring, not live-model
+    compliance.
+- id: A7
+  given: A trusted input, an observed artifact whose current alias later moves, metadata-only and ambiguous
+    selections, a same-address Project source, and compaction/invocation boundaries
+  when: The real evidence/finding/fact facades resolve common sources and durably accept the admitted
+    material
+  then: The existing Runtime owner resolves the exact admitted source without model revision arguments
+    or latest fallback; invalid selections fail before publication. Project reads cannot replace a Run
+    selection. After private state is cleared, acknowledged sources remain readable through their durable
+    owner, while a cursor or remembered version alone carries no retention promise.
+tests:
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+  - A7
+- command: go test -tags=integration -count=1 ./internal/artifacts/... ./internal/auditstore/... ./internal/auditservice/...
+    ./internal/auditimport/... ./internal/httpapi/privateartifacts/... ./internal/findingintake/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A7
+- command: make test-http-caido-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-audit-basic-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A6
+  - A7
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make verify-public-api-postgres
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-findings-e2e
+  covers:
+  - A4
+  - A5
+  - A6
+  - A7
+- command: make test-code-analysis-e2e
+  covers:
+  - A5
+  - A6
+verification_notes: Listed commands are required implementation gates, not results of task planning. Use one
+  owned disposable PostgreSQL database, explicitly drop it after pools/processes stop, and never implicitly
+  enable CONTRACTOR_TEST_HEAVY_IO. Zero matched cases and skipped required database/process cases fail acceptance.
+
+verification_results: "Required gates pass: make test-runtime (6596 passed, 135 declared skips; 577 selected compaction cases); full listed Go/integration packages plus touched Audit store and private intake packages on real UTF8 PostgreSQL; make test-http-caido-e2e (74.573s); make test-audit-basic-e2e (13 required cases, 366.790s); make test-wire-cross-language (406 fixtures, 460 Go and 292 Python shared tests; one explicitly disabled heavy-I/O case is not passing coverage); make verify-public-api-postgres (nine selected race cases, 10.020s); make lint; make test-findings-e2e (25 required process cases and 310 Runtime contracts, 580.503s); make test-code-analysis-e2e (Runtime and actual process suites). The strengthened actual-HTTP crash/lost-ack/restart/producer-purge scenario passes in the full Audit gate (14.06s) with exactly two target requests and no fabricated conclusion. Real-store record/byte saturation, foreign membership, immutable selection, fenced replay and atomic rejection pass. No live model, demo deployment or main merge was performed. The reusable owned test database remains active for the dependent V478 work and must be removed after its final pools/processes stop."

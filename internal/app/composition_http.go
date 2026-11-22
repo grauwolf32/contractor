@@ -154,7 +154,7 @@ func configureHTTP(
 		return serverHandlers{}, fmt.Errorf("configure private Control Plane API: %w", err)
 	}
 	artifactHandler, err := privateartifacts.NewHandler(privateartifacts.Dependencies{Transfers: storage,
-		Registry: control.registry, Artifacts: catalogs.artifacts, Findings: catalogs.findings, ProjectFindings: collectionPublisher, GatewayRecovery: workflows.gatewayRecovery, Logger: logger,
+		Registry: control.registry, Artifacts: catalogs.artifacts, AuditEvidence: audits.service, AuditJudgments: audits.service, Findings: catalogs.findings, ProjectFindings: collectionPublisher, GatewayRecovery: workflows.gatewayRecovery, Logger: logger,
 		Sitemap:     projectsitemap.NewService(pool, storage),
 		RunProjects: runStore,
 		Projects:    projects,

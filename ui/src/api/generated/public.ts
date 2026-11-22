@@ -4141,10 +4141,26 @@ export interface components {
             };
             ref: components["schemas"]["AuditProgramSelector"];
         };
+        AuditResultStop: {
+            code: string;
+            message: string;
+            /** @enum {string} */
+            source: "run" | "unknown";
+        };
         AuditTaskMaterial: components["schemas"]["WorkflowMaterialDescriptor"] & {
             scope_id?: components["schemas"]["AuditCommonResourceId"];
             /** @enum {string} */
             scope_kind?: "audit" | "project" | "run";
+        };
+        AuditTaskStop: {
+            /** @constant */
+            author: "system";
+            evidence: components["schemas"]["AuditTaskMaterial"][];
+            /** @constant */
+            meaning: "no_accepted_conclusion";
+            reason: components["schemas"]["AuditResultStop"];
+            /** @constant */
+            verdict?: "inconclusive";
         };
         WorkflowMaterialDescriptor: {
             digest: components["schemas"]["AuditCommonDigest"];
@@ -4444,6 +4460,7 @@ export interface components {
             attempts: number;
             last_execution_id?: components["schemas"]["ResourceId"];
             result?: components["schemas"]["AuditTaskMaterial"];
+            stop?: components["schemas"]["AuditTaskStop"];
             gap_code?: string;
             /** Format: date-time */
             created_at: string;
@@ -4871,6 +4888,9 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             collected_at?: string;
+            result?: components["schemas"]["AuditTaskMaterial"];
+            result_key?: components["schemas"]["AuditArtifactKey"];
+            stop?: components["schemas"]["AuditTaskStop"];
         };
         AuditMaterialPage: {
             items: components["schemas"]["AuditMaterialEntry"][];

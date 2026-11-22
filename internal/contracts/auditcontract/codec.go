@@ -668,11 +668,12 @@ func assemble(v, context map[string]any) bool {
 		}
 		receipts, hasReceipts := member["finding_receipts"]
 		if authored {
+			item["author"] = "model"
 			if hasReceipts {
 				item["finding_receipts"] = receipts
 			}
 			item["origin"] = origin
-		} else if !reflect.DeepEqual(item["origin"], origin) || !reflect.DeepEqual(item["finding_receipts"], receipts) {
+		} else if item["author"] != "model" || !reflect.DeepEqual(item["origin"], origin) || !reflect.DeepEqual(item["finding_receipts"], receipts) {
 			return false
 		}
 	}

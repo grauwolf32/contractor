@@ -276,9 +276,9 @@ func TestFindingsProducerAndReaderAcrossProcesses(t *testing.T) {
 
 func findingsProducerStage(name string) domainGatewayStage {
 	tools := append([]string{"list_skills", "load_skill", "load_skill_resource",
-		"read_audit_task", "submit_check_result", "submit_check_results", "ls", "glob", "grep", "read_file",
+		"read_audit_task", "submit_result", "submit_results", "ls", "glob", "grep", "read_file",
 		"write_text_artifact", "finding", "annotate_trace", "annotate_validate", "annotate_sink",
-		"changed_paths", "diff", "rollback_changes"}, completeCodeAnalysisTools...)
+		"changed_paths", "diff", "rollback_changes", "evidence"}, completeCodeAnalysisTools...)
 	final := finalGatewayStep("All assigned results recorded", nil)
 	final.validate = requireRecordedAuditResults(1)
 	return domainGatewayStage{name: "findings/" + name, tools: withMemoryTools(tools), steps: []domainGatewayStep{
@@ -290,6 +290,7 @@ func findingsProducerStage(name string) domainGatewayStage {
 			}
 			return map[string]any{"path": "app.py", "start_line": 1, "max_lines": 100}, nil
 		}),
+		toolGatewayStep("evidence", auditSourceEvidenceArguments(0, []string{"source operation and graph inspected"})),
 		toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{
 			"name": "source-trace", "text": findingsEvidence, "media_type": "text/plain",
 		})),
@@ -302,10 +303,10 @@ func findingsProducerStage(name string) domainGatewayStage {
 				"title":       "Query concatenation in lookup",
 				"description": "GET /items/{item_id} passes its input to lookup (app.py:4-10). The query uses concatenation. Reproduce by supplying a quote in item_id and checking query parsing; source-inferred and unexecuted, database availability and surrounding controls remain unverified.",
 				"file":        "app.py", "range": map[string]int{"start_line": 4, "end_line": 6},
-				"evidence_refs": []any{materialSelector(evidence)},
+				"sources": []any{artifactSourceSelector(evidence)},
 			}, nil
 		}),
-		toolGatewayStep("submit_check_result", func(request map[string]any) (map[string]any, error) {
+		toolGatewayStep("submit_result", func(request map[string]any) (map[string]any, error) {
 			responses := findingsToolResponses(request, "finding")
 			if len(responses) == 0 || responses[0]["receipt_id"] == nil || responses[0]["proposal_id"] == nil {
 				return nil, fmt.Errorf("canonical result has no successful finding receipt: %+v", responses)
@@ -315,7 +316,7 @@ func findingsProducerStage(name string) domainGatewayStage {
 					return nil, fmt.Errorf("identical finding retry changed receipt")
 				}
 			}
-			return auditResultArguments(map[string]any{"rationale": "Operation mapped to lookup; query concatenation proposal recorded.", "tested_conditions": []string{"operation-resolution"}, "limitations": []string{"Source inferred; no live exploit executed"}, "evidence": []string{"evidence-000", "evidence-001"}})(request)
+			return auditResultArguments(map[string]any{"rationale": "Operation mapped to lookup; query concatenation proposal recorded.", "limitations": []string{"Source inferred; no live exploit executed"}})(request)
 		}),
 		final,
 	}}
@@ -420,7 +421,7 @@ func findingsDocumentArguments(index int, evidence bool) func(map[string]any) (m
 		if !ok || !strings.HasPrefix(fmt.Sprint(ref["namespace"]), "findings-") || ref["revision"] == nil {
 			return nil, fmt.Errorf("reader attempted a non-consumer or versionless ref")
 		}
-		return ref, nil
+		return materialSelector(ref), nil
 	}
 }
 
@@ -491,7 +492,7 @@ func assertFindingsResultReceipt(t *testing.T, h *findingsHarness, runID string,
 	if err := json.Unmarshal(payload, &result); err != nil || result.Schema != "contractor.audit.result.v1" || len(result.Items) != 1 {
 		t.Fatalf("canonical common result: %+v %v", result, err)
 	}
-	if !reflect.DeepEqual(result.Items[0].FindingReceipts, []string{receipt.ReceiptID}) || receipt.Origin.Audit == nil || result.Items[0].Origin.TaskID != receipt.Origin.Audit.TaskID || !reflect.DeepEqual(result.Items[0].TestedConditions, []string{"operation-resolution"}) {
+	if !reflect.DeepEqual(result.Items[0].FindingReceipts, []string{receipt.ReceiptID}) || receipt.Origin.Audit == nil || result.Items[0].Origin.TaskID != receipt.Origin.Audit.TaskID || !reflect.DeepEqual(result.Items[0].TestedConditions, []string{"source operation and graph inspected"}) {
 		t.Fatalf("result lost finding/Task correlation: %+v versus %+v", result, receipt)
 	}
 
@@ -594,14 +595,20 @@ func ordinaryFindingsProducerStage(name string) domainGatewayStage {
 	stage := findingsProducerStage(name)
 	tools := make([]string, 0, len(stage.tools))
 	for _, tool := range stage.tools {
-		if tool != "read_audit_task" && tool != "submit_check_result" && tool != "submit_check_results" &&
+		if tool != "read_audit_task" && tool != "submit_result" && tool != "submit_results" &&
 			tool != "annotate_trace" && tool != "annotate_validate" && tool != "annotate_sink" &&
-			tool != "changed_paths" && tool != "diff" && tool != "rollback_changes" {
+			tool != "changed_paths" && tool != "diff" && tool != "rollback_changes" && tool != "evidence" {
 			tools = append(tools, tool)
 		}
 	}
 	stage.tools = tools
-	stage.steps = append(stage.steps[1:5:5],
+	steps := []domainGatewayStep{}
+	for _, step := range stage.steps {
+		if step.tool != "read_audit_task" && step.tool != "evidence" && step.tool != "submit_result" && step.tool != "" {
+			steps = append(steps, step)
+		}
+	}
+	stage.steps = append(steps,
 		toolGatewayStep("write_text_artifact", func(request map[string]any) (map[string]any, error) {
 			receipts := findingsToolResponses(request, "finding")
 			if len(receipts) == 0 || receipts[0]["receipt_id"] == nil {
@@ -621,7 +628,7 @@ func ordinaryFindingsProducerStage(name string) domainGatewayStage {
 
 func runCommonFindingAudit(t *testing.T, h *findingsHarness, projectID string, inputs map[string]artifactRef, operations int) (string, []basicTask) {
 	t.Helper()
-	draft, _ := basicAuditRequest(t, h, http.MethodPost, "/v1/projects/"+projectID+"/audits", map[string]any{"profile": map[string]string{"name": "openapi-operation-trace", "version": "3"}, "inputs": inputs, "scope": map[string]string{"objective": "Trace exact operations and retain their independent finding sources"}}, "finding-draft", 0, http.StatusCreated)
+	draft, _ := basicAuditRequest(t, h, http.MethodPost, "/v1/projects/"+projectID+"/audits", map[string]any{"profile": map[string]string{"name": "openapi-operation-trace", "version": "7"}, "inputs": inputs, "scope": map[string]string{"objective": "Trace exact operations and retain their independent finding sources"}}, "finding-draft", 0, http.StatusCreated)
 	id := draft["auditId"].(string)
 	basicAuditRequest(t, h, http.MethodPost, "/v1/audits/"+id+"/start", nil, "finding-start", uint64(draft["revision"].(float64)), http.StatusOK)
 	tasks := waitBasicTask(t, h, id, operations+1, "settled")

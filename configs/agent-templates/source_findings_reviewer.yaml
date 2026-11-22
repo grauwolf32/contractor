@@ -2,12 +2,12 @@ apiVersion: contractor/v1alpha1
 kind: AgentTemplate
 metadata:
   name: source_findings_reviewer
-  version: "2"
+  version: "4"
 spec:
   description: Reviews supplied source and records findings with explicit source coordinates
   runtime: adk@1
   instructions:
-    ref: instructions/source-findings-reviewer-project-findings.md
+    ref: instructions/source-findings-reviewer-project-findings-investigation-sources.md
   summarizer:
     instructions:
       ref: instructions/terminal-summarizer.md

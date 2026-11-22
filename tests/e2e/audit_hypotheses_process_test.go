@@ -22,9 +22,13 @@ func TestAuditFixedHypothesesAcrossProductionProcesses(t *testing.T) {
 	stage := basicConclusionStage(false)
 	results := []any{}
 	for _, verdict := range []string{"supported", "refuted", "inconclusive"} {
-		results = append(results, map[string]any{"verdict": verdict, "rationale": "Judgment applies only to the selected fixture", "tested_conditions": []string{"Selected fixture and actor only"}, "limitations": []string{"No global claim follows from this sample"}, "evidence": []string{"evidence-000", "evidence-001"}})
+		results = append(results, map[string]any{"verdict": verdict, "rationale": "Judgment applies only to the selected fixture", "limitations": []string{"No global claim follows from this sample"}})
 	}
-	stage.steps = []domainGatewayStep{toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})), toolGatewayStep("submit_check_results", func(request map[string]any) (map[string]any, error) {
+	stage.steps = []domainGatewayStep{toolGatewayStep("read_audit_task", fixedArguments(map[string]any{}))}
+	for index := range results {
+		stage.steps = append(stage.steps, toolGatewayStep("evidence", auditSourceEvidenceArguments(index, []string{"Selected fixture and actor only"})))
+	}
+	stage.steps = append(stage.steps, toolGatewayStep("submit_results", func(request map[string]any) (map[string]any, error) {
 		keys, err := assignedAuditKeys(request)
 		if err != nil {
 			return nil, err
@@ -39,7 +43,7 @@ func TestAuditFixedHypothesesAcrossProductionProcesses(t *testing.T) {
 			items = append(items, item)
 		}
 		return map[string]any{"items": items}, nil
-	}), finalGatewayStep("Recorded scoped conclusions", nil)}
+	}), finalGatewayStep("Recorded scoped conclusions", nil))
 	h := startConfiguredFindingsHarness(t, []domainGatewayStage{stage}, func(root string) {
 		installBasicAuditProgram(t, root)
 		program := basicSeededProcessProgram(t)

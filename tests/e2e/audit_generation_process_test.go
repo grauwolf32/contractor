@@ -29,7 +29,8 @@ func TestAuditHypothesisContinuationAcrossProductionProcesses(t *testing.T) {
 
 // The production browser resumes the same retained scenario through session/CSRF APIs.
 func TestAuditResearchUIAcrossProductionProcesses(t *testing.T) {
-	exerciseAuditHypothesisContinuation(t, false, true)
+	t.Run("continuation", func(t *testing.T) { exerciseAuditHypothesisContinuation(t, false, true) })
+	t.Run("interrupted", func(t *testing.T) { testAuditInterruptedRetention(t, true, true) })
 }
 
 func exerciseAuditHypothesisContinuation(t *testing.T, initial, browser bool) {
@@ -84,7 +85,7 @@ func exerciseAuditHypothesisContinuation(t *testing.T, initial, browser bool) {
 	h.restartServer()
 	current = basicAuditGet(t, h, id)
 	if browser {
-		runResearchBrowser(t, h, project.ProjectID, id)
+		runResearchBrowser(t, h, project.ProjectID, id, "continuation")
 	} else {
 		basicAuditRequest(t, h, http.MethodPost, "/v1/audits/"+id+"/resume", nil, "generation-resume", uint64(current["revision"].(float64)), http.StatusOK)
 	}
@@ -153,7 +154,7 @@ func exerciseAuditHypothesisContinuation(t *testing.T, initial, browser bool) {
 
 func generationCheckStage(verdict string) domainGatewayStage {
 	stage := basicConclusionStage(false)
-	stage.steps = []domainGatewayStep{toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})), toolGatewayStep("submit_check_result", auditResultArguments(map[string]any{"verdict": verdict, "rationale": "The assertion applies only to the selected actor and exact fixture", "tested_conditions": []string{"selected fixture and actor"}, "limitations": []string{"Another actor remains untested"}, "evidence": []string{"evidence-000", "evidence-001"}})), finalGatewayStep("Scoped check result retained", nil)}
+	stage.steps = []domainGatewayStep{toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})), toolGatewayStep("evidence", auditSourceEvidenceArguments(0, []string{"selected fixture and actor"})), toolGatewayStep("submit_result", auditResultArguments(map[string]any{"verdict": verdict, "rationale": "The assertion applies only to the selected actor and exact fixture", "limitations": []string{"Another actor remains untested"}})), finalGatewayStep("Scoped check result retained", nil)}
 	return stage
 }
 
@@ -381,7 +382,7 @@ func hypothesisFindingSeedStage() domainGatewayStage {
 			if !found {
 				return nil, fmt.Errorf("missing Project proof")
 			}
-			return map[string]any{"title": "Observed boundary problem", "description": "An evidenced observed problem under the selected conditions", "evidence_refs": []any{materialSelector(ref)}}, nil
+			return map[string]any{"title": "Observed boundary problem", "description": "An evidenced observed problem under the selected conditions", "sources": []any{artifactSourceSelector(ref)}}, nil
 		}),
 		toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{"name": "report", "text": "Project problem retained", "media_type": "text/markdown"})),
 		finalGatewayStep("Project problem saved", map[string]domainArtifactBinding{"report": {namespace: "findings-review", name: "report"}}),

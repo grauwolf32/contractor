@@ -32,7 +32,7 @@ func configureResearchBrowser(t *testing.T, api, root string) *researchBrowserTr
 	return &researchBrowserTransport{internalURL: internal, baseURL: proxy(internal), apiURL: proxy(api), root: root}
 }
 
-func runResearchBrowser(t *testing.T, h *findingsHarness, projectID, auditID string) {
+func runResearchBrowser(t *testing.T, h *findingsHarness, projectID, auditID, scenario string) {
 	t.Helper()
 	transport := h.browser
 	if transport == nil {
@@ -58,7 +58,7 @@ func runResearchBrowser(t *testing.T, h *findingsHarness, projectID, auditID str
 	if evidence == "" {
 		evidence = filepath.Join(transport.root, "research-browser")
 	}
-	evidence, err = filepath.Abs(evidence)
+	evidence, err = filepath.Abs(filepath.Join(evidence, scenario))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func runResearchBrowser(t *testing.T, h *findingsHarness, projectID, auditID str
 	runChecked(t, uiRoot, map[string]string{
 		"CONTRACTOR_UI_E2E_BASE_URL": transport.baseURL, "CONTRACTOR_UI_E2E_API_URL": transport.apiURL,
 		"CONTRACTOR_UI_E2E_USERNAME": "admin", "CONTRACTOR_UI_E2E_PASSWORD": "contractor e2e local password",
-		"CONTRACTOR_RESEARCH_PROJECT": projectID, "CONTRACTOR_RESEARCH_AUDIT": auditID,
+		"CONTRACTOR_RESEARCH_PROJECT": projectID, "CONTRACTOR_RESEARCH_AUDIT": auditID, "CONTRACTOR_RESEARCH_SCENARIO": scenario,
 		"CONTRACTOR_AUDIT_RESEARCH_EVIDENCE_DIR": evidence, "CONTRACTOR_UI_E2E_OUTPUT_DIR": filepath.Join(evidence, "playwright"),
 		"PLAYWRIGHT_JSON_OUTPUT_FILE": report,
 	}, "node", "node_modules/@playwright/test/cli.js", "test", "--config=playwright.research.config.ts", "--reporter=line,json")

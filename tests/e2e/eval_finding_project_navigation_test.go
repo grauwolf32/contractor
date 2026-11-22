@@ -22,10 +22,10 @@ import (
 
 func TestEvalFindingProjectNavigationAcrossProcesses(t *testing.T) {
 	stage := func(name string) domainGatewayStage {
-		return domainGatewayStage{name: name, tools: []string{"read_artifact", "record_fact", "read_audit_task", "submit_check_result", "submit_check_results"}, steps: []domainGatewayStep{
+		return domainGatewayStage{name: name, tools: []string{"read_artifact", "fact", "read_audit_task", "submit_result", "submit_results", "evidence"}, steps: []domainGatewayStep{
 			toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
 			toolGatewayStep("read_artifact", stageReadArguments("memories", nil)),
-			toolGatewayStep("record_fact", func(request map[string]any) (map[string]any, error) {
+			toolGatewayStep("fact", func(request map[string]any) (map[string]any, error) {
 				reads := findingsToolResponses(request, "read_artifact")
 				tasks := findingsToolResponses(request, "read_audit_task")
 				if len(reads) != 1 || len(tasks) != 1 {
@@ -36,9 +36,9 @@ func TestEvalFindingProjectNavigationAcrossProcesses(t *testing.T) {
 					return nil, fmt.Errorf("missing assigned member")
 				}
 				member := members[0].(map[string]any)
-				return map[string]any{"title": "Reported nginx", "description": "Reported observation with selected exact material", "evidence_refs": []any{materialSelector(reads[0]["artifact"])}, "item_key": member["item_key"]}, nil
+				return map[string]any{"title": "Reported nginx", "description": "Reported observation with selected exact material", "sources": []any{artifactSourceSelector(reads[0]["artifact"])}, "item_key": member["item_key"]}, nil
 			}),
-			toolGatewayStep("submit_check_result", auditResultArguments(map[string]any{"rationale": "Selected the reported observation", "tested_conditions": []string{"Read exact material"}, "limitations": []string{"No independent probe"}, "evidence": []string{}})),
+			toolGatewayStep("submit_result", auditResultArguments(map[string]any{"rationale": "Selected the reported observation", "limitations": []string{"No independent probe"}})),
 			finalGatewayStep("Recorded exploration", nil),
 		}}
 	}
@@ -146,7 +146,7 @@ func runFindingEvalNavigation(t *testing.T, stage func(string) domainGatewayStag
 		facts, _ := basicAuditRequest(t, h, http.MethodGet, "/v1/projects/"+*submission.ExecutionProjectID+"/findings", nil, "", 0, http.StatusOK)
 		rows, ok := facts["items"].([]any)
 		if !ok || len(rows) != 1 || !strings.Contains(fmt.Sprint(rows[0]), "Reported nginx") {
-			t.Fatal("record_fact is unavailable through the Eval member's actual Audit/Project sources")
+			t.Fatal("fact is unavailable through the Eval member's actual Audit/Project sources")
 		}
 	}
 	ownerWide, _ := basicAuditRequest(t, h, http.MethodGet, "/v1/findings", nil, "", 0, http.StatusOK)

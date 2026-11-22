@@ -300,7 +300,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	assertHTTPInspectionRetainsOnlyReportAndCookies(t, operations, httpInitial.RunID, collection)
 
 	oldRun := createHTTPCaidoRun(
-		operations, "security-analysis@8", "http-caido-old-run", "target.example",
+		operations, "security-analysis@9", "http-caido-old-run", "target.example",
 		[]string{"caido"}, projectID,
 	)
 	select {
@@ -405,7 +405,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	)
 
 	newRun := createHTTPCaidoRun(
-		operations, "security-analysis@8", "http-caido-new-run", "target.example",
+		operations, "security-analysis@9", "http-caido-new-run", "target.example",
 		[]string{"caido"}, projectID,
 	)
 	newStatus := waitForRunAcross(
