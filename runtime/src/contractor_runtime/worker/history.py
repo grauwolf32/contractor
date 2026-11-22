@@ -133,6 +133,20 @@ class ToolHistory:
         self._check_event(event)
         if event.partial:
             return
+        if event.error_code == "INVOCATION_ABORTED":
+            responses = event.get_function_responses()
+            for response in responses:
+                pending = self._calls.get(response.id or "")
+                if pending is None or pending.name != response.name:
+                    self._fail("invalid_tool_history")
+                self._check_scope(pending, event.branch, event.isolation_scope)
+            if responses:
+                # ADK seals cancellation through this public event callback.
+                # Its generic synthetic errors cannot acknowledge an actual
+                # result or distinguish unadmitted and uncertain calls. Retain
+                # the abort marker; our joined seal writes the truthful pairs.
+                event.content = None
+            return
         calls = event.get_function_calls()
         if not calls:
             return

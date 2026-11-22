@@ -411,7 +411,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         *,
         callback_context: Any,
         llm_request: Any,
-        error: Exception,
+        error: BaseException,
     ) -> None:
         del llm_request
         async with self._lock:
@@ -420,6 +420,13 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 return
             span = self._pending_models.pop(0)
             response_generation = self._finish_main_observation()
+            if isinstance(error, asyncio.CancelledError):
+                # ADK now notifies model-error callbacks on cancellation too.
+                # Settle it here once, preserving the cancellation outcome that
+                # complete_invocation used to record for a pending model span.
+                end_isolated_span(span, outcome="cancelled")
+                await self._publish_locked(callback_context)
+                return
             compaction_prompt = None
             try:
                 received, usage = _rejected_response_usage(error)

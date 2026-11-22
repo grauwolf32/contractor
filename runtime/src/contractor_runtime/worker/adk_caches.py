@@ -1,7 +1,7 @@
 """Release google-adk's process-wide caches keyed on Worker tool callables (RTA-R116).
 
 The Worker wraps every allocation-bound tool instance in ``FunctionTool``. In the
-pinned google-adk 2.13.0 three process-wide LRU caches retain callable keys:
+pinned google-adk 2.15.0 three process-wide LRU caches retain callable keys:
 
 - ``google.adk.utils.context_utils.find_context_parameter``, called by
   ``FunctionTool.__init__``;

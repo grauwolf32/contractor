@@ -8,7 +8,6 @@ import zipfile
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import httpx
@@ -620,13 +619,18 @@ def test_native_probe_rejects_expanded_or_executing_surfaces(
 ) -> None:
     original = skill_runtime.SkillToolset
 
+    class UninitializedEnvironment:
+        # ADK tracks environment cleanup with weak keys. Keep the rejected
+        # surface realistic without initializing or executing anything.
+        is_initialized = False
+
     class UnsupportedToolset(original):
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
             attributes = {
                 "registry": ("_registry", object()),
                 "executor": ("_code_executor", object()),
-                "environment": ("_env", SimpleNamespace(is_initialized=False)),
+                "environment": ("_env", UninitializedEnvironment()),
                 "tools": (
                     "_provided_tools_by_name",
                     {"unexpected": BaseTool(name="unexpected", description="unsupported")},

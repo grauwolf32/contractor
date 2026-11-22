@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "task": "V475-002",
+  "date": "2026-11-22",
+  "implementation_commit": "4278aefea4d0e9da7d7ae61a54b92839fd754091",
+  "baseline": {
+    "revision": "97288cba7362565fb30aa3a13817ee17e5ea07dc",
+    "adk_python": "2.13.0",
+    "adk_go": "2.6.0",
+    "command": "go test -count=1 ./tests/eval/audit_programs ./tests/eval/context_compaction ./tests/eval/project_workflows",
+    "result": "failed in all three packages before the ADK migration"
+  },
+  "verification": [
+    {
+      "command": "go test -count=1 ./tests/eval/audit_programs ./tests/eval/context_compaction ./tests/eval/project_workflows",
+      "result": "passed",
+      "real_postgresql": true
+    },
+    {
+      "command": "make lint",
+      "result": "passed"
+    }
+  ],
+  "scope": {
+    "changed": "Nine active Eval consumer/fixture files; exact current selectors and the supported artifact reader",
+    "published_configs_changed": false,
+    "archived_experiments_changed": false,
+    "live_model_calls": false
+  },
+  "logs": {
+    "baseline-eval": "8265058a19df7befeaee1295bc71baf48e69e0e69feedf9fe721c386c1aa8f9d",
+    "eval-repair": "8a9093d660deba6578a21dd233540ce6ce286a7332d1a0c4e537b3e27688caff",
+    "lint": "42496f97b9a1149edab2313b3dccc24acba31df8329cd6e9b361e5bfeecedead"
+  }
+}

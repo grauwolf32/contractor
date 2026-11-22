@@ -94,7 +94,9 @@ func (p *streamlinePlanner) runCompactor(ctx context.Context, selection compacti
 	if err != nil {
 		return initializationFailed(err)
 	}
-	for _, err := range auxiliary.Run(ctx, userID, sessionID, genai.NewContentFromText(string(encoded), genai.RoleUser), agent.RunConfig{}) {
+	// oneShot owns the single provider operation and classifies a repair
+	// attempt. Leave it one SDK slot to reject that attempt before dispatch.
+	for _, err := range auxiliary.Run(ctx, userID, sessionID, genai.NewContentFromText(string(encoded), genai.RoleUser), agent.RunConfig{MaxLLMCalls: 2}) {
 		if err != nil {
 			return oneShot.reply, err
 		}

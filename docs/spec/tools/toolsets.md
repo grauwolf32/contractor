@@ -331,7 +331,7 @@ when there are no model-supplied arguments.
 promise tools, permissions or behavior from another version.
 
 **TLS-R34.** Callable Runtime tools keep the description text in `description`
-and expose it as `__doc__` to ADK `FunctionTool`. In the pinned ADK 2.13.0
+and expose it as `__doc__` to ADK `FunctionTool`. In the pinned ADK 2.15.0
 integration the complete docstring becomes the function description; `Args:` is
 not extracted into per-parameter descriptions.
 

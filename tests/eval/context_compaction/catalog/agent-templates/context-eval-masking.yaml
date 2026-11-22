@@ -9,8 +9,10 @@ spec:
   instructions:
     ref: instructions/context-eval-worker.md
   toolsets:
+  - ref: run-artifacts@1
+    tools:
+    - read_artifact
   - ref: text-artifacts@1
     tools:
-    - read_text_artifact
     - write_text_artifact
   sandboxProfile: local-workdir@1
