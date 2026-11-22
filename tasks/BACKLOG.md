@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-72 open tasks: 14 in progress, 45 pending, 13 deferred. 1663 finished: 1645 completed, 18 archived.
+73 open tasks: 15 in progress, 45 pending, 13 deferred. 1663 finished: 1645 completed, 18 archived.
 
 ## In progress
 
@@ -25,6 +25,7 @@ the epics are in [epics.yml](epics.yml).
 | [V478-008](v478-008-sitemap-shared-fixture-reader.yml) | projects-artifacts | chore | P3 | Read the shared Sitemap identity fixture through its registered owner |
 | [V478-012](v478-012-scanner-version-fixtures.yml) | scan-tools | chore | P2 | Finish remaining test callers of Runtime-owned versions |
 | [V478-013](v478-013-inactive-audit-submission.yml) | audits | defect | P2 | Classify inactive Audit submissions before reading their generation |
+| [V478-014](v478-014-http-caido-current-workflow.yml) | http-tools | chore | P2 | Select the current security workflow in the HTTP Caido process gate |
 
 ## Pending
 
@@ -164,13 +165,13 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 3 | 50 | 72 | 40 | 108 |
-| Planners and the Worker model boundary (`planner-worker`) | 5 | 49 | 60 | 48 | 96 |
+| Planners and the Worker model boundary (`planner-worker`) | 5 | 49 | 60 | 48 | 97 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 26 | 38 | 15 | 39 |
+| HTTP and Caido tools (`http-tools`) | 6 | 26 | 38 | 16 | 39 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 13 | 30 |
 | Findings tools and collections (`findings`) | 0 | 22 | 15 | 13 | 29 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |

@@ -1,0 +1,37 @@
+schema_version: '1.0'
+id: V478-014
+title: Select the current security workflow in the HTTP Caido process gate
+milestone: runtime-owned-tool-versions-2026-11
+epic: http-tools
+kind: chore
+introduced_by: V479-004
+priority: P2
+status: in_progress
+depends_on: [V479-004]
+languages: [go]
+goal: The HTTP and Caido process gate reaches its actual transport, configuration pinning and release recovery checks.
+context:
+  authority: 'User assignment 2026-11-22: implement V478 and its required gates in one pass.'
+  finding: >-
+    tests/e2e/http_caido_test.go:303 and :408 select security-analysis@8 after V479-004
+    published security-analysis@9. The public API correctly rejects the missing selector
+    before the old/new Caido allocation checks. Both callers share the same defect.
+  boundary: Only update the two process fixture selectors; retain immutable production identities and strict admission.
+scope:
+  in:
+  - Select security-analysis@9 for both old-instance and new-instance test Runs.
+  - Keep actual target/proxy operations, configured models, release recovery and exact pin assertions.
+  out:
+  - Production Workflow changes, compatibility aliases and timeout or lease changes.
+acceptance_criteria:
+- id: A1
+  text: The process gate executes both Caido Runs and passes transport, configuration pinning, release recovery and cleanup checks.
+- id: A2
+  text: The configuration closure check and lint pass without changing production configuration or model policy.
+tests:
+- command: make test-http-caido-e2e
+  covers: [A1]
+- command: go test -tags=e2e -count=1 -run '^TestHTTPCaidoE2EConfigurationClosure$' ./tests/e2e
+  covers: [A2]
+- command: make lint
+  covers: [A2]
