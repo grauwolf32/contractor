@@ -1,0 +1,179 @@
+schema_version: '1.0'
+id: V479-006
+title: Assemble exact Planner finish references without model revisions
+milestone: runtime-owned-tool-versions-2026-11
+epic: planner-worker
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V479-004
+languages:
+- go
+- python
+- markdown
+goal: Streamline and Router finish with model-selected result slots/materials while their deterministic adapters
+  supply and verify the exact revisions.
+demonstration: A real Planner receives a Worker result, compacts and finishes using revision-free model input.
+  The adapter reconstructs the same exact Worker-produced ArtifactRefs and Scheduler accepts them; an unrelated/newer
+  alias cannot be substituted.
+context:
+  authority: 'User request 2026-11-22: create tasks in two ordered stages: remove expected_revision from LLM
+    interfaces first, then revision; Runtime manages preconditions and version selection, including compaction
+    and V476 repeat rules. User decision 2026-11-22: a new sequential Audit submission automatically replaces
+    the result for the same item_key; do not add replace_existing or an equivalent confirmation flag. Identical
+    content remains a replay. User clarification 2026-11-22: retain revision in tool results so the model
+    can recognize another material version, but remove model-supplied revision arguments. The user did not
+    approve a new artifact-handle interface. Agent scope choice: preserve existing namespace/name addressing;
+    removing revision does not require new material identifiers. Planning only; no implementation, live experiment,
+    deployment or merge is assigned. Only affected-component verification is authorized, not complete Runtime/Go/lint/release
+    suites. The detailed bounded runtime mechanisms below are agent implementation proposals within that direction.
+    User decision 2026-11-22: ordinary read_artifact reads the current version; subsequent pages use a Runtime-issued
+    cursor fixing version and position, rather than a snapshot-until-refresh interface.'
+  baseline: 6a4d479d361f8fcb1ce5c74c7f512c5dfe4666af on local main; recheck actual active callers before implementation.
+  specification:
+  - docs/spec/execution/planners.md#PLN-R71
+  - docs/spec/execution/planners.md#PLN-R118
+  - docs/spec/execution/worker.md#WRK-R145
+  - docs/spec/execution/worker.md#WRK-R192
+  - docs/spec/artifacts/artifact-store.md#ART-R58
+  sources:
+  - internal/planner/streamline/tools.go
+  - internal/planner/streamline
+  - internal/planner/router
+  - runtime/src/contractor_runtime/worker/completion.py
+  - runtime/src/contractor_runtime/worker/prompts.py
+  boundary_decision: Tools own the semantic selection and validation. Shared Runtime helpers live in toolsets.common
+    and are explicitly called by production consumers; no universal argument-rewriting plugin, hidden acceptance
+    of deleted arguments, new receipt store, database entity or framework for hypothetical tools. Server remains
+    the authoritative owner of grants, exact Artifact reads, CAS, receipts, retention and lifecycle. Existing
+    private/public/wire/persisted revision fields remain strict; only model-facing inputs change. Update numbered
+    owning specs, descriptions, active instructions and actual ADK schemas with implementation; this task
+    plan does not change shipped specs.
+  delivery_group: 2 / nested revision. May follow V479-004 independently of V479-005, with both required by
+    the exit task.
+  ownership_decision: The user's Runtime direction means deterministic execution ownership, not moving Go
+    Planner domain work across processes. Runtime owns Python tools; existing Go Planner adapters own finish.
+    A round trip to Runtime would add a boundary without a caller need.
+scope:
+  in:
+  - Remove revision-bearing model input from finish.artifacts for both modeled Planners without changing the
+    exact internal StageContentResult/WorkerResult contract.
+  - Resolve from accepted Worker results and trusted Stage inputs/declared slots; preserve version metadata
+    in model-visible results and context.
+  - Verify the existing Runtime-owned Worker finalizer stays deterministic; do not reintroduce model assembly
+    of output refs.
+  out:
+  - New general artifact-handle addressing, renamed model-supplied version/ETag preconditions, force/replace
+    flags, compatibility aliases and automatic semantic rebasing. The approved read_artifact pagination cursor
+    is in scope in V479-004.
+  - Removal of Server/API/wire/store revision checks, changed grants/retention or model/tool budget semantics.
+  - Unrelated UI redesign, live model evaluation, demo deployment and full repository test gates.
+requirements:
+- id: R1
+  text: Use a closed revision-free model input record with the existing logical slot and namespace/name selection
+    where required. The Go Planner adapter supplies exact refs from trusted admitted inputs/verified Worker
+    outputs, with deterministic ambiguity rejection. Do not fetch current to make an unrecognized result pass,
+    discard slot validation or delegate this Server-local operation to Python Runtime.
+- id: R2
+  text: Keep outcome/summary/error validation, CanFinish admission, exact Artifact inspector checks, authority
+    and Scheduler acceptance unchanged. Public/private wire and persisted Worker/Stage results retain exact
+    revisions. Old nested revision arguments are rejected, not ignored; no compatibility reader or force option.
+- id: R3
+  text: Restore exact mapping from existing validated Planner state/Worker facts, not model summaries or arbitrary
+    text in compacted history. Compaction must preserve the selection needed to finish. Unknown, conflicting
+    same-address versions and no longer retained sources reject with an actionable finish error; preserve
+    retryability distinctions for real inspector failures.
+- id: R4
+  text: Reuse trusted result bindings already held by the ordinary Worker finalizer and accepted completion
+    strategy. Inspect existing consumers before adding any mapping; do not create another finalizer, persistent
+    registry or transport round trip. Version output metadata remains visible and does not authorize model-selected
+    historical refs.
+- id: R5
+  text: Keep Streamline/Router behavior aligned through their shared tool implementation and tests. Register
+    new input-shape fixtures only where multiple sides actually parse that shape; do not change generated
+    HTTP clients for a Planner-only model schema.
+failure_outcomes:
+- operation: Resolve a selected version and perform the existing owner operation
+  permanent: Unknown/ambiguous/unavailable selection, malformed or removed argument, stale precondition, denied
+    authority and owner limit failures return a bounded classified tool error before a new effect. Preserve
+    existing owner codes; new codes must be documented at their owner. No implicit latest substitution on
+    conflict.
+  retryable: Existing classified infrastructure failures retain bounded attempts and the original call/invocation
+    deadline. No retry loop for deterministic conflicts.
+  ambiguous: Reuse existing exact-byte CAS recovery or owner receipt with the same frozen payload, precondition
+    and identity. Never regenerate intent from latest state or repeat a semantic append after a lost response.
+  cancelled: Existing invocation/session owners join admitted I/O and preparation before cleanup. Late completions
+    cannot update another invocation or a newer operation generation.
+  timeout: Keep existing operation and invocation deadlines; do not introduce an unrelated timeout, poller
+    or budget reset.
+cardinality:
+- collection: Runtime-held selected versions and pending operations
+  expected: A few input roles, current document targets and explicitly used materials; admit only actual consumers.
+  maximum: Keep existing owner row/byte/page/in-flight limits. Any added shared selection map has an explicit
+    proposed ceiling of 4096 entries and 4 MiB encoded metadata per logical invocation, defined once in the
+    owning limits registry.
+  bound: Point lookup and bounded admission; no entire Run/Project enumeration, raw payload copies or history
+    scans on each tool call. Refuse new admissions at the bound without silently evicting an in-use selection
+    or relabeling it as current.
+lifecycle:
+- entity: Private version/precondition state of the existing tool session or logical invocation
+  delete: Clear through the existing owner after completion/cancellation and joined work; allocation close
+    clears all remaining private state.
+  cascade: Successful compaction preserves selected versions and pending write identity; it only resets the
+    V476 consecutive series where specified. SDK turns and failed checkpoints do not refresh materials or
+    grant write authority.
+  retention: No new persistent owner or holds. Replay/recovery uses only existing trusted inputs, admitted
+    operation state and validated owner records. A model-written summary or returned revision supplied as
+    an argument is never authority. If exact state cannot be restored, require a fresh semantic read/select
+    instead of guessing latest.
+acceptance_criteria:
+- id: A1
+  given: Streamline and Router with successful Worker artifacts and declared result slots
+  when: Actual ADK finish is called without nested revision
+  then: The same exact refs reach Stage acceptance; exposed output/context versions remain and no namespace/slot
+    authority changes.
+- id: A2
+  given: Compaction or existing Planner recovery and a later alias advance
+  when: The model finishes the earlier selected output
+  then: Trusted exact output survives; current alias is not substituted and ambiguous/foreign/missing selections
+    reject.
+- id: A3
+  given: Malformed removed fields, failed inspector, invalid finish outcome and cancellation
+  when: Both Planner modes validate/settle the operation
+  then: Unknown fields fail, permanent/transient classes remain correct and no extra Runtime call/state store
+    is introduced.
+- id: A4
+  given: Ordinary/Audit Runtime completion and their trusted output bindings
+  when: Their current tests run against changed model projections
+  then: Runtime continues assembling exact WorkerResult itself; no model-authored final structured package
+    is added.
+tests:
+- command: go test -race -count=1 ./internal/planner/streamline ./internal/planner/router
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: cd runtime && uv run pytest tests/test_worker_completion.py tests/test_result_finalizer.py tests/test_worker_artifact_bindings.py
+    tests/test_worker_compaction.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: python3 scripts/check_spec.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+verification_policy: Commands listed here are required implementation checks, not planning results. Run complete
+  affected test files/packages and actual ADK declarations/calls, not only helper tests. New named tests must
+  be added by the task; zero matches is a failure. Real persistence claims require a disposable PostgreSQL
+  database; missing/skipped prerequisites are not passes. Reuse and explicitly drop one owned database after
+  its pools/processes stop. Keep CONTRACTOR_TEST_HEAVY_IO unset unless explicitly requested. Do not run make
+  verify, make release-verify, make test-runtime, make test-go or make lint. Use targeted Ruff, import, spec/task
+  and selected process checks; extend only to actually affected sibling owners. Changed pinned catalog content
+  needs new immutable identities/paths and lock entries; tests use testdata fixtures, not the live configs
+  tree. Do not change the configured model or claim measured quality improvement.
