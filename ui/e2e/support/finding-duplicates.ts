@@ -98,7 +98,7 @@ export async function exerciseFindingDuplicates(
       await post<Schemas["Audit"]>(
         `/v1/projects/${project.projectId}/audits`,
         {
-          profile: { name: "owasp-top10-2025-source-risk", version: "2" },
+          profile: { name: "owasp-top10-2025-source-risk", version: "7" },
           inputs: { source },
         },
         `correlation-audit-${index}`,
