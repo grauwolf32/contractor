@@ -47,6 +47,11 @@ context:
     planned behavior, not shipped behavior. Reuse state, budget, validation and receipt owners. No hint registry,
     status tool, new persistence, generic policy DSL or new public/wire fields.
   acceptance_evidence: tasks/evidence/v476-runtime-guidance-20261122.json
+  parallel_planning: At completion, the primary checkout contains the independent unmerged codex/v477-tool-argument-helpers-plan
+    at ba994d20714286a534d24049c8d69015ca0b8386. It adds V477 dependencies and A5/A6 to this acceptance. This
+    completed record proves the original V476 main contract only. Preserve and execute those additional criteria
+    when integrating the V477 plan; do not infer V477 readiness or discard its newer planning decisions. This
+    lane did not modify that checkout/branch.
 scope:
   in:
   - One bounded scripted process scenario covering both modeled Planners, current HTTP declarations and exact
@@ -106,5 +111,6 @@ verification:
     cases, 426 Worker cases, five final guidance cases and 28 bridge cases; overlapping selections are not
     summed. Ruff, all four import contracts, specs, release graph and new-fixture source/reader coverage passed.
     Failed diagnostic fixture runs are not acceptance evidence. Owned database, PostgreSQL instance/data and
-    temporary venv link are removed. The primary checkout is clean and unchanged. Implementation is on codex/v476-runtime-guidance,
-    not merged or deployed; no full gate or live-model quality claim.
+    temporary venv link are removed. The primary checkout is clean; its independent V477 planning branch is
+    preserved. Implementation is on codex/v476-runtime-guidance, not merged or deployed; no full gate or live-model
+    quality claim.

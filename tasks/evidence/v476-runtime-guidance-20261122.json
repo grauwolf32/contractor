@@ -125,8 +125,11 @@
     "ownedPostgresStopped": true,
     "ownedPostgresDataRemoved": true,
     "taskVenvSymlinkRemoved": true,
-    "primaryCheckoutCleanAndUnchanged": true,
-    "primaryHead": "ba994d20714286a534d24049c8d69015ca0b8386"
+    "primaryHead": "ba994d20714286a534d24049c8d69015ca0b8386",
+    "primaryCheckoutClean": true,
+    "primaryModifiedByThisLane": false,
+    "mainHead": "d8b9f6d621a68e04c8a7dd86784529e27c0d93a9",
+    "primaryBranchObserved": "codex/v477-tool-argument-helpers-plan"
   },
   "testInputSha256": {
     "api/testdata/readers.json": "0bcba5d692f575e39a70e785e723d1f4feaad76f5445ab270d550c2b7910a484",
@@ -142,5 +145,11 @@
     "tests/e2e/fake_domain_gateway_test.go": "f752e1c58390492fb5d7119cd372474b8c1fce62024c06be3aca094b5fa7a6ed",
     "tests/e2e/runtime_guidance_test.go": "5d0ecf97411f7586dc07d90117b2563e70127231259b6dc1428060fb6fe35975",
     "tests/e2e/worker_compaction_test.go": "67c553e4abc3c0aa520fea62ea35c69cd4899ebfeb45a441bd04d478b451782b"
+  },
+  "parallelPlanning": {
+    "branch": "codex/v477-tool-argument-helpers-plan",
+    "commit": "ba994d20714286a534d24049c8d69015ca0b8386",
+    "status": "Unmerged planning work in primary checkout; preserved by this lane.",
+    "acceptanceBoundary": "Its additional V477 dependencies and A5/A6 for V476-005 are outside this baseline implementation/acceptance. Preserve and execute them when integrating the V477 plan; original V476 completion does not prove V477 readiness."
   }
 }
