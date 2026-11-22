@@ -6,7 +6,7 @@ epic: evals
 kind: chore
 introduced_by: V474-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V474-002, V474-004]
 languages: [go, yaml]
 goal: Restore the ordinary Go verification gate by making active Eval fixtures select the current exact published catalog and supported artifact reader.
@@ -15,6 +15,7 @@ context:
   finding: 'tests/eval/audit_programs/common_catalog_test.go:22 and http_engagement_test.go:40 still select old AuditProfile versions; tests/eval/context_compaction/catalog/agent-templates/context-eval-worker.yaml:15 selects removed read_text_artifact; tests/eval/project_workflows/model_selection_test.go:59 and live_test.go select removed Workflow @7 identities.'
   provenance: 'V474-002 / ff32c6b019c237ad7ddee3ef2fb508ec5ef9fd6b consolidated model artifact reads and bumped dependent published identities. V474-004 and its 48c825e69 catalog correction further bumped the keyed assertion profiles. All three package failures reproduce unchanged on detached main 97288cba7 with the old ADK graph.'
   sibling_paths: 'The agent_instructions/candidate catalog is explicitly archived data, documented in tests/eval/agent_instructions/README.md and compared offline without current catalog loading. Its removed tool names and exact pinned bytes remain unchanged. Active project_workflows live selection defaults and dispatch cases move with the offline test; no live run is started.'
+  evidence: tasks/evidence/v475-eval-catalog-repair.json
   specification:
     - docs/spec/configuration/catalog.md
     - docs/spec/tools/toolsets.md#TLS-R1
@@ -39,3 +40,5 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A2, A3]
+
+implementation_commit: 4278aefea4d0e9da7d7ae61a54b92839fd754091
