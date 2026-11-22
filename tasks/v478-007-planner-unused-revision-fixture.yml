@@ -1,0 +1,38 @@
+schema_version: '1.0'
+id: V478-007
+title: Remove the obsolete Router test revision constant
+milestone: runtime-owned-tool-versions-2026-11
+epic: planner-worker
+kind: chore
+introduced_by: V479-006
+priority: P3
+status: in_progress
+depends_on:
+- V479-006
+languages:
+- go
+goal: The full static analysis gate accepts the Router test after Runtime-owned finish versions removed
+  its model revision argument.
+context:
+  authority: 'User assignment 2026-11-22: implement V478 in one continuous pass; its required lint gate
+    found this one-line prerequisite from the merged V479 work.'
+  finding: internal/planner/router/factory_test.go:136 leaves const revision after V479-006 removed its
+    only use. make lint fails staticcheck U1000 before reaching V478 checks.
+scope:
+  in:
+  - Delete the unused test-local constant and run the owning Router package plus the full lint gate.
+  out:
+  - Planner behavior, contracts, fixtures or production changes.
+acceptance_criteria:
+- id: A1
+  text: The unused constant is absent and staticcheck no longer reports this U1000 failure.
+- id: A2
+  text: The complete Router test package passes without semantic changes.
+tests:
+- command: go test -count=1 ./internal/planner/router
+  covers:
+  - A2
+- command: make lint
+  covers:
+  - A1
+  - A2

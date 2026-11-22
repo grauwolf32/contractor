@@ -133,7 +133,6 @@ func TestRouterSelectsExactWorkerWithDeterministicPromptAndContext(t *testing.T)
 }
 
 func TestRouterFinishesAfterWorkerBudgetAndTextTurn(t *testing.T) {
-	const revision = "report-r1"
 	llm := &scriptedModel{steps: []modelStep{
 		functionStep("add_subtask", map[string]any{
 			"objective": "Build the report", "instructions": "Produce the declared report",
