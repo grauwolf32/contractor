@@ -32,8 +32,11 @@ context:
     policy and stop representation below are agent recommendations pending review, not accepted user decisions.
     User review question 2026-11-22: clarify the relationship between Project facts and check-specific evidence,
     including whether a fact may serve as evidence. The user suggests facts as reusable system knowledge and
-    evidence as specific to a hypothesis; the precise distinction below remains an agent proposal for joint
-    review.'
+    evidence as specific to a hypothesis; the distinction was initially proposed for joint review. User decision
+    2026-11-22: accept the distinction between reusable Project facts, exact observations/materials, and evidence
+    selected for a specific claim. Fact summaries do not automatically verify their claims; original exact
+    sources may be explicitly reused with applicability and attribution preserved. This agreement settles that
+    distinction only, not other open task choices, implementation or merge.'
   implementation_gate: Keep pending. Do not implement, deploy, launch an Audit or merge this task plan into
     main until the user reviews and agrees to the concrete tasks. Record that agreement and resolve context.decision_needed
     before implementation; task-plan approval alone does not authorize implementation.
@@ -61,7 +64,7 @@ context:
   boundary_decision: Read models project accepted owner facts; UI never reconstructs a verdict from Run status
     or request count. This milestone gate owns the narrow integrated plan/evidence/stop path; V411-020 keeps
     the larger optional HTTP composition and V411-021 keeps repeated live quality measurements.
-  facts_evidence_proposal: Observation/material is an exact retained source. A Project fact is a reusable attributed
+  facts_evidence_decision: Observation/material is an exact retained source. A Project fact is a reusable attributed
     statement about a scoped system, with its own sources and observation context; it is not universally true
     merely because it is called a fact. Evidence is the explicit use of selected sources for an assigned check/claim
     with a stated role and applicability. A fact may be a ground/context for a hypothesis; its exact underlying

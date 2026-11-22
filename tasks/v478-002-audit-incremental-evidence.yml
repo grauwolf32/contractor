@@ -27,8 +27,11 @@ context:
     policy and stop representation below are agent recommendations pending review, not accepted user decisions.
     User review question 2026-11-22: clarify the relationship between Project facts and check-specific evidence,
     including whether a fact may serve as evidence. The user suggests facts as reusable system knowledge and
-    evidence as specific to a hypothesis; the precise distinction below remains an agent proposal for joint
-    review.'
+    evidence as specific to a hypothesis; the distinction was initially proposed for joint review. User decision
+    2026-11-22: accept the distinction between reusable Project facts, exact observations/materials, and evidence
+    selected for a specific claim. Fact summaries do not automatically verify their claims; original exact
+    sources may be explicitly reused with applicability and attribution preserved. This agreement settles that
+    distinction only, not other open task choices, implementation or merge.'
   implementation_gate: Keep pending. Do not implement, deploy, launch an Audit or merge this task plan into
     main until the user reviews and agrees to the concrete tasks. Record that agreement and resolve context.decision_needed
     before implementation; task-plan approval alone does not authorize implementation.
@@ -54,12 +57,7 @@ context:
     for every capture, reducing retained traffic but losing unselected observations at a hard stop. These alternatives
     have different persistence guarantees; settle before implementation. The recommended record_observation
     name and precise note fields are also proposed, not approved; use existing exact observation handles plus
-    bounded interpretation/tested-condition/limitation fields, with no final verdict or fabricated system facts.
-    Fact/evidence review recommendation: keep record_fact as the existing deliberate Project knowledge publication;
-    record_observation remains check-local observation/interpretation. Do not automatically turn every exchange
-    into a Project fact or every selected fact into conclusive evidence. Alternative: allow a fact snapshot
-    as secondary reported evidence, always with its source kind and uncertainty visible; never treat it as
-    an independent primary observation.'
+    bounded interpretation/tested-condition/limitation fields, with no final verdict or fabricated system facts.'
   sources:
   - runtime/src/contractor_runtime/toolsets/common/http_capture.py
   - runtime/src/contractor_runtime/toolsets/common/http_publication.py
@@ -68,14 +66,16 @@ context:
     toolset plumbing lives in toolsets.common, with explicit tool opt-in; the HTTP adapter produces HTTP facts.
     First production consumers are HTTP exchanges and explicitly selected exact input-artifact evidence. This
     is not a global trace archive or new persistence service.
-  facts_evidence_proposal: Observation/material is an exact retained source. A Project fact is a reusable attributed
+  facts_evidence_decision: Observation/material is an exact retained source. A Project fact is a reusable attributed
     statement about a scoped system, with its own sources and observation context; it is not universally true
     merely because it is called a fact. Evidence is the explicit use of selected sources for an assigned check/claim
     with a stated role and applicability. A fact may be a ground/context for a hypothesis; its exact underlying
     sources may be reused as evidence after explicit authorized selection. A fact card or Memory summary is
     not automatically independent evidence of its claim. Evidence may also support an exploratory observation
     or a Finding without a hypothesis. These are semantic roles over existing owners/artifacts, not three new
-    stores.
+    stores. Keep record_fact on its existing deliberate Project publication path; no automatic publication
+    of every observation as a fact. The proposed check-local annotation tool name and collection policy remain
+    open in decision_needed.
 scope:
   in:
   - Persist bounded capture/observation artifacts and their exact Task/attempt association during execution
