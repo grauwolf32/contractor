@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-75 open tasks: 16 in progress, 46 pending, 13 deferred. 1658 finished: 1640 completed, 18 archived.
+74 open tasks: 15 in progress, 46 pending, 13 deferred. 1659 finished: 1641 completed, 18 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V478-001](v478-001-general-investigation-guidance.yml) | audits | feature | P1 | Guide systematic investigation through general Worker instructions |
 | [V478-006](v478-006-audit-catalog-gate-pins.yml) | audits | defect | P1 | Keep Audit process gate selections aligned with the shipped catalog |
 | [V478-007](v478-007-planner-unused-revision-fixture.yml) | planner-worker | chore | P3 | Remove the obsolete Router test revision constant |
 | [V478-008](v478-008-sitemap-shared-fixture-reader.yml) | projects-artifacts | chore | P3 | Read the shared Sitemap identity fixture through its registered owner |
@@ -86,9 +85,9 @@ the epics are in [epics.yml](epics.yml).
 | [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | — | Drive the cumulative 64 MiB machine report check to its rejection in a test |
 | [V469-004](v469-004-opencode-audit-workflow.yml) | feature | P1 | V469-003 | Ship the minimal OpenCode Audit workflow and environment view |
 | [V478-002](v478-002-audit-incremental-evidence.yml) | feature | P1 | — | Retain explicitly selected evidence through common source selectors |
-| [V478-003](v478-003-audit-submit-result.yml) | feature | P1 | V478-001, V478-002 | Submit a thin attributed result over accumulated observations |
+| [V478-003](v478-003-audit-submit-result.yml) | feature | P1 | V478-002 | Submit a thin attributed result over accumulated observations |
 | [V478-004](v478-004-audit-partial-stop-results.yml) | feature | P1 | V478-002, V478-003 | Preserve partial Audit results without inventing coverage at stop |
-| [V478-005](v478-005-audit-results-acceptance.yml) | feature | P1 | V478-001, V478-002, V478-003, V478-004 | Expose honest Audit results and gate partial-result lifecycle |
+| [V478-005](v478-005-audit-results-acceptance.yml) | feature | P1 | V478-002, V478-003, V478-004 | Expose honest Audit results and gate partial-result lifecycle |
 
 ### Evaluations (`evals`)
 
@@ -178,7 +177,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 2 | 22 | 15 | 13 | 28 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 41 | 41 | 21 | 76 |
-| Audits (`audits`) | 16 | 77 | 99 | 42 | 173 |
+| Audits (`audits`) | 15 | 77 | 99 | 42 | 173 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 21 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
 | Web UI (`ui`) | 1 | 56 | 81 | 34 | 80 |
