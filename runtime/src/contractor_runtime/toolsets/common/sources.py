@@ -16,7 +16,6 @@ from contractor_runtime.core.tool_errors import ToolResultDiagnostic
 from contractor_runtime.digests import sha256_digest
 from contractor_runtime.toolsets.common.argument_diagnostics import argument_details
 from contractor_runtime.toolsets.common.arguments import (
-    MAX_CONTAINER_BYTES,
     MAX_CONTAINER_DEPTH,
     MAX_CONTAINER_NODES,
     container_argument,
@@ -73,7 +72,7 @@ def parse_sources(value, notices=None, *, allow_empty=False):
         value,
         field="sources",
         kinds=(list,),
-        max_bytes=MAX_CONTAINER_BYTES,
+        max_bytes=8 * 1024 * 1024,
         max_depth=MAX_CONTAINER_DEPTH,
         max_nodes=MAX_CONTAINER_NODES,
         invalid=SourceArgumentError,
