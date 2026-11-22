@@ -59,6 +59,21 @@ func TestBrowserGatewayGeneratedModelRoutes(t *testing.T) {
 				if len(selected) != 2 || selected["namespace"] != "builder" || selected["name"] != "copied" {
 					t.Fatalf("finish fixture forwarded a machine version: %+v", selected)
 				}
+			} else {
+				request["tools"] = declarations
+				request["read_result"] = map[string]any{"text": "browser-driven streamline input"}
+				message, _, _, err := g.nextStreamline(context.Background(), request, marker)
+				if err != nil {
+					t.Fatal(err)
+				}
+				function := message["tool_calls"].([]any)[0].(map[string]any)["function"].(map[string]any)
+				var arguments map[string]any
+				if err := json.Unmarshal([]byte(function["arguments"].(string)), &arguments); err != nil {
+					t.Fatal(err)
+				}
+				if arguments["text"] != "browser-driven streamline input" {
+					t.Fatal("copy fixture substituted unrelated canned bytes")
+				}
 			}
 		})
 	}

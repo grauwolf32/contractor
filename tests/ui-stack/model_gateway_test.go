@@ -279,7 +279,7 @@ func (g *modelGateway) nextStreamline(
 		}
 		return toolCallMessage("streamline-write", "write_text_artifact", map[string]any{
 			"name": "copied", "media_type": "text/plain",
-			"text": e2eReport,
+			"text": data,
 		}), "tool_calls", model, nil
 	case 3:
 		_, found := lastExactArtifact(request, "builder", "copied")
