@@ -37,7 +37,7 @@ func TestWSTGHTTPProgramsStartWithTrustedEngagement(t *testing.T) {
 	}
 	for _, name := range []string{"owasp-wstg-4-2-active-http", "owasp-wstg-4-2-fast-active-http"} {
 		t.Run(name, func(t *testing.T) {
-			profile, err := catalog.AuditProfile(name + "@2")
+			profile, err := catalog.AuditProfile(name + "@4")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -100,7 +100,7 @@ func TestWSTGHTTPProgramsStartWithTrustedEngagement(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				draft, _, err := service.CreateDraft(ctx, auditservice.CreateDraftParams{AuditID: id, OwnerID: "owner", ProjectID: "http-project", Profile: auditservice.ProfileSelector{Name: name, Version: "2"}, Inputs: map[string]contracts.ArtifactRef{"materials": materials.Ref, "engagement": engagement.Ref}, RuntimeLabels: []string{}, Scope: auditservice.Scope{Objective: "Check selected WSTG assertions"}, IdempotencyKey: id, RequestDigest: contentdigest.Bytes([]byte(id))})
+				draft, _, err := service.CreateDraft(ctx, auditservice.CreateDraftParams{AuditID: id, OwnerID: "owner", ProjectID: "http-project", Profile: auditservice.ProfileSelector{Name: name, Version: "4"}, Inputs: map[string]contracts.ArtifactRef{"materials": materials.Ref, "engagement": engagement.Ref}, RuntimeLabels: []string{}, Scope: auditservice.Scope{Objective: "Check selected WSTG assertions"}, IdempotencyKey: id, RequestDigest: contentdigest.Bytes([]byte(id))})
 				if mediaType == "application/json" {
 					if !errors.Is(err, auditservice.ErrInvalid) {
 						t.Fatalf("generic JSON engagement admission: %v", err)

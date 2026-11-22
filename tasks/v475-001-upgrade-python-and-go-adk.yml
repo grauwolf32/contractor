@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 priority: P2
 status: in_progress
-depends_on: []
+depends_on: [V475-002]
 languages: [python, go, markdown]
 goal: Run the merged tool interfaces on Python ADK 2.15.0 and Go ADK 2.8.0 with unchanged Contractor execution guarantees and a verified dependency closure.
 context:

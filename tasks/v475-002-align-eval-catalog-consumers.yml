@@ -1,0 +1,41 @@
+schema_version: '1.0'
+id: V475-002
+title: Align Eval catalog consumers with the merged model tool contracts
+milestone: eval-maintenance-2026-10
+epic: evals
+kind: chore
+introduced_by: V474-002
+priority: P2
+status: in_progress
+depends_on: [V474-002, V474-004]
+languages: [go, yaml]
+goal: Restore the ordinary Go verification gate by making active Eval fixtures select the current exact published catalog and supported artifact reader.
+context:
+  authority: 'Necessary verification prerequisite discovered during the user-authorized combined ADK upgrade on 2026-11-22; keep the repair limited to existing Eval consumers.'
+  finding: 'tests/eval/audit_programs/common_catalog_test.go:22 and http_engagement_test.go:40 still select old AuditProfile versions; tests/eval/context_compaction/catalog/agent-templates/context-eval-worker.yaml:15 selects removed read_text_artifact; tests/eval/project_workflows/model_selection_test.go:59 and live_test.go select removed Workflow @7 identities.'
+  provenance: 'V474-002 / ff32c6b019c237ad7ddee3ef2fb508ec5ef9fd6b consolidated model artifact reads and bumped dependent published identities. V474-004 and its 48c825e69 catalog correction further bumped the keyed assertion profiles. All three package failures reproduce unchanged on detached main 97288cba7 with the old ADK graph.'
+  sibling_paths: 'The agent_instructions/candidate catalog is explicitly archived data, documented in tests/eval/agent_instructions/README.md and compared offline without current catalog loading. Its removed tool names and exact pinned bytes remain unchanged. Active project_workflows live selection defaults and dispatch cases move with the offline test; no live run is started.'
+  specification:
+    - docs/spec/configuration/catalog.md
+    - docs/spec/tools/toolsets.md#TLS-R1
+    - docs/spec/artifacts/artifact-store.md
+    - docs/spec/evals/format.md
+scope:
+  in:
+    - Explicit current AuditProfile and Workflow selectors in active Eval Go consumers.
+    - Select read_artifact from run-artifacts@1 in the five test-only context templates while retaining their existing text writer.
+  out:
+    - Published configs, catalog lock, historical evidence and archived Eval pins.
+    - Production behavior, new lookup fallbacks, live model execution or redesign of Eval workflows.
+acceptance_criteria:
+  - id: A1
+    text: All three full Eval package suites pass; assertion/engagement checks still reach real PostgreSQL and the model-selection test exercises both current four-Stage Workflows.
+  - id: A2
+    text: Every authored context variant resolves with the supported reader and the same compaction, summarizer and sandbox choices; explicit selection remains strict with no old-version fallback.
+  - id: A3
+    text: Full make lint passes and no shipped catalog or immutable archive changes.
+tests:
+  - command: go test -count=1 ./tests/eval/audit_programs ./tests/eval/context_compaction ./tests/eval/project_workflows
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A2, A3]
