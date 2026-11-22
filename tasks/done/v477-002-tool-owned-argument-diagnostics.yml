@@ -5,7 +5,7 @@ milestone: model-runtime-guidance-2026-11
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V477-001
 languages:
@@ -159,3 +159,9 @@ tests:
 verification_policy: Run complete affected owner test files, including the actual Runner correction scenario
   and existing infrastructure/cancellation cases. No database is needed for diagnostic formatting itself; V476-005
   verifies the combined real-store path. No full release or live-model quality claim.
+implementation_commit: 370a7ec8bb834d78e38a97e7108c86b1eed0dbc5
+verification:
+  date: '2026-11-22'
+  result: 290 affected owner cases passed on final code, including real Worker correction, canary-safe diagnostics,
+    64-item notice omission, cancellation/fatal/possibly-sent regressions. Ruff, four import contracts and
+    specification checks pass. No full suite or live calls.

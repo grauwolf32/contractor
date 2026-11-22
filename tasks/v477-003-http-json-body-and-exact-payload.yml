@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V12-003
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V477-001
 - V477-002
