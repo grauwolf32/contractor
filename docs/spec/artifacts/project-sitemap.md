@@ -118,7 +118,11 @@ map revision, with `absent` for conditional creation. Model tools obtain this
 precondition from the Runtime-held reviewed view; their arguments contain no
 `expected_revision`. After an edit or conflict, another edit requires an explicit
 read/list with `refresh=true`. Old cursors still read their original view but
-provide no new write authority. Suppression and annotation
+provide no new write authority. A pending model edit retains its original command,
+preconditions and operation key across temporary failures and refresh. If the model
+omits the key, Runtime creates it once and reuses it for an identical pending edit;
+a changed intent or explicitly different key is rejected until reconciliation.
+Suppression and annotation
 commands must name an exact bounded member selection. Repeated traffic must not
 remove suppression. A grouping change must preserve retained member identity,
 metadata and selection, and must conflict when a structural change would make

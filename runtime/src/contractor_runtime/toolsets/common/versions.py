@@ -153,7 +153,8 @@ class ModelArtifacts:
 
     async def read_artifact(self, ref: ArtifactRef, **kwargs: Any) -> Any:
         value = await self.client.read_artifact(ref, **kwargs)
-        self.versions.observe(value.artifact)
+        if kwargs.get("target") is None:
+            self.versions.observe(value.artifact)
         return value
 
     def observe_cached_read(self, ref: ArtifactRef) -> None:

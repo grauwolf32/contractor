@@ -320,20 +320,21 @@ class SitemapSession:
             else view.load((start, end)),
         }
 
-    async def edit(self, command: Mapping[str, object], key: str) -> dict:
+    async def edit(self, command: Mapping[str, object], key: str | None) -> dict:
         async with self._lock:
             if self._closed:
                 raise self.expired()
             pending = self._pending_edit
             if pending is not None:
-                if pending[0] != key or pending[1] != command:
+                if (key is not None and pending[0] != key) or pending[1] != command:
                     raise ToolInputError(
                         "Reconcile the pending edit using the same arguments and key"
                     )
-                prepared = pending[2]
+                key, prepared = pending[0], pending[2]
             else:
                 if self._view is None or not self._editable:
                     raise ToolInputError("Read/list the sitemap with refresh=true before editing")
+                key = key or str(uuid4())
                 prepared = dict(command, expectedRevision=self._revision)
                 if command["operation"] == "replace-source":
                     source = dict(command["source"])
