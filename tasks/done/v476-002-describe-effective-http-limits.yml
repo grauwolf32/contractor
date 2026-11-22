@@ -5,7 +5,7 @@ milestone: model-runtime-guidance-2026-11
 epic: http-tools
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V475-001
 languages:
@@ -115,3 +115,8 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: bf0f43a3f99c14c3da964cc7d0904f839c24a570
+verification:
+  date: '2026-11-22'
+  result: All 102 tests in the seven affected HTTP files passed; Ruff passed. The new POST fixture first used
+    a disallowed path and was corrected to /allowed; failed diagnostic runs are not passing evidence.

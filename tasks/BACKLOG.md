@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-69 open tasks: 12 in progress, 44 pending, 13 deferred. 1641 finished: 1623 completed, 18 archived.
+68 open tasks: 11 in progress, 44 pending, 13 deferred. 1642 finished: 1624 completed, 18 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V476-002](v476-002-describe-effective-http-limits.yml) | http-tools | feature | P1 | Expose effective HTTP limits in the existing tool description |
 | [V476-003](v476-003-guard-consecutive-tool-repeats.yml) | planner-worker | feature | P1 | Reject consecutive redundant artifact reads through tool-owned repeat rules |
 
 ## Pending
@@ -41,7 +40,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 | [V469-001](v469-001-opencode-audit-prototype.yml) | chore | P1 | — | Prove two ordinary Runs can reuse one OpenCode Audit container |
 | [V476-004](v476-004-project-worker-call-capacity.yml) | feature | P1 | V476-003 | Show the Worker truthful call capacity across context checkpoints |
-| [V476-005](v476-005-runtime-guidance-acceptance.yml) | chore | P1 | V476-002, V476-003, V476-004 | Verify runtime guidance and consecutive-repeat control together |
+| [V476-005](v476-005-runtime-guidance-acceptance.yml) | chore | P1 | V476-003, V476-004 | Verify runtime guidance and consecutive-repeat control together |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -167,7 +166,7 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 6 | 26 | 37 | 15 | 38 |
+| HTTP and Caido tools (`http-tools`) | 5 | 26 | 37 | 15 | 38 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
 | Findings tools and collections (`findings`) | 0 | 21 | 15 | 11 | 27 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |
