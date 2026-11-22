@@ -19,7 +19,10 @@ context:
     instead fail with broken pipe before that message can be read. The full Runtime
     gate also timed out waiting for test_cli.py:64 startup under concurrent checks;
     the same shutdown test passes alone. Its two-second startup guard dates to
-    initial bootstrap commit 1ff105bb1, before the current task tracker.
+    initial bootstrap commit 1ff105bb1, before the current task tracker. The final
+    full run exposed the same short startup guard in test_tool_operation_ownership.py,
+    whose failed-start cleanup waits before killing its process group and assumes
+    Linux /proc on macOS. All 6648 other tests passed; the module passes alone.
   siblings: >-
     V478-004 introduced both stop constraints; V414-012 introduced the termination
     test. SQLSTATE 57P01 remains covered directly by sqlstate_test.go. Preserve
@@ -29,7 +32,8 @@ scope:
   in:
   - Register existing stop-record bounds with their owning specification and limit.
   - Remove the timing-dependent error-representation assertion from the real PostgreSQL disconnect test.
-  - Give the shutdown test a ten-second startup hang guard while retaining all cancellation, listener and task-leak assertions.
+  - Give the shutdown and validator fixtures ten-second startup hang guards while retaining cancellation, listener and task-leak assertions.
+  - Check actual Popen reaping and portable descendant liveness; kill owned process groups before joining failed-start fixtures.
   out:
   - Production retry semantics, timeouts and database error classification.
 acceptance_criteria:
@@ -39,9 +43,13 @@ acceptance_criteria:
   text: Backend termination consistently proves unavailable/transient classification for statements and COMMIT, including Unix broken pipe; SQLSTATE classification remains covered.
 - id: A3
   text: The Runtime shutdown test tolerates concurrent startup work while still proving heartbeat cancellation, listener closure and no leaked tasks.
+- id: A4
+  text: Validator ownership tests prove real leader reaping and descendant termination on macOS and Linux, and failed startup cannot leak its process group.
 tests:
+- command: cd runtime && uv run pytest -W error tests/test_cli.py tests/test_tool_operation_ownership.py
+  covers: [A3, A4]
 - command: make test-runtime
-  covers: [A3]
+  covers: [A3, A4]
 - command: go test -count=1 ./internal/persistence/postgres
   covers: [A1, A2]
 - command: go test -count=20 ./internal/persistence/postgres -run '^TestClosedConnectionAfterBackendTerminationIsUnavailable$'

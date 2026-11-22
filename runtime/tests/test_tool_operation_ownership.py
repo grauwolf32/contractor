@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import signal
 import subprocess
@@ -12,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock
 
+import psutil
 import pytest
 from fakes.model import scripted_model, tool_call
 from fakes.process_markers import atomic_marker_source
@@ -244,7 +246,8 @@ def test_cancelled_validator_reaps_child_before_tool_and_workspace_close(
         task = asyncio.create_task(validation())
         pids: list[int] = []
         try:
-            async with asyncio.timeout(3):
+            # Interpreter startup is not the cancellation deadline below.
+            async with asyncio.timeout(10):
                 while not marker.exists():
                     await asyncio.sleep(0.01)
             pids = [int(value) for value in marker.read_text().split()]
@@ -258,18 +261,26 @@ def test_cancelled_validator_reaps_child_before_tool_and_workspace_close(
                 await tool.close()
             await workdirs.cleanup(workspace)
             assert not workspace.path.exists()
-            assert not Path(f"/proc/{pids[0]}").exists(), "validator leader was not reaped"
+            leader = next(process for process in processes if process.pid == pids[0])
+            assert leader.returncode is not None, "validator leader was not reaped"
             async with asyncio.timeout(3):
                 while _alive(pids[1]):
                     await asyncio.sleep(0.01)
         finally:
+            task.cancel()
+            # Startup can fail before the marker gives us descendant PIDs.
+            # Stop every owned group before waiting, even on that error path.
+            for process in processes:
+                if process.returncode is None:
+                    with contextlib.suppress(ProcessLookupError):
+                        os.killpg(process.pid, signal.SIGKILL)
             for pid in pids:
                 if _alive(pid):
-                    os.kill(pid, signal.SIGKILL)
-            for process in processes:
-                await asyncio.to_thread(process.wait, timeout=3)
-            task.cancel()
+                    with contextlib.suppress(ProcessLookupError):
+                        os.kill(pid, signal.SIGKILL)
             await asyncio.gather(task, return_exceptions=True)
+            for process in processes:
+                await asyncio.to_thread(process.wait, timeout=10)
             if launcher is not None:
                 launcher.close()
 
@@ -278,8 +289,8 @@ def test_cancelled_validator_reaps_child_before_tool_and_workspace_close(
 
 def _alive(pid: int) -> bool:
     try:
-        return Path(f"/proc/{pid}/stat").read_text().split()[2] != "Z"
-    except FileNotFoundError:
+        return psutil.Process(pid).status() != psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
         return False
 
 
