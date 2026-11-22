@@ -6,7 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V479-002
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 868b1c2f79f70d504d03d6f724dfa68bebc62df5
 depends_on:
 - V479-007
 languages:
@@ -62,3 +63,5 @@ tests:
   - A1
   - A2
   - A3
+
+verification_results: "make test-audit-basic-e2e passes 12 selected cases without skips. The listed four catalog/library regression cases pass. The full Findings process gate also passes after the shared profile correction; make lint passes."
