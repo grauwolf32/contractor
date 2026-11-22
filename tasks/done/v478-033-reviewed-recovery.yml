@@ -6,7 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V478-004
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 5feb48cc6537cc14cb2f74e11165e9be2b0d80c6
 depends_on: [V478-002, V478-003, V478-004, V478-030]
 languages: [go, python, sql, markdown]
 goal: Audit conclusions survive ambiguous acknowledgements, locale differences and permanent read failures with bounded source work.
@@ -64,3 +65,31 @@ tests:
   covers: [A1, A2, A3]
 - command: make lint
   covers: [A1, A2, A3, A4, A5]
+
+verification_notes: >-
+  Accepted 2026-11-23. All four reproduced defects and the three reviewed
+  consistency/robustness gaps are corrected. Actual C and ICU en-US database
+  tests cover corrections, membership and quota admission; the migration installs
+  the matching bytewise index and immutable settled stop guards. Twenty scalar
+  judgments with 118 annotations now read 118 payloads instead of 2550 (119 with
+  receipt replay). Exact authority, stale bases and bounded history remain validated.
+  Missing/corrupt partial payloads produce a durable collection-contract-invalid
+  receipt in active, paused and cancelling Audits; replay avoids rereads, transient
+  reads remain pending and accepted bytes survive without fabricated semantic stops.
+  New PostgreSQL and Runtime regressions fail with original production code.
+  Full touched Go/PostgreSQL integration suites passed, followed by complete final
+  auditservice, auditimport and runservice suites after the collection-path refinement.
+  Both real Server/Runtime process regressions passed. make lint passed; final
+  test-only Python refinements also passed Ruff and formatting. Complete make
+  test-runtime passed with 6649 tests, 134 explicit skips and 577 required compaction
+  cases. Optional heavy I/O was not enabled; skips are not passing coverage.
+  Runtime scanner tests used actual cached ffuf v2.3.0 built with upstream release
+  version flags; the temporary binary was removed and the system binary preserved.
+  All owned test databases, pools and processes stopped; the isolated PostgreSQL
+  cluster and diagnostic overlays were removed. No deployment or live model call.
+  Evidence: /tmp/contractor-fixes-go-final.log,
+  /tmp/contractor-fixes-collection-final.log, /tmp/contractor-fixes-e2e-final.log,
+  /tmp/contractor-fixes-runtime-final.log, /tmp/contractor-fixes-lint-final.log,
+  /tmp/contractor-fixes-runtime-before.log, /tmp/contractor-fixes-go-before.log and
+  /tmp/contractor-fixes-collection-before.log. Branch codex/v478-reviewed-recovery
+  remains unmerged into main.
