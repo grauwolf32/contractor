@@ -10,19 +10,29 @@ import (
 	"strings"
 )
 
-const evidenceStopReserve = auditcontract.MaximumDocumentBytes / 8
+const (
+	evidenceStopReserve  = auditcontract.MaximumDocumentBytes / 8
+	executionRecordLimit = 256
+)
+
+type recordedWriteKind int
+
+const (
+	evidenceWrite recordedWriteKind = iota
+	judgmentWrite
+)
 
 // RetainEvidenceLinks commits ordinary exact Artifact links while the caller
 // holds LockTaskInputs. Frozen Audit forks own bytes independently of a Run.
 func (s *OwnerTxStore) RetainEvidenceLinks(ctx context.Context, audit auditstore.Audit, links []auditstore.ArtifactLink) error {
-	return s.retainRecordedLinks(ctx, audit, links, insertEvidenceLinksSQL)
+	return s.retainRecordedLinks(ctx, audit, links, insertEvidenceLinksSQL, evidenceWrite)
 }
 
 func (s *OwnerTxStore) RetainJudgmentLinks(ctx context.Context, audit auditstore.Audit, links []auditstore.ArtifactLink) error {
-	return s.retainRecordedLinks(ctx, audit, links, insertJudgmentLinksSQL)
+	return s.retainRecordedLinks(ctx, audit, links, insertJudgmentLinksSQL, judgmentWrite)
 }
 
-func (s *OwnerTxStore) retainRecordedLinks(ctx context.Context, audit auditstore.Audit, links []auditstore.ArtifactLink, statement string) error {
+func (s *OwnerTxStore) retainRecordedLinks(ctx context.Context, audit auditstore.Audit, links []auditstore.ArtifactLink, statement string, kind recordedWriteKind) error {
 	if _, err := validateArtifactLinks(links); err != nil {
 		return err
 	}
@@ -35,7 +45,10 @@ func (s *OwnerTxStore) retainRecordedLinks(ctx context.Context, audit auditstore
 	if !valid {
 		return auditstore.ErrConflict
 	}
-	reserve := min(int64(evidenceStopReserve), audit.Limits.MaxEvidenceBytes/8)
+	var reserve int64
+	if kind == evidenceWrite {
+		reserve = min(int64(evidenceStopReserve), audit.Limits.MaxEvidenceBytes/8)
+	}
 	if cost > audit.Limits.MaxEvidenceBytes-audit.RetainedEvidenceBytes-reserve {
 		return auditstore.ErrEvidenceBudgetExhausted
 	}
@@ -43,18 +56,38 @@ func (s *OwnerTxStore) retainRecordedLinks(ctx context.Context, audit auditstore
 	return err
 }
 
-// AdmitEvidenceCollection bounds one invocation using its ordered link prefix.
+// AdmitEvidenceCollection preserves conclusion capacity while admitting notes.
 // The caller holds the Audit row and has not written any new selected bytes.
 func (s *OwnerTxStore) AdmitEvidenceCollection(ctx context.Context, auditID, executionID string, newSources int, newBytes int64) error {
-	var count int
-	var used int64
-	var sources int
+	return s.admitRecordedCollection(ctx, auditID, executionID, newSources, newBytes, evidenceWrite)
+}
+
+// AdmitJudgmentCollection can consume the reserved slots and bytes, within the
+// same total execution budget. It never creates a separate quota.
+func (s *OwnerTxStore) AdmitJudgmentCollection(ctx context.Context, auditID, executionID string, newBytes int64) error {
+	return s.admitRecordedCollection(ctx, auditID, executionID, 0, newBytes, judgmentWrite)
+}
+
+func (s *OwnerTxStore) admitRecordedCollection(ctx context.Context, auditID, executionID string, newSources int, newBytes int64, kind recordedWriteKind) error {
+	var receiptCount, sourceCount, memberCount int
+	var retainedBytes int64
 	prefix := "evidence/" + executionID + "/"
 	judgments := "judgment/" + executionID + "/"
-	if err := s.tx.QueryRow(ctx, evidenceCollectionSizeSQL, auditID, prefix, prefix+"~", judgments, judgments+"~").Scan(&count, &used, &sources); err != nil {
+	if err := s.tx.QueryRow(ctx, evidenceCollectionSizeSQL, auditID, prefix, prefix+"~", judgments, judgments+"~", executionID).Scan(&receiptCount, &retainedBytes, &sourceCount, &memberCount); err != nil {
 		return err
 	}
-	if count+sources+newSources+1 > 256 || used+newBytes > auditcontract.MaximumDocumentBytes-evidenceStopReserve {
+	if memberCount < 1 || memberCount > auditcontract.MaxExecutionMembers {
+		return auditstore.ErrInvalid
+	}
+	// Evidence leaves one scalar-result slot per assigned member.
+	recordLimit, byteLimit := executionRecordLimit, int64(auditcontract.MaximumDocumentBytes)
+	if kind == evidenceWrite {
+		recordLimit -= memberCount
+		byteLimit -= evidenceStopReserve
+	}
+	prospectiveRecords := receiptCount + sourceCount + newSources + 1
+	prospectiveBytes := retainedBytes + newBytes
+	if prospectiveRecords > recordLimit || prospectiveBytes > byteLimit {
 		return auditstore.ErrEvidenceBudgetExhausted
 	}
 	return nil

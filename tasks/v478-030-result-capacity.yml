@@ -1,0 +1,37 @@
+schema_version: '1.0'
+id: V478-030
+title: Reserve usable capacity for accepted Audit conclusions
+milestone: audit-evidence-results-2026-11
+epic: audits
+kind: defect
+introduced_by: V478-004
+priority: P2
+status: in_progress
+depends_on: [V478-002, V478-004]
+languages: [go, python, json, markdown]
+goal: Reserve usable capacity for accepted Audit conclusions through the existing Artifact and Audit owners.
+context:
+  authority: 'User request 2026-11-23 in the review side conversation: continue with the two reported defects and the proposed readability improvements.'
+  finding: 'internal/auditstore/internal/pgstore/evidence.go:48 and internal/auditservice/judgments.go:181. Evidence can consume every receipt slot and the reserved bytes cannot be used by judgment writes.'
+  siblings: 'Review Runtime prospective admission, Server execution and Audit quotas, normal final import, interrupted collection, scalar and batch judgments, and Finding/Fact source preparation.'
+  boundary: 'Keep existing transaction, authority, exact source and replay ownership. No new store, endpoint, schema variant or model contract.'
+scope:
+  in:
+  - 'Evidence can consume every receipt slot and the reserved bytes cannot be used by judgment writes.'
+  - Real-path regressions and the full suites of touched packages.
+  out:
+  - UI acceptance work, live Audits, demo deployment and changes to another checkout.
+acceptance_criteria:
+- id: A1
+  text: 'Reserve usable capacity for accepted Audit conclusions; existing fences, exact provenance and replay semantics remain enforced.'
+- id: A2
+  text: 'All sibling paths retain their intended behavior and permanent failures remain atomic.'
+- id: A3
+  text: 'Relevant regressions and complete touched-package suites pass; owning specifications agree with the implementation.'
+tests:
+- command: go test -count=1 ./internal/auditservice ./internal/auditimport ./internal/auditstore/...
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+- command: make test-runtime
+  covers: [A1, A2, A3]

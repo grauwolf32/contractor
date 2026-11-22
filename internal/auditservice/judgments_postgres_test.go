@@ -1,9 +1,11 @@
 package auditservice
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -493,6 +495,70 @@ func TestSharedPostgresPartialJudgmentAndSystemStopSurviveExhaustedEvidenceBudge
 			current, err := runs.GetRun(ctx, f.grant.RunID)
 			if err != nil || current.State != runstore.RunFailed {
 				t.Fatal("partial records changed the Run outcome")
+			}
+		})
+	}
+}
+
+func TestSharedPostgresJudgmentCanUseReservedCapacity(t *testing.T) {
+	for _, boundary := range []string{"records", "execution-bytes", "audit-bytes"} {
+		t.Run(boundary, func(t *testing.T) {
+			memberCount := 1
+			if boundary == "records" {
+				memberCount = 20
+			}
+			f := newJudgmentFixture(t, memberCount, false)
+			ctx := t.Context()
+			art := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool))
+			run, _ := art.Run(f.grant.RunID)
+			sourceBytes, noteCount := 16, 1
+			if boundary == "records" {
+				noteCount = (256 - memberCount) / 2
+			}
+			if boundary == "execution-bytes" {
+				sourceBytes = (7 << 20) - 8192
+			}
+			source, err := run.Write(ctx, contracts.ArtifactRef{Namespace: f.grant.Namespace, Name: "reserve-source"}, artifacts.Payload{MediaType: "text/plain", Data: bytes.Repeat([]byte{'x'}, sourceBytes)}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			input := auditcontract.EvidenceSubmission{APIVersion: contracts.APIVersion, InvocationID: "invocation", ItemKey: auditcontract.ExecutionItemKey(0), Sources: []contracts.ArtifactRef{source.Ref}, Interpretation: "Selected observation", TestedConditions: []string{"source inspected"}, Limitations: []string{}}
+			var note auditcontract.EvidenceReceipt
+			for index := range noteCount {
+				input.SubmissionID = fmt.Sprintf("note-%03d", index)
+				note, err = f.service.RecordEvidence(ctx, f.grant, input)
+				if err != nil {
+					t.Fatalf("note %d: %v", index, err)
+				}
+			}
+			if boundary == "records" {
+				input.SubmissionID = "overflow-note"
+				if _, err := f.service.RecordEvidence(ctx, f.grant, input); !errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
+					t.Fatalf("evidence consumed result slots: %v", err)
+				}
+			}
+			if boundary == "audit-bytes" {
+				// Evidence reserve is capped at 1 MiB; leave just enough for the result.
+				if _, err := f.pool.Exec(ctx, `UPDATE audits SET max_evidence_bytes=retained_evidence_bytes+70000 WHERE audit_id=$1`, f.audit.AuditID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			judgment := judgmentInput(input.ItemKey, strings.Repeat("r", 65536), "reserved-result", 0)
+			judgment.Items[0].Conclusion.Evidence = append(note.Sources, note.Material)
+			judgment.Items[0].Conclusion.TestedConditions = []string{"source inspected"}
+			result, err := f.service.RecordJudgments(ctx, f.grant, judgment)
+			if err != nil || len(result.Generations) != 1 {
+				t.Fatalf("reserved conclusion rejected: %v", err)
+			}
+			replay, err := f.service.RecordJudgments(ctx, f.grant, judgment)
+			if err != nil || !replay.Replayed || !replay.Material.Ref.SameExact(result.Material.Ref) {
+				t.Fatalf("result replay: %v", err)
+			}
+			for index := 1; index < memberCount; index++ {
+				next := judgmentInput(auditcontract.ExecutionItemKey(index), "Accepted remaining assigned member", fmt.Sprintf("result-%02d", index), 0)
+				if _, err := f.service.RecordJudgments(ctx, f.grant, next); err != nil {
+					t.Fatalf("reserved member %d: %v", index, err)
+				}
 			}
 		})
 	}

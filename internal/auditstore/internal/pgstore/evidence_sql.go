@@ -4,7 +4,8 @@ package pgstore
 // the first over-bound row instead of hydrating other execution history.
 const evidenceCollectionSizeSQL = `
 SELECT count(*)::int,coalesce(sum(size_bytes+coalesce((source_provenance->>'sourceBytes')::bigint,0)),0)::bigint,
- coalesce(sum((source_provenance->>'sourceCount')::int),0)::int
+ coalesce(sum((source_provenance->>'sourceCount')::int),0)::int,
+ (SELECT count(*)::int FROM audit_execution_items WHERE audit_id=$1 AND execution_id=$6)
 FROM (SELECT size_bytes,source_provenance FROM audit_artifact_links
  WHERE audit_id=$1 AND ((logical_key >= $2 AND logical_key < $3)
  OR (logical_key >= $4 AND logical_key < $5))

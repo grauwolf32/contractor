@@ -178,7 +178,7 @@ func (s *Service) RecordJudgments(ctx context.Context, grant controlplane.Alloca
 		if err != nil {
 			return err
 		}
-		if err := owners.AdmitEvidenceCollection(ctx, audit.AuditID, *run.AuditExecutionID, 0, int64(len(data))); err != nil {
+		if err := owners.AdmitJudgmentCollection(ctx, audit.AuditID, *run.AuditExecutionID, int64(len(data))); err != nil {
 			return err
 		}
 		request, _ := strictjson.Canonical(input)

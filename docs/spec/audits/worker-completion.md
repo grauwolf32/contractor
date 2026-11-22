@@ -1077,7 +1077,12 @@ transaction conflict retains the ordinary retryable 503 contract.
 Each execution collection admits at most 256 annotation/source occurrences and
 8 MiB of retained annotations plus selected source bytes; repeated selections
 consume that collection bound. Early admission reserves LIM-AWC-13 capacity
-for conclusion/stop metadata. Existing Audit maxEvidenceBytes accounting also
+for conclusions: evidence admission leaves one receipt slot per assigned member
+(at most 64) and 1 MiB. Judgment writes may consume those
+reserves within the existing 256-record / 8 MiB execution ceiling and remaining
+Audit maxEvidenceBytes; corrections consume the same bounded history. System
+stop metadata remains available on Task/attempt rows even when that quota is
+exhausted. Existing Audit maxEvidenceBytes accounting also
 applies, charging exact retained material once under the existing owner.
 Exhaustion rejects atomically with private `409 audit_evidence_limit_exceeded`
 (not retryable). Unacknowledged or unselected volatile tails may be unavailable.

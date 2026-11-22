@@ -161,7 +161,7 @@ func TestSharedPostgresIncrementalEvidenceExactReplayFencesAndBounds(t *testing.
 		t.Fatalf("failed evidence changed the Audit: %v", err)
 	}
 	// Real persisted receipts, not a counter-only fake, exercise the collection cap.
-	for index := 1; index < 128; index++ {
+	for index := 1; index < 127; index++ {
 		next := submission
 		next.SubmissionID = fmt.Sprintf("source-%03d", index)
 		if _, err := f.service.RecordEvidence(ctx, grant, next); err != nil {
@@ -174,7 +174,7 @@ func TestSharedPostgresIncrementalEvidenceExactReplayFencesAndBounds(t *testing.
 		t.Fatalf("collection cap: %v", err)
 	}
 	links, err = store.ListExecutionEvidence(ctx, f.audit.AuditID, execution.ExecutionID)
-	if err != nil || len(links) != 128 {
+	if err != nil || len(links) != 127 {
 		t.Fatalf("retained prefix: %d %v", len(links), err)
 	}
 }
