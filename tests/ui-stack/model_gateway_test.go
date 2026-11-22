@@ -261,7 +261,7 @@ func (g *modelGateway) nextStreamline(
 			}
 			return toolCallMessage("streamline-finish", "finish", map[string]any{
 				"outcome": "succeeded", "summary": "streamline browser flow completed",
-				"artifacts": map[string]any{"copied": artifact},
+				"artifacts": map[string]any{"copied": map[string]any{"namespace": artifact["namespace"], "name": artifact["name"]}},
 			}), "tool_calls", model, nil
 		default:
 			return nil, "", "", errors.New("streamline Planner exceeded its script")
@@ -279,7 +279,7 @@ func (g *modelGateway) nextStreamline(
 		}
 		return toolCallMessage("streamline-write", "write_text_artifact", map[string]any{
 			"name": "copied", "media_type": "text/plain",
-			"text": e2eReport,
+			"text": data,
 		}), "tool_calls", model, nil
 	case 3:
 		_, found := lastExactArtifact(request, "builder", "copied")

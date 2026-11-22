@@ -6,7 +6,8 @@ epic: execution-core
 kind: defect
 introduced_by: V478-011
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 43856a2133281a56aad20dd1fb225eaff8a6522f
 depends_on: [V478-011]
 languages: [go, markdown]
 goal: Every independent process Server gets its own database-wide lease and cleans up its owned database after process shutdown.
@@ -47,3 +48,13 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A2, A3]
+verification_results: >-
+  Original UI/live-eval helpers fail their new real-PostgreSQL regressions with
+  an explicit shared-parent-database assertion (0.479s/0.435s). The shared helper
+  passes its full package under race (2.817s); UI caller regression passes
+  (0.526s), full offline project Workflow package passes (2.035s, live-model
+  execution stays skipped), and simultaneous real Server/Runtime Findings plus
+  database cleanup pass (25.836s). Full make lint passes. Normal cleanup removes
+  each owned database, cancelled setup uses an independent context, and definite
+  CREATE rejection cannot delete a pre-existing collision. Production single-active
+  lease behavior is unchanged; no demo data, model or deployment was changed.

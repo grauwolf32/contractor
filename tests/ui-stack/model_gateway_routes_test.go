@@ -4,6 +4,7 @@ package uistack
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 )
 
@@ -36,6 +37,43 @@ func TestBrowserGatewayGeneratedModelRoutes(t *testing.T) {
 			request["tools"] = append(declarations, map[string]any{"function": map[string]any{"name": "unexpected_tool"}})
 			if _, _, _, err := g.nextStreamline(context.Background(), request, marker); err == nil {
 				t.Fatal("accepted wrong tool contract")
+			}
+			if role == "planner" {
+				request["tools"] = declarations
+				request["worker_result"] = map[string]any{"artifact": map[string]any{"namespace": "builder", "name": "copied", "revision": "worker-r1"}}
+				if _, _, _, err := g.nextStreamline(context.Background(), request, marker); err != nil {
+					t.Fatal(err)
+				}
+				message, _, _, err := g.nextStreamline(context.Background(), request, marker)
+				if err != nil {
+					t.Fatal(err)
+				}
+				function := message["tool_calls"].([]any)[0].(map[string]any)["function"].(map[string]any)
+				var arguments struct {
+					Artifacts map[string]map[string]any `json:"artifacts"`
+				}
+				if err := json.Unmarshal([]byte(function["arguments"].(string)), &arguments); err != nil {
+					t.Fatal(err)
+				}
+				selected := arguments.Artifacts["copied"]
+				if len(selected) != 2 || selected["namespace"] != "builder" || selected["name"] != "copied" {
+					t.Fatalf("finish fixture forwarded a machine version: %+v", selected)
+				}
+			} else {
+				request["tools"] = declarations
+				request["read_result"] = map[string]any{"text": "browser-driven streamline input"}
+				message, _, _, err := g.nextStreamline(context.Background(), request, marker)
+				if err != nil {
+					t.Fatal(err)
+				}
+				function := message["tool_calls"].([]any)[0].(map[string]any)["function"].(map[string]any)
+				var arguments map[string]any
+				if err := json.Unmarshal([]byte(function["arguments"].(string)), &arguments); err != nil {
+					t.Fatal(err)
+				}
+				if arguments["text"] != "browser-driven streamline input" {
+					t.Fatal("copy fixture substituted unrelated canned bytes")
+				}
 			}
 		})
 	}

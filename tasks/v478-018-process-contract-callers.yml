@@ -8,7 +8,7 @@ introduced_by: V478-003
 priority: P1
 status: in_progress
 depends_on: [V478-002, V478-003, V479-002]
-languages: [go, markdown]
+languages: [go, python, typescript, markdown]
 goal: Existing browser and offline model-selection scenarios reach their intended assertions with the shipped catalog and explicit evidence followed by thin judgments.
 context:
   authority: 'User assignment 2026-11-22: implement the reviewed package and resolve the process Server lease timeout while continuing V478.'
@@ -18,6 +18,8 @@ context:
     These callers were missed by V478-002/003. model_selection_test.go:59 and
     live_test.go:233 select retired openapi/likec4 @8 after V479-002 published @9;
     full offline package fails before its actual Gateway route assertion.
+    The UI streamline finish fixture also forwards a Worker revision after
+    V479-006 removed model finish revisions, preventing the browser journey from completing.
   siblings: >-
     Update UI-stack argument assertions and closure pins, project Workflow E2E/live/offline
     consumers, and current operator guide examples. Historical immutable snapshots,
