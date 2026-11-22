@@ -46,7 +46,7 @@ context:
     User request 2026-11-22: review this package against updated main and reconcile affected tasks. Apply
     the already merged V479 contracts for Runtime-owned versions and correction generations; this review
     does not assign feature implementation or change the agreed retention/stop policy.'
-  implementation_gate: 'All product review decisions recorded below are settled for the task draft. Keep tasks
+  implementation_gate: 'User assignment 2026-11-22 supersedes the planning gate: implement the full reviewed V478 package in one continuous pass. Do not deploy or launch a live Audit. Earlier review gate follows as historical context. All product review decisions recorded below are settled for the task draft. Keep tasks
     pending: this thread is planning/review, not an implementation assignment. Do not deploy or launch an Audit.
     The user requested review before merging the task package into main; report the reconciled package before
     integration. Implementation must follow these task contracts; an unforeseen consequential prerequisite
