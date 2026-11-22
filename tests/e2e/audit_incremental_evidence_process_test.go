@@ -25,14 +25,14 @@ import (
 // submit a conclusion. Ordinary Audit reads recover exact selected bytes across
 // Server restart; no target, model or synthetic conclusion repairs the loss.
 func TestAuditIncrementalEvidenceAcrossProcesses(t *testing.T) {
-	testAuditInterruptedRetention(t, false)
+	testAuditInterruptedRetention(t, false, false)
 }
 
 func TestAuditPartialJudgmentsAcrossProcesses(t *testing.T) {
-	testAuditInterruptedRetention(t, true)
+	testAuditInterruptedRetention(t, true, false)
 }
 
-func testAuditInterruptedRetention(t *testing.T, withJudgment bool) {
+func testAuditInterruptedRetention(t *testing.T, withJudgment, browser bool) {
 	var requests atomic.Int32
 	target := startEngagementScanTarget(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
@@ -53,25 +53,29 @@ func testAuditInterruptedRetention(t *testing.T, withJudgment bool) {
 			"url": target.URL + path, "method": "GET", "body_type": "none",
 		})))
 	}
-	stage.steps = append(stage.steps, toolGatewayStep("evidence", func(request map[string]any) (map[string]any, error) {
-		keys, err := assignedAuditKeys(request)
-		if err != nil {
-			return nil, err
-		}
-		sources := []any{map[string]any{"kind": "artifact", "namespace": "inputs", "name": "material"}}
-		exchanges := findingsToolResponses(request, "http_request")
-		if len(exchanges) != 2 {
-			return nil, fmt.Errorf("expected two actual exchanges, got %d", len(exchanges))
-		}
-		for _, exchange := range exchanges {
-			if exchange["status"] != json.Number("200") {
-				return nil, fmt.Errorf("fixture probe did not succeed: status=%v (%T), error=%v", exchange["status"], exchange["status"], exchange["error"])
+	recordSources := func(index int) domainGatewayStep {
+		return toolGatewayStep("evidence", func(request map[string]any) (map[string]any, error) {
+			keys, err := assignedAuditKeys(request)
+			if err != nil {
+				return nil, err
 			}
-			sources = append(sources, map[string]any{"kind": "http", "request_id": exchange["request_id"]})
-		}
-		return map[string]any{"item_key": keys[0], "sources": sources, "interpretation": "The selected report and two local responses record observations; they do not establish the assigned security hypothesis.", "tested_conditions": []string{"selected source; actual control and test requests"}, "limitations": []string{"The HTTP status alone does not verify an access-control property"}}, nil
-	}))
+			sources := []any{map[string]any{"kind": "artifact", "namespace": "inputs", "name": "material"}}
+			exchanges := findingsToolResponses(request, "http_request")
+			if len(exchanges) != 2 {
+				return nil, fmt.Errorf("expected two actual exchanges, got %d", len(exchanges))
+			}
+			for _, exchange := range exchanges {
+				if exchange["status"] != json.Number("200") {
+					return nil, fmt.Errorf("fixture probe did not succeed: status=%v (%T), error=%v", exchange["status"], exchange["status"], exchange["error"])
+				}
+				sources = append(sources, map[string]any{"kind": "http", "request_id": exchange["request_id"]})
+			}
+			return map[string]any{"item_key": keys[index], "sources": sources, "interpretation": "The selected report and two local responses record observations; they do not establish the assigned security hypothesis.", "tested_conditions": []string{"selected source; actual control and test requests"}, "limitations": []string{"The HTTP status alone does not verify an access-control property"}}, nil
+		})
+	}
+	stage.steps = append(stage.steps, recordSources(0))
 	if withJudgment {
+		stage.steps = append(stage.steps, recordSources(1))
 		for _, text := range []string{"Preliminary fixture judgment A", "Latest accepted correction B"} {
 			stage.steps = append(stage.steps, toolGatewayStep("submit_result", func(request map[string]any) (map[string]any, error) {
 				keys, err := assignedAuditKeys(request)
@@ -82,7 +86,7 @@ func testAuditInterruptedRetention(t *testing.T, withJudgment bool) {
 			}))
 		}
 	}
-	h := startConfiguredFindingsHarness(t, []domainGatewayStage{stage}, func(root string) {
+	h := startFindingsHarnessForBrowser(t, []domainGatewayStage{stage}, browser, func(root string) {
 		installBasicAuditProgram(t, root)
 		if err := os.WriteFile(filepath.Join(root, "agent-templates/basic_check.yaml"), []byte(strings.Replace(basicCheckTemplate, "  sandboxProfile:", "    - {ref: http-tools@1, tools: [http_request]}\n  sandboxProfile:", 1)), 0600); err != nil {
 			t.Fatal(err)
@@ -355,6 +359,9 @@ waitForAcceptance:
 	foundJudgment = !withJudgment
 	foundHTTP = map[string]bool{}
 	readRetained(true)
+	if browser {
+		runResearchBrowser(t, h, project.ProjectID, id, "interrupted")
+	}
 	if requests.Load() != 2 || len(h.gateway.Failures()) != 0 {
 		t.Fatalf("unexpected target/model replay: requests=%d failures=%v", requests.Load(), h.gateway.Failures())
 	}

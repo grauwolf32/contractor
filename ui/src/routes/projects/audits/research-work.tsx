@@ -5,9 +5,10 @@ import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import type { Audit } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
-import { requireData } from "../../../api/error";
+import { invalidAPIResponse, requireData } from "../../../api/error";
 import { queryKeys } from "../../../api/query-keys";
 import { CursorControls } from "../../../app/cursor-controls";
+import { useCursorStack } from "../../../app/pagination";
 import { pollInterval } from "../../../app/polling";
 import { QueryView } from "../../../app/query-view";
 import { RecordedTime } from "../../../app/recorded-time";
@@ -37,26 +38,40 @@ import { ErrorNotice } from "../../../app/error-notice";
 function TaskAttempts({ audit, task }: { audit: Audit; task: ResearchTask }) {
   const api = usePublicAPI();
   const [open, setOpen] = useState(false);
+  const pages = useCursorStack();
   const key = [
     ...queryKeys.audits.detail(audit.auditId),
     "attempts",
     task.document.task_id,
+    pages.cursor,
   ];
   const query = useQuery({
     queryKey: key,
     enabled: open,
-    queryFn: async ({ signal }) =>
-      requireData(
+    queryFn: async ({ signal }) => {
+      const data = requireData(
         await api.request((client) =>
           client.GET("/v1/audits/{auditId}/tasks/{taskId}/attempts", {
             signal,
             params: {
               path: { auditId: audit.auditId, taskId: task.document.task_id },
-              query: { limit: 10 },
+              query: {
+                limit: 10,
+                ...(pages.cursor ? { cursor: pages.cursor } : {}),
+              },
             },
           }),
         ),
-      ),
+      );
+      if (
+        data.page.hasMore &&
+        (!data.items.length ||
+          !data.page.nextCursor ||
+          data.page.nextCursor === pages.cursor)
+      )
+        throw invalidAPIResponse(200, "Invalid attempt continuation");
+      return data;
+    },
     refetchInterval: pollInterval<
       components["schemas"]["AuditTaskAttemptPage"]
     >({
@@ -89,7 +104,10 @@ function TaskAttempts({ audit, task }: { audit: Audit; task: ResearchTask }) {
                     (row) => row.executionId === attempt.execution_id,
                   );
                   return (
-                    <li key={attempt.attempt}>
+                    <li
+                      key={attempt.attempt}
+                      aria-label={`Attempt ${attempt.attempt}`}
+                    >
                       <strong>Attempt {attempt.attempt}</strong> ·{" "}
                       {attempt.outcome ?? readableValue(attempt.state)}
                       {attempt.run_deleted ? (
@@ -139,6 +157,13 @@ function TaskAttempts({ audit, task }: { audit: Audit; task: ResearchTask }) {
                           {readableValue(attempt.collection_disposition)}
                         </p>
                       ) : null}
+                      {attempt.result || attempt.stop ? (
+                        <TaskResultView
+                          audit={audit}
+                          task={task}
+                          attempt={attempt}
+                        />
+                      ) : null}
                     </li>
                   );
                 })}
@@ -150,14 +175,18 @@ function TaskAttempts({ audit, task }: { audit: Audit; task: ResearchTask }) {
                   onRetry={() => void costs.refetch()}
                 />
               ) : null}
-              {page.page.hasMore ? (
-                <p role="status">
-                  Additional attempts are not included in this page.
-                </p>
-              ) : null}
+              <CursorControls
+                label="Attempt pages"
+                {...pages.controls(page.page)}
+              />
             </>
           )}
         </QueryView>
+      ) : null}
+      {open && query.isError && pages.cursor ? (
+        <Button size="sm" onClick={pages.reset}>
+          Restart attempt list
+        </Button>
       ) : null}
     </TechnicalDetails>
   );
@@ -207,7 +236,7 @@ export function ResearchTaskDetail({
         audit={audit}
         task={task}
       />
-      <TaskAttempts audit={audit} task={task} />
+      <TaskAttempts key={task.document.task_id} audit={audit} task={task} />
       <TechnicalDetails description="Task identity, exact inputs and system-derived origin.">
         <pre className="checks-task-json">{JSON.stringify(task, null, 2)}</pre>
       </TechnicalDetails>
@@ -245,7 +274,7 @@ export function ResearchTaskTimeline({
               {task.gap_code ? (
                 <p className="ui-caption">{readableValue(task.gap_code)}</p>
               ) : null}
-              {task.result || task.findings ? (
+              {task.result || task.findings || task.stop ? (
                 <TaskResultView audit={audit} task={task} />
               ) : null}
             </div>

@@ -20,6 +20,61 @@ function render(section = "", state = "normal") {
 }
 
 describe("combined Checks research workspace", () => {
+  it("distinguishes a system interruption from a model judgment", async () => {
+    render("/work?task=task_7", "interrupted");
+    const record = await screen.findByRole("region", {
+      name: "System interruption",
+    });
+    expect(
+      within(record).getByRole("heading", { name: "No accepted conclusion" }),
+    ).toBeInTheDocument();
+    expect(within(record).getByText("System record")).toBeInTheDocument();
+    expect(
+      within(record).getByText("The configured model call limit was reached"),
+    ).toBeInTheDocument();
+    expect(within(record).getByText("Execution record")).toBeInTheDocument();
+    expect(within(record).queryByText("Inconclusive")).not.toBeInTheDocument();
+    expect(
+      within(record).queryByText("Conditions reported by the model"),
+    ).not.toBeInTheDocument();
+  });
+  it("reads the exact previous attempt through its retained key after source deletion", async () => {
+    render("/work?task=task_0", "interrupted");
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Read saved result" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Saved model conclusion" }),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByText("Run attempts"));
+    const pages = await screen.findByRole("navigation", {
+      name: "Attempt pages",
+    });
+    await userEvent.click(within(pages).getByRole("button", { name: "Next" }));
+    const old = await screen.findByRole("listitem", { name: "Attempt 1" });
+    expect(old).toHaveTextContent("failed");
+    expect(old).toHaveTextContent("source Run deleted");
+    await userEvent.click(
+      within(old).getByRole("button", { name: "Read saved result" }),
+    );
+    expect(
+      await within(old).findByText(
+        "Earlier accepted assessment from a separate attempt",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(old).getByText("The old target conditions may have changed"),
+    ).toBeInTheDocument();
+  });
+  it("does not infer execution or a system judgment for work with no recorded activity", async () => {
+    render("/work?task=task_6", "interrupted");
+    expect(
+      await screen.findByText("No recorded activity for this work item."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "System interruption" }),
+    ).not.toBeInTheDocument();
+  });
   it("offers Audit-local SARIF export beside canonical Project findings", async () => {
     render("/findings");
     const summary = await screen.findByText("Export SARIF", {
