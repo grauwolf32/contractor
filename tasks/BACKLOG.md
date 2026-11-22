@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-67 open tasks: 10 in progress, 44 pending, 13 deferred. 1654 finished: 1636 completed, 18 archived.
+66 open tasks: 10 in progress, 43 pending, 13 deferred. 1655 finished: 1637 completed, 18 archived.
 
 ## In progress
 
@@ -38,8 +38,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | — | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 | [V469-001](v469-001-opencode-audit-prototype.yml) | chore | P1 | — | Prove two ordinary Runs can reuse one OpenCode Audit container |
-| [V479-006](v479-006-resolve-planner-finish-revisions.yml) | feature | P1 | — | Assemble exact Planner finish references without model revisions |
-| [V479-007](v479-007-verify-runtime-owned-tool-versions.yml) | chore | P1 | V479-006 | Verify revision-free model inputs across the integrated tool surface |
+| [V479-007](v479-007-verify-runtime-owned-tool-versions.yml) | chore | P1 | — | Verify revision-free model inputs across the integrated tool surface |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -159,7 +158,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 3 | 50 | 71 | 40 | 107 |
-| Planners and the Worker model boundary (`planner-worker`) | 7 | 49 | 60 | 47 | 94 |
+| Planners and the Worker model boundary (`planner-worker`) | 6 | 49 | 60 | 47 | 94 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |

@@ -5,7 +5,7 @@ milestone: runtime-owned-tool-versions-2026-11
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V479-004
 languages:
@@ -181,3 +181,5 @@ verification_policy: Commands listed here are required implementation checks, no
 assignment: "User request: implement V479 in one pass; deterministic Planner owns finish selection locally."
 
 selection_decision: "Adapter choice within the revision-free contract: each logical Worker's latest accepted result replaces its prior result selection; this is a sequential owner update, not a conflict. An external alias advance cannot retarget it. Distinct Workers or trusted input roles that currently disagree at one address are ambiguous. Arbitrary older revisions at the same address need a distinct existing material binding, not a new model technical version field. The two-checkpoint fixture now returns the latest verified Worker report r2; historical r1 remains readable from retained history but does not silently override that current output."
+
+implementation_commit: 4c38492ebaa42ab6640980afa8f4737b30797aac
