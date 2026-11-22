@@ -1,0 +1,45 @@
+schema_version: '1.0'
+id: V478-031
+title: Keep assigned materials separate from selected result evidence
+milestone: audit-evidence-results-2026-11
+epic: audits
+kind: defect
+introduced_by: V478-002
+priority: P2
+status: completed
+implementation_commit: 65161f2cab39a631d28327b72bb6533252303b51
+depends_on: [V478-002, V478-004]
+languages: [go, markdown]
+goal: Keep assigned materials separate from selected result evidence through the existing Artifact and Audit owners.
+context:
+  authority: 'User request 2026-11-23 in the review side conversation: continue with the two reported defects and the proposed readability improvements.'
+  finding: 'internal/auditimport/selected_evidence.go:55. Combining valid input materials with selected evidence exceeds the context member limit and rejects a valid final package.'
+  siblings: 'Review Runtime prospective admission, Server execution and Audit quotas, normal final import, interrupted collection, scalar and batch judgments, and Finding/Fact source preparation.'
+  boundary: 'Keep existing transaction, authority, exact source and replay ownership. No new store, endpoint, schema variant or model contract.'
+  decision: >-
+    Validate assignment materials and their source authority independently from
+    result membership. The latter includes only cited sources after per-item
+    authorization against assigned materials and accepted evidence. The regression
+    uses a full 256-material assignment plus a selected source/annotation and
+    rejects a foreign source. Real PostgreSQL and process suites cover collection.
+scope:
+  in:
+  - 'Combining valid input materials with selected evidence exceeds the context member limit and rejects a valid final package.'
+  - Real-path regressions and the full suites of touched packages.
+  out:
+  - UI acceptance work, live Audits, demo deployment and changes to another checkout.
+acceptance_criteria:
+- id: A1
+  text: 'Keep assigned materials separate from selected result evidence; existing fences, exact provenance and replay semantics remain enforced.'
+- id: A2
+  text: 'All sibling paths retain their intended behavior and permanent failures remain atomic.'
+- id: A3
+  text: 'Relevant regressions and complete touched-package suites pass; owning specifications agree with the implementation.'
+tests:
+- command: go test -tags=integration -count=1 ./internal/auditservice ./internal/auditimport ./internal/auditstore/... ./internal/runservice
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+verification_notes: >-
+  Accepted 2026-11-23. Validated a full 256-material assignment with a separately selected source and annotation. Only the two authorized cited records enter the result context, and a foreign source is rejected. The original input authority validation remains separate.
+  Full touched Go suites passed with actual PostgreSQL and integration tags: auditservice, auditimport, auditstore/... and runservice. Focused concurrency and regression cases passed with -race. Both real Server/Runtime interruption process cases passed. The regression overlay restoring old behavior failed as expected at all three quota boundaries and the context-union bound. make lint passed; final touched-package go vet and specification checks passed. make test-runtime passed with 6637 tests, 134 declared skips and 577 required compaction cases. Optional disk-heavy fixtures were not enabled; disabled cases are not passing coverage. All owned pools and processes stopped and the owned disposable database was dropped. No deployment or live model call. Logs: /tmp/v478-review-go-final.log, /tmp/v478-review-race-final.log, /tmp/v478-review-process.log, /tmp/v478-review-runtime.log, /tmp/v478-review-lint.log, /tmp/v478-review-before-fix.log.
