@@ -18,7 +18,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
-	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 func TestEngagementHTTPSelectedEvidenceAcrossProcesses(t *testing.T) {
@@ -60,26 +59,27 @@ func selectedHTTPEvidenceAcrossProcesses(t *testing.T, withFinding bool) {
 	paths := []string{target.server.URL + "/api/noise", target.server.URL + "/api/selected"}
 	audit := startEngagementMatrixAudit(t, h, []string{target.server.URL}, paths, []engagementcontract.Route{engagementRoute(target.server.URL, "/api")}, nil, 1024, func() {
 		stage := engagementRequestStage([]map[string]any{{"url": paths[0]}, {"url": paths[1]}})
-		stage.steps[len(stage.steps)-2] = toolGatewayStep("submit_check_result", auditResultArguments(map[string]any{
-			"rationale": "Selected HTTP response denies access in these conditions.", "tested_conditions": []string{"anonymous HTTP request"}, "limitations": []string{}, "evidence": []string{}, "http_request_ids": []int{2},
-		}))
+		final := stage.steps[len(stage.steps)-1]
+		stage.steps = append(stage.steps[:len(stage.steps)-2], toolGatewayStep("evidence", auditHTTPSourceEvidenceArguments([]int{2}, []string{"anonymous HTTP request"})))
 		if withFinding {
-			final := stage.steps[len(stage.steps)-1]
-			final.validate = composeGatewayValidation(final.validate, requireRecordedAuditResults(2))
 			stage.tools = append(stage.tools, "finding")
-			stage.steps = append(stage.steps[:len(stage.steps)-1], toolGatewayStep("finding", fixedArguments(map[string]any{
-				"title": "HTTP denial observation", "description": "A retained anonymous HTTP request received 403; fixture problem publication is explicit.",
-				"sources": []any{map[string]any{"kind": "http", "request_id": 2}},
-			})), toolGatewayStep("submit_check_result", func(request map[string]any) (map[string]any, error) {
+			stage.steps = append(stage.steps, toolGatewayStep("finding", func(request map[string]any) (map[string]any, error) {
+				receipts := findingsToolResponses(request, "evidence")
+				if len(receipts) != 1 || receipts[0]["persistence"] != "accepted" {
+					return nil, fmt.Errorf("HTTP source was not accepted")
+				}
+				return map[string]any{"title": "HTTP denial observation", "description": "A retained anonymous HTTP request received 403; fixture problem publication is explicit.", "sources": receipts[0]["sourceSelectors"]}, nil
+			}))
+		}
+		stage.steps = append(stage.steps, toolGatewayStep("submit_result", func(request map[string]any) (map[string]any, error) {
+			if withFinding {
 				replies := findingsToolResponses(request, "finding")
 				if len(replies) != 1 || replies[0]["receipt_id"] == nil || replies[0]["finding_id"] == nil {
-					return nil, fmt.Errorf("Finding client did not accept selected HTTP receipt: %+v", replies)
+					return nil, fmt.Errorf("Finding did not accept the frozen HTTP source: %+v", replies)
 				}
-				return auditResultArguments(map[string]any{
-					"rationale": "Selected HTTP response denies access in these conditions.", "tested_conditions": []string{"anonymous HTTP request"}, "limitations": []string{}, "evidence": []string{}, "http_request_ids": []int{2},
-				})(request)
-			}), final)
-		}
+			}
+			return auditResultArguments(map[string]any{"rationale": "Selected HTTP response denies access in these conditions.", "limitations": []string{}})(request)
+		}), final)
 		h.gateway.mu.Lock()
 		defer h.gateway.mu.Unlock()
 		h.gateway.stages = []domainGatewayStage{stage}
@@ -96,15 +96,19 @@ func selectedHTTPEvidenceAcrossProcesses(t *testing.T, withFinding bool) {
 			Evidence []contracts.MaterialDescriptor `json:"evidence"`
 		} `json:"items"`
 	}
-	if err := json.Unmarshal(result, &document); err != nil || document.Schema != "contractor.audit.result.v1" || len(document.Items) != 1 || len(document.Items[0].Evidence) != 1 {
+	if err := json.Unmarshal(result, &document); err != nil || document.Schema != "contractor.audit.result.v1" || len(document.Items) != 1 || len(document.Items[0].Evidence) != 2 {
 		t.Fatalf("invalid retained result: %s %v", result, err)
 	}
-	material := document.Items[0].Evidence[0]
+	var material contracts.MaterialDescriptor
+	for _, source := range document.Items[0].Evidence {
+		if source.MediaType == auditdomain.HTTPExchangeMediaType {
+			material = source
+		}
+	}
 	if material.ScopeKind != "audit" || material.ScopeID != audit || material.MediaType != auditdomain.HTTPExchangeMediaType {
 		t.Fatalf("foreign evidence: %+v", material)
 	}
-	descriptor, _ := strictjson.Canonical(material)
-	key := "evidence/" + strings.TrimPrefix(contentdigest.Bytes(descriptor), "sha256:")
+	key := selectedAuditMaterialKey(t, h.findingsHarness, audit, material)
 	read := func() []byte {
 		path := "/v1/audits/" + audit + "/artifacts?" + url.Values{"key": {key}, "revision": {*material.Ref.Revision}}.Encode()
 		request, err := http.NewRequestWithContext(h.ctx, http.MethodGet, h.baseURL+path, nil)

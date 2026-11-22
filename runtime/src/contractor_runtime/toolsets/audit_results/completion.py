@@ -44,7 +44,6 @@ from contractor_runtime.toolsets.audit_results.publication import (
     DeterministicAuditResultPublisher,
     PublicationArtifactClient,
 )
-from contractor_runtime.toolsets.common.http_publication import HTTPExchangePublisher
 
 
 class PreparedAuditCompletion(PreparedWorkerCompletion):
@@ -59,7 +58,6 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
         encoder: CanonicalAuditResultEncoder,
         client: PublicationArtifactClient,
         request_timeout: float,
-        captures=None,
     ):
         self.contract = contract.model_copy(deep=True)
         self._inputs = inputs
@@ -68,11 +66,6 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
         self.run_id = encoder.trusted_inputs(inputs).run_id
         self._client = client
         self._request_timeout = request_timeout
-        self._http_publisher = (
-            None
-            if captures is None
-            else HTTPExchangePublisher(client, captures, self.run_id, request_timeout)
-        )
         self._collector: InvocationAuditCollector | None = None
         self._reminders = 0
         self.diagnostics = None
@@ -115,7 +108,7 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
             await self.phase_sink(self.diagnostics)
 
     @classmethod
-    async def prepare(cls, *, contract, allocation_id, client, timeout, captures=None):
+    async def prepare(cls, *, contract, allocation_id, client, timeout):
         if client.allocation_id != allocation_id:
             raise AuditResultError("audit_result_invalid")
         async with asyncio.timeout(timeout):
@@ -139,7 +132,7 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
             records.item_keys,
         )
         inputs = AuditTrustedInputs(owner, context.data)
-        return cls(contract, inputs, encoder, client, timeout, captures=captures)
+        return cls(contract, inputs, encoder, client, timeout)
 
     def current(self) -> InvocationAuditCollector:
         if self._collector is None:
@@ -152,9 +145,7 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
         inputs = replace(
             self._inputs, owner=replace(self._inputs.owner, invocation_id=invocation_id)
         )
-        self._collector = InvocationAuditCollector(
-            inputs, self._encoder, http_publisher=self._http_publisher
-        )
+        self._collector = InvocationAuditCollector(inputs, self._encoder)
         self._reminders = 0
         self.reset_diagnostics()
 
@@ -204,7 +195,7 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
             self._reminders += 1
             await self.record_phase("collecting")
             return ContinueCompletion(
-                "Runtime completion reminder: use read_audit_task and submit_check_result "
+                "Runtime completion reminder: use read_audit_task and submit_result "
                 "to record "
                 "the missing assigned items: " + ", ".join(missing) + ". "
                 "Use only verdicts and evidence permitted by each task; "

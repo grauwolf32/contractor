@@ -61,10 +61,19 @@ func TestAuditInvestigationInstructionCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, ref := range []string{"audit_source_checker@7", "audit_wstg_http_verifier@7", "audit_openapi_operation_tracer@6", "audit_openapi_operation_observer@5", "audit_asvs_source_verifier@6", "audit_standard_source_verifier@6", "audit_risk_source_checker@6", "source_findings_reviewer@4"} {
+	for _, ref := range []string{"audit_source_checker@8", "audit_wstg_http_verifier@8", "audit_openapi_operation_tracer@7", "audit_openapi_operation_observer@6", "audit_asvs_source_verifier@7", "audit_standard_source_verifier@7", "audit_risk_source_checker@7", "source_findings_reviewer@4"} {
 		template, err := configloadtest.AgentTemplate(snapshot, ref)
 		if err != nil {
 			t.Fatal(err)
+		}
+		finding := false
+		for _, selection := range template.Toolsets {
+			for _, tool := range selection.Tools {
+				finding = finding || tool == "finding"
+			}
+		}
+		if !finding {
+			t.Fatalf("%s cannot publish an incidental evidenced problem", ref)
 		}
 		text := template.Instructions.Text
 		for _, guidance := range []string{"A first finding or one", "publish before final result submission", "what remains unexamined or uncertain", "Zero findings is valid"} {

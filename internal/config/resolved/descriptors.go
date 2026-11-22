@@ -146,7 +146,7 @@ func builtInDescriptors() descriptorTable {
 				Tools: []string{"submit_hypothesis_proposals"},
 			},
 			AuditResultsToolsetID + "@" + AuditResultsToolsetVersion: {
-				Tools: []string{ReadAuditTaskTool, SubmitCheckResultTool, SubmitCheckResultsTool, EvidenceTool},
+				Tools: []string{ReadAuditTaskTool, SubmitResultTool, SubmitResultsTool, EvidenceTool},
 			},
 			"security-findings@1": {
 				Tools:                []string{"finding", "fact", "list_findings", "list_project_findings", "read_project_finding", "select_project_findings", "read_finding_selection"},

@@ -398,7 +398,7 @@ func auditCompactionStep(request map[string]any, n int) (string, map[string]any,
 	if n == 8 {
 		args["evidence"] = []string{"made-up"}
 	}
-	return "submit_check_result", args, tokens, nil
+	return "submit_result", args, tokens, nil
 }
 
 func startCompactAuditProcess(t *testing.T, h *findingsHarness) string {

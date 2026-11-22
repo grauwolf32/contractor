@@ -23,7 +23,7 @@ func TestSharedPostgresCommonCompletionPinsExactRunContextAndMembership(t *testi
 				stage := workflow.Stages["check"]
 				agent := stage.Agents["builder"]
 				agent.Template.Summarizer = nil
-				agent.Template.Toolsets = append(agent.Template.Toolsets, contracts.ToolsetSelection{Ref: contracts.ToolsetRef{ToolsetID: "audit-results", Version: "2"}, Tools: []string{"read_audit_task", "submit_check_result", "submit_check_results", "evidence"}})
+				agent.Template.Toolsets = append(agent.Template.Toolsets, contracts.ToolsetSelection{Ref: contracts.ToolsetRef{ToolsetID: "audit-results", Version: "2"}, Tools: []string{"read_audit_task", "submit_result", "submit_results", "evidence"}})
 				stage.Agents["builder"] = agent
 				workflow.Stages["check"] = stage
 			}, members)

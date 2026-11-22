@@ -17,11 +17,8 @@ from contractor_runtime.toolsets.common.arguments import (
 class BatchResultArgument(TypedDict):
     item_key: str
     rationale: str
-    tested_conditions: list[str] | str
     limitations: list[str] | str
-    evidence: NotRequired[list[str] | str]
     verdict: NotRequired[AuditVerdict]
-    http_request_ids: NotRequired[list[int] | str]
 
 
 class AuditArgumentError(ToolInputError, ToolResultDiagnostic):

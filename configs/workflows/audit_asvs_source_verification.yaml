@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: Workflow
 metadata:
   name: audit-asvs-source-verification
-  version: "6"
+  version: "7"
 spec:
   parameters: {}
   inputs:
@@ -30,11 +30,11 @@ spec:
     check:
       objective: Evaluate one exact ASVS requirement against the supplied source and documentation
       instructions:
-        ref: instructions/audit-asvs-source-verifier-worker-project-findings-keyed-results-runtime-versions-investigation-sources.md
+        ref: instructions/audit-asvs-source-verifier-worker-project-findings-keyed-results-runtime-versions-investigation-sources-thin-results.md
       planner: passthrough@1
       agents:
         verifier:
-          template: audit_asvs_source_verifier@6
+          template: audit_asvs_source_verifier@7
           namespace: audit-asvs
       context:
         artifacts:

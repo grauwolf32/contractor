@@ -76,7 +76,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result", "submit_check_results", "evidence"]
+              "submit_result", "submit_results", "evidence"]
           }
         ]
       },
@@ -445,7 +445,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result", "submit_check_results", "evidence"]
+              "submit_result", "submit_results", "evidence"]
           }
         ]
       },
@@ -557,7 +557,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result", "submit_check_results", "evidence"]
+              "submit_result", "submit_results", "evidence"]
           }
         ]
       },
@@ -668,7 +668,7 @@
               "version": "2"
             },
             "tools": [
-              "submit_check_result"
+              "submit_result"
             ]
           }
         ]
@@ -884,7 +884,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result", "submit_check_results", "evidence"]
+              "submit_result", "submit_results", "evidence"]
           },
           {
             "ref": {
@@ -893,7 +893,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result", "submit_check_results", "evidence"]
+              "submit_result", "submit_results", "evidence"]
           }
         ]
       },
@@ -1010,7 +1010,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result", "submit_check_results", "evidence"]
+              "submit_result", "submit_results", "evidence"]
           }
         ]
       },
@@ -1134,7 +1134,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result", "submit_check_results", "evidence"]
+              "submit_result", "submit_results", "evidence"]
           }
         ]
       },
@@ -1268,7 +1268,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result", "submit_check_results", "evidence"]
+              "submit_result", "submit_results", "evidence"]
           }
         ],
         "summarizer": {
@@ -1407,7 +1407,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result", "submit_check_results", "evidence"]
+              "submit_result", "submit_results", "evidence"]
           }
         ]
       },
@@ -1541,7 +1541,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result", "submit_check_results", "evidence"]
+              "submit_result", "submit_results", "evidence"]
           }
         ],
         "summarizer": {
@@ -1680,7 +1680,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result", "submit_check_results", "evidence"]
+              "submit_result", "submit_results", "evidence"]
           }
         ]
       },
@@ -1802,7 +1802,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result", "submit_check_results", "evidence"]
+              "submit_result", "submit_results", "evidence"]
           }
         ],
         "summarizer": {

@@ -16,6 +16,7 @@ from contractor_runtime.toolsets.audit_results.contracts import (
     MAX_ITEMS,
     MAX_PROPOSAL_KEYS,
     MAX_REVISION,
+    MAX_VALUES,
     AuditRecordReceipt,
     AuditSnapshot,
     AuditTrustedInputs,
@@ -26,10 +27,8 @@ from contractor_runtime.toolsets.audit_results.contracts import (
 from contractor_runtime.toolsets.audit_results.encoding import (
     AuditResultError,
     CanonicalAuditResultEncoder,
-    evidence_handles,
 )
 from contractor_runtime.toolsets.common.cwe import CWEReferenceError, check_cwe_reference
-from contractor_runtime.toolsets.common.http_publication import HTTPSelectionLimitError
 
 
 class AuditCollectionError(WorkerCompletionError, ToolInputError):
@@ -67,13 +66,9 @@ class InvocationAuditCollector:
         self,
         inputs: AuditTrustedInputs,
         encoder: CanonicalAuditResultEncoder,
-        *,
-        http_publisher=None,
     ):
         self._inputs, self._encoder = inputs, encoder
         self._tasks = encoder.trusted_inputs(inputs).items
-        self._http_publisher = http_publisher
-        self._http_selected = {}
         self._items: dict[str, RecordedAuditItem] = {}
         self._evidence: dict[str, dict] = {}
         self._response_revisions: dict[str, int] | None = None
@@ -103,9 +98,16 @@ class InvocationAuditCollector:
             self.check_invocation(invocation_id)
             tasks = deepcopy(list(self._tasks.values()))
             for task in tasks:
-                task["evidence"] = [
-                    {"handle": handle, "material": material}
-                    for handle, material in evidence_handles(task).items()
+                task["materials"] = [
+                    {
+                        "material": material,
+                        "source": {
+                            "kind": "artifact",
+                            "namespace": material["ref"]["namespace"],
+                            "name": material["ref"]["name"],
+                        },
+                    }
+                    for material in task.pop("evidence")
                 ]
             return {"batchSize": len(tasks), "tasks": tasks}
 
@@ -158,6 +160,20 @@ class InvocationAuditCollector:
             self.check_invocation(invocation_id)
             if item_key not in self._tasks:
                 raise AuditCollectionError("item_key", "Choose an assigned check.")
+            for field, values in (
+                ("tested_conditions", tested_conditions),
+                ("limitations", limitations),
+            ):
+                combined = {
+                    value
+                    for r in self._evidence.values()
+                    if r["itemKey"] == item_key
+                    for value in r[field]
+                }
+                if len(combined.union(values)) > MAX_VALUES:
+                    raise AuditCollectionError(
+                        field, "Combined evidence notes exceed the result limit."
+                    )
             receipt = await save()
             key = jcs.canonicalize(receipt["material"]).decode()
             if key not in self._evidence and len(self._evidence) >= MAX_EVIDENCE:
@@ -172,12 +188,31 @@ class InvocationAuditCollector:
             return receipt
 
     def _with_evidence(self, item):
+        if not isinstance(item, NormalizedAuditItem) or item.item_key not in self._tasks:
+            raise AuditCollectionError("item_key", "Choose an item key from read_audit_task.")
         records = [r for r in self._evidence.values() if r["itemKey"] == item.item_key]
         selected = {jcs.canonicalize(source) for r in records for source in r["sources"]}
-        # Interpretation/conditions remain attributed in the independently retained
-        # annotation. The result freezes its exact association and source selection.
+        # Exact annotations preserve authorship and applicability. Their conditions
+        # and gaps are assembled without promoting grounds or incidental Findings.
         selected.update(jcs.canonicalize(r["material"]) for r in records)
-        return replace(item, selected_evidence=tuple(sorted(selected)))
+        conditions = tuple(
+            dict.fromkeys(value for r in records for value in r["tested_conditions"])
+        )
+        gaps = tuple(
+            dict.fromkeys(
+                (*item.limitations, *(value for r in records for value in r["limitations"]))
+            )
+        )
+        if len(conditions) > MAX_VALUES or len(gaps) > MAX_VALUES or len(selected) > MAX_EVIDENCE:
+            raise AuditCollectionError(
+                "limitations", "Combined evidence and judgment exceed the result limits."
+            )
+        return replace(
+            item,
+            tested_conditions=conditions,
+            limitations=gaps,
+            selected_evidence=tuple(sorted(selected)),
+        )
 
     def _retained_evidence_bytes(self):
         return sum(
@@ -195,15 +230,14 @@ class InvocationAuditCollector:
                 "verdict", "Supply a verdict only for a task with an assigned hypothesis."
             )
         if item.verdict in {"supported", "refuted"} and (
-            not item.tested_conditions or not (item.evidence or item.http_request_ids)
+            not item.tested_conditions or not item.selected_evidence
         ):
             raise AuditCollectionError(
-                "evidence", "A conclusive check needs tested conditions and selected evidence."
+                "verdict",
+                "Call evidence with sources and tested conditions before a conclusive judgment.",
             )
         if item.verdict == "inconclusive" and not item.limitations:
             raise AuditCollectionError("limitations", "Explain why the check is inconclusive.")
-        if any(handle not in evidence_handles(member) for handle in item.evidence):
-            raise AuditCollectionError("evidence", "Use evidence handles from this assigned task.")
         return item
 
     def _snapshot(self, items=None):
@@ -219,18 +253,7 @@ class InvocationAuditCollector:
                 partial(self._encoder.encode, self._snapshot(prospective), inputs=self.inputs),
                 name="audit-admission-encode",
             )
-            selected = {
-                request_id
-                for record in prospective.values()
-                for request_id in record.value.http_request_ids
-            }
-            if (
-                len(selected) > MAX_EVIDENCE
-                or len(encoded.data)
-                + self._retained_evidence_bytes()
-                + sum(self._http_selected[key][1] for key in selected)
-                > MAX_COLLECTED_BYTES
-            ):
+            if len(encoded.data) + self._retained_evidence_bytes() > MAX_COLLECTED_BYTES:
                 raise AuditResultError("audit_result_size_exceeded")
         except AuditResultError:
             raise AuditCollectionError(
@@ -264,10 +287,10 @@ class InvocationAuditCollector:
             expected_revision = self.item_base(item.item_key)
         async with self._lock:
             self._check_live(writing=True)
-            item = self._with_evidence(self._validate(item))
+            item = self._validate(self._with_evidence(item))
             key = item.item_key
             current = self._items.get(key)
-            if current is not None and replace(current.value, http_evidence=()) == item:
+            if current is not None and current.value == item:
                 return self._receipt()
             if (current.revision if current else None) != expected_revision:
                 raise AuditCollectionError(
@@ -279,7 +302,6 @@ class InvocationAuditCollector:
             revision = 1 if current is None else current.revision + 1
             if revision > MAX_REVISION:
                 raise AuditCollectionError("item_key", "Revision limit reached.", item_key=key)
-            (item,) = await self._resolve_http((item,))
             prospective = {**self._items, key: RecordedAuditItem(item, revision)}
             await self._admit(prospective)
             # The lock is still held: nothing changed the collection while
@@ -292,7 +314,7 @@ class InvocationAuditCollector:
             self._check_live(writing=True)
             if not isinstance(items, tuple) or len(items) != len(self.owner.item_keys):
                 raise AuditCollectionError("items", "Provide every assigned item key exactly once.")
-            values = tuple(self._with_evidence(self._validate(item)) for item in items)
+            values = tuple(self._validate(self._with_evidence(item)) for item in items)
             keyed = {item.item_key: item for item in values}
             if len(keyed) != len(values) or set(keyed) != set(self.owner.item_keys):
                 raise AuditCollectionError("items", "Provide every assigned item key exactly once.")
@@ -300,7 +322,7 @@ class InvocationAuditCollector:
             prospective = dict(self._items)
             for item in values:
                 current = prospective.get(item.item_key)
-                if current is not None and replace(current.value, http_evidence=()) != item:
+                if current is not None and current.value != item:
                     raise AuditCollectionError(
                         "results",
                         "Existing result differs; correct it with a single-item submission.",
@@ -309,57 +331,9 @@ class InvocationAuditCollector:
                     )
                 if current is None:
                     prospective[item.item_key] = RecordedAuditItem(item, 1)
-            resolved = await self._resolve_http(values)
-            for item in resolved:
-                prospective[item.item_key] = RecordedAuditItem(
-                    item, prospective[item.item_key].revision
-                )
             await self._admit(prospective)
             self._items = prospective
             return self._receipt()
-
-    async def _resolve_http(self, items):
-        ids = tuple(dict.fromkeys(key for item in items for key in item.http_request_ids))
-        missing = [key for key in ids if key not in self._http_selected]
-        if missing:
-            if self._http_publisher is None:
-                raise AuditCollectionError(
-                    "http_request_ids", "HTTP evidence is unavailable in this invocation."
-                )
-            try:
-                pending = await self._http_publisher.prepare(
-                    self.owner.invocation_id,
-                    missing,
-                    max_bytes=MAX_COLLECTED_BYTES
-                    - sum(size for _, size in self._http_selected.values()),
-                )
-            except HTTPSelectionLimitError:
-                raise AuditCollectionError(
-                    "http_request_ids", "Selected HTTP evidence exceeds the collection budget."
-                ) from None
-            except ValueError:
-                raise AuditCollectionError(
-                    "http_request_ids", "HTTP evidence is unavailable in this invocation."
-                ) from None
-            if (
-                len(self._http_selected) + len(pending) > MAX_EVIDENCE
-                or sum(size for _, size in self._http_selected.values())
-                + sum(len(raw) for _, raw in pending)
-                > MAX_COLLECTED_BYTES
-            ):
-                raise AuditCollectionError(
-                    "http_request_ids", "Selected HTTP evidence exceeds the collection budget."
-                )
-            for key, raw in pending:
-                material = await self._http_publisher.publish(self.owner.invocation_id, key, raw)
-                self._http_selected[key] = (material, len(raw))
-        return tuple(
-            replace(
-                item,
-                http_evidence=tuple(self._http_selected[key][0] for key in item.http_request_ids),
-            )
-            for item in items
-        )
 
     async def snapshot(self):
         async with self._lock:
@@ -383,5 +357,4 @@ class InvocationAuditCollector:
             self._items.clear()
             self._response_revisions = None
             self._proposals.clear()
-            self._http_selected.clear()
             self._evidence.clear()

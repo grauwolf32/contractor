@@ -47,10 +47,6 @@ class AuditContextRecords:
         return tuple(self.items)
 
 
-def evidence_handles(member: dict) -> dict[str, dict]:
-    return {f"evidence-{index:03d}": value for index, value in enumerate(member["evidence"])}
-
-
 class CanonicalAuditResultEncoder:
     """Decode one bounded context per allocation, then encode prospective results.
 
@@ -98,14 +94,10 @@ class CanonicalAuditResultEncoder:
             if checking != (value.verdict is not None):
                 raise AuditResultError("audit_result_invalid")
             if value.verdict in {"supported", "refuted"} and (
-                not value.tested_conditions
-                or not (value.evidence or value.http_evidence or value.selected_evidence)
+                not value.tested_conditions or not value.selected_evidence
             ):
                 raise AuditResultError("audit_result_invalid")
             if value.verdict == "inconclusive" and not value.limitations:
-                raise AuditResultError("audit_result_invalid")
-            allowed = evidence_handles(member)
-            if any(handle not in allowed for handle in value.evidence):
                 raise AuditResultError("audit_result_invalid")
             items.append(
                 {
@@ -113,9 +105,7 @@ class CanonicalAuditResultEncoder:
                     "rationale": value.rationale,
                     "tested_conditions": list(value.tested_conditions),
                     "limitations": list(value.limitations),
-                    "evidence": [allowed[handle] for handle in value.evidence]
-                    + [json.loads(raw) for raw in value.http_evidence]
-                    + [json.loads(raw) for raw in value.selected_evidence],
+                    "evidence": [json.loads(raw) for raw in value.selected_evidence],
                     **({"verdict": value.verdict} if checking else {}),
                 }
             )

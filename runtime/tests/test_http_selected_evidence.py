@@ -15,12 +15,17 @@ from contractor_runtime.artifacts import (
     ArtifactHTTPResponse,
     ArtifactTransportError,
 )
+from contractor_runtime.audit_evidence import evidence_snapshot_ref
+from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.digests import sha256_digest
 from contractor_runtime.toolsets.audit_results.collector import InvocationAuditCollector
 from contractor_runtime.toolsets.audit_results.encoding import CanonicalAuditResultEncoder
-from contractor_runtime.toolsets.audit_results.v2 import SubmitCheckResultTool
+from contractor_runtime.toolsets.audit_results.evidence import EvidenceTool
+from contractor_runtime.toolsets.audit_results.v2 import SubmitResultTool
 from contractor_runtime.toolsets.common.http_capture import HTTPObservation, RecentHTTPCaptures
-from contractor_runtime.toolsets.common.http_publication import HTTPExchangePublisher
 from contractor_runtime.toolsets.http.controlled import ControlledHTTPSession
+from contractor_runtime.worker.instrumentation import _safe_tool_response
 
 
 class EvidenceTransport:
@@ -28,9 +33,69 @@ class EvidenceTransport:
         self.values = {}
         self.requests = []
         self.lose_reply = lose_reply
+        self.receipts = {}
 
     async def request(self, method, path, *, headers, body, max_response_bytes):
         self.requests.append((method, path))
+        if method == "POST" and path.endswith("/audit-evidence"):
+            value = json.loads(body)
+            identity = value["submissionId"]
+            if identity in self.receipts:
+                return json_response(200, {**self.receipts[identity], "replayed": True})
+            sources, selected = [], []
+            for ref in value["sources"]:
+                key = next(
+                    key
+                    for key in self.values
+                    if key.endswith("/" + ref["namespace"] + "/" + ref["name"])
+                )
+                raw = self.values[key]
+                material = {
+                    "scope_kind": "audit",
+                    "scope_id": "audit-1",
+                    "ref": {**ref, "namespace": "audit-fixture"},
+                    "digest": sha256_digest(raw),
+                    "media_type": "application/vnd.contractor.http-exchange+json",
+                    "size_bytes": len(raw),
+                }
+                sources.append(material)
+                snapshot = evidence_snapshot_ref(ArtifactRef.model_validate(ref))
+                selected.append(
+                    {
+                        **material,
+                        "scope_kind": "run",
+                        "scope_id": "run-1",
+                        "ref": {
+                            **snapshot.model_dump(exclude_none=True),
+                            "revision": "snapshot-r1",
+                        },
+                    }
+                )
+            receipt = {
+                "apiVersion": "contractor/v1alpha1",
+                "itemKey": value["itemKey"],
+                "sources": sources,
+                "selectedSources": selected,
+                "material": {
+                    "scope_kind": "audit",
+                    "scope_id": "audit-1",
+                    "ref": {
+                        "namespace": "audit-fixture",
+                        "name": "note-" + sha256_digest(body).removeprefix("sha256:"),
+                        "revision": "note-r1",
+                    },
+                    "digest": sha256_digest(body),
+                    "media_type": "application/json",
+                    "size_bytes": len(body),
+                },
+                "replayed": False,
+            }
+            assert (
+                sum(len(row["sources"]) + 1 for row in self.receipts.values()) + len(sources) + 1
+                <= 256
+            )
+            self.receipts[identity] = receipt
+            return json_response(201, receipt)
         if method == "PUT":
             if path in self.values:
                 return json_response(
@@ -71,13 +136,38 @@ class EvidenceTransport:
 def result_tool(captures, *, lose_reply=False, batch=False):
     _, inputs = assigned(batch=batch)
     transport = EvidenceTransport(lose_reply=lose_reply)
-    publisher = HTTPExchangePublisher(
-        ArtifactClient("allocation-1", transport), captures, "run-1", 5
-    )
+    state = WorkerState()
+    state.resources.http_captures = captures
+    client = ArtifactClient("allocation-1", transport)
     encoder = CanonicalAuditResultEncoder()
-    collector = InvocationAuditCollector(inputs, encoder, http_publisher=publisher)
-    tool = SubmitCheckResultTool(collector, WorkerState().metrics)
+    collector = InvocationAuditCollector(inputs, encoder)
+    tool = SubmitResultTool(collector, state.metrics)
+    tool.evidence = EvidenceTool(lambda: collector, client, state.resources, "run-1", "worker", 5)
     return collector, tool, transport, encoder, inputs
+
+
+async def select_and_judge(
+    tool, context, *, item_key, rationale, conditions, limitations, verdict, request_ids
+):
+    """Run two explicit model operations through their actual production facades."""
+    evidence_context = SimpleNamespace(
+        invocation_id=context.invocation_id,
+        function_call_id="select-" + item_key + "-" + "-".join(map(str, request_ids)),
+    )
+    try:
+        await tool.evidence(
+            item_key=item_key,
+            sources=[{"kind": "http", "request_id": key} for key in request_ids],
+            interpretation=rationale,
+            tested_conditions=conditions,
+            limitations=limitations,
+            tool_context=evidence_context,
+        )
+    except ToolInputError as error:
+        return _safe_tool_response("evidence", error)
+    return await tool(
+        context, item_key=item_key, rationale=rationale, limitations=limitations, verdict=verdict
+    )
 
 
 async def request(session, url):
@@ -119,14 +209,13 @@ def test_selected_redirect_survives_reply_loss_eviction_and_cleanup_without_find
             selected = await request(session, target.origin + "/allowed")
             args = dict(
                 rationale="Access was denied in the tested conditions.",
-                tested_conditions=["Selected anonymous request"],
+                conditions=["Selected anonymous request"],
                 limitations=[],
-                evidence=[],
                 verdict="refuted",
-                http_request_ids=[selected["request_id"]],
+                request_ids=[selected["request_id"]],
             )
             context = SimpleNamespace(invocation_id="invocation-1")
-            receipt = await tool(context, item_key="check-authz", **args)
+            receipt = await select_and_judge(tool, context, item_key="check-authz", **args)
             assert receipt["status"] == "recorded", receipt
             assert len(transport.values) == 1
             payload = next(iter(transport.values.values()))
@@ -148,11 +237,21 @@ def test_selected_redirect_survives_reply_loss_eviction_and_cleanup_without_find
             assert capture["request_tag"].encode() in target.requests[1]
             captures.clear("http")
             calls = len(transport.requests)
-            assert await tool(context, item_key="check-authz", **args) == receipt
+            assert (
+                await tool(
+                    context,
+                    item_key="check-authz",
+                    **{key: args[key] for key in ("rationale", "limitations", "verdict")},
+                )
+                == receipt
+            )
             assert len(transport.requests) == calls
             sealed = await collector.seal()
             result = json.loads(encoder.encode(sealed, inputs=inputs).data)
-            assert result["items"][0]["evidence"][0]["ref"]["namespace"] == "http-exchanges"
+            assert all(
+                material["scope_kind"] == "audit" for material in result["items"][0]["evidence"]
+            )
+            assert len(result["items"][0]["evidence"]) == 2
             assert len(target.requests) == 3
             await session.close()
             assert not captures._entries
@@ -178,17 +277,17 @@ def test_unavailable_selection_has_no_result_mutation_or_artifact(kind):
             )
         if kind == "evicted":
             captures.clear("http")
-        response = await tool(
+        response = await select_and_judge(
+            tool,
             SimpleNamespace(invocation_id="invocation-1"),
             item_key="check-authz",
             rationale="Unavailable observation",
-            tested_conditions=["probe"],
+            conditions=["probe"],
             limitations=[],
-            evidence=[],
             verdict="refuted",
-            http_request_ids=[1],
+            request_ids=[1],
         )
-        assert response["status"] == "error"
+        assert "error" in response
         assert not (await collector.snapshot()).items
         assert not transport.requests
 
@@ -203,7 +302,7 @@ def test_full_recent_buffer_selection_and_two_member_evidence_bound():
         collector, tool, transport, encoder, inputs = result_tool(captures, batch=True)
         context = SimpleNamespace(invocation_id="invocation-1")
         for batch, key in enumerate(collector.owner.item_keys):
-            ids = list(range(1 + batch * 128, 129 + batch * 128))
+            ids = list(range(1, 129)) if batch == 0 else list(range(129, 255))
             for request_id in ids:
                 assert captures.new_http_request() == request_id
                 await captures.put(
@@ -211,27 +310,27 @@ def test_full_recent_buffer_selection_and_two_member_evidence_bound():
                     "invocation-1",
                     observation=HTTPObservation("2026-11-06T18:20:00Z"),
                 )
-            result = await tool(
+            result = await select_and_judge(
+                tool,
                 context,
                 item_key=key,
                 rationale="Bounded failed probes",
-                tested_conditions=["Explicit target attempts"],
+                conditions=["Explicit target attempts"],
                 limitations=["Transport failure leaves the hypothesis unresolved"],
-                evidence=[],
                 verdict="inconclusive",
-                http_request_ids=ids,
+                request_ids=ids,
             )
             assert result["status"] == "recorded", result
-        assert len(transport.values) == 256
+        assert len(transport.values) == 254
         output = json.loads(encoder.encode(await collector.seal(), inputs=inputs).data)
-        assert [len(item["evidence"]) for item in output["items"]] == [128, 128]
+        assert [len(item["evidence"]) for item in output["items"]] == [129, 127]
         assert len(captures._entries) == 128
         await collector.discard()
 
     asyncio.run(scenario())
 
 
-def test_batch_foreign_capture_rejects_before_any_publication():
+def test_mixed_foreign_capture_selection_rejects_before_any_publication():
     async def scenario():
         from test_http_capture import capture
 
@@ -244,25 +343,17 @@ def test_batch_foreign_capture_rejects_before_any_publication():
                 observation=HTTPObservation("2026-11-06T18:20:00Z"),
             )
         collector, tool, transport, _, _ = result_tool(captures, batch=True)
-        from contractor_runtime.toolsets.audit_results.v2 import SubmitCheckResultsTool
-
-        tool = SubmitCheckResultsTool(collector, WorkerState().metrics)
-        result = await tool(
-            SimpleNamespace(invocation_id="invocation-1"),
-            items=[
-                dict(
-                    item_key="check-authz" if request_id == 1 else "check-input",
-                    rationale="Observe probe",
-                    tested_conditions=[],
-                    limitations=["Unavailable response"],
-                    evidence=[],
-                    verdict="inconclusive",
-                    http_request_ids=[request_id],
-                )
-                for request_id in (1, 2)
-            ],
-        )
-        assert result["status"] == "error"
+        with pytest.raises(ToolInputError):
+            await tool.evidence(
+                item_key="check-authz",
+                sources=[{"kind": "http", "request_id": key} for key in (1, 2)],
+                interpretation="Select actual probes",
+                tested_conditions=["actual probes"],
+                limitations=[],
+                tool_context=SimpleNamespace(
+                    invocation_id="invocation-1", function_call_id="mixed"
+                ),
+            )
         assert not (await collector.snapshot()).items
         assert not transport.requests
 
@@ -273,26 +364,26 @@ def test_selected_bytes_are_bounded_before_publication(monkeypatch):
     async def scenario():
         from test_http_capture import capture
 
-        from contractor_runtime.toolsets.audit_results import collector as module
+        from contractor_runtime.toolsets.common import sources as module
 
-        monkeypatch.setattr(module, "MAX_COLLECTED_BYTES", 64)
+        monkeypatch.setattr(module, "MAX_PREPARED_SOURCE_BYTES", 64)
         captures = RecentHTTPCaptures()
         captures.new_http_request()
         await captures.put(
             capture("1"), "invocation-1", observation=HTTPObservation("2026-11-06T18:20:00Z")
         )
         collector, tool, transport, _, _ = result_tool(captures)
-        result = await tool(
+        result = await select_and_judge(
+            tool,
             SimpleNamespace(invocation_id="invocation-1"),
             item_key="check-authz",
             rationale="Oversized selection",
-            tested_conditions=[],
+            conditions=[],
             limitations=["Evidence budget"],
-            evidence=[],
             verdict="inconclusive",
-            http_request_ids=[1],
+            request_ids=[1],
         )
-        assert result["status"] == "error" and "budget" in result["error"]["message"]
+        assert "error" in result and "budget" in result["error"]["message"]
         assert not transport.requests
         assert not (await collector.snapshot()).items
 
@@ -386,15 +477,15 @@ def test_selected_api_key_evidence_masks_injected_headers(header_name, secret, r
                     invocation_id="invocation-1",
                 )
                 result = await session.request(**options, credential_id="credential-account-a")
-                selected = await tool(
+                selected = await select_and_judge(
+                    tool,
                     SimpleNamespace(invocation_id="invocation-1"),
                     item_key="check-authz",
                     rationale="Record the selected exchange.",
-                    tested_conditions=["Selected credential"],
+                    conditions=["Selected credential"],
                     limitations=["A single exchange does not establish a verdict."],
-                    evidence=[],
                     verdict="inconclusive",
-                    http_request_ids=[result["request_id"]],
+                    request_ids=[result["request_id"]],
                 )
                 assert selected["status"] == "recorded", selected
                 assert len(published.values) == 1
@@ -465,15 +556,15 @@ def test_failed_and_truncated_actual_exchanges_remain_selectable_as_inconclusive
                 else:
                     result = await request(session, target.origin + "/allowed")
                     assert result["body_truncated"]
-                result = await tool(
+                result = await select_and_judge(
+                    tool,
                     SimpleNamespace(invocation_id="invocation-1"),
                     item_key="check-authz",
                     rationale="A bounded probe did not establish the claim.",
-                    tested_conditions=["Explicit request"],
+                    conditions=["Explicit request"],
                     limitations=["Unavailable or partial response"],
-                    evidence=[],
                     verdict="inconclusive",
-                    http_request_ids=[1],
+                    request_ids=[1],
                 )
                 assert result["status"] == "recorded", result
                 capture = json.loads(next(iter(transport.values.values())))["capture"]
@@ -513,15 +604,15 @@ def test_cancellation_joins_publication_and_never_claims_result_acceptance(commi
 
         transport.request = blocked
         task = asyncio.create_task(
-            tool(
+            select_and_judge(
+                tool,
                 SimpleNamespace(invocation_id="invocation-1"),
                 item_key="check-authz",
                 rationale="Interrupted persistence",
-                tested_conditions=[],
+                conditions=[],
                 limitations=["Publication interrupted"],
-                evidence=[],
                 verdict="inconclusive",
-                http_request_ids=[1],
+                request_ids=[1],
             )
         )
         await entered.wait()

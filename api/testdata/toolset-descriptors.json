@@ -18,8 +18,8 @@
       "tools": [
         "evidence",
         "read_audit_task",
-        "submit_check_result",
-        "submit_check_results"
+        "submit_result",
+        "submit_results"
       ],
       "infrastructureChannels": {},
       "requiresWorkspace": false,

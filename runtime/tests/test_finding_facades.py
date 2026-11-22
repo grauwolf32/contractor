@@ -528,7 +528,7 @@ def test_cwe_standard_refs_outside_the_pinned_catalog_fail_before_submission(
 
 def test_audit_and_ordinary_findings_share_the_cwe_reference_check():
     async def scenario():
-        collector, _, _ = tool_for(assigned()[1])
+        collector, _, _ = await tool_for(assigned()[1])
         audit_state = WorkerState()
         audit_state.resources.proposal_collector = lambda: collector
         reference = StandardReference(scheme="CWE", version="4.20", requirement_id="CWE-534")

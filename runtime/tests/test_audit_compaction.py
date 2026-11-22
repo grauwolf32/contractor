@@ -46,7 +46,7 @@ async def audit_runtime(
         tmp_path, state, {}, max_compactions=2, max_model_calls=max_model_calls
     )
     tools = await AuditResultsToolsetFactory(lambda *_: client).create_selected(
-        selected=["read_audit_task", "submit_check_result", "submit_check_results", "evidence"],
+        selected=["read_audit_task", "submit_result", "submit_results", "evidence"],
         allocation_id=client.allocation_id,
         namespace="builder",
         runtime_settings=context.runtime_settings,
@@ -90,8 +90,8 @@ def test_audit_compacts_twice_without_resetting_partial_results_or_trusting_summ
             read_task("read-1", 100),
             usage(submit(items[0], "first"), 100),
             read_task("read-2", 600),
-            usage(tool_call("submit_check_result", invalid_member, call_id="wrong-member"), 100),
-            usage(tool_call("submit_check_result", invalid_evidence, call_id="wrong-ref"), 100),
+            usage(tool_call("submit_result", invalid_member, call_id="wrong-member"), 100),
+            usage(tool_call("submit_result", invalid_evidence, call_id="wrong-ref"), 100),
             usage(submit(items[1], "second"), 150),
             read_task("read-3", 650),
             read_task("read-after-checkpoint", 200),
@@ -178,7 +178,7 @@ def test_gateway_error_with_submission_never_dispatches_tools_or_publishes(
                 "usage": {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110},
             }
 
-        calls = [("submit_check_result", {"item_key": items[-1].item_key, **arguments(items[-1])})]
+        calls = [("submit_result", {"item_key": items[-1].item_key, **arguments(items[-1])})]
         if parallel:
             calls.append(("side_effect", {}))
         responses = [reply([("read_audit_task", {})])]
@@ -187,7 +187,7 @@ def test_gateway_error_with_submission_never_dispatches_tools_or_publishes(
                 reply(
                     [
                         (
-                            "submit_check_result",
+                            "submit_result",
                             {"item_key": items[0].item_key, **arguments(items[0])},
                         )
                     ]
@@ -312,7 +312,7 @@ def test_synthetic_submission_response_never_populates_the_audit_collector(tmp_p
                     types.Part(
                         function_response=types.FunctionResponse(
                             id="never-executed",
-                            name="submit_check_result",
+                            name="submit_result",
                             response={"status": response, "acceptedCount": 3},
                         )
                     )

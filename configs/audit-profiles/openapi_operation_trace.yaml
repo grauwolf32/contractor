@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: AuditProfile
 metadata:
   name: openapi-operation-trace
-  version: "6"
+  version: "7"
 spec:
   schema: contractor.audit.program.v1
   inputs:
@@ -30,7 +30,7 @@ spec:
       outputs:
         work: work
     trace:
-      ref: audit-openapi-operation-trace@6
+      ref: audit-openapi-operation-trace@7
       inputs:
         source:
           source: audit-input

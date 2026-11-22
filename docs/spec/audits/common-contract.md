@@ -47,7 +47,7 @@ that ID and no second Project hypothesis registry.
 | `proposal_binding` | Frozen configured context/output refs for the current producer Run, owned by its trusted materializer |
 | `prepared-work` | Deterministic work selections and exact ordinary inputs; no assigned Task identity or permission |
 | `prepared-work-context` | Server-local pinned program, trusted producer Run and admitted exact material descriptors |
-| `conclusions` | Model-authored per-item content, conditions, evidence and limitations; no provenance fields |
+| `conclusions` | Runtime-assembled per-item judgments with accepted condition notes, exact evidence and limitations; no provenance fields |
 | `result` | Ordinary output with system-derived origin on each item; no Run status or mandatory finding |
 | `control` | Offline-valid control transition; no live state change or authorization |
 | `mutation` | Bounded slice of task/hypothesis records; no duplicate record identity |

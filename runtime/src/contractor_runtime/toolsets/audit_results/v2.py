@@ -23,14 +23,13 @@ from contractor_runtime.toolsets.audit_results.collector import (
     InvocationAuditCollector,
 )
 from contractor_runtime.toolsets.audit_results.contracts import (
-    MAX_EVIDENCE,
     MAX_ITEMS,
     MAX_VALUES,
     AuditVerdict,
     NormalizedAuditItem,
 )
 from contractor_runtime.toolsets.audit_results.evidence import EvidenceTool
-from contractor_runtime.toolsets.common.argument_diagnostics import NormalizationNotices
+from contractor_runtime.toolsets.common.argument_diagnostics import NormalizationNotices, json_type
 from contractor_runtime.toolsets.common.resources import ToolResources
 
 
@@ -40,11 +39,8 @@ def _normalize(key, value, notices, path=""):
     allowed = {
         "item_key",
         "rationale",
-        "tested_conditions",
         "limitations",
-        "evidence",
         "verdict",
-        "http_request_ids",
     }
     if not isinstance(value, dict) or set(value) - allowed:
         raise AuditArgumentError(
@@ -53,31 +49,21 @@ def _normalize(key, value, notices, path=""):
             expected_type="object",
             actual_type="object",
         )
+    if not isinstance(value.get("rationale"), str):
+        raise AuditArgumentError(
+            path + "rationale",
+            "Supply the judgment explanation as a JSON string.",
+            expected_type="string",
+            actual_type=json_type(value.get("rationale")),
+        )
     try:
         return NormalizedAuditItem(
             item_key=key,
             rationale=value.get("rationale"),
-            tested_conditions=tuple(
-                array_argument(
-                    path + "tested_conditions", value.get("tested_conditions"), MAX_VALUES, notices
-                )
-            ),
             limitations=tuple(
                 array_argument(path + "limitations", value.get("limitations"), MAX_VALUES, notices)
             ),
-            evidence=tuple(
-                array_argument(path + "evidence", value.get("evidence", []), MAX_EVIDENCE, notices)
-            ),
             verdict=value.get("verdict"),
-            http_request_ids=tuple(
-                array_argument(
-                    path + "http_request_ids",
-                    value.get("http_request_ids", []),
-                    MAX_EVIDENCE,
-                    notices,
-                    int,
-                )
-            ),
         )
     except AuditArgumentError:
         raise
@@ -113,9 +99,10 @@ class ReadAuditTaskTool:
         self.__name__ = self.name
         self.__doc__ = """Read the assigned tasks, objectives and optional hypotheses.
 
-        Returns tasks with item_key and evidence handles with exact materials.
-        Use these handles when recording evidence. A task without hypothesis is
-        exploration and must omit verdict. Each assigned task needs a result.
+        Returns tasks with item_key, objectives, optional hypotheses and selected
+        ground materials. Read actual sources and call evidence during work to
+        associate them with a check; a supplied ground is not automatically check
+        evidence. Exploration omits verdict. Each assigned task needs a result.
         """
 
     @property
@@ -149,8 +136,8 @@ class ReadAuditTaskTool:
         return result
 
 
-class SubmitCheckResultTool:
-    name = "submit_check_result"
+class SubmitResultTool:
+    name = "submit_result"
 
     def __init__(
         self,
@@ -161,26 +148,28 @@ class SubmitCheckResultTool:
         self.__name__ = self.name
         self.__doc__ = self.description
 
-    description = """Record one complete conclusion for an assigned item.
+    description = """Record one bounded judgment for an assigned item.
 
-    Read read_audit_task for item keys and evidence handles. For a hypothesis,
-    verdict is supported, refuted or inconclusive. Supported/refuted need tested
-    conditions and evidence. Inconclusive needs a limitation. Omit verdict for
-    exploration. A later submission with new content replaces this item; identical content replays.
+    Read read_audit_task for item keys and objectives. During work call evidence
+    with actual sources, interpretation, tested conditions and uncertainty, and
+    inspect its persistence response. Runtime freezes only those accepted notes
+    for this item. Reading a source or publishing an unrelated Finding does not
+    record check evidence. Supported/refuted require accepted evidence and tested
+    conditions; inconclusive requires a limitation. Exploration omits verdict.
+    Publish evidenced problems through finding, including incidental discoveries,
+    and inspect receipts before final submission. The last recorded item can end
+    this Worker without another model turn. Reuse exact sources without replaying
+    traffic. A later scalar judgment can correct this item before sealing;
+    identical content replays and a conflicting batch requires scalar correction.
 
     Args:
         item_key: Assigned item key, including for a single-item assignment.
         rationale: Bounded explanation of the conclusion.
-        tested_conditions: Conditions examined as a native or once-serialized JSON
-            array, including [].
         limitations: Remaining limitations, as a native or once-serialized JSON array, including [].
-        evidence: Selected evidence handles from this item's assignment; defaults to [].
         verdict: Hypothesis conclusion; omit for exploration.
-        http_request_ids: Local IDs from http_request in this invocation; defaults
-            to []. Runtime attaches actual exchanges without replaying requests.
 
-    All array arguments also accept one serialized JSON array. Nested values
-    retain their types; request IDs must be integers, never strings or booleans.
+    Do not supply evidence, tested conditions, request IDs, revisions or provenance
+    in this call. Conditions and sources come from earlier accepted evidence.
 
     Returns:
         Local revisions, missing item keys, completeness and any normalization notice.
@@ -202,11 +191,8 @@ class SubmitCheckResultTool:
         tool_context: ToolContext,
         item_key: str,
         rationale: str,
-        tested_conditions: list[str] | str,
         limitations: list[str] | str,
-        evidence: list[str] | str | None = None,
         verdict: AuditVerdict | None = None,
-        http_request_ids: list[int] | str | None = None,
     ) -> dict[str, Any]:
         return await self._submit(
             tool_context,
@@ -215,11 +201,8 @@ class SubmitCheckResultTool:
                 {
                     "item_key": item_key,
                     "rationale": rationale,
-                    "tested_conditions": tested_conditions,
                     "limitations": limitations,
-                    "evidence": [] if evidence is None else evidence,
                     "verdict": verdict,
-                    "http_request_ids": [] if http_request_ids is None else http_request_ids,
                 },
             ),
             lambda collector, item, base: collector.record(item, expected_revision=base),
@@ -262,21 +245,21 @@ class SubmitCheckResultTool:
         return result
 
 
-class SubmitCheckResultsTool(SubmitCheckResultTool):
-    name = "submit_check_results"
+class SubmitResultsTool(SubmitResultTool):
+    name = "submit_results"
     description = """Record the complete assigned batch, with an item_key on each conclusion.
 
     Items may arrive in any order. Each assigned key must occur exactly once.
     Validation and acceptance apply to the whole batch. Identical existing
-    conclusions are replays. Correct a changed conclusion with submit_check_result
+    conclusions are replays. Correct a changed conclusion with submit_result
     alone. Field and evidence rules match the single-item tool.
 
     Args:
         items: Complete JSON array of conclusions, native or serialized once.
             Declared arrays inside each conclusion also accept one serialized array.
-            Each requires item_key,
-            rationale, tested_conditions and limitations. Optional evidence and
-            http_request_ids default to []. Supply verdict only for a hypothesis.
+            Each requires item_key, rationale and limitations. Supply verdict
+            only for a hypothesis. Sources and conditions come from earlier
+            accepted evidence; do not send a final evidence inventory.
 
     Returns:
         Local revisions in assignment order, missing keys, completeness and any
@@ -301,9 +284,7 @@ def _record_cancelled(metrics, name, started):
 
 class AuditResultsToolsetFactory:
     ref = "audit-results@2"
-    exported_tools = frozenset(
-        {"read_audit_task", "submit_check_result", "submit_check_results", "evidence"}
-    )
+    exported_tools = frozenset({"read_audit_task", "submit_result", "submit_results", "evidence"})
     infrastructure_channels = MappingProxyType({})
 
     def __init__(self, client_factory):
@@ -337,7 +318,6 @@ class AuditResultsToolsetFactory:
             allocation_id=allocation_id,
             client=self._client_factory(allocation_id, runtime_settings),
             timeout=runtime_settings.request_timeout_seconds,
-            captures=resources.http_captures,
         )
         binding.diagnostics_sink = resources.metrics.record_completion
         resources.proposal_collector = binding.current
@@ -354,8 +334,8 @@ class AuditResultsToolsetFactory:
             "read_audit_task": ReadAuditTaskTool(
                 binding.current, completion_contract.context, resources.metrics
             ),
-            "submit_check_result": SubmitCheckResultTool(binding.current, resources.metrics),
-            "submit_check_results": SubmitCheckResultsTool(binding.current, resources.metrics),
+            "submit_result": SubmitResultTool(binding.current, resources.metrics),
+            "submit_results": SubmitResultsTool(binding.current, resources.metrics),
         }
         for tool in tools.values():
             tool.completion_binding = binding

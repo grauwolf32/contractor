@@ -174,7 +174,7 @@ def test_invalid_fact_arguments_do_not_materialize_original_memory(kind):
             from test_audit_result_collector import tool_for
 
             _, inputs = assigned()
-            collector, _, _ = tool_for(inputs)
+            collector, _, _ = await tool_for(inputs)
             state.resources.proposal_collector = lambda: collector
             arguments.update(item_key="unknown-item", incidental=False)
         if "sources" in arguments:

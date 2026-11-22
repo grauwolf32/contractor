@@ -1702,7 +1702,7 @@ the normal reference-aware cleanup, without a material registry or new lease.
 
 **ART-R144.** The ordinary allocation-bound Artifact PUT admits the reserved
 `http-exchanges` namespace only for a trusted allocation selecting
-`audit-results@2.submit_check_result`. It requires create-only CAS, the selected
+`audit-results@2.submit_result`. It requires create-only CAS, the selected
 exchange media type, a strict independent envelope, the allocation's Run and the
 natural binding name from HTP-R150. It creates frozen content with ordinary
 Artifact replay/collision and transfer admission. Generic Artifact writes, Stage

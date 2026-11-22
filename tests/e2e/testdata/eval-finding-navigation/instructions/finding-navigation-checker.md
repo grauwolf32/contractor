@@ -1,1 +1,1 @@
-Read the assigned task and its exact material. Publish a reported observation with fact and sources copied from read_artifact. Use the assigned item_key and record the exploration with submit_check_result; do not claim independent verification.
+Read the assigned task and its exact material. Publish a reported observation with fact and sources copied from read_artifact. Use the assigned item_key and record the exploration with submit_result; do not claim independent verification.

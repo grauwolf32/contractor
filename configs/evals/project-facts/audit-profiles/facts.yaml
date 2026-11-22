@@ -1,13 +1,13 @@
 apiVersion: contractor/v1alpha1
 kind: AuditProfile
-metadata: {name: project-facts-eval, version: "4"}
+metadata: {name: project-facts-eval, version: "5"}
 spec:
   schema: contractor.audit.program.v1
   inputs:
     memories: {required: true, media_types: [application/json]}
   workflows:
     extract:
-      ref: fact-extraction-audit-eval@4
+      ref: fact-extraction-audit-eval@5
       inputs:
         memories: {source: audit-input, name: memories}
         context: {source: task-context}

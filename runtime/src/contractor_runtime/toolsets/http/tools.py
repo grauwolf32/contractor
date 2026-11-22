@@ -1183,7 +1183,7 @@ class HTTPRequestTool(_HTTPTool):
     Returns:
         Request ID, response status and headers, body kind and preview, timing,
         redirect/retry counts and any argument normalization notice.
-        Select exchanges with submit_check_result or finding;
+        Select actual exchanges through HTTP sources in evidence, finding or fact;
         failed attempts can be inspected through http_history when selected.
     """
 

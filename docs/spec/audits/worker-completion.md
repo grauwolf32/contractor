@@ -71,7 +71,7 @@ document owns are:
   task and execution-manifest refs and the versionless result binding to
   Runtime.
 - **Result collector.** The bounded, invocation-local collection of accepted
-  check results that `submit_check_result` builds.
+  check results that `submit_result` builds.
 - **Item revision.** The invocation-local positive revision of one accepted
   item, starting at 1.
 - **Receipt.** The `recorded` response to an accepted submission; it is not an
@@ -227,7 +227,7 @@ this version.
 binding's canonical logical `result` output.
 
 **AWC-R11.** The selected AgentTemplate must explicitly select
-`audit-results@2` with `read_audit_task`, `submit_check_result` and `submit_check_results`, and
+`audit-results@2` with `read_audit_task`, `submit_result` and `submit_results`, and
 must not select legacy `audit-results@1` at the same time.
 
 **AWC-R12.** Audit completion rejects effective terminal summarization. An
@@ -296,7 +296,7 @@ foreign-scope artifact authority.
 the supported contract IDs. Omission means no new contracts are supported.
 `audit-check-results@1` is supported when at least one probed WorkerRuntime
 implements the strategy and the probed `audit-results@2` capability exposes
-`read_audit_task`, `submit_check_result` and `submit_check_results`. Only `adk@1` implements it;
+`read_audit_task`, `submit_result` and `submit_results`. Only `adk@1` implements it;
 `tool@1` never carries a completion contract
 ([SCN-R2](../tools/scanners.md)).
 
@@ -323,26 +323,29 @@ the whole Audit invocation and any coordinated model-recovery wait.
 **AWC-R30.** `audit-results@2` keeps the read tool `read_audit_task` and
 exposes separate bounded single-item and complete-batch submission tools.
 
-**AWC-R31.** `read_audit_task` returns the validated, ordered tasks and
-requested coverage without exposing opaque base64 ZIPs. For a one-item
-assignment it also returns singular `task` and `taskPackageId` fields.
+**AWC-R31.** `read_audit_task` returns the validated ordered assignments,
+objectives, optional exact hypotheses and ground materials. Each material has
+its exact descriptor and a common artifact source selector. A displayed ground
+is not an accepted check-evidence association; reading the task records no
+source interpretation and publishes no conclusion.
 
-**AWC-R32.** `submit_check_result` records one complete item locally.
-Its model-facing shape is:
+**AWC-R32.** `submit_result` records one bounded judgment locally. Its only
+model fields are:
 
 ```text
-submit_check_result(
-  item_key, rationale, tested_conditions, limitations,
-  evidence=[], verdict=None, http_request_ids=[]
-)
+submit_result(item_key, rationale, limitations, verdict=None)
 ```
 
-**AWC-R33.** The model supplies bounded rationale, tested conditions,
-limitations and evidence handles from the assigned member. `tested_conditions`
-and `limitations` are required JSON arrays, including empty arrays. Evidence
-and `http_request_ids` default to empty arrays. HTTP selection uses distinct
-local integers from `http_request` in the same invocation (AWC-R126).
-Runtime resolves exact evidence and retains its observed outcomes.
+**AWC-R33.** `limitations` is a native or once-serialized JSON string array,
+including an empty array. Runtime assembles exact source and annotation
+materials, tested conditions and attributed limitations from earlier
+Server-accepted `evidence` records for this item. It merges distinct condition
+notes and limitations within the existing collection bounds and freezes them
+in the accepted item revision. Ground-only material, incidental captures,
+Finding prose and unconfirmed receipts are not automatically check evidence.
+The final tool accepts no evidence inventory, request IDs, tested-condition
+inventory, identity, revision or replacement flag, including removed keys with
+null. A malformed or over-bound judgment leaves the collection unchanged.
 
 **AWC-R34.** `item_key` is required even for a single-item assignment and
 must come from the trusted task set. Runtime derives task identity and
@@ -369,7 +372,7 @@ as authoritative.
 
 ### Batch and incremental submissions
 
-**AWC-R39.** `submit_check_results(items)` accepts a complete JSON array
+**AWC-R39.** `submit_results(items)` accepts a complete JSON array
 of flat conclusions with the same content fields as AWC-R32 and a required
 `item_key` on each. Each assigned key occurs exactly once. Input order is
 arbitrary; receipts and assembled output use trusted assignment order.
@@ -461,12 +464,12 @@ substitute for that validation.
 | Bound | Limit | Registry |
 | --- | --- | --- |
 | Assigned items | at most 64 | [LIM-AUD-3](../platform/limits.md) |
-| Summary | at most 16 KiB per summary | LIM-AWC-2 |
-| Coverage values | at most 512 per bounded list | LIM-AWC-3 |
-| Proposal keys | at most 128 per item (the existing importer limit) | LIM-AWC-4 |
+| Rationale | at most 64 KiB UTF-8 per judgment | LIM-AWC-2 |
+| Assembled conditions and limitations | at most 512 distinct values per list | LIM-AWC-3 |
+| Finding receipt references | at most 128 per normalized item; never supplied by the model | LIM-AWC-4 |
 | Evidence records | at most 256 across the whole batch | LIM-AWC-5 |
 | Canonical collected data | at most 8 MiB | LIM-AWC-6 |
-| Final package | at most 16 MiB | [LIM-AUD-9](../platform/limits.md) |
+| Final ordinary JSON | the same canonical document allowance | LIM-AWC-6 |
 
 **AWC-R61.** Replacements are charged by prospective total size, not just the
 new item's size.
@@ -479,8 +482,7 @@ is serializable.
 an earlier valid result (FAIL-AWC-2).
 
 **AWC-R64.** The publisher owns the pure canonical encoder and size calculation
-that the collector uses for prospective validation, including per-member limits
-and ZIP overhead. The collector must not maintain a second, approximate
+that the collector uses for prospective validation, including per-member limits and ordinary JSON metadata. The collector must not maintain a second, approximate
 encoder.
 
 **AWC-R125.** Preparation decodes, matches and validates the pinned task and
@@ -533,7 +535,7 @@ terminal prose.
 
 **AWC-R72.** If items are missing, Runtime supplies a deterministic reminder
 naming the missing trusted item keys and instructing the model to use
-`submit_check_result`, `submit_check_results` or `read_audit_task`. No untrusted tool error text is
+`submit_result`, `submit_results` or `read_audit_task`. No untrusted tool error text is
 promoted into control instructions.
 
 **AWC-R73.** At most two reminders are allowed per invocation, independently of
@@ -808,8 +810,8 @@ completionContract:
   supported contract IDs (AWC-R24).
 - **Worker-call deadline.** The private `StageContentRequest.deadline`
   ([WRK-R6](../execution/worker.md); AWC-R27).
-- **Tools.** `read_audit_task` (AWC-R31), `submit_check_result` (AWC-R32)
-  and `submit_check_results` (AWC-R39) of `audit-results@2`; the receipt fields are listed in AWC-R49.
+- **Tools.** `read_audit_task` (AWC-R31), `submit_result` (AWC-R32)
+  and `submit_results` (AWC-R39) of `audit-results@2`; the receipt fields are listed in AWC-R49.
 - **Result package.** The `check-results` Audit package ([AUD-R131](audits.md);
   AWC-R86).
 - **Completion facts.** `ExecutionReport.completion`
@@ -823,11 +825,11 @@ Registry entries owned by this document:
 
 - [LIM-AWC-1](../platform/limits.md): exactly one logical Worker selected per
   `workerCompletion` contract (AWC-R8).
-- [LIM-AWC-2](../platform/limits.md): at most 16 KiB per check-result summary
+- [LIM-AWC-2](../platform/limits.md): at most 64 KiB UTF-8 per judgment rationale
   (AWC-R60).
-- [LIM-AWC-3](../platform/limits.md): at most 512 coverage values per bounded
+- [LIM-AWC-3](../platform/limits.md): at most 512 assembled conditions or limitations per bounded
   list (AWC-R60).
-- [LIM-AWC-4](../platform/limits.md): at most 128 proposal keys per item
+- [LIM-AWC-4](../platform/limits.md): at most 128 Finding receipt references per normalized item
   (AWC-R60).
 - [LIM-AWC-5](../platform/limits.md): at most 256 evidence records across the
   whole batch (AWC-R60).
@@ -867,7 +869,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 
 - FAIL-AWC-1 — placement and direct preparation of an allocation with a pinned
   completion contract (AWC-R25, AWC-R26, AWC-R19).
-- FAIL-AWC-2 — `submit_check_result` changes to the collection (AWC-R41,
+- FAIL-AWC-2 — `submit_result` changes to the collection (AWC-R41,
   AWC-R44 to AWC-R48, AWC-R63, AWC-R84, AWC-R125).
 - FAIL-AWC-3 — the completion gate with an incomplete collection (AWC-R79,
   AWC-R80).
@@ -913,18 +915,15 @@ item IDs stay in bounded diagnostics and never become metric labels
 (AWC-R110).
 
 **AWC-R126.** Selected HTTP evidence resolves only from the allocation's bounded
-recent-capture buffer and the same invocation. `submit_check_result` and `submit_check_results` arguments may select `http_request_ids` alongside ordinary input evidence
-handles. HTP-R150 owns standalone immutable Artifact publication, truthful attempt
-and observation metadata, bounds and reconciliation. No Finding proposal is
-required. Invalid source selection fails before result mutation; partial/failed
-responses retain their explicit outcomes. A previously committed selection is
-reused for matching result replay after eviction. Canonical conclusions contain
-exact scoped Artifact descriptors, not embedded HTTP bodies or model-authored
-origin. Server collection validates the frozen reserved binding and matching
-original Run/invocation identity, extends only the selected member's trusted
-membership, then normalizes refs to ordinary retained Audit materials. Reuse and
-source deletion preserve the original evidence bytes. No execution-manifest or
-ZIP evidence-member path is introduced.
+capture buffer and the owning invocation. A common HTTP entry in `evidence.sources`
+selects an actual capture during work under AWC-R133 and HTP-R150; final judgments
+supply no request-ID inventory. Partial/failed responses retain explicit outcomes,
+without a target retry or a mandatory Finding. Accepted source and annotation
+materials are frozen into the judgment. Their original Run/invocation identity
+and exact bytes remain in the standalone capture envelope; Server owns admission,
+member association and ordinary Audit retention. Reusing a source does not create
+independent corroboration, and source deletion cannot remove acknowledged
+Audit-owned bytes.
 
 ## Invariants
 
@@ -990,9 +989,10 @@ Normal supporting outputs retain their declared ordinary media types without
 semantic reinterpretation. A missing/invalid result is a truthful technical gap;
 source or persistence ambiguity never causes repeated target activity.
 
-**AWC-R131.** Audit submission tools accept `tested_conditions`, `limitations`,
-`evidence` and `http_request_ids` as native or once-serialized JSON arrays;
-`submit_check_results.items` has the same explicit array representation. Before
+**AWC-R131.** Audit submission tools accept `limitations` as a native or
+once-serialized JSON array; `submit_results.items` has the same explicit array
+representation. Evidence selection and condition notes use `evidence` during
+work under AWC-R133, independently of the thin final judgment. Before
 decoding fields, the complete supplied call must fit the existing LIM-AWC-6
 compact UTF-8 byte ceiling, measured incrementally without constructing an
 oversized serialization. One envelope and item record may surround a selected

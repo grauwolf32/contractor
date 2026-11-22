@@ -864,7 +864,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Result artifact** — A Stage-local name in `result.artifacts` that may appear as a key of `StageResult.artifacts`, with a slot contract and a versionless `from` binding (omitted only by a Runtime-owned workspace export slot). Owner: [Workflows](configuration/workflows.md).
 
-**Result collector** — The bounded, invocation-local collection of accepted check results that submit_check_result builds. Owner: [Audit Worker completion](audits/worker-completion.md).
+**Result collector** — The bounded, invocation-local collection of accepted check results that submit_result builds. Owner: [Audit Worker completion](audits/worker-completion.md).
 
 **Result finalizer** — The ephemeral, tool-free ADK agent that copies the subtask ID and terminal Worker text exactly into a WorkerModelResult in one provider call. Owner: [Worker](execution/worker.md).
 

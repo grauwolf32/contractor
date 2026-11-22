@@ -34,7 +34,7 @@ It leaves to other documents:
 - Import of ordinary-Run proposals into an Audit, finding triage, review
   decisions, direct verification and finding backtrace:
   [review and reports](../audits/review-and-reports.md).
-- `submit_check_result` and completion of Audit checks inside the Worker:
+- `submit_result` and completion of Audit checks inside the Worker:
   [worker completion](../audits/worker-completion.md).
 - Hard deletion of a Run and purge of its RunScope as a whole:
   [retention and deletion](../artifacts/retention-and-deletion.md).
@@ -316,7 +316,7 @@ call identity fails before submission (FAIL-FND-1).
 
 **FND-R27.** A successful `finding` call returns `proposal_id`,
 `receipt_id` and `client_key`. An Audit Worker copies the returned key into
-`submit_check_result(proposal_keys=...)`
+`submit_result(proposal_keys=...)`
 ([worker completion](../audits/worker-completion.md)).
 
 **FND-R28.** Finding creation never suppresses or merges proposals by content

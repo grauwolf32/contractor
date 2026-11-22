@@ -95,31 +95,16 @@ class NormalizedAuditItem:
     rationale: str = field(repr=False)
     tested_conditions: tuple[str, ...] = ()
     limitations: tuple[str, ...] = ()
-    evidence: tuple[str, ...] = ()
     verdict: str | None = None
-    http_request_ids: tuple[int, ...] = ()
-    http_evidence: tuple[bytes, ...] = field(default=(), repr=False)
     selected_evidence: tuple[bytes, ...] = field(default=(), repr=False)
 
     def __post_init__(self):
         _identifier(self.item_key)
         if self.verdict is not None and self.verdict not in VERDICTS:
             raise ValueError("unknown Audit verdict")
-        _tuple(self.http_request_ids, MAX_EVIDENCE)
-        if any(
-            type(value) is not int or not 1 <= value <= MAX_EXACT_INTEGER
-            for value in self.http_request_ids
-        ) or len(set(self.http_request_ids)) != len(self.http_request_ids):
-            raise ValueError("invalid HTTP request selection")
         _tuple(self.selected_evidence, MAX_EVIDENCE)
         if any(not isinstance(value, bytes) for value in self.selected_evidence):
             raise ValueError("invalid selected evidence")
-        _tuple(self.http_evidence, MAX_EVIDENCE)
-        if (
-            any(not isinstance(value, bytes) for value in self.http_evidence)
-            or len(self.evidence) + len(self.http_request_ids) > MAX_EVIDENCE
-        ):
-            raise ValueError("invalid HTTP evidence")
         _text(self.rationale)
         for values in (self.tested_conditions, self.limitations):
             _tuple(values, MAX_VALUES)
@@ -129,11 +114,6 @@ class NormalizedAuditItem:
                 raise ValueError("duplicate Audit collection text")
         if any(len(value.encode()) > 512 for value in self.limitations):
             raise ValueError("Audit limitation bytes exceeded")
-        _tuple(self.evidence, MAX_EVIDENCE)
-        for value in self.evidence:
-            _identifier(value)
-        if len(set(self.evidence)) != len(self.evidence):
-            raise ValueError("duplicate Audit evidence handle")
 
 
 @dataclass(frozen=True, slots=True)
