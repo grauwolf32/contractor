@@ -29,7 +29,11 @@ context:
     The user corrected the assumption that limits reveal completed/remaining semantic steps: execution facts
     do not establish semantic coverage. The user proposed submit_result and explicitly requested joint review
     and agreement before merging these tasks into main. This is planning authorization only. Names, retention
-    policy and stop representation below are agent recommendations pending review, not accepted user decisions.'
+    policy and stop representation below are agent recommendations pending review, not accepted user decisions.
+    User review question 2026-11-22: clarify the relationship between Project facts and check-specific evidence,
+    including whether a fact may serve as evidence. The user suggests facts as reusable system knowledge and
+    evidence as specific to a hypothesis; the precise distinction below remains an agent proposal for joint
+    review.'
   implementation_gate: Keep pending. Do not implement, deploy, launch an Audit or merge this task plan into
     main until the user reviews and agrees to the concrete tasks. Record that agreement and resolve context.decision_needed
     before implementation; task-plan approval alone does not authorize implementation.
@@ -44,6 +48,8 @@ context:
   - docs/spec/ui/journeys.md
   - docs/spec/api/public-api.md
   - docs/testing/README.md
+  - docs/spec/findings/findings.md
+  - docs/spec/audits/hypotheses.md
   boundary: Extend existing common Task/hypothesis, Runtime collector, Artifact and Audit intake owners. Source
     adapters own observation extraction; Server owns assignment, authority, exact retention and lifecycle.
     No alternate execution engine or coverage ledger. Update numbered owning specs and all API/wire/schema
@@ -55,6 +61,14 @@ context:
   boundary_decision: Read models project accepted owner facts; UI never reconstructs a verdict from Run status
     or request count. This milestone gate owns the narrow integrated plan/evidence/stop path; V411-020 keeps
     the larger optional HTTP composition and V411-021 keeps repeated live quality measurements.
+  facts_evidence_proposal: Observation/material is an exact retained source. A Project fact is a reusable attributed
+    statement about a scoped system, with its own sources and observation context; it is not universally true
+    merely because it is called a fact. Evidence is the explicit use of selected sources for an assigned check/claim
+    with a stated role and applicability. A fact may be a ground/context for a hypothesis; its exact underlying
+    sources may be reused as evidence after explicit authorized selection. A fact card or Memory summary is
+    not automatically independent evidence of its claim. Evidence may also support an exploratory observation
+    or a Finding without a hypothesis. These are semantic roles over existing owners/artifacts, not three new
+    stores.
 scope:
   in:
   - Update existing public Task/material/result reads and Audit UI consumers for plan obligations, exact evidence,
@@ -99,6 +113,11 @@ requirements:
   text: Verify that system stop records cannot satisfy the normal completion gate or convert a cancelled/failed
     Run to success. A valid model-authored inconclusive may settle an attempt while leaving semantic coverage
     unresolved.
+- id: R9
+  text: Existing readers distinguish Project fact/grounds, retained observation, selected check evidence and
+    attributed interpretation. Show known original source context and applicability limitations; avoid independent-verification
+    badges for Memory-derived or repeated sources. No new Facts dashboard or change to the existing informational
+    Finding correlation policy.
 failure_outcomes:
 - operation: Read/project retained plan progress and render a stable result snapshot
   permanent: Reject invalid membership, foreign/exact-revision mismatches, quota violations and malformed input

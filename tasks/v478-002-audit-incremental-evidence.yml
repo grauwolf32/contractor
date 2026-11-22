@@ -24,7 +24,11 @@ context:
     The user corrected the assumption that limits reveal completed/remaining semantic steps: execution facts
     do not establish semantic coverage. The user proposed submit_result and explicitly requested joint review
     and agreement before merging these tasks into main. This is planning authorization only. Names, retention
-    policy and stop representation below are agent recommendations pending review, not accepted user decisions.'
+    policy and stop representation below are agent recommendations pending review, not accepted user decisions.
+    User review question 2026-11-22: clarify the relationship between Project facts and check-specific evidence,
+    including whether a fact may serve as evidence. The user suggests facts as reusable system knowledge and
+    evidence as specific to a hypothesis; the precise distinction below remains an agent proposal for joint
+    review.'
   implementation_gate: Keep pending. Do not implement, deploy, launch an Audit or merge this task plan into
     main until the user reviews and agrees to the concrete tasks. Record that agreement and resolve context.decision_needed
     before implementation; task-plan approval alone does not authorize implementation.
@@ -38,6 +42,8 @@ context:
   - docs/spec/tools/http-caido.md
   - docs/spec/artifacts/artifact-store.md
   - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/findings/findings.md
+  - docs/spec/audits/hypotheses.md
   boundary: Extend existing common Task/hypothesis, Runtime collector, Artifact and Audit intake owners. Source
     adapters own observation extraction; Server owns assignment, authority, exact retention and lifecycle.
     No alternate execution engine or coverage ledger. Update numbered owning specs and all API/wire/schema
@@ -48,7 +54,12 @@ context:
     for every capture, reducing retained traffic but losing unselected observations at a hard stop. These alternatives
     have different persistence guarantees; settle before implementation. The recommended record_observation
     name and precise note fields are also proposed, not approved; use existing exact observation handles plus
-    bounded interpretation/tested-condition/limitation fields, with no final verdict or fabricated system facts.'
+    bounded interpretation/tested-condition/limitation fields, with no final verdict or fabricated system facts.
+    Fact/evidence review recommendation: keep record_fact as the existing deliberate Project knowledge publication;
+    record_observation remains check-local observation/interpretation. Do not automatically turn every exchange
+    into a Project fact or every selected fact into conclusive evidence. Alternative: allow a fact snapshot
+    as secondary reported evidence, always with its source kind and uncertainty visible; never treat it as
+    an independent primary observation.'
   sources:
   - runtime/src/contractor_runtime/toolsets/common/http_capture.py
   - runtime/src/contractor_runtime/toolsets/common/http_publication.py
@@ -57,6 +68,14 @@ context:
     toolset plumbing lives in toolsets.common, with explicit tool opt-in; the HTTP adapter produces HTTP facts.
     First production consumers are HTTP exchanges and explicitly selected exact input-artifact evidence. This
     is not a global trace archive or new persistence service.
+  facts_evidence_proposal: Observation/material is an exact retained source. A Project fact is a reusable attributed
+    statement about a scoped system, with its own sources and observation context; it is not universally true
+    merely because it is called a fact. Evidence is the explicit use of selected sources for an assigned check/claim
+    with a stated role and applicability. A fact may be a ground/context for a hypothesis; its exact underlying
+    sources may be reused as evidence after explicit authorized selection. A fact card or Memory summary is
+    not automatically independent evidence of its claim. Evidence may also support an exploratory observation
+    or a Finding without a hypothesis. These are semantic roles over existing owners/artifacts, not three new
+    stores.
 scope:
   in:
   - Persist bounded capture/observation artifacts and their exact Task/attempt association during execution
@@ -100,6 +119,21 @@ requirements:
 - id: R7
   text: Retries reconcile existing artifact/mutation identities. Compaction, collection updates and further
     attempts do not duplicate observations, erase prior records or relabel their authorship.
+- id: R8
+  text: record_fact retains its existing Project Finding/receipt owner and optional Task association. Incremental
+    observation recording does not automatically publish Project facts. Reusing fact sources uses existing
+    exact finding/source selection and artifact authority/retention; a Finding ID or embedded reference alone
+    grants neither readable bytes nor evidence membership.
+- id: R9
+  text: Separate retained candidate observations from the subset explicitly associated with a check evidence
+    role. Automatic retention proves only that an observation was saved. The association and rationale can
+    be accumulated during work and remain attributed; no final evidence inventory is required from the model.
+- id: R10
+  text: Preserve exact source receipt/revision and the available observation context when reusing evidence;
+    do not substitute the current mutable fact card. Reuse of the same source for several claims is allowed
+    without duplicating bytes or claiming independent corroboration. A note/report supports that someone recorded
+    a claim, not automatic verification of the underlying system property. No recursive fact/source crawler
+    or causal graph engine is introduced.
 failure_outcomes:
 - operation: Publish an observation and attach its exact artifact to Audit-owned retention
   permanent: Reject invalid membership, foreign/exact-revision mismatches, quota violations and malformed input
@@ -158,38 +192,51 @@ acceptance_criteria:
   when: Observation grouping and reads execute through real owners
   then: Cross-item association is rejected, exact membership remains correct, reads/writes are bounded, and
     deletion releases owned holds without leaks.
+- id: A4
+  given: A Project fact with an exact HTTP source, a Memory-derived fact, and one source reused by two checks
+  when: Sources are explicitly selected and linked during work, including a stale/different-scope source and
+    an unauthorized embedded ref
+  then: Primary source and reported statement remain distinguishable; no automatic promotion or authority expansion
+    occurs, shared evidence is not independent corroboration, and uncertain applicability stays attributed/unknown
+    rather than deterministically certified.
 tests:
 - command: make test-runtime
   covers:
   - A1
   - A2
   - A3
+  - A4
 - command: go test -tags=integration -count=1 ./internal/artifacts/... ./internal/auditstore/... ./internal/auditservice/...
     ./internal/auditimport/... ./internal/httpapi/privateartifacts/...
   covers:
   - A1
   - A2
   - A3
+  - A4
 - command: make test-http-caido-e2e
   covers:
   - A1
   - A2
   - A3
+  - A4
 - command: make test-audit-basic-e2e
   covers:
   - A1
   - A2
   - A3
+  - A4
 - command: make test-wire-cross-language
   covers:
   - A1
   - A2
   - A3
+  - A4
 - command: make verify-public-api-postgres
   covers:
   - A1
   - A2
   - A3
+  - A4
 - command: make lint
   covers:
   - A1
