@@ -28,10 +28,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/localpki"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -903,40 +903,7 @@ func freeAddress(t *testing.T) string {
 
 func isolatedDatabase(t *testing.T, ctx context.Context, databaseURL string) string {
 	t.Helper()
-	parsed, err := url.Parse(databaseURL)
-	if err != nil || parsed.Scheme != "postgres" && parsed.Scheme != "postgresql" {
-		t.Fatalf("CONTRACTOR_TEST_DATABASE_URL must be a PostgreSQL URL")
-	}
-	admin, err := pgxpool.New(ctx, databaseURL)
-	if err != nil {
-		t.Fatalf("open PostgreSQL: %v", err)
-	}
-	if err := admin.Ping(ctx); err != nil {
-		admin.Close()
-		t.Fatalf("ping PostgreSQL: %v", err)
-	}
-	// A schema does not isolate the database-wide active-Server lease.
-	database := "contractor_e2e_" + randomHex(t, 8)
-	identifier := pgx.Identifier{database}.Sanitize()
-	if _, err := admin.Exec(ctx, "CREATE DATABASE "+identifier); err != nil {
-		admin.Close()
-		t.Fatalf("create E2E database: %v", err)
-	}
-	t.Cleanup(func() {
-		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		// Child processes and pools register later cleanups and have already joined.
-		if _, err := admin.Exec(cleanup, "DROP DATABASE "+identifier+" WITH (FORCE)"); err != nil {
-			t.Errorf("drop E2E database: %v", err)
-		}
-		admin.Close()
-	})
-	parsed.Path = "/" + database
-	parsed.RawPath = ""
-	query := parsed.Query()
-	query.Del("search_path")
-	parsed.RawQuery = query.Encode()
-	return parsed.String()
+	return postgrestest.NewDatabase(t, ctx, databaseURL)
 }
 
 func randomHex(t *testing.T, size int) string {

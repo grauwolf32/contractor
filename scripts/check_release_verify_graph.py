@@ -80,6 +80,7 @@ EXPECTED_PROCESS_TESTS = {
 }
 
 EXPECTED_BROWSER_STACK_TESTS = {
+    "TestUIProcessDatabaseIsolation",
     "TestBrowserUIBuildSurvivesSiblingRebuild",
     "TestBrowserGatewayGeneratedModelRoutes",
     "TestBrowserOperationsStack",
