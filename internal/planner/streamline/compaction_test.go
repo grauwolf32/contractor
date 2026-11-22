@@ -202,10 +202,10 @@ func historyArgsFor(profile string) map[string]any {
 	return args
 }
 
-func finishWith(revision string) modelStep {
+func finishSelectedMaterial() modelStep {
 	return functionStep(finishToolName, map[string]any{
 		"outcome": "succeeded", "summary": "Reviewed report",
-		"artifacts": map[string]any{"report": artifactArgs("builder", "review", revision)},
+		"artifacts": map[string]any{"report": materialArgs("builder", "review")},
 	})
 }
 
@@ -219,7 +219,7 @@ func twoCompactionSteps(profile string, log *requestLog) []modelStep {
 		log.capture(withPrompt(addSubtaskStep("second-objective", "second-instructions"), 3500)),
 		log.capture(withPrompt(functionStep(readContextHistoryToolName, historyArgsFor(profile)), 500)),
 		log.capture(withPrompt(functionStep(executeCurrentSubtaskToolName, executeArgs(profile, "1")), 3600)),
-		log.capture(withPrompt(finishWith("report-r1"), 400)),
+		log.capture(withPrompt(finishSelectedMaterial(), 400)),
 	}
 }
 
@@ -266,7 +266,7 @@ func TestCompactionContinuesSameInvocationAcrossTwoCheckpoints(t *testing.T) {
 				t.Fatal(err)
 			}
 			assertCompactionReleased(t, instance)
-			if result.Outcome != stageresult.StageSucceeded || refKey(result.Artifacts["report"]) != "builder/review@report-r1" {
+			if result.Outcome != stageresult.StageSucceeded || refKey(result.Artifacts["report"]) != "builder/review@report-r2" {
 				t.Fatalf("result = %+v", result)
 			}
 			if llm.callCount() != 6 || workers.count() != 2 || len(compactor.calls()) != 2 || sessions.adkCalls != 1 {

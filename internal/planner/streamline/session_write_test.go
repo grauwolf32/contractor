@@ -50,7 +50,7 @@ func TestStreamlineUnwrittenOutcomeKeepsItsRetryability(t *testing.T) {
 				functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 				functionStep(finishToolName, map[string]any{
 					"outcome": string(stageresult.StageSucceeded), "summary": "complete", "artifacts": map[string]any{
-						"report": artifactArgs("review", "report", revision),
+						"report": materialArgs("review", "report"),
 					},
 				}),
 			},

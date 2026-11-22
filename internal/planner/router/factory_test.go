@@ -33,7 +33,6 @@ import (
 )
 
 func TestRouterSelectsExactWorkerWithDeterministicPromptAndContext(t *testing.T) {
-	revision := "report-r1"
 	llm := &scriptedModel{steps: []modelStep{
 		functionStep("add_subtask", map[string]any{
 			"objective": "Build the API document", "instructions": "Use the exact source",
@@ -44,7 +43,7 @@ func TestRouterSelectsExactWorkerWithDeterministicPromptAndContext(t *testing.T)
 		functionStep("finish", map[string]any{
 			"outcome": "succeeded", "summary": "complete",
 			"artifacts": map[string]any{
-				"report": artifactArgs("review", "report", revision),
+				"report": materialArgs("review", "report"),
 			},
 		}),
 	}}
@@ -152,7 +151,7 @@ func TestRouterFinishesAfterWorkerBudgetAndTextTurn(t *testing.T) {
 		},
 		functionStep("finish", map[string]any{
 			"outcome": "succeeded", "summary": "complete",
-			"artifacts": map[string]any{"report": artifactArgs("review", "report", revision)},
+			"artifacts": map[string]any{"report": materialArgs("review", "report")},
 		}),
 	}}
 	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
@@ -265,7 +264,6 @@ func TestRouterPersistsTwoSubtasksAndOneLogicalDispatchWithoutWorkerPayload(t *t
 }
 
 func TestRouterRejectsUnknownAndStaleSelectionBeforeWorker(t *testing.T) {
-	revision := "report-r1"
 	llm := &scriptedModel{steps: []modelStep{
 		functionStep("add_subtask", map[string]any{
 			"objective": "Build", "instructions": "Execute once",
@@ -282,7 +280,7 @@ func TestRouterRejectsUnknownAndStaleSelectionBeforeWorker(t *testing.T) {
 		functionStep("finish", map[string]any{
 			"outcome": "succeeded", "summary": "complete",
 			"artifacts": map[string]any{
-				"report": artifactArgs("review", "report", revision),
+				"report": materialArgs("review", "report"),
 			},
 		}),
 	}}
@@ -305,7 +303,6 @@ func TestRouterRejectsUnknownAndStaleSelectionBeforeWorker(t *testing.T) {
 }
 
 func TestRouterRejectsParallelToolCalls(t *testing.T) {
-	revision := "report-r1"
 	llm := &scriptedModel{steps: []modelStep{
 		parallelFunctionStep(
 			functionCall("add_subtask", map[string]any{"objective": "first", "instructions": "first"}),
@@ -318,7 +315,7 @@ func TestRouterRejectsParallelToolCalls(t *testing.T) {
 		functionStep("finish", map[string]any{
 			"outcome": "succeeded", "summary": "complete",
 			"artifacts": map[string]any{
-				"report": artifactArgs("review", "report", revision),
+				"report": materialArgs("review", "report"),
 			},
 		}),
 	}}
@@ -712,9 +709,10 @@ func testInvocation() planner.Invocation {
 }
 
 func successfulResult(summary string) stageresult.StageContentResult {
+	revision := "report-r1"
 	return stageresult.StageContentResult{
 		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded,
-		Summary: summary, Artifacts: map[string]contracts.ArtifactRef{},
+		Summary: summary, Artifacts: map[string]contracts.ArtifactRef{"report": {Namespace: "review", Name: "report", Revision: &revision}},
 	}
 }
 
@@ -737,8 +735,8 @@ func routerWorkerCompletion(
 	}
 }
 
-func artifactArgs(namespace, name, revision string) map[string]any {
-	return map[string]any{"namespace": namespace, "name": name, "revision": revision}
+func materialArgs(namespace, name string) map[string]any {
+	return map[string]any{"namespace": namespace, "name": name}
 }
 
 func cloneRouterPlanProjection(value planner.PlannerPlanProjection) planner.PlannerPlanProjection {

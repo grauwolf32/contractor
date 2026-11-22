@@ -470,7 +470,7 @@ func observationPlannerResponse(
 			}
 			return call("finish", "finish", "", map[string]any{
 				"outcome": "succeeded", "summary": "Worker observations inspected",
-				"artifacts": map[string]any{"report": artifact},
+				"artifacts": map[string]any{"report": materialSelector(artifact)},
 			})
 		}
 		return call("add-reviewer", "add_subtask", "", map[string]any{
@@ -531,7 +531,7 @@ func observationPlannerResponse(
 		return call("finish", "finish", "", map[string]any{
 			"outcome": "succeeded", "summary": "Both Worker observations inspected",
 			"artifacts": map[string]any{
-				"builder_report": builderArtifact, "reviewer_report": reviewerArtifact,
+				"builder_report": materialSelector(builderArtifact), "reviewer_report": materialSelector(reviewerArtifact),
 			},
 		})
 	}

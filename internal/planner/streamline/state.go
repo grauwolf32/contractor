@@ -1,7 +1,9 @@
 package streamline
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"sync"
 	"time"
 
@@ -23,6 +25,9 @@ const maxRejectionErrors = maxReportErrors - 2
 type executionState struct {
 	mu   sync.Mutex
 	cost reporting.LLMCostCollector
+
+	materials                    map[string]map[string]contracts.ArtifactRef
+	materialCount, materialBytes int
 
 	limits Limits
 
@@ -348,4 +353,35 @@ func (s *executionState) report(
 
 func limitError(code, message string) *planner.Error {
 	return planner.NewError(code, message, true, nil)
+}
+
+// Keep only each logical Worker's latest accepted refs, independently of ADK compaction.
+func (s *executionState) selectWorkerArtifacts(worker string, refs map[string]contracts.ArtifactRef) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.materials == nil {
+		s.materials = map[string]map[string]contracts.ArtifactRef{}
+	}
+	previous := s.materials[worker]
+	oldBytes, _ := json.Marshal(previous)
+	newBytes, _ := json.Marshal(refs)
+	count := s.materialCount + len(refs) - len(previous)
+	oldSize, newSize := 0, 0
+	if len(previous) != 0 {
+		oldSize = len(oldBytes) + len(worker) + 3
+	}
+	if len(refs) != 0 {
+		newSize = len(newBytes) + len(worker) + 3
+	}
+	bytes := s.materialBytes + newSize - oldSize
+	if count > 4096 || bytes > 4*1024*1024 {
+		return false
+	}
+	if len(refs) == 0 {
+		delete(s.materials, worker)
+	} else {
+		s.materials[worker] = contracts.CloneArtifactRefs(refs)
+	}
+	s.materialCount, s.materialBytes = count, bytes
+	return true
 }

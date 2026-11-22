@@ -134,7 +134,7 @@ func TestSharedStreamlineStateToolsProjectNewestCompletionWithoutDurablePaths(t 
 			return functionStep(finishToolName, map[string]any{
 				"outcome": string(stageresult.StageSucceeded), "summary": "complete",
 				"artifacts": map[string]any{
-					"report": artifactArgs("builder", "report", revision),
+					"report": materialArgs("builder", "report"),
 				},
 			})(request)
 		},
@@ -210,7 +210,7 @@ func TestStateProjectionFailureDoesNotRewriteCompletedSubtask(t *testing.T) {
 			return functionStep(finishToolName, map[string]any{
 				"outcome": string(stageresult.StageSucceeded), "summary": "complete",
 				"artifacts": map[string]any{
-					"report": artifactArgs("builder", "report", revision),
+					"report": materialArgs("builder", "report"),
 				},
 			})(request)
 		},

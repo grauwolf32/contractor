@@ -29,7 +29,7 @@ func TestDocumentPlannerRecoveryEnforcesFinish(t *testing.T) {
 				invocation.Stage.Agents["builder"] = binding
 				ref := exactRef("builder", "report", "report-r1")
 				workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{"builder": stageResult("done", map[string]contracts.ArtifactRef{"report": ref})}}
-				finish := functionStep(finishToolName, map[string]any{"outcome": "succeeded", "summary": "complete", "artifacts": map[string]any{"report": artifactArgs("builder", "report", "report-r1")}})
+				finish := functionStep(finishToolName, map[string]any{"outcome": "succeeded", "summary": "complete", "artifacts": map[string]any{"report": materialArgs("builder", "report")}})
 				followup := finish
 				switch follow {
 				case "invalid-finish":

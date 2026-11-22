@@ -550,7 +550,7 @@ func (g *compactionGateway) serveRouter(w http.ResponseWriter, request map[strin
 			g.fail(w, "Router did not observe the compacted Worker's exact result")
 			return
 		}
-		message = toolCallMessage("compact-router-finish", "finish", map[string]any{"outcome": "succeeded", "summary": "Compacted Worker finished", "artifacts": map[string]any{"result": artifact}})
+		message = toolCallMessage("compact-router-finish", "finish", map[string]any{"outcome": "succeeded", "summary": "Compacted Worker finished", "artifacts": map[string]any{"result": materialSelector(artifact)}})
 	default:
 		g.fail(w, "Router exceeded its three-call script")
 		return

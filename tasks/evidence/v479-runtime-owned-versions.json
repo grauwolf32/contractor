@@ -93,6 +93,21 @@
         "catalog lock and validation"
       ],
       "notes": "Nuclei rulepack and trace-derived evidence included. Model selectors are closed namespace/name records; trusted tool Workers retain exact scanner/import arguments. No V478 files changed."
+    },
+    "V479-006": {
+      "go_tests": 512,
+      "go_result": "passed with race detector and real PostgreSQL, zero skips",
+      "go_packages": {
+        "streamline_seconds": 99.531,
+        "router_seconds": 1.48
+      },
+      "runtime_tests": 108,
+      "runtime_result": "passed",
+      "checks": [
+        "specifications",
+        "release graph structural checker"
+      ],
+      "notes": "Actual Go ADK calls use closed revision-free finish selectors. Latest verified result per logical Worker supplies versions; disagreeing independent owners reject. Inspector error classes and compaction remain covered. No Python round trip or wire changes."
     }
   }
 }
