@@ -123,7 +123,7 @@ func (s *Service) RecordJudgments(ctx context.Context, grant controlplane.Alloca
 				return ErrInvalid
 			}
 		}
-		latest, err := loadJudgments(ctx, reads, service, audit.AuditID, *run.AuditExecutionID, run.RunID)
+		latest, err := loadJudgments(ctx, reads, service, audit.AuditID, *run.AuditExecutionID, run.RunID, members, input.Items)
 		if err != nil {
 			return err
 		}
@@ -201,7 +201,7 @@ func replayJudgment(ctx context.Context, grant controlplane.AllocationGrant, inp
 	return auditcontract.JudgmentReceipt{APIVersion: contracts.APIVersion, Material: materialFromWrite(auditID, read.Ref, read.Payload), Generations: metadata.Generations, Replayed: true}, true, nil
 }
 
-func loadJudgments(ctx context.Context, reads *querystore.Store, service *artifacts.Service, auditID, executionID, runID string) (map[string]auditcontract.AcceptedJudgment, error) {
+func loadJudgments(ctx context.Context, reads *querystore.Store, service *artifacts.Service, auditID, executionID, runID string, members map[string]auditstore.Task, updates []auditcontract.JudgmentUpdate) (map[string]auditcontract.AcceptedJudgment, error) {
 	links, err := reads.ListExecutionJudgments(ctx, auditID, executionID)
 	if err != nil {
 		return nil, err
@@ -209,8 +209,26 @@ func loadJudgments(ctx context.Context, reads *querystore.Store, service *artifa
 	scope, _ := artifacts.AuditScope(auditID)
 	owned, _ := service.Scoped(scope)
 	records := make([]auditcontract.StoredJudgment, 0, len(links))
+	wanted := map[string]bool{}
+	for _, update := range updates {
+		wanted[update.Conclusion.ItemKey] = true
+	}
 	var total int64
 	for _, link := range links {
+		var metadata auditcontract.JudgmentMutation
+		if strictjson.Decode(link.SourceProvenance, &metadata) != nil || metadata.Validate() != nil || metadata.AuditID != auditID || metadata.ExecutionID != executionID || metadata.RunID != runID {
+			return nil, ErrInvalid
+		}
+		needed := false
+		for _, generation := range metadata.Generations {
+			if task, ok := members[generation.ItemKey]; !ok || task.Document.TaskID != generation.TaskID {
+				return nil, ErrInvalid
+			}
+			needed = needed || wanted[generation.ItemKey]
+		}
+		if !needed {
+			continue
+		}
 		total += link.Artifact.SizeBytes
 		if total > auditcontract.MaximumDocumentBytes {
 			return nil, ErrInvalid
@@ -232,8 +250,28 @@ func normalizeJudgments(ctx context.Context, reads *querystore.Store, service *a
 	scope, _ := artifacts.AuditScope(audit.AuditID)
 	owned, _ := service.Scoped(scope)
 	evidence := map[string][]auditcontract.Material{}
+	wanted := map[string]bool{}
+	for _, update := range updates {
+		if len(update.Conclusion.Evidence) != 0 {
+			wanted[members[update.Conclusion.ItemKey].Document.TaskID] = true
+		}
+	}
 	var total int64
 	for _, link := range links {
+		var origin struct {
+			AuditID     string `json:"audit_id"`
+			TaskID      string `json:"task_id"`
+			RunID       string `json:"run_id"`
+			ExecutionID string `json:"execution_id"`
+			SourceCount int    `json:"sourceCount"`
+			SourceBytes int64  `json:"sourceBytes"`
+		}
+		if strictjson.Decode(link.SourceProvenance, &origin) != nil || origin.AuditID != audit.AuditID || origin.ExecutionID != *run.AuditExecutionID || origin.RunID != run.RunID || !contracts.ValidResourceID(origin.TaskID) || origin.SourceCount < 1 || origin.SourceCount > 256 || origin.SourceBytes < 0 {
+			return auditcontract.ResultDocument{}, ErrInvalid
+		}
+		if !wanted[origin.TaskID] {
+			continue
+		}
 		total += link.Artifact.SizeBytes
 		if total > auditcontract.MaximumDocumentBytes {
 			return auditcontract.ResultDocument{}, ErrInvalid
@@ -243,7 +281,7 @@ func normalizeJudgments(ctx context.Context, reads *querystore.Store, service *a
 			return auditcontract.ResultDocument{}, err
 		}
 		var record auditcontract.EvidenceRecord
-		if strictjson.Decode(read.Payload.Data, &record) != nil || record.Validate() != nil || record.Origin.AuditID != audit.AuditID || record.Origin.ExecutionID != *run.AuditExecutionID || record.Origin.RunID != run.RunID {
+		if strictjson.Decode(read.Payload.Data, &record) != nil || record.Validate() != nil || record.Origin.AuditID != audit.AuditID || record.Origin.ExecutionID != *run.AuditExecutionID || record.Origin.RunID != run.RunID || record.Origin.TaskID != origin.TaskID {
 			return auditcontract.ResultDocument{}, ErrInvalid
 		}
 		evidence[record.Origin.TaskID] = append(evidence[record.Origin.TaskID], record.Sources...)

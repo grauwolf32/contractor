@@ -98,18 +98,19 @@ class AuditJudgmentClient:
             raise ValueError("Audit judgment request exceeds its size limit")
         for attempt in range(2):
             try:
-                response = await self.client.transport.request(
-                    "POST",
-                    allocation_path(self.client.allocation_id, "audit-results"),
-                    headers={"Accept": "application/json", "Content-Type": "application/json"},
-                    body=body,
-                    max_response_bytes=1 << 20,
-                )
+                return await self._attempt(body, keys)
             except ArtifactTransportError:
                 if attempt:
                     raise
-                continue
-            break
+
+    async def _attempt(self, body, keys):
+        response = await self.client.transport.request(
+            "POST",
+            allocation_path(self.client.allocation_id, "audit-results"),
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            body=body,
+            max_response_bytes=1 << 20,
+        )
         require_json(response.headers)
         try:
             value = strict_json_loads(response.body)

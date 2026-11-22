@@ -2,15 +2,21 @@ package auditservice
 
 import (
 	"bytes"
+	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	inline "github.com/grauwolf32/contractor/internal/artifacts/blob/backends/postgres"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -24,6 +30,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type judgmentFixture struct {
@@ -158,6 +165,11 @@ func judgmentInput(key, text, identity string, base uint64) auditcontract.Judgme
 
 func TestSharedPostgresJudgmentCorrectionReplayAndFences(t *testing.T) {
 	f := newJudgmentFixture(t, 1, false)
+	var index string
+	if err := f.pool.QueryRow(t.Context(), `SELECT pg_get_indexdef('audit_artifact_links_receipt_order'::regclass)`).Scan(&index); err != nil || !strings.Contains(index, `logical_key COLLATE "C"`) {
+		t.Fatalf("bytewise receipt index missing: %v", err)
+	}
+
 	ctx := t.Context()
 	a := judgmentInput(auditcontract.ExecutionItemKey(0), "Accepted exploratory A", "a", 0)
 	first, err := f.service.RecordJudgments(ctx, f.grant, a)
@@ -396,107 +408,184 @@ func TestSharedPostgresPartialMixedJudgmentsKeepUnassignedWorkUnchanged(t *testi
 
 func TestSharedPostgresPartialJudgmentAndSystemStopSurviveExhaustedEvidenceBudget(t *testing.T) {
 	for _, checking := range []bool{false, true} {
-		t.Run(fmt.Sprintf("hypothesis=%t", checking), func(t *testing.T) {
-			f := newJudgmentFixture(t, 2, checking)
-			ctx := t.Context()
-			storage := artifactpgtest.NewStorage()
-			store := auditstoretest.NewStore(f.pool, storage)
-			art := artifacts.NewService(storage.Repository(f.pool))
-			input := judgmentInput(auditcontract.ExecutionItemKey(0), "Accepted A before interruption", "accepted-a", 0)
-			if checking {
-				verdict := "inconclusive"
-				input.Items[0].Conclusion.Verdict = &verdict
-				input.Items[0].Conclusion.Limitations = []string{"The selected boundary remains uncertain"}
-			}
-			if _, err := f.service.RecordJudgments(ctx, f.grant, input); err != nil {
-				t.Fatal(err)
-			}
-			input.SubmissionID = "accepted-b"
-			input.Items[0].BaseGeneration = 1
-			input.Items[0].Conclusion.Rationale = "Latest accepted B before interruption"
-			latest, err := f.service.RecordJudgments(ctx, f.grant, input)
-			if err != nil {
-				t.Fatal(err)
-			}
-			runScope, _ := art.Run(f.grant.RunID)
-			written, err := runScope.Write(ctx, contracts.ArtifactRef{Namespace: f.grant.Namespace, Name: "unfinished-observation"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("retained observation without an accepted judgment")}, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			note, err := f.service.RecordEvidence(ctx, f.grant, auditcontract.EvidenceSubmission{APIVersion: contracts.APIVersion, InvocationID: "invocation", SubmissionID: "unfinished-note", ItemKey: auditcontract.ExecutionItemKey(1), Sources: []contracts.ArtifactRef{written.Ref}, Interpretation: "The observation alone does not complete the check", TestedConditions: []string{"Only this source was inspected"}, Limitations: []string{"No conclusion submitted"}})
-			if err != nil {
-				t.Fatal(err)
-			}
-			runs := runstore.NewPostgresStore(f.pool, storage)
-			if _, err := runs.TransitionRun(ctx, f.grant.RunID, runstore.RunRunning, runstore.RunFailed, runstore.Reason{Code: "worker_model_calls_exceeded", Message: "The configured model call limit was reached"}); err != nil {
-				t.Fatal(err)
-			}
-			cursor, err := runs.GetRunEventCursor(ctx, f.grant.RunID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			execution, err := store.ObserveTerminal(ctx, auditstore.ObserveTerminalParams{Claim: f.claim, ExecutionID: f.execution.ExecutionID, RunID: f.grant.RunID, Generation: cursor.Generation, Sequence: uint64(cursor.Sequence)})
-			if err != nil {
-				t.Fatal(err)
-			}
-			// Exercise zero remaining selected-material bytes. Stop disposition is
-			// owner metadata, and already held source/result links cost zero.
-			if _, err := f.pool.Exec(ctx, `UPDATE audits SET state='cancelling',max_evidence_bytes=retained_evidence_bytes WHERE audit_id=$1`, f.audit.AuditID); err != nil {
-				t.Fatal(err)
-			}
-			audit, err := store.Get(ctx, "owner", f.audit.AuditID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			access, err := auditimport.NewArtifactAccess(art, hookstore.NewClaimedArtifacts(f.pool, storage))
-			if err != nil {
-				t.Fatal(err)
-			}
-			collector, err := auditimport.New(store, store, runs, access)
-			if err != nil {
-				t.Fatal(err)
-			}
-			snapshot := auditstore.ReconcileSnapshot{Audit: audit}
-			if changed, err := collector.Collect(ctx, f.claim, snapshot, execution); err != nil || !changed {
-				t.Fatalf("partial collection: %t %v", changed, err)
-			}
-			accepted, err := store.GetTask(ctx, "owner", audit.AuditID, f.tasks[0].Document.TaskID)
-			if err != nil || accepted.State != auditstore.TaskSettled || accepted.Result == nil || !accepted.Result.Ref.SameExact(latest.Material.Ref) || accepted.Stop != nil {
-				t.Fatalf("accepted result lost: %+v %v", accepted, err)
-			}
-			missing, err := store.GetTask(ctx, "owner", audit.AuditID, f.tasks[1].Document.TaskID)
-			if err != nil || missing.State != auditstore.TaskSettled || missing.Result != nil || missing.Stop == nil || missing.Stop.Author != "system" || missing.Stop.Meaning != "no_accepted_conclusion" || missing.Stop.Reason.Code != "worker_model_calls_exceeded" || missing.Stop.Reason.Source != "run" || checking != (missing.Stop.Verdict != nil) || len(missing.Stop.Evidence) != 2 {
-				t.Fatalf("missing judgment disposition: %+v %v", missing, err)
-			}
-			for _, task := range []auditstore.Task{accepted, missing} {
-				attempts, err := store.ListTaskAttempts(ctx, auditstore.TaskAttemptListParams{OwnerID: "owner", AuditID: audit.AuditID, TaskID: task.Document.TaskID, Limit: 10})
-				if err != nil || len(attempts.Items) != 1 {
-					t.Fatalf("attempts: %+v %v", attempts, err)
+		for _, faultKind := range []string{"none", "judgment-missing", "judgment-corrupt", "note-missing", "note-corrupt", "temporary", "paused-corrupt", "active-missing"} {
+			t.Run(fmt.Sprintf("hypothesis=%t/%s", checking, faultKind), func(t *testing.T) {
+				f := newJudgmentFixture(t, 2, checking)
+				ctx := t.Context()
+				storage := artifactpgtest.NewStorage()
+				store := auditstoretest.NewStore(f.pool, storage)
+				art := artifacts.NewService(storage.Repository(f.pool))
+				input := judgmentInput(auditcontract.ExecutionItemKey(0), "Accepted A before interruption", "accepted-a", 0)
+				if checking {
+					verdict := "inconclusive"
+					input.Items[0].Conclusion.Verdict = &verdict
+					input.Items[0].Conclusion.Limitations = []string{"The selected boundary remains uncertain"}
 				}
-				attempt := attempts.Items[0]
-				if attempt.Outcome == nil || *attempt.Outcome != auditstore.TerminalFailed {
-					t.Fatalf("technical failure changed: %+v", attempt)
+				if _, err := f.service.RecordJudgments(ctx, f.grant, input); err != nil {
+					t.Fatal(err)
 				}
-				if task.Result != nil && (attempt.Result == nil || attempt.ResultKey == nil || !attempt.Result.Ref.SameExact(task.Result.Ref)) {
-					t.Fatal("accepted attempt result not retained")
+				input.SubmissionID = "accepted-b"
+				input.Items[0].BaseGeneration = 1
+				input.Items[0].Conclusion.Rationale = "Latest accepted B before interruption"
+				latest, err := f.service.RecordJudgments(ctx, f.grant, input)
+				if err != nil {
+					t.Fatal(err)
 				}
-				if task.Stop != nil && (attempt.Stop == nil || attempt.Stop.Meaning != "no_accepted_conclusion") {
-					t.Fatal("system attempt disposition not retained")
+				runScope, _ := art.Run(f.grant.RunID)
+				written, err := runScope.Write(ctx, contracts.ArtifactRef{Namespace: f.grant.Namespace, Name: "unfinished-observation"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("retained observation without an accepted judgment")}, nil)
+				if err != nil {
+					t.Fatal(err)
 				}
-			}
-			ownedScope, _ := artifacts.AuditScope(audit.AuditID)
-			owned, _ := art.Scoped(ownedScope)
-			if _, err := owned.ReadExact(ctx, note.Sources[0].Exact()); err != nil {
-				t.Fatal(err)
-			}
-			if changed, err := collector.Collect(ctx, f.claim, snapshot, execution); err != nil || changed {
-				t.Fatalf("terminal replay: %t %v", changed, err)
-			}
-			current, err := runs.GetRun(ctx, f.grant.RunID)
-			if err != nil || current.State != runstore.RunFailed {
-				t.Fatal("partial records changed the Run outcome")
-			}
-		})
+				note, err := f.service.RecordEvidence(ctx, f.grant, auditcontract.EvidenceSubmission{APIVersion: contracts.APIVersion, InvocationID: "invocation", SubmissionID: "unfinished-note", ItemKey: auditcontract.ExecutionItemKey(1), Sources: []contracts.ArtifactRef{written.Ref}, Interpretation: "The observation alone does not complete the check", TestedConditions: []string{"Only this source was inspected"}, Limitations: []string{"No conclusion submitted"}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				runs := runstore.NewPostgresStore(f.pool, storage)
+				if _, err := runs.TransitionRun(ctx, f.grant.RunID, runstore.RunRunning, runstore.RunFailed, runstore.Reason{Code: "worker_model_calls_exceeded", Message: "The configured model call limit was reached"}); err != nil {
+					t.Fatal(err)
+				}
+				cursor, err := runs.GetRunEventCursor(ctx, f.grant.RunID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				execution, err := store.ObserveTerminal(ctx, auditstore.ObserveTerminalParams{Claim: f.claim, ExecutionID: f.execution.ExecutionID, RunID: f.grant.RunID, Generation: cursor.Generation, Sequence: uint64(cursor.Sequence)})
+				if err != nil {
+					t.Fatal(err)
+				}
+				// Exercise zero remaining selected-material bytes. Stop disposition is
+				// owner metadata, and already held source/result links cost zero.
+				state := auditstore.AuditCancelling
+				if strings.HasPrefix(faultKind, "paused-") {
+					state = auditstore.AuditPaused
+				}
+				if strings.HasPrefix(faultKind, "active-") {
+					state = auditstore.AuditActive
+				}
+				if _, err := f.pool.Exec(ctx, `UPDATE audits SET state=$2,max_evidence_bytes=retained_evidence_bytes WHERE audit_id=$1`, f.audit.AuditID, state); err != nil {
+					t.Fatal(err)
+				}
+				audit, err := store.Get(ctx, "owner", f.audit.AuditID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				access, err := auditimport.NewArtifactAccess(art, hookstore.NewClaimedArtifacts(f.pool, storage))
+				if err != nil {
+					t.Fatal(err)
+				}
+				collector, err := auditimport.New(store, store, runs, access)
+				if err != nil {
+					t.Fatal(err)
+				}
+				snapshot := auditstore.ReconcileSnapshot{Audit: audit}
+				if faultKind != "none" {
+					schema := "contractor.audit.result.v1"
+					if strings.HasPrefix(faultKind, "note-") {
+						schema = "contractor.audit.evidence.v1"
+					}
+					fault := blob.ErrIntegrity
+					if strings.HasSuffix(faultKind, "missing") {
+						fault = blob.ErrMissing
+					}
+					temporary := faultKind == "temporary"
+					if temporary {
+						fault = errors.New("temporary storage failure")
+					}
+					observed := &observedReceiptStore{fault: fault, faultSchema: schema}
+					broken := artifacts.NewService(observedReceiptStorage(observed).Repository(f.pool))
+					brokenAccess, err := auditimport.NewArtifactAccess(broken, hookstore.NewClaimedArtifacts(f.pool, storage))
+					if err != nil {
+						t.Fatal(err)
+					}
+					brokenCollector, err := auditimport.New(store, store, runs, brokenAccess)
+					if err != nil {
+						t.Fatal(err)
+					}
+					changed, err := brokenCollector.Collect(ctx, f.claim, snapshot, execution)
+					if temporary {
+						if changed || !errors.Is(err, fault) {
+							t.Fatalf("transient read changed collection: %t %v", changed, err)
+						}
+						if _, err := store.CollectionReceipt(ctx, audit.AuditID, execution.ExecutionID); !errors.Is(err, auditstore.ErrNotFound) {
+							t.Fatalf("transient read receipt: %v", err)
+						}
+					} else {
+						if !changed || err != nil {
+							t.Fatalf("permanent read not settled: %t %v", changed, err)
+						}
+						receipt, err := store.CollectionReceipt(ctx, audit.AuditID, execution.ExecutionID)
+						if err != nil || receipt.Disposition != auditstore.CollectionContractInvalid {
+							t.Fatalf("invalid receipt: %+v %v", receipt, err)
+						}
+						for _, task := range f.tasks {
+							item, err := store.GetTask(ctx, "owner", audit.AuditID, task.Document.TaskID)
+							if err != nil || item.State != auditstore.TaskSettled || item.Result != nil || item.Stop != nil || item.GapCode == nil || *item.GapCode != "collection-contract-invalid" {
+								t.Fatalf("untrusted projection: %+v %v", item, err)
+							}
+						}
+						reads := observed.reads
+						if changed, err := brokenCollector.Collect(ctx, f.claim, snapshot, execution); changed || err != nil || observed.reads != reads {
+							t.Fatalf("receipt replay reread corrupt data: %t %v", changed, err)
+						}
+						scope, _ := artifacts.AuditScope(audit.AuditID)
+						owned, _ := art.Scoped(scope)
+						if _, err := owned.ReadExact(ctx, latest.Material.Exact()); err != nil {
+							t.Fatalf("accepted bytes removed: %v", err)
+						}
+						return
+					}
+				}
+				if changed, err := collector.Collect(ctx, f.claim, snapshot, execution); err != nil || !changed {
+					t.Fatalf("partial collection: %t %v", changed, err)
+				}
+				accepted, err := store.GetTask(ctx, "owner", audit.AuditID, f.tasks[0].Document.TaskID)
+				if err != nil || accepted.State != auditstore.TaskSettled || accepted.Result == nil || !accepted.Result.Ref.SameExact(latest.Material.Ref) || accepted.Stop != nil {
+					t.Fatalf("accepted result lost: %+v %v", accepted, err)
+				}
+				missing, err := store.GetTask(ctx, "owner", audit.AuditID, f.tasks[1].Document.TaskID)
+				if err != nil || missing.State != auditstore.TaskSettled || missing.Result != nil || missing.Stop == nil || missing.Stop.Author != "system" || missing.Stop.Meaning != "no_accepted_conclusion" || missing.Stop.Reason.Code != "worker_model_calls_exceeded" || missing.Stop.Reason.Source != "run" || checking != (missing.Stop.Verdict != nil) || len(missing.Stop.Evidence) != 2 {
+					t.Fatalf("missing judgment disposition: %+v %v", missing, err)
+				}
+				for _, table := range []string{"audit_tasks", "audit_execution_items"} {
+					tx, err := f.pool.Begin(ctx)
+					if err != nil {
+						t.Fatal(err)
+					}
+					_, err = tx.Exec(ctx, "UPDATE "+table+" SET stop_record=jsonb_set(stop_record,'{reason,message}',to_jsonb('changed'::text)) WHERE state='settled' AND stop_record IS NOT NULL")
+					_ = tx.Rollback(ctx)
+					if err == nil {
+						t.Fatalf("settled %s stop record changed", table)
+					}
+				}
+				for _, task := range []auditstore.Task{accepted, missing} {
+					attempts, err := store.ListTaskAttempts(ctx, auditstore.TaskAttemptListParams{OwnerID: "owner", AuditID: audit.AuditID, TaskID: task.Document.TaskID, Limit: 10})
+					if err != nil || len(attempts.Items) != 1 {
+						t.Fatalf("attempts: %+v %v", attempts, err)
+					}
+					attempt := attempts.Items[0]
+					if attempt.Outcome == nil || *attempt.Outcome != auditstore.TerminalFailed {
+						t.Fatalf("technical failure changed: %+v", attempt)
+					}
+					if task.Result != nil && (attempt.Result == nil || attempt.ResultKey == nil || !attempt.Result.Ref.SameExact(task.Result.Ref)) {
+						t.Fatal("accepted attempt result not retained")
+					}
+					if task.Stop != nil && (attempt.Stop == nil || attempt.Stop.Meaning != "no_accepted_conclusion") {
+						t.Fatal("system attempt disposition not retained")
+					}
+				}
+				ownedScope, _ := artifacts.AuditScope(audit.AuditID)
+				owned, _ := art.Scoped(ownedScope)
+				if _, err := owned.ReadExact(ctx, note.Sources[0].Exact()); err != nil {
+					t.Fatal(err)
+				}
+				if changed, err := collector.Collect(ctx, f.claim, snapshot, execution); err != nil || changed {
+					t.Fatalf("terminal replay: %t %v", changed, err)
+				}
+				current, err := runs.GetRun(ctx, f.grant.RunID)
+				if err != nil || current.State != runstore.RunFailed {
+					t.Fatal("partial records changed the Run outcome")
+				}
+			})
+		}
 	}
 }
 
@@ -543,6 +632,8 @@ func TestSharedPostgresJudgmentCanUseReservedCapacity(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			observed := &observedReceiptStore{}
+			f.service.storage = observedReceiptStorage(observed)
 			judgment := judgmentInput(input.ItemKey, strings.Repeat("r", 65536), "reserved-result", 0)
 			judgment.Items[0].Conclusion.Evidence = append(note.Sources, note.Material)
 			judgment.Items[0].Conclusion.TestedConditions = []string{"source inspected"}
@@ -554,12 +645,81 @@ func TestSharedPostgresJudgmentCanUseReservedCapacity(t *testing.T) {
 			if err != nil || !replay.Replayed || !replay.Material.Ref.SameExact(result.Material.Ref) {
 				t.Fatalf("result replay: %v", err)
 			}
+			if observed.reads != noteCount+1 {
+				t.Fatalf("initial judgment and replay read %d payloads, want %d", observed.reads, noteCount+1)
+			}
 			for index := 1; index < memberCount; index++ {
 				next := judgmentInput(auditcontract.ExecutionItemKey(index), "Accepted remaining assigned member", fmt.Sprintf("result-%02d", index), 0)
 				if _, err := f.service.RecordJudgments(ctx, f.grant, next); err != nil {
 					t.Fatalf("reserved member %d: %v", index, err)
 				}
 			}
+			if observed.reads != noteCount+1 {
+				t.Fatalf("unrelated members reread payloads: %d, want %d", observed.reads, noteCount+1)
+			}
+		})
+	}
+}
+
+type receiptInlineStore = inline.Store
+
+type observedReceiptStore struct {
+	receiptInlineStore
+	reads       int
+	fault       error
+	faultSchema string
+}
+
+func (s *observedReceiptStore) Read(ctx context.Context, object blob.Object) ([]byte, error) {
+	s.reads++
+	if s.fault != nil && (s.faultSchema == "" || bytes.Contains(object.Inline, []byte(s.faultSchema))) {
+		return nil, s.fault
+	}
+	return s.receiptInlineStore.Read(ctx, object)
+}
+func observedReceiptStorage(s *observedReceiptStore) *artifactpostgres.Storage {
+	return artifactpgtest.NewConfigured(blob.NewRuntime(s, nil), artifactpostgres.DefaultHistoryPolicy())
+}
+
+// Use actual database locales; an expression on a caller parameter cannot test
+// the ordering of the stored indexed receipt keys.
+func TestSharedPostgresAuditReceiptsAcrossCollations(t *testing.T) {
+	dsn := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	for _, locale := range []string{"C", "en-US"} {
+		t.Run(locale, func(t *testing.T) {
+			config, err := pgxpool.ParseConfig(dsn)
+			if err != nil {
+				t.Fatal(err)
+			}
+			admin, err := pgx.ConnectConfig(t.Context(), config.ConnConfig.Copy())
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = admin.Close(context.Background()) })
+			name := "audit_receipts_" + strings.ToLower(rand.Text())
+			quoted := pgx.Identifier{name}.Sanitize()
+			options := ` TEMPLATE template0 ENCODING 'UTF8' LOCALE_PROVIDER libc LC_COLLATE 'C' LC_CTYPE 'C'`
+			if locale == "en-US" {
+				options = ` TEMPLATE template0 ENCODING 'UTF8' LOCALE_PROVIDER icu ICU_LOCALE 'en-US'`
+			}
+			t.Cleanup(func() {
+				ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+				defer cancel()
+				if _, err := admin.Exec(ctx, "DROP DATABASE IF EXISTS "+quoted+" WITH (FORCE)"); err != nil {
+					t.Error(err)
+				}
+			})
+			if _, err := admin.Exec(t.Context(), "CREATE DATABASE "+quoted+options); err != nil {
+				t.Fatal(err)
+			}
+			config.ConnConfig.Database = name
+			t.Setenv("CONTRACTOR_TEST_DATABASE_URL", config.ConnConfig.ConnString())
+			t.Run("corrections", TestSharedPostgresJudgmentCorrectionReplayAndFences)
+			t.Run("membership", TestSharedPostgresJudgmentBatchAndEvidenceMembership)
+			t.Run("capacity", TestSharedPostgresJudgmentCanUseReservedCapacity)
 		})
 	}
 }

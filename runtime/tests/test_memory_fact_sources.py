@@ -300,3 +300,33 @@ def test_shared_finding_memory_sources():
         else:
             with pytest.raises((ValueError, TypeError, RecursionError)):
                 select_memory(case["snapshotJson"].encode(), case["memoryName"])
+
+
+def test_fact_quota_precedes_code_sources_and_counts_source_repair_attempts():
+    async def scenario():
+        artifacts = MemorySources()
+        source = artifacts.seed(
+            "snapshot", "selected", "application/json", jcs.canonicalize(snapshot())
+        )
+        tool, client, state = make_tool(artifacts, source)
+        state.resources.source_evidence = AsyncMock(side_effect=ToolInputError("bad range"))
+        args = dict(
+            title="Claim",
+            description="Reported",
+            memory_name="technology",
+            sources=[dict(kind="code", file="app.py", start_line=1, end_line=1)],
+        )
+        for index in range(8):
+            with pytest.raises(ToolInputError, match="bad range"):
+                await tool(**args, tool_context=context(str(index)))
+        assert state.resources.source_evidence.await_count == 8
+        with pytest.raises(ToolInputError, match="eight"):
+            await tool(**args, tool_context=context("ninth"))
+        assert state.resources.source_evidence.await_count == 8
+        assert artifacts.write_calls == 0 and not client.requests
+        # Same-call repair is admitted without consuming another slot.
+        with pytest.raises(ToolInputError, match="bad range"):
+            await tool(**args, tool_context=context("0"))
+        assert state.resources.source_evidence.await_count == 9
+
+    asyncio.run(scenario())

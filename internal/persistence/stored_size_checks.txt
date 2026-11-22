@@ -144,3 +144,5 @@ artifact_versions_execution_origin_check                   invariant: Server-ass
 finding_receipt_execution_lane                            invariant: authenticated operation/Worker lane with the same bounded original execution tuple and exact Artifact ref
 audit_item_findings_check                                 invariant: system-derived canonical result projection of at most 128 bounded Finding identifiers and one truncation boolean
 audit_task_findings_check                                 invariant: the same canonical ID projection retained on its settled Task, without report or assessment content
+audit_execution_items_collection_shape                     LIM-ACT-8
+audit_tasks_stop_record_check                               LIM-ACT-8

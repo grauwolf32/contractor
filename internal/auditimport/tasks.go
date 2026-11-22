@@ -53,9 +53,9 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 	if err != nil {
 		return false, err
 	}
-	partials, err := i.readPartialResults(ctx, snapshot, execution, tasks)
-	if err != nil {
-		return false, err
+	partials, partialErr := i.readPartialResults(ctx, snapshot, execution, tasks)
+	if partialErr != nil && !permanentTaskCollectionError(partialErr) && !errors.Is(partialErr, ErrPermanent) {
+		return false, partialErr
 	}
 	collection := taskCollectionState{
 		params: auditstore.CollectParams{
@@ -70,6 +70,14 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 		partials:       partials,
 		execution:      execution,
 		findingResults: map[string]*auditstore.CanonicalFindingResult{},
+	}
+	if partialErr != nil {
+		// Use the ordinary invalid-collection receipt in active, paused and
+		// cancelling Audits alike. Unreadable history cannot justify a model
+		// result or a system claim that no judgment was accepted.
+		collection.partials = partialTaskResults{}
+		collection.params.Disposition = auditstore.CollectionContractInvalid
+		return collection.commit(ctx, i.store, "collection-contract-invalid", false, nil)
 	}
 	changed, err = i.collectTaskOutputs(ctx, snapshot, &collection)
 	// Classify definite failures explicitly; transport ambiguity is returned

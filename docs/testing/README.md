@@ -61,10 +61,11 @@ Keep setup local when it is itself under test: production `OpenPool`, startup
 migration URLs and reconnecting or multiple pools sharing one schema.
 Database-wide query-budget isolation still belongs to `explaintest.Database`.
 
-The Runtime snapshot credential-order test creates separate `C` and
-ICU `en-US` databases to exercise the installed validator under both collations.
-It requires `CREATEDB` and a PostgreSQL build with ICU support; configured but
-missing prerequisites fail the test.
+The Runtime snapshot credential-order and Audit receipt-range tests create
+separate `C` and ICU `en-US` databases to exercise installed validators, receipt
+reads and quota admission under both collations. This requires `CREATEDB` and a
+PostgreSQL build with ICU support; configured but missing prerequisites fail
+the tests.
 
 ## Local test storage
 

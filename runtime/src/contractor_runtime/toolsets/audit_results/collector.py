@@ -8,7 +8,7 @@ from functools import partial
 import jcs
 
 from contractor_runtime import threads
-from contractor_runtime.audit_judgments import JudgmentStaleError
+from contractor_runtime.audit_judgments import JudgmentPersistenceUnknown, JudgmentStaleError
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.worker_completion import WorkerCompletionError
 from contractor_runtime.toolsets.audit_results.contracts import (
@@ -295,6 +295,13 @@ class InvocationAuditCollector:
         )
         try:
             receipt = await self._persist(snapshot, bases, mode)
+        except JudgmentPersistenceUnknown:
+            # The owner may already have advanced these values. Keep the old
+            # base for a later stale response, but never publish obsolete items.
+            for key in keys:
+                self._items.pop(key, None)
+                self._accepted_materials.pop(key, None)
+            raise
         except JudgmentStaleError as error:
             if set(error.generations) != set(keys):
                 raise RuntimeError("Audit owner returned foreign generations") from None

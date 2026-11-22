@@ -142,3 +142,58 @@ def test_definite_rejection_is_not_retried_or_locally_accepted():
         assert not transport.items and not (await collector.snapshot()).items
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("bad_reply", [b"{}", b"{", b'{"apiVersion":"wrong"}'])
+@pytest.mark.parametrize("persistent", [False, True])
+def test_invalid_success_receipt_reconciles_same_committed_mutation(bad_reply, persistent):
+    from contractor_runtime.artifacts import ArtifactHTTPResponse
+
+    async def scenario():
+        collector, transport, item = setup()
+        request = transport.request
+
+        async def malformed_once(*args, **kwargs):
+            response = await request(*args, **kwargs)
+            if persistent or len(transport.requests) == 1:
+                return ArtifactHTTPResponse(201, {"content-type": "application/json"}, bad_reply)
+            return response
+
+        transport.request = malformed_once
+        if persistent:
+            with pytest.raises(JudgmentPersistenceUnknown):
+                await collector.record(item)
+            assert not (await collector.snapshot()).items
+        else:
+            receipt = await collector.record(item)
+            assert receipt.accepted_count == 1
+        assert len(transport.requests) == 2
+        assert transport.requests[0] == transport.requests[1]
+        assert transport.items[item.item_key][0] == 1
+
+    asyncio.run(scenario())
+
+
+def test_unknown_correction_clears_readiness_without_guessing_owner_generation():
+    async def scenario():
+        collector, transport, item = setup()
+        expected, _ = assigned(batch=True, checking=False)
+        for record in expected.items:
+            await collector.record(record.value)
+        transport.lost = 2
+        correction = replace(item, rationale="Corrected statement")
+        with pytest.raises(JudgmentPersistenceUnknown):
+            await collector.record(correction)
+        assert transport.items[item.item_key][0] == 2
+        assert len((await collector.snapshot()).items) == 1
+        with pytest.raises(AuditCollectionError):
+            await collector.seal()
+        assert collector.item_base(item.item_key) == 1
+        collector.begin_response()
+        # An identical committed correction can acknowledge its current value.
+        await collector.record(correction)
+        sealed = await collector.seal()
+        assert sealed.items[0].revision == 2
+        assert sealed.items[0].value.rationale == correction.rationale
+
+    asyncio.run(scenario())

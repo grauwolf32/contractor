@@ -1,0 +1,50 @@
+schema_version: '1.0'
+id: V478-034
+title: Repair verification exposed by the Audit review
+milestone: audit-evidence-results-2026-11
+epic: audits
+kind: defect
+introduced_by: V478-004
+priority: P2
+status: in_progress
+depends_on: [V478-004]
+languages: [go, python, markdown]
+goal: The complete persistence gate accounts for existing stop bounds and checks backend termination without depending on socket timing.
+context:
+  authority: 'User request 2026-11-23 to complete reviewed fixes and improvements in one pass, including required verification.'
+  finding: >-
+    stored_size_checks_postgres_test.go:76 rejects the two stop constraints absent
+    from the disposition registry. closed_connection_postgres_test.go:128 assumes
+    backend termination always arrives as a server PgError; on Unix the write may
+    instead fail with broken pipe before that message can be read. The full Runtime
+    gate also timed out waiting for test_cli.py:64 startup under concurrent checks;
+    the same shutdown test passes alone. Its two-second startup guard dates to
+    initial bootstrap commit 1ff105bb1, before the current task tracker.
+  siblings: >-
+    V478-004 introduced both stop constraints; V414-012 introduced the termination
+    test. SQLSTATE 57P01 remains covered directly by sqlstate_test.go. Preserve
+    unavailable/transient assertions for the first and closed statements and COMMIT.
+  boundary: Existing production error classification and size limits remain authoritative.
+scope:
+  in:
+  - Register existing stop-record bounds with their owning specification and limit.
+  - Remove the timing-dependent error-representation assertion from the real PostgreSQL disconnect test.
+  - Give the shutdown test a ten-second startup hang guard while retaining all cancellation, listener and task-leak assertions.
+  out:
+  - Production retry semantics, timeouts and database error classification.
+acceptance_criteria:
+- id: A1
+  text: Every stored-size CHECK in a migrated database has a valid disposition and the existing stop bounds are documented.
+- id: A2
+  text: Backend termination consistently proves unavailable/transient classification for statements and COMMIT, including Unix broken pipe; SQLSTATE classification remains covered.
+- id: A3
+  text: The Runtime shutdown test tolerates concurrent startup work while still proving heartbeat cancellation, listener closure and no leaked tasks.
+tests:
+- command: make test-runtime
+  covers: [A3]
+- command: go test -count=1 ./internal/persistence/postgres
+  covers: [A1, A2]
+- command: go test -count=20 ./internal/persistence/postgres -run '^TestClosedConnectionAfterBackendTerminationIsUnavailable$'
+  covers: [A2]
+- command: make lint
+  covers: [A1, A2]

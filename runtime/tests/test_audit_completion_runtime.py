@@ -764,3 +764,49 @@ def test_real_runner_rejects_omitted_singleton_key_before_corrected_submission(t
             await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
 
     asyncio.run(scenario())
+
+
+def test_unknown_correction_cannot_publish_old_result_through_runner(tmp_path):
+    from contractor_runtime.artifacts import ArtifactTransportError
+
+    async def scenario():
+        expected, _ = assigned(batch=True)
+        first, second = [entry.value for entry in expected.items]
+        correction = replace(first, rationale="Corrected accepted conclusion")
+        runtime, _model, client, _state, _expected = await runtime_for(
+            tmp_path,
+            [
+                submit(first, "first"),
+                submit(correction, "lost"),
+                submit(second, "second"),
+                submit(correction, "stale"),
+                submit(correction, "confirmed"),
+                text_result("Done"),
+            ],
+            batch=True,
+        )
+        request = client.transport.request
+        lost = 0
+
+        async def lose_correction_response(*args, **kwargs):
+            nonlocal lost
+            response = await request(*args, **kwargs)
+            body = json.loads(kwargs["body"])
+            if lost < 2 and any(
+                item["conclusion"]["rationale"] == correction.rationale for item in body["items"]
+            ):
+                lost += 1
+                raise ArtifactTransportError("response lost after commit")
+            return response
+
+        client.transport.request = lose_correction_response
+        try:
+            completion = await runtime.invoke(stage_request())
+            assert completion.failure is None
+            assert lost == 2 and len(client.writes) == 1
+            assert json.loads(client.writes[0])["items"][0]["rationale"] == correction.rationale
+            assert client.transport.items[first.item_key][0] == 2
+        finally:
+            await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
+
+    asyncio.run(scenario())

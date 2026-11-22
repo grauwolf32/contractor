@@ -123,3 +123,29 @@ def test_adapter_schema_failures_remain_python_failures():
         assert not writes
 
     asyncio.run(scenario())
+
+
+def test_workspace_code_proof_has_a_distinct_schema_from_trace_call_receipt():
+    import json
+    from unittest.mock import AsyncMock
+
+    from test_trace_findings import capture
+
+    from contractor_runtime.toolsets.common.sources import CodeSource
+
+    async def scenario():
+        selected, _resources, _writes = preparer()
+        selected.workspace = AsyncMock()
+        selected.workspace.capture_source_file.return_value = capture("x=1\n", "x=1\n")
+        proof = await selected._prepare_code(
+            CodeSource(kind="code", file="app.py", start_line=1, end_line=1, workspace=True),
+            "invocation-1",
+            "call-1",
+            0,
+        )
+        value = json.loads(proof.data)
+        assert value["schema"] == "contractor.code-source-evidence.v1"
+        assert "selectionDigest" in value and "requestDigest" not in value
+        assert value["source"]["file"] == "app.py"
+
+    asyncio.run(scenario())

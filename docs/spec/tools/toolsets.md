@@ -502,3 +502,8 @@ ambiguity rules; listings grant no content selection. Preparation may create
 ordinary Run artifacts before a later owner rejection; only the owning Server
 receipt establishes a durable claim association. Shared bytes do not establish
 independent corroboration, semantic verification or authority for another scope.
+
+Workspace code selection proofs use `contractor.code-source-evidence.v1` and
+`selectionDigest`; the trace Finding call receipt uses
+`contractor.trace-finding-evidence.v1` and `requestDigest`. These identities
+represent source selection and call reconciliation respectively.

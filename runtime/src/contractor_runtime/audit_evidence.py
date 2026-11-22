@@ -67,17 +67,19 @@ class AuditEvidenceClient:
             raise ValueError("Audit evidence request exceeds its size limit")
         for attempt in range(2):
             try:
-                response = await self.client.transport.request(
-                    "POST",
-                    allocation_path(self.client.allocation_id, "audit-evidence"),
-                    headers={"Accept": "application/json", "Content-Type": "application/json"},
-                    body=body,
-                    max_response_bytes=1 << 20,
-                )
-                break
+                return await self._attempt(body, value)
             except ArtifactTransportError:
                 if attempt:
                     raise
+
+    async def _attempt(self, body, value):
+        response = await self.client.transport.request(
+            "POST",
+            allocation_path(self.client.allocation_id, "audit-evidence"),
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            body=body,
+            max_response_bytes=1 << 20,
+        )
         raise_for_status(response)
         if response.status_code not in {200, 201}:
             raise ArtifactTransportError("Audit evidence API returned an invalid status")

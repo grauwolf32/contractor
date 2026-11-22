@@ -125,10 +125,8 @@ func TestClosedConnectionAfterBackendTerminationIsUnavailable(t *testing.T) {
 		// observed failed statements on this same transaction.
 		return nil
 	})
-	var condition *pgconn.PgError
-	if !errors.As(terminated, &condition) {
-		t.Fatalf("first statement error = %v, want server termination condition", terminated)
-	}
+	// The backend may close before the next write. Either its FATAL reply
+	// or a socket failure must have the same unavailable/transient outcome.
 	for name, failure := range map[string]error{"terminated statement": terminated, "closed statement": closed, "commit": err} {
 		if got := Classify(failure); got != ClassUnavailable || !IsTransientFailure(failure) {
 			t.Errorf("%s: class=%d transient=%t, want unavailable/transient (%v)", name, got, IsTransientFailure(failure), failure)

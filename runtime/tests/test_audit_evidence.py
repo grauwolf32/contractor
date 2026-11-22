@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from contractor_runtime.audit_evidence import evidence_snapshot_ref
 from contractor_runtime.contracts import ArtifactRef
 
@@ -137,3 +139,42 @@ def test_source_error_paths_never_echo_unknown_member_names():
     assert "secret-canary" not in json.dumps(response)
     assert "value-canary" not in json.dumps(response)
     assert response["error"]["field"].startswith("sources[0]")
+
+
+@pytest.mark.parametrize("persistent", [False, True])
+def test_invalid_evidence_receipt_reconciles_identical_bytes(persistent):
+    import asyncio
+    from types import SimpleNamespace
+
+    from contractor_runtime.artifacts import ArtifactHTTPResponse
+    from contractor_runtime.audit_evidence import AuditEvidenceClient, EvidencePersistenceUnknown
+
+    source, receipt = evidence_receipt()
+
+    class Transport:
+        def __init__(self):
+            self.bodies = []
+
+        async def request(self, method, path, *, headers, body, max_response_bytes):
+            self.bodies.append(body)
+            return ArtifactHTTPResponse(
+                201,
+                {"content-type": "application/json"},
+                b"{}" if persistent or len(self.bodies) == 1 else json.dumps(receipt).encode(),
+            )
+
+    transport = Transport()
+    client = AuditEvidenceClient(
+        SimpleNamespace(transport=transport, allocation_id="allocation-1"),
+        run_id="run-1",
+        audit_id="audit-1",
+    )
+    if persistent:
+        with pytest.raises(EvidencePersistenceUnknown):
+            asyncio.run(client.submit({"itemKey": "item-00", "sources": [source.model_dump()]}))
+    else:
+        result = asyncio.run(
+            client.submit({"itemKey": "item-00", "sources": [source.model_dump()]})
+        )
+        assert result["replayed"] is True
+    assert len(transport.bodies) == 2 and transport.bodies[0] == transport.bodies[1]
