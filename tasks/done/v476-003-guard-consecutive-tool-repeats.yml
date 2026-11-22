@@ -5,7 +5,7 @@ milestone: model-runtime-guidance-2026-11
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V475-001
 languages:
@@ -186,3 +186,9 @@ tests:
 verification_policy: Add test_tool_repeats.py as part of this implementation and use the actual pinned ADK
   Runner, not only direct plugin method tests. A fake Artifact client may cover pure reads with strict validation;
   combined production ArtifactStore coverage belongs to V476-005. No full Runtime or release gate.
+implementation_commit: bcc40fe8832ff577b853620e94e99c8ebcd0e2a4
+verification:
+  date: '2026-11-22'
+  result: 270 affected component tests passed in 57.56s, Ruff passed, all four import contracts kept, specifications
+    passed. Failed diagnostic runs only exposed new-test mistakes (cleanup API, fixture window, metric field
+    and original assistant argument visibility); corrected regression tests pass. No full suite.
