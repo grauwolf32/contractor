@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-72 open tasks: 13 in progress, 46 pending, 13 deferred. 1661 finished: 1643 completed, 18 archived.
+71 open tasks: 12 in progress, 46 pending, 13 deferred. 1662 finished: 1644 completed, 18 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V478-008](v478-008-sitemap-shared-fixture-reader.yml) | projects-artifacts | chore | P3 | Read the shared Sitemap identity fixture through its registered owner |
 | [V478-009](v478-009-fact-version-fixture.yml) | findings | chore | P3 | Select the fact fixture material through the Runtime version owner |
 | [V478-010](v478-010-finding-reader-version-argument.yml) | findings | chore | P3 | Keep the Findings process reader arguments revision-free |
 
@@ -174,7 +173,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
 | Findings tools and collections (`findings`) | 2 | 22 | 15 | 13 | 28 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 41 | 41 | 21 | 76 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 21 | 76 |
 | Audits (`audits`) | 14 | 77 | 99 | 42 | 173 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 21 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
