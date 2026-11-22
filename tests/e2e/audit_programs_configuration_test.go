@@ -5,9 +5,11 @@ package e2e
 import (
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
 )
 
 func TestAuditProgramsE2EConfigurationLoads(t *testing.T) {
@@ -51,5 +53,27 @@ func TestAuditProgramCatalogRemovalConfigurationClosure(t *testing.T) {
 	}
 	if removed != 4 || len(after.AuditProfiles()) != len(before.AuditProfiles())-removed {
 		t.Fatalf("unexpected removed profile closure: removed=%d before=%d after=%d", removed, len(before.AuditProfiles()), len(after.AuditProfiles()))
+	}
+}
+
+func TestAuditInvestigationInstructionCatalog(t *testing.T) {
+	snapshot, _, err := configload.LoadUnionReadOnly(filepath.Join(repoRoot(t), "configs"), filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ref := range []string{"audit_source_checker@6", "audit_wstg_http_verifier@6", "audit_openapi_operation_tracer@5", "audit_openapi_operation_observer@4", "audit_asvs_source_verifier@5", "audit_standard_source_verifier@5", "audit_risk_source_checker@5", "source_findings_reviewer@3"} {
+		template, err := configloadtest.AgentTemplate(snapshot, ref)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := template.Instructions.Text
+		for _, guidance := range []string{"A first finding or one", "publish before final result submission", "what remains unexamined or uncertain", "Zero findings is valid"} {
+			if !strings.Contains(text, guidance) {
+				t.Fatalf("%s omitted investigation guidance %q", ref, guidance)
+			}
+		}
+		if strings.Contains(text, "expected_revision") {
+			t.Fatalf("%s asks for a model revision", ref)
+		}
 	}
 }

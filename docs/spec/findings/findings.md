@@ -1407,7 +1407,7 @@ It selects `list_findings`, `read_artifact` and text report writing. Its
 generic analysis requires no hypothesis, annotation, OpenAPI input or Audit
 origin.
 
-**FND-R149.** The ordinary `source-findings-review@2` Workflow uses the
+**FND-R149.** The ordinary `source-findings-review@3` Workflow uses the
 code facade. Source verifier and tracer templates select the code facade; the
 HTTP verifier selects the HTTP facade.
 

@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: Workflow
 metadata:
   name: audit-wstg-active-http
-  version: "5"
+  version: "6"
 spec:
   parameters: {}
   inputs:
@@ -36,11 +36,11 @@ spec:
       objective: Check the assigned WSTG assertion within the pinned engagement policy and preserve captured
         evidence and capability gaps
       instructions:
-        ref: instructions/audit-wstg-http-verifier-worker-project-findings-keyed-results-runtime-versions.md
+        ref: instructions/audit-wstg-http-verifier-worker-project-findings-keyed-results-runtime-versions-investigation.md
       planner: passthrough@1
       agents:
         verifier:
-          template: audit_wstg_http_verifier@5
+          template: audit_wstg_http_verifier@6
           namespace: audit-wstg-http
       context:
         artifacts:

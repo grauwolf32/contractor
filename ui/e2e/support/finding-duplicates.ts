@@ -74,7 +74,7 @@ export async function exerciseFindingDuplicates(
   for (const index of [1, 2]) {
     const run = await post<{ runId: string }>(
       `/v1/projects/${project.projectId}/runs`,
-      { workflow: "source-findings-review@2", artifacts: { source } },
+      { workflow: "source-findings-review@3", artifacts: { source } },
       `correlation-producer-${index}`,
     );
     await expect

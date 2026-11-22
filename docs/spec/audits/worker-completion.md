@@ -1027,3 +1027,14 @@ completion readiness or compaction control can authorize further work; an error
 and a tool call in the same response never submit results or publish output.
 Shared compact policies and terminal completion remain rejected in
 authoring, reachable execution variants, pinned reads and Runtime admission.
+
+**AWC-R132.** Security investigation instructions start from the assigned objective,
+allowed scope and available materials and encourage systematic examination of relevant
+known surfaces and controls. A first finding alone is not a completion criterion.
+Workers publish evidenced task-related and incidental problems promptly, inspect the
+publication response and do so before final result submission. Zero findings remains
+valid; neither a mandatory finding count nor a deterministic semantic coverage gate
+is implied. Instructions distinguish observations from interpretation and require
+truthful examined areas, remaining gaps, uncertainty and known stop reasons within
+existing permissions and budgets. This guidance applies across source, HTTP and trace
+scenarios without a mandatory plan document, endpoint counter or planner tool.

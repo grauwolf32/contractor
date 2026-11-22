@@ -3,13 +3,13 @@ kind: AgentTemplate
 
 metadata:
   name: audit_source_checker
-  version: "5"
+  version: "6"
 
 spec:
   description: Evaluates a bounded pinned checklist or OpenAPI task set against source code and records incremental results for Runtime-owned publication
   runtime: adk@1
   instructions:
-    ref: instructions/audit-source-checker-worker-project-findings-keyed-results-runtime-versions.md
+    ref: instructions/audit-source-checker-worker-project-findings-keyed-results-runtime-versions-investigation.md
   toolsets:
     - ref: memory-tools@1
       tools:

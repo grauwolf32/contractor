@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: Workflow
 metadata:
   name: audit-openapi-operation-observe
-  version: "3"
+  version: "4"
 spec:
   parameters: {}
   inputs:
@@ -41,11 +41,11 @@ spec:
       objective: Trace the assigned OpenAPI operation through the pinned source workspace
         using structural graph evidence
       instructions:
-        ref: instructions/audit-openapi-operation-observer-worker-keyed-results-runtime-versions.md
+        ref: instructions/audit-openapi-operation-observer-worker-keyed-results-runtime-versions-investigation.md
       planner: passthrough@1
       agents:
         checker:
-          template: audit_openapi_operation_observer@3
+          template: audit_openapi_operation_observer@4
           namespace: audit-check
       context:
         artifacts:
