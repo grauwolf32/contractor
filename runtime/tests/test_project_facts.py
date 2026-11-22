@@ -13,6 +13,7 @@ from test_finding_facades import context
 from test_security_findings_toolset import FakeFindingClient, _settings, _workspace
 
 from contractor_runtime.artifacts import ArtifactClient
+from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.finding_locations import FindingSeverity
 from contractor_runtime.toolsets.security_findings.facades import (
@@ -29,6 +30,10 @@ from contractor_runtime.toolsets.security_findings.submission import (
 def test_record_fact_is_separately_selected_and_retains_optional_association():
     async def scenario():
         client = FakeFindingClient()
+        state = WorkerState()
+        state.resources.selected_versions.assign(
+            [ArtifactRef(namespace="notes", name="selected", revision="r1")]
+        )
         tools = await GeneralFindingsToolsetFactory(
             lambda _allocation, _settings: ArtifactClient("allocation-test", client)
         ).create_selected(
@@ -38,13 +43,13 @@ def test_record_fact_is_separately_selected_and_retains_optional_association():
             namespace="worker",
             runtime_settings=_settings(),
             workspace=_workspace(),
-            resources=WorkerState().resources,
+            resources=state.resources,
         )
         assert set(tools) == {"record_fact"}
         tool = tools["record_fact"]
         declaration = FunctionTool(tool)._get_declaration()
         assert declaration.name == "record_fact"
-        evidence = [{"namespace": "notes", "name": "selected", "revision": "r1"}]
+        evidence = [{"namespace": "notes", "name": "selected"}]
         for extra in ({}, {"item_key": "item-00"}, {"item_key": "item-01", "incidental": False}):
             result = await tool(
                 title="nginx",
