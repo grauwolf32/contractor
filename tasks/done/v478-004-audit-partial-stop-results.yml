@@ -5,10 +5,12 @@ milestone: audit-evidence-results-2026-11
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: b130d8035d33849a218a8069e4d4f0de12070e27
 depends_on:
 - V478-002
 - V478-003
+- V478-019
 languages:
 - go
 - python
@@ -291,6 +293,28 @@ tests:
 - command: make test-findings-e2e
   covers:
   - A4
-verification_notes: Listed commands are required implementation gates, not results of task planning. Use one
-  owned disposable PostgreSQL database, explicitly drop it after pools/processes stop, and never implicitly
-  enable CONTRACTOR_TEST_HEAVY_IO. Zero matched cases and skipped required database/process cases fail acceptance.
+verification_notes: >-
+  Accepted 2026-11-23 against implementation b130d8035d33849a218a8069e4d4f0de12070e27
+  and the separately verified V478-019 aggregate-gate prerequisite. Runtime:
+  6637 passed, 134 declared skips, including 577 required compaction cases.
+  Full listed Go packages passed with actual PostgreSQL. The private Artifact
+  handler and common contract packages passed separately. Basic process gate:
+  14 required cases, 391.884 seconds, no selected skips. Completion gate:
+  223 Go and 482 Runtime cases, no selected skips. Public API PostgreSQL race
+  gate passed. Wire gate: 407 fixtures, 466 Go and 293 Python shared readers,
+  1602 Runtime shared cases; one explicitly disabled disk-heavy case is not
+  passing coverage. Full lint passed. Findings gate: 310 Runtime cases and
+  all 25 required process cases passed on the same implementation plus the
+  bounded aggregate-budget fix. No live model or implicit heavy-I/O call.
+  Real-store regressions cover mixed supported/model-inconclusive/system-stop
+  and unassigned work, A/B correction and old replay, concurrency, exhausted
+  selected-material quota, failed/cancelled attempt reads and exact retention.
+  Actual processes cover a committed withheld acknowledgement, Runtime death,
+  Server restart and producer Run purge without additional target/model calls.
+  Logs: /tmp/v478-004-runtime-final.log, /tmp/v478-004-go-final3.log,
+  /tmp/v478-004-basic-final2.log, /tmp/v478-004-completion-final3.log,
+  /tmp/v478-004-wire-final3.log, /tmp/v478-004-api-final.log,
+  /tmp/v478-004-lint-final2.log, /tmp/v478-019-findings-final.log.
+  Earlier overloaded PostgreSQL/shared-lock and stale-source report failures
+  are superseded by the listed stable successful reruns. Owned test resources
+  remain in this continuous implementation lane until V478-005 finishes.
