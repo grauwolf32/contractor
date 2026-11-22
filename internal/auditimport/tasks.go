@@ -442,7 +442,8 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 	if err != nil {
 		return nil, err
 	}
-	trusted, selectedTranslations, err := i.taskSelectedContext(ctx, execution, trusted)
+	assignment := trusted
+	trusted, selectedTranslations, err := i.taskSelectedContext(ctx, execution, trusted, raw)
 	if err != nil {
 		return nil, err
 	}
@@ -450,8 +451,8 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 	if err != nil {
 		return invalid()
 	}
-	var contextValue, resultValue map[string]any
-	if strictjson.Decode(trusted, &contextValue) != nil || strictjson.Decode(result, &resultValue) != nil {
+	var contextValue, assignmentValue, resultValue map[string]any
+	if strictjson.Decode(trusted, &contextValue) != nil || strictjson.Decode(assignment, &assignmentValue) != nil || strictjson.Decode(result, &resultValue) != nil {
 		return invalid()
 	}
 	workflowDigest, err := contentdigest.CanonicalJSON(pinned.Workflows[execution.WorkflowRole])
@@ -470,7 +471,8 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 		translations[key] = material
 	}
 	inputMaterials := map[string]auditcontract.Material{}
-	for _, member := range members {
+	assignedMembers := assignmentValue["items"].([]any)
+	for _, member := range assignedMembers {
 		for _, raw := range member.(map[string]any)["evidence"].([]any) {
 			data, err := strictjson.Canonical(raw)
 			if err != nil {
@@ -505,7 +507,7 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 	if err != nil {
 		return nil, err
 	}
-	for index, member := range members {
+	for index, member := range assignedMembers {
 		item := member.(map[string]any)
 		task := tasks[index].Document
 		if item["item_key"] != auditcontract.ExecutionItemKey(index) || item["task_id"] != task.TaskID || item["objective"] != task.Objective {

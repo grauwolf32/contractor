@@ -1125,7 +1125,11 @@ per assigned item, including model inconclusive, without a final model call or
 target work. A final all-item Artifact must match the latest accepted conclusion
 set before trusted publication metadata is added. Failed/cancelled Runs retain
 their technical outcome. Model results do not become missing merely because the
-all-item publication failed. Existing bounded attempt policy applies only where
+all-item publication failed. Final normalization validates the original assignment
+and input authority separately from result evidence membership. Only the sources
+cited by each conclusion enter its bounded membership context, after checking
+against that item's assigned materials and accepted annotations; unused inputs do
+not consume selected-evidence slots. Existing bounded attempt policy applies only where
 no accepted judgment settles that attempt; inconclusive adds no mandatory retry.
 
 **AWC-R138.** For an assigned common completion item with no accepted judgment,

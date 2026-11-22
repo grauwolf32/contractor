@@ -10,7 +10,7 @@ import (
 
 // Extend membership only from Server-accepted, exact check associations. Neither
 // a source read nor an arbitrary embedded Audit reference grants this authority.
-func (i *Importer) taskSelectedContext(ctx context.Context, execution auditstore.Execution, trusted []byte) ([]byte, map[string]auditcontract.Material, error) {
+func (i *Importer) taskSelectedContext(ctx context.Context, execution auditstore.Execution, trusted, conclusions []byte) ([]byte, map[string]auditcontract.Material, error) {
 	links, err := i.reads.ListExecutionEvidence(ctx, execution.AuditID, execution.ExecutionID)
 	if err != nil {
 		return nil, nil, err
@@ -19,10 +19,30 @@ func (i *Importer) taskSelectedContext(ctx context.Context, execution auditstore
 	if strictjson.Decode(trusted, &value) != nil {
 		return nil, nil, fmt.Errorf("%w: invalid context", ErrPermanent)
 	}
+	if auditcontract.ValidateResultShape("contractor.audit.conclusions.v1", conclusions) != nil {
+		return nil, nil, fmt.Errorf("%w: invalid conclusions", ErrPermanent)
+	}
+	var submitted struct {
+		Schema string                     `json:"schema"`
+		Items  []auditcontract.Conclusion `json:"items"`
+	}
+	if strictjson.Decode(conclusions, &submitted) != nil {
+		return nil, nil, fmt.Errorf("%w: invalid conclusions", ErrPermanent)
+	}
 	members := map[string]map[string]any{}
+	allowed := map[string]map[string]any{}
 	for _, raw := range value["items"].([]any) {
 		member := raw.(map[string]any)
-		members[member["task_id"].(string)] = member
+		taskID := member["task_id"].(string)
+		members[taskID] = member
+		allowed[taskID] = map[string]any{}
+		for _, material := range member["evidence"].([]any) {
+			key, _ := strictjson.Canonical(material)
+			allowed[taskID][string(key)] = material
+		}
+		// Result membership contains only cited, authorized evidence. Assigned input
+		// materials remain in the separately validated assignment, not in this list.
+		member["evidence"] = []any{}
 	}
 	translations := map[string]auditcontract.Material{}
 	var total int64
@@ -52,18 +72,7 @@ func (i *Importer) taskSelectedContext(ctx context.Context, execution auditstore
 			if _, ok := translations[string(encoded)]; !ok {
 				translations[string(encoded)] = selected
 			}
-			list := member["evidence"].([]any)
-			found := false
-			for _, prior := range list {
-				raw, _ := strictjson.Canonical(prior)
-				if string(raw) == string(encoded) {
-					found = true
-					break
-				}
-			}
-			if !found {
-				member["evidence"] = append(list, selected)
-			}
+			allowed[record.Origin.TaskID][string(encoded)] = selected
 		}
 		// The trusted origin includes the exact assigned hypothesis, if any.
 		hypothesis, exists := member["hypothesis"]
@@ -77,6 +86,25 @@ func (i *Importer) taskSelectedContext(ctx context.Context, execution auditstore
 			if strictjson.Decode(raw, &pinned) != nil || pinned != *record.Origin.Hypothesis {
 				return nil, nil, fmt.Errorf("%w: evidence hypothesis", ErrPermanent)
 			}
+		}
+	}
+	byKey := map[string]map[string]any{}
+	for _, member := range members {
+		byKey[member["item_key"].(string)] = member
+	}
+	for _, item := range submitted.Items {
+		member, ok := byKey[item.ItemKey]
+		if !ok {
+			return nil, nil, fmt.Errorf("%w: unknown result member", ErrPermanent)
+		}
+		taskID := member["task_id"].(string)
+		for _, material := range item.Evidence {
+			key, _ := strictjson.Canonical(material)
+			authorized, ok := allowed[taskID][string(key)]
+			if !ok {
+				return nil, nil, fmt.Errorf("%w: unauthorized result evidence", ErrPermanent)
+			}
+			member["evidence"] = append(member["evidence"].([]any), authorized)
 		}
 	}
 	data, err := strictjson.Canonical(value)
