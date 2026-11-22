@@ -5,7 +5,7 @@ milestone: model-runtime-guidance-2026-11
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V475-001
 languages:
@@ -181,3 +181,9 @@ verification_policy: Add test_tool_arguments.py with real selected callables and
   new cases; add affected sibling suites if implementation touches another owner. Audit collector tests cover
   pure admission/receipts; combined real-store/process coverage is V476-005. No live-model quality improvement
   is claimed.
+implementation_commit: b27d1cc53ef774f7efd7f7987fb4e6496103619d
+verification:
+  date: '2026-11-22'
+  result: 249 focused owner cases passed; 38 new-file cases passed after formatting. Ruff, four import contracts
+    and specification check pass. Real ADK and local socket cases cover direct, proxy and controlled HTTP plus
+    canonical Audit publication; no live run or full suite.
