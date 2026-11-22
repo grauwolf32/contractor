@@ -6,7 +6,8 @@ epic: quality
 kind: defect
 introduced_by: V43-005
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 92e8dfa62ff9940547051790644ea0c38a8c6c0d
 depends_on: [V478-017]
 languages: [python]
 goal: The complete mandatory Findings process suite can finish under one bounded aggregate deadline while every individual harness keeps its own deadline.
@@ -43,3 +44,12 @@ tests:
   covers: [A2]
 - command: uv run --project runtime --locked python scripts/check_tasks.py
   covers: [A2]
+verification_notes: >-
+  Accepted 2026-11-23. make test-findings-e2e passed: 310 Runtime
+  cases and all 25 required process cases, including both independent
+  Servers, in 586.531 seconds of process execution. The previous loaded
+  run stopped its final case at the 600-second aggregate bound; individual
+  harness deadlines and mandatory case verification are unchanged.
+  The 21 report-verifier unit tests and task checker passed.
+  Logs: /tmp/v478-019-findings-final.log, /tmp/v478-019-report-tests.log.
+  No live model, deployment or production timeout change.
