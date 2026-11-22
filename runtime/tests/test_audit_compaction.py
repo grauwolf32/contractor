@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
-from audit_fixtures import arguments, assigned
+from audit_fixtures import accept_fixture_sources, arguments, assigned
 from fakes.clock import advance_clock, run_with_advanceable_clock
 from fakes.model import scripted_model, text_result, tool_call
 from google.adk.models.llm_response import LlmResponse
@@ -67,6 +67,22 @@ async def audit_runtime(
         auto_result_finalizer=False,
         block=block_compactor,
     )
+    # Compaction tests start with an acknowledged source prefix. Seed it through
+    # the public collector API at the first model boundary of each logical
+    # invocation; source selection/Server acceptance has separate real-process
+    # coverage. This adds no fictitious model or tool calls to the budget proof.
+    original_generate = model.generate_content_async
+    seeded_owners = set()
+
+    async def generate_with_accepted_sources(*args, **kwargs):
+        collector = tools["read_audit_task"].completion_binding.current()
+        if collector.owner not in seeded_owners:
+            await accept_fixture_sources(collector)
+            seeded_owners.add(collector.owner)
+        async for response in original_generate(*args, **kwargs):
+            yield response
+
+    object.__setattr__(model, "generate_content_async", generate_with_accepted_sources)
     runtime = AdkWorkerRuntime(context, model, model_factory=lambda _: compactor)
     await runtime.start()
     return runtime, model, compactor, client, state, expected

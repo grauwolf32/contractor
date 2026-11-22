@@ -492,7 +492,7 @@ func assertFindingsResultReceipt(t *testing.T, h *findingsHarness, runID string,
 	if err := json.Unmarshal(payload, &result); err != nil || result.Schema != "contractor.audit.result.v1" || len(result.Items) != 1 {
 		t.Fatalf("canonical common result: %+v %v", result, err)
 	}
-	if !reflect.DeepEqual(result.Items[0].FindingReceipts, []string{receipt.ReceiptID}) || receipt.Origin.Audit == nil || result.Items[0].Origin.TaskID != receipt.Origin.Audit.TaskID || !reflect.DeepEqual(result.Items[0].TestedConditions, []string{"operation-resolution"}) {
+	if !reflect.DeepEqual(result.Items[0].FindingReceipts, []string{receipt.ReceiptID}) || receipt.Origin.Audit == nil || result.Items[0].Origin.TaskID != receipt.Origin.Audit.TaskID || !reflect.DeepEqual(result.Items[0].TestedConditions, []string{"source operation and graph inspected"}) {
 		t.Fatalf("result lost finding/Task correlation: %+v versus %+v", result, receipt)
 	}
 
