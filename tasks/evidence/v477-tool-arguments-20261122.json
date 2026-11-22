@@ -1,0 +1,129 @@
+{
+  "schema": "contractor.focused-verification.v1",
+  "date": "2026-11-22",
+  "scope": [
+    "V477-001",
+    "V477-002",
+    "V477-003",
+    "V476-005 extended A1-A6"
+  ],
+  "branch": "codex/v477-tool-arguments",
+  "baselineMain": "d8b9f6d621a68e04c8a7dd86784529e27c0d93a9",
+  "originalV476": "a38839700",
+  "planningBranch": "ba994d20714286a534d24049c8d69015ca0b8386",
+  "implementationCommits": {
+    "V477-001": "b27d1cc53ef774f7efd7f7987fb4e6496103619d",
+    "V477-003": "b54844d5d4c410264eeb60fa844818de0a8b487a",
+    "V477-002": "370a7ec8bb834d78e38a97e7108c86b1eed0dbc5"
+  },
+  "outcome": "Explicit one-layer JSON representations and safe field diagnostics for HTTP/Audit tools; JSON object/array encoded once, exact UTF-8 text preserved; original V476 facts/repeat/checkpoint behavior passes combined acceptance.",
+  "reconciliation": "Reopened V476-005 for the V477 dependencies and A5/A6, preserving its original successful evidence. No outstanding consequential choice was found in V477; tools own opt-ins and common helpers contain no tool-name dispatch.",
+  "runtimeChecks": [
+    {
+      "owner": "V477-001",
+      "cwd": "runtime",
+      "command": "python -m pytest -o addopts='' -q tests/test_tool_arguments.py tests/test_worker_function_tools.py tests/test_tool_input_errors.py tests/test_http_toolset.py tests/test_audit_http_credentials.py tests/test_audit_results_toolset.py tests/test_audit_result_collector.py tests/test_audit_result_publication.py",
+      "passed": 249,
+      "elapsedSeconds": 6.07,
+      "skipped": 0,
+      "log": "/private/tmp/contractor-v477-001.log",
+      "logSha256": "341e9dcf167e8d6c37fbef2078c9a208f2b5e86ecc406a692b0dbd0eef8dea0e"
+    },
+    {
+      "owner": "V477-002",
+      "cwd": "runtime",
+      "command": "python -m pytest -o addopts='' -q tests/test_tool_arguments.py tests/test_tool_input_errors.py tests/test_worker_function_tools.py tests/test_instrumentation.py tests/test_http_toolset.py tests/test_controlled_http_outcomes.py tests/test_http_caido_redaction.py tests/test_audit_results_toolset.py tests/test_audit_result_collector.py",
+      "passed": 290,
+      "elapsedSeconds": 10.07,
+      "skipped": 0,
+      "log": "/private/tmp/contractor-v477-002-final.log",
+      "logSha256": "2a78893f00f75c0ee3e7f8ff79bb06600f0edc09feec17df6e949ad998931ae8"
+    },
+    {
+      "owner": "V477-003",
+      "cwd": "runtime",
+      "command": "python -m pytest -o addopts='' -q tests/test_tool_arguments.py tests/test_http_body_arguments.py tests/test_worker_function_tools.py tests/test_tool_input_errors.py tests/test_http_toolset.py tests/test_http_proxy_adapter.py tests/test_audit_http_credentials.py tests/test_controlled_http_outcomes.py tests/test_http_caido_security.py tests/test_http_caido_redaction.py tests/test_http_selected_evidence.py tests/test_http_toolset_lifecycle.py tests/test_shared_config_bootstrap.py tests/test_http_engine.py tests/test_http_retries.py tests/test_http_target_policy.py tests/test_http_proxy_bridge.py tests/test_audit_completion_runtime.py tests/test_audit_completion_continuation.py",
+      "passed": 414,
+      "elapsedSeconds": 27.79,
+      "skipped": 0,
+      "log": "/private/tmp/contractor-v477-003.log",
+      "logSha256": "f2154646d5a31c20774a901cdeb3b34787da16343ce4d496af313ca80b83d26c"
+    },
+    {
+      "owner": "combined-runtime",
+      "cwd": "runtime",
+      "command": "python -m pytest -o addopts='' -q tests/test_tool_repeats.py tests/test_worker_guidance.py tests/test_audit_compaction.py",
+      "passed": 28,
+      "elapsedSeconds": 1.15,
+      "skipped": 0,
+      "log": "/private/tmp/contractor-v477-combined-runtime.log",
+      "logSha256": "6c9740ef75947af256b31a23e3751bd959287f46e044b88652d9a88d207afa5e"
+    }
+  ],
+  "countsOverlap": true,
+  "processCheck": {
+    "command": "go test -json -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^(TestRuntimeGuidanceAcrossProductionProcesses|TestWorkerSessionModesAcrossProductionProcesses|TestWorkerCompactionContinuesIsolatedWorker|TestEngagementHTTPBoundsAcrossProcesses)$'",
+    "roots": {
+      "TestEngagementHTTPBoundsAcrossProcesses": 16.23,
+      "TestRuntimeGuidanceAcrossProductionProcesses": 70.66,
+      "TestWorkerCompactionContinuesIsolatedWorker": 108.96,
+      "TestWorkerSessionModesAcrossProductionProcesses": 222.27
+    },
+    "parentAndChildCases": 37,
+    "failed": 0,
+    "skipped": 0,
+    "elapsedSeconds": 418.511,
+    "log": "/private/tmp/contractor-v477-process-final.jsonl",
+    "logSha256": "3c157c43c4f1d78cc6488a6362fbe8b6773788480dc79dcf386e09c12d02862e"
+  },
+  "staticChecks": {
+    "ruff": "Affected common/HTTP/Audit owners, core input/tool errors and changed tests pass; 13 changed Python files formatted.",
+    "imports": "4 kept, 0 broken; no upward/toolset sibling imports added.",
+    "specifications": "51 documents consistent.",
+    "tasks": "1713 records consistent; backlog regenerated on each status transition.",
+    "releaseGraph": "release graph: 12 stages in CI order, 131 race packages, 63 process tests, 11 fixture tests, 333 existing -run selections, 98 tagged e2e tests (12 opt-in), 159 integration tests, 2 packages on the filesystem blob backend, and the catalog and ERD checks covered",
+    "diffWhitespace": "git diff --check passed"
+  },
+  "verifiedInputsSha256": {
+    "docs/spec/audits/worker-completion.md": "479d78dff991d8e650eea6babe047defb0fa0a7b6fe5f19728c7bce255cc9a66",
+    "docs/spec/platform/errors.md": "ed64b14080de3bb57a6b2cd6bd183447796ea953813021269f11ec2aab57943c",
+    "docs/spec/platform/limits.md": "ad0f613e8d479b118b5cecec5b9c50356c01c0361eb4df2c4a870ff3d66712a6",
+    "docs/spec/tools/http-caido.md": "0b6ba1bf6590b8b9f4a5144d7a47bc1cdcf9dd74fbeaade9c9aff39ace16c097",
+    "docs/spec/tools/toolsets.md": "9dbbc8d4b7ba2c2bb6ecb5a814424e05df8e8dc1259d28af93411a6a9d0a56c3",
+    "runtime/src/contractor_runtime/toolsets/audit_results/arguments.py": "9a0ac6f395e25d55215e1e49a43f575bcc6d37131761571568728969ba5dc5ee",
+    "runtime/src/contractor_runtime/toolsets/audit_results/v2.py": "b9950d0d69b35c45a36074bd598c4571b58e80942eaa021ad0aaef04af18af61",
+    "runtime/src/contractor_runtime/toolsets/common/argument_diagnostics.py": "9c369b8360aeb0238fa37b8120cc54715c65d6b7fc332b34dde7b4a24287fca6",
+    "runtime/src/contractor_runtime/toolsets/common/arguments.py": "1f4ef7ed0583db811623664a4bf1575fb8679312be280d7e589826b118fb53a8",
+    "runtime/src/contractor_runtime/toolsets/http/arguments.py": "c2a4d226cacba2fcc62eefd45e3c55a754267c9c52598f17bd28cd3c3e220147",
+    "runtime/src/contractor_runtime/toolsets/http/controlled.py": "2ebfc70372441e93a5d2ff98502c0066969249d1599fea30c6dd88198d39beac",
+    "runtime/src/contractor_runtime/toolsets/http/errors.py": "6e33fb09786650aef3845f9fbb596f9f03d3a5d83c6dbd776ed9a89827a1767c",
+    "runtime/src/contractor_runtime/toolsets/http/headers.py": "60b887973a014641932e8ef290e715ad52194d293b6ce0d1441962bb10b3328f",
+    "runtime/src/contractor_runtime/toolsets/http/tools.py": "83b44517d166899a47ca260ae09492f71d90b3c3ba5c8ec50bf15517d55dc11b",
+    "runtime/tests/fakes/tool_arguments.py": "794267921880f22aeb57654cb031746af5737b6f8e0e981c47827d1105b0c2e3",
+    "runtime/tests/test_http_body_arguments.py": "cdc5344da2ba05078658b51310f18e5d22d7cbf9e88713b8d984f9cf810b47fb",
+    "runtime/tests/test_shared_config_bootstrap.py": "5ef97facd228fdcf6e8e73a7e949ada68fdc554fd5767da1f01f88925ddb22fd",
+    "runtime/tests/test_tool_arguments.py": "cb09b5163982b0a1dab87013f5cc69908f2aed497da32fac4c8da7f7596c34c8",
+    "tests/e2e/runtime_guidance_arguments_test.go": "4834d9324748ce7478fe71fc87926472e3431b4408e6486f46a3c85ff3e53cb3",
+    "tests/e2e/runtime_guidance_test.go": "9fbb333a30b71458996ae47ac781e7bb88496f58945e9775ed92875eda448200"
+  },
+  "unchangedEvidence": {
+    "reference": "tasks/evidence/v476-runtime-guidance-20261122.json",
+    "reason": "Go Planner production source and shared request-guidance fixture are unchanged; focused Planner package race evidence is reused. Both modeled Planner paths run in the current selected process scenarios."
+  },
+  "catalogReview": "No shipped config or Skill asserts scalar-json semantics. Existing scripted native-object calls remain valid; no published identity or catalog.lock digest changed.",
+  "cleanup": {
+    "ownedDatabaseDropped": true,
+    "clientConnectionsBeforeDrop": 0,
+    "databasePresentAfterDrop": false,
+    "ownedPostgreSQLStopped": true,
+    "ownedDataDirectoryRemoved": true,
+    "temporaryVenvLinkRemoved": true,
+    "primaryCheckoutPreserved": true
+  },
+  "limitations": [
+    "No full Runtime/Go/UI/lint/release suite, live-model quality experiment, demo deployment or live Audit.",
+    "No HTTP repeat policy or automatic semantic resend added; original exact read_artifact repeat scope remains.",
+    "Only final successful reports above establish acceptance. Earlier new-fixture diagnostics included test invocation/API assumptions and a Go fixture callback signature; these were corrected without weakening production behavior.",
+    "Implementation remains local on codex/v477-tool-arguments; not merged into main or pushed."
+  ]
+}

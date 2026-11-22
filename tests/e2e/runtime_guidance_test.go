@@ -45,6 +45,7 @@ func validateExecutionFacts(request map[string]any, field string) error {
 }
 
 func TestRuntimeGuidanceAcrossProductionProcesses(t *testing.T) {
+	t.Run("http-and-audit-argument-contracts", runtimeArgumentContractsScenario)
 	t.Run("streamline", func(t *testing.T) { workerCompactionSelectionScenario(t, "streamline") })
 	t.Run("exact-reads-and-checkpoint-images", func(t *testing.T) {
 		var data bytes.Buffer
