@@ -22,6 +22,8 @@ from contractor_runtime.toolsets.common.versions import SelectedVersions
 
 
 class ProposalCollector(Protocol):
+    def begin_response(self) -> None: ...
+
     def check_finding_item(
         self, invocation_id: str, item_key: str | None, *, incidental: bool = False
     ) -> None: ...

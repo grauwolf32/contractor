@@ -3,13 +3,13 @@ kind: AgentTemplate
 
 metadata:
   name: audit_risk_source_checker
-  version: "3"
+  version: "4"
 
 spec:
   description: Evaluates one exact standard mapping against source code and may publish an evidence-bound candidate finding
   runtime: adk@1
   instructions:
-    ref: instructions/audit-risk-source-checker-worker-project-findings-keyed-results.md
+    ref: instructions/audit-risk-source-checker-worker-project-findings-keyed-results-runtime-versions.md
   toolsets:
     - ref: memory-tools@1
       tools:

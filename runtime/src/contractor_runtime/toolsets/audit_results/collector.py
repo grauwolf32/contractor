@@ -50,6 +50,9 @@ class AuditCollectionError(WorkerCompletionError, ToolInputError):
         return result
 
 
+_CURRENT = object()
+
+
 class InvocationAuditCollector:
     """One invocation owns drafts, revisions and a final immutable seal.
 
@@ -70,7 +73,7 @@ class InvocationAuditCollector:
         self._http_publisher = http_publisher
         self._http_selected = {}
         self._items: dict[str, RecordedAuditItem] = {}
-        self._replayed_from: dict[str, int] = {}
+        self._response_revisions: dict[str, int] | None = None
         self._proposals: dict[str, frozenset] = {}
         self._lock = asyncio.Lock()
         self._sealed = self._discarded = False
@@ -200,48 +203,43 @@ class InvocationAuditCollector:
             tuple(key for key in self.owner.item_keys if key not in self._items),
         )
 
-    async def record(self, item: NormalizedAuditItem, *, expected_revision=None):
+    def begin_response(self) -> None:
+        self._response_revisions = {key: item.revision for key, item in self._items.items()}
+
+    def item_base(self, item_key: str) -> int | None:
+        if not isinstance(item_key, str):
+            return None
+        if self._response_revisions is not None:
+            return self._response_revisions.get(item_key)
+        item = self._items.get(item_key)
+        return item.revision if item else None
+
+    async def record(self, item: NormalizedAuditItem, *, expected_revision=_CURRENT):
+        if expected_revision is _CURRENT:
+            expected_revision = self.item_base(item.item_key)
         async with self._lock:
             self._check_live(writing=True)
             item = self._validate(item)
             key = item.item_key
             current = self._items.get(key)
-            if expected_revision is not None and (
-                type(expected_revision) is not int or not 1 <= expected_revision <= MAX_REVISION
-            ):
-                raise AuditCollectionError(
-                    "expected_revision",
-                    "Use a positive integer revision from the receipt.",
-                    item_key=key,
-                )
-            if (
-                current is not None
-                and replace(current.value, http_evidence=()) == item
-                and (expected_revision is None or expected_revision == self._replayed_from.get(key))
-            ):
+            if current is not None and replace(current.value, http_evidence=()) == item:
                 return self._receipt()
-            if (current is None and expected_revision is not None) or (
-                current is not None and expected_revision != current.revision
-            ):
+            if (current.revision if current else None) != expected_revision:
                 raise AuditCollectionError(
-                    "expected_revision",
-                    "Result conflicts; use the current recorded revision.",
+                    "item_key",
+                    "This item changed in the same response; submit again in a later turn.",
                     item_key=key,
                     current_revision=current.revision if current else None,
                 )
             revision = 1 if current is None else current.revision + 1
             if revision > MAX_REVISION:
-                raise AuditCollectionError(
-                    "expected_revision", "Revision limit reached.", item_key=key
-                )
+                raise AuditCollectionError("item_key", "Revision limit reached.", item_key=key)
             (item,) = await self._resolve_http((item,))
             prospective = {**self._items, key: RecordedAuditItem(item, revision)}
             await self._admit(prospective)
             # The lock is still held: nothing changed the collection while
             # the prospective set was encoded, so the replacement is atomic.
             self._items = prospective
-            if expected_revision is not None:
-                self._replayed_from[key] = expected_revision
             return self._receipt()
 
     async def record_batch(self, items: tuple[NormalizedAuditItem, ...]):
@@ -260,7 +258,7 @@ class InvocationAuditCollector:
                 if current is not None and replace(current.value, http_evidence=()) != item:
                     raise AuditCollectionError(
                         "results",
-                        "Existing result differs; correct it with scalar expected_revision.",
+                        "Existing result differs; correct it with a single-item submission.",
                         item_key=item.item_key,
                         current_revision=current.revision,
                     )
@@ -338,6 +336,6 @@ class InvocationAuditCollector:
         async with self._lock:
             self._discarded = True
             self._items.clear()
-            self._replayed_from.clear()
+            self._response_revisions = None
             self._proposals.clear()
             self._http_selected.clear()

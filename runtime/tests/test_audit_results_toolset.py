@@ -65,7 +65,6 @@ def test_adk_schema_exposes_only_judgment_and_selected_evidence():
             "evidence",
             "http_request_ids",
             "verdict",
-            "expected_revision",
         }
         assert set(wire["parameters"]["required"]) == {
             "item_key",

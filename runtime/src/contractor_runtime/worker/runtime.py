@@ -848,6 +848,10 @@ class AdkWorkerRuntime:
 
     async def _prepare_model_request(self, callback_context: Any, llm_request: Any) -> None:
         self._resources.selected_versions.begin_response()
+        if self._resources.proposal_collector is not None:
+            collector = self._resources.proposal_collector()
+            if collector is not None:
+                collector.begin_response()
         compaction = self._compaction
         if compaction is not None:
             contents = compaction.project(list(callback_context.session.events))

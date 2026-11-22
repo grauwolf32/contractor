@@ -68,7 +68,8 @@ separate from automatic origin. Editing authored content preserves its sources.
 **HG-R7.** Model supplies bounded judgement and local aliases. Runtime validates
 content and assembles the typed proposal through `submit_hypothesis_proposals`.
 It resolves configured roles, checks exact selections and uses ordinary Artifact
-CAS to correct local output. Repeated calls retain prior selected refs; a handle
+CAS with a private remembered base to correct local output, without a model
+`expected_revision` argument. Returned artifact revisions remain visible. Repeated calls retain prior selected refs; a handle
 cannot be rebound to another source. Tool success means a proposal was saved,
 not a hypothesis published. Model never assigns persisted IDs/revisions/origin.
 

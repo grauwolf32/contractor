@@ -127,13 +127,11 @@ def test_shared_tool_resolves_configured_roles_cas_and_cumulative_selections():
         await tool("{}", "[]", selected_materials_json=json.dumps(refs))
         assert client.writes == 1
         one = {"choice-30": {"namespace": "explorer", "name": "snapshot-30", "revision": "r1"}}
-        await tool("{}", "[]", expected_revision="r1", selected_materials_json=json.dumps(one))
+        await tool("{}", "[]", selected_materials_json=json.dumps(one))
         assert len(json.loads(client.data)["selected_materials"]) == 31
         overflow = {"choice-31": {"namespace": "explorer", "name": "snapshot-31", "revision": "r1"}}
         with pytest.raises(ToolInputError):
-            await tool(
-                "{}", "[]", expected_revision="r2", selected_materials_json=json.dumps(overflow)
-            )
+            await tool("{}", "[]", selected_materials_json=json.dumps(overflow))
         for ref in [
             {"namespace": "skills", "name": "private", "revision": "r1"},
             {"namespace": "inputs", "name": "context", "revision": "r1"},
@@ -150,9 +148,11 @@ def test_shared_tool_resolves_configured_roles_cas_and_cumulative_selections():
                 "sources": ["choice-0"],
             }
         }
+        client.revision = "external-r3"
         with pytest.raises(ArtifactAPIError, match="409"):
-            await tool(json.dumps(seed), "[]", expected_revision="r1")
-        await tool(json.dumps(seed), "[]", expected_revision="r2")
+            await tool(json.dumps(seed), "[]")
+        client.revision = "r2"
+        await tool(json.dumps(seed), "[]")
         assert client.writes == 3
         roles["run_id"] = "foreign-run"
         with pytest.raises(ToolInputError):

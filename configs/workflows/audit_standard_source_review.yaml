@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: Workflow
 metadata:
   name: audit-standard-source-review
-  version: "3"
+  version: "4"
 spec:
   parameters: {}
   inputs:
@@ -31,11 +31,11 @@ spec:
       objective: Review one exact standard requirement or scenario against the supplied source and preserve
         unresolved evidence gaps
       instructions:
-        ref: instructions/audit-standard-source-verifier-worker-project-findings-keyed-results.md
+        ref: instructions/audit-standard-source-verifier-worker-project-findings-keyed-results-runtime-versions.md
       planner: passthrough@1
       agents:
         verifier:
-          template: audit_standard_source_verifier@3
+          template: audit_standard_source_verifier@4
           namespace: audit-standard
       context:
         artifacts:
