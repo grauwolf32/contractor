@@ -1,0 +1,246 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-22",
+  "task": "V474-010",
+  "status": "completed",
+  "branch": "codex/v474-tool-interfaces",
+  "testedCombinedRevision": "39e351729a5ef1aa63c111d258f9b30cdb0e7240",
+  "integrationRevision": "9d670cfba2cd69854496be8d0472d6f0e912c0a8",
+  "sourceRevision": "af856f18bd4a847559b00c5913004efef7f8fc3c",
+  "productionDiffFromVisionBranch": [],
+  "changesSinceSourceRevision": [
+    "tasks/BACKLOG.md",
+    "tasks/done/v474-005-image-artifact-model-transport.yml",
+    "tasks/done/v474-011-assert-audit-fixture-transformations.yml",
+    "tasks/done/v474-012-migrate-scripted-audit-callbacks.yml",
+    "tasks/v474-010-tool-interface-acceptance.yml",
+    "tests/e2e/audit_basic_process_test.go",
+    "tests/e2e/audit_compaction_test.go",
+    "tests/e2e/audit_hypotheses_process_test.go",
+    "tests/e2e/engagement_http_evidence_test.go",
+    "tests/e2e/findings_process_test.go"
+  ],
+  "implementationTasks": {
+    "V474-001": {
+      "status": "completed",
+      "implementationCommit": "310462cb865ce972d53a609c4e58844f6c334eb2"
+    },
+    "V474-002": {
+      "status": "completed",
+      "implementationCommit": "b5d60d94bd3f9b12adf9cbaa29b7d7eacd38c02d"
+    },
+    "V474-003": {
+      "status": "completed",
+      "implementationCommit": "2dd32be7687f7f765466bb20f033216508f90446"
+    },
+    "V474-004": {
+      "status": "completed",
+      "implementationCommit": "076435ee7e63e2d9c83ae83f4655a9c682b68067"
+    },
+    "V474-005": {
+      "status": "completed",
+      "implementationCommit": "af856f18bd4a847559b00c5913004efef7f8fc3c"
+    },
+    "V474-006": {
+      "status": "completed",
+      "implementationCommit": "3fa0681b5b172db26417a0d02bda79cfb68612cd"
+    },
+    "V474-007": {
+      "status": "completed",
+      "implementationCommit": "e68cc339955cc18c8c4c9af51985ba7e1cf01fc2"
+    },
+    "V474-008": {
+      "status": "completed",
+      "implementationCommit": "db90dcfedeb568e4b80ac6834b45af60c18ce8f2"
+    },
+    "V474-009": {
+      "status": "completed",
+      "implementationCommit": "a572233ce67edb8527f5c787354c3aad884a73ee"
+    },
+    "V474-011": {
+      "status": "completed",
+      "implementationCommit": "9e62b79900191319bf1e5de8d0683587ef6b6386"
+    },
+    "V474-012": {
+      "status": "completed",
+      "implementationCommit": "1d368856c8ace8e3c58795d60cfbc5efe2464438"
+    }
+  },
+  "gates": {
+    "runtime": {
+      "command": "make test-runtime",
+      "status": "passed",
+      "passed": 6446,
+      "declaredSkipped": 135,
+      "compactionPassed": 577,
+      "log": "/private/tmp/contractor-v474-vision-runtime-final.log"
+    },
+    "contracts": {
+      "command": "make test-config verify-public-api test-wire-cross-language",
+      "status": "passed",
+      "fixtures": 403,
+      "goSharedTests": 455,
+      "pythonSharedTests": 287,
+      "optionalHeavySkipped": 1,
+      "log": "/private/tmp/contractor-v474-vision-contracts-final.log"
+    },
+    "go": {
+      "command": "go test -count=1 ./internal/config/... ./internal/contracts/... ./internal/httpapi/public ./internal/operations/...",
+      "status": "passed",
+      "realPostgres": true,
+      "log": "/private/tmp/contractor-v474-vision-go.log"
+    },
+    "ui": {
+      "command": "VITEST_MAX_WORKERS=2 make ui-format ui-verify",
+      "status": "passed",
+      "testFiles": 228,
+      "passed": 2581,
+      "expectedFailures": 1,
+      "log": "/private/tmp/contractor-v474-vision-ui.log"
+    },
+    "browser": {
+      "command": "runBrowserGate(v474-image-policy, operations-forms.spec.ts)",
+      "status": "passed",
+      "passed": 12,
+      "width": 390,
+      "themes": [
+        "light",
+        "dark",
+        "black"
+      ],
+      "log": "/private/tmp/contractor-v474-vision-browser-final.log"
+    },
+    "process": {
+      "command": "make test-e2e RELEASE_REPORTS=reports/v474-final",
+      "status": "passed",
+      "database": "contractor_v474_fixtures",
+      "log": "/private/tmp/contractor-v474-final-process.log",
+      "report": "/Users/ruslan/src/contractor-wt/v474-tools/reports/v474-final/go-process.jsonl",
+      "passedRoots": 61,
+      "passedCasesIncludingParents": 169,
+      "skippedCases": 0,
+      "elapsedSeconds": 3872.889,
+      "reportSha256": "4fa17ac40ae42f981147afe504cdc5912bd5781e894db91c8bde5dcdd9c263d8",
+      "mandatoryReportVerifiers": [
+        "compaction-process",
+        "findings",
+        "audit-basic",
+        "iterative-process",
+        "audit-workspace-composition",
+        "engagement-http"
+      ]
+    },
+    "lint": {
+      "command": "make lint",
+      "status": "passed",
+      "log": "/private/tmp/contractor-v474-final-lint.log",
+      "importContractsKept": 4
+    }
+  },
+  "verificationReuse": "Runtime, configuration, API, wire, Go and UI gates passed on identical production code. Later changes are task metadata and the process-only fixture repairs V474-011/V474-012. The final complete E2E and final lint passed on the assembled branch after both repairs.",
+  "structuralComparison": {
+    "profile": "workspace_openapi_validator",
+    "beforeRevision": "86db128dbf63980c4e1fdc716b667216c2ec055c",
+    "before": {
+      "tools": 31,
+      "descriptionCharacters": 13936,
+      "functionSchemaBytes": 22482,
+      "closedTopLevelSchemas": 0
+    },
+    "after": {
+      "tools": 31,
+      "descriptionCharacters": 14489,
+      "functionSchemaBytes": 23731,
+      "closedTopLevelSchemas": 24
+    },
+    "interpretation": "Structural counts are not token counts, repair rates or live model quality measurements."
+  },
+  "limitations": [
+    "No live model quality experiment or arbitrary Gateway compatibility claim",
+    "Optional disk-heavy fixtures remain disabled and their skips are not passing coverage",
+    "Real Podman backend deployment not run; separate native Linux fake-CLI scenarios passed",
+    "Not deployed or merged into main; paused V417 work unchanged"
+  ],
+  "cleanup": {
+    "completed": [
+      "Removed owned Audit and file-publication PostgreSQL databases",
+      "Removed owned contractor-v474-uv-linux-cache Podman volume",
+      "Removed exact owned Linux prefixes and VM pytest directory",
+      "Dropped contractor_v474_acceptance after the diagnostic process runner joined",
+      "Dropped contractor_v474_fixtures after the final process runner joined",
+      "Verified no non-template test databases remained; stopped and removed the owned PostgreSQL cluster",
+      "Verified no owned Podman test containers or volumes remained",
+      "Verified no v474 Runtime processes remain; primary checkout hashes, modes, HEAD, status and staged diff are unchanged"
+    ],
+    "pending": []
+  },
+  "primaryCheckout": {
+    "head": "f6f0569bcf45c680f00a25f622cd7fd8d28a702d",
+    "status": [
+      "M tasks/BACKLOG.md",
+      " M tasks/v411-015-http-pentest-workflow-presets.yml",
+      " M tests/eval/pentest/playground.lock.json",
+      "?? tasks/done/v455-003-invoice-lab-http11.yml",
+      "?? tasks/evidence/v411-015-demo-20261107.json",
+      "?? tasks/evidence/v455-003-invoice-http11-20261107.json"
+    ],
+    "files": {
+      "tasks/BACKLOG.md": {
+        "sha256": "e8539f2fec1c9eab06b2e1791a5cd2dd110a2862ba51215b12546517b90debcf",
+        "mode": "0o644"
+      },
+      "tasks/v411-015-http-pentest-workflow-presets.yml": {
+        "sha256": "870fd0a720021000fc1a482378040472a19fc3693ba277066a363907b98d8c7a",
+        "mode": "0o644"
+      },
+      "tests/eval/pentest/playground.lock.json": {
+        "sha256": "a4b98bfdde6b68720803eecb9f8639f22687af8d623c63c3ce15b787dcfa1a70",
+        "mode": "0o644"
+      },
+      "tasks/done/v455-003-invoice-lab-http11.yml": {
+        "sha256": "d0e3bd9576a545836ded18b0c9740a1e244749991aab9cf453181836ed5fd408",
+        "mode": "0o644"
+      },
+      "tasks/evidence/v411-015-demo-20261107.json": {
+        "sha256": "2c11d00c3cfb45dc66f2f1ac7fcc3ceef0547840644e0faabc213695729466ea",
+        "mode": "0o644"
+      },
+      "tasks/evidence/v455-003-invoice-http11-20261107.json": {
+        "sha256": "641c4123c5f5d85189118536de27d6023b0a50dedfd7b259a6ef47dec41f2d47",
+        "mode": "0o644"
+      }
+    },
+    "stagedDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "verifiedUnchangedAtCompletion": true
+  },
+  "catalog": "/Users/ruslan/.codex/visualizations/2026/11/21/01a1fd37-ac3e-74c2-857c-1bb2be70e646/contractor-llm-tools.html",
+  "failedAttempts": [
+    {
+      "revision": "6edd1e50aea1418aaaa03925df753b8115da75f3",
+      "status": "failed_and_cancelled",
+      "failure": "TestAuditCompactionPreservesTrustedCompletionAcrossProcesses",
+      "cause": "Stale initial_work replacement after the report-producer migration; repaired by V474-011",
+      "report": "/Users/ruslan/src/contractor-wt/v474-tools/reports/v474-attempt-1-go-process.jsonl",
+      "reportSha256": "83f5396edf49dcd0688b7a568eb8950698c7e68382345bf2434909dad23d4301",
+      "log": "/private/tmp/contractor-v474-combined-process-attempt-1.log",
+      "countsAreNotAcceptanceCoverage": true
+    },
+    {
+      "revision": "dac52b90b2ac3208fc794747847336b0d085fcda",
+      "status": "failed",
+      "passedRoots": 59,
+      "failedRoots": [
+        "TestFindingsProducerAndReaderAcrossProcesses",
+        "TestFindingsCollectionsRetainOrdinaryAndAuditReceipts"
+      ],
+      "cause": "Two remaining custom scalar callbacks omitted item_key; repaired by V474-012 and passed in targeted and final runs",
+      "report": "/Users/ruslan/src/contractor-wt/v474-tools/reports/v474-attempt-2-go-process.jsonl",
+      "reportSha256": "75788cf9b96116571c8cc5660ce3b62ab888d313231ac9040f7ea20944ac26df",
+      "log": "/private/tmp/contractor-v474-combined-process-attempt-2.log",
+      "countsAreNotAcceptanceCoverage": true
+    }
+  ],
+  "fixtureRepairRevision": "9e62b79900191319bf1e5de8d0683587ef6b6386",
+  "productionChangesSinceSourceRevision": [],
+  "callbackRepairRevision": "1d368856c8ace8e3c58795d60cfbc5efe2464438"
+}

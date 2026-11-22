@@ -27,6 +27,7 @@ context:
     The second full process run exposed two custom scalar callbacks without item_key.
     V474-012 migrated both callbacks and verified every intended accepted response. The existing compiled
     process run continues only to collect additional failures, not as successful acceptance.
+  acceptance_evidence: tasks/evidence/v474-tool-interfaces-20261122.json
   verification_reuse: >-
     The assembled tree at 9d670cfba2cd69854496be8d0472d6f0e912c0a8 is identical to
     codex/v474-image-artifacts at e31be4d88 apart from commit ancestry. Completed Runtime,
@@ -62,3 +63,19 @@ tests:
   covers: [A2]
 - command: make lint
   covers: [A2, A3]
+verification:
+  date: '2026-11-22'
+  result: >-
+    Final make test-e2e passed all 61 roots / 169 parent-and-child cases in 3872.889 seconds,
+    without skips, followed by all six mandatory report verifiers. Final make lint passed
+    with all four import contracts kept. Identical production code passed the full Runtime
+    gate (6446 passed, 135 declared skips, including 577 compaction cases), configuration,
+    public API, wire (403 fixtures, 455 Go / 287 Python shared readers), affected Go packages
+    with real PostgreSQL, UI verification (228 files / 2581 tests plus one expected failure)
+    and 12 focused browser cases including 390 px in light/dark/black. One optional heavy
+    shared fixture skipped and does not count as passing coverage. V474-011/V474-012 repaired
+    process-only fixtures after failed diagnostic runs; those failed runs are retained and
+    are not acceptance passes. No live model quality or arbitrary Gateway compatibility is
+    claimed. Owned test databases, PostgreSQL cluster, Linux prefixes and Podman volume are
+    removed; no owned Runtime remains. Primary HEAD, six file hashes/modes, status and staged
+    diff are unchanged. All implementation is on codex/v474-tool-interfaces, not merged or deployed.
