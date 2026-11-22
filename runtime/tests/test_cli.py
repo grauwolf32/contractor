@@ -61,7 +61,9 @@ def test_shutdown_cancels_inflight_heartbeat_and_stops_listener(
                 install_signal_handlers=False,
             )
         )
-        await asyncio.wait_for(transport.heartbeat_started.wait(), timeout=2)
+        # Startup includes threaded filesystem policy and application setup;
+        # this guard detects hangs rather than imposing a startup benchmark.
+        await asyncio.wait_for(transport.heartbeat_started.wait(), timeout=10)
         stop.set()
         await asyncio.wait_for(task, timeout=2)
         assert transport.heartbeat_cancelled

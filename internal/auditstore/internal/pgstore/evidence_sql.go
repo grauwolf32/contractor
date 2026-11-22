@@ -7,9 +7,9 @@ SELECT count(*)::int,coalesce(sum(size_bytes+coalesce((source_provenance->>'sour
  coalesce(sum((source_provenance->>'sourceCount')::int),0)::int,
  (SELECT count(*)::int FROM audit_execution_items WHERE audit_id=$1 AND execution_id=$6)
 FROM (SELECT size_bytes,source_provenance FROM audit_artifact_links
- WHERE audit_id=$1 AND ((logical_key >= $2 AND logical_key < $3)
- OR (logical_key >= $4 AND logical_key < $5))
- ORDER BY logical_key LIMIT 257) AS bounded`
+ WHERE audit_id=$1 AND ((logical_key COLLATE "C" >= $2 AND logical_key COLLATE "C" < $3)
+ OR (logical_key COLLATE "C" >= $4 AND logical_key COLLATE "C" < $5))
+ ORDER BY logical_key COLLATE "C" LIMIT 257) AS bounded`
 
 // Same link/byte owner as ordinary Task and hypothesis collection; the
 // evidence event also invalidates readers while the attempt is still live.
@@ -40,5 +40,5 @@ WITH input AS (
 // total Audit history. The index covers this ordered logical-key range.
 const listExecutionEvidenceSQL = `
 SELECT artifact_scope,logical_key,artifact_ref,artifact_digest,media_type,size_bytes,source_provenance
-FROM audit_artifact_links WHERE audit_id=$1 AND logical_key >= $2 AND logical_key < $3
-ORDER BY logical_key LIMIT 257`
+FROM audit_artifact_links WHERE audit_id=$1 AND logical_key COLLATE "C" >= $2 AND logical_key COLLATE "C" < $3
+ORDER BY logical_key COLLATE "C" LIMIT 257`

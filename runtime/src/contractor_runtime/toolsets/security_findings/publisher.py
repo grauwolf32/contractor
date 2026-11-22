@@ -102,6 +102,16 @@ class FindingPublisher:
             kwargs["evidence_refs"] = self._resolve_evidence_refs(kwargs.get("evidence_refs"))
         return kwargs
 
+    def _admit_fact_call(self, tool_name, context):
+        if tool_name == "fact" and "memories" in self.resources.invocation_artifacts:
+            if self._fact_invocation != context.invocation_id:
+                self._fact_invocation = context.invocation_id
+                self._fact_calls.clear()
+            key = call_client_key(context)
+            if key not in self._fact_calls and len(self._fact_calls) >= MAX_MEMORY_FACT_CALLS:
+                raise ToolInputError("Fact extraction permits at most eight calls per invocation")
+            self._fact_calls.add(key)
+
     async def submit(self, **kwargs):
         with RecordedToolCall(
             self.metrics,
@@ -110,6 +120,7 @@ class FindingPublisher:
             secrets=self.secrets,
             bound_error=_bounded_finding_error,
         ) as call:
+            self._admit_fact_call(kwargs.get("_tool_name", "finding"), kwargs["context"])
             kwargs = await self.prepare_source_selection(kwargs)
             return await self._submit(**kwargs, _call=call)
 
@@ -145,16 +156,6 @@ class FindingPublisher:
             )
         )
         with recording as call:
-            if _tool_name == "fact" and "memories" in self.resources.invocation_artifacts:
-                if self._fact_invocation != context.invocation_id:
-                    self._fact_invocation = context.invocation_id
-                    self._fact_calls.clear()
-                key = call_client_key(context)
-                if key not in self._fact_calls and len(self._fact_calls) >= MAX_MEMORY_FACT_CALLS:
-                    raise ToolInputError(
-                        "Fact extraction permits at most eight calls per invocation"
-                    )
-                self._fact_calls.add(key)
             normalized = normalize_locations(locations)
             # ADK leaves the whole list as raw values if any model item fails
             # conversion. The submission validator supplies bounded repair text.

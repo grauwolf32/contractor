@@ -414,6 +414,9 @@ Task `result` and `stop` are mutually exclusive. Stop metadata is retained on
 existing owner rows, not charged as a new evidence Artifact when quota is spent.
 A retry may clear the current Task projection; immutable earlier attempt
 provenance and selected materials remain available under ordinary retention.
+The database rejects changes to stop metadata on settled Task and attempt rows.
+One record is bounded to 1 MiB of canonical JSON and stored jsonb text; the
+observed reason message is at most 4096 UTF-8 bytes (LIM-ACT-8).
 
 **ACT-R20.** Task attempt reads expose an exact retained `result` and
 `result_key` where available, independently of technical outcome, or the

@@ -1103,9 +1103,12 @@ bytes, charges bounded receipt/source history and links the result in one
 transaction under existing allocation, Run, Project and Audit fences. A current
 identical conclusion retains its generation. Scalar corrections can advance it;
 a batch cannot replace an existing different conclusion. Technical retries keep
-the original body/identity/base. An old receipt replay after a newer correction
-returns its original receipt and never rolls the current result back. Private
-`409 audit_result_stale` reports authoritative generations; Runtime may apply
+the original body/identity/base. Admission scans bounded receipt provenance and
+reads exact payloads only for the submitted members and evidence associated
+with those members; terminal collection validates the complete retained history.
+Receipt ranges and their indexes use bytewise ordering independently of the database locale. An old receipt replay after a
+newer correction returns its original receipt and never rolls the current result
+back. Private `409 audit_result_stale` reports authoritative generations; Runtime may apply
 those only to a later model response, with obsolete local readiness cleared.
 Identity changes, closed intake and quota exhaustion return nonretryable private
 `409 audit_result_conflict`, `audit_result_closed` and
@@ -1115,7 +1118,11 @@ storage conflicts use existing `503 storage_transaction_conflict`.
 **AWC-R136.** Runtime sends at most twice to reconcile transport ambiguity,
 using identical bytes, without target replay. A definite rejection is not
 repeated. Unconfirmed acceptance exposes `audit_result_persistence_unknown` and
-cannot satisfy the local completion gate. An already committed but unacknowledged
+cannot satisfy the local completion gate. A correction with unknown acceptance
+clears that item's local readiness, including an earlier acknowledged value,
+until a later response confirms the owner generation. Invalid successful
+receipts use the same bounded byte-identical reconciliation; definite API
+rejections are not repeated. An already committed but unacknowledged
 judgment remains discoverable through its owner receipt after Runtime loss.
 Cancellation joins owned work and clears private state; it does not erase a
 committed judgment. Compaction preserves the same private bases/acknowledgements.
@@ -1131,6 +1138,12 @@ cited by each conclusion enter its bounded membership context, after checking
 against that item's assigned materials and accepted annotations; unused inputs do
 not consume selected-evidence slots. Existing bounded attempt policy applies only where
 no accepted judgment settles that attempt; inconclusive adds no mandatory retry.
+
+Missing or corrupt exact partial payloads use the existing permanent
+`collection-contract-invalid` disposition, including during pause or cancellation.
+Its receipt prevents repeated reads; it neither deletes committed judgment bytes
+nor invents a model conclusion or a no-accepted-conclusion system record.
+Transient read failures leave collection pending.
 
 **AWC-R138.** For an assigned common completion item with no accepted judgment,
 terminal collection writes the system stop metadata defined by ACT-R19. This is

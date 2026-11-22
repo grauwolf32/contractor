@@ -1,0 +1,83 @@
+schema_version: '1.0'
+id: V478-034
+title: Repair verification exposed by the Audit review
+milestone: audit-evidence-results-2026-11
+epic: audits
+kind: defect
+introduced_by: V478-004
+priority: P2
+status: completed
+implementation_commit: d9cfd981151266a642b4f0134cdb2fefb854a7af
+depends_on: [V478-004]
+languages: [go, python, markdown]
+goal: Verification checks existing stop bounds, unavailable connections and owned subprocess cleanup without platform or scheduling assumptions.
+context:
+  authority: 'User request 2026-11-23 to complete reviewed fixes and improvements in one pass, including required verification.'
+  finding: >-
+    stored_size_checks_postgres_test.go:76 rejects the two stop constraints absent
+    from the disposition registry. closed_connection_postgres_test.go:128 assumes
+    backend termination always arrives as a server PgError; on Unix the write may
+    instead fail with broken pipe before that message can be read. The full Runtime
+    gate also timed out waiting for test_cli.py:64 startup under concurrent checks;
+    the same shutdown test passes alone. Its two-second startup guard dates to
+    initial bootstrap commit 1ff105bb1, before the current task tracker. The final
+    full run exposed the same short startup guard in test_tool_operation_ownership.py,
+    whose failed-start cleanup waits before killing its process group and assumes
+    Linux /proc on macOS. All 6648 other tests passed; the module passes alone.
+  siblings: >-
+    V478-004 introduced both stop constraints; V414-012 introduced the termination
+    test. SQLSTATE 57P01 remains covered directly by sqlstate_test.go. Preserve
+    unavailable/transient assertions for the first and closed statements and COMMIT.
+  boundary: Existing production error classification and size limits remain authoritative.
+scope:
+  in:
+  - Register existing stop-record bounds with their owning specification and limit.
+  - Remove the timing-dependent error-representation assertion from the real PostgreSQL disconnect test.
+  - Give the shutdown and validator fixtures ten-second startup hang guards while retaining cancellation, listener and task-leak assertions.
+  - Check actual Popen reaping and portable descendant liveness; kill owned process groups before joining failed-start fixtures.
+  out:
+  - Production retry semantics, timeouts and database error classification.
+acceptance_criteria:
+- id: A1
+  text: Every stored-size CHECK in a migrated database has a valid disposition and the existing stop bounds are documented.
+- id: A2
+  text: Backend termination consistently proves unavailable/transient classification for statements and COMMIT, including Unix broken pipe; SQLSTATE classification remains covered.
+- id: A3
+  text: The Runtime shutdown test tolerates concurrent startup work while still proving heartbeat cancellation, listener closure and no leaked tasks.
+- id: A4
+  text: Validator ownership tests prove real leader reaping and descendant termination on macOS and Linux, and failed startup cannot leak its process group.
+tests:
+- command: cd runtime && uv run pytest -W error tests/test_cli.py tests/test_tool_operation_ownership.py
+  covers: [A3, A4]
+- command: make test-runtime
+  covers: [A3, A4]
+- command: go test -count=1 ./internal/persistence/postgres
+  covers: [A1, A2]
+- command: go test -count=20 ./internal/persistence/postgres -run '^TestClosedConnectionAfterBackendTerminationIsUnavailable$'
+  covers: [A2]
+- command: make lint
+  covers: [A1, A2]
+
+verification_notes: >-
+  Accepted 2026-11-23. Both existing stop-size CHECK constraints have LIM-ACT-8
+  dispositions and the owning specification states the already enforced bounds.
+  Full persistence/postgres tests passed against real PostgreSQL; the backend
+  termination test passed 20 consecutive runs on Unix sockets while retaining
+  unavailable/transient assertions for statements and COMMIT. Direct SQLSTATE
+  tests still cover server termination. The CLI and validator fixtures use separate
+  ten-second startup guards while keeping cancellation completion assertions.
+  Validator tests check actual Popen reaping and portable descendant liveness,
+  and failed-start cleanup kills owned groups before waiting. All 22 CLI/ownership
+  cases pass; the complete Runtime gate passes with 6649 passed, 134 explicit skips
+  and 577 required compaction cases. make lint passed; final Python fixture changes
+  pass Ruff and formatting. Temporary scanner binaries, test databases and the
+  isolated PostgreSQL cluster were removed. Evidence:
+  /tmp/contractor-fixes-persistence.log, /tmp/contractor-fixes-disconnect.log,
+  /tmp/contractor-fixes-ownership-final.log, /tmp/contractor-fixes-runtime-final.log
+  and /tmp/contractor-fixes-lint-final.log. Acceptance preceded integration into main; no deployment was performed.
+
+integration_notes: >-
+  User request 2026-11-23: merge codex/v478-reviewed-recovery into local main
+  with --no-ff. Main was an ancestor of the accepted branch, so integration
+  introduced no code or contract changes beyond the verified branch. Only these
+  task integration notes were updated during the merge.

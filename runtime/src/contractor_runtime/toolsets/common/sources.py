@@ -274,6 +274,8 @@ class SourcePreparer:
             if capture is None:
                 raise ToolInputError("sources: open a pinned source archive before selecting code")
             proof = await capture(source.file, source.start_line, source.end_line)
+        if source.workspace:
+            proof["schema"] = "contractor.code-source-evidence.v1"
         proof["selectionDigest"] = sha256_digest(jcs.canonicalize(source.model_dump()))
         raw = await threads.to_thread_until_done(
             jcs.canonicalize, proof, name="selected-code-encode"
