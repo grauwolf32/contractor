@@ -6,7 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V478-003
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 269c18a9da714c760919fdb548ea67494cd032c3
 depends_on: [V478-002, V478-003, V479-002]
 languages: [go, python, typescript, markdown]
 goal: Existing browser and offline model-selection scenarios reach their intended assertions with the shipped catalog and explicit evidence followed by thin judgments.
@@ -49,3 +50,13 @@ tests:
   covers: [A3]
 - command: make lint
   covers: [A1, A2, A3]
+verification_results: >-
+  Full make test-ui-stack passes (829.225s), including operations (153s), native
+  managed Evals (347.94s), external managed Evals and every catalog/argument/byte
+  control. The external producer checks selected annotations, exact retained ZIP
+  bytes and original source metadata; all 24 invalid-evidence controls still fail
+  closed. Full offline project Workflow package passes; actual two-Workflow
+  project lifecycle process passes (164.705s). Full make lint passes. Earlier
+  failures identified retired selectors, revision-bearing finish arguments and
+  canned copy bytes, all corrected without a production compatibility path or
+  a live model call.

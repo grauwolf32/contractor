@@ -86,8 +86,6 @@ type resultFinalizerInput struct {
 	ResultText string `json:"resultText"`
 }
 
-const e2eReport = "Source inspected; report authored.\n"
-
 func TestModelGatewayFindsNamedInputAfterParameterBlock(t *testing.T) {
 	request := map[string]any{"messages": []any{map[string]any{
 		"content": "String parameters:\n{\"objective\":\"inspect\"}\n\nNamed input artifacts:\n" +
