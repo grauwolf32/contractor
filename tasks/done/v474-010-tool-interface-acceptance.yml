@@ -6,7 +6,7 @@ milestone: model-tool-interfaces-2026-11
 kind: chore
 introduced_by: V474-002
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V474-001, V474-002, V474-003, V474-004, V474-005, V474-006, V474-007, V474-008, V474-011, V474-012]
 languages: [go, python, yaml]
 goal: The configured Worker uses the agreed simpler interfaces together through real Server, Runtime and Gateway boundaries.
@@ -79,3 +79,4 @@ verification:
     claimed. Owned test databases, PostgreSQL cluster, Linux prefixes and Podman volume are
     removed; no owned Runtime remains. Primary HEAD, six file hashes/modes, status and staged
     diff are unchanged. All implementation is on codex/v474-tool-interfaces, not merged or deployed.
+implementation_commit: 5aec0539d4f59a43b99417e0a4b3a7f8d7e82822
