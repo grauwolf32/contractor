@@ -10,11 +10,17 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
 from contractor_runtime import threads
 from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.contracts.base import MAX_EXACT_INTEGER
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.tool_errors import ToolResultDiagnostic
 from contractor_runtime.digests import sha256_digest
 from contractor_runtime.toolsets.common.argument_diagnostics import argument_details
-from contractor_runtime.toolsets.common.arguments import container_argument
+from contractor_runtime.toolsets.common.arguments import (
+    MAX_CONTAINER_BYTES,
+    MAX_CONTAINER_DEPTH,
+    MAX_CONTAINER_NODES,
+    container_argument,
+)
 from contractor_runtime.toolsets.common.artifact_write import (
     definite_write_rejection,
     write_artifact_exact,
@@ -31,15 +37,15 @@ class ArtifactSource(MaterialSelector):
 class HTTPSource(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     kind: Literal["http"]
-    request_id: int = Field(gt=0, le=9007199254740991)
+    request_id: int = Field(gt=0, le=MAX_EXACT_INTEGER)
 
 
 class CodeSource(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     kind: Literal["code"]
     file: str = Field(min_length=1, max_length=512)
-    start_line: int = Field(ge=1, le=9007199254740991)
-    end_line: int = Field(ge=1, le=9007199254740991)
+    start_line: int = Field(ge=1, le=MAX_EXACT_INTEGER)
+    end_line: int = Field(ge=1, le=MAX_EXACT_INTEGER)
     workspace: bool = False
 
 
@@ -67,9 +73,9 @@ def parse_sources(value, notices=None, *, allow_empty=False):
         value,
         field="sources",
         kinds=(list,),
-        max_bytes=8 * 1024 * 1024,
-        max_depth=32,
-        max_nodes=65536,
+        max_bytes=MAX_CONTAINER_BYTES,
+        max_depth=MAX_CONTAINER_DEPTH,
+        max_nodes=MAX_CONTAINER_NODES,
         invalid=SourceArgumentError,
     )
     if notices is not None:
