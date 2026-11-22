@@ -47,7 +47,7 @@ def test_adk_schema_exposes_only_judgment_and_selected_evidence():
         client = ExactClient(inputs.context)
         settings = type("Settings", (), {"request_timeout_seconds": 10})()
         tools = await AuditResultsToolsetFactory(lambda *_: client).create_selected(
-            selected=["read_audit_task", "submit_check_result", "submit_check_results"],
+            selected=["read_audit_task", "submit_check_result", "submit_check_results", "evidence"],
             allocation_id="allocation-1",
             namespace="check",
             runtime_settings=settings,

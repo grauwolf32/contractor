@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 from audit_fixtures import assigned
+from fakes.source_selectors import artifact_sources, http_sources
 from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 from google.genai import types
@@ -56,8 +57,8 @@ def test_actual_provider_schema(tool_type, required):
     schema = wire["parameters"]
     assert set(schema["required"]) == required
     assert "tool_context" not in schema["properties"]
-    evidence = schema["$defs"]["MaterialSelector"]
-    assert set(evidence["required"]) == {"namespace", "name"}
+    evidence = schema["$defs"]["ArtifactSource"]
+    assert set(evidence["required"]) == {"kind", "namespace", "name"}
     assert evidence["additionalProperties"] is False
     check = schema["$defs"]["ProposedCheck"]
     assert set(check["required"]) == {"objective", "method"}
@@ -233,7 +234,7 @@ def test_invalid_final_response_keeps_prior_redirect_evidence(tmp_path):
                 description="A redirect was followed by an invalid response.",
                 url="https://target.example/start",
                 method="GET",
-                request_id=history[0]["request_id"],
+                sources=http_sources(history[0]["request_id"]),
                 tool_context=context(),
             )
             attempts = client.requests[0]["httpEvidence"]["attempts"]
@@ -255,7 +256,7 @@ def test_invalid_final_response_keeps_prior_redirect_evidence(tmp_path):
     "factory_type,name,location_args",
     [
         (GeneralFindingsToolsetFactory, "finding", {}),
-        (GeneralFindingsToolsetFactory, "record_fact", {}),
+        (GeneralFindingsToolsetFactory, "fact", {}),
         (
             HTTPFindingsToolsetFactory,
             "finding",
@@ -301,7 +302,7 @@ def test_caido_evidence_resolves_local_id_without_model_inspection(
                 title="Observed issue",
                 description="Captured behavior",
                 **location_args,
-                request_id=request_id,
+                sources=http_sources(request_id),
                 tool_context=context(),
             )
             capture = client.requests[0]["httpEvidence"]
@@ -321,7 +322,7 @@ def test_caido_evidence_resolves_local_id_without_model_inspection(
                 title="F",
                 description="D",
                 **location_args,
-                request_id=request_id,
+                sources=http_sources(request_id),
                 tool_context=context(invocation_id="later-invocation"),
             )
             assert client.requests[-1]["httpEvidence"] == capture
@@ -389,7 +390,7 @@ def test_stored_http_evidence_failure_never_submits_a_finding(tmp_path, failure)
             call = tool(
                 title="Stored observation",
                 description="The selected request supplies the evidence",
-                request_id=request_id,
+                sources=http_sources(request_id),
                 tool_context=context(),
             )
             if failure == "cancelled":
@@ -431,7 +432,7 @@ def test_code_call_normalizes_coordinates_and_keeps_retry_identity():
             "file": "src/order.py",
             "range": {"start_line": 10, "end_line": 12},
             "cwe": "CWE-639",
-            "evidence_refs": [{"namespace": "worker", "name": "proof"}],
+            "sources": artifact_sources([{"namespace": "worker", "name": "proof"}]),
             "standard_refs": [
                 {"scheme": "OWASP-ASVS", "version": "5.0.0", "requirement_id": "v5.0.0-1.1.1"}
             ],
@@ -444,7 +445,7 @@ def test_code_call_normalizes_coordinates_and_keeps_retry_identity():
         assert document["locations"] == [{"file": "src/order.py", "range": args["range"]}]
         assert any(ref["requirement_id"] == "CWE-639" for ref in document["standard_refs"])
         assert client.requests[0]["evidenceRefs"] == [
-            {**args["evidence_refs"][0], "revision": "r1"}
+            {"namespace": "worker", "name": "proof", "revision": "r1"}
         ]
         assert _proposal(json.dumps(document).encode()) == document
         await adk.run_async(args=args, tool_context=context("call-2"))
@@ -567,17 +568,17 @@ def test_audit_and_ordinary_findings_share_the_cwe_reference_check():
     "field,refs,repair_text",
     [
         (
-            "evidence_refs",
+            "sources",
             [{"namespace": "worker", "name": "private-proof-canary"}],
-            "Material",
+            "sources",
         ),
         (
-            "evidence_refs",
+            "sources",
             [{"namespace": "worker", "name": "private-proof-canary", "revision": ""}],
-            "Material",
+            "sources",
         ),
         (
-            "evidence_refs",
+            "sources",
             [
                 {
                     "namespace": "worker",
@@ -586,15 +587,15 @@ def test_audit_and_ordinary_findings_share_the_cwe_reference_check():
                     "mediaType": "private-media-canary",
                 }
             ],
-            "Material",
+            "sources",
         ),
         (
-            "evidence_refs",
+            "sources",
             [
                 {"namespace": "worker", "name": "valid", "revision": "r1"},
                 {"namespace": "worker", "name": "private-proof-canary"},
             ],
-            "Material",
+            "sources",
         ),
         (
             "standard_refs",
@@ -635,7 +636,7 @@ def test_invalid_finding_references_return_bounded_repair_error(
                 args={
                     "title": "PrivateFindingCanary",
                     "description": "Observation",
-                    field: refs,
+                    field: artifact_sources(refs) if field == "sources" else refs,
                     **location_args,
                 },
                 tool_context=context(),
@@ -689,7 +690,7 @@ def test_http_evidence_captures_actual_request_and_survives_history_eviction(tmp
             description="Observed behavior",
             url="https://target.example/start?a=%2f&a=2",
             method="POST",
-            request_id=result["request_id"],
+            sources=http_sources(result["request_id"]),
             tool_context=context(),
         )
         document = client.requests[0]["proposal"]
@@ -720,7 +721,7 @@ def test_http_evidence_captures_actual_request_and_survives_history_eviction(tmp
             description="D",
             url="https://target.example",
             method="GET",
-            request_id=result["request_id"],
+            sources=http_sources(result["request_id"]),
             tool_context=context(invocation_id="later-invocation"),
         )
         assert client.requests[-1]["httpEvidence"] == client.requests[0]["httpEvidence"]
@@ -736,7 +737,7 @@ def test_http_evidence_captures_actual_request_and_survives_history_eviction(tmp
                 description="D",
                 url="https://target.example",
                 method="GET",
-                request_id=result["request_id"],
+                sources=http_sources(result["request_id"]),
                 tool_context=context("call-3"),
             )
         await tool(
@@ -815,7 +816,7 @@ def test_http_request_refuses_exchanges_finding_cannot_retain(tmp_path: Path) ->
                 description="The valid exchange remains selectable",
                 url="https://target.example/ok",
                 method="GET",
-                request_id=result["request_id"],
+                sources=http_sources(result["request_id"]),
                 tool_context=context(),
             )
             assert request_attempts(client.requests[-1])[0]["status"] == 200
@@ -851,7 +852,7 @@ def test_every_sent_request_fits_finding_evidence_header_limits(tmp_path):
             description="Observed",
             url="https://target.example/",
             method="GET",
-            request_id=result["request_id"],
+            sources=http_sources(result["request_id"]),
             tool_context=context(),
         )
         attempt = request_attempts(client.requests[0])[0]
@@ -925,7 +926,7 @@ def test_http_evidence_never_retains_the_runtime_target_credential(tmp_path):
                 description="Observed",
                 url="https://target.example/start",
                 method="GET",
-                request_id=request_id,
+                sources=http_sources(request_id),
                 tool_context=context(call),
             )
         # The target received the real credential on its own origin.
@@ -997,7 +998,7 @@ def test_informational_findings_leave_evidence_equality_to_server(
             title="Reported technology",
             description="Observed in selected material",
             severity_suggestion="informational",
-            evidence_refs=[{"namespace": "proof", "name": "selected"}],
+            sources=artifact_sources([{"namespace": "proof", "name": "selected"}]),
             tool_context=context(),
             **location_args,
         )

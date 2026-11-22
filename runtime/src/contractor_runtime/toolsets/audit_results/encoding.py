@@ -39,6 +39,8 @@ class AuditContextRecords:
 
     data: bytes = field(repr=False)
     items: dict[str, dict] = field(repr=False)
+    audit_id: str
+    run_id: str
 
     @property
     def item_keys(self):
@@ -67,7 +69,10 @@ class CanonicalAuditResultEncoder:
                 try:
                     value = decode_audit_document(context, schema="contractor.audit.context.v1")
                     self._records = AuditContextRecords(
-                        context, {item["item_key"]: item for item in value["items"]}
+                        context,
+                        {item["item_key"]: item for item in value["items"]},
+                        value["audit_id"],
+                        value["run_id"],
                     )
                 except (ValueError, TypeError, RecursionError, UnicodeError, ValidationError):
                     raise AuditResultError("audit_result_invalid") from None
@@ -93,7 +98,8 @@ class CanonicalAuditResultEncoder:
             if checking != (value.verdict is not None):
                 raise AuditResultError("audit_result_invalid")
             if value.verdict in {"supported", "refuted"} and (
-                not value.tested_conditions or not (value.evidence or value.http_evidence)
+                not value.tested_conditions
+                or not (value.evidence or value.http_evidence or value.selected_evidence)
             ):
                 raise AuditResultError("audit_result_invalid")
             if value.verdict == "inconclusive" and not value.limitations:
@@ -108,7 +114,8 @@ class CanonicalAuditResultEncoder:
                     "tested_conditions": list(value.tested_conditions),
                     "limitations": list(value.limitations),
                     "evidence": [allowed[handle] for handle in value.evidence]
-                    + [json.loads(raw) for raw in value.http_evidence],
+                    + [json.loads(raw) for raw in value.http_evidence]
+                    + [json.loads(raw) for raw in value.selected_evidence],
                     **({"verdict": value.verdict} if checking else {}),
                 }
             )

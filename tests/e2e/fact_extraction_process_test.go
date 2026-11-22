@@ -30,9 +30,9 @@ func TestFactExtractionAcrossProcesses(t *testing.T) {
 			finalGatewayStep("Notes written", map[string]domainArtifactBinding{"report": {namespace: "writer", name: "report"}}),
 		}}
 	}
-	tools := []string{"read_artifact", "write_text_artifact", "record_fact"}
+	tools := []string{"read_artifact", "write_text_artifact", "fact"}
 	fact := func(title, kind, memoryName string) domainGatewayStep {
-		return toolGatewayStep("record_fact", func(request map[string]any) (map[string]any, error) {
+		return toolGatewayStep("fact", func(request map[string]any) (map[string]any, error) {
 			args := map[string]any{"title": title, "description": "Free-form reported observation; version and probe coverage remain uncertain."}
 			if kind == "memory" {
 				args["memory_name"] = memoryName
@@ -41,7 +41,7 @@ func TestFactExtractionAcrossProcesses(t *testing.T) {
 			for _, read := range findingsToolResponses(request, "read_artifact") {
 				candidate, _ := read["artifact"].(map[string]any)
 				if candidate["name"] == kind {
-					args["evidence_refs"] = []any{materialSelector(candidate)}
+					args["sources"] = []any{artifactSourceSelector(candidate)}
 					return args, nil
 				}
 			}
@@ -52,7 +52,7 @@ func TestFactExtractionAcrossProcesses(t *testing.T) {
 		return []domainGatewayStep{
 			toolGatewayStep("write_text_artifact", func(request map[string]any) (map[string]any, error) {
 				accepted := 0
-				for _, result := range findingsToolResponses(request, "record_fact") {
+				for _, result := range findingsToolResponses(request, "fact") {
 					if result["finding_id"] != nil {
 						accepted++
 					}

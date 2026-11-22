@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 
 import jcs
 import pytest
+from fakes.source_selectors import artifact_sources
 from fakes.worker_state import WorkerState
 from test_finding_facades import context
 from test_security_findings_toolset import FakeFindingClient
@@ -15,7 +16,8 @@ from test_text_artifacts_toolset import MemoryArtifactClient
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactTransportError
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.core.input_errors import ToolInputError
-from contractor_runtime.toolsets.security_findings.facades import RecordFactTool
+from contractor_runtime.toolsets.common.sources import SourcePreparer
+from contractor_runtime.toolsets.security_findings.facades import FactTool
 from contractor_runtime.toolsets.security_findings.memories import select_memory
 from contractor_runtime.toolsets.security_findings.publisher import FindingPublisher
 
@@ -57,9 +59,15 @@ def make_tool(artifacts, source):
     state.resources.invocation_artifacts = {"memories": source}
     client = FakeFindingClient()
     publisher = FindingPublisher(
-        client, state.resources.metrics, (), state.resources, artifacts, namespace="facts"
+        client,
+        state.resources.metrics,
+        (),
+        state.resources,
+        artifacts,
+        namespace="facts",
+        source_preparer=SourcePreparer(artifacts, state.resources, "run-test", "facts", 10),
     )
-    return RecordFactTool(publisher), client, state
+    return FactTool(publisher), client, state
 
 
 @pytest.mark.parametrize("lose_reply", [False, True])
@@ -71,11 +79,13 @@ def test_original_memory_is_exact_free_form_and_reconciles_lost_reply(lose_reply
         source = artifacts.seed(
             "snapshot", "selected", "application/json", jcs.canonicalize(original)
         )
-        tool, client, _ = make_tool(artifacts, source)
+        tool, client, state = make_tool(artifacts, source)
         other_evidence = [
             artifacts.seed("source", f"proof_{i}", "text/plain", b"Evidence")
             for i in range(extra_sources)
         ]
+        for ref in other_evidence:
+            state.resources.selected_versions.observe(ref)
         # The mutable binding changes, while the assigned exact revision stays pinned.
         changed = deepcopy(original)
         changed["notes"][1]["content"] = "New current memory must not replace the original"
@@ -85,7 +95,7 @@ def test_original_memory_is_exact_free_form_and_reconciles_lost_reply(lose_reply
                 title="Технология сервиса",
                 description="Наблюдение своими словами, без дословной цитаты.",
                 memory_name="technology",
-                evidence_refs=other_evidence,
+                sources=artifact_sources(other_evidence),
                 tool_context=context(call),
             )
             assert result["finding_id"]
@@ -153,12 +163,12 @@ def test_invalid_fact_arguments_do_not_materialize_original_memory(kind):
         elif kind == "description":
             arguments["description"] = "x" * (32 * 1024)
         elif kind == "source-limit":
-            arguments["evidence_refs"] = [
+            arguments["sources"] = [
                 artifacts.seed("source", f"evidence_{i}", "text/plain", b"Evidence")
                 for i in range(4)
             ]
         elif kind == "invalid-ref":
-            arguments["evidence_refs"] = [ArtifactRef(namespace="source", name="inexact")]
+            arguments["sources"] = [ArtifactRef(namespace="source", name="inexact")]
         else:
             from audit_fixtures import assigned
             from test_audit_result_collector import tool_for
@@ -167,6 +177,11 @@ def test_invalid_fact_arguments_do_not_materialize_original_memory(kind):
             collector, _, _ = tool_for(inputs)
             state.resources.proposal_collector = lambda: collector
             arguments.update(item_key="unknown-item", incidental=False)
+        if "sources" in arguments:
+            for ref in arguments["sources"]:
+                if ref.revision is not None:
+                    state.resources.selected_versions.observe(ref)
+            arguments["sources"] = artifact_sources(arguments["sources"])
         with pytest.raises(ToolInputError):
             await tool(**arguments, tool_context=context())
         assert artifacts.write_calls == 0 and not client.requests
@@ -180,7 +195,7 @@ def test_intake_rejection_keeps_source_and_retry_reuses_it(monkeypatch):
         source = artifacts.seed(
             "snapshot", "selected", "application/json", jcs.canonicalize(snapshot())
         )
-        tool, client, _ = make_tool(artifacts, source)
+        tool, client, _state = make_tool(artifacts, source)
         submit = client.submit
         rejection = AsyncMock(side_effect=ArtifactAPIError(400, "invalid_finding_request", False))
         monkeypatch.setattr(client, "submit", rejection)
@@ -203,7 +218,7 @@ def test_extraction_quota_counts_distinct_calls_and_resets_for_a_new_invocation(
         source = artifacts.seed(
             "snapshot", "selected", "application/json", jcs.canonicalize(snapshot())
         )
-        tool, client, _ = make_tool(artifacts, source)
+        tool, client, _state = make_tool(artifacts, source)
         for index in range(8):
             await tool(
                 title=f"Claim {index}",

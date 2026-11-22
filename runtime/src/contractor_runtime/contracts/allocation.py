@@ -43,7 +43,7 @@ from contractor_runtime.contracts.workspace import AllocationWorkspaceSpec
 
 # audit-check-results@1 collects through exactly these audit-results@2 tools.
 AUDIT_COMPLETION_TOOLS = frozenset(
-    {"read_audit_task", "submit_check_result", "submit_check_results"}
+    {"read_audit_task", "submit_check_result", "submit_check_results", "evidence"}
 )
 
 

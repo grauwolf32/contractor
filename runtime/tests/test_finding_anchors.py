@@ -9,6 +9,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from fakes.source_selectors import artifact_sources
 from fakes.worker_state import WorkerState
 
 from contractor_runtime import threads
@@ -288,14 +289,16 @@ def test_shared_code_publisher_uses_hidden_exact_anchor_metadata():
 
     async def scenario():
         api = API()
-        tool = await finding_tool(CodeFindingsToolsetFactory, api, WorkerState())
+        state = WorkerState()
+        state.resources.selected_versions.observe(ArtifactRef.model_validate(REF))
+        tool = await finding_tool(CodeFindingsToolsetFactory, api, state)
         result = await tool(
             title="Hardcoded key",
             description="An independent code observation",
             file=case["file"],
             line=case["line"],
             cwe="CWE-321",
-            evidence_refs=[ArtifactRef.model_validate(REF)],
+            sources=artifact_sources([ArtifactRef.model_validate(REF)]),
             tool_context=context(),
         )
         assert set(result) == {"proposal_id", "receipt_id", "client_key", "finding_id"}
@@ -456,12 +459,15 @@ async def submit_code_finding(tool, revision, call):
 
     from contractor_runtime.contracts import ArtifactRef
 
+    tool._publisher.resources.selected_versions.observe(
+        ArtifactRef.model_validate({**REF, "revision": revision})
+    )
     return await tool(
         title="Sink reached",
         description="An independent code observation.",
         file="a.py",
         line=1,
-        evidence_refs=[ArtifactRef.model_validate({**REF, "revision": revision})],
+        sources=artifact_sources([ArtifactRef.model_validate({**REF, "revision": revision})]),
         tool_context=context(call_id=call),
     )
 

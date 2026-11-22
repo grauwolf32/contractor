@@ -23,6 +23,7 @@ from contractor_runtime.toolsets.common.artifact_write import (
     definite_write_rejection,
     write_artifact_exact,
 )
+from contractor_runtime.toolsets.common.call_identity import call_client_key
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.finding_locations import (
     ClosedModel,
@@ -32,6 +33,7 @@ from contractor_runtime.toolsets.common.finding_locations import (
     normalize_locations,
 )
 from contractor_runtime.toolsets.common.resources import ToolResources
+from contractor_runtime.toolsets.common.sources import SourcePreparer
 from contractor_runtime.toolsets.common.trace_source import (
     MAX_TRACE_BYTES,
     MAX_TRACE_LINES,
@@ -44,7 +46,6 @@ from contractor_runtime.toolsets.security_findings.facades import (
 from contractor_runtime.toolsets.security_findings.publisher import (
     FindingPublisher,
     _bounded_finding_error,
-    call_client_key,
 )
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -128,7 +129,7 @@ class TraceFindingPublisher(FindingPublisher):
             secrets=self.secrets,
             bound_error=_bounded_finding_error,
         ) as call:
-            kwargs["evidence_refs"] = self._resolve_evidence_refs(kwargs.get("evidence_refs"))
+            kwargs = await self.prepare_source_selection(kwargs)
             prepared = await self._prepare(kwargs)
             return await super()._submit(**prepared, _call=call)
 
@@ -140,7 +141,13 @@ class TraceFindingPublisher(FindingPublisher):
         location = locations[0]
         if "line" not in location and "range" not in location:
             raise ToolInputError("trace finding requires a current workspace line or range")
-        request = _wire({key: value for key, value in kwargs.items() if key != "context"})
+        request = _wire(
+            {
+                key: value
+                for key, value in kwargs.items()
+                if key != "context" and key != "_source_normalization"
+            }
+        )
         request_digest = await threads.to_thread_until_done(
             lambda: sha256_digest(jcs.canonicalize(request)), name="trace-request-digest"
         )
@@ -255,7 +262,7 @@ class TraceFindingsToolsetFactory(CodeFindingsToolsetFactory):
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: WorkspaceSourceReader | None = None,
     ) -> Mapping[str, Any]:
-        del run_id, workspace, adapter_handles
+        del workspace, adapter_handles
         require_selected_tools(
             selected, self.exported_tools, description="unknown trace finding tools"
         )
@@ -270,6 +277,14 @@ class TraceFindingsToolsetFactory(CodeFindingsToolsetFactory):
             runtime_secrets(runtime_settings),
             resources,
             artifacts=client,
+            source_preparer=SourcePreparer(
+                client,
+                resources,
+                run_id,
+                namespace,
+                runtime_settings.request_timeout_seconds,
+                project_workspace,
+            ),
             reader=project_workspace,
             namespace=namespace,
         )

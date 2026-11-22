@@ -7,7 +7,7 @@ spec:
   instructions: {ref: instructions/typed-check-fixture.md}
   toolsets:
     - ref: audit-results@2
-      tools: [read_audit_task, submit_check_result, submit_check_results]
+      tools: [read_audit_task, submit_check_result, submit_check_results, evidence]
     - ref: security-findings@1
       tools: [finding]
     - ref: run-artifacts@1

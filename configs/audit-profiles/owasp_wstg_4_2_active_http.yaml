@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: AuditProfile
 metadata:
   name: owasp-wstg-4-2-active-http
-  version: "6"
+  version: "7"
 spec:
   schema: contractor.audit.program.v1
   inputs:
@@ -17,7 +17,7 @@ spec:
       - application/vnd.contractor.engagement+json
   workflows:
     check:
-      ref: audit-wstg-active-http@6
+      ref: audit-wstg-active-http@7
       inputs:
         materials:
           source: audit-input

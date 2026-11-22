@@ -1,7 +1,6 @@
 """Trusted Audit preparation and invocation-local completion strategy."""
 
 import asyncio
-import json
 from collections.abc import Callable
 from dataclasses import replace
 from functools import partial
@@ -66,14 +65,13 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
         self._inputs = inputs
         # Holds the inputs decoded once for every invocation and publication.
         self._encoder = encoder
+        self.run_id = encoder.trusted_inputs(inputs).run_id
         self._client = client
         self._request_timeout = request_timeout
         self._http_publisher = (
             None
             if captures is None
-            else HTTPExchangePublisher(
-                client, captures, json.loads(inputs.context)["run_id"], request_timeout
-            )
+            else HTTPExchangePublisher(client, captures, self.run_id, request_timeout)
         )
         self._collector: InvocationAuditCollector | None = None
         self._reminders = 0

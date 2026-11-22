@@ -988,3 +988,9 @@ func materialSelector(value any) map[string]any {
 	ref := value.(map[string]any)
 	return map[string]any{"namespace": ref["namespace"], "name": ref["name"]}
 }
+
+func artifactSourceSelector(value any) map[string]any {
+	selector := materialSelector(value)
+	selector["kind"] = "artifact"
+	return selector
+}

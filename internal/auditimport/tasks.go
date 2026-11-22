@@ -431,6 +431,10 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 	if err != nil {
 		return nil, err
 	}
+	trusted, selectedTranslations, err := i.taskSelectedContext(ctx, execution, trusted)
+	if err != nil {
+		return nil, err
+	}
 	result, err := auditcontract.Decode(raw, trusted)
 	if err != nil {
 		return invalid()
@@ -451,6 +455,9 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 		return invalid()
 	}
 	translations := httpTranslations
+	for key, material := range selectedTranslations {
+		translations[key] = material
+	}
 	inputMaterials := map[string]auditcontract.Material{}
 	for _, member := range members {
 		for _, raw := range member.(map[string]any)["evidence"].([]any) {
@@ -459,6 +466,12 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 				return nil, err
 			}
 			var m auditcontract.Material
+			if strictjson.Decode(data, &m) == nil && m.ScopeKind == "audit" {
+				if _, ok := selectedTranslations[string(data)]; ok {
+					continue
+				}
+				return invalid()
+			}
 			if strictjson.Decode(data, &m) == nil && m.ScopeKind == "run" && m.ScopeID == *execution.RunID && m.Ref.Namespace == artifactpolicy.HTTPExchangeNamespace {
 				continue
 			}
@@ -493,6 +506,12 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 				return nil, err
 			}
 			var material auditcontract.Material
+			if strictjson.Decode(data, &material) == nil && material.ScopeKind == "audit" {
+				if _, ok := selectedTranslations[string(data)]; ok {
+					continue
+				}
+				return invalid()
+			}
 			if strictjson.Decode(data, &material) == nil && material.ScopeKind == "run" && material.ScopeID == *execution.RunID && material.Ref.Namespace == artifactpolicy.HTTPExchangeNamespace {
 				continue
 			}

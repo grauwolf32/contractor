@@ -15,6 +15,7 @@ from test_tool_worker import ArtifactStore
 
 from contractor_runtime.adapters.http_transport import HTTPTransport
 from contractor_runtime.artifacts import ArtifactClient
+from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.contracts.engagement import HTTPLimits
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.report_observations import project_report
@@ -24,6 +25,7 @@ from contractor_runtime.workspace import AllocationWorkspace
 
 pytestmark = pytest.mark.skipif(shutil.which("ffuf") is None, reason="optional ffuf is absent")
 REF = {"namespace": "inputs", "name": "words", "revision": "r1"}
+MODEL_REF = {key: REF[key] for key in ("namespace", "name")}
 
 
 def test_ffuf_unsupported_engine_fails_before_target_launch(tmp_path, monkeypatch):
@@ -40,7 +42,7 @@ def test_ffuf_unsupported_engine_fails_before_target_launch(tmp_path, monkeypatc
         async with SocketTarget() as target:
             tool, owner = await scanner(tmp_path, target)
             try:
-                result = await tool(target.origin + "/allowed/FUZZ", REF)
+                result = await tool(target.origin + "/allowed/FUZZ", MODEL_REF)
                 assert result["errorCode"] == "scan_proxy_unsupported"
                 assert len(calls) == 1 and target.written == b""
                 assert not list((tmp_path / "workspace").iterdir())
@@ -62,6 +64,8 @@ async def scanner(tmp_path, target, *, words=b"one\ntwo\n", spec=None, tls=None)
     factory = scan.ScanToolsetFactory(
         lambda *_: ArtifactClient(spec.allocation_id, store), scanners=[scan.FFUFTool]
     )
+    state = WorkerState()
+    state.resources.selected_versions.observe(ArtifactRef.model_validate(REF))
     tools = await factory.create_selected(
         selected=["scan_ffuf"],
         allocation_id=spec.allocation_id,
@@ -69,7 +73,7 @@ async def scanner(tmp_path, target, *, words=b"one\ntwo\n", spec=None, tls=None)
         namespace="scanner",
         runtime_settings=spec.runtime_settings,
         workspace=AllocationWorkspace(root=tmp_path, path=workspace),
-        resources=WorkerState().resources,
+        resources=state.resources,
         controlled_http=owner,
     )
     return tools["scan_ffuf"], owner
@@ -100,7 +104,7 @@ def test_ffuf_uses_shared_http_owner_and_preserves_filtered_results(tmp_path, mo
                 before, _ = await owner.request(target.origin + "/allowed/http")
                 assert before.kind == "completed"
                 result = await tool(
-                    target.origin + "/allowed/FUZZ", REF, filter_status="404", rate=999
+                    target.origin + "/allowed/FUZZ", MODEL_REF, filter_status="404", rate=999
                 )
                 assert result["status"] == "completed", result
                 assert result["scanComplete"] and result["payloadsAttempted"] == 3
@@ -159,7 +163,7 @@ def test_ffuf_scope_refusal_sends_no_target_bytes(tmp_path, denied):
                 url = "http://127.0.0.1/allowed/FUZZ"
             tool, owner = await scanner(tmp_path, target, spec=spec)
             try:
-                result = await tool(url, REF)
+                result = await tool(url, MODEL_REF)
                 assert result["status"] == "failed", result
                 assert result["errorCode"] == "scan_target_denied"
                 assert target.written == b""
@@ -177,7 +181,7 @@ def test_ffuf_https_uses_owner_dns_and_certificate_verification(tmp_path, truste
         async with SocketTarget(ssl_context=server_tls) as target:
             tool, owner = await scanner(tmp_path, target, tls=client_tls if trusted else None)
             try:
-                result = await tool(target.origin + "/allowed/FUZZ", REF)
+                result = await tool(target.origin + "/allowed/FUZZ", MODEL_REF)
                 if trusted:
                     assert result["status"] == "completed", result
                     assert len(target.requests) == 2 and set(names) == {"target.example"}
@@ -219,7 +223,7 @@ def test_ffuf_never_replays_failed_exchange_or_follows_redirect(tmp_path, failur
                 spec.engagement.http.limits = HTTPLimits(responseBodyBytes=2)
             tool, owner = await scanner(tmp_path, target, words=b"one\n", spec=spec)
             try:
-                result = await tool(target.origin + "/allowed/FUZZ", REF)
+                result = await tool(target.origin + "/allowed/FUZZ", MODEL_REF)
                 assert len(target.requests) == owner._request_count == 1
                 if failure in {"disconnect", "body_limit"}:
                     assert result["status"] == "failed", result
@@ -280,10 +284,10 @@ def test_ffuf_private_proxy_and_credentials_keep_identity_cookie_isolation(tmp_p
             tool, owner = await scanner(tmp_path, target, spec=spec)
             try:
                 with pytest.raises(ToolInputError, match="credential"):
-                    await tool(target.origin + "/allowed/FUZZ", REF, credential_id="foreign")
+                    await tool(target.origin + "/allowed/FUZZ", MODEL_REF, credential_id="foreign")
                 assert not launches and target.written == b""
                 result = await tool(
-                    target.origin + "/allowed/FUZZ", REF, credential_id="credential-account"
+                    target.origin + "/allowed/FUZZ", MODEL_REF, credential_id="credential-account"
                 )
                 assert result["status"] == "completed", result
                 assert all(
@@ -292,7 +296,7 @@ def test_ffuf_private_proxy_and_credentials_keep_identity_cookie_isolation(tmp_p
                 )
                 assert b"learned=private-jar" in target.requests[1]
                 assert secret not in json.dumps(result)
-                anonymous = await tool(target.origin + "/allowed/FUZZ", REF)
+                anonymous = await tool(target.origin + "/allowed/FUZZ", MODEL_REF)
                 assert anonymous["status"] == "completed", anonymous
                 assert secret.encode() not in target.requests[2]
                 assert b"learned=private-jar" not in target.requests[2]
@@ -327,7 +331,7 @@ def test_ffuf_joins_process_target_and_private_files_on_termination(tmp_path, mo
             task = asyncio.create_task(
                 tool(
                     target.origin + "/allowed/FUZZ",
-                    REF,
+                    MODEL_REF,
                     timeout_seconds=3 if finish == "timeout" else 30,
                 )
             )

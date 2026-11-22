@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-69 open tasks: 10 in progress, 46 pending, 13 deferred. 1664 finished: 1646 completed, 18 archived.
+71 open tasks: 13 in progress, 45 pending, 13 deferred. 1664 finished: 1646 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,9 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V478-002](v478-002-audit-incremental-evidence.yml) | audits | feature | P1 | Retain explicitly selected evidence through common source selectors |
+| [V478-012](v478-012-scanner-version-fixtures.yml) | scan-tools | chore | P2 | Finish remaining test callers of Runtime-owned versions |
+| [V478-013](v478-013-inactive-audit-submission.yml) | audits | defect | P2 | Classify inactive Audit submissions before reading their generation |
 
 ## Pending
 
@@ -79,7 +82,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V478-005, V411-015, V411-014 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | — | Drive the cumulative 64 MiB machine report check to its rejection in a test |
 | [V469-004](v469-004-opencode-audit-workflow.yml) | feature | P1 | V469-003 | Ship the minimal OpenCode Audit workflow and environment view |
-| [V478-002](v478-002-audit-incremental-evidence.yml) | feature | P1 | — | Retain explicitly selected evidence through common source selectors |
 | [V478-003](v478-003-audit-submit-result.yml) | feature | P1 | V478-002 | Submit a thin attributed result over accumulated observations |
 | [V478-004](v478-004-audit-partial-stop-results.yml) | feature | P1 | V478-002, V478-003 | Preserve partial Audit results without inventing coverage at stop |
 | [V478-005](v478-005-audit-results-acceptance.yml) | feature | P1 | V478-002, V478-003, V478-004 | Expose honest Audit results and gate partial-result lifecycle |
@@ -168,11 +170,11 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 26 | 38 | 15 | 39 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
-| Findings tools and collections (`findings`) | 0 | 22 | 15 | 13 | 28 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 13 | 30 |
+| Findings tools and collections (`findings`) | 0 | 22 | 15 | 13 | 29 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 21 | 76 |
-| Audits (`audits`) | 14 | 77 | 99 | 42 | 173 |
+| Audits (`audits`) | 15 | 77 | 100 | 42 | 174 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 21 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
 | Web UI (`ui`) | 1 | 56 | 81 | 34 | 80 |

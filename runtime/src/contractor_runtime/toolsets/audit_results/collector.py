@@ -5,6 +5,8 @@ from copy import deepcopy
 from dataclasses import replace
 from functools import partial
 
+import jcs
+
 from contractor_runtime import threads
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.worker_completion import WorkerCompletionError
@@ -73,10 +75,15 @@ class InvocationAuditCollector:
         self._http_publisher = http_publisher
         self._http_selected = {}
         self._items: dict[str, RecordedAuditItem] = {}
+        self._evidence: dict[str, dict] = {}
         self._response_revisions: dict[str, int] | None = None
         self._proposals: dict[str, frozenset] = {}
         self._lock = asyncio.Lock()
         self._sealed = self._discarded = False
+
+    @property
+    def audit_id(self):
+        return self._encoder.trusted_inputs(self.inputs).audit_id
 
     @property
     def owner(self):
@@ -143,6 +150,42 @@ class InvocationAuditCollector:
                 raise AuditCollectionError("client_key", "Invocation finding limit reached.")
             self._proposals[client_key] = refs
 
+    async def record_evidence(
+        self, invocation_id, item_key, save, *, tested_conditions=(), limitations=()
+    ):
+        async with self._lock:
+            self._check_live(writing=True)
+            self.check_invocation(invocation_id)
+            if item_key not in self._tasks:
+                raise AuditCollectionError("item_key", "Choose an assigned check.")
+            receipt = await save()
+            key = jcs.canonicalize(receipt["material"]).decode()
+            if key not in self._evidence and len(self._evidence) >= MAX_EVIDENCE:
+                raise AuditCollectionError("sources", "Selected evidence limit reached.")
+            if receipt["itemKey"] != item_key:
+                raise RuntimeError("Evidence receipt has another item")
+            self._evidence[key] = {
+                **receipt,
+                "tested_conditions": tuple(tested_conditions),
+                "limitations": tuple(limitations),
+            }
+            return receipt
+
+    def _with_evidence(self, item):
+        records = [r for r in self._evidence.values() if r["itemKey"] == item.item_key]
+        selected = {jcs.canonicalize(source) for r in records for source in r["sources"]}
+        # Interpretation/conditions remain attributed in the independently retained
+        # annotation. The result freezes its exact association and source selection.
+        selected.update(jcs.canonicalize(r["material"]) for r in records)
+        return replace(item, selected_evidence=tuple(sorted(selected)))
+
+    def _retained_evidence_bytes(self):
+        return sum(
+            record["material"]["size_bytes"]
+            + sum(source["size_bytes"] for source in record["sources"])
+            for record in self._evidence.values()
+        )
+
     def _validate(self, item: NormalizedAuditItem):
         if not isinstance(item, NormalizedAuditItem) or item.item_key not in self._tasks:
             raise AuditCollectionError("item_key", "Choose an item key from read_audit_task.")
@@ -183,7 +226,9 @@ class InvocationAuditCollector:
             }
             if (
                 len(selected) > MAX_EVIDENCE
-                or len(encoded.data) + sum(self._http_selected[key][1] for key in selected)
+                or len(encoded.data)
+                + self._retained_evidence_bytes()
+                + sum(self._http_selected[key][1] for key in selected)
                 > MAX_COLLECTED_BYTES
             ):
                 raise AuditResultError("audit_result_size_exceeded")
@@ -219,7 +264,7 @@ class InvocationAuditCollector:
             expected_revision = self.item_base(item.item_key)
         async with self._lock:
             self._check_live(writing=True)
-            item = self._validate(item)
+            item = self._with_evidence(self._validate(item))
             key = item.item_key
             current = self._items.get(key)
             if current is not None and replace(current.value, http_evidence=()) == item:
@@ -247,7 +292,7 @@ class InvocationAuditCollector:
             self._check_live(writing=True)
             if not isinstance(items, tuple) or len(items) != len(self.owner.item_keys):
                 raise AuditCollectionError("items", "Provide every assigned item key exactly once.")
-            values = tuple(self._validate(item) for item in items)
+            values = tuple(self._with_evidence(self._validate(item)) for item in items)
             keyed = {item.item_key: item for item in values}
             if len(keyed) != len(values) or set(keyed) != set(self.owner.item_keys):
                 raise AuditCollectionError("items", "Provide every assigned item key exactly once.")
@@ -339,3 +384,4 @@ class InvocationAuditCollector:
             self._response_revisions = None
             self._proposals.clear()
             self._http_selected.clear()
+            self._evidence.clear()

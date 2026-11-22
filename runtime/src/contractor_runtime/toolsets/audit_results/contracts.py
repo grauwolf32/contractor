@@ -99,6 +99,7 @@ class NormalizedAuditItem:
     verdict: str | None = None
     http_request_ids: tuple[int, ...] = ()
     http_evidence: tuple[bytes, ...] = field(default=(), repr=False)
+    selected_evidence: tuple[bytes, ...] = field(default=(), repr=False)
 
     def __post_init__(self):
         _identifier(self.item_key)
@@ -110,6 +111,9 @@ class NormalizedAuditItem:
             for value in self.http_request_ids
         ) or len(set(self.http_request_ids)) != len(self.http_request_ids):
             raise ValueError("invalid HTTP request selection")
+        _tuple(self.selected_evidence, MAX_EVIDENCE)
+        if any(not isinstance(value, bytes) for value in self.selected_evidence):
+            raise ValueError("invalid selected evidence")
         _tuple(self.http_evidence, MAX_EVIDENCE)
         if (
             any(not isinstance(value, bytes) for value in self.http_evidence)

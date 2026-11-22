@@ -22,10 +22,10 @@ import (
 
 func TestEvalFindingProjectNavigationAcrossProcesses(t *testing.T) {
 	stage := func(name string) domainGatewayStage {
-		return domainGatewayStage{name: name, tools: []string{"read_artifact", "record_fact", "read_audit_task", "submit_check_result", "submit_check_results"}, steps: []domainGatewayStep{
+		return domainGatewayStage{name: name, tools: []string{"read_artifact", "fact", "read_audit_task", "submit_check_result", "submit_check_results", "evidence"}, steps: []domainGatewayStep{
 			toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
 			toolGatewayStep("read_artifact", stageReadArguments("memories", nil)),
-			toolGatewayStep("record_fact", func(request map[string]any) (map[string]any, error) {
+			toolGatewayStep("fact", func(request map[string]any) (map[string]any, error) {
 				reads := findingsToolResponses(request, "read_artifact")
 				tasks := findingsToolResponses(request, "read_audit_task")
 				if len(reads) != 1 || len(tasks) != 1 {
@@ -36,7 +36,7 @@ func TestEvalFindingProjectNavigationAcrossProcesses(t *testing.T) {
 					return nil, fmt.Errorf("missing assigned member")
 				}
 				member := members[0].(map[string]any)
-				return map[string]any{"title": "Reported nginx", "description": "Reported observation with selected exact material", "evidence_refs": []any{materialSelector(reads[0]["artifact"])}, "item_key": member["item_key"]}, nil
+				return map[string]any{"title": "Reported nginx", "description": "Reported observation with selected exact material", "sources": []any{artifactSourceSelector(reads[0]["artifact"])}, "item_key": member["item_key"]}, nil
 			}),
 			toolGatewayStep("submit_check_result", auditResultArguments(map[string]any{"rationale": "Selected the reported observation", "tested_conditions": []string{"Read exact material"}, "limitations": []string{"No independent probe"}, "evidence": []string{}})),
 			finalGatewayStep("Recorded exploration", nil),

@@ -19,7 +19,7 @@ func TestAuditCompletionTargetAndPinnedInputs(t *testing.T) {
 	var agentName string
 	for name, agent := range stage.Agents {
 		agentName = name
-		agent.Template.Toolsets = []contracts.ToolsetSelection{{Ref: contracts.ToolsetRef{ToolsetID: "audit-results", Version: "2"}, Tools: []string{"read_audit_task", "submit_check_result", "submit_check_results"}}}
+		agent.Template.Toolsets = []contracts.ToolsetSelection{{Ref: contracts.ToolsetRef{ToolsetID: "audit-results", Version: "2"}, Tools: []string{"read_audit_task", "submit_check_result", "submit_check_results", "evidence"}}}
 		stage.Agents[name] = agent
 	}
 	workflow.stage = stage

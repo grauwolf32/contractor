@@ -5,7 +5,7 @@ milestone: audit-evidence-results-2026-11
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V64-002
 - V64-012
@@ -130,12 +130,18 @@ context:
     tokens at any model argument nesting level. Returned versions remain informational; internal API/CAS
     checks stay strict. Replace record_fact and superseded active source arguments end to end with new
     catalog identities, without aliases or historical snapshot rewrites.
+  exact_reuse_implementation: >-
+    SelectedVersions resolves one version per namespace/name. An exact selected source therefore also receives an ordinary frozen Run input fork through the Artifact owner when Server accepts evidence. The tool returns current sourceSelectors for those immutable aliases, so Finding/fact reuse does not ask the model for revisions or silently select a later mutable binding. Audit forks retain the bytes independently of the Run; both forks share existing blobs/lineage. Private selection slots are admitted before the Server operation. No universal handle registry or new retention owner is introduced.
+  preparation_failure_boundary: >-
+    Source extraction may prepare ordinary Run artifacts before the Audit/Finding transaction. A permanent failure accepts no new Audit association or Project Finding/fact; already prepared ordinary Run materials use the existing Run lifecycle. No distributed rollback or durable-acceptance claim is made for preparation alone. This clarifies the existing ownership decision rather than adding automatic observation retention.
   main_reconciliation_2026_11_22: V479-005 already resolves finding/fact evidence_refs through common
     MaterialSelector and SelectedVersions; V479-004 owns exact read cursors, and V479-009 prevents Project-target
     reads from selecting same-address Run versions. Reuse those owners when replacing active source arguments
     with sources. This task adds code/HTTP/artifact source preparation and early durable Audit association,
     not another version resolver. The private version map, discovery metadata and cursors add no holds
     and do not prove Server acceptance.
+  admission_implementation: >-
+    The existing Audit link owner bounds each execution collection to 256 annotation/source occurrences and 8 MiB, including repeated annotations and selected bytes. Early intake reserves 1 MiB from the invocation allowance and min(1 MiB, maxEvidenceBytes/8) from Audit capacity for conclusion/stop metadata. Frozen ordinary Run input aliases support exact later reuse; accepted annotations keep model conditions/limitations privately through compaction. Source forks, note, receipt, links and accounting commit together; no new store or automatic observation archive is introduced.
 scope:
   in:
   - Persist explicitly selected source/annotation artifacts and their exact Task/attempt association when evidence

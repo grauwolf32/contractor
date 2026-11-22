@@ -150,3 +150,11 @@ def _validate_program(program):
                 raise ValueError("Audit initial material selection")
     if "continuation" in program and program["continuation"]["workflow"] not in bindings:
         raise ValueError("Audit continuation binding")
+
+
+def validate_audit_material(value: dict) -> None:
+    """Validate one normalized exact material using the shared generated contract."""
+    _VALIDATOR.evolve(schema=_SCHEMA["$defs"]["artifact"]).validate(value)
+    from contractor_runtime.contracts.artifacts import ArtifactRef
+
+    ArtifactRef.model_validate(value["ref"]).require_exact()

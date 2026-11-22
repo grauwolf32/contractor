@@ -9,6 +9,7 @@ const (
 	AuditResultsToolsetID      = contracts.AuditResultsToolsetID
 	AuditResultsToolsetVersion = contracts.AuditResultsToolsetVersion
 	ReadAuditTaskTool          = "read_audit_task"
+	EvidenceTool               = "evidence"
 	SubmitCheckResultTool      = "submit_check_result"
 	SubmitCheckResultsTool     = "submit_check_results"
 )
@@ -26,14 +27,14 @@ func ValidateAuditCompletionTemplate(template contracts.ResolvedAgentTemplate, c
 		if selection.Ref.ToolsetID != AuditResultsToolsetID {
 			continue
 		}
-		if selection.Ref.Version != AuditResultsToolsetVersion || found || len(selection.Tools) != 3 {
+		if selection.Ref.Version != AuditResultsToolsetVersion || found || len(selection.Tools) != 4 {
 			return contracts.Invalidf("Audit completion requires only audit-results@2 with all tools")
 		}
 		tools := map[string]bool{}
 		for _, name := range selection.Tools {
 			tools[name] = true
 		}
-		if !tools[ReadAuditTaskTool] || !tools[SubmitCheckResultTool] || !tools[SubmitCheckResultsTool] {
+		if !tools[EvidenceTool] || !tools[ReadAuditTaskTool] || !tools[SubmitCheckResultTool] || !tools[SubmitCheckResultsTool] {
 			return contracts.Invalidf("Audit completion requires all audit-results@2 tools")
 		}
 		found = true

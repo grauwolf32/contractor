@@ -69,7 +69,7 @@ func selectedHTTPEvidenceAcrossProcesses(t *testing.T, withFinding bool) {
 			stage.tools = append(stage.tools, "finding")
 			stage.steps = append(stage.steps[:len(stage.steps)-1], toolGatewayStep("finding", fixedArguments(map[string]any{
 				"title": "HTTP denial observation", "description": "A retained anonymous HTTP request received 403; fixture problem publication is explicit.",
-				"request_id": 2,
+				"sources": []any{map[string]any{"kind": "http", "request_id": 2}},
 			})), toolGatewayStep("submit_check_result", func(request map[string]any) (map[string]any, error) {
 				replies := findingsToolResponses(request, "finding")
 				if len(replies) != 1 || replies[0]["receipt_id"] == nil || replies[0]["finding_id"] == nil {

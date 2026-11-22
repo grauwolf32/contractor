@@ -393,3 +393,13 @@ Audit/task/material projections; offline validation performs no HTTP mutation.
 This boundary adds no controller, collector, ledger, queue, capacity mechanism,
 Project hypothesis registry or compatibility execution path. Actual Run execution,
 Artifact retention and database mutations retain their existing owning APIs.
+
+
+**ACT-R18.** Explicit during-work evidence retention follows AWC-R133. A selected
+source becomes evidence for a particular Task only through its accepted exact
+association and attributed interpretation. Merely supplying a ground, reading a
+fact card, capturing traffic or embedding an Artifact ref grants neither evidence
+membership nor durability. Import validates the Server-owned association and
+exact hypothesis pin before admitting retained material for a conclusion. The
+same original source may support independent claims without copying its bytes
+or being counted as independent corroboration.
