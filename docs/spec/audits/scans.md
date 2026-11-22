@@ -152,7 +152,7 @@ Workflow inputs.
 snapshots are never silently rewritten to match a newer catalog.
 
 **ASC-R4.** The Workflows and execution contracts a profile selects,
-such as `openapi-from-workspace@8` for a `prepare` role or a scan Workflow's
+such as `openapi-from-workspace@9` for a `prepare` role or a scan Workflow's
 `openapi-scan@1` contract, are configuration choices; the role kind and the
 declared input sources determine scheduling and authority.
 
@@ -510,7 +510,7 @@ changing these minimal contracts.
 
 
 **ASC-R66.** Source preparation, which generates the
-OpenAPI document through a `prepare` role such as `openapi-from-workspace@8`,
+OpenAPI document through a `prepare` role such as `openapi-from-workspace@9`,
 is a separate capability governed by the preparation contract of this
 document and is not a prerequisite for the supplied-input scan profile.
 

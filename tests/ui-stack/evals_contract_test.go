@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -151,10 +150,11 @@ func testManagedEvalProducerTaskEvidence(t *testing.T) {
 }
 
 func TestManagedEvalGatewayUsesCurrentCheckerContract(t *testing.T) {
+	source := map[string]any{"kind": "artifact", "namespace": "inputs", "name": "source"}
 	tasks := []any{
 		map[string]any{"item_key": "check-one", "hypothesis": map[string]any{"id": "hyp-one", "revision": 1},
-			"evidence": []any{map[string]any{"handle": "evidence-000", "material": map[string]any{"kind": "artifact"}}}},
-		map[string]any{"item_key": "exploration", "evidence": []any{map[string]any{"handle": "evidence-001", "material": map[string]any{"kind": "artifact"}}}},
+			"materials": []any{map[string]any{"source": source}}},
+		map[string]any{"item_key": "exploration", "materials": []any{map[string]any{"source": source}}},
 	}
 	response, _ := json.Marshal(map[string]any{"batchSize": 2, "tasks": tasks})
 	request := map[string]any{
@@ -164,12 +164,40 @@ func TestManagedEvalGatewayUsesCurrentCheckerContract(t *testing.T) {
 		},
 		"tools": []any{map[string]any{"function": map[string]any{"name": "read_audit_task"}}},
 	}
-	message, reason, _, err := managedEvalGatewayMessage(request)
-	if err != nil || reason != "tool_calls" {
-		t.Fatalf("checker fixture response: %v %s %v", message, reason, err)
+	next := func() (map[string]any, map[string]any) {
+		message, reason, _, err := managedEvalGatewayMessage(request)
+		if err != nil || reason != "tool_calls" {
+			t.Fatalf("checker fixture response: %v %s %v", message, reason, err)
+		}
+		return message, message["tool_calls"].([]any)[0].(map[string]any)["function"].(map[string]any)
 	}
-	call := message["tool_calls"].([]any)[0].(map[string]any)["function"].(map[string]any)
-	if call["name"] != "submit_check_results" {
+	for _, key := range []string{"check-one", "exploration"} {
+		message, call := next()
+		var args map[string]any
+		if err := json.Unmarshal([]byte(call["arguments"].(string)), &args); err != nil {
+			t.Fatal(err)
+		}
+		if call["name"] != "evidence" || args["item_key"] != key || len(args["sources"].([]any)) != 1 {
+			t.Fatalf("fixture did not explicitly select the item's evidence: %+v", call)
+		}
+		selected := args["sources"].([]any)[0].(map[string]any)
+		if len(selected) != 3 || selected["kind"] != "artifact" || selected["namespace"] != "inputs" || selected["name"] != "source" {
+			t.Fatalf("fixture source is not the declared revision-free selector: %+v", selected)
+		}
+		request["messages"] = append(request["messages"].([]any), message)
+		// Calling the tool is not an acknowledgement. The fixture must still
+		// wait for a receipt before it can submit the judgment.
+		_, repeated := next()
+		if repeated["name"] != "evidence" {
+			t.Fatal("fixture treated an unconfirmed call as durable evidence")
+		}
+		receipt, _ := json.Marshal(map[string]any{"status": "recorded", "persistence": "accepted", "itemKey": key})
+		request["messages"] = append(request["messages"].([]any), map[string]any{
+			"role": "tool", "tool_call_id": "managed-evidence-" + key, "content": string(receipt),
+		})
+	}
+	_, call := next()
+	if call["name"] != "submit_results" {
 		t.Fatalf("unexpected checker call: %v", call)
 	}
 	var arguments struct {
@@ -182,25 +210,22 @@ func TestManagedEvalGatewayUsesCurrentCheckerContract(t *testing.T) {
 		t.Fatalf("fixture lost assignment order or invented an exploration verdict: %+v", arguments.Items)
 	}
 	for index, key := range []string{"check-one", "exploration"} {
-		if arguments.Items[index]["item_key"] != key {
-			t.Fatalf("fixture changed assigned item key: %+v", arguments.Items)
+		item := arguments.Items[index]
+		size := 3
+		if index == 0 {
+			size = 4
+		}
+		if item["item_key"] != key || len(item) != size {
+			t.Fatalf("fixture changed the thin judgment: %+v", item)
 		}
 	}
-	for index, handle := range []string{"evidence-000", "evidence-001"} {
-		if !reflect.DeepEqual(arguments.Items[index]["evidence"], []any{handle}) {
-			t.Fatalf("fixture changed the assigned evidence handles: %+v", arguments.Items)
-		}
-	}
-	// Use the same strict Runtime normalization as SubmitCheckResultsTool rather
-	// than a Go copy of its accepted argument fields and enum values.
+	// Use the actual shared Runtime entry point for argument normalization.
 	root := repoRoot(t)
 	command := exec.Command(filepath.Join(root, "runtime", ".venv", "bin", "python"), "-I", "-B", "-c", `
 import json, sys
 sys.path.insert(0, sys.argv[1])
-from contractor_runtime.toolsets.audit_results.v2 import _normalize
-arguments = json.load(sys.stdin)
-for value in arguments["items"]:
-    _normalize(value["item_key"], value)
+from contractor_runtime.toolsets.audit_results.v2 import _prepare_batch
+_prepare_batch(json.load(sys.stdin)["items"])
 `, filepath.Join(root, "runtime", "src"))
 	command.Stdin = bytes.NewBufferString(call["arguments"].(string))
 	if output, err := command.CombinedOutput(); err != nil {

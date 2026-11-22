@@ -43,7 +43,7 @@ tests:
   covers: [A1, A3]
 - command: make test-ui-stack
   covers: [A2, A3]
-- command: go test -tags=e2e -count=1 -run '^TestProjectWorkflowsAcrossProductionProcesses$' -timeout=10m ./tests/e2e
+- command: go test -tags=e2e -count=1 -run '^TestProjectWorkspaceLifecycleAcrossProductionProcesses$' -timeout=10m ./tests/e2e
   covers: [A3]
 - command: make lint
   covers: [A1, A2, A3]

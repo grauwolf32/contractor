@@ -32,7 +32,7 @@ Project.
 
 The **Recommended Workflows** panel enables only Workflows whose required input
 media types can be satisfied by current Project bindings. Select
-`openapi-from-workspace@8` or `likec4-from-workspace@8`, review the exact
+`openapi-from-workspace@9` or `likec4-from-workspace@9`, review the exact
 revision chosen for each input, and start the Project Run. While it is active,
 the same Run appears in the top-level **Queue** with its safe Project identity.
 Queue is a lifecycle read model, not a second scheduler or a promise of numeric
@@ -99,7 +99,7 @@ See [RUN-R112–115](../spec/execution/runs.md#RUN-R112) and the
 
 ## OpenAPI from a standalone Run workspace
 
-`openapi-from-workspace@8` runs four serial Stages: graph-backed dependency
+`openapi-from-workspace@9` runs four serial Stages: graph-backed dependency
 discovery, graph-backed project discovery, incremental OpenAPI construction,
 and final validation/repair. Each Stage gets its own allocation and reconstructs
 one private workspace from the exact source and cumulative overlay state. The
@@ -165,7 +165,7 @@ RUN_ID="$(jq -n \
   --argjson source "$SOURCE_REF" \
   --argjson seed "$OPENAPI_SEED_REF" \
   --arg objective 'Document the implemented public HTTP API' \
-  '{workflow:"openapi-from-workspace@8",parameters:{objective:$objective},artifacts:{source:$source,existing_openapi:$seed}}' | \
+  '{workflow:"openapi-from-workspace@9",parameters:{objective:$objective},artifacts:{source:$source,existing_openapi:$seed}}' | \
   curl --fail --silent --show-error \
     -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
     -H "Idempotency-Key: openapi-run-$(date +%s)" \
@@ -245,7 +245,7 @@ same-UID process with write access is part of that host's trust boundary.
 
 ## LikeC4 from a standalone Run workspace
 
-`likec4-from-workspace@8` reuses the same graph-backed dependency and project
+`likec4-from-workspace@9` reuses the same graph-backed dependency and project
 discovery contracts as the OpenAPI Workflow, then builds and repair-validates
 one single-file architecture model. Reports, the model and cumulative overlay
 state cross Stage boundaries as exact artifact revisions; no Worker relies on
@@ -254,7 +254,7 @@ another allocation's memory or live workspace. The final Run freezes
 
 `likec4-from-workspace-streamline@5` has the same artifact and Stage contract,
 but each Stage uses a modeled `streamline@1` Planner. Use it when explicit
-subtask decomposition is useful; the `likec4-from-workspace@8` passthrough Workflow is the simpler
+subtask decomposition is useful; the `likec4-from-workspace@9` passthrough Workflow is the simpler
 default.
 
 Install the LikeC4 CLI directly on every Runtime Agent host and make it visible
@@ -287,7 +287,7 @@ RUN_ID="$(jq -n \
   --argjson source "$SOURCE_REF" \
   --argjson seed "$LIKEC4_SEED_REF" \
   --arg objective 'Model the implemented architecture and trust boundaries' \
-  '{workflow:"likec4-from-workspace@8",parameters:{objective:$objective},artifacts:{source:$source,existing_likec4:$seed}}' | \
+  '{workflow:"likec4-from-workspace@9",parameters:{objective:$objective},artifacts:{source:$source,existing_likec4:$seed}}' | \
   curl --fail --silent --show-error \
     -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
     -H "Idempotency-Key: likec4-run-$(date +%s)" \

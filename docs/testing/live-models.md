@@ -138,8 +138,8 @@ CONTRACTOR_WORKFLOWS_LIVE_MODEL='worker-model' \
 ```
 
 Allow up to 30 minutes for each four-Stage workflow, plus setup and cleanup.
-The harness still selects `openapi-from-workspace@8` and
-`likec4-from-workspace@8`. They currently resolve `worker@2`; inspect the exact
+The harness still selects `openapi-from-workspace@9` and
+`likec4-from-workspace@9`. They currently resolve `worker@2`; inspect the exact
 [policy source](../../configs/model-policies/worker.yaml) for its limits.
 Actual model/tool/token counters are reported by Stage in the Run status.
 On failure, the harness writes bounded generated documents, analysis reports, predicate
@@ -170,7 +170,7 @@ and unchanged catalog bytes. It requires no database or model service and
 fails, rather than skips, if the Python bridge prerequisites are absent.
 
 During local diagnosis only, set `CONTRACTOR_WORKFLOWS_LIVE_ONLY` to either
-`openapi-from-workspace@8` or `likec4-from-workspace@8`; the default and documented
+`openapi-from-workspace@9` or `likec4-from-workspace@9`; the default and documented
 quality gate always execute both.
 
 ## Context-compaction evaluation

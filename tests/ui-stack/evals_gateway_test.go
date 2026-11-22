@@ -51,11 +51,15 @@ func managedEvalGatewayMessage(request map[string]any) (map[string]any, string, 
 		if !completed["read_audit_task"] {
 			return call("read_audit_task", map[string]any{})
 		}
-		if !completed["submit_check_results"] {
+		if !completed["submit_results"] {
 			var tasks []any
+			acknowledged := map[string]bool{}
 			walkJSON(request, func(object map[string]any) {
 				if value, ok := object["tasks"].([]any); ok {
 					tasks = value
+				}
+				if key, ok := object["itemKey"].(string); ok && object["persistence"] == "accepted" {
+					acknowledged[key] = true
 				}
 			})
 			if len(tasks) == 0 {
@@ -64,38 +68,44 @@ func managedEvalGatewayMessage(request map[string]any) (map[string]any, string, 
 			results := make([]any, 0, len(tasks))
 			for _, raw := range tasks {
 				task, ok := raw.(map[string]any)
-				if !ok || task["item_key"] == nil {
+				if !ok {
+					return nil, "", model, errors.New("Audit task missing")
+				}
+				key, ok := task["item_key"].(string)
+				if !ok || key == "" {
 					return nil, "", model, errors.New("Audit task key missing")
 				}
-				evidence := []string{}
-				materials, _ := task["evidence"].([]any)
-				for _, raw := range materials {
-					material, _ := raw.(map[string]any)
-					handle, _ := material["handle"].(string)
-					if handle == "" {
-						return nil, "", model, errors.New("Audit evidence handle missing")
+				if !acknowledged[key] {
+					materials, _ := task["materials"].([]any)
+					if len(materials) == 0 {
+						return nil, "", model, errors.New("Audit ground materials missing")
 					}
-					evidence = append(evidence, handle)
+					material, _ := materials[0].(map[string]any)
+					source, ok := material["source"].(map[string]any)
+					if !ok {
+						return nil, "", model, errors.New("Audit source selector missing")
+					}
+					return toolCallMessage("managed-evidence-"+key, "evidence", map[string]any{
+						"item_key": key, "sources": []any{source},
+						"interpretation":    "Deterministic fixture source, applicable only to this assigned check",
+						"tested_conditions": []string{"Selected authored fixture and retained source only"},
+						"limitations":       []string{},
+					}), "tool_calls", model, nil
 				}
 				result := map[string]any{
-					"item_key":          task["item_key"],
-					"rationale":         "Deterministic retained fixture evidence",
-					"tested_conditions": []string{"Selected authored fixture and retained source only"},
-					"limitations":       []string{}, "evidence": evidence,
+					"item_key": key, "rationale": "Deterministic retained fixture evidence",
+					"limitations": []string{},
 				}
 				if task["hypothesis"] != nil {
-					if len(evidence) == 0 {
-						return nil, "", model, errors.New("Audit hypothesis evidence missing")
-					}
 					result["verdict"] = "supported"
 				}
 				results = append(results, result)
 			}
-			return call("submit_check_results", map[string]any{"items": results})
+			return call("submit_results", map[string]any{"items": results})
 		}
 	} else {
 		if !completed["read_artifact"] {
-			return call("read_artifact", map[string]any{"namespace": "inputs", "name": "source", "revision": nil})
+			return call("read_artifact", map[string]any{"namespace": "inputs", "name": "source"})
 		}
 		if !completed["write_text_artifact"] {
 			_, found := lastStringValue(request, "text")
@@ -103,7 +113,7 @@ func managedEvalGatewayMessage(request map[string]any) (map[string]any, string, 
 				return nil, "", model, errors.New("Workflow source bytes missing")
 			}
 			return call("write_text_artifact", map[string]any{"name": "copied",
-				"media_type": "text/plain", "text": e2eReport, "expected_revision": nil})
+				"media_type": "text/plain", "text": e2eReport})
 		}
 	}
 	return map[string]any{"role": "assistant", "content": managedEvalWorkerSummary}, "stop", model, nil
@@ -215,7 +225,7 @@ func TestUIStackConfigurationClosure(t *testing.T) {
 				t.Fatalf("staging replaced the production Worker policy: %v", err)
 			}
 			fixtureWorkflows := []string{"streamline-copy@1"}
-			for _, selector := range []string{"streamline-copy@1", "openapi-from-workspace@8"} {
+			for _, selector := range []string{"streamline-copy@1", "openapi-from-workspace@9"} {
 				if _, err := snapshot.Workflow(selector); err != nil {
 					t.Fatal(err)
 				}

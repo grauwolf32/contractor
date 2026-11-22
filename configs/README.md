@@ -31,7 +31,7 @@ The current user-facing Workflow set is:
 
 - `audit-web-nuclei-scan@1` for the `web-scan@1` AuditProfile: one explicit
   target with installed or exact custom rules; see [scanner setup](../runtime/README.md#cli-scanners);
-- `openapi-from-workspace@8` and `likec4-from-workspace@8` for four-Stage local
+- `openapi-from-workspace@9` and `likec4-from-workspace@9` for four-Stage local
   graph-backed analysis and document generation;
 - `openapi-from-workspace-streamline@3` and `likec4-from-workspace-streamline@5`
   for the same document contracts with a modeled single-Worker Planner;
