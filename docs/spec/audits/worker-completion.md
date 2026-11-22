@@ -882,6 +882,8 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
   written (AWC-R120).
 - FAIL-AWC-7 — a `completion` object with an unknown kind or phase, or any
   other malformed one, in a Runtime report or live Worker State (AWC-R115).
+- FAIL-AWC-8 — allocation-bound durable evidence and judgment intake,
+  receipt reconciliation and interrupted collection (AWC-R133 to AWC-R138).
 
 Lifecycle ([registry](../platform/lifecycle.md)):
 
