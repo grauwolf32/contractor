@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V12-003
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V477-001
 - V477-002
@@ -57,6 +57,9 @@ context:
     retains the ambiguous double-serialization path and another model repair turn. The chosen split makes auto-decoding
     unambiguous while retaining the current exact UTF-8 payload capability. Reopen a binary/raw-protocol API
     only for a concrete caller; exact body bytes do not promise exact headers or HTTP framing.'
+  caller_review: Searched all shipped configs/Skills, Runtime tests and process callers for body_type/bodyType
+    and HTTP examples. Existing json callers supply native objects; no scalar-json assumptions or shipped catalog
+    content require migration. Immutable identities and catalog lock are unchanged.
 scope:
   in:
   - Tool-owned json object/array contract, explicit use of V477-001 decoding and V477-002 diagnostics, and
@@ -185,3 +188,10 @@ verification_policy: Create test_http_body_arguments.py using real selected tool
   gates under the repository catalog policy; otherwise record why no catalog file changes. The combined real
   Server/Runtime/PostgreSQL acceptance is V476-005; no fixture sends traffic to the live demo or changes the
   configured model.
+implementation_commit: b54844d5d4c410264eeb60fa844818de0a8b487a
+verification:
+  date: '2026-11-22'
+  result: '414 selected affected owner tests passed, no skips: prescribed suites plus shared-config body-bound
+    reader, HTTP engine/retry/target/bridge and Audit completion/continuation siblings. New body tests use
+    actual ADK/local direct, mandatory-proxy and controlled sockets and compare retained capture bytes. Ruff,
+    four import contracts and specification check pass; no full gate, external target or live model.'
