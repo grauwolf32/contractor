@@ -5,7 +5,7 @@ milestone: runtime-owned-tool-versions-2026-11
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V474-003
 - V476-005
@@ -26,8 +26,7 @@ context:
     content remains a replay. User clarification 2026-11-22: retain revision in tool results so the model
     can recognize another material version, but remove model-supplied revision arguments. The user did not
     approve a new artifact-handle interface. Agent scope choice: preserve existing namespace/name addressing;
-    removing revision does not require new material identifiers. Planning only; no implementation, live experiment,
-    deployment or merge is assigned. Only affected-component verification is authorized, not complete Runtime/Go/lint/release
+    removing revision does not require new material identifiers. User assignment 2026-11-22: merge the task plan and implement V479 in one continuous pass. Only affected-component verification is authorized, not complete Runtime/Go/lint/release
     suites. The detailed bounded runtime mechanisms below are agent implementation proposals within that direction.
     User decision 2026-11-22: ordinary read_artifact reads the current version; subsequent pages use a Runtime-issued
     cursor fixing version and position, rather than a snapshot-until-refresh interface.'
@@ -160,7 +159,7 @@ acceptance_criteria:
   then: Unknown fields and over-limit state fail before effects; results retain revision and unchanged Server
     CAS/grants remain authoritative.
 tests:
-- command: cd runtime && uv run pytest tests/test_run_artifacts_toolset.py tests/test_text_artifacts_toolset.py
+- command: cd runtime && uv run pytest tests/test_tool_versions.py tests/test_run_artifacts_toolset.py tests/test_text_artifacts_toolset.py
     tests/test_openapi_toolset.py tests/test_likec4_toolset.py tests/test_worker_artifact_bindings.py tests/test_worker_compaction.py
     tests/test_worker_function_tools.py tests/test_result_finalizer.py
   covers:

@@ -236,10 +236,9 @@ def test_write_tool_preserves_file_bytes_revision_and_content_free_metrics(tmp_p
                 "source",
                 "report.json",
                 "application/octet-stream",
-                "revision-old",
             )
             assert result["artifact"]["revision"] == "revision-write"
-            assert client.write_expected_revision == "revision-old"
+            assert client.write_expected_revision is None
             assert client.written_data == data
             assert state.metrics.tool_calls[0].arguments["source_path"] == "report.json"
             assert SECRET not in repr(state.metrics)
@@ -692,9 +691,8 @@ def test_file_publication_rejects_inline_content_even_with_a_valid_path(tmp_path
                 "name",
                 "source_path",
                 "media_type",
-                "expected_revision",
             }
-            for content in ({"data_base64": "YQ=="}, {"text": "a"}):
+            for content in ({"data_base64": "YQ=="}, {"text": "a"}, {"expected_revision": None}):
                 with pytest.raises(ToolInputError, match="undeclared field"):
                     await tool.run_async(
                         args={

@@ -18,6 +18,7 @@ from contractor_runtime.toolsets.common.execution import WorkerExecutionState
 from contractor_runtime.toolsets.common.http_capture import RecentHTTPCaptures
 from contractor_runtime.toolsets.common.http_observations import HTTPObservationSink
 from contractor_runtime.toolsets.common.report_publications import ReportPublicationSink
+from contractor_runtime.toolsets.common.versions import SelectedVersions
 
 
 class ProposalCollector(Protocol):
@@ -36,6 +37,7 @@ class ProposalCollector(Protocol):
 
 @dataclass(slots=True)
 class ToolResources:
+    selected_versions: SelectedVersions = field(default_factory=SelectedVersions)
     invocation_artifacts: Mapping[str, ArtifactRef] = field(default_factory=dict)
     metrics: MetricsState = field(default_factory=MetricsState)
     execution: WorkerExecutionState = field(default_factory=WorkerExecutionState)

@@ -393,7 +393,7 @@ model-visible artifact tools:
    `run-artifacts@1`, which exports exactly `list_artifacts`, `read_artifact`
    and `write_artifact` for explicit current-Run refs.
 
-`write_artifact(namespace, name, source_path, media_type, expected_revision?)`
+`write_artifact(namespace, name, source_path, media_type)`
 reads an existing file through the Worker's project-workspace owner and publishes
 its actual bytes. The sole model-supplied source is a relative local path.
 Inline content, including encoded bytes alongside a path, is rejected before
@@ -1741,3 +1741,25 @@ Defaults equal their explicit values. Versionless reads and other tools are
 unguarded. The tool's description and rule share the allowance. A read whose
 image attachment has left the current context is eligible again through the
 image owner's context generation; no image bytes enter history or telemetry.
+
+**ART-R147.** Generic artifact publication, UTF-8 text authoring and the
+OpenAPI/LikeC4 load/create/replace entry points have no model-supplied
+`expected_revision`. Runtime remembers successful content reads and writes in
+private invocation state. A new target uses create-only CAS; an existing target
+uses its selected base. A metadata/list result alone supplies no base. An
+unknown existing target conflicts and requires an explicit content read/load.
+Successful results retain the actual revision. Raw removed arguments are
+rejected by the model-tool boundary, including null values. Server/private API
+preconditions remain explicit and strict (ART-R58).
+
+At every main-model request Runtime freezes the current bases for all sibling
+operations from that response. A sibling cannot use another sibling's newly
+written revision to authorize an overwrite. Document mutations retain their
+lock and check the frozen base. Only accepted or exactly reconciled writes
+advance private bases; reconciliation reads of mismatching bytes grant no new
+write authority. Conflicts are never silently refreshed or semantically merged.
+Committed compaction preserves these bases; invocation end clears them. Model
+summaries and historical returned tokens cannot restore them. The bounded map
+holds at most 4,096 selections and 4 MiB of encoded reference metadata
+(LIM-TLS-7), without payload copies or additional retention holds. Admission
+checks a new write before its effect, reserving up to 1 KiB for its returned ref.

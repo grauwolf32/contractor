@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-72 open tasks: 10 in progress, 49 pending, 13 deferred. 1648 finished: 1630 completed, 18 archived.
+72 open tasks: 11 in progress, 48 pending, 13 deferred. 1648 finished: 1630 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V479-001](v479-001-hide-artifact-write-preconditions.yml) | projects-artifacts | feature | P1 | Manage artifact and document write preconditions inside Runtime |
 
 ## Pending
 
@@ -79,7 +80,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V479-001](v479-001-hide-artifact-write-preconditions.yml) | feature | P1 | — | Manage artifact and document write preconditions inside Runtime |
 | [V479-003](v479-003-hide-sitemap-write-preconditions.yml) | feature | P1 | V479-001 | Apply sitemap edits against the Runtime-held reviewed view |
 
 ### Audits (`audits`)

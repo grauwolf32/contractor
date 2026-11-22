@@ -71,6 +71,7 @@ from contractor_runtime.toolsets.common.factory import require_metrics, require_
 from contractor_runtime.toolsets.common.repeats import RepeatRule
 from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.common.tool_base import ArtifactTool
+from contractor_runtime.toolsets.common.versions import ModelArtifacts
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_CONSECUTIVE_EXACT_READS = 2
@@ -110,7 +111,9 @@ class RunArtifactsToolsetFactory:
         del adapter_handles
         require_selected_tools(selected, self.exported_tools)
         metrics = require_metrics(resources, "run-artifacts@1")
-        client = self._client_factory(allocation_id, runtime_settings)
+        client = ModelArtifacts(
+            self._client_factory(allocation_id, runtime_settings), resources.selected_versions
+        )
         secrets = runtime_secrets(runtime_settings)
         cache = allocation_artifact_read_cache(resources) if "read_artifact" in selected else None
         constructors = {
@@ -422,14 +425,14 @@ class WriteArtifactTool(ArtifactTool):
     description = """Publish an existing workspace file as an artifact in this Workflow Run.
 
     Runtime reads and publishes the actual file bytes. An available project
-    workspace is required. Updates require the current destination revision.
+    workspace is required. Read an existing destination before replacing it.
+    Runtime checks its version.
 
     Args:
         namespace: Destination artifact namespace.
         name: Destination artifact binding name.
         source_path: Existing file path relative to the Worker's project workspace.
         media_type: MIME type describing that file.
-        expected_revision: Current destination revision for an update; omit to create.
 
     Returns:
         Saved artifact metadata with its exact revision, mediaType and size.
@@ -445,15 +448,14 @@ class WriteArtifactTool(ArtifactTool):
         name: str,
         source_path: str,
         media_type: str,
-        expected_revision: str | None = None,
     ) -> dict[str, Any]:
         arguments = {
             "namespace": namespace,
             "name": name,
             "source_path": source_path,
             "media_type": media_type,
-            "expected_revision": expected_revision,
         }
+        expected_revision = self._client.versions.base(namespace, name)
         with self._recorded(arguments) as call:
             require_model_visible_binding(namespace, name)
             if self._source is None:
@@ -464,8 +466,10 @@ class WriteArtifactTool(ArtifactTool):
                 raise ToolInputError(f"source_path is unavailable ({error})") from None
             if len(data) > artifact_payload_max_bytes():
                 raise ToolInputError("source file exceeds the configured Artifact limit")
+            target = ArtifactRef(namespace=namespace, name=name)
+            self._client.versions.admit_write(target)
             result = await write_artifact_exact(
-                self._client,
+                self._client.client,
                 ArtifactRef(namespace=namespace, name=name),
                 data=data,
                 media_type=media_type,
@@ -483,6 +487,7 @@ class WriteArtifactTool(ArtifactTool):
                     mediaType=result.media_type,
                     size=len(result.data),
                 )
+            self._client.versions.observe(result.artifact)
             serialized = result.model_dump(by_alias=True)
             call.succeed(
                 {

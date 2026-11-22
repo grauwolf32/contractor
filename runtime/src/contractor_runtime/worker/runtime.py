@@ -423,6 +423,7 @@ class AdkWorkerRuntime:
         invocation_phase: InvocationPhase = "failed"
         outcome: WorkerResult | WorkerFailure
         state_snapshot: dict[str, Any] | None = None
+        self._resources.selected_versions.clear()
         self._resources.invocation_artifacts = MappingProxyType(
             {key: ref.model_copy(deep=True) for key, ref in request.artifacts.items()}
         )
@@ -505,6 +506,7 @@ class AdkWorkerRuntime:
             self._repeats.reset()
             self._guidance = None
             self._resources.invocation_artifacts = MappingProxyType({})
+            self._resources.selected_versions.clear()
             try:
                 if self._completion is not None and invocation_phase != "succeeded":
                     code = "worker_cancelled" if invocation_phase == "cancelled" else outcome.code
@@ -845,6 +847,7 @@ class AdkWorkerRuntime:
             _clear_artifact_observation_logs(self._context.tools)
 
     async def _prepare_model_request(self, callback_context: Any, llm_request: Any) -> None:
+        self._resources.selected_versions.begin_response()
         compaction = self._compaction
         if compaction is not None:
             contents = compaction.project(list(callback_context.session.events))

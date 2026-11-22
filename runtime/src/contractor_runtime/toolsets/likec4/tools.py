@@ -35,6 +35,7 @@ from contractor_runtime.toolsets.common.factory import require_metrics, require_
 from contractor_runtime.toolsets.common.line_window import bounded_line_window
 from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.common.tool_base import SessionArtifactTool
+from contractor_runtime.toolsets.common.versions import ModelArtifacts
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_DOCUMENT_UTF8_BYTES = 1024 * 1024
@@ -96,7 +97,9 @@ class LikeC4ToolsetFactory:
         del run_id
         require_selected_tools(selected, self.exported_tools)
         metrics = require_metrics(resources, "likec4@1")
-        client = self._client_factory(allocation_id, runtime_settings)
+        client = ModelArtifacts(
+            self._client_factory(allocation_id, runtime_settings), resources.selected_versions
+        )
         launcher = adapter_handles.tool_subprocess
         if launcher is not None and not isinstance(launcher, ProxySubprocessLauncher):
             raise TypeError("likec4@1 received an invalid subprocess handle")
@@ -153,22 +156,15 @@ class _LikeC4Session(DocumentSession[str]):
         *,
         content: str,
         target_name: str,
-        expected_revision: str | None,
     ) -> dict[str, Any]:
+        expected_revision = self._client.versions.base(self._namespace, target_name)
         validate_target_name(target_name)
         async with self._lock:
             data = await self._prepare(_validate_document, content)
-            effective_revision = expected_revision
-            if (
-                effective_revision is None
-                and self._target_name == target_name
-                and self._revision is not None
-            ):
-                effective_revision = self._revision
             written = await self._write(
                 data,
                 target_name=target_name,
-                expected_revision=effective_revision,
+                expected_revision=expected_revision,
             )
             self._remember(content, target_name, written.artifact)
             return _document_state(
@@ -288,8 +284,6 @@ class LoadLikeC4Tool(_BaseLikeC4Tool):
         name: Source artifact binding name.
         revision: Source revision; required for a source outside the Worker's namespace.
         target_name: Destination binding in the Worker's namespace; default "architecture".
-        expected_revision: Current destination revision when copying over an existing
-            binding; omit to create it. Resuming the same binding uses its revision.
 
     Returns:
         Exact current artifact reference, document size and changed/copied flags.
@@ -301,14 +295,12 @@ class LoadLikeC4Tool(_BaseLikeC4Tool):
         name: str,
         revision: str | None = None,
         target_name: str = DEFAULT_TARGET_NAME,
-        expected_revision: str | None = None,
     ) -> dict[str, Any]:
         arguments = {
             "namespace": namespace,
             "name": name,
             "revision": revision,
             "target_name": target_name,
-            "expected_revision": expected_revision,
         }
         return await self._call(
             arguments,
@@ -317,7 +309,6 @@ class LoadLikeC4Tool(_BaseLikeC4Tool):
                 name=name,
                 revision=revision,
                 target_name=target_name,
-                expected_revision=expected_revision,
             ),
             _artifact_metric,
         )
@@ -333,8 +324,6 @@ class WriteLikeC4Tool(_BaseLikeC4Tool):
     Args:
         content: Complete LikeC4 source text.
         target_name: Destination binding; defaults to "architecture".
-        expected_revision: Current destination revision. Omit to reuse the loaded
-            revision of this target, or to create a new binding when none is loaded.
 
     Returns:
         Exact saved artifact reference, document size and changed/copied flags.
@@ -344,19 +333,16 @@ class WriteLikeC4Tool(_BaseLikeC4Tool):
         self,
         content: str,
         target_name: str = DEFAULT_TARGET_NAME,
-        expected_revision: str | None = None,
     ) -> dict[str, Any]:
         arguments = {
             "content": content,
             "target_name": target_name,
-            "expected_revision": expected_revision,
         }
         return await self._call(
             arguments,
             self._session.write(
                 content=content,
                 target_name=target_name,
-                expected_revision=expected_revision,
             ),
             _artifact_metric,
         )

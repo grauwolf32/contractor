@@ -58,6 +58,7 @@ EXPECTED_PROCESS_TESTS = {
     "TestLabelDrivenRuntimeConfigurationAcrossProcesses",
     "TestRuntimeAdapterSelectionAllowsAdditionalCapabilities",
     "TestLocalGoToPythonArtifactCopy",
+    "TestRuntimeManagedArtifactWritesAcrossProcesses",
     "TestArtifactFilePublicationAcrossProcesses",
     "TestArtifactImagesAcrossProcesses",
     "TestRuntimeGuidanceAcrossProductionProcesses",

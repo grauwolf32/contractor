@@ -68,8 +68,8 @@ class DocumentSession[D]:
         name: str,
         revision: str | None,
         target_name: str,
-        expected_revision: str | None,
     ) -> dict[str, Any]:
+        expected_revision = self._client.versions.base(self._namespace, target_name)
         validate_target_name(target_name)
         require_model_visible_binding(namespace, name)
         require_model_visible_binding(self._namespace, target_name)
@@ -168,8 +168,14 @@ class DocumentSession[D]:
         """Write bytes that a preparation rendered from a validated document."""
 
         require_model_visible_binding(self._namespace, target_name)
-        return await write_document_exact(
-            self._client,
+        if self._client.versions.base(self._namespace, target_name) != expected_revision:
+            raise ToolInputError(
+                "Document changed in this response; reload before editing", code="document_changed"
+            )
+        target = ArtifactRef(namespace=self._namespace, name=target_name)
+        self._client.versions.admit_write(target)
+        result = await write_document_exact(
+            self._client.client,
             ArtifactRef(namespace=self._namespace, name=target_name),
             data=data,
             media_type=self.media_type,
@@ -178,6 +184,8 @@ class DocumentSession[D]:
             reload_tool=self.reload_tool,
             read_tool=self.read_tool,
         )
+        self._client.versions.observe(result.artifact)
+        return result
 
 
 def validate_target_name(value: str) -> None:

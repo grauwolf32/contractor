@@ -325,7 +325,7 @@ def test_replace_bounds_and_stale_cas_preserve_selected_document(tmp_path: Path)
         with pytest.raises(ValueError, match="CAS"):
             await tools["append_likec4"]("stale append\n")
         with pytest.raises(ValueError, match="CAS"):
-            await tools["write_likec4"]("stale whole write\n", expected_revision=first_revision)
+            await tools["write_likec4"]("stale whole write\n")
         assert (await tools["read_likec4"]())["text"] == "service service node\n"
         durable = client.bindings[("architecture", "architecture")]
         assert durable.revision == external.artifact.revision

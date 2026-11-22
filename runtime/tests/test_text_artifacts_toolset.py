@@ -94,18 +94,18 @@ def test_text_tools_page_utf8_and_enforce_namespace_cas(tmp_path: Path) -> None:
             name="analysis",
             text="# Updated\n",
             media_type="text/markdown",
-            expected_revision=first_revision,
         )
         assert updated["artifact"]["revision"] != first_revision
+        # An external writer changes the binding without updating the tool observation.
+        client.seed("worker-space", "analysis", "text/markdown", b"# Concurrent\n")
         with pytest.raises(ValueError, match="CAS"):
             await tools["write_text_artifact"](
                 name="analysis",
                 text="# Stale\n",
                 media_type="text/markdown",
-                expected_revision=first_revision,
-            )
+                )
         current = await client.read_artifact(ArtifactRef(namespace="worker-space", name="analysis"))
-        assert current.data == b"# Updated\n"
+        assert current.data == b"# Concurrent\n"
         assert state.metrics.counters["tool_calls.read_artifact"] == 1
         assert state.metrics.counters["tool_calls.write_text_artifact"] == 3
 
@@ -718,7 +718,6 @@ def test_text_tools_enforce_shared_memory_binding_visibility(tmp_path: Path) -> 
                 hidden.name,
                 "must not replace",
                 "text/plain",
-                hidden.revision,
             )
         assert (client.read_calls, client.write_calls) == calls_before
         assert client.bindings[(hidden.namespace, hidden.name)].data == b"hidden"

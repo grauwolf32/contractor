@@ -1188,7 +1188,7 @@ def test_validation_checks_seed_provenance_and_never_treats_missing_vacuum_as_cl
         assert "does not exist" in invalid["structuralErrors"][0]
 
         await tools["initialize_openapi"](
-            "Replacement", expected_revision=invalid["artifact"]["revision"]
+            "Replacement"
         )
         monkeypatch.setattr(
             openapi_module,

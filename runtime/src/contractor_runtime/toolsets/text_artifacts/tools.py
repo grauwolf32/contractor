@@ -10,13 +10,17 @@ from typing import Any
 from contractor_runtime import threads
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
-from contractor_runtime.artifacts import ArtifactClient
+from contractor_runtime.artifacts import ArtifactClient, ArtifactValue
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.tool_metrics import ToolMetrics
 from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.toolsets.common.artifact_visibility import (
     require_model_visible_binding,
+)
+from contractor_runtime.toolsets.common.artifact_write import (
+    definite_write_rejection,
+    write_artifact_exact,
 )
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
@@ -31,6 +35,7 @@ from contractor_runtime.toolsets.common.finding_analysis import (
 )
 from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.common.tool_base import ArtifactTool
+from contractor_runtime.toolsets.common.versions import ModelArtifacts
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_TEXT_WRITE_BYTES = 1024 * 1024
@@ -65,7 +70,9 @@ class TextArtifactsToolsetFactory:
         del run_id, workspace, adapter_handles
         require_selected_tools(selected, self.exported_tools)
         metrics = require_metrics(resources, "text-artifacts@1")
-        client = self._client_factory(allocation_id, runtime_settings)
+        client = ModelArtifacts(
+            self._client_factory(allocation_id, runtime_settings), resources.selected_versions
+        )
         secrets = runtime_secrets(runtime_settings)
         constructors = {
             "write_text_artifact": partial(WriteTextArtifactTool, namespace=namespace),
@@ -77,15 +84,13 @@ class WriteTextArtifactTool(ArtifactTool):
     name = "write_text_artifact"
     description = """Create or update a UTF-8 artifact in the Worker's fixed namespace.
 
-    Updates require the expected current revision to prevent overwriting a
-    concurrent write.
+    Runtime checks the last read or saved version. Read an existing destination
+    before replacing it; a concurrent change requires another read.
 
     Args:
         name: Destination artifact binding name within the Worker's namespace.
         text: Complete UTF-8 text, limited to 1 MiB after encoding.
         media_type: MIME type describing the text, such as "text/markdown".
-        expected_revision: Current destination revision for an update; omit only
-            to create a new binding.
 
     Returns:
         Saved artifact metadata including its exact revision, mediaType and size.
@@ -106,14 +111,13 @@ class WriteTextArtifactTool(ArtifactTool):
         name: str,
         text: str,
         media_type: str,
-        expected_revision: str | None = None,
     ) -> dict[str, Any]:
         arguments = {
             "name": name,
             "media_type": media_type,
-            "expected_revision": expected_revision,
             "content": text,
         }
+        expected_revision = self._client.versions.base(self._namespace, name)
         with self._recorded(arguments) as call:
             if not isinstance(text, str):
                 raise ToolInputError("text must be a string")
@@ -132,18 +136,35 @@ class WriteTextArtifactTool(ArtifactTool):
                     )
                 except ValueError:
                     raise ToolInputError("finding analysis is invalid") from None
-            result = await self._client.write_artifact(
+            target = ArtifactRef(namespace=self._namespace, name=name)
+            self._client.versions.admit_write(target)
+            result = await write_artifact_exact(
+                self._client.client,
                 ArtifactRef(namespace=self._namespace, name=name),
                 data=data,
                 media_type=media_type,
                 expected_revision=expected_revision,
+                max_bytes=MAX_TEXT_WRITE_BYTES,
+                reject_first=definite_write_rejection,
+                reject_replay=lambda error: (
+                    definite_write_rejection(error) and error.code != "artifact_conflict"
+                ),
             )
-            serialized = result.model_dump(by_alias=True)
+            self._client.versions.observe(result.artifact)
+            serialized = (
+                {
+                    "artifact": result.artifact.model_dump(by_alias=True),
+                    "mediaType": result.media_type,
+                    "size": len(result.data),
+                }
+                if isinstance(result, ArtifactValue)
+                else result.model_dump(by_alias=True)
+            )
             call.succeed(
                 {
                     "artifact": serialized["artifact"],
                     "mediaType": result.media_type,
-                    "size": result.size,
+                    "size": serialized["size"],
                 }
             )
             return serialized

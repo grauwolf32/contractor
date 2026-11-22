@@ -2154,3 +2154,9 @@ reserve or additional calls. Compactor, finalizer and summarizer requests
 receive no such block. Preparation replaces only its own request object,
 never persists events or modifies authored instructions (LIM-WRK-39). There
 is no independent counter store; existing budget/stop rules remain authoritative.
+
+**WRK-R204.** The Worker clears private selected-version bases at logical
+invocation entry/exit and freezes them before each main-model request. Sibling
+model tool calls share that starting view. A committed checkpoint preserves
+selected versions independently of its model-authored summary and the reset
+repeat series. Artifact-owned write semantics and bounds are ART-R147.
