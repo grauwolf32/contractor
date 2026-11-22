@@ -6,7 +6,8 @@ epic: findings
 kind: chore
 introduced_by: V479-004
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 64d6037a2185c55d52dfba9900f808b81f4c3662
 depends_on:
 - V479-004
 languages:
@@ -44,3 +45,5 @@ tests:
   covers:
   - A1
   - A2
+
+verification_results: "make test-findings-e2e passes all 23 required process cases and 310 Runtime contracts, including located findings and retained proposal/evidence readers. make lint passes."
