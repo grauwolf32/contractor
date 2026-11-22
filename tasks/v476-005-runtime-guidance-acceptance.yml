@@ -1,0 +1,142 @@
+schema_version: '1.0'
+id: V476-005
+title: Verify runtime guidance, tool argument helpers and repeat control together
+milestone: model-runtime-guidance-2026-11
+epic: planner-worker
+kind: chore
+priority: P1
+status: pending
+depends_on:
+- V476-001
+- V476-002
+- V476-003
+- V476-004
+- V477-001
+- V477-002
+- V477-003
+languages:
+- go
+- python
+- markdown
+goal: Verify that current facts reach the model, redundant reads are refused and tool-owned argument helpers
+  repair declared representations while preserving exact HTTP payloads, legitimate work, accounting and compaction
+  across the real Server, Runtime, ArtifactStore and scripted Gateway.
+context:
+  authority: 'User request 2026-11-22: plan runtime guidance and tool-owned repeat rules enforced by a separate
+    ADK plugin. Planning only; implementation, live experiments and deployment are not assigned. User testing
+    constraint: run only checks for changed components, not full Runtime, Go, lint or release suites. User
+    follow-up 2026-11-22 requests tasks for common JSON-container helpers, understandable argument errors and
+    HTTP body correction with exact payload support. The user explicitly places each contract in its tool,
+    which selects common helpers; no global argument normalization is authorized. Agent planning decision:
+    include V477-001/002/003 in this existing milestone acceptance instead of creating another acceptance subsystem.
+    User assignment 2026-11-22 now authorizes V477 implementation and combined acceptance after the original
+    V476 pass.'
+  baseline: Local main 4807373ec907584ac7b44432faf4ff860eafb1bf; Python ADK 2.15.0 and Go ADK 2.8.0 are merged.
+    Recheck the affected owners if main advances.
+  specification:
+  - docs/spec/execution/planners.md
+  - docs/spec/execution/worker.md
+  - docs/spec/tools/toolsets.md
+  - docs/spec/tools/http-caido.md
+  - docs/spec/audits/worker-completion.md
+  execution_groups:
+  - 'Pass 1: V476-001 Planner guidance and V476-002 HTTP descriptions, independent owners and focused tests.'
+  - 'Pass 2: V476-003 repeat plugin followed by V476-004 Worker guidance; integrate their shared Worker callback
+    changes once.'
+  - 'Pass 3: V477-001 JSON-container helpers with explicit HTTP/Audit callers, V477-002 shared diagnostics,
+    then V477-003 structured versus exact HTTP bodies. Preserve V476-002 effective-limit declarations.'
+  - 'Pass 4: this combined focused process acceptance; reuse unchanged component evidence rather than repeat
+    unrelated gates.'
+  decision_record: 'Initial repeat scope is exact-revision read_artifact, two permitted consecutive calls,
+    refusal from the third, no new Worker stop, and a series reset only at interruption/new logical invocation/committed
+    checkpoint. Any change to these user decisions needs an explicit revised task decision before coding. V477
+    extends tool-owned input representations, not repeat scope: the repeat plugin still handles only exact
+    artifact reads, and no HTTP replay suppression, automatic resend or new stop condition is added.'
+  quality_boundary: 'These checks establish deterministic behavior, not improved model quality. Later live
+    evaluation needs its own approved fixtures, sample/cost bounds and task: compare completeness/correctness,
+    repeated invalid actions, unfinished plans, budget stops and cost per successful Run. Fewer calls alone
+    are not an improvement. Do not resume paused V417 quality work or change configured models.'
+  implementation_boundary: Update the owning numbered specifications with implementation; these tasks describe
+    planned behavior, not shipped behavior. Reuse state, budget, validation and receipt owners. No hint registry,
+    status tool, new persistence, generic policy DSL or new public/wire fields.
+  previous_acceptance:
+    implementation_commit: 69f2c85ed4252fac042ce8ca637aac120f7e08c5
+    evidence: tasks/evidence/v476-runtime-guidance-20261122.json
+    result: Final selected real-process run passed all four roots / 36 parent-and-child cases in 403.505s,
+      with no failure or skip. Final affected Planner race suites passed (Streamline 97.269s, Router 2.129s),
+      including both real ADK 30/32 mixed-plan scenarios. Focused Runtime passes are 102 HTTP cases, 270 repeat/artifact/instrumentation
+      cases, 426 Worker cases, five final guidance cases and 28 bridge cases; overlapping selections are not
+      summed. Ruff, all four import contracts, specs, release graph and new-fixture source/reader coverage
+      passed. Failed diagnostic fixture runs are not acceptance evidence. Owned database, PostgreSQL instance/data
+      and temporary venv link are removed. The primary checkout is clean; its independent V477 planning branch
+      is preserved. Implementation is on codex/v476-runtime-guidance, not merged or deployed; no full gate
+      or live-model quality claim.
+  reopened: '2026-11-22: Original V476 passed. Return to pending for the newly assigned V477 dependencies and
+    A5/A6; preserve prior evidence.'
+scope:
+  in:
+  - One bounded scripted process scenario covering both modeled Planners, current HTTP declarations and exact
+    artifact read repeats.
+  - Checkpoint rereading and image/history behavior, preserved budget/metrics and normal completion after correction.
+  - Explicit JSON-container/helper adoption in HTTP and Audit calls through the scripted Gateway, local target
+    receivers and real ArtifactStore; precise repair errors, canonical stored conclusions and exact text payloads.
+  - An evidence record naming tested revisions, focused commands, case counts, skips, limitations and resource
+    cleanup.
+  out:
+  - Full make verify/lint/test-runtime/test-go/test-e2e/release-verify runs, live-model experiments, deployment
+    and feature implementation outside the prerequisite tasks.
+acceptance_criteria:
+- id: A1
+  text: Real Server/Runtime/PostgreSQL and a scripted Gateway demonstrate current Planner state and HTTP limits,
+    A,A,A refusal without a third callable execution, normal progress after B, and correct post-checkpoint
+    text/image rereading. No guidance block accumulates in retained events and no secret reaches model input.
+- id: A2
+  text: Budget and failure metrics/history count each refused model attempt once. No early Worker stop, duplicated
+    artifact publication, CAS/receipt change or finalizer capacity bypass occurs. Both Streamline/Router and
+    ordinary/Audit component regressions pass on the combined code.
+- id: A3
+  text: Existing session-mode, compaction and controlled-HTTP boundary process regressions selected below pass;
+    the new focused scenario is registered in the release graph or explicitly allowlisted with its reason.
+    A missing/zero-test selection or unavailable configured database fails, and skips are not passing coverage.
+- id: A4
+  text: Owning specs and task records agree with the delivered contract. Evidence preserves each focused result
+    and any unchanged-evidence reuse; own processes/databases are removed and the final report states whether
+    the implementation is merged. No live quality or full-release claim is made.
+- id: A5
+  text: The real Worker receives serialized HTTP containers and Audit arrays through ADK, normalizes only explicitly
+    selected arguments, and persists the ordinary canonical conclusion/evidence through Server and PostgreSQL.
+    A malformed argument produces a safe field/type/repair error and no send/write; a corrected call produces
+    one operation with accurate history/budget counts. Unknown fields and nested scalar types retain strict
+    validation, and tools without opt-ins keep their behavior.
+- id: A6
+  text: Local HTTP receivers observe a structured JSON body encoded once and an exact text/application-json
+    body with intentional malformed or duplicate-key content unchanged. Component evidence covers direct, mandatory-proxy
+    and controlled routes; the combined process scenario exercises controlled HTTP and checks that retained
+    evidence reflects actual transmitted bytes under existing redaction. Target 400 and possibly-sent failures
+    cause no new automatic resend; no live demo or external target is used.
+tests:
+- command: go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^(TestRuntimeGuidanceAcrossProductionProcesses|TestWorkerSessionModesAcrossProductionProcesses|TestWorkerCompactionContinuesIsolatedWorker|TestEngagementHTTPBoundsAcrossProcesses)$'
+  covers:
+  - A1
+  - A2
+  - A3
+  - A5
+  - A6
+- command: python3 scripts/check_release_verify_graph.py
+  covers:
+  - A3
+- command: python3 scripts/check_spec.py
+  covers:
+  - A4
+- command: make tasks-backlog
+  covers:
+  - A4
+- command: python3 scripts/check_tasks.py
+  covers:
+  - A4
+verification_policy: Create TestRuntimeGuidanceAcrossProductionProcesses in this task using existing process
+  helpers and extend its bounded fixtures for V477's HTTP/Audit scenarios; explicitly verify all four named
+  roots ran. Owner tasks supply the affected package/file suites; rerun only those invalidated by new changes.
+  Use the locked Runtime environment and one owned disposable PostgreSQL database, stop processes/pools then
+  drop it. Optional heavy-I/O stays disabled. The task is integration acceptance, not a repair of an earlier
+  defect, so introduced_by does not apply.

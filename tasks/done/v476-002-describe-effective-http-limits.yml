@@ -20,7 +20,8 @@ context:
   authority: 'User request 2026-11-22: plan runtime guidance and tool-owned repeat rules enforced by a separate
     ADK plugin. Planning only; implementation, live experiments and deployment are not assigned. User testing
     constraint: run only checks for changed components, not full Runtime, Go, lint or release suites. User
-    assignment 2026-11-22: implement all V476 in one continuous pass.'
+    assignment 2026-11-22: implement all V476 in one continuous pass. V477 input contracts coexist with these
+    effective-limit descriptions; this task does not own normalization.'
   baseline: Local main 4807373ec907584ac7b44432faf4ff860eafb1bf; Python ADK 2.15.0 and Go ADK 2.8.0 are merged.
     Recheck the affected owners if main advances.
   specification:

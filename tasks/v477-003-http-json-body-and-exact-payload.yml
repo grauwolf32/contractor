@@ -1,0 +1,187 @@
+schema_version: '1.0'
+id: V477-003
+title: Send structured JSON bodies once while preserving exact text payloads
+milestone: model-runtime-guidance-2026-11
+epic: http-tools
+kind: defect
+introduced_by: V12-003
+priority: P1
+status: pending
+depends_on:
+- V477-001
+- V477-002
+languages:
+- python
+- markdown
+goal: A serialized JSON object/array supplied by a Worker reaches the target as that container, while an explicit
+  exact-text request retains every supplied UTF-8 payload byte for AppSec tests.
+demonstration: Through the real ADK Runner, a native object and its serialized representation each produce
+  one JSON-object request at a local HTTP receiver. A separate body_type=text request with application/json
+  carries an intentionally malformed or duplicate-key document byte-for-byte without normalization.
+context:
+  authority: 'User request 2026-11-22 explicitly asks to plan HTTP body correction with exact-payload support
+    alongside shared JSON-container and error helpers. User clarification 2026-11-22 requires contracts at
+    tool level and explicit shared-helper use in each needed tool. This follows the recommended structured-container
+    versus exact-text split; the concrete contract below is the proposed task implementation. Planning does
+    not authorize implementation, deployment or restarting the Audit. User assignment 2026-11-22: review and
+    implement V477 with focused affected-component verification; no live Audit or deployment.'
+  baseline: d8b9f6d621a68e04c8a7dd86784529e27c0d93a9; the diagnosed demo used runtime source 4807373ec907584ac7b44432faf4ff860eafb1bf.
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R20
+  - docs/spec/tools/http-caido.md#HTP-R27
+  - docs/spec/tools/http-caido.md#HTP-R53
+  - docs/spec/tools/http-caido.md#HTP-R140
+  - docs/spec/tools/http-caido.md#HTP-R154
+  - docs/spec/tools/toolsets.md#TLS-R29
+  - docs/spec/tools/toolsets.md#TLS-R39
+  - docs/spec/platform/limits.md
+  finding: runtime/src/contractor_runtime/toolsets/http/tools.py:1149 describes body only as shaped by body_type,
+    :1172 exposes Any, and :1522 json.dumps serializes a supplied JSON document string again. ControlledHTTPSession
+    uses the same _request_body at runtime/src/contractor_runtime/toolsets/http/controlled.py:140. Invoice
+    Lab Audit audit_dc4b776653b389a6e048d760817572af on 2026-11-22 supplied body_type=json with a string such
+    as '{"amount":8100}'; its wire body was a JSON string rather than an object. The inspected trace fragment
+    contained 541 POST responses with 400 invalid_amount and repeated unchanged calls. This is evidence of
+    the representation mismatch, not proof that fixing it alone prevents loops or completes the Audit. Git
+    blame attributes the shared unconditional serializer to V12-003, commit 5041d1cbd92cbf7f2ebe8a8561c219d5db79bb96.
+  siblings: Fix ordinary direct HTTP, mandatory proxy HTTP and controlled Audit HTTP through their shared body
+    owner, with actual transport tests for each route. Keep form handling from V477-001 and none behavior consistent.
+    Caido raw replay, scanner request artifacts and private transport byte inputs already represent exact content
+    and must not opt into model-container normalization. Audit arrays use their explicit V477-001 contract.
+    Inspect shipped instructions/Skills and scripted request callers for scalar-json assumptions; migrate any
+    actual caller to the exact-text path, preserving immutable catalog identities when content changes.
+  boundary_decision: 'http_request owns the body_type contract: json is structured object/array data, supplied
+    natively or as one serialized JSON document; text sends the supplied UTF-8 string unchanged, with an explicit
+    Content-Type when needed. Use the existing text mode for JSON strings/scalars, intentionally malformed
+    JSON, duplicate keys and exact whitespace/escaping. No extra raw mode or base64/binary interface is needed
+    for this defect. The simpler alternative is preserving Any and only warning about suspicious strings; it
+    retains the ambiguous double-serialization path and another model repair turn. The chosen split makes auto-decoding
+    unambiguous while retaining the current exact UTF-8 payload capability. Reopen a binary/raw-protocol API
+    only for a concrete caller; exact body bytes do not promise exact headers or HTTP framing.'
+scope:
+  in:
+  - Tool-owned json object/array contract, explicit use of V477-001 decoding and V477-002 diagnostics, and
+    one JSON serialization before send.
+  - Exact UTF-8 text-body behavior with caller-supplied Content-Type, including JSON strings/scalars and deliberate
+    malformed input.
+  - Matching actual tool declarations, examples, shared request preparation and route-specific regression coverage.
+  out:
+  - Guessing endpoint schemas, converting nested amount/ID/boolean values, stripping URL commentary or modifying
+    target semantics.
+  - Automatic corrected resends, HTTP repeat blocking, another Worker stop rule, changes to credentials/scope/retries,
+    binary payload extensions or raw HTTP framing.
+  - Demo deployment, live-model experiments and claims that Invoice Lab's Audit is now complete.
+requirements:
+- id: R1
+  text: 'body_type=json accepts a native object/array or a string containing one strict JSON object/array.
+    Decode at most one layer with the tool-selected helper, apply complete structural/size validation and serialize
+    the resulting container once. Reject null, scalar roots, malformed JSON and a string that still decodes
+    to a string, with a field-specific hint explaining structured JSON versus exact text. Leave nested values
+    unchanged: numeric strings, booleans, arrays, object keys and attack payload strings retain their types/content.
+    Do not infer an endpoint schema or rewrite values from a target error.'
+- id: R2
+  text: body_type=text requires a valid UTF-8 string and sends its exact encoded bytes, including whitespace,
+    CR/LF, escapes, duplicate JSON keys and invalid JSON syntax. Preserve a supplied Content-Type, including
+    application/json; otherwise retain the existing text default. Do not parse, trim, normalize, JSON-quote
+    or repair text bodies. JSON literal strings, numbers, booleans and null use this explicit text route. Do
+    not implement a compatibility fallback that silently selects a mode.
+- id: R3
+  text: body_type=none continues to reject a supplied non-null body, and form retains the tool-owned mapping
+    and encoding contract from V477-001. Check both serialized input limits and final encoded output bytes;
+    Unicode escaping or representation conversion must not bypass the effective interactive/engagement bound.
+    Argument failure occurs before any target send or accepted evidence publication. Keep credential injection,
+    target policy, cookies, request identifiers and evidence ownership unchanged.
+- id: R4
+  text: Describe all accepted representations and exact-text examples in the actual selected http_request declaration.
+    Replace the uninformative body Any surface with an explicit native-container/string/null input shape supported
+    by pinned ADK, with mode-dependent validation owned by the tool. Preserve TLS-R39 for root arguments and
+    do not infer the JSON payload's arbitrary keys as tool argument names. Audit controlled descriptions continue
+    to include truthful scope and V476-002 effective limits. Remove superseded examples and migrate actual
+    scalar-json callers end to end; changed shipped catalog content receives new immutable versions/paths and
+    lock entries, never overwritten pins.
+- id: R5
+  text: All three HTTP routes consume the same normalized body bytes. Validate exact bytes at a local receiver;
+    do not treat a Python dict assertion or a mocked json= parameter as proof of on-wire behavior. One model
+    call performs one admitted operation under existing transport retry rules. A POST failure/400 must not
+    trigger a new corrected request automatically. Buffered/redacted evidence must describe the actual transmitted
+    body, never a model argument substituted for it; do not add raw body telemetry.
+failure_outcomes:
+- operation: Prepare and send the tool-owned HTTP body
+  permanent: Invalid representation, mode or bounds returns nonretryable http_request_invalid with the field
+    repair before send; target 4xx remains an observed HTTP response.
+  retryable: Preserve existing transport retry classification and method restrictions; normalization never
+    adds a retry.
+  ambiguous: A possibly-sent operation retains its unknown outcome and no-automatic-repeat guidance; exact
+    captured evidence remains with the owning buffer.
+  cancelled: Existing HTTP/invocation owners join parsing and in-flight transport before session release.
+  timeout: Existing whole-request and allocation deadlines remain authoritative; no extra parsing or retry
+    timer.
+cardinality:
+- collection: One request body and its optional parsed structured container
+  expected: A small JSON container or exact text payload.
+  maximum: Existing effective request-body byte ceiling plus the explicit json-mode structural limits from
+    V477-001; exact text keeps its existing byte ceiling.
+  bound: One decode and serialization in json mode, one UTF-8 encoding in text mode; bounded temporary memory,
+    no retained raw/normalized copies outside existing evidence ownership.
+lifecycle:
+- entity: Prepared HTTP body
+  delete: Release when the owning call and any admitted parsing/transport work settle.
+  cascade: Existing cancellation, allocation teardown and capture eviction apply.
+  retention: Existing actual-exchange evidence and redaction rules only; no new persistence or migration.
+acceptance_criteria:
+- id: A1
+  given: Native objects/arrays and their one-layer serialized forms through real ADK dispatch
+  when: Direct, required-proxy and controlled HTTP routes send to local receivers
+  then: Each receiver observes a JSON container with preserved nested types, exactly one POST, and application/json;
+    the regression fails on the original serializer.
+- id: A2
+  given: Exact text with application/json containing a JSON string/scalar, duplicate keys, malformed syntax,
+    Unicode, escaping and whitespace
+  when: Each route sends the payload
+  then: The received body equals the supplied UTF-8 bytes and Content-Type is preserved; no helper rewrites
+    intentional invalid data.
+- id: A3
+  given: Invalid json roots, double-encoded documents, wrong mode types, duplicate keys and values at/beyond
+    byte/depth/node limits
+  when: The Worker invokes the selected HTTP tool
+  then: A precise error precedes all target traffic; ordinary and controlled paths agree, and text remains
+    the explicit route for intentional invalid JSON.
+- id: A4
+  given: Target 400, transport failure after send, cancellation, cookies, credentials and retained exchange
+    selection
+  when: The call settles or its evidence is consumed
+  then: No automatic semantic retry occurs, existing outcome/authorization rules hold, and evidence matches
+    the actual sent bytes under existing redaction.
+- id: A5
+  given: The actual ADK declaration and all identified shipped/scripted HTTP body callers
+  when: Contract/spec and caller checks run
+  then: json/text/form/none behavior is documented consistently, obsolete scalar-json assumptions are migrated,
+    and immutable config pins are not rewritten.
+tests:
+- command: cd runtime && uv run pytest tests/test_tool_arguments.py tests/test_http_body_arguments.py tests/test_worker_function_tools.py
+    tests/test_tool_input_errors.py tests/test_http_toolset.py tests/test_http_proxy_adapter.py tests/test_audit_http_credentials.py
+    tests/test_controlled_http_outcomes.py tests/test_http_caido_security.py tests/test_http_caido_redaction.py
+    tests/test_http_selected_evidence.py tests/test_http_toolset_lifecycle.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: cd runtime && uv run ruff check src/contractor_runtime/toolsets/http src/contractor_runtime/toolsets/common
+    tests/test_http_body_arguments.py
+  covers:
+  - A1
+  - A3
+  - A5
+- command: cd runtime && uv run lint-imports
+  covers:
+  - A5
+- command: python3 scripts/check_spec.py
+  covers:
+  - A5
+verification_policy: Create test_http_body_arguments.py using real selected tool/ADK dispatch and bounded local
+  socket receivers, including all three transport routes and byte-level assertions. Run complete listed owner
+  suites. If any immutable shipped content changes, also run config validation/lock checks and its consuming
+  gates under the repository catalog policy; otherwise record why no catalog file changes. The combined real
+  Server/Runtime/PostgreSQL acceptance is V476-005; no fixture sends traffic to the live demo or changes the
+  configured model.

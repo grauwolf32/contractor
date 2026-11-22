@@ -1,0 +1,161 @@
+schema_version: '1.0'
+id: V477-002
+title: Return actionable argument errors through tool-selected shared helpers
+milestone: model-runtime-guidance-2026-11
+epic: planner-worker
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V477-001
+languages:
+- python
+- markdown
+goal: When an argument cannot be normalized or validated, the Worker sees the failing field, expected shape
+  and a concrete repair instruction without a side effect or exposed payload.
+demonstration: A scripted Worker supplies a malformed serialized container, receives a safe field-specific
+  diagnostic, corrects that field and completes one HTTP request or Audit submission. Worker history and metrics
+  count the failed attempt and corrected call once each.
+context:
+  authority: 'User request and clarification 2026-11-22: plan reusable argument helpers and understandable
+    errors, with contracts defined in each tool and shared utilities explicitly used by tools. Planning only;
+    no implementation or live experiment is assigned. The diagnostic fields and first consumer scope below
+    are agent proposals. User assignment 2026-11-22: review and implement V477 with focused affected-component
+    verification; no live Audit or deployment.'
+  baseline: d8b9f6d621a68e04c8a7dd86784529e27c0d93a9; reuse V477-001 container contracts.
+  specification:
+  - docs/spec/tools/toolsets.md#TLS-R39
+  - docs/spec/platform/observability.md#OBS-R32
+  - docs/spec/platform/errors.md
+  - docs/spec/tools/http-caido.md#HTP-R154
+  - docs/spec/tools/http-caido.md#HTP-R155
+  - docs/spec/audits/worker-completion.md#AWC-R129
+  sources:
+  - runtime/src/contractor_runtime/core/input_errors.py
+  - runtime/src/contractor_runtime/core/tool_errors.py
+  - runtime/src/contractor_runtime/worker/instrumentation.py
+  - runtime/src/contractor_runtime/toolsets/http/errors.py
+  - runtime/src/contractor_runtime/toolsets/http/controlled.py
+  - runtime/src/contractor_runtime/toolsets/audit_results/arguments.py
+  - runtime/src/contractor_runtime/toolsets/audit_results/v2.py
+  boundary_decision: Reuse ToolInputError and ToolResultDiagnostic with common construction/projection helpers
+    in toolsets.common; each tool supplies its existing error code, expected type, field path and repair text.
+    Instrumentation only transports the existing diagnostic contract and accounts for the call; it does not
+    infer argument semantics or dispatch on tool names. The simpler alternative is custom strings in each tool;
+    a shared helper keeps safe formatting/bounds consistent while leaving semantic checks with the owner. Do
+    not introduce a second exception taxonomy or replace every tool response envelope. Reopen additional adoption
+    only with a concrete caller and its regressions.
+scope:
+  in:
+  - Shared safe construction/projection of argument diagnostics and normalization notices for explicitly opted-in
+    tools.
+  - HTTP request argument errors in ordinary and controlled paths, including container type/parse/bounds errors
+    and body/body_type mismatch.
+  - Audit single/batch argument errors from V477-001, preserving precise inner validation reasons instead of
+    replacing them with the generic result error.
+  - Existing SDK/Worker history, budget, failure and redaction behavior exercised through actual Runner calls.
+  out:
+  - Global exception rewriting, global argument coercion, provider-message forwarding or tool-name-based diagnostic
+    registries.
+  - New public/wire diagnostic DTOs, UI work, extra diagnostic tools, automatic retries and new Worker stop
+    conditions.
+requirements:
+- id: R1
+  text: Provide a bounded first-error diagnostic using the owner's existing code/envelope plus field, expected_type,
+    actual_type and a Runtime-authored repair message where applicable. Paths use declared property names and
+    bounded array indices, never attacker-supplied object keys. Actual type is a fixed JSON type category,
+    never repr(value) or a provider exception name/text. Malformed serialized JSON identifies the argument
+    and expected container; do not echo fragments, values, credentials, source text or unknown supplied keys.
+    Keep existing message/result byte limits authoritative and register any new scalar bounds once.
+- id: R2
+  text: 'Tools explicitly call the helper at the owning validation site. Preserve http_request_invalid and
+    audit_result_invalid where they already classify the error, and tool_input_invalid for the shared raw-argument
+    rejection. Do not catch arbitrary TypeError/ValueError from the full operation and label it model input.
+    Preserve safe diagnostics through wrapping: Audit _normalize must not erase an already classified field
+    error, and controlled HTTP must not collapse precise local input failures into its generic body hint.'
+- id: R3
+  text: A deterministic argument rejection is nonretryable for the unchanged input and occurs before transport,
+    collection or publication. A corrected call may execute normally; no helper resends an HTTP request or
+    replays a mutation. Existing possibly-sent/unknown-outcome instructions, fatal execution signals, cancellation
+    and infrastructure retry classifications remain unchanged. An HTTP 400 response is a target response, not
+    proof that local argument validation failed or that replay is safe.
+- id: R4
+  text: Successful one-layer decoding can include a bounded normalization notice listing only declared path
+    and from/to type in the existing tool result. Record it as successful execution, not an error, and keep
+    HTTP retained telemetry metadata-only. Reuse existing redaction/content-capture rules; never retain a second
+    raw/normalized payload pair, secret-bearing key, argument digest or new trace store.
+- id: R5
+  text: The actual ADK model result, tool history and failure/budget counters must agree even when the existing
+    raw guard short-circuits dispatch. One attempted call contributes once, a corrected call contributes once,
+    and reusable helpers do not create synthetic model/tool calls. Keep field descriptions and repairs consistent
+    with each tool's declared accepted representations and effective bounds.
+failure_outcomes:
+- operation: Project a tool-owned argument rejection or normalization notice
+  permanent: Return a bounded nonretryable argument diagnostic without external work; absent safe details retain
+    the existing generic failure fallback.
+  retryable: Diagnostic formatting adds no retries; existing retryable infrastructure failures retain their
+    owner and code.
+  ambiguous: Never infer that an operation was unsent from a parsing/formatting helper after dispatch; retain
+    the original operation's outcome contract.
+  cancelled: Existing Worker callbacks settle admitted work and release diagnostic data during invocation cleanup.
+  timeout: Existing call/invocation deadlines and callback accounting remain authoritative.
+cardinality:
+- collection: One call's error or normalization metadata
+  expected: One first-error record or a few normalized argument paths.
+  maximum: One error; normalization paths bounded by the tool's existing argument/item bounds and existing
+    model-result byte limit.
+  bound: Stop after the first validation failure; truncate metadata with an explicit count/omission marker
+    rather than traverse or echo full payloads.
+lifecycle:
+- entity: Argument diagnostic
+  delete: Discard private working data when the call settles.
+  cascade: Existing invocation/session cleanup and report retention apply.
+  retention: Existing bounded model result, history and redacted telemetry only; no new durable entity.
+acceptance_criteria:
+- id: A1
+  given: Malformed, wrong-type and over-limit HTTP or Audit arguments through the pinned ADK Runner
+  when: The owning tool rejects the call
+  then: The model receives the correct field/type/repair and unchanged owning code; transport and collector
+    mutation counts are zero.
+- id: A2
+  given: A scripted model that corrects the rejected field
+  when: It calls the same selected tool again
+  then: Exactly one successful domain operation occurs, the Worker continues, and both attempts appear once
+    in budgets/history/metrics.
+- id: A3
+  given: Secret canaries in values, object keys and malformed JSON; deep paths and batched errors
+  when: Tools construct diagnostics and normalization notices
+  then: Bounds hold and no supplied content appears in safe diagnostics or metadata-only telemetry; decoded
+    unknown fields remain rejected.
+- id: A4
+  given: Infrastructure bugs, controlled possibly-sent failures, target 400 responses, cancellation and raw
+    argument short-circuits
+  when: Existing owning paths settle the call
+  then: No failure is reclassified as a repairable input error, no implicit resend occurs, and every outcome
+    is accounted once.
+tests:
+- command: cd runtime && uv run pytest tests/test_tool_arguments.py tests/test_tool_input_errors.py tests/test_worker_function_tools.py
+    tests/test_instrumentation.py tests/test_http_toolset.py tests/test_controlled_http_outcomes.py tests/test_http_caido_redaction.py
+    tests/test_audit_results_toolset.py tests/test_audit_result_collector.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: cd runtime && uv run ruff check src/contractor_runtime/toolsets/common src/contractor_runtime/toolsets/http
+    src/contractor_runtime/toolsets/audit_results src/contractor_runtime/core/input_errors.py src/contractor_runtime/core/tool_errors.py
+  covers:
+  - A1
+  - A3
+  - A4
+- command: cd runtime && uv run lint-imports
+  covers:
+  - A4
+- command: python3 scripts/check_spec.py
+  covers:
+  - A1
+  - A3
+  - A4
+verification_policy: Run complete affected owner test files, including the actual Runner correction scenario
+  and existing infrastructure/cancellation cases. No database is needed for diagnostic formatting itself; V476-005
+  verifies the combined real-store path. No full release or live-model quality claim.
