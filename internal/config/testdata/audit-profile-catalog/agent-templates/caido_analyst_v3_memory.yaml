@@ -42,8 +42,9 @@ spec:
         - http_history
     - ref: text-artifacts@1
       tools:
-        - read_text_artifact
         - write_text_artifact
+    - ref: run-artifacts@1
+      tools: [read_artifact]
   skills:
     - namespace: skills
       name: caido

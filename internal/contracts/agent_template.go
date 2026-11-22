@@ -63,6 +63,7 @@ type ResolvedInstructions struct {
 type ResolvedModelPolicy struct {
 	Ref                 ModelPolicyRef `json:"ref" strictjson:"required"`
 	Model               string         `json:"model" strictjson:"required"`
+	SupportsImages      *bool          `json:"supportsImages,omitempty" strictjson:"nullable"`
 	ContextWindowTokens int            `json:"contextWindowTokens,omitempty"`
 	MaxOutputTokens     int            `json:"maxOutputTokens,omitempty"`
 	MaxModelCalls       int            `json:"maxModelCalls,omitempty"`
@@ -99,8 +100,12 @@ func (p *ResolvedModelPolicy) UnmarshalJSON(data []byte) error {
 
 func (p ResolvedModelPolicy) Validate() error { return validateModelPolicy(p) }
 
-// Clone returns a copy that does not share the Temperature pointer.
+// Clone returns a copy that shares no optional metadata pointers.
 func (p ResolvedModelPolicy) Clone() ResolvedModelPolicy {
+	if p.SupportsImages != nil {
+		supported := *p.SupportsImages
+		p.SupportsImages = &supported
+	}
 	if p.Temperature != nil {
 		temperature := *p.Temperature
 		p.Temperature = &temperature

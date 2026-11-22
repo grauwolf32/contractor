@@ -3,13 +3,13 @@ kind: AgentTemplate
 
 metadata:
   name: audit_openapi_operation_observer
-  version: "1"
+  version: "2"
 
 spec:
   description: Traces one pinned OpenAPI Audit operation through source and structural graph evidence and publishes its canonical result
   runtime: adk@1
   instructions:
-    ref: instructions/audit-openapi-operation-observer-worker.md
+    ref: instructions/audit-openapi-operation-observer-worker-keyed-results.md
   toolsets:
     - ref: memory-tools@1
       tools:
@@ -35,7 +35,7 @@ spec:
         - complexity_hotspots
         - functions_that_raise
     - ref: audit-results@2
-      tools: [read_audit_task, submit_check_result]
+      tools: [read_audit_task, submit_check_result, submit_check_results]
   skills:
     - namespace: skills
       name: trace

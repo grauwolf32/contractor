@@ -128,7 +128,7 @@ func TestArtifactBlobBackendsContainers(t *testing.T) {
 				t.Fatal("private Artifact copy did not publish exact output")
 			}
 			output, _ := download(t, client, publicURL+"/v1/runs/"+url.PathEscape(runID)+"/outputs/result")
-			if string(output) != e2eInput {
+			if string(output) != e2eReport {
 				t.Fatal("public/private Artifact bytes disagree")
 			}
 			runtimeProcess.stop(t)

@@ -4,10 +4,10 @@ package e2e
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
@@ -24,15 +24,25 @@ func TestAuditFixedHypothesesAcrossProductionProcesses(t *testing.T) {
 	for _, verdict := range []string{"supported", "refuted", "inconclusive"} {
 		results = append(results, map[string]any{"verdict": verdict, "rationale": "Judgment applies only to the selected fixture", "tested_conditions": []string{"Selected fixture and actor only"}, "limitations": []string{"No global claim follows from this sample"}, "evidence": []string{"evidence-000", "evidence-001"}})
 	}
-	stage.steps = []domainGatewayStep{toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})), toolGatewayStep("submit_check_result", fixedArguments(map[string]any{"results": results})), finalGatewayStep("Recorded scoped conclusions", nil)}
+	stage.steps = []domainGatewayStep{toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})), toolGatewayStep("submit_check_results", func(request map[string]any) (map[string]any, error) {
+		keys, err := assignedAuditKeys(request)
+		if err != nil {
+			return nil, err
+		}
+		if len(keys) != len(results) {
+			return nil, fmt.Errorf("assigned batch size differs")
+		}
+		items := make([]any, 0, len(keys))
+		for index := len(keys) - 1; index >= 0; index-- {
+			item := results[index].(map[string]any)
+			item["item_key"] = keys[index]
+			items = append(items, item)
+		}
+		return map[string]any{"items": items}, nil
+	}), finalGatewayStep("Recorded scoped conclusions", nil)}
 	h := startConfiguredFindingsHarness(t, []domainGatewayStage{stage}, func(root string) {
 		installBasicAuditProgram(t, root)
-		program := strings.Replace(basicProcessProgram, "    report: {required: true, media_types: [text/plain]}", "    report: {required: true, media_types: [text/plain]}\n    checklist: {required: true, media_types: [application/json]}", 1)
-		program = strings.Replace(program, "material: {source: task-input}", "material: {source: audit-input, name: report}", 1)
-		program = strings.Replace(program, "  initial_work: [{key: copy-source, workflow: copy, objective: Retain selected source as ordinary output}]", "  initial_work: []\n  seed_source: {input: checklist, workflow: check}", 1)
-		for _, pair := range [][2]string{{"max_tasks: 2", "max_tasks: 3"}, {"max_tasks_per_iteration: 2", "max_tasks_per_iteration: 3"}, {"batch_size: 1", "batch_size: 3"}, {"max_hypotheses: 1", "max_hypotheses: 3"}, {"max_hypothesis_revisions: 1", "max_hypothesis_revisions: 8"}} {
-			program = strings.Replace(program, pair[0], pair[1], 1)
-		}
+		program := basicSeededProcessProgram(t)
 		if err := os.WriteFile(filepath.Join(root, "audit-profiles/basic_process.yaml"), []byte(program), 0600); err != nil {
 			t.Fatal(err)
 		}

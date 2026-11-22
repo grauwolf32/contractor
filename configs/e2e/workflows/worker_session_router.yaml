@@ -25,7 +25,7 @@ spec:
     shared:
       objective: SESSION_MODE_ROUTER_SHARED_STAGE
       instructions:
-        ref: instructions/copy-planner.md
+        ref: instructions/report-planner.md
       planner: router@1
       session: shared
       agents:
@@ -48,7 +48,7 @@ spec:
     after:
       objective: SESSION_MODE_ROUTER_AFTER_STAGE
       instructions:
-        ref: instructions/copy-planner.md
+        ref: instructions/report-planner.md
       planner: streamline@1
       agents:
         builder:

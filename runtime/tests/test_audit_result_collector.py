@@ -20,7 +20,10 @@ from contractor_runtime.toolsets.audit_results.encoding import (
     AuditResultError,
     CanonicalAuditResultEncoder,
 )
-from contractor_runtime.toolsets.audit_results.v2 import SubmitCheckResultTool
+from contractor_runtime.toolsets.audit_results.v2 import (
+    SubmitCheckResultsTool,
+    SubmitCheckResultTool,
+)
 
 CONTEXT = SimpleNamespace(invocation_id="invocation-1")
 
@@ -37,7 +40,7 @@ def test_exploration_and_hypothesis_use_the_same_collector_without_fabricated_ve
             expected, inputs = assigned(checking=checking)
             collector, tool, _ = tool_for(inputs)
             value = expected.items[0].value
-            result = await tool(CONTEXT, **arguments(value))
+            result = await tool(CONTEXT, **arguments(value, keyed=True))
             assert result["complete"] and result["acceptedCount"] == 1
             sealed = await collector.seal()
             output = json.loads(CanonicalAuditResultEncoder().encode(sealed, inputs=inputs).data)
@@ -96,7 +99,9 @@ def test_invalid_arguments_leave_collection_unchanged_without_echo(changes):
     async def scenario():
         expected, inputs = assigned()
         collector, tool, _ = tool_for(inputs)
-        result = await tool(CONTEXT, **{**arguments(expected.items[0].value), **changes})
+        result = await tool(
+            CONTEXT, **{**arguments(expected.items[0].value, keyed=True), **changes}
+        )
         assert result["status"] == "error"
         assert "private" not in json.dumps(result)
         assert not (await collector.snapshot()).items
@@ -125,15 +130,16 @@ def test_batch_invalid_member_is_atomic_and_changed_replay_requires_revision():
     async def scenario():
         expected, inputs = assigned(batch=True)
         collector, tool, _ = tool_for(inputs)
-        values = [arguments(item.value) for item in expected.items]
+        values = [arguments(item.value, keyed=True) for item in reversed(expected.items)]
+        tool = SubmitCheckResultsTool(collector, WorkerState().metrics)
         broken = [values[0], {**values[1], "evidence": ["foreign"]}]
-        assert (await tool(CONTEXT, results=broken))["status"] == "error"
+        assert (await tool(CONTEXT, items=broken))["status"] == "error"
         assert not (await collector.snapshot()).items
-        receipt = await tool(CONTEXT, results=values)
+        receipt = await tool(CONTEXT, items=values)
         assert receipt["complete"]
-        assert await tool(CONTEXT, results=values) == receipt
+        assert await tool(CONTEXT, items=values) == receipt
         values[0]["rationale"] = "Updated trace"
-        assert (await tool(CONTEXT, results=values))["status"] == "error"
+        assert (await tool(CONTEXT, items=values))["status"] == "error"
         assert (await collector.snapshot()).items[0].revision == 1
 
     asyncio.run(scenario())
@@ -144,7 +150,9 @@ def test_context_and_invocation_authority_are_checked_before_admission():
         expected, inputs = assigned()
         collector, tool, _ = tool_for(inputs)
         wrong = SimpleNamespace(invocation_id="foreign")
-        assert (await tool(wrong, **arguments(expected.items[0].value)))["status"] == "error"
+        assert (await tool(wrong, **arguments(expected.items[0].value, keyed=True)))[
+            "status"
+        ] == "error"
         context = context_document()
         context["items"].append(context["items"][0])
         data = jcs.canonicalize(context)
@@ -199,5 +207,50 @@ def test_real_eight_mib_prospective_limit_preserves_accepted_revision():
         with pytest.raises(AuditCollectionError):
             await collector.record(large, expected_revision=1)
         assert (await collector.snapshot()).items[0].revision == 1
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("count", [1, 2, 64])
+def test_keyed_batch_accepts_reversed_members_and_preserves_trusted_order(count):
+    async def scenario():
+        expected, inputs = assigned(count=count, checking=False)
+        collector, _, _ = tool_for(inputs)
+        tool = SubmitCheckResultsTool(collector, WorkerState().metrics)
+        values = [
+            {**arguments(item.value, keyed=True), "rationale": f"Observed member {index}"}
+            for index, item in enumerate(expected.items)
+        ]
+        receipt = await tool(CONTEXT, items=list(reversed(values)))
+        assert receipt["complete"]
+        assert [item["itemKey"] for item in receipt["revisions"]] == list(expected.owner.item_keys)
+        assert await tool(CONTEXT, items=values) == receipt
+        snapshot = await collector.snapshot()
+        assert [record.value.rationale for record in snapshot.items] == [
+            f"Observed member {index}" for index in range(count)
+        ]
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("kind", ["missing", "duplicate", "foreign", "missing-member"])
+def test_invalid_batch_keys_preserve_all_revisions(kind):
+    async def scenario():
+        expected, inputs = assigned(batch=True)
+        collector, _, _ = tool_for(inputs)
+        tool = SubmitCheckResultsTool(collector, WorkerState().metrics)
+        values = [arguments(item.value, keyed=True) for item in expected.items]
+        await collector.record(expected.items[0].value)
+        if kind == "missing":
+            del values[0]["item_key"]
+        elif kind == "duplicate":
+            values[1]["item_key"] = values[0]["item_key"]
+        elif kind == "foreign":
+            values[0]["item_key"] = "unassigned"
+        else:
+            values.pop()
+        assert (await tool(CONTEXT, items=values))["status"] == "error"
+        snapshot = await collector.snapshot()
+        assert len(snapshot.items) == 1 and snapshot.items[0].revision == 1
 
     asyncio.run(scenario())

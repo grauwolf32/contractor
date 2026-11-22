@@ -86,6 +86,8 @@ type resultFinalizerInput struct {
 	ResultText string `json:"resultText"`
 }
 
+const e2eReport = "Source inspected; report authored.\n"
+
 func TestModelGatewayFindsNamedInputAfterParameterBlock(t *testing.T) {
 	request := map[string]any{"messages": []any{map[string]any{
 		"content": "String parameters:\n{\"objective\":\"inspect\"}\n\nNamed input artifacts:\n" +
@@ -219,7 +221,7 @@ func (g *modelGateway) nextStreamline(
 		wantTools = withMemoryTools(wantTools)
 	} else if hasTool("read_artifact") && strings.Contains(payload, streamlineWorkerMarker) {
 		scenario = "streamline-worker"
-		wantTools = withMemoryTools([]string{"list_artifacts", "read_artifact", "write_artifact"})
+		wantTools = withMemoryTools([]string{"list_artifacts", "read_artifact", "write_text_artifact"})
 	} else {
 		return nil, "", "", fmt.Errorf("unexpected streamline model/context %q", model)
 	}
@@ -271,13 +273,13 @@ func (g *modelGateway) nextStreamline(
 			"namespace": "inputs", "name": "source", "revision": nil,
 		}), "tool_calls", model, nil
 	case 2:
-		data, found := lastStringValue(request, "dataBase64")
+		data, found := lastStringValue(request, "text")
 		if !found || data == "" {
 			return nil, "", "", errors.New("streamline Worker did not observe input bytes")
 		}
-		return toolCallMessage("streamline-write", "write_artifact", map[string]any{
-			"namespace": "builder", "name": "copied", "media_type": "text/plain",
-			"data_base64": data, "expected_revision": nil,
+		return toolCallMessage("streamline-write", "write_text_artifact", map[string]any{
+			"name": "copied", "media_type": "text/plain",
+			"text": e2eReport, "expected_revision": nil,
 		}), "tool_calls", model, nil
 	case 3:
 		_, found := lastExactArtifact(request, "builder", "copied")
@@ -285,7 +287,7 @@ func (g *modelGateway) nextStreamline(
 			return nil, "", "", errors.New("streamline Worker did not observe output revision")
 		}
 		return map[string]any{
-			"role": "assistant", "content": "streamline Worker copied the source",
+			"role": "assistant", "content": "streamline Worker authored the report",
 		}, "stop", model, nil
 	default:
 		return nil, "", "", errors.New("streamline Worker exceeded its script")
@@ -366,20 +368,20 @@ func openAPIGatewayStages() []gatewayStage {
 	analystTools := []string{
 		"attack_surface", "complexity_hotspots", "entrypoint_paths_to", "find_callees",
 		"find_callers", "find_symbol", "functions_that_raise", "glob", "graph_summary",
-		"grep", "list_symbols", "ls", "paths_between", "read_file", "read_text_artifact",
+		"grep", "list_symbols", "ls", "paths_between", "read_file", "read_artifact",
 		"search_def", "write_text_artifact",
 	}
 	builderTools := []string{
 		"changed_paths", "diff", "get_openapi_component", "get_openapi_info", "get_openapi_path",
 		"glob", "grep", "initialize_openapi", "list_openapi_components", "list_openapi_paths",
 		"list_openapi_servers", "list_openapi_tags", "load_openapi", "ls", "read_file",
-		"read_text_artifact", "rollback_changes", "set_openapi_info", "set_openapi_servers",
+		"read_artifact", "rollback_changes", "set_openapi_info", "set_openapi_servers",
 		"set_openapi_tags", "upsert_openapi_component", "upsert_openapi_path", "validate_openapi",
 	}
 	validatorTools := []string{
 		"changed_paths", "diff", "get_openapi_component", "get_openapi_info", "get_openapi_path",
 		"glob", "grep", "list_openapi_components", "list_openapi_paths", "list_openapi_servers",
-		"list_openapi_tags", "load_openapi", "ls", "read_file", "read_text_artifact",
+		"list_openapi_tags", "load_openapi", "ls", "read_file", "read_artifact",
 		"remove_openapi_component", "remove_openapi_path", "rollback_changes", "set_openapi_info",
 		"set_openapi_servers", "set_openapi_tags", "upsert_openapi_component", "upsert_openapi_path",
 		"validate_openapi", "write_text_artifact",
@@ -402,7 +404,7 @@ func discoveryGatewayStage(name string, tools []string, dependency bool) gateway
 			"path": "", "cursor": "", "limit": 50,
 		})))
 	} else {
-		steps = append(steps, toolGatewayStep("read_text_artifact", stageRefArguments("dependency_report", nil)))
+		steps = append(steps, toolGatewayStep("read_artifact", stageRefArguments("dependency_report", nil)))
 	}
 	steps = append(steps, toolGatewayStep("read_file", fixedArguments(map[string]any{
 		"path": "app.py", "start_line": 1, "max_lines": 100,
@@ -433,8 +435,8 @@ func discoveryGatewayStage(name string, tools []string, dependency bool) gateway
 
 func openAPIBuildGatewayStage(tools []string) gatewayStage {
 	return gatewayStage{name: "openapi/openapi_build", tools: tools, steps: []gatewayStep{
-		toolGatewayStep("read_text_artifact", stageRefArguments("dependency_report", nil)),
-		toolGatewayStep("read_text_artifact", stageRefArguments("project_report", nil)),
+		toolGatewayStep("read_artifact", stageRefArguments("dependency_report", nil)),
+		toolGatewayStep("read_artifact", stageRefArguments("project_report", nil)),
 		toolGatewayStep("read_file", fixedArguments(map[string]any{
 			"path": "app.py", "start_line": 1, "max_lines": 100,
 		})),
@@ -480,8 +482,8 @@ func openAPIBuildGatewayStage(tools []string) gatewayStage {
 
 func openAPIValidateGatewayStage(tools []string) gatewayStage {
 	return gatewayStage{name: "openapi/openapi_validate", tools: tools, steps: []gatewayStep{
-		toolGatewayStep("read_text_artifact", stageRefArguments("dependency_report", nil)),
-		toolGatewayStep("read_text_artifact", stageRefArguments("project_report", nil)),
+		toolGatewayStep("read_artifact", stageRefArguments("dependency_report", nil)),
+		toolGatewayStep("read_artifact", stageRefArguments("project_report", nil)),
 		toolGatewayStep("load_openapi", stageRefArguments("openapi_candidate", map[string]any{
 			"target_name": "openapi", "expected_revision": nil,
 		})),
@@ -634,7 +636,7 @@ func requestHasNoModelTools(request map[string]any) bool {
 
 func expectedResultFinalizerCandidate(result string) bool {
 	switch result {
-	case "streamline Worker copied the source",
+	case "streamline Worker authored the report",
 		"Dependency inventory published",
 		"Project inventory published",
 		"OpenAPI candidate built and validated",

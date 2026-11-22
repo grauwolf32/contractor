@@ -46,7 +46,7 @@ async def audit_runtime(
         tmp_path, state, {}, max_compactions=2, max_model_calls=max_model_calls
     )
     tools = await AuditResultsToolsetFactory(lambda *_: client).create_selected(
-        selected=["read_audit_task", "submit_check_result"],
+        selected=["read_audit_task", "submit_check_result", "submit_check_results"],
         allocation_id=client.allocation_id,
         namespace="builder",
         runtime_settings=context.runtime_settings,

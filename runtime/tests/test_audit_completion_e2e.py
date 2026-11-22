@@ -77,7 +77,7 @@ def test_runtime_zip_for_go_importer(tmp_path, monkeypatch):
 
         client.write_artifact = write_with_fault
         selected = await AuditResultsToolsetFactory(lambda *_: client).create_selected(
-            selected=["read_audit_task", "submit_check_result"],
+            selected=["read_audit_task", "submit_check_result", "submit_check_results"],
             allocation_id=spec["allocationID"],
             namespace=context.namespace,
             runtime_settings=context.runtime_settings,

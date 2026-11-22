@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/localpki"
@@ -299,7 +300,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	assertHTTPInspectionRetainsOnlyReportAndCookies(t, operations, httpInitial.RunID, collection)
 
 	oldRun := createHTTPCaidoRun(
-		operations, "security-analysis@6", "http-caido-old-run", "target.example",
+		operations, "security-analysis@8", "http-caido-old-run", "target.example",
 		[]string{"caido"}, projectID,
 	)
 	select {
@@ -325,6 +326,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	assertHTTPCaidoReport(
 		t, operations, publicClient, publicBaseURL, oldStatus, "security_report", httpCaidoCaidoReport,
 	)
+	assertStoredCaidoEvidence(t, operations, oldRun.RunID, "old")
 
 	// The Caido release acknowledgement remains unavailable here. A separate
 	// HTTP Run must still claim and finish on the other physical slot.
@@ -403,7 +405,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	)
 
 	newRun := createHTTPCaidoRun(
-		operations, "security-analysis@6", "http-caido-new-run", "target.example",
+		operations, "security-analysis@8", "http-caido-new-run", "target.example",
 		[]string{"caido"}, projectID,
 	)
 	newStatus := waitForRunAcross(
@@ -417,6 +419,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	assertHTTPCaidoReport(
 		t, operations, publicClient, publicBaseURL, newStatus, "security_report", httpCaidoCaidoReport,
 	)
+	assertStoredCaidoEvidence(t, operations, newRun.RunID, "new")
 	if collection {
 		data := operations.request(http.MethodGet, "/v1/projects/"+projectID+"/artifacts/sitemap/map", nil, 200, nil)
 		document, err := projectsitemap.Decode(data)
@@ -455,7 +458,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	if calls, failures := forwardProxy.snapshot(); calls != 2 || len(failures) != 0 {
 		t.Fatalf("forward proxy = calls:%d failures:%v", calls, failures)
 	}
-	wantCaidoOperations := []string{"RequestsByOffset", "CreateScope"}
+	wantCaidoOperations := []string{"RequestsByOffset", "RequestDetail", "CreateScope"}
 	if collection {
 		wantCaidoOperations = []string{"RequestsByOffset", "RequestDetail", "CreateReplaySession", "StartReplayTask", "ReplayEntry", "SitemapDescendants", "CreateScope"}
 	}
@@ -734,6 +737,37 @@ func assertHTTPInspectionRetainsOnlyReportAndCookies(
 		t.Fatal("missing expected HTTP artifact")
 	}
 
+}
+
+func assertStoredCaidoEvidence(t *testing.T, operations *runtimeOperations, runID, instance string) {
+	t.Helper()
+	data := operations.request(http.MethodGet,
+		"/v1/runs/"+url.PathEscape(runID)+"/artifacts?namespace=http-exchanges&limit=100",
+		nil, http.StatusOK, nil)
+	var page struct {
+		Items []struct {
+			Ref artifactRef `json:"artifact"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(data, &page); err != nil || len(page.Items) != 1 || page.Items[0].Ref.Revision == nil {
+		t.Fatalf("missing exact selected Caido evidence: %s %v", data, err)
+	}
+	ref := page.Items[0].Ref
+	payload := operations.request(http.MethodGet,
+		"/v1/runs/"+url.PathEscape(runID)+"/artifacts/"+url.PathEscape(ref.Namespace)+"/"+url.PathEscape(ref.Name)+"?revision="+url.QueryEscape(*ref.Revision),
+		nil, http.StatusOK, nil)
+	envelope, err := auditdomain.DecodeHTTPExchangeArtifact(payload)
+	if err != nil || envelope.Capture.Source != "caido" || envelope.Capture.RequestID != "request-"+instance || len(envelope.Capture.Attempts) != 1 {
+		t.Fatalf("stored evidence has wrong source: %+v %v", envelope, err)
+	}
+	attempt := envelope.Capture.Attempts[0]
+	if attempt.Request == nil || attempt.Request.Message.DataBase64 == nil || attempt.Response != nil || attempt.Error != "response_unavailable" {
+		t.Fatalf("stored evidence lost the available request or absent response: %+v", attempt)
+	}
+	raw, err := base64.StdEncoding.DecodeString(*attempt.Request.Message.DataBase64)
+	if err != nil || string(raw) != "DELETE /detail-only HTTP/1.1\r\nHost: target.example\r\n\r\n" {
+		t.Fatalf("stored request bytes changed: %q %v", raw, err)
+	}
 }
 
 func assertHTTPCaidoRetainedExecutionSafe(

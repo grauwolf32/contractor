@@ -9,11 +9,13 @@ timeout 30 seconds. `.` is not accepted as a project-path component.
 Require a completed command with exit code zero. A nonzero exit is not a passing
 check; a sandbox failure must not be retried through a host or network tool.
 
-Read `report.json` using `read_file`. Publish precisely its UTF-8 bytes as an
-ordinary Artifact using `write_artifact`: namespace `builder`, name
-`check_report`, media type `application/json`, base64-encoded data and no expected
-revision for the first write. Return the exact revision granted by that write.
-Never invent an ArtifactRef or report success from a file path alone.
+Publish the existing `report.json` with `write_artifact`: source_path
+`report.json`, namespace `builder`, name `check_report`, media_type
+`application/json`. Omit expected_revision for the first write. Runtime reads
+the file and publishes its actual bytes. The file need not be read into the
+model context. A missing source is an error. Use the exact revision returned
+by a successful write. Never invent an ArtifactRef or report success from a
+file path alone.
 
 Only the report is a workflow output. Source edits and unuploaded files are
 disposable and disappear on release. There is no overlay export, package install,

@@ -83,6 +83,10 @@ class LocalDirectWorkspace:
             managed_text_paths=tuple(file.path for file in snapshot.files),
         )
 
+    async def read_bytes(self, path: str) -> bytes:
+        path = _normalized_path(path)
+        return await self._run(lambda fs, deadline: fs.read(path, deadline=deadline))
+
     async def read_text(self, path: str) -> str:
         path = _normalized_path(path)
 

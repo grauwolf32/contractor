@@ -3,7 +3,7 @@
   "kind": "AgentTemplate",
   "metadata": {
     "name": "audit_hypothesis_generator",
-    "version": "1"
+    "version": "2"
   },
   "spec": {
     "description": "Propose scoped hypotheses and next checks using exact selected context",
@@ -16,12 +16,6 @@
         "ref": "run-artifacts@1",
         "tools": [
           "read_artifact"
-        ]
-      },
-      {
-        "ref": "text-artifacts@1",
-        "tools": [
-          "read_text_artifact"
         ]
       },
       {

@@ -5,9 +5,9 @@ milestone: model-policy-runtime-correctness
 epic: planner-worker
 kind: feature
 priority: P2
-status: pending
+status: completed
 depends_on: [V474-002]
-languages: [python, go, yaml]
+languages: [python, go, typescript, yaml]
 goal: A Worker using a configured vision-capable model can inspect a supported image by reading its exact artifact.
 demonstration: >-
   Give a Worker an exact PNG fixture, have it call read_artifact and capture the next request on the
@@ -18,9 +18,31 @@ context:
     User decision 2026-11-21 approves image delivery through the common read_artifact for vision-capable models.
     Text reads are delivered under V474-002. Runtime selects the representation using admitted media and
     the effective model/Gateway capabilities.
+  verification_grouping: >-
+    Agent execution decision 2026-11-22 follows the user's request to minimize passes. This task
+    runs focused real-process regressions; V474-010 owns the unchanged mandatory full process
+    gate on the combined implementation. Failed/cancelled earlier full runs are not passes.
+  implementation_choice: >-
+    Agent decision 2026-11-22 adds optional nullable supportsImages to the pinned ModelPolicy.
+    True is the operator's assertion that its model accepts images on the selected Gateway route;
+    false means text-only and absent/null means unconfirmed. No alias guessing, live probing or
+    model switching occurs. Operators must use the assertion only with verified Gateway routes;
+    provider failures retain normal classified outcomes. Reopen if a concrete deployment needs
+    different capabilities for the same policy across routes.
+    PNG/JPEG single-frame inputs use native ADK FunctionResponse image parts and OpenAI image_url
+    parts, with exact refs in metadata. Runtime-owned bounds are 2 MiB source bytes, 4 million pixels,
+    4096 pixels per dimension, and four images / 8 MiB per current model context. Unknown/text-only
+    routes and unsupported image formats receive explicit metadata-only unavailable outcomes.
+    History seals, compaction archives and telemetry retain refs/metadata. Native image attachments
+    are transient; compaction releases old attachments through the existing session owner, preserving
+    semantic call/result metadata, and old refs must be read again to recover image bytes.
   specification:
     - docs/spec/artifacts/artifact-store.md#ART-R117
     - docs/spec/tools/toolsets.md#TLS-R4
+    - docs/spec/configuration/agent-templates.md#TPL-R120
+    - docs/spec/execution/worker.md#WRK-R200
+    - docs/spec/execution/worker.md#WRK-R201
+    - docs/spec/platform/limits.md
   current: >-
     runtime/src/contractor_runtime/llm/openai.py serializes function response contents as JSON text.
     The existing artifact reader rejects normal image media at metadata preflight. Both boundaries need
@@ -29,6 +51,7 @@ scope:
   in:
     - Carry a supported image from an authorized exact Artifact read through Worker history, ADK and the configured Gateway message format with the associated tool call and exact ref.
     - Establish supported media, capability source and bounded handling for the selected model route. Update ART-R117, the model transport specification and relevant limit owners in the implementation.
+    - Carry the explicit image capability through managed configuration, immutable policy pins, public API, wire contracts, generated clients and the existing operator form.
   out:
     - Switching the configured model, remote URLs for private images, binary authoring and browser UI previews.
 requirements:
@@ -71,7 +94,23 @@ tests:
     covers: [A1, A2, A3]
   - command: make test-runtime
     covers: [A1, A2, A3]
-  - command: make test-e2e
+  - command: go test -tags=e2e -count=1 ./tests/e2e -run '^(TestArtifactImagesAcrossProcesses)$'
     covers: [A1, A2]
   - command: make lint
     covers: [A3]
+implementation_commit: af856f18bd4a847559b00c5913004efef7f8fc3c
+verification:
+  date: '2026-11-22'
+  result: >-
+    Full Runtime passed with warnings treated as errors: 6446 passed and 135 declared skips;
+    all 577 compaction cases passed. Image/policy/digest regressions passed 43 tests, and the
+    Gateway/conformance/proxy suites passed 76. The real Server/Runtime/PostgreSQL process
+    scenario passed in 37.383 seconds, verifying exact PNG bytes and decoded pixels and no
+    image download on an unconfirmed route. Real PostgreSQL Go packages, configuration,
+    API and cross-language wire checks passed (403 fixtures, 455 Go and 287 Python readers;
+    one optional heavy fixture skipped, not passing coverage). UI verification passed 228
+    files / 2581 tests plus one expected failure; 12 browser cases passed, including all
+    three capability values at 390 px in light/dark/black. Final lint kept all four import
+    contracts. The first Runtime run exposed outdated proxy fixtures; those are repaired
+    and the full run above passed. These are protocol-fixture results, not live model
+    quality or arbitrary Gateway compatibility. Combined full process acceptance is V474-010.

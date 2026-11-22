@@ -422,6 +422,7 @@ class _CaidoSession:
         self._lock = asyncio.Lock()
         self._closed = False
         self._captures = captures
+        self._captures.bind_stored_reader(self._read_stored_exchange)
         self._observation_sink = observation_sink
         self._sitemap_snapshot: _SitemapSnapshot | None = None
 
@@ -534,6 +535,11 @@ class _CaidoSession:
                     lambda: [_request_observation(row, row["status_code"]) for row in requests],
                 )
             return result
+
+    async def _read_stored_exchange(self, source: str, request_id: str, invocation_id: str) -> None:
+        if source != "caido":
+            raise ValueError("stored exchange is unavailable for this source")
+        await self.request_detail(request_id, invocation_id)
 
     async def request_detail(
         self, request_id: str, invocation_id: str | None = None
@@ -1255,6 +1261,7 @@ class _CaidoSession:
             self._monotonic = _closed_monotonic
             self._closed = True
             self._captures.clear("caido")
+            self._captures.bind_stored_reader(None)
             self._observation_sink = None
             self._sitemap_snapshot = None
 

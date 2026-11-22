@@ -3,7 +3,7 @@ kind: Workflow
 
 metadata:
   name: taint-trace-from-workspace
-  version: "4"
+  version: "5"
 
 spec:
   parameters:
@@ -45,7 +45,7 @@ spec:
       planner: passthrough@1
       agents:
         analyst:
-          template: workspace_taint_analyst@3
+          template: workspace_taint_analyst@4
           namespace: analysis
       context:
         artifacts:

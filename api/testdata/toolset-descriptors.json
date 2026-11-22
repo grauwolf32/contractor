@@ -13,7 +13,7 @@
       "requiredWorkflowInputs": {}
     },
     "audit-results@2": {
-      "tools": ["read_audit_task", "submit_check_result"],
+      "tools": ["read_audit_task", "submit_check_result", "submit_check_results"],
       "infrastructureChannels": {},
       "requiresWorkspace": false,
       "workspaceObservationTools": [],
@@ -232,7 +232,7 @@
       "requiredWorkflowInputs": {}
     },
     "text-artifacts@1": {
-      "tools": ["read_text_artifact", "write_text_artifact"],
+      "tools": ["write_text_artifact"],
       "infrastructureChannels": {},
       "requiresWorkspace": false,
       "workspaceObservationTools": [],

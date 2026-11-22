@@ -24,7 +24,7 @@ spec:
   stages:
     summarize:
       objective: Exercise continuation of partial analysis into the required final report
-      instructions: {ref: instructions/copy-planner.md}
+      instructions: {ref: instructions/report-planner.md}
       planner: passthrough@1
       agents:
         builder: {template: summarizer_enabled_worker@1}

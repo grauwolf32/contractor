@@ -55,15 +55,16 @@ var (
 var identityPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 
 type Submission struct {
-	Incidental     bool                              `json:"incidental,omitempty"`
-	ItemKey        *string                           `json:"itemKey,omitempty"`
-	DerivedAnchors json.RawMessage                   `json:"derived_anchors,omitempty"`
-	APIVersion     string                            `json:"apiVersion"`
-	InvocationID   string                            `json:"invocationId"`
-	SubmissionID   string                            `json:"submissionId"`
-	Proposal       auditdomain.FindingProposal       `json:"proposal"`
-	EvidenceRefs   []contracts.ArtifactRef           `json:"evidenceRefs"`
-	HTTPEvidence   *auditdomain.CapturedHTTPExchange `json:"httpEvidence,omitempty"`
+	Incidental               bool                              `json:"incidental,omitempty"`
+	ItemKey                  *string                           `json:"itemKey,omitempty"`
+	DerivedAnchors           json.RawMessage                   `json:"derived_anchors,omitempty"`
+	APIVersion               string                            `json:"apiVersion"`
+	InvocationID             string                            `json:"invocationId"`
+	SubmissionID             string                            `json:"submissionId"`
+	Proposal                 auditdomain.FindingProposal       `json:"proposal"`
+	EvidenceRefs             []contracts.ArtifactRef           `json:"evidenceRefs"`
+	HTTPEvidence             *auditdomain.CapturedHTTPExchange `json:"httpEvidence,omitempty"`
+	HTTPEvidenceInvocationID string                            `json:"httpEvidenceInvocationId,omitempty"`
 }
 
 func (input *Submission) UnmarshalJSON(data []byte) error {
@@ -74,14 +75,18 @@ func (input *Submission) UnmarshalJSON(data []byte) error {
 	// A missing selection is omitted, never an explicitly unknown capture.
 	// Decode only its raw token; all fields were strictly checked above.
 	var fields struct {
-		HTTPEvidence json.RawMessage `json:"httpEvidence"`
-		ItemKey      json.RawMessage `json:"itemKey"`
-		Incidental   json.RawMessage `json:"incidental"`
+		HTTPEvidence             json.RawMessage `json:"httpEvidence"`
+		HTTPEvidenceInvocationID json.RawMessage `json:"httpEvidenceInvocationId"`
+		ItemKey                  json.RawMessage `json:"itemKey"`
+		Incidental               json.RawMessage `json:"incidental"`
 	}
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
 	}
 	if string(fields.Incidental) == "null" || string(fields.HTTPEvidence) == "null" || string(fields.ItemKey) == "null" {
+		return ErrInvalid
+	}
+	if len(fields.HTTPEvidenceInvocationID) != 0 && input.HTTPEvidence == nil {
 		return ErrInvalid
 	}
 	return nil
@@ -222,6 +227,10 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 		!validIdentity(input.SubmissionID) || len(input.EvidenceRefs) > MaxEvidenceRefs {
 		return canonicalSubmission{}, ErrInvalid
 	}
+	if (input.HTTPEvidence == nil) != (input.HTTPEvidenceInvocationID == "") ||
+		(input.HTTPEvidence != nil && !validIdentity(input.HTTPEvidenceInvocationID)) {
+		return canonicalSubmission{}, fmt.Errorf("%w: HTTP evidence requires its capture invocation", ErrInvalid)
+	}
 	if err := auditdomain.ValidateFindingLimitations(input.Proposal.Limitations); err != nil {
 		return canonicalSubmission{}, fmt.Errorf("%w: proposal limitations", ErrInvalid)
 	}
@@ -277,7 +286,7 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 	}
 	input.EvidenceRefs = refs
 	if input.HTTPEvidence != nil {
-		name := auditdomain.HTTPExchangeArtifactName(input.InvocationID, input.HTTPEvidence.Source, input.HTTPEvidence.RequestID)
+		name := auditdomain.HTTPExchangeArtifactName(input.HTTPEvidenceInvocationID, input.HTTPEvidence.Source, input.HTTPEvidence.RequestID)
 		for _, ref := range refs {
 			if ref.Namespace == artifactpolicy.HTTPExchangeNamespace && ref.Name == name {
 				return canonicalSubmission{}, fmt.Errorf("%w: duplicate HTTP evidence selection", ErrInvalid)
@@ -300,13 +309,14 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 		}
 	}
 	digestValue := struct {
-		ItemKey        *string                           `json:"itemKey,omitempty"`
-		Incidental     bool                              `json:"incidental,omitempty"`
-		DerivedAnchors json.RawMessage                   `json:"derived_anchors,omitempty"`
-		Proposal       json.RawMessage                   `json:"proposal"`
-		EvidenceRefs   []contracts.ArtifactRef           `json:"evidenceRefs"`
-		HTTPEvidence   *auditdomain.CapturedHTTPExchange `json:"httpEvidence,omitempty"`
-	}{ItemKey: input.ItemKey, Incidental: input.Incidental, DerivedAnchors: input.DerivedAnchors, Proposal: proposalBytes, EvidenceRefs: refs, HTTPEvidence: input.HTTPEvidence}
+		ItemKey                  *string                           `json:"itemKey,omitempty"`
+		Incidental               bool                              `json:"incidental,omitempty"`
+		DerivedAnchors           json.RawMessage                   `json:"derived_anchors,omitempty"`
+		Proposal                 json.RawMessage                   `json:"proposal"`
+		EvidenceRefs             []contracts.ArtifactRef           `json:"evidenceRefs"`
+		HTTPEvidence             *auditdomain.CapturedHTTPExchange `json:"httpEvidence,omitempty"`
+		HTTPEvidenceInvocationID string                            `json:"httpEvidenceInvocationId,omitempty"`
+	}{ItemKey: input.ItemKey, Incidental: input.Incidental, DerivedAnchors: input.DerivedAnchors, Proposal: proposalBytes, EvidenceRefs: refs, HTTPEvidence: input.HTTPEvidence, HTTPEvidenceInvocationID: input.HTTPEvidenceInvocationID}
 	encoded, err := json.Marshal(digestValue)
 	if err != nil {
 		return canonicalSubmission{}, fmt.Errorf("canonicalize finding submission: %w", err)

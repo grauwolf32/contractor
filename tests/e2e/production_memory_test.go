@@ -83,41 +83,51 @@ func stageProductionMemoryConfiguration(t *testing.T, repositoryRoot, target str
 		}
 	}
 	for _, entry := range catalog.Templates {
-		if entry.Active == "artifact_builder@2" {
+		if entry.Active == "artifact_builder@3" {
 			template = entry.Active
 			if err := yaml.Unmarshal(copyFile(entry.ActiveFile), &selected); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
-	for _, entry := range catalog.Workflows {
-		if entry.Active == "artifact-copy@2" {
-			workflow = entry.Active
-			copyFile(entry.ActiveFile)
-		}
+	workflow = "artifact-report-memory-fixture@1"
+	fixture, err := os.ReadFile(filepath.Join(repoRoot(t), "tests/e2e/testdata/production-memory/workflow.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(target, "workflows", "artifact_report_memory.yaml"), fixture, 0600); err != nil {
+		t.Fatal(err)
 	}
 	if template == "" || workflow == "" {
 		t.Fatal("production Memory successors missing")
 	}
 	copyFile("configs/" + selected.Spec.Instructions.Ref)
-	copyFile("configs/instructions/copy-planner.md")
-	source, _, err := configload.LoadUnionReadOnly(filepath.Join(repositoryRoot, "configs"), filepath.Join(t.TempDir(), "managed"))
-	if err != nil {
+	copyFile("configs/instructions/report-planner.md")
+	var fixturePins struct {
+		Spec struct {
+			ExecutionConfig struct {
+				Workers struct {
+					ModelPolicy string `yaml:"modelPolicy"`
+				}
+				Stages map[string]struct {
+					Agents map[string]struct {
+						SummarizerModelPolicy string `yaml:"summarizerModelPolicy"`
+					}
+				}
+			} `yaml:"executionConfig"`
+		}
+	}
+	if err := yaml.Unmarshal(fixture, &fixturePins); err != nil {
 		t.Fatal(err)
 	}
-	sourceWorkflow, err := source.Workflow(workflow)
-	if err != nil {
-		t.Fatal(err)
-	}
-	selection := sourceWorkflow.Stages["copy"].ExecutionConfig.Agents["builder"]
-	mainPolicy := selection.ModelPolicy.Ref.PolicyID + "@" + selection.ModelPolicy.Ref.Version
+	mainPolicy := fixturePins.Spec.ExecutionConfig.Workers.ModelPolicy
 	policies := map[string]bool{mainPolicy: true}
 	summaryPolicy := ""
 	if selected.Spec.Summarizer != nil {
-		if selection.SummarizerModelPolicy == nil {
-			t.Fatal("production Workflow has no summary policy")
+		summaryPolicy = fixturePins.Spec.ExecutionConfig.Stages["copy"].Agents["builder"].SummarizerModelPolicy
+		if summaryPolicy == "" {
+			t.Fatal("report fixture has no summary policy")
 		}
-		summaryPolicy = selection.SummarizerModelPolicy.Ref.PolicyID + "@" + selection.SummarizerModelPolicy.Ref.Version
 		policies[summaryPolicy] = true
 		if ref := selected.Spec.Summarizer.Instructions.Ref; ref != "" {
 			copyFile("configs/" + ref)
@@ -198,7 +208,7 @@ func productionMemoryCopyResponse(step int, request map[string]any) (map[string]
 	case 1:
 		return gatewayToolCall("production-read", "read_artifact", map[string]any{"namespace": "inputs", "name": "source", "revision": nil})
 	case 2:
-		if data, ok := lastStringValue(request, "dataBase64"); !ok || data == "" {
+		if data, ok := lastStringValue(request, "text"); !ok || data == "" {
 			return nil, "", "", fmt.Errorf("production input not observed")
 		}
 		return gatewayToolCall("production-note", "write_memory", map[string]any{"name": "copy_progress", "content": "Input inspected; produce the declared copied artifact"})
@@ -206,11 +216,11 @@ func productionMemoryCopyResponse(step int, request map[string]any) (map[string]
 		if err := requireMemoryNote(request, "production-note", "copy_progress", "Input inspected; produce the declared copied artifact", "", []string{}, 0); err != nil {
 			return nil, "", "", err
 		}
-		data, ok := lastStringValue(request, "dataBase64")
+		_, ok := lastStringValue(request, "text")
 		if !ok {
 			return nil, "", "", fmt.Errorf("production input lost after Memory write")
 		}
-		return gatewayToolCall("production-write", "write_artifact", map[string]any{"namespace": "builder", "name": "copied", "media_type": "text/plain", "data_base64": data, "expected_revision": nil})
+		return gatewayToolCall("production-write", "write_text_artifact", map[string]any{"name": "copied", "media_type": "text/plain", "text": e2eReport, "expected_revision": nil})
 	case 4:
 		if _, ok := lastExactArtifact(request, "builder", "copied"); !ok {
 			return nil, "", "", fmt.Errorf("production output exact revision not observed")

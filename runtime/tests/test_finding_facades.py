@@ -68,12 +68,12 @@ def test_actual_provider_schema(tool_type, required):
         assert schema["$defs"]["WebLocation"]["additionalProperties"] is False
 
 
-async def finding_tool(factory_type, client, state):
+async def finding_tool(factory_type, client, state, *, name="finding"):
     # The toolset submits through the allocation's private API transport.
     tools = await factory_type(
         lambda _allocation, _settings: ArtifactClient("allocation-test", client)
     ).create_selected(
-        selected=["finding"],
+        selected=[name],
         allocation_id="allocation-test",
         run_id="run-test",
         namespace="worker",
@@ -81,7 +81,7 @@ async def finding_tool(factory_type, client, state):
         workspace=_workspace(),
         resources=state.resources,
     )
-    return tools["finding"]
+    return tools[name]
 
 
 @pytest.mark.parametrize(
@@ -250,7 +250,22 @@ def test_invalid_final_response_keeps_prior_redirect_evidence(tmp_path):
 
 
 @pytest.mark.parametrize("has_response", [True, False])
-def test_caido_finding_selects_inspected_bytes_without_another_graphql_call(tmp_path, has_response):
+@pytest.mark.parametrize("inspected", [True, False])
+@pytest.mark.parametrize(
+    "factory_type,name,location_args",
+    [
+        (GeneralFindingsToolsetFactory, "finding", {}),
+        (GeneralFindingsToolsetFactory, "record_fact", {}),
+        (
+            HTTPFindingsToolsetFactory,
+            "finding",
+            {"url": "https://target.example/probe", "method": "POST"},
+        ),
+    ],
+)
+def test_caido_evidence_resolves_local_id_without_model_inspection(
+    tmp_path, has_response, inspected, factory_type, name, location_args
+):
     from test_caido_read_tools import FakeArtifactClient as CaidoArtifacts
     from test_caido_read_tools import close_tools as close_caido
     from test_caido_read_tools import create_tools as create_caido
@@ -270,20 +285,23 @@ def test_caido_finding_selects_inspected_bytes_without_another_graphql_call(tmp_
             return httpx.Response(200, json={"data": responses[payload["operationName"]]})
 
         artifacts = CaidoArtifacts()
-        caido, state, handle = await create_caido(tmp_path, handler, artifacts)
+        selected = {"caido_history", "caido_request_detail"} if inspected else {"caido_history"}
+        caido, state, handle = await create_caido(tmp_path, handler, artifacts, selected=selected)
         try:
             history = await caido["caido_history"]()
-            detail = await caido["caido_request_detail"](
-                history["requests"][0]["request_id"], tool_context=context()
-            )
+            request_id = history["requests"][0]["request_id"]
+            if inspected:
+                await caido["caido_request_detail"](request_id, tool_context=context())
+            else:
+                assert "caido_request_detail" not in caido
+                assert observed == ["RequestsByOffset"]
             client = FakeFindingClient()
-            tool = await finding_tool(HTTPFindingsToolsetFactory, client, state)
+            tool = await finding_tool(factory_type, client, state, name=name)
             result = await tool(
                 title="Observed issue",
                 description="Captured behavior",
-                url="https://target.example/probe",
-                method="POST",
-                request_id=detail["request_id"],
+                **location_args,
+                request_id=request_id,
                 tool_context=context(),
             )
             capture = client.requests[0]["httpEvidence"]
@@ -299,17 +317,100 @@ def test_caido_finding_selects_inspected_bytes_without_another_graphql_call(tmp_
             assert result["evidence_refs"][-1]["namespace"] == "http-exchanges"
             assert observed == ["RequestsByOffset", "RequestDetail"]
             assert artifacts.payloads == {}
-            with pytest.raises(ToolInputError, match="unavailable"):
-                await tool(
-                    title="F",
-                    description="D",
-                    url="https://target.example",
-                    method="GET",
-                    request_id=detail["request_id"],
-                    tool_context=context(invocation_id="foreign"),
-                )
+            await tool(
+                title="F",
+                description="D",
+                **location_args,
+                request_id=request_id,
+                tool_context=context(invocation_id="later-invocation"),
+            )
+            assert client.requests[-1]["httpEvidence"] == capture
+            assert client.requests[-1]["httpEvidenceInvocationId"] == "invocation-1"
+            assert client.requests[-1]["invocationId"] == "later-invocation"
+            assert observed == ["RequestsByOffset", "RequestDetail"]
         finally:
             await close_caido(caido)
+            await handle.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "failure", ["unknown", "foreign", "evicted", "missing", "denied", "cancelled"]
+)
+def test_stored_http_evidence_failure_never_submits_a_finding(tmp_path, failure):
+    from test_caido_read_tools import FakeArtifactClient as CaidoArtifacts
+    from test_caido_read_tools import close_tools as close_caido
+    from test_caido_read_tools import create_tools as create_caido
+    from test_caido_read_tools import representative_responses
+
+    from contractor_runtime.toolsets.caido.tools import CaidoToolError
+
+    async def scenario():
+        responses = representative_responses(
+            b"GET /probe HTTP/1.1\r\nHost: target.example\r\n\r\n",
+            b"HTTP/1.1 200 OK\r\n\r\n",
+        )
+        observed = []
+        reading = asyncio.Event()
+        joined = asyncio.Event()
+
+        async def handler(request):
+            operation = json.loads(request.content)["operationName"]
+            observed.append(operation)
+            if operation == "RequestDetail":
+                if failure == "missing":
+                    return httpx.Response(200, json={"data": {"request": None}})
+                if failure == "denied":
+                    return httpx.Response(403)
+                if failure == "cancelled":
+                    reading.set()
+                    try:
+                        await asyncio.Event().wait()
+                    finally:
+                        joined.set()
+            return httpx.Response(200, json={"data": responses[operation]})
+
+        tools, state, handle = await create_caido(
+            tmp_path, handler, CaidoArtifacts(), selected={"caido_history"}
+        )
+        client = FakeFindingClient()
+        try:
+            history = await tools["caido_history"]()
+            request_id = history["requests"][0]["request_id"]
+            selected_state = state
+            if failure == "unknown":
+                request_id += 1
+            elif failure == "foreign":
+                selected_state = WorkerState()
+            elif failure == "evicted":
+                state.resources.http_captures.clear("caido")
+            tool = await finding_tool(GeneralFindingsToolsetFactory, client, selected_state)
+            call = tool(
+                title="Stored observation",
+                description="The selected request supplies the evidence",
+                request_id=request_id,
+                tool_context=context(),
+            )
+            if failure == "cancelled":
+                pending = asyncio.create_task(call)
+                await reading.wait()
+                pending.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await pending
+                assert joined.is_set()
+            else:
+                expected = CaidoToolError if failure == "denied" else ToolInputError
+                with pytest.raises(expected):
+                    await call
+            assert client.requests == []
+            assert observed == (
+                ["RequestsByOffset", "RequestDetail"]
+                if failure in {"missing", "denied", "cancelled"}
+                else ["RequestsByOffset"]
+            )
+        finally:
+            await close_caido(tools)
             await handle.close()
 
     asyncio.run(scenario())
@@ -608,15 +709,17 @@ def test_http_evidence_captures_actual_request_and_survives_history_eviction(tmp
         assert "capture-secret" not in repr(state.metrics)
         assert "cookie-secret" not in repr(await http["http_history"]())
 
-        with pytest.raises(ToolInputError, match="unavailable"):
-            await tool(
-                title="F",
-                description="D",
-                url="https://target.example",
-                method="GET",
-                request_id=result["request_id"],
-                tool_context=context(invocation_id="other"),
-            )
+        await tool(
+            title="F",
+            description="D",
+            url="https://target.example",
+            method="GET",
+            request_id=result["request_id"],
+            tool_context=context(invocation_id="later-invocation"),
+        )
+        assert client.requests[-1]["httpEvidence"] == client.requests[0]["httpEvidence"]
+        assert client.requests[-1]["httpEvidenceInvocationId"] == "invocation-1"
+        assert client.requests[-1]["invocationId"] == "later-invocation"
         retained = json.dumps(document)
         for _ in range(MAX_HISTORY):
             await http["http_request"]("https://target.example/later", tool_context=context())

@@ -3,7 +3,7 @@ kind: AgentTemplate
 
 metadata:
   name: http_explorer
-  version: "3"
+  version: "4"
 
 spec:
   description: Performs bounded authorized HTTP exploration and publishes an evidence report
@@ -35,6 +35,7 @@ spec:
         - http_session_clear
     - ref: text-artifacts@1
       tools:
-        - read_text_artifact
         - write_text_artifact
+    - ref: run-artifacts@1
+      tools: [read_artifact]
   sandboxProfile: local-workdir@1

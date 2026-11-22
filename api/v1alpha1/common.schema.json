@@ -76,6 +76,7 @@
       "additionalProperties": false,
       "required": ["ref", "model"],
       "properties": {
+        "supportsImages": {"type": ["boolean", "null"], "description": "Operator-confirmed image input support for the pinned model on its selected Gateway route. Null or absent means unconfirmed."},
         "ref": {"$ref": "#/$defs/modelPolicyRef"},
         "model": {"type": "string", "minLength": 1},
         "contextWindowTokens": {"type": "integer", "minimum": 1, "maximum": 100000000},

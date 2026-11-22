@@ -342,6 +342,17 @@ rules ([Skills](skills.md)).
 comparisons pin the actual declarations, including docstrings
 ([Evaluation format](../evals/format.md)).
 
+**TLS-R39.** The selected declaration defines the accepted model-supplied
+argument names. Fixed argument records, including nested records and the
+root argument object, forbid additional properties. Explicit open maps retain
+their declared keys and value contracts. Runtime checks raw arguments before
+SDK conversion or context injection can discard fields. An undeclared field,
+including a supplied `tool_context`, returns a bounded `tool_input_invalid`
+diagnostic identifying the containing argument path without supplied values,
+before the callable performs any effect. Domain validation and infrastructure
+exceptions keep their existing owning error contracts. Native Skill tools and
+Planner tools enforce their existing closed declarations at their entry points.
+
 ## Interfaces
 
 - The model-facing API of a Toolset is the set of declarations of its selected

@@ -30,7 +30,7 @@ func TestFactExtractionAcrossProcesses(t *testing.T) {
 			finalGatewayStep("Notes written", map[string]domainArtifactBinding{"report": {namespace: "writer", name: "report"}}),
 		}}
 	}
-	tools := []string{"read_text_artifact", "write_text_artifact", "record_fact"}
+	tools := []string{"read_artifact", "write_text_artifact", "record_fact"}
 	fact := func(title, kind, memoryName string) domainGatewayStep {
 		return toolGatewayStep("record_fact", func(request map[string]any) (map[string]any, error) {
 			args := map[string]any{"title": title, "description": "Free-form reported observation; version and probe coverage remain uncertain."}
@@ -38,7 +38,7 @@ func TestFactExtractionAcrossProcesses(t *testing.T) {
 				args["memory_name"] = memoryName
 				return args, nil
 			}
-			for _, read := range findingsToolResponses(request, "read_text_artifact") {
+			for _, read := range findingsToolResponses(request, "read_artifact") {
 				candidate, _ := read["artifact"].(map[string]any)
 				if candidate["name"] == kind {
 					args["evidence_refs"] = []any{candidate}
@@ -66,9 +66,9 @@ func TestFactExtractionAcrossProcesses(t *testing.T) {
 		}
 	}
 	extractor := domainGatewayStage{name: "facts/extract", tools: tools, steps: []domainGatewayStep{
-		toolGatewayStep("read_text_artifact", stageRefArguments("memories", nil)),
-		toolGatewayStep("read_text_artifact", fixedArguments(map[string]any{"namespace": "writer", "name": "report"})),
-		toolGatewayStep("read_text_artifact", fixedArguments(map[string]any{"namespace": "writer", "name": "http"})),
+		toolGatewayStep("read_artifact", stageRefArguments("memories", nil)),
+		toolGatewayStep("read_artifact", fixedArguments(map[string]any{"namespace": "writer", "name": "report"})),
+		toolGatewayStep("read_artifact", fixedArguments(map[string]any{"namespace": "writer", "name": "http"})),
 		fact("Absent source", "memory", "absent"),
 		fact("nginx reported", "memory", "selected"),
 		fact("Different title, same evidence", "memory", "selected"),
@@ -76,11 +76,11 @@ func TestFactExtractionAcrossProcesses(t *testing.T) {
 	}}
 	extractor.steps = append(extractor.steps, domainGatewayStep{modelFail: true})
 	retry := domainGatewayStage{name: "facts/retry", tools: tools, steps: []domainGatewayStep{
-		toolGatewayStep("read_text_artifact", stageRefArguments("memories", nil)),
+		toolGatewayStep("read_artifact", stageRefArguments("memories", nil)),
 		fact("New attempt, same memory", "memory", "selected"),
 	}}
 	retry.steps = append(retry.steps, finish(1)...)
-	zero := domainGatewayStage{name: "facts/zero", tools: tools, steps: []domainGatewayStep{toolGatewayStep("read_text_artifact", stageRefArguments("memories", nil))}}
+	zero := domainGatewayStage{name: "facts/zero", tools: tools, steps: []domainGatewayStep{toolGatewayStep("read_artifact", stageRefArguments("memories", nil))}}
 	zero.steps = append(zero.steps, finish(0)...)
 	h := startConfiguredFindingsHarness(t, []domainGatewayStage{writer(), extractor, retry, writer(), zero}, func(target string) {
 		for _, entry := range []struct{ from, to string }{

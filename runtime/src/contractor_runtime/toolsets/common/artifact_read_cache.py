@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from contractor_runtime.artifacts import ArtifactClient, ArtifactValue
-from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.contracts import API_VERSION, ArtifactReadResult, ArtifactRef
 from contractor_runtime.core.lines import LINE_BREAK_BYTES
 from contractor_runtime.shared_config import artifact_payload_max_bytes
 from contractor_runtime.threads import to_thread_until_done
@@ -160,18 +160,32 @@ class ExactArtifactReadCache:
         client: ArtifactClient,
         ref: ArtifactRef,
         *,
-        accept: Callable[[str], None],
+        accept: Callable[[ArtifactReadResult], int | None],
         lines: bool = False,
     ) -> ExactArtifactRead:
         if ref.revision is not None:
             async with self._lock:
                 entry = self._entry
                 if entry is not None and entry.value.artifact == ref:
-                    accept(entry.value.media_type)
+                    accept(
+                        ArtifactReadResult(
+                            apiVersion=API_VERSION,
+                            artifact=entry.value.artifact,
+                            mediaType=entry.value.media_type,
+                            size=len(entry.value.data),
+                        )
+                    )
                     _observe(client, ref)
                     return await _derive(entry, lines=lines)
         metadata = await client.read_artifact_metadata(ref)
-        accept(metadata.media_type)
+        read_limit = accept(
+            ArtifactReadResult(
+                apiVersion=API_VERSION,
+                artifact=metadata.artifact,
+                mediaType=metadata.media_type,
+                size=metadata.size,
+            )
+        )
         exact = metadata.artifact
         async with self._lock:
             entry = self._entry
@@ -179,7 +193,9 @@ class ExactArtifactReadCache:
                 _observe(client, exact)
             else:
                 self._entry = None
-                value = await client.read_artifact(exact)
+                value = await client.read_artifact(
+                    exact, **({"max_bytes": read_limit} if read_limit is not None else {})
+                )
                 entry = _Entry(value)
                 if _cacheable(exact, value):
                     self._entry = entry

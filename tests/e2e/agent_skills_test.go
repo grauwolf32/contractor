@@ -203,7 +203,7 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	operations.createRuntimeLabel("agent-skills-debug", skillTelemetry)
 
 	blockerInput := uploadInput(t, publicClient, publicBaseURL)
-	blockerRunID := createWorkflowRun(t, publicClient, publicBaseURL, "artifact-copy@2", "agent-skills-blocker", blockerInput)
+	blockerRunID := createWorkflowRun(t, publicClient, publicBaseURL, "artifact-report-memory-fixture@1", "agent-skills-blocker", blockerInput)
 	select {
 	case <-gateway.blockedRequest():
 	case <-ctx.Done():
@@ -270,7 +270,7 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	// scripts are ordered, so the two Skill Runs must not race to its first step.
 	secondBlock := gateway.blockNextRequest()
 	secondBlockerRunID := createWorkflowRun(
-		t, publicClient, publicBaseURL, "artifact-copy@2", "agent-skills-second-blocker", blockerInput,
+		t, publicClient, publicBaseURL, "artifact-report-memory-fixture@1", "agent-skills-second-blocker", blockerInput,
 	)
 	select {
 	case <-secondBlock:
@@ -317,7 +317,7 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	)
 
 	reuseRunID := createWorkflowRun(
-		t, publicClient, publicBaseURL, "artifact-copy@2", "agent-skills-empty-reuse", blockerInput,
+		t, publicClient, publicBaseURL, "artifact-report-memory-fixture@1", "agent-skills-empty-reuse", blockerInput,
 	)
 	reuseStatus := waitForRun(
 		t, ctx, server, runtimeProcess, gateway, publicClient, publicBaseURL, reuseRunID,
@@ -329,7 +329,7 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	reuseBytes, reuseMedia := download(
 		t, publicClient, publicBaseURL+"/v1/runs/"+url.PathEscape(reuseRunID)+"/outputs/result",
 	)
-	if string(reuseBytes) != e2eInput || reuseMedia != e2eMediaType {
+	if string(reuseBytes) != e2eReport || reuseMedia != e2eMediaType {
 		t.Fatalf("empty-Skill reuse output = (%q, %q)", reuseBytes, reuseMedia)
 	}
 	reuseEvidence := runAllocationEvidence(t, ctx, store, reuseRunID)
@@ -624,7 +624,7 @@ func createAgentSkillWorkflowRun(
 ) string {
 	t.Helper()
 	requestBody := map[string]any{
-		"workflow": "likec4-from-analysis@5",
+		"workflow": "likec4-from-analysis@6",
 		"parameters": map[string]string{
 			"objective": "Model the implemented API and architecture boundaries",
 		},

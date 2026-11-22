@@ -67,11 +67,18 @@ func TestProductionMemoryConfigurationStaging(t *testing.T) {
 			if err := os.WriteFile(path, data, 0o600); err != nil {
 				t.Fatal(err)
 			}
+			fixture, err := os.ReadFile(filepath.Join(repoRoot(t), "tests/e2e/testdata/production-memory/workflow.yaml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(configRoot, "workflows", "artifact_report_memory.yaml"), fixture, 0600); err != nil {
+				t.Fatal(err)
+			}
 			expectedCatalog, _, err := configload.LoadUnionReadOnly(configRoot, filepath.Join(t.TempDir(), "managed"))
 			if err != nil {
 				t.Fatal(err)
 			}
-			expected, err := configloadtest.AgentTemplate(expectedCatalog, "artifact_builder@2")
+			expected, err := configloadtest.AgentTemplate(expectedCatalog, "artifact_builder@3")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -84,22 +91,22 @@ func TestProductionMemoryConfigurationStaging(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			actual, err := configloadtest.AgentTemplate(actualCatalog, "artifact_builder@2")
+			actual, err := configloadtest.AgentTemplate(actualCatalog, "artifact_builder@3")
 			if err != nil {
 				t.Fatal(err)
 			}
 			gateway := newSharedMemoryGateway("test-only")
 			t.Cleanup(gateway.close)
-			expectedWorkflow, err := expectedCatalog.Workflow("artifact-copy@2")
+			actualWorkflow, err := actualCatalog.Workflow("artifact-report-memory-fixture@1")
 			if err != nil {
 				t.Fatal(err)
 			}
-			actualWorkflow, err := actualCatalog.Workflow("artifact-copy@2")
+			expectedWorkflow, err := expectedCatalog.Workflow("artifact-report-memory-fixture@1")
 			if err != nil {
 				t.Fatal(err)
 			}
-			expectedPolicy := expectedWorkflow.Stages["copy"].ExecutionConfig.Agents["builder"].ModelPolicy
 			actualPolicy := actualWorkflow.Stages["copy"].ExecutionConfig.Agents["builder"].ModelPolicy
+			expectedPolicy := expectedWorkflow.Stages["copy"].ExecutionConfig.Agents["builder"].ModelPolicy
 			if !reflect.DeepEqual(actualPolicy, expectedPolicy) {
 				t.Fatal("staging changed Workflow policy")
 			}
@@ -107,7 +114,7 @@ func TestProductionMemoryConfigurationStaging(t *testing.T) {
 			for _, marker := range []string{
 				"MEMORY_STREAMLINE_FIRST_WORKER", "MEMORY_STREAMLINE_RETRY_WORKER",
 				"MEMORY_STREAMLINE_CONTINUE_WORKER", "MEMORY_ROUTER_BUILDER_WORKER",
-				"MEMORY_ROUTER_REVIEWER_WORKER", "Copy the source artifact into the declared result artifact",
+				"MEMORY_ROUTER_REVIEWER_WORKER", "Inspect the source and author the requested report",
 			} {
 				_, worker, err := gateway.sharedMemoryScenario(expectedPolicy.Model, marker)
 				if err != nil || !worker {

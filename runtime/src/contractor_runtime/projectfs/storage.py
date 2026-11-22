@@ -93,6 +93,8 @@ class WorkspaceReader(Protocol):
 
     async def read_text(self, path: str) -> str: ...
 
+    async def read_bytes(self, path: str) -> bytes: ...
+
     async def observation_metadata(self) -> WorkspaceObservationMetadata: ...
 
 
@@ -139,6 +141,9 @@ class WorkspaceReaderView:
     async def read_text(self, path: str) -> str:
         return await self.__reader.read_text(path)
 
+    async def read_bytes(self, path: str) -> bytes:
+        return await self.__reader.read_bytes(path)
+
     async def observation_metadata(self) -> WorkspaceObservationMetadata:
         return await self.__reader.observation_metadata()
 
@@ -159,6 +164,9 @@ class WorkspaceWriterView:
 
     async def read_text(self, path: str) -> str:
         return await self.__writer.read_text(path)
+
+    async def read_bytes(self, path: str) -> bytes:
+        return await self.__writer.read_bytes(path)
 
     async def observation_metadata(self) -> WorkspaceObservationMetadata:
         return await self.__writer.observation_metadata()
@@ -341,6 +349,13 @@ class DirectWorkspaceSession:
             digest=workspace_digest(self._tree.directories, self._tree.text_files),
             managed_text_paths=tuple(sorted(self._tree.text_files)),
         )
+
+    async def read_bytes(self, path: str) -> bytes:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.read_bytes(path)
+        # Memory-backed workspaces retain managed UTF-8 files as text.
+        return (await self.read_text(path)).encode("utf-8")
 
     async def read_text(self, path: str) -> str:
         if self._local is not None:

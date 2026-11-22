@@ -323,10 +323,10 @@ Each value is an object with the required `template` field and an optional
 ```yaml
 agents:
   oas_builder:
-    template: openapi_builder@3
+    template: openapi_builder@4
     namespace: oas
   reviewer:
-    template: openapi_validator@3
+    template: openapi_validator@4
 ```
 
 **WFL-R23.** The mapping key is the stable logical name visible to
@@ -393,7 +393,7 @@ invalid (no legacy reader). `template@1` has no other member.
 ```yaml
 agents:
   analyst:
-    template: workspace_taint_analyst@3
+    template: workspace_taint_analyst@4
     contextManagement:
       strategy: compact@1
       instructions:

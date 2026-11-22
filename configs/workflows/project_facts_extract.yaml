@@ -1,6 +1,6 @@
 apiVersion: contractor/v1alpha1
 kind: Workflow
-metadata: {name: project-facts-extract, version: "1"}
+metadata: {name: project-facts-extract, version: "3"}
 spec:
   parameters: {}
   inputs:
@@ -13,10 +13,10 @@ spec:
   stages:
     extract:
       objective: Select useful source-grounded Project facts; zero observations is valid
-      instructions: {ref: instructions/fact-extractor-v1.md}
+      instructions: {ref: instructions/fact-extractor-v1-artifact-reader.md}
       planner: passthrough@1
       agents:
-        extractor: {template: fact_extractor@1, namespace: facts}
+        extractor: {template: fact_extractor@2, namespace: facts}
       context:
         artifacts:
           memories: {namespace: inputs, name: memories, required: true}

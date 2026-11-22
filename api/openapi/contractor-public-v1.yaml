@@ -17559,7 +17559,7 @@ components:
       additionalProperties: false
       required: [ref, arguments]
       properties:
-        ref: {type: string, enum: [sitemap-openapi-join@1, sitemap-apply-openapi@1, openapi-prepare-work@1, publish-findings@1, memory-snapshot@1]}
+        ref: {type: string, enum: [artifact-copy@1, sitemap-openapi-join@1, sitemap-apply-openapi@1, openapi-prepare-work@1, publish-findings@1, memory-snapshot@1]}
         arguments:
           type: object
           maxProperties: 32
@@ -17666,6 +17666,10 @@ components:
       required: [model]
       properties:
         model: {type: string, minLength: 1, maxLength: 256}
+        supportsImages:
+          type: boolean
+          nullable: true
+          description: Operator assertion that this model accepts images on the selected Gateway route. False means text-only; absent or null means unconfirmed. Does not change the model or probe the provider.
         contextWindowTokens: {type: integer, minimum: 1, maximum: 100000000}
         maxOutputTokens: {type: integer, minimum: 1, maximum: 9007199254740991}
         maxModelCalls:

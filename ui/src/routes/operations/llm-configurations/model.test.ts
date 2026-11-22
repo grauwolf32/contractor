@@ -1,3 +1,5 @@
+import imageSupport from "../../../../../api/testdata/v1alpha1/model-image-support-cases.json";
+import type { ModelPolicyBody } from "../../../api/operations";
 import { describe, expect, it } from "vitest";
 
 import { validateLLMGateway, validateModelPolicy } from "./model";
@@ -66,5 +68,17 @@ describe("Operations configuration validation", () => {
     ).toContain(
       "HTTP credential management is allowed only for an IP-literal loopback origin.",
     );
+  });
+});
+
+describe("shared image support metadata", () => {
+  it.each(imageSupport.cases)("validates $name", (row) => {
+    const body = {
+      ...imageSupport.base,
+      ...(row.present ? { supportsImages: row.value } : {}),
+    };
+    expect(
+      validateModelPolicy(body as ModelPolicyBody, "worker").length === 0,
+    ).toBe(row.valid);
   });
 });

@@ -20,7 +20,7 @@ than evidence of absence. Distinguish observed facts from inference; never inven
 a dependency, route, type, security control, or integration. Every material claim
 must cite a relative source path and line number or bounded line range.
 
-Use `read_text_artifact` for a prior discovery report when one is supplied.
+Use `read_artifact` for a prior discovery report when one is supplied.
 Publish the requested Markdown with `write_text_artifact` in the fixed `analysis`
 namespace. On retry, read the target binding and use its exact revision for CAS.
 Finish with a concise semantic result after the report write succeeds; do not

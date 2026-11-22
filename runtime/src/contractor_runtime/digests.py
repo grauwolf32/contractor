@@ -55,6 +55,8 @@ def verify_model_policy_digest(policy: ResolvedModelPolicy) -> None:
 
 def _model_policy_digest(policy: ResolvedModelPolicy) -> str:
     spec: dict[str, Any] = {"model": policy.model}
+    if policy.supports_images is not None:
+        spec["supportsImages"] = policy.supports_images
     _add_policy_limits(spec, policy)
     if policy.temperature is not None:
         spec["temperature"] = policy.temperature

@@ -4,8 +4,8 @@ apiVersion: contractor/v1alpha1
 kind: Workflow
 
 metadata:
-  name: artifact-copy-with-retry
-  version: "2"
+  name: artifact-report-with-retry
+  version: "3"
 
 spec:
   parameters:
@@ -34,13 +34,13 @@ spec:
   entryStage: copy
   stages:
     copy:
-      objective: Copy the source artifact into the declared result artifact
+      objective: Inspect the source and author the requested report
       instructions:
-        ref: instructions/copy-planner.md
+        ref: instructions/report-planner.md
       planner: passthrough@1
       agents:
         builder:
-          template: artifact_builder@2
+          template: artifact_builder@3
       context:
         artifacts:
           source:

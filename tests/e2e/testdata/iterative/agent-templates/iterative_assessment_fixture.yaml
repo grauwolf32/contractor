@@ -7,7 +7,9 @@ spec:
   instructions: {ref: instructions/iterative-assessment-fixture.md}
   toolsets:
     - ref: run-artifacts@1
-      tools: [read_artifact, write_artifact]
+      tools: [read_artifact]
+    - ref: text-artifacts@1
+      tools: [write_text_artifact]
     - ref: source-analysis@1
       tools: [open_source_archive, read_source]
   sandboxProfile: local-workdir@1

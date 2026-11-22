@@ -25,9 +25,9 @@ spec:
         - list_memory_tags
     - ref: filesystem@1
       tools: [ls, glob, read_file, grep]
-    - ref: text-artifacts@1
+    - ref: run-artifacts@1
       tools:
-        - read_text_artifact
+        - read_artifact
     - ref: openapi@1
       tools:
         - load_openapi

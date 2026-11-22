@@ -25,5 +25,6 @@ def gateway_model(context: WorkerBuildContext) -> BaseLlm:
     client.cost_observer = context.state.metrics.llm_cost.observe
     return OpenAICompatibleGatewayLlm(
         model=policy.model,
+        supports_images=policy.supports_images,
         client_handle=client,
     )

@@ -3,7 +3,7 @@ kind: AgentTemplate
 
 metadata:
   name: openapi_builder
-  version: "3"
+  version: "4"
 
 spec:
   description: Incrementally builds one evidence-linked OpenAPI document from project source
@@ -25,9 +25,9 @@ spec:
         - list_memory_tags
     - ref: filesystem@1
       tools: [ls, glob, read_file, grep]
-    - ref: text-artifacts@1
+    - ref: run-artifacts@1
       tools:
-        - read_text_artifact
+        - read_artifact
     - ref: openapi@1
       tools:
         - load_openapi

@@ -235,7 +235,8 @@ def test_shared_finding_client_reads_independent_selected_http_receipt(capture_n
         client = FindingProposalClient("allocation-1", Transport())
         request = {
             "apiVersion": "contractor/v1alpha1",
-            "invocationId": "original-invocation",
+            "invocationId": "later-invocation",
+            "httpEvidenceInvocationId": "original-invocation",
             "submissionId": "selected-http",
             "proposal": {"client_key": "candidate"},
             "evidenceRefs": [],
@@ -249,7 +250,7 @@ def test_shared_finding_client_reads_independent_selected_http_receipt(capture_n
             assert receipt["evidence"][-1]["ref"] == {
                 "namespace": HTTP_EXCHANGE_NAMESPACE,
                 "name": http_exchange_artifact_name(
-                    request["invocationId"], capture["source"], capture["request_id"]
+                    request["httpEvidenceInvocationId"], capture["source"], capture["request_id"]
                 ),
                 "revision": "http-rev-1",
             }
@@ -425,7 +426,7 @@ def _receipt_response(
             {
                 "namespace": HTTP_EXCHANGE_NAMESPACE,
                 "name": http_exchange_artifact_name(
-                    request["invocationId"],
+                    request["httpEvidenceInvocationId"],
                     request["httpEvidence"]["source"],
                     request["httpEvidence"]["request_id"],
                 ),

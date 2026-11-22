@@ -29,12 +29,12 @@ func TestAuditBasicExactHandoffAcrossProductionProcesses(t *testing.T) {
 			if testing.Short() {
 				t.Fatal("the basic Audit gate cannot run in short mode")
 			}
-			stages := []domainGatewayStage{basicCopyStage(), basicConclusionStage(withFinding)}
+			stages := []domainGatewayStage{basicReportStage(), basicConclusionStage(withFinding)}
 			h := startConfiguredFindingsHarness(t, stages, func(root string) { installBasicAuditProgram(t, root) })
 			project := createProjectResource(t, h.client, h.baseURL)
 			sourceBytes := auditProgramZip(t, map[string][]byte{"app.py": []byte(findingsSource)})
 			source := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "source", "application/zip", sourceBytes)
-			report := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "report", "text/plain", []byte(findingsEvidence))
+			report := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "report", "text/plain", []byte("Inspect the selected source and author a review report.\n"))
 			draft, _ := basicAuditRequest(t, h, http.MethodPost, "/v1/projects/"+project.ProjectID+"/audits", map[string]any{
 				"profile": map[string]string{"name": "basic-process", "version": "1"}, "inputs": map[string]artifactRef{"source": source, "report": report}, "scope": map[string]string{"objective": "Inspect exact retained source across two ordinary Workflows"},
 			}, "draft", 0, http.StatusCreated)
@@ -147,10 +147,16 @@ type basicTask struct {
 	GapCode       *string                            `json:"gap_code"`
 }
 
-func basicCopyStage() domainGatewayStage { return artifactCopyGatewayStage("basic-copy") }
+func basicReportStage() domainGatewayStage {
+	stage := artifactReportGatewayStage("basic-report")
+	stage.steps[1] = toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{
+		"name": "copied", "media_type": "text/plain", "text": findingsEvidence,
+	}))
+	return stage
+}
 
 func basicConclusionStage(withFinding bool) domainGatewayStage {
-	stage := domainGatewayStage{name: "basic-check", tools: []string{"list_artifacts", "read_artifact", "write_artifact", "finding", "read_file", "read_audit_task", "submit_check_result"}, steps: []domainGatewayStep{
+	stage := domainGatewayStage{name: "basic-check", tools: []string{"list_artifacts", "read_artifact", "write_text_artifact", "finding", "read_file", "read_audit_task", "submit_check_result", "submit_check_results"}, steps: []domainGatewayStep{
 		toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
 		toolGatewayStep("read_artifact", fixedArguments(map[string]any{"namespace": "inputs", "name": "material", "revision": nil})),
 		toolGatewayStep("read_file", fixedArguments(map[string]any{"path": "app.py", "start_line": 1, "max_lines": 100})),
@@ -164,7 +170,7 @@ func basicConclusionStage(withFinding bool) domainGatewayStage {
 			return map[string]any{"title": "Query concatenation in lookup", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 10}, "cwe": "CWE-89", "evidence_refs": []any{evidence}}, nil
 		}))
 	}
-	stage.steps = append(stage.steps, toolGatewayStep("submit_check_result", fixedArguments(map[string]any{"rationale": findingsEvidence, "tested_conditions": []string{"selected source inspected; no external target action"}, "limitations": []string{"No live exploit was executed"}, "evidence": []string{"evidence-000", "evidence-001"}})), finalGatewayStep("Recorded exploration", nil))
+	stage.steps = append(stage.steps, toolGatewayStep("submit_check_result", auditResultArguments(map[string]any{"rationale": findingsEvidence, "tested_conditions": []string{"selected source inspected; no external target action"}, "limitations": []string{"No live exploit was executed"}, "evidence": []string{"evidence-000", "evidence-001"}})), finalGatewayStep("Recorded exploration", nil))
 	return stage
 }
 
@@ -281,12 +287,11 @@ func basicTaskArtifact(t *testing.T, h *findingsHarness, auditID string, task ba
 func installBasicAuditProgram(t *testing.T, root string) {
 	t.Helper()
 	// Source ZIP is ordinary input/output material, never an Audit task package.
-	copyWorkflow, err := os.ReadFile(filepath.Join(root, "workflows", "artifact_copy_v2_memory.yaml"))
+	copyWorkflow, err := os.ReadFile(filepath.Join(root, "workflows", "artifact_report_memory.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	copyText := strings.Replace(string(copyWorkflow), "name: artifact-copy", "name: basic-copy", 1)
-	copyText = strings.Replace(copyText, "version: \"2\"", "version: \"1\"", 1)
+	copyText := replaceAuditFixture(t, string(copyWorkflow), "name: artifact-report-memory-fixture", "name: basic-copy")
 
 	files := map[string]string{"instructions/basic-process-checker.md": "Read the assigned Audit tasks, inspect selected source and record each check with exact evidence. Publish an evidenced problem with finding; finish after all assigned results are recorded.\n", "workflows/basic_copy.yaml": copyText, "agent-templates/basic_check.yaml": basicCheckTemplate, "workflows/basic_check.yaml": basicCheckWorkflow, "audit-profiles/basic_process.yaml": basicProcessProgram}
 	for name, content := range files {
@@ -304,10 +309,11 @@ spec:
   runtime: adk@1
   instructions: {ref: instructions/basic-process-checker.md}
   toolsets:
-    - {ref: run-artifacts@1, tools: [list_artifacts, read_artifact, write_artifact]}
+    - {ref: run-artifacts@1, tools: [list_artifacts, read_artifact]}
+    - {ref: text-artifacts@1, tools: [write_text_artifact]}
     - {ref: security-findings-code@1, tools: [finding]}
     - {ref: filesystem@1, tools: [read_file]}
-    - {ref: audit-results@2, tools: [read_audit_task, submit_check_result]}
+    - {ref: audit-results@2, tools: [read_audit_task, submit_check_result, submit_check_results]}
   sandboxProfile: local-workdir@1
 `
 const basicCheckWorkflow = `apiVersion: contractor/v1alpha1
@@ -345,6 +351,29 @@ spec:
       workflowOutputs: {result: result}
       on: {succeeded: {succeed: {}}, failed: {fail: {}}, interrupted: {fail: {}}}
 `
+
+// Both direct and checklist-seeded scenarios share this exact source fragment.
+const basicInitialWork = "  initial_work: [{key: copy-source, workflow: copy, objective: Author a source review as an ordinary report}]"
+
+func replaceAuditFixture(t *testing.T, source, old, replacement string) string {
+	t.Helper()
+	if count := strings.Count(source, old); count != 1 {
+		t.Fatalf("expected one Audit fixture match for %q, found %d", old, count)
+	}
+	return strings.Replace(source, old, replacement, 1)
+}
+
+func basicSeededProcessProgram(t *testing.T) string {
+	t.Helper()
+	program := replaceAuditFixture(t, basicProcessProgram, "    report: {required: true, media_types: [text/plain]}", "    report: {required: true, media_types: [text/plain]}\n    checklist: {required: true, media_types: [application/json]}")
+	program = replaceAuditFixture(t, program, "material: {source: task-input}", "material: {source: audit-input, name: report}")
+	program = replaceAuditFixture(t, program, basicInitialWork, "  initial_work: []\n  seed_source: {input: checklist, workflow: check}")
+	for _, pair := range [][2]string{{"max_tasks: 2", "max_tasks: 3"}, {"max_tasks_per_iteration: 2", "max_tasks_per_iteration: 3"}, {"batch_size: 1", "batch_size: 3"}, {"max_hypotheses: 1", "max_hypotheses: 3"}, {"max_hypothesis_revisions: 1", "max_hypothesis_revisions: 8"}} {
+		program = replaceAuditFixture(t, program, pair[0], pair[1])
+	}
+	return program
+}
+
 const basicProcessProgram = `apiVersion: contractor/v1alpha1
 kind: AuditProfile
 metadata: {name: basic-process, version: "1"}
@@ -365,7 +394,7 @@ spec:
       parameters: {}
       outputs: {result: result}
   hypotheses: {}
-  initial_work: [{key: copy-source, workflow: copy, objective: Retain selected source as ordinary output}]
+` + basicInitialWork + `
   limits:
     max_tasks: 2
     max_iterations: 1
@@ -413,5 +442,65 @@ func assertCommonAuditEventContract(t *testing.T, h *findingsHarness, auditID st
 	}
 	if count == 0 {
 		t.Fatal("the real common Audit emitted no event history")
+	}
+}
+
+func assignedAuditKeys(request map[string]any) ([]string, error) {
+	reads := findingsToolResponses(request, "read_audit_task")
+	if len(reads) == 0 {
+		return nil, fmt.Errorf("assigned Audit tasks were not read")
+	}
+	tasks, ok := reads[len(reads)-1]["tasks"].([]any)
+	if !ok {
+		return nil, fmt.Errorf("assigned Audit tasks have no task array")
+	}
+	keys := make([]string, 0, len(tasks))
+	for _, raw := range tasks {
+		task, ok := raw.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("assigned Audit member has an invalid shape")
+		}
+		key, ok := task["item_key"].(string)
+		if !ok || key == "" {
+			return nil, fmt.Errorf("assigned Audit member has no item_key")
+		}
+		keys = append(keys, key)
+	}
+	return keys, nil
+}
+
+func auditResultArguments(value map[string]any) func(map[string]any) (map[string]any, error) {
+	return func(request map[string]any) (map[string]any, error) {
+		args := make(map[string]any, len(value)+1)
+		for key, item := range value {
+			args[key] = item
+		}
+		if _, selected := args["item_key"]; selected {
+			return args, nil
+		}
+		keys, err := assignedAuditKeys(request)
+		if err != nil {
+			return nil, err
+		}
+		if len(keys) != 1 {
+			return nil, fmt.Errorf("a scalar fixture must select its assigned item explicitly")
+		}
+		args["item_key"] = keys[0]
+		return args, nil
+	}
+}
+
+func requireRecordedAuditResults(count int) func(map[string]any) error {
+	return func(request map[string]any) error {
+		responses := findingsToolResponses(request, "submit_check_result")
+		if len(responses) != count {
+			return fmt.Errorf("scalar result responses = %d, want %d", len(responses), count)
+		}
+		for _, response := range responses {
+			if response["status"] != "recorded" {
+				return fmt.Errorf("intended scalar result was not recorded")
+			}
+		}
+		return nil
 	}
 }

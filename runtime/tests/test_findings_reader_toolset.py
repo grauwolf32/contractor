@@ -309,7 +309,7 @@ def test_shared_go_python_fixture_and_exact_consumer_reads():
                 assert document["source"]["ref"]["revision"] == "rev-1"
                 assert document["source"]["scope"]["kind"] == "run"
                 read = await reader(**ref)
-                assert base64.b64decode(read["dataBase64"]) == contents[ref["name"]]
+                assert read["text"].encode() == contents[ref["name"]]
         first, second = result["items"]
         assert first["evidence"][0]["digest"] == second["evidence"][0]["digest"]
         assert first["evidence"][0]["ref"] != second["evidence"][0]["ref"]

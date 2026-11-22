@@ -171,7 +171,7 @@ class FindingProposalClient:
                 selected["ref"]["namespace"] != HTTP_EXCHANGE_NAMESPACE
                 or selected["ref"]["name"]
                 != http_exchange_artifact_name(
-                    request["invocationId"],
+                    request["httpEvidenceInvocationId"],
                     request["httpEvidence"]["source"],
                     request["httpEvidence"]["request_id"],
                 )

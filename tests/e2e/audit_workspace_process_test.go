@@ -18,10 +18,10 @@ import (
 // Exercise the existing Project publication owner over a collected ordinary
 // Task output. No fixture SQL manufactures outputs, Tasks or receipts.
 func TestAuditWorkspaceAcrossProductionProcesses(t *testing.T) {
-	h := startConfiguredFindingsHarness(t, []domainGatewayStage{basicCopyStage(), basicConclusionStage(false)}, func(root string) { installBasicAuditProgram(t, root) })
+	h := startConfiguredFindingsHarness(t, []domainGatewayStage{basicReportStage(), basicConclusionStage(false)}, func(root string) { installBasicAuditProgram(t, root) })
 	project := createProjectResource(t, h.client, h.baseURL)
 	source := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "source", "application/zip", auditProgramZip(t, map[string][]byte{"app.py": []byte(findingsSource)}))
-	report := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "report", "text/plain", []byte(findingsEvidence))
+	report := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "report", "text/plain", []byte("Inspect the selected source and author a review report.\n"))
 	draft, _ := basicAuditRequest(t, h, http.MethodPost, "/v1/projects/"+project.ProjectID+"/audits", map[string]any{"profile": map[string]string{"name": "basic-process", "version": "1"}, "inputs": map[string]artifactRef{"source": source, "report": report}}, "draft", 0, http.StatusCreated)
 	id := draft["auditId"].(string)
 	blocked := h.gateway.blockNextRequest()

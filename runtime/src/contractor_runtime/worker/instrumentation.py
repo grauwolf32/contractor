@@ -19,6 +19,7 @@ from contractor_runtime.adapters.instrumentation import end_isolated_span, start
 from contractor_runtime.contracts.llm_cost import CostPhase
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.tool_errors import ToolExecutionError, ToolResultDiagnostic
+from contractor_runtime.llm.image_parts import image_result_metadata
 from contractor_runtime.llm.openai import GatewayModelError
 from contractor_runtime.llm.response import (
     WorkerResponseRecovery,
@@ -649,8 +650,11 @@ class WorkerInstrumentationPlugin(BasePlugin):
             if known:
                 capture_span_content(pending.span, input=lambda: tool_args)
             rejection = None
-            raw_argument_error = getattr(owner, "contractor_raw_argument_error", None)
-            if known and callable(raw_argument_error):
+            validators = (owner, tool) if tool is not owner else (owner,)
+            for validator in validators if known else ():
+                raw_argument_error = getattr(validator, "contractor_raw_argument_error", None)
+                if not callable(raw_argument_error):
+                    continue
                 try:
                     rejection = raw_argument_error(tool_args)
                 except asyncio.CancelledError:
@@ -663,6 +667,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     rejection = _RecordedToolFailure(
                         "tool_argument_validation_failed", retryable=False
                     )
+                if rejection is not None:
+                    break
             if rejection is not None:
                 pending.error = rejection
             await self._publish_locked(tool_context)
@@ -693,7 +699,9 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 self._settling_tools.discard(id(tool_context))
                 failed = pending.error is not None or _result_is_failure(result)
                 if pending.known:
-                    capture_span_content(pending.span, output=lambda: result)
+                    capture_span_content(
+                        pending.span, output=lambda: image_result_metadata(result, replay=False)
+                    )
                 await self._finish_tool_locked(
                     pending,
                     failed=failed,

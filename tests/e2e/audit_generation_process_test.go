@@ -3,7 +3,6 @@
 package e2e
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -154,7 +153,7 @@ func exerciseAuditHypothesisContinuation(t *testing.T, initial, browser bool) {
 
 func generationCheckStage(verdict string) domainGatewayStage {
 	stage := basicConclusionStage(false)
-	stage.steps = []domainGatewayStep{toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})), toolGatewayStep("submit_check_result", fixedArguments(map[string]any{"verdict": verdict, "rationale": "The assertion applies only to the selected actor and exact fixture", "tested_conditions": []string{"selected fixture and actor"}, "limitations": []string{"Another actor remains untested"}, "evidence": []string{"evidence-000", "evidence-001"}})), finalGatewayStep("Scoped check result retained", nil)}
+	stage.steps = []domainGatewayStep{toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})), toolGatewayStep("submit_check_result", auditResultArguments(map[string]any{"verdict": verdict, "rationale": "The assertion applies only to the selected actor and exact fixture", "tested_conditions": []string{"selected fixture and actor"}, "limitations": []string{"Another actor remains untested"}, "evidence": []string{"evidence-000", "evidence-001"}})), finalGatewayStep("Scoped check result retained", nil)}
 	return stage
 }
 
@@ -163,7 +162,7 @@ func generationProposalStage(prior, empty, exploratory bool) domainGatewayStage 
 	if exploratory {
 		contextSlot, resultSlot, resultName = "research", "draft_report", "drafts"
 	}
-	stage := domainGatewayStage{name: fmt.Sprintf("generation/empty=%t", empty), tools: []string{"read_artifact", "read_text_artifact", "list_project_findings", "read_project_finding", "select_project_findings", "read_finding_selection", "submit_hypothesis_proposals"}}
+	stage := domainGatewayStage{name: fmt.Sprintf("generation/empty=%t", empty), tools: []string{"read_artifact", "list_project_findings", "read_project_finding", "select_project_findings", "read_finding_selection", "submit_hypothesis_proposals"}}
 	stage.steps = append(stage.steps, toolGatewayStep("read_artifact", stageRefArguments("context", nil)))
 	stage.steps = append(stage.steps, toolGatewayStep("read_artifact", stageRefArguments(contextSlot, nil)))
 	if prior {
@@ -172,7 +171,7 @@ func generationProposalStage(prior, empty, exploratory bool) domainGatewayStage 
 			if len(reads) != 2 {
 				return nil, fmt.Errorf("missing proposal context")
 			}
-			raw, err := base64.StdEncoding.DecodeString(fmt.Sprint(reads[1]["dataBase64"]))
+			raw, err := artifactTextBytes(reads[1]["text"])
 			if err != nil {
 				return nil, err
 			}
@@ -190,7 +189,7 @@ func generationProposalStage(prior, empty, exploratory bool) domainGatewayStage 
 			if len(reads) != 3 {
 				return nil, fmt.Errorf("missing exact initial reads")
 			}
-			raw, err := base64.StdEncoding.DecodeString(fmt.Sprint(reads[1]["dataBase64"]))
+			raw, err := artifactTextBytes(reads[1]["text"])
 			if err != nil {
 				return nil, err
 			}
@@ -234,11 +233,11 @@ func generationProposalStage(prior, empty, exploratory bool) domainGatewayStage 
 		if len(reads) < 2 {
 			return nil, fmt.Errorf("missing exact generation context")
 		}
-		data, err := base64.StdEncoding.DecodeString(fmt.Sprint(reads[1]["dataBase64"]))
+		data, err := artifactTextBytes(reads[1]["text"])
 		if err != nil {
 			return nil, err
 		}
-		assignment, err := base64.StdEncoding.DecodeString(fmt.Sprint(reads[0]["dataBase64"]))
+		assignment, err := artifactTextBytes(reads[0]["text"])
 		if err != nil || !strings.Contains(string(assignment), `"objective"`) {
 			return nil, fmt.Errorf("generator task objective missing")
 		}
@@ -250,7 +249,7 @@ func generationProposalStage(prior, empty, exploratory bool) domainGatewayStage 
 			if len(reads) != map[bool]int{true: 3, false: 4}[empty] || len(selected.Observations) != 1 {
 				return nil, fmt.Errorf("missing selected ordinary result")
 			}
-			negative, err := base64.StdEncoding.DecodeString(fmt.Sprint(reads[2]["dataBase64"]))
+			negative, err := artifactTextBytes(reads[2]["text"])
 			if err != nil || !strings.Contains(string(negative), `"verdict"`) {
 				return nil, fmt.Errorf("prior result omitted")
 			}
@@ -271,7 +270,7 @@ func generationProposalStage(prior, empty, exploratory bool) domainGatewayStage 
 			var content map[string]any
 			_ = json.Unmarshal([]byte(hypotheses), &content)
 			sources := []string{"finding", selected.Observations[0].Key}
-			architecture, err := base64.StdEncoding.DecodeString(fmt.Sprint(reads[3]["dataBase64"]))
+			architecture, err := artifactTextBytes(reads[3]["text"])
 			if err != nil || !strings.HasPrefix(string(architecture), "Architecture boundary ") {
 				return nil, fmt.Errorf("architecture payload was not consumed")
 			}
@@ -311,7 +310,7 @@ func installGenerationAuditProgram(t *testing.T, root string, initial bool) {
 	check.Inputs["material"] = auditcontract.InputMapping{Source: "audit-input", Name: "report"}
 	p.Workflows["check"] = check
 	inputs := map[string]auditcontract.InputMapping{"context": {Source: "task-context"}, "analysis": {Source: "prior-results"}, "results": {Source: "task-results"}, "materials": {Source: "audit-input", Name: "materials"}, "material": {Source: "audit-input", Name: "report"}}
-	p.Workflows["generate"] = auditcontract.ProgramWorkflow{Ref: "audit-hypothesis-generation@1", Inputs: inputs, Parameters: map[string]string{}, Outputs: map[string]string{"proposals": "proposals"}}
+	p.Workflows["generate"] = auditcontract.ProgramWorkflow{Ref: "audit-hypothesis-generation@2", Inputs: inputs, Parameters: map[string]string{}, Outputs: map[string]string{"proposals": "proposals"}}
 	p.Continuation = &auditcontract.Continuation{Workflow: "generate"}
 	p.InitialWork = []auditcontract.InitialWork{{Key: "initial-generation", Workflow: "generate", Objective: "Propose a scoped check from selected materials"}}
 	if !initial {
@@ -337,6 +336,7 @@ func installGenerationAuditProgram(t *testing.T, root string, initial bool) {
 			t.Fatal(err)
 		}
 		wf["metadata"].(map[string]any)["name"] = "architecture-exploration"
+		wf["metadata"].(map[string]any)["version"] = "1"
 		spec := wf["spec"].(map[string]any)
 		inputs := spec["inputs"].(map[string]any)
 		inputs["research"] = inputs["analysis"]

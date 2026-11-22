@@ -104,7 +104,7 @@ func (g *schedulerConcurrencyGateway) serveHTTP(w http.ResponseWriter, r *http.R
 		return
 	}
 	if finalizer {
-		if !requestHasNoModelTools(request) || finalizerInput.ResultText != "Source artifact copied byte-for-byte" {
+		if !requestHasNoModelTools(request) || finalizerInput.ResultText != "Source inspected and report authored" {
 			g.fail(w, http.StatusBadRequest, "invalid Scheduler-concurrency Worker result finalizer")
 			return
 		}
@@ -116,22 +116,22 @@ func (g *schedulerConcurrencyGateway) serveHTTP(w http.ResponseWriter, r *http.R
 		g.respond(w, request, message, "stop")
 		return
 	}
-	if !selectedTools(request, "read_artifact", "write_artifact") {
+	if !selectedTools(request, "read_artifact", "write_text_artifact") {
 		g.fail(w, http.StatusBadRequest, "unexpected Scheduler-concurrency model-visible tools")
 		return
 	}
 
 	if _, ok := lastExactArtifact(request, "builder", "copied"); ok {
 		g.respond(w, request, map[string]any{
-			"role": "assistant", "content": "Source artifact copied byte-for-byte",
+			"role": "assistant", "content": "Source inspected and report authored",
 		}, "stop")
 		return
 	}
-	if data, ok := lastStringValue(request, "dataBase64"); ok && data != "" {
+	if data, ok := lastStringValue(request, "text"); ok && data != "" {
 		g.respond(w, request, toolCallMessage(
-			fmt.Sprintf("scheduler-write-%d", time.Now().UnixNano()), "write_artifact", map[string]any{
-				"namespace": "builder", "name": "copied", "media_type": "text/plain",
-				"data_base64": data, "expected_revision": nil,
+			fmt.Sprintf("scheduler-write-%d", time.Now().UnixNano()), "write_text_artifact", map[string]any{
+				"name": "copied", "media_type": "text/plain",
+				"text": e2eReport, "expected_revision": nil,
 			},
 		), "tool_calls")
 		return

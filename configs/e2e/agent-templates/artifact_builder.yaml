@@ -3,16 +3,18 @@ kind: AgentTemplate
 
 metadata:
   name: artifact_builder
-  version: "1"
+  version: "4"
 
 spec:
-  description: Reads one declared input artifact and writes its byte-for-byte copy
+  description: Reads declared input and authors a text report
   runtime: adk@1
   instructions:
-    ref: instructions/artifact-builder.md
+    ref: instructions/artifact-builder-authored-text.md
   toolsets:
     - ref: run-artifacts@1
       tools:
         - read_artifact
-        - write_artifact
+    - ref: text-artifacts@1
+      tools:
+        - write_text_artifact
   sandboxProfile: local-workdir@1

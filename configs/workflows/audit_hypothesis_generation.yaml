@@ -3,7 +3,7 @@
   "kind": "Workflow",
   "metadata": {
     "name": "audit-hypothesis-generation",
-    "version": "1"
+    "version": "2"
   },
   "spec": {
     "parameters": {},
@@ -75,7 +75,7 @@
         "planner": "passthrough@1",
         "agents": {
           "generator": {
-            "template": "audit_hypothesis_generator@1",
+            "template": "audit_hypothesis_generator@2",
             "namespace": "generator"
           }
         },

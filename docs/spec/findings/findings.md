@@ -394,14 +394,19 @@ captured source. The general and HTTP facades and `record_fact` accept an option
 `request_id` shared by HTTP and Caido tools (HTP-R72). Omitting it permits
 publication without captured HTTP evidence, subject to the ordinary evidence rules.
 
-**FND-R43.** A supplied source resolves only against the allocation's
-bounded HTTP/Caido buffer, with the same-invocation ownership rule of
-[HTTP and Caido tools](../tools/http-caido.md) (HTP-R71, HTP-R72). An invalid,
-expired or foreign source returns a repairable error; the caller can select a
-current source or omit it (FAIL-FND-2). The request is mandatory; a missing or
-incomplete response is saved with its truthful failure or partial outcome.
+**FND-R43.** A supplied source resolves only against the allocation's bounded
+HTTP/Caido captures or authorized stored-request locators, as owned by
+[HTTP and Caido tools](../tools/http-caido.md) (HTP-R71, HTP-R72). Runtime reads
+and attaches the actual request and available response. The model need not call
+a detail tool first. An invalid, expired, foreign or unauthorized source returns
+an explicit error before Finding submission (FAIL-FND-2). The request is
+mandatory; a missing or incomplete response is saved with its truthful failure
+or partial outcome. Original capture provenance and Audit observation eligibility
+are preserved.
 
-**FND-R46.** Creating a finding never sends or replays traffic.
+**FND-R46.** Creating a finding never sends or replays target traffic. A
+history-only local ID may cause one authorized read of the selected stored
+exchange through the existing provider adapter. Buffered bytes are reused.
 
 **FND-R47.** The authored location and the observed request remain
 separate facts; neither silently replaces the other.
@@ -418,7 +423,8 @@ represent truthfully has no embedded projection; its evidence remains intact.
 Artifacts, using media type `application/vnd.contractor.http-exchange+json` and
 schema `contractor.http.exchange.v1`. The frozen RunScope namespace is
 `http-exchanges`. Its binding name is `exchange-` plus the lowercase SHA-256 of
-the RFC 8785 JSON array `[invocation_id, source, request_id]`. Finding intake
+the RFC 8785 JSON array `[invocation_id, source, request_id]`, using the original
+capture invocation even when a later invocation selects the request. Finding intake
 creates the selected Artifact atomically with its proposal, or reuses its exact
 existing bytes. Ordinary check-result selection publishes the same independent
 format through HTP-R150 without requiring a proposal. Results and Findings cite
@@ -485,8 +491,15 @@ allocation and validates the publication origin. It preserves historical origin
 through reuse and ordinary Audit/Project retention forks. The envelope has no
 `finding` member. Proposal/receipt associations stay with Finding intake.
 Embedded origin is historical provenance; an uploaded copy grants neither access
-nor trusted capture authority. The private finding submission carries optional
-`httpEvidence: capture`; intake returns ordered exact `evidence` descriptors.
+nor trusted capture authority. A private finding submission with `httpEvidence: capture`
+requires `httpEvidenceInvocationId`, the original capture invocation supplied by
+the allocation's Runtime capture owner. Both fields are omitted without a selection.
+The authenticated allocation still supplies the Run and publication authority;
+the capture invocation grants no additional access. It determines the evidence
+origin and frozen binding, while `invocationId` remains the Finding author's
+invocation. Reusing a request reuses its exact frozen evidence, without changing
+its origin. Both capture and origin participate in the submission replay digest.
+Intake returns ordered exact `evidence` descriptors.
 
 **FND-R161.** `capture` has `source: http|caido`, string `request_id`, optional
 `request_tag` (required for HTTP), and 1–13 `attempts`. Runtime HTTP selected
@@ -1382,7 +1395,7 @@ inferred links or web previews.
 The configuration catalog provides these opt-in configurations:
 
 **FND-R147.** `openapi-operation-trace@3` binds
-`audit-openapi-operation-trace@2` and `audit_openapi_operation_tracer@2`. It
+`audit-openapi-operation-trace@3` and `audit_openapi_operation_tracer@3`. It
 retains the structural graph and source tools, adds text evidence writing and
 `finding`, and uses human-required finding confirmation. Its canonical results
 carry the client keys of successful proposals; `operation-resolution`

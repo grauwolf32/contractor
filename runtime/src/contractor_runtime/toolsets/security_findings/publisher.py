@@ -154,7 +154,7 @@ class FindingPublisher:
             if normalized:
                 proposal["locations"] = normalized
             if exchange is not None:
-                request["httpEvidence"] = exchange
+                request["httpEvidenceInvocationId"], request["httpEvidence"] = exchange
             validate_informational_payload(
                 proposal, len(refs) + (exchange is not None) + (memory_name is not None)
             )
@@ -207,18 +207,17 @@ class FindingPublisher:
 
     async def _http_evidence(
         self, request_id: int | None, invocation_id: str
-    ) -> dict[str, Any] | None:
+    ) -> tuple[str, dict[str, Any]] | None:
         if request_id is None:
             return None
         captures = self.resources.http_captures
         if not isinstance(captures, RecentHTTPCaptures):
             raise ToolInputError("captured HTTP evidence requires this worker's HTTP session")
         try:
-            source, provider_id = captures.resolve(request_id)
-            return await captures.get(source, provider_id, invocation_id=invocation_id)
+            return await captures.read_exchange(request_id, invocation_id)
         except ValueError:
             raise ToolInputError(
-                "HTTP evidence is unavailable in this invocation; inspect a recent request"
+                "request_id is unavailable in this allocation; select a retained request"
             ) from None
 
     def close(self) -> None:

@@ -25,7 +25,7 @@ var taintAnnotationModelTools = []string{
 	"entrypoint_paths_to", "find_callees", "find_callers", "find_symbol",
 	"finding", "functions_that_raise", "glob", "graph_summary", "grep", "list_skills",
 	"list_symbols", "load_skill", "load_skill_resource", "ls", "paths_between",
-	"read_file", "read_text_artifact", "rollback_changes", "search_def",
+	"read_file", "read_artifact", "rollback_changes", "search_def",
 	"write_text_artifact",
 }
 

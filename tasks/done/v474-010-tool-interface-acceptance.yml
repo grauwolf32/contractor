@@ -1,0 +1,82 @@
+schema_version: '1.0'
+id: V474-010
+title: Verify the combined model-facing tool interfaces
+epic: planner-worker
+milestone: model-tool-interfaces-2026-11
+kind: chore
+introduced_by: V474-002
+priority: P1
+status: completed
+depends_on: [V474-001, V474-002, V474-003, V474-004, V474-005, V474-006, V474-007, V474-008, V474-011, V474-012]
+languages: [go, python, yaml]
+goal: The configured Worker uses the agreed simpler interfaces together through real Server, Runtime and Gateway boundaries.
+context:
+  authority: >-
+    User request 2026-11-21 asks for task groups with the minimum number of passes. Agent execution
+    decision 2026-11-22 groups the complete process gate here, after all implementations. Owner tasks
+    retain their focused regressions and package checks. This changes verification sequencing, not
+    acceptance guarantees. Earlier failed or cancelled full runs are not successful evidence.
+  finding: >-
+    Independent full process runs repeat roughly an hour of unrelated scenarios and cannot test the
+    final combination. A current Eval process consumer also retained the original recipe selector
+    after its manifests received fresh versions; the owning tasks repair and test that caller.
+  prerequisite: >-
+    The first combined gate exposed stale test-profile transformations after V474-003.
+    V474-011 repaired both derivatives; this task now resumes on the corrected tree. The failed/cancelled run is not a pass.
+  callback_prerequisite: >-
+    The second full process run exposed two custom scalar callbacks without item_key.
+    V474-012 migrated both callbacks and verified every intended accepted response. The existing compiled
+    process run continues only to collect additional failures, not as successful acceptance.
+  acceptance_evidence: tasks/evidence/v474-tool-interfaces-20261122.json
+  verification_reuse: >-
+    The assembled tree at 9d670cfba2cd69854496be8d0472d6f0e912c0a8 is identical to
+    codex/v474-image-artifacts at e31be4d88 apart from commit ancestry. Completed Runtime,
+    configuration, API, wire, Go, UI and focused browser checks on that production tree
+    remain acceptance evidence; do not repeat passing gates merely for tracker changes.
+    Run the full process gate on the assembled branch and rerun lint after tracker updates.
+  specification:
+  - docs/spec/tools/toolsets.md#TLS-R39
+  - docs/spec/artifacts/artifact-store.md#ART-R117
+  - docs/spec/execution/server-operations.md#SOP-R13
+  - docs/spec/audits/worker-completion.md
+scope:
+  in:
+  - Assemble the feature branches and run the complete required gates on the combined tree.
+  - Record immutable implementation hashes, commands, outcomes, optional skips and cleanup in acceptance evidence.
+  - Confirm current configured consumers use the new interfaces and that frozen published identities remain intact.
+  out: [Live model quality experiments, deployments, merging implementation into main, paused V417 work]
+acceptance_criteria:
+- id: A1
+  text: Full process and Runtime gates pass on the combined implementation, including file publication, vision delivery, keyed Audit completion and direct local HTTP evidence.
+- id: A2
+  text: API, wire, configuration, affected Go packages, UI and lint checks pass; skipped optional fixtures are identified and not counted as passing coverage.
+- id: A3
+  text: Acceptance evidence names exact tested revisions, limitations and owned-resource cleanup. The primary checkout's unrelated work remains untouched.
+tests:
+- command: make test-e2e
+  covers: [A1]
+- command: make test-runtime
+  covers: [A1, A2]
+- command: make test-config verify-public-api test-wire-cross-language
+  covers: [A2]
+- command: VITEST_MAX_WORKERS=2 make ui-verify
+  covers: [A2]
+- command: make lint
+  covers: [A2, A3]
+verification:
+  date: '2026-11-22'
+  result: >-
+    Final make test-e2e passed all 61 roots / 169 parent-and-child cases in 3872.889 seconds,
+    without skips, followed by all six mandatory report verifiers. Final make lint passed
+    with all four import contracts kept. Identical production code passed the full Runtime
+    gate (6446 passed, 135 declared skips, including 577 compaction cases), configuration,
+    public API, wire (403 fixtures, 455 Go / 287 Python shared readers), affected Go packages
+    with real PostgreSQL, UI verification (228 files / 2581 tests plus one expected failure)
+    and 12 focused browser cases including 390 px in light/dark/black. One optional heavy
+    shared fixture skipped and does not count as passing coverage. V474-011/V474-012 repaired
+    process-only fixtures after failed diagnostic runs; those failed runs are retained and
+    are not acceptance passes. No live model quality or arbitrary Gateway compatibility is
+    claimed. Owned test databases, PostgreSQL cluster, Linux prefixes and Podman volume are
+    removed; no owned Runtime remains. Primary HEAD, six file hashes/modes, status and staged
+    diff are unchanged. All implementation is on codex/v474-tool-interfaces, not merged or deployed.
+implementation_commit: 5aec0539d4f59a43b99417e0a4b3a7f8d7e82822

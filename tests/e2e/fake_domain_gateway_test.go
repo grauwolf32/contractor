@@ -566,19 +566,19 @@ func withMemoryTools(tools []string) []string {
 
 func domainGatewayStages() []domainGatewayStage {
 	analystTools := append([]string{
-		"glob", "grep", "ls", "read_file", "read_text_artifact", "write_text_artifact",
+		"glob", "grep", "ls", "read_file", "read_artifact", "write_text_artifact",
 	}, completeCodeAnalysisTools...)
 	openAPIBuilderTools := []string{
 		"changed_paths", "diff", "get_openapi_component", "get_openapi_info", "get_openapi_path",
 		"glob", "grep", "initialize_openapi", "list_openapi_components", "list_openapi_paths",
 		"list_openapi_servers", "list_openapi_tags", "load_openapi", "ls", "read_file",
-		"read_text_artifact", "rollback_changes", "set_openapi_info", "set_openapi_servers",
+		"read_artifact", "rollback_changes", "set_openapi_info", "set_openapi_servers",
 		"set_openapi_tags", "upsert_openapi_component", "upsert_openapi_path", "validate_openapi",
 	}
 	openAPIValidatorTools := []string{
 		"changed_paths", "diff", "get_openapi_component", "get_openapi_info", "get_openapi_path",
 		"glob", "grep", "list_openapi_components", "list_openapi_paths", "list_openapi_servers",
-		"list_openapi_tags", "load_openapi", "ls", "read_file", "read_text_artifact",
+		"list_openapi_tags", "load_openapi", "ls", "read_file", "read_artifact",
 		"remove_openapi_component", "remove_openapi_path", "rollback_changes", "set_openapi_info",
 		"set_openapi_servers", "set_openapi_tags", "upsert_openapi_component", "upsert_openapi_path",
 		"validate_openapi", "write_text_artifact",
@@ -586,12 +586,12 @@ func domainGatewayStages() []domainGatewayStage {
 	likeC4BuilderTools := []string{
 		"append_likec4", "changed_paths", "diff", "glob", "grep", "list_skills",
 		"load_likec4", "load_skill", "load_skill_resource", "ls", "read_file", "read_likec4",
-		"read_text_artifact", "replace_likec4", "rollback_changes", "validate_likec4", "write_likec4",
+		"read_artifact", "replace_likec4", "rollback_changes", "validate_likec4", "write_likec4",
 	}
 	likeC4ValidatorTools := []string{
 		"append_likec4", "changed_paths", "diff", "glob", "grep", "list_skills",
 		"load_likec4", "load_skill", "load_skill_resource", "ls", "read_file", "read_likec4",
-		"read_text_artifact", "replace_likec4", "rollback_changes", "validate_likec4",
+		"read_artifact", "replace_likec4", "rollback_changes", "validate_likec4",
 		"write_likec4", "write_text_artifact",
 	}
 
@@ -622,7 +622,7 @@ func workspaceDiscoveryGatewayStage(name string, tools []string, dependency bool
 			"path": "", "cursor": "", "limit": 50,
 		})))
 	} else {
-		steps = append(steps, toolGatewayStep("read_text_artifact", stageRefArguments("dependency_report", nil)))
+		steps = append(steps, toolGatewayStep("read_artifact", stageRefArguments("dependency_report", nil)))
 	}
 	steps = append(steps, toolGatewayStep("read_file", fixedArguments(map[string]any{
 		"path": "app.py", "start_line": 1, "max_lines": 100,
@@ -684,8 +684,8 @@ func workspaceLikeC4ValidateGatewayStage(tools []string) domainGatewayStage {
 func openAPIBuildGatewayStage(tools []string) domainGatewayStage {
 	return domainGatewayStage{name: "openapi/openapi_build", tools: tools, steps: []domainGatewayStep{
 		toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),
-		toolGatewayStep("read_text_artifact", stageRefArguments("dependency_report", nil)),
-		toolGatewayStep("read_text_artifact", stageRefArguments("project_report", nil)),
+		toolGatewayStep("read_artifact", stageRefArguments("dependency_report", nil)),
+		toolGatewayStep("read_artifact", stageRefArguments("project_report", nil)),
 		toolGatewayStep("read_source", fixedArguments(map[string]any{
 			"path": "app.py", "start_line": 1, "max_lines": 100,
 		})),
@@ -735,8 +735,8 @@ func openAPIBuildGatewayStage(tools []string) domainGatewayStage {
 func openAPIValidateGatewayStage(tools []string) domainGatewayStage {
 	return domainGatewayStage{name: "openapi/openapi_validate", tools: tools, steps: []domainGatewayStep{
 		toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),
-		toolGatewayStep("read_text_artifact", stageRefArguments("dependency_report", nil)),
-		toolGatewayStep("read_text_artifact", stageRefArguments("project_report", nil)),
+		toolGatewayStep("read_artifact", stageRefArguments("dependency_report", nil)),
+		toolGatewayStep("read_artifact", stageRefArguments("project_report", nil)),
 		toolGatewayStep("load_openapi", stageRefArguments("openapi_candidate", map[string]any{
 			"target_name": "openapi", "expected_revision": nil,
 		})),
@@ -759,8 +759,8 @@ func openAPIValidateGatewayStage(tools []string) domainGatewayStage {
 func likeC4BuildGatewayStage(tools []string) domainGatewayStage {
 	return domainGatewayStage{name: "likec4/likec4_build", tools: tools, steps: []domainGatewayStep{
 		toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),
-		toolGatewayStep("read_text_artifact", stageRefArguments("dependency_report", nil)),
-		toolGatewayStep("read_text_artifact", stageRefArguments("project_report", nil)),
+		toolGatewayStep("read_artifact", stageRefArguments("dependency_report", nil)),
+		toolGatewayStep("read_artifact", stageRefArguments("project_report", nil)),
 		toolGatewayStep("read_source", fixedArguments(map[string]any{
 			"path": "app.py", "start_line": 1, "max_lines": 100,
 		})),
@@ -781,8 +781,8 @@ func likeC4BuildGatewayStage(tools []string) domainGatewayStage {
 func likeC4ValidateGatewayStage(tools []string) domainGatewayStage {
 	return domainGatewayStage{name: "likec4/likec4_validate", tools: tools, steps: []domainGatewayStep{
 		toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),
-		toolGatewayStep("read_text_artifact", stageRefArguments("dependency_report", nil)),
-		toolGatewayStep("read_text_artifact", stageRefArguments("project_report", nil)),
+		toolGatewayStep("read_artifact", stageRefArguments("dependency_report", nil)),
+		toolGatewayStep("read_artifact", stageRefArguments("project_report", nil)),
 		toolGatewayStep("load_likec4", stageRefArguments("architecture_candidate", map[string]any{
 			"target_name": "architecture", "expected_revision": nil,
 		})),

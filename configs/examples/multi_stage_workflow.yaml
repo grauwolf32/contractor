@@ -1,11 +1,11 @@
 # Copy this file under configs/workflows/ to load it. It reuses the example
-# artifact_builder@2 AgentTemplate and instruction resources in this repository.
+# artifact_builder@3 AgentTemplate and instruction resources in this repository.
 apiVersion: contractor/v1alpha1
 kind: Workflow
 
 metadata:
   name: artifact-build-review
-  version: "2"
+  version: "3"
 
 spec:
   parameters:
@@ -40,11 +40,11 @@ spec:
     build:
       objective: Build a draft from the source artifact
       instructions:
-        ref: instructions/copy-planner.md
+        ref: instructions/report-planner.md
       planner: passthrough@1
       agents:
         builder:
-          template: artifact_builder@2
+          template: artifact_builder@3
       context:
         artifacts:
           source:
@@ -71,11 +71,11 @@ spec:
     review:
       objective: Review the draft and produce the final result
       instructions:
-        ref: instructions/copy-planner.md
+        ref: instructions/report-planner.md
       planner: passthrough@1
       agents:
         builder:
-          template: artifact_builder@2
+          template: artifact_builder@3
       context:
         artifacts:
           draft:

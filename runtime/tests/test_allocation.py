@@ -1516,12 +1516,11 @@ def read_write_script() -> object:
                 call_id="read-1",
             ),
             tool_call(
-                "write_artifact",
+                "write_text_artifact",
                 {
-                    "namespace": "builder",
                     "name": "report",
                     "media_type": "application/json",
-                    "data_base64": "e30=",
+                    "text": "{}",
                     "expected_revision": None,
                 },
                 call_id="write-1",
@@ -1529,6 +1528,18 @@ def read_write_script() -> object:
             text_result("Report created"),
         ]
     )
+
+
+def authored_report_spec(**kwargs):
+    spec = make_spec(tools=["read_artifact"], **kwargs)
+    spec.agent_template.toolsets.append(
+        ToolsetSelection(
+            ref=ToolsetRef(toolsetId="text-artifacts", version="1"),
+            tools=["write_text_artifact"],
+        )
+    )
+    spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
+    return spec
 
 
 def allocation_references(service: AllocationService) -> dict[str, weakref.ref[Any]]:
@@ -1657,10 +1668,11 @@ def test_release_collects_allocation_graph_captured_by_declared_tool_closure(
                 namespace: str,
                 name: str,
                 revision: str | None = None,
-                offset: int = 0,
-                length: int = 262144,
+                start_line: int = 1,
+                max_lines: int = 200,
+                line_offset: int = 0,
             ) -> dict[str, Any]:
-                return await original(namespace, name, revision, offset, length)
+                return await original(namespace, name, revision, start_line, max_lines, line_offset)
 
             read_artifact.__doc__ = original.description
             return await super().create(
@@ -1691,7 +1703,7 @@ def test_release_collects_allocation_graph_captured_by_declared_tool_closure(
             now=lambda: NOW,
             force_exit=lambda _: None,
         )
-        spec = make_spec()
+        spec = authored_report_spec()
         await service.prepare(spec)
         references = allocation_references(service)
         assert service._context is not None and service._context.worker is not None
@@ -1699,7 +1711,7 @@ def test_release_collects_allocation_graph_captured_by_declared_tool_closure(
         assert completion.failure is None and completion.result is not None
         assert completion.result.artifacts["report"].revision == "write-r1"
         del completion
-        assert clients.live() == 1
+        assert clients.live() == 2
 
         await finalize_and_release(service, spec.allocation_id)
 
@@ -1726,16 +1738,18 @@ def test_release_leaves_no_allocation_tool_reachable_after_an_invocation(
             artifact_client_factory=clients,
             model_factory=lambda _: read_write_script(),
         )
-        spec = make_spec()
+        spec = authored_report_spec()
         await service.prepare(spec)
         references = allocation_references(service)
-        assert {"tool:read_artifact", "adk:read_artifact", "tool:write_artifact"} <= set(references)
+        assert {"tool:read_artifact", "adk:read_artifact", "tool:write_text_artifact"} <= set(
+            references
+        )
         assert service._context is not None and service._context.worker is not None
         completion = await service._context.worker.invoke(adk_stage_request())
         assert completion.failure is None and completion.result is not None
         assert completion.result.artifacts["report"].revision == "write-r1"
         del completion
-        assert clients.live() == 1
+        assert clients.live() == 2
 
         await finalize_and_release(service, spec.allocation_id)
 
@@ -1771,7 +1785,7 @@ def test_failed_cache_release_keeps_the_slot_fenced_until_the_retry_repeats_it(
             artifact_client_factory=clients,
             model_factory=lambda _: read_write_script(),
         )
-        spec = make_spec()
+        spec = authored_report_spec()
         await service.prepare(spec)
         references = allocation_references(service)
         await service.finalize(
@@ -1797,7 +1811,7 @@ def test_failed_cache_release_keeps_the_slot_fenced_until_the_retry_repeats_it(
         assert not service._context.release_prepared
         assert "tool:read_artifact" in live_references(references)
         with pytest.raises(AllocationError):
-            await service.prepare(make_spec(allocation_id="allocation-new"))
+            await service.prepare(authored_report_spec(allocation_id="allocation-new"))
 
         await service.release(release)
         assert len(attempts) == 2
@@ -1829,12 +1843,12 @@ def test_failed_prepare_rollback_leaves_no_allocation_tool_reachable(
 
         state.commit_allocation = lost_commit  # type: ignore[method-assign]
         with pytest.raises(AllocationError) as failure:
-            await service.prepare(make_spec())
+            await service.prepare(authored_report_spec())
         assert failure.value.code == "allocation_preparation_failed"
         # The suppressed context holds the prepare frame and its locals.
         del failure
         assert await service.snapshot() is None
-        assert len(clients.created) == 1
+        assert len(clients.created) == 2
         assert clients.live() == 0
 
     asyncio.run(scenario())
@@ -1871,7 +1885,7 @@ def test_next_allocation_rebuilds_identical_tool_declarations(
             model_factory=model,
         )
         for allocation_id in ("allocation-1", "allocation-2"):
-            await service.prepare(make_spec(allocation_id=allocation_id))
+            await service.prepare(authored_report_spec(allocation_id=allocation_id))
             assert service._context is not None and service._context.worker is not None
             completion = await service._context.worker.invoke(adk_stage_request())
             assert completion.failure is None and completion.result is not None
@@ -1885,13 +1899,16 @@ def test_next_allocation_rebuilds_identical_tool_declarations(
             await service.confirm_release(allocation_id)
             assert (await state.snapshot()).process_state is ProcessState.IDLE
 
-        assert len(clients.created) == 2
+        assert len(clients.created) == 4
         assert clients.live() == 0
         # The first allocation's tools were new callables, so ADK built their
         # declarations from scratch as in a fresh process; the second rebuilt
         # them after release had cleared the caches.
         first, second = (scripted.payloads[0]["tools"] for scripted in models)
-        assert [tool["function"]["name"] for tool in first] == ["read_artifact", "write_artifact"]
+        assert [tool["function"]["name"] for tool in first] == [
+            "read_artifact",
+            "write_text_artifact",
+        ]
         assert second == first
 
     asyncio.run(scenario())

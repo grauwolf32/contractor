@@ -200,7 +200,7 @@ INPUT_REF="$(curl --fail --silent --show-error -X PUT \
   http://127.0.0.1:8080/v1/artifacts/projects/source | jq -c .artifact)"
 
 RUN_ID="$(jq -n --argjson source "$INPUT_REF" \
-  '{workflow:"artifact-copy@2",parameters:{},artifacts:{source:$source}}' | \
+  '{workflow:"artifact-copy@3",parameters:{},artifacts:{source:$source}}' | \
   curl --fail --silent --show-error \
     -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
     -H "Idempotency-Key: local-run-$(date +%s)" \

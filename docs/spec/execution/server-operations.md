@@ -142,3 +142,23 @@ lifecycle before the Run/Stage lock. This narrow explicit read of logical Memory
 names does not permit reserved refs in StageContext or ordinary Artifact tools.
 Its result contains the exact ordinary output and a count-only summary. No new
 endpoint, receipt, allocation, Planner session or model is introduced.
+
+**SOP-R13.** `artifact-copy@1` takes no arguments, exactly one required context
+artifact named `source` and exactly one required result named `copied` with an
+ordinary explicit binding. Both bindings exclude model-hidden artifacts. It
+forks the exact pinned source in the current Run through ArtifactStore, retaining
+its bytes and media type without a payload round trip, Runtime allocation or
+model call. The source artifact byte ceiling bounds the operation. It uses the
+ordinary input-fork lineage and natural replay, so replay after a lost reply
+returns the same exact target without appending a revision, including after the
+source head advances. A foreign source/output, stale claim or closing Project
+cannot publish. Destination collisions are permanent domain conflicts; transient
+storage errors retain their ordinary classification. Run retention, publication
+and deletion own the copy's lifecycle.
+
+The artifact-copy Workflow uses this operation because exact byte transfer is
+ArtifactStore's responsibility. A Worker remains appropriate when the result is
+newly authored analysis, and publishes that text through its selected text writer.
+A new Worker-visible copy API or independent copy receipt is not required. Reopen
+this boundary only if an actual caller cannot express its source and destination
+through ordinary Stage bindings.

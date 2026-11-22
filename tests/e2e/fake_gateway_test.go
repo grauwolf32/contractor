@@ -27,13 +27,13 @@ type fakeGateway struct {
 }
 
 func newFakeGateway(token string) *fakeGateway {
-	return newFakeGatewayWithCopyTools(token, []string{"read_artifact", "write_artifact"})
+	return newFakeGatewayWithCopyTools(token, []string{"read_artifact", "write_text_artifact"})
 }
 
 func newCapabilityGateway(token string) *fakeGateway {
 	return newFakeGatewayWithCopyTools(
 		token,
-		[]string{"read_artifact", "validate_likec4", "write_artifact"},
+		[]string{"read_artifact", "validate_likec4", "write_text_artifact"},
 	)
 }
 
@@ -111,7 +111,7 @@ func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 			g.fail(w, http.StatusBadRequest, "Worker result finalizer exposed model-visible tools")
 			return
 		}
-		if finalizerInput.ResultText != "Source artifact copied byte-for-byte" {
+		if finalizerInput.ResultText != "Source inspected and report authored" {
 			g.fail(w, http.StatusBadRequest, "Worker result finalizer changed the copy result")
 			return
 		}
@@ -154,23 +154,23 @@ func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 			"namespace": "inputs", "name": "source", "revision": nil,
 		})
 	case 2:
-		data, ok := lastStringValue(request, "dataBase64")
+		data, ok := lastStringValue(request, "text")
 		if !ok || data == "" {
 			g.fail(w, http.StatusBadRequest, "read_artifact result was not returned to the model")
 			return
 		}
-		message = toolCallMessage("write-1", "write_artifact", map[string]any{
-			"namespace": "builder", "name": "copied", "media_type": "text/plain",
-			"data_base64": data, "expected_revision": nil,
+		message = toolCallMessage("write-1", "write_text_artifact", map[string]any{
+			"name": "copied", "media_type": "text/plain",
+			"text": e2eReport, "expected_revision": nil,
 		})
 	case 3:
 		_, ok := lastExactArtifact(request, "builder", "copied")
 		if !ok {
-			g.fail(w, http.StatusBadRequest, "write_artifact exact result was not returned to the model")
+			g.fail(w, http.StatusBadRequest, "write_text_artifact exact result was not returned to the model")
 			return
 		}
 		message = map[string]any{
-			"role": "assistant", "content": "Source artifact copied byte-for-byte",
+			"role": "assistant", "content": "Source inspected and report authored",
 		}
 	default:
 		message = toolCallMessage(fmt.Sprintf("bounded-read-%d", call), "read_artifact", map[string]any{
@@ -357,4 +357,12 @@ func walkJSON(value any, visit func(map[string]any)) {
 			walkJSON(decoded, visit)
 		}
 	}
+}
+
+func artifactTextBytes(value any) ([]byte, error) {
+	text, ok := value.(string)
+	if !ok {
+		return nil, fmt.Errorf("artifact text result has type %T", value)
+	}
+	return []byte(text), nil
 }

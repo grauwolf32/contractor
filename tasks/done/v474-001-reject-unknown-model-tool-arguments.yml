@@ -5,7 +5,7 @@ milestone: runtime-maintenance-2026-10
 epic: planner-worker
 kind: feature
 priority: P1
-status: pending
+status: completed
 depends_on: []
 languages:
 - python
@@ -80,3 +80,9 @@ tests:
   covers:
   - A2
   - A3
+implementation_commit: 310462cb865ce972d53a609c4e58844f6c334eb2
+verification: >-
+  make test-runtime passes with 6383 passed and 135 declared skips, using the pinned
+  local tools. Both full Planner profiles pass go test -count=1 ./internal/planner/....
+  make lint passes. The Worker transcript rejects the typo before the mock transport
+  and executes the corrected call once. Optional skips are not passing coverage.

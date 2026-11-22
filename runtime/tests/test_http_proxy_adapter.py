@@ -69,7 +69,7 @@ def test_llm_gateway_target_routes_only_model_traffic_and_changes_no_globals() -
             assert adapter.handles.tool_subprocess is None
             context = SimpleNamespace(
                 state=SimpleNamespace(metrics=MetricsState()),
-                model_policy=SimpleNamespace(model="worker-model"),
+                model_policy=SimpleNamespace(model="worker-model", supports_images=None),
                 runtime_settings=SimpleNamespace(
                     llm_gateway_url="http://gateway.example/v1",
                     llm_gateway_failure_signatures=None,
@@ -408,7 +408,7 @@ async def assert_safe_model_proxy_failure(proxy_url: str, backend_url: str) -> N
     )
     context = SimpleNamespace(
         state=SimpleNamespace(metrics=MetricsState()),
-        model_policy=SimpleNamespace(model="worker-model"),
+        model_policy=SimpleNamespace(model="worker-model", supports_images=None),
         runtime_settings=SimpleNamespace(
             llm_gateway_url=backend_url,
             llm_gateway_failure_signatures=None,

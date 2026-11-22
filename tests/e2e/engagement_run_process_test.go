@@ -3,7 +3,6 @@
 package e2e
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -54,12 +53,12 @@ func TestEngagementOrdinaryRunAcrossProcesses(t *testing.T) {
 	for _, path := range []string{"/forbidden", "/api/ok", "/api/next"} {
 		steps = append(steps, toolGatewayStep("http_request", fixedArguments(map[string]any{"url": observer.server.URL + path, "credential_id": credential.CredentialID})))
 	}
-	steps = append(steps, toolGatewayStep("write_artifact", fixedArguments(map[string]any{
-		"namespace": "engagement-run", "name": "result", "media_type": "text/plain",
-		"data_base64": base64.StdEncoding.EncodeToString([]byte("ordinary HTTP policy verified")), "expected_revision": nil,
+	steps = append(steps, toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{
+		"name": "result", "media_type": "text/plain",
+		"text": "ordinary HTTP policy verified", "expected_revision": nil,
 	})), finalGatewayStep("Ordinary Run complete", map[string]domainArtifactBinding{"result": {namespace: "engagement-run", name: "result"}}))
 	h.gateway.mu.Lock()
-	h.gateway.stages = []domainGatewayStage{{name: "ordinary-engagement", tools: []string{"http_request", "http_credentials", "write_artifact"}, steps: steps}}
+	h.gateway.stages = []domainGatewayStage{{name: "ordinary-engagement", tools: []string{"http_request", "http_credentials", "write_text_artifact"}, steps: steps}}
 	h.gateway.stageIndex, h.gateway.stepIndex = 0, 0
 	h.gateway.mu.Unlock()
 	var run runCreateResponse

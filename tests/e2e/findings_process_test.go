@@ -5,7 +5,6 @@ package e2e
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -277,9 +276,11 @@ func TestFindingsProducerAndReaderAcrossProcesses(t *testing.T) {
 
 func findingsProducerStage(name string) domainGatewayStage {
 	tools := append([]string{"list_skills", "load_skill", "load_skill_resource",
-		"read_audit_task", "submit_check_result", "ls", "glob", "grep", "read_file",
+		"read_audit_task", "submit_check_result", "submit_check_results", "ls", "glob", "grep", "read_file",
 		"write_text_artifact", "finding", "annotate_trace", "annotate_validate", "annotate_sink",
 		"changed_paths", "diff", "rollback_changes"}, completeCodeAnalysisTools...)
+	final := finalGatewayStep("All assigned results recorded", nil)
+	final.validate = requireRecordedAuditResults(1)
 	return domainGatewayStage{name: "findings/" + name, tools: withMemoryTools(tools), steps: []domainGatewayStep{
 		toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
 		toolGatewayStep("graph_summary", fixedArguments(map[string]any{})),
@@ -314,9 +315,9 @@ func findingsProducerStage(name string) domainGatewayStage {
 					return nil, fmt.Errorf("identical finding retry changed receipt")
 				}
 			}
-			return map[string]any{"rationale": "Operation mapped to lookup; query concatenation proposal recorded.", "tested_conditions": []string{"operation-resolution"}, "limitations": []string{"Source inferred; no live exploit executed"}, "evidence": []string{"evidence-000", "evidence-001"}}, nil
+			return auditResultArguments(map[string]any{"rationale": "Operation mapped to lookup; query concatenation proposal recorded.", "tested_conditions": []string{"operation-resolution"}, "limitations": []string{"Source inferred; no live exploit executed"}, "evidence": []string{"evidence-000", "evidence-001"}})(request)
 		}),
-		finalGatewayStep("All assigned results recorded", nil),
+		final,
 	}}
 }
 
@@ -359,7 +360,7 @@ func findingsReaderStage(count int, pageSizes ...int) domainGatewayStage {
 		report := fmt.Sprintf("# Findings analysis\n\nCollection: %d proposals.\n", count)
 		for i, raw := range items {
 			item := raw.(map[string]any)
-			proposalData, err := base64.StdEncoding.DecodeString(fmt.Sprint(reads[2*i]["dataBase64"]))
+			proposalData, err := artifactTextBytes(reads[2*i]["text"])
 			if err != nil {
 				return nil, err
 			}
@@ -367,7 +368,7 @@ func findingsReaderStage(count int, pageSizes ...int) domainGatewayStage {
 			if err != nil || proposal.Subject != nil || item["has_hypothesis"] != (proposal.Hypothesis != "") {
 				return nil, fmt.Errorf("reader did not read generic proposal: %v", err)
 			}
-			evidence, err := base64.StdEncoding.DecodeString(fmt.Sprint(reads[2*i+1]["dataBase64"]))
+			evidence, err := artifactTextBytes(reads[2*i+1]["text"])
 			if err != nil || string(evidence) != findingsEvidence {
 				return nil, fmt.Errorf("reader evidence bytes differ")
 			}
@@ -593,7 +594,7 @@ func ordinaryFindingsProducerStage(name string) domainGatewayStage {
 	stage := findingsProducerStage(name)
 	tools := make([]string, 0, len(stage.tools))
 	for _, tool := range stage.tools {
-		if tool != "read_audit_task" && tool != "submit_check_result" &&
+		if tool != "read_audit_task" && tool != "submit_check_result" && tool != "submit_check_results" &&
 			tool != "annotate_trace" && tool != "annotate_validate" && tool != "annotate_sink" &&
 			tool != "changed_paths" && tool != "diff" && tool != "rollback_changes" {
 			tools = append(tools, tool)
@@ -620,7 +621,7 @@ func ordinaryFindingsProducerStage(name string) domainGatewayStage {
 
 func runCommonFindingAudit(t *testing.T, h *findingsHarness, projectID string, inputs map[string]artifactRef, operations int) (string, []basicTask) {
 	t.Helper()
-	draft, _ := basicAuditRequest(t, h, http.MethodPost, "/v1/projects/"+projectID+"/audits", map[string]any{"profile": map[string]string{"name": "openapi-operation-trace", "version": "2"}, "inputs": inputs, "scope": map[string]string{"objective": "Trace exact operations and retain their independent finding sources"}}, "finding-draft", 0, http.StatusCreated)
+	draft, _ := basicAuditRequest(t, h, http.MethodPost, "/v1/projects/"+projectID+"/audits", map[string]any{"profile": map[string]string{"name": "openapi-operation-trace", "version": "3"}, "inputs": inputs, "scope": map[string]string{"objective": "Trace exact operations and retain their independent finding sources"}}, "finding-draft", 0, http.StatusCreated)
 	id := draft["auditId"].(string)
 	basicAuditRequest(t, h, http.MethodPost, "/v1/audits/"+id+"/start", nil, "finding-start", uint64(draft["revision"].(float64)), http.StatusOK)
 	tasks := waitBasicTask(t, h, id, operations+1, "settled")

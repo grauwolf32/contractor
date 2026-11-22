@@ -1165,7 +1165,7 @@ enforced independently of Gateway-reported spend and rate state (TPL-R17).
 ## Examples
 
 A complete AgentTemplate from the checked-in catalog is
-[`openapi_builder@3`](../../../configs/agent-templates/openapi_builder_v3_memory.yaml):
+[`openapi_builder@4`](../../../configs/agent-templates/openapi_builder_v3_memory.yaml):
 
 ```yaml
 apiVersion: contractor/v1alpha1
@@ -1358,3 +1358,16 @@ and the Project reader/selection tools of security-findings. The ordinary
 per-tool authorization and receipt rules apply. Validate this selection in
 authoring and on resolved Server and Runtime reads. The Project findings analyst
 and review Workflow version 2 are the first caller.
+
+**TPL-R120.** ModelPolicy optionally pins nullable boolean `supportsImages`.
+`true` is the operator's assertion that this policy's model accepts native image
+input through its selected Gateway route; `false` declares a text-only route;
+omission or `null` means unconfirmed. Runtime admits images only for `true`.
+This field neither changes the configured model nor infers support from an alias
+or probes a provider. Explicit `false` participates in the canonical digest;
+unconfirmed metadata normalizes to omission. Clones and resolved snapshots retain
+an independent copy. Publication under an existing identity cannot change it.
+Operators own the assertion and use it only with verified Gateway routes. Provider
+incompatibility uses ordinary classified Gateway failures. Reopen the capability
+source when an actual deployment needs different capabilities for one policy on
+different routes.

@@ -1,0 +1,28 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: copy-operation-test, version: "1"}
+spec:
+  parameters: {}
+  inputs:
+    source: {required: true, mediaTypes: [application/octet-stream]}
+  outputs:
+    result: {required: true, mediaTypes: [application/octet-stream]}
+  entryStage: copy
+  stages:
+    copy:
+      objective: Copy the exact assigned source without model encoding
+      operation: {ref: artifact-copy@1, arguments: {}}
+      context:
+        artifacts:
+          source: {namespace: inputs, name: source, required: true}
+      result:
+        artifacts:
+          copied:
+            required: true
+            mediaTypes: [application/octet-stream]
+            from: {namespace: builder, name: copied}
+      workflowOutputs: {result: copied}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

@@ -7,5 +7,7 @@ spec:
   instructions: {ref: instructions/snapshot-reader-fixture.md}
   toolsets:
     - ref: run-artifacts@1
-      tools: [read_artifact, write_artifact]
+      tools: [read_artifact]
+    - ref: text-artifacts@1
+      tools: [write_text_artifact]
   sandboxProfile: local-workdir@1

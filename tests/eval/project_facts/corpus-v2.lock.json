@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "contractor.fact-extraction-corpus-lock/v1",
+  "files": {
+    "corpus.json": "sha256:434a1f64a4d50da9fbddb5e6f46916283384ff8222bf56f094ac867cb1c4a822",
+    "cases/technology.json": "sha256:19646f4be2dccd54ede43296cd605d584a99f93a9c942a49891e3d8a6a5303c1",
+    "cases/repetition.json": "sha256:8154fcd728605f1757c47bac0d76d9ffc57ee570e1b25970b1c931cf05f3a6ee",
+    "cases/speculation.json": "sha256:a7ae3523c127c7354db9153df706c871e9dd4a38bbffaa44d847adb968290d23",
+    "cases/negative-probe.json": "sha256:96bf5111a2300dd44503558ff177d7e1091c4eb3c7a4ed8eb746a5697681fa10",
+    "cases/injection.json": "sha256:ccc6ad49e6dfe045590cf95151c4f372c498d65398662056eca130ccd89caa1c",
+    "cases/distractors.json": "sha256:8b478b6aff9c3de0aeb6599d01d26d5d718f2a96161a9e53fab44c9e8ee37938",
+    "experiment-template-v2.json": "sha256:e9e930ce120feea9af4c7ab2ba1a64b5a254604fd76b2a8f9e5962722437b056"
+  }
+}

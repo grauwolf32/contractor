@@ -3,7 +3,6 @@
 package e2e
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -86,11 +85,11 @@ func projectFindingsReview(t *testing.T, responseFailure string) {
 		if len(reads) != 3 {
 			return nil, fmt.Errorf("missing full selected evidence or negative result")
 		}
-		proof, err := base64.StdEncoding.DecodeString(fmt.Sprint(reads[1]["dataBase64"]))
+		proof, err := artifactTextBytes(reads[1]["text"])
 		if err != nil || string(proof) != "Project proof under selected conditions" {
 			return nil, fmt.Errorf("exact proof changed")
 		}
-		negative, err := base64.StdEncoding.DecodeString(fmt.Sprint(reads[2]["dataBase64"]))
+		negative, err := artifactTextBytes(reads[2]["text"])
 		if err != nil || !strings.Contains(string(negative), "refuted") {
 			return nil, fmt.Errorf("negative check lost")
 		}

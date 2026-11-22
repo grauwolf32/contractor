@@ -23,12 +23,12 @@ type agentSkillMVPFixture struct {
 func agentSkillGatewayStages(fixture agentSkillMVPFixture) []domainGatewayStage {
 	likeC4BuilderTools := []string{
 		"append_likec4", "list_source_files", "load_likec4", "open_source_archive",
-		"read_likec4", "read_source", "read_text_artifact", "replace_likec4",
+		"read_likec4", "read_source", "read_artifact", "replace_likec4",
 		"search_source", "validate_likec4", "write_likec4",
 	}
 	likeC4ValidatorTools := []string{
 		"append_likec4", "load_likec4", "open_source_archive", "read_likec4", "read_source",
-		"read_text_artifact", "replace_likec4", "search_source", "validate_likec4",
+		"read_artifact", "replace_likec4", "search_source", "validate_likec4",
 		"write_likec4", "write_text_artifact",
 	}
 
@@ -36,7 +36,7 @@ func agentSkillGatewayStages(fixture agentSkillMVPFixture) []domainGatewayStage 
 	likeC4ValidatorTools = withMemoryTools(likeC4ValidatorTools)
 
 	return []domainGatewayStage{
-		artifactCopyGatewayStage("blocker/copy"),
+		artifactReportGatewayStage("blocker/copy"),
 		failedAgentSkillGatewayStage("old/likec4_build_attempt_1", likeC4BuilderTools, fixture, fixture.PackageACanary),
 		withAgentSkillGateway(
 			renameGatewayStage(likeC4BuildGatewayStage(likeC4BuilderTools), "old/likec4_build_attempt_2"),
@@ -46,7 +46,7 @@ func agentSkillGatewayStages(fixture agentSkillMVPFixture) []domainGatewayStage 
 			renameGatewayStage(likeC4ValidateGatewayStage(likeC4ValidatorTools), "old/likec4_validate"),
 			fixture, fixture.PackageACanary,
 		),
-		artifactCopyGatewayStage("blocker-after-old/copy"),
+		artifactReportGatewayStage("blocker-after-old/copy"),
 		withAgentSkillGateway(
 			renameGatewayStage(likeC4BuildGatewayStage(likeC4BuilderTools), "new/likec4_build"),
 			fixture, fixture.PackageBCanary,
@@ -55,7 +55,7 @@ func agentSkillGatewayStages(fixture agentSkillMVPFixture) []domainGatewayStage 
 			renameGatewayStage(likeC4ValidateGatewayStage(likeC4ValidatorTools), "new/likec4_validate"),
 			fixture, fixture.PackageBCanary,
 		),
-		artifactCopyGatewayStage("reuse/copy"),
+		artifactReportGatewayStage("reuse/copy"),
 	}
 }
 
@@ -64,24 +64,24 @@ func renameGatewayStage(stage domainGatewayStage, name string) domainGatewayStag
 	return stage
 }
 
-func artifactCopyGatewayStage(name string) domainGatewayStage {
+func artifactReportGatewayStage(name string) domainGatewayStage {
 	return domainGatewayStage{
-		name: name, tools: withMemoryTools([]string{"list_artifacts", "read_artifact", "write_artifact"}),
+		name: name, tools: withMemoryTools([]string{"list_artifacts", "read_artifact", "write_text_artifact"}),
 		steps: []domainGatewayStep{
 			toolGatewayStep("read_artifact", fixedArguments(map[string]any{
 				"namespace": "inputs", "name": "source", "revision": nil,
 			})),
-			toolGatewayStep("write_artifact", func(request map[string]any) (map[string]any, error) {
-				data, ok := lastStringValue(request, "dataBase64")
+			toolGatewayStep("write_text_artifact", func(request map[string]any) (map[string]any, error) {
+				data, ok := lastStringValue(request, "text")
 				if !ok || data == "" {
 					return nil, errors.New("copy input was not returned by read_artifact")
 				}
 				return map[string]any{
-					"namespace": "builder", "name": "copied", "media_type": "text/plain",
-					"data_base64": data, "expected_revision": nil,
+					"name": "copied", "media_type": "text/plain",
+					"text": e2eReport, "expected_revision": nil,
 				}, nil
 			}),
-			finalGatewayStep("Source artifact copied", map[string]domainArtifactBinding{
+			finalGatewayStep("Source report authored", map[string]domainArtifactBinding{
 				"copied": {namespace: "builder", name: "copied"},
 			}),
 		},

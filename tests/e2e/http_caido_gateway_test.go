@@ -32,6 +32,7 @@ func newHTTPCaidoGateway(token, targetURL string) *domainGateway {
 
 func httpCaidoHTTPGatewayStage(name, targetURL string) domainGatewayStage {
 	tools := append(gatewayToolsetTools("http-tools@1"), gatewayToolsetTools("text-artifacts@1")...)
+	tools = append(tools, "read_artifact")
 	tools = withMemoryTools(tools)
 	sort.Strings(tools)
 	return domainGatewayStage{
@@ -94,7 +95,7 @@ func httpCaidoCaidoGatewayStage(name, scopeName string) domainGatewayStage {
 	tools := []string{
 		"finding", "http_history", "http_read_body",
 		"http_request", "list_skills", "load_skill", "load_skill_resource",
-		"read_text_artifact", "write_text_artifact",
+		"read_artifact", "write_text_artifact",
 	}
 	tools = append(tools, gatewayToolsetTools("caido@1")...)
 	tools = withMemoryTools(tools)
@@ -109,13 +110,32 @@ func httpCaidoCaidoGatewayStage(name, scopeName string) domainGatewayStage {
 				validate: composeGatewayValidation(
 					requireToolOutput("available_skills"), requireToolOutput("caido"),
 				),
-				arguments: fixedArguments(map[string]any{"skill_name": "caido-local-requests"}),
+				arguments: fixedArguments(map[string]any{"skill_name": "caido-stored-evidence"}),
 			},
 			{
 				tool: "caido_history", validate: requireToolOutput("Caido analysis"),
 				arguments: fixedArguments(map[string]any{
 					"filter": "", "limit": 5, "offset": 0,
 				}),
+			},
+			{
+				tool: "finding", validate: requireToolOutput("requests"),
+				arguments: func(request map[string]any) (map[string]any, error) {
+					pages := findingsToolResponses(request, "caido_history")
+					if len(pages) != 1 {
+						return nil, errors.New("missing authorized history")
+					}
+					rows, ok := pages[0]["requests"].([]any)
+					if !ok || len(rows) == 0 {
+						return nil, errors.New("missing retained local request ID")
+					}
+					return map[string]any{
+						"title":       "Stored exchange fixture " + scopeName,
+						"description": "Synthetic observation exercises automatic stored evidence attachment",
+						"url":         "https://target.example/detail-only", "method": "DELETE",
+						"request_id": rows[0].(map[string]any)["request_id"],
+					}, nil
+				},
 			},
 			{
 				tool: "caido_scope", validate: requireToolOutput("requests"),
