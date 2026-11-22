@@ -1,0 +1,46 @@
+schema_version: '1.0'
+id: V478-010
+title: Keep the Findings process reader arguments revision-free
+milestone: runtime-owned-tool-versions-2026-11
+epic: findings
+kind: chore
+introduced_by: V479-004
+priority: P3
+status: in_progress
+depends_on:
+- V479-004
+languages:
+- go
+goal: Findings process readers open retained exact materials with the current model read contract after
+  source Run deletion.
+context:
+  authority: 'User assignment 2026-11-22: implement V478 and required gates in one pass. The full Findings
+    gate exposed another pre-existing model-fixture mismatch.'
+  finding: tests/e2e/findings_process_test.go:421 returns the entire revision-bearing proposal/evidence
+    ref to read_artifact. V479-004 removed that model argument. Runtime rejects the call and the real
+    reader later reports a missing text result.
+  siblings: All process consumers of findingsDocumentArguments share this helper, including located Finding,
+    collection reader and retained evidence scenarios.
+scope:
+  in:
+  - Keep exact metadata validation but construct namespace/name model arguments through the existing materialSelector
+    helper.
+  - Verify actual retained proposal/evidence bytes through the ordinary production processes.
+  out:
+  - Revision-tolerant tool inputs, production behavior changes and latest substitution for an exact cursor.
+acceptance_criteria:
+- id: A1
+  text: The actual read_artifact call has no model revision field while the fixture still validates the
+    exact frozen consumer ref.
+- id: A2
+  text: The located Finding and all sibling Findings process cases read retained proposal/evidence after
+    producer deletion.
+tests:
+- command: make test-findings-e2e
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A1
+  - A2

@@ -420,7 +420,7 @@ func findingsDocumentArguments(index int, evidence bool) func(map[string]any) (m
 		if !ok || !strings.HasPrefix(fmt.Sprint(ref["namespace"]), "findings-") || ref["revision"] == nil {
 			return nil, fmt.Errorf("reader attempted a non-consumer or versionless ref")
 		}
-		return ref, nil
+		return materialSelector(ref), nil
 	}
 }
 

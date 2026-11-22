@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-74 open tasks: 15 in progress, 46 pending, 13 deferred. 1657 finished: 1639 completed, 18 archived.
+75 open tasks: 16 in progress, 46 pending, 13 deferred. 1657 finished: 1639 completed, 18 archived.
 
 ## In progress
 
@@ -26,6 +26,7 @@ the epics are in [epics.yml](epics.yml).
 | [V478-007](v478-007-planner-unused-revision-fixture.yml) | planner-worker | chore | P3 | Remove the obsolete Router test revision constant |
 | [V478-008](v478-008-sitemap-shared-fixture-reader.yml) | projects-artifacts | chore | P3 | Read the shared Sitemap identity fixture through its registered owner |
 | [V478-009](v478-009-fact-version-fixture.yml) | findings | chore | P3 | Select the fact fixture material through the Runtime version owner |
+| [V478-010](v478-010-finding-reader-version-argument.yml) | findings | chore | P3 | Keep the Findings process reader arguments revision-free |
 
 ## Pending
 
@@ -166,7 +167,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 3 | 50 | 71 | 40 | 107 |
-| Planners and the Worker model boundary (`planner-worker`) | 6 | 49 | 60 | 48 | 95 |
+| Planners and the Worker model boundary (`planner-worker`) | 6 | 49 | 60 | 48 | 96 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
@@ -174,7 +175,7 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 26 | 38 | 15 | 39 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
-| Findings tools and collections (`findings`) | 1 | 22 | 15 | 12 | 28 |
+| Findings tools and collections (`findings`) | 2 | 22 | 15 | 13 | 28 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 41 | 41 | 21 | 76 |
 | Audits (`audits`) | 16 | 77 | 99 | 42 | 173 |
