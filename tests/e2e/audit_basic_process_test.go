@@ -132,6 +132,32 @@ func TestAuditBasicExactHandoffAcrossProductionProcesses(t *testing.T) {
 			if int(current["submittedRunCount"].(float64)) != 2 || h.gateway.CompletedStages() != 2 || len(h.gateway.Failures()) != 0 {
 				t.Fatalf("duplicate or failed ordinary Run: %v gateway=%v", current, h.gateway.Failures())
 			}
+			// Retained evidence remains readable after permitted producer purge.
+			// The returned Run aliases are informational; Audit sources own bytes.
+			producer := result.Items[0].Origin.RunID
+			deleteASVSBacktraceRun(t, h.ctx, h.client, h.baseURL, producer)
+			materials, _ := basicAuditRequest(t, h, http.MethodGet, "/v1/audits/"+auditID+"/materials?limit=100", nil, "", 0, http.StatusOK)
+			if materials["page"].(map[string]any)["hasMore"].(bool) {
+				t.Fatal("small retention fixture exceeded its bounded material page")
+			}
+			retained := 0
+			for _, raw := range materials["items"].([]any) {
+				entry := raw.(map[string]any)
+				material := entry["material"].(map[string]any)
+				ref := material["ref"].(map[string]any)
+				if !strings.HasPrefix(ref["name"].(string), "evidence-") && !strings.HasPrefix(ref["name"].(string), "source-") {
+					continue
+				}
+				query := url.Values{"key": {entry["key"].(string)}, "revision": {ref["revision"].(string)}}
+				data, _ := download(t, h.client, h.baseURL+"/v1/audits/"+auditID+"/artifacts?"+query.Encode())
+				if len(data) == 0 {
+					t.Fatal("producer purge lost accepted evidence")
+				}
+				retained++
+			}
+			if retained < 2 {
+				t.Fatal("selected source and annotation were not retained")
+			}
 			assertCommonAuditEventContract(t, h, auditID)
 		})
 	}
