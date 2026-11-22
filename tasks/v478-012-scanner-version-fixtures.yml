@@ -1,0 +1,37 @@
+schema_version: '1.0'
+id: V478-012
+title: Finish remaining test callers of Runtime-owned versions
+milestone: runtime-owned-tool-versions-2026-11
+epic: scan-tools
+kind: chore
+introduced_by: V479-005
+priority: P2
+status: in_progress
+depends_on: [V479-005, V479-004]
+languages: [python]
+goal: Scanner and source regression fixtures reach their intended transport, cancellation and numeric validation paths under the current model argument contract.
+context:
+  authority: 'User assignment 2026-11-22: implement V478 and all required gates in one pass.'
+  finding: >-
+    runtime/tests/test_ffuf_engagement.py:26 and test_scan_ffuf_live.py:21 still pass
+    revision-bearing wordlist refs to the model tool after V479-005; test_sqlmap_engagement.py:74
+    does the same for request_ref. test_http_caido_process_e2e.py:291 still sends expected_revision=null after V479-001. test_adk_migration_contracts.py:353 still passes the
+    removed positional source revision after V479-004. Full Runtime verification fails
+    before the intended scanner or numeric assertion runs.
+  siblings: Both ffuf fixture factories, the sqlmap fixture factory, the HTTP/Caido model authoring fixture and the ADK source setup need trusted exact input selection separately from revision-free model arguments. Internal expected reports retain exact refs.
+scope:
+  in:
+  - Seed exact private selected versions in the test-only factories and pass namespace/name at model boundaries.
+  - Keep actual HTTP effects, cancellation joins, exact provenance assertions and strict numeric tests unchanged.
+  out:
+  - Scanner production changes, compatibility inputs, skipped checks and external scans.
+acceptance_criteria:
+- id: A1
+  text: All listed fixture suites reach and pass their intended production paths; expected reports still assert the exact selected material.
+- id: A2
+  text: No model test caller supplies a revision, and no missing source selection is repaired by a latest fallback.
+tests:
+- command: cd runtime && uv run pytest tests/test_ffuf_engagement.py tests/test_scan_ffuf_live.py tests/test_sqlmap_engagement.py tests/test_adk_migration_contracts.py tests/test_http_caido_process_e2e.py
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2]
