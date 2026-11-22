@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-73 open tasks: 14 in progress, 46 pending, 13 deferred. 1660 finished: 1642 completed, 18 archived.
+72 open tasks: 13 in progress, 46 pending, 13 deferred. 1661 finished: 1643 completed, 18 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V478-007](v478-007-planner-unused-revision-fixture.yml) | planner-worker | chore | P3 | Remove the obsolete Router test revision constant |
 | [V478-008](v478-008-sitemap-shared-fixture-reader.yml) | projects-artifacts | chore | P3 | Read the shared Sitemap identity fixture through its registered owner |
 | [V478-009](v478-009-fact-version-fixture.yml) | findings | chore | P3 | Select the fact fixture material through the Runtime version owner |
 | [V478-010](v478-010-finding-reader-version-argument.yml) | findings | chore | P3 | Keep the Findings process reader arguments revision-free |
@@ -165,7 +164,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 3 | 50 | 72 | 40 | 108 |
-| Planners and the Worker model boundary (`planner-worker`) | 6 | 49 | 60 | 48 | 96 |
+| Planners and the Worker model boundary (`planner-worker`) | 5 | 49 | 60 | 48 | 96 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
