@@ -6,12 +6,12 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V479-009
 priority: P3
-status: completed
-implementation_commit: c96c7f13ef9ae25f7af14a86ec8876b21a1377ab
+status: in_progress
 depends_on:
 - V479-009
 languages:
 - go
+- json
 goal: The Sitemap identity test participates in shared fixture accounting and the mandatory source guard
   passes.
 context:
@@ -24,6 +24,7 @@ scope:
   in:
   - Replace the direct shared-fixture read with contractstest.ReadFile and verify the owning Sitemap package
     and shared source guard.
+  - Declare the same existing fixture's Go and Python readers in api/testdata/readers.json; the full V478 wire gate exposed the missing manifest entry after the source convention repair.
   out:
   - Production behavior, schema changes, new fixtures or unregistered readers.
 acceptance_criteria:
@@ -38,9 +39,11 @@ tests:
 - command: go test -count=1 ./internal/projectsitemap
   covers:
   - A2
+- command: make test-wire-cross-language
+  covers: [A1, A2]
 - command: make lint
   covers:
   - A1
   - A2
 
-verification_results: "python3 scripts/shared_fixture_gate.py --sources-only passes, go test -count=1 ./internal/projectsitemap passes (8.416s), and make lint passes."
+prior_verification_results: "python3 scripts/shared_fixture_gate.py --sources-only passes, go test -count=1 ./internal/projectsitemap passes (8.416s), and make lint passes."

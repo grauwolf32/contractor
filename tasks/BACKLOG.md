@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-71 open tasks: 13 in progress, 45 pending, 13 deferred. 1664 finished: 1646 completed, 18 archived.
+72 open tasks: 14 in progress, 45 pending, 13 deferred. 1663 finished: 1645 completed, 18 archived.
 
 ## In progress
 
@@ -22,6 +22,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V478-002](v478-002-audit-incremental-evidence.yml) | audits | feature | P1 | Retain explicitly selected evidence through common source selectors |
+| [V478-008](v478-008-sitemap-shared-fixture-reader.yml) | projects-artifacts | chore | P3 | Read the shared Sitemap identity fixture through its registered owner |
 | [V478-012](v478-012-scanner-version-fixtures.yml) | scan-tools | chore | P2 | Finish remaining test callers of Runtime-owned versions |
 | [V478-013](v478-013-inactive-audit-submission.yml) | audits | defect | P2 | Classify inactive Audit submissions before reading their generation |
 
@@ -173,7 +174,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 13 | 30 |
 | Findings tools and collections (`findings`) | 0 | 22 | 15 | 13 | 29 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 21 | 76 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 41 | 41 | 21 | 76 |
 | Audits (`audits`) | 15 | 77 | 100 | 42 | 174 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 21 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
