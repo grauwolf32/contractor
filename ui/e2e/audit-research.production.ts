@@ -207,7 +207,7 @@ async function inspectInterruptedCheck(page: Page) {
     .getByRole("button", { name: "Read saved result", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Saved model conclusion" }),
+    page.getByRole("heading", { name: "Recorded result" }),
   ).toBeVisible();
   await expect(
     page.getByText("Latest accepted correction B", { exact: true }),

@@ -78,7 +78,7 @@ function ReadResult({
         return item ? (
           <section className="research-result" aria-label="Scoped check result">
             <header>
-              <h3>Saved model conclusion</h3>
+              <h3>Recorded result</h3>
               {item.verdict ? (
                 <StatusChip
                   tone={item.verdict === "refuted" ? "success" : "warning"}
@@ -282,7 +282,13 @@ export function TaskResultView({
           </Button>
           <IconButton
             size="sm"
-            label="Download saved result"
+            label={
+              task.gap_code ||
+              attempt?.outcome === "failed" ||
+              attempt?.outcome === "cancelled"
+                ? "Download saved result"
+                : "Download complete Run result"
+            }
             icon={<Icon name="download" />}
             pending={download.isPending}
             onClick={() => download.mutate()}

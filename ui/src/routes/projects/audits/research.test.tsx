@@ -44,7 +44,7 @@ describe("combined Checks research workspace", () => {
       await screen.findByRole("button", { name: "Read saved result" }),
     );
     expect(
-      await screen.findByRole("heading", { name: "Saved model conclusion" }),
+      await screen.findByRole("heading", { name: "Recorded result" }),
     ).toBeInTheDocument();
     await userEvent.click(screen.getByText("Run attempts"));
     const pages = await screen.findByRole("navigation", {

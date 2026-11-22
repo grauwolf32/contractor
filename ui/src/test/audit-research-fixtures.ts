@@ -198,7 +198,9 @@ export function researchFixture(state = "normal") {
           }
         : {}),
       ...(index === 4 ? { gap_code: "proposal-ground-unavailable" } : {}),
-      ...(interrupted && index === 0 ? { attempts: 2 } : {}),
+      ...(interrupted && index === 0
+        ? { attempts: 2, gap_code: "execution-failed" }
+        : {}),
       ...(interrupted && index === 5
         ? { state: "ready" as const, attempts: 0 }
         : {}),
