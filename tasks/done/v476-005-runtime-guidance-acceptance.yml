@@ -5,7 +5,7 @@ milestone: model-runtime-guidance-2026-11
 epic: planner-worker
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V476-001
 - V476-002
@@ -46,6 +46,7 @@ context:
   implementation_boundary: Update the owning numbered specifications with implementation; these tasks describe
     planned behavior, not shipped behavior. Reuse state, budget, validation and receipt owners. No hint registry,
     status tool, new persistence, generic policy DSL or new public/wire fields.
+  acceptance_evidence: tasks/evidence/v476-runtime-guidance-20261122.json
 scope:
   in:
   - One bounded scripted process scenario covering both modeled Planners, current HTTP declarations and exact
@@ -96,3 +97,14 @@ verification_policy: Create TestRuntimeGuidanceAcrossProductionProcesses in this
   rerun only those invalidated by new changes. Use the locked Runtime environment and one owned disposable
   PostgreSQL database, stop processes/pools then drop it. Optional heavy-I/O stays disabled. The task is integration
   acceptance, not a repair of an earlier defect, so introduced_by does not apply.
+implementation_commit: 69f2c85ed4252fac042ce8ca637aac120f7e08c5
+verification:
+  date: '2026-11-22'
+  result: Final selected real-process run passed all four roots / 36 parent-and-child cases in 403.505s, with
+    no failure or skip. Final affected Planner race suites passed (Streamline 97.269s, Router 2.129s), including
+    both real ADK 30/32 mixed-plan scenarios. Focused Runtime passes are 102 HTTP cases, 270 repeat/artifact/instrumentation
+    cases, 426 Worker cases, five final guidance cases and 28 bridge cases; overlapping selections are not
+    summed. Ruff, all four import contracts, specs, release graph and new-fixture source/reader coverage passed.
+    Failed diagnostic fixture runs are not acceptance evidence. Owned database, PostgreSQL instance/data and
+    temporary venv link are removed. The primary checkout is clean and unchanged. Implementation is on codex/v476-runtime-guidance,
+    not merged or deployed; no full gate or live-model quality claim.
