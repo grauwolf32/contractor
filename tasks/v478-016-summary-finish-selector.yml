@@ -1,0 +1,37 @@
+schema_version: '1.0'
+id: V478-016
+title: Keep summary continuation finish arguments revision free
+milestone: runtime-owned-tool-versions-2026-11
+epic: execution-core
+kind: chore
+introduced_by: V479-006
+priority: P2
+status: in_progress
+depends_on: [V479-006]
+languages: [go]
+goal: Scheduler summary continuation regressions reach their actual progression and retention assertions under the current Planner finish contract.
+context:
+  authority: 'User assignment 2026-11-22: implement V478 and required gates in one pass.'
+  finding: >-
+    internal/scheduler/summary_postgres_test.go:150 passes an exact ArtifactRef
+    as a model finish selector after V479-006 removed model revisions. Every
+    continuation is rejected before completion; the fake then reports an unexpected
+    fourth model call as planner_gateway_unavailable. The failed finish case has
+    an empty selection, and no sibling nonempty finish caller exists in this package.
+  boundary: Only the scripted model emits namespace/name. The actual Worker report and assertions retain their exact revision; production finish strictness and progression policy are unchanged.
+scope:
+  in:
+  - Use the current MaterialSelector shape in the summary script's successful finish.
+  - Verify full Scheduler and Planner finish packages on real PostgreSQL.
+  out:
+  - Production behavior, compatibility, relaxed argument validation and changed deadlines.
+acceptance_criteria:
+- id: A1
+  text: Every existing continuation/fault case passes and still verifies exact input/output, Memory, receipts and manual resume.
+- id: A2
+  text: Runtime-owned Planner finish selection and stale/foreign argument regressions remain green.
+tests:
+- command: go test -tags=integration -count=1 ./internal/scheduler ./internal/planner/streamline ./internal/planner/router
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2]
