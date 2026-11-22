@@ -67,7 +67,6 @@ def check(producer, root):
         retained = copy.deepcopy(item["evidence"][0])
         retained.update(scope_kind="audit", scope_id="audit-1")
         retained["ref"].update(namespace="audit-inputs", revision="audit-source-1")
-        add_material("baseline/source", retained, source_bytes)
         selected = copy.deepcopy(retained)
         selected["ref"].update(namespace="audit-selected", revision="selected-source-1")
         add_material("evidence-source/source", selected, source_bytes)

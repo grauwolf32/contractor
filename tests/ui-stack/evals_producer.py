@@ -489,7 +489,9 @@ def audit_task_evidence(client, parent, inventory):
                 assert material[field] == original[field], (material, original)
                 assert local[field] == original[field], (local, original)
                 assert ground[field] == original[field], (ground, original)
-            assert read_material(material) == read_material(original) == source_bytes
+            # Original Task inputs are verified through the exact Run fork and
+            # its metadata; the materials list exposes selected check sources.
+            assert read_material(material) == source_bytes
         normalized[item["item_key"]] = {
             **outcome,
             "origin": origin,
