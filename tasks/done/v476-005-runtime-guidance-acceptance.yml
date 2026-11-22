@@ -5,7 +5,7 @@ milestone: model-runtime-guidance-2026-11
 epic: planner-worker
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V476-001
 - V476-002
@@ -73,6 +73,7 @@ context:
       or live-model quality claim.
   reopened: '2026-11-22: Original V476 passed. Return to pending for the newly assigned V477 dependencies and
     A5/A6; preserve prior evidence.'
+  acceptance_evidence: tasks/evidence/v477-tool-arguments-20261122.json
 scope:
   in:
   - One bounded scripted process scenario covering both modeled Planners, current HTTP declarations and exact
@@ -140,3 +141,14 @@ verification_policy: Create TestRuntimeGuidanceAcrossProductionProcesses in this
   Use the locked Runtime environment and one owned disposable PostgreSQL database, stop processes/pools then
   drop it. Optional heavy-I/O stays disabled. The task is integration acceptance, not a repair of an earlier
   defect, so introduced_by does not apply.
+implementation_commit: 8ebc1ec0e300ce1f89852275302be27d881d0756
+verification:
+  date: '2026-11-22'
+  result: 'Extended A1-A6 pass on the combined V476/V477 branch: all four selected process roots, 37 parent/child
+    cases, zero failures/skips in 418.511s. Runtime owner selections pass 249, 290 and 414 cases (overlapping
+    selections, not summed); another 28 repeat/guidance/Audit-compaction cases pass. The new real-process scenario
+    proves precise HTTP/Audit correction, exactly two target POSTs with 400 responses, canonical persisted
+    conclusions/evidence, exact bytes and 8 stage tool calls including passthrough / 2 failures. Ruff/format,
+    4 import contracts, specs, task/backlog and release-graph structural checks pass. No full gate or live-quality
+    claim. Owned PostgreSQL database/instance/data and temporary venv link removed. Primary checkout preserved;
+    codex/v477-tool-arguments is not merged or pushed.'

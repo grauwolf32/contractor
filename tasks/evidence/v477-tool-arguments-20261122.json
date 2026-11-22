@@ -125,5 +125,6 @@
     "No HTTP repeat policy or automatic semantic resend added; original exact read_artifact repeat scope remains.",
     "Only final successful reports above establish acceptance. Earlier new-fixture diagnostics included test invocation/API assumptions and a Go fixture callback signature; these were corrected without weakening production behavior.",
     "Implementation remains local on codex/v477-tool-arguments; not merged into main or pushed."
-  ]
+  ],
+  "acceptanceImplementationCommit": "8ebc1ec0e300ce1f89852275302be27d881d0756"
 }
