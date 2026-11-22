@@ -236,7 +236,11 @@ export function ResearchTaskDetail({
         audit={audit}
         task={task}
       />
-      <TaskAttempts key={task.document.task_id} audit={audit} task={task} />
+      <TaskAttempts
+        key={`attempts/${task.document.task_id}`}
+        audit={audit}
+        task={task}
+      />
       <TechnicalDetails description="Task identity, exact inputs and system-derived origin.">
         <pre className="checks-task-json">{JSON.stringify(task, null, 2)}</pre>
       </TechnicalDetails>
