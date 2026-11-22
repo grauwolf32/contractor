@@ -20,13 +20,17 @@ from contractor_runtime.redaction import (
 
 if TYPE_CHECKING:
     from contractor_runtime.factories import WorkerBuildContext
+    from contractor_runtime.toolsets.common.artifact_cursors import ArtifactReadCursors
 
 
-def _task_prompt(request: StageContentRequest) -> str:
+def _task_prompt(request: StageContentRequest, cursors: ArtifactReadCursors | None = None) -> str:
     """Render Planner-supplied task data; wire/lifecycle contracts stay Runtime-private."""
 
     inputs = {
-        name: ref.model_dump(mode="json", by_alias=True)
+        name: {
+            **ref.model_dump(mode="json", by_alias=True),
+            **({"readCursor": cursors.issue(ref)} if cursors is not None else {}),
+        }
         for name, ref in sorted(request.artifacts.items())
     }
     return (

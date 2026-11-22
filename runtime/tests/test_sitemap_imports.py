@@ -35,9 +35,11 @@ def test_shared_installed_import_uses_exact_selection_and_reconciles_only_explic
             transport, ["import_sitemap_source"], dispatcher=import_sitemap_report
         )
         tool = tools["import_sitemap_source"]
+        tool._client.versions.observe(report_ref())
         selection = {"format": "ffuf-report@1", "artifact": report_ref().model_dump()}
+        selector = {"namespace": "research", "name": "report"}
         try:
-            result = await tool(selection["format"], selection["artifact"], "import-key")
+            result = await tool(selection["format"], selector, "import-key")
             assert result["status"] == "completed"
             assert len(transport.requests) == 2
             assert transport.requests[0] == transport.requests[1]
@@ -64,7 +66,7 @@ def test_shared_installed_import_uses_exact_selection_and_reconciles_only_explic
             assert len(transport.reads) == 1 and transport.reads[0][1] == 512 << 10
             transport.requests.clear()
             transport.post_error = (400, "invalid_request", False)
-            failed = await tool(selection["format"], selection["artifact"], "invalid-report")
+            failed = await tool(selection["format"], selector, "invalid-report")
             assert failed["status"] == "failed" and failed["error"]["code"] == "invalid_request"
             assert len(transport.requests) == 1
         finally:
@@ -335,8 +337,11 @@ def test_shared_explicit_invalid_report_returns_classified_error_without_publica
             transport, ["import_sitemap_source"], dispatcher=import_sitemap_report
         )
         tool = tools["import_sitemap_source"]
+        tool._client.versions.observe(report_ref())
         try:
-            result = await tool("ffuf-report@1", report_ref().model_dump(), "bad-report")
+            result = await tool(
+                "ffuf-report@1", {"namespace": "research", "name": "report"}, "bad-report"
+            )
             assert result["status"] == "failed"
             assert result["error"] == {"code": "invalid_request", "retryable": False}
             assert len(transport.reads) == 1 and not transport.requests
@@ -360,12 +365,17 @@ def test_shared_explicit_retry_uses_prepared_batch_but_new_invocation_rereads_ev
             transport, ["import_sitemap_source"], dispatcher=import_sitemap_report
         )
         tool = tools["import_sitemap_source"]
+        tool._client.versions.observe(report_ref())
         try:
-            result = await tool("ffuf-report@1", report_ref().model_dump(), "same-key")
+            result = await tool(
+                "ffuf-report@1", {"namespace": "research", "name": "report"}, "same-key"
+            )
             assert result["status"] == "completed"
             assert len(transport.reads) == 1 and len(transport.requests) == 2
             assert transport.requests[0] == transport.requests[1]
-            result = await tool("ffuf-report@1", report_ref().model_dump(), "same-key")
+            result = await tool(
+                "ffuf-report@1", {"namespace": "research", "name": "report"}, "same-key"
+            )
             assert result["status"] == "failed"
             assert result["error"]["code"] == "artifact_not_found"
             assert len(transport.reads) == 2 and len(transport.requests) == 2

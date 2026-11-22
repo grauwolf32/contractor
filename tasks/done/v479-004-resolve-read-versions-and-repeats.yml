@@ -1,0 +1,254 @@
+schema_version: '1.0'
+id: V479-004
+title: Resolve artifact read versions in Runtime and preserve V476 repeats
+milestone: runtime-owned-tool-versions-2026-11
+epic: planner-worker
+kind: feature
+priority: P1
+status: completed
+depends_on:
+- V479-001
+- V479-002
+- V479-003
+- V476-003
+languages:
+- python
+- markdown
+goal: The model reads current or assigned materials without sending revision, sees the resolved version in
+  the result and can continue exact text/image reads across compaction.
+demonstration: A Worker reads a long artifact by namespace/name, another writer changes it, and read_artifact(cursor=nextCursor)
+  continues the original exact text. A fresh namespace/name read returns the new revision. A trusted task
+  input start cursor selects its pinned version, and the third consecutive identical cursor read is refused
+  until a committed checkpoint.
+context:
+  authority: 'User request 2026-11-22: create tasks in two ordered stages: remove expected_revision from LLM
+    interfaces first, then revision; Runtime manages preconditions and version selection, including compaction
+    and V476 repeat rules. User decision 2026-11-22: a new sequential Audit submission automatically replaces
+    the result for the same item_key; do not add replace_existing or an equivalent confirmation flag. Identical
+    content remains a replay. User clarification 2026-11-22: retain revision in tool results so the model
+    can recognize another material version, but remove model-supplied revision arguments. The user did not
+    approve a new artifact-handle interface. Agent scope choice: preserve existing namespace/name addressing;
+    removing revision does not require new material identifiers. Planning only; no implementation, live experiment,
+    deployment or merge is assigned. Only affected-component verification is authorized, not complete Runtime/Go/lint/release
+    suites. The detailed bounded runtime mechanisms below are agent implementation proposals within that direction.
+    User decision 2026-11-22: ordinary read_artifact reads the current version; subsequent pages use a Runtime-issued
+    cursor fixing version and position, rather than a snapshot-until-refresh interface.'
+  baseline: 6a4d479d361f8fcb1ce5c74c7f512c5dfe4666af on local main; recheck actual active callers before implementation.
+  specification:
+  - docs/spec/artifacts/artifact-store.md#ART-R117
+  - docs/spec/artifacts/artifact-store.md#ART-R146
+  - docs/spec/execution/worker.md#WRK-R199
+  - docs/spec/execution/worker.md#WRK-R200
+  - docs/spec/execution/worker.md#WRK-R202
+  - docs/spec/tools/toolsets.md#TLS-R39
+  sources:
+  - runtime/src/contractor_runtime/toolsets/run_artifacts/tools.py
+  - runtime/src/contractor_runtime/toolsets/source_analysis/tools.py
+  - runtime/src/contractor_runtime/toolsets/openapi/tools.py
+  - runtime/src/contractor_runtime/toolsets/likec4/tools.py
+  - runtime/src/contractor_runtime/toolsets/common/artifact_read_cache.py
+  - runtime/src/contractor_runtime/toolsets/common/resources.py
+  - runtime/src/contractor_runtime/worker/repeats.py
+  - runtime/src/contractor_runtime/worker/runtime.py
+  boundary_decision: Tools own the semantic selection and validation. Shared Runtime helpers live in toolsets.common
+    and are explicitly called by production consumers; no universal argument-rewriting plugin, hidden acceptance
+    of deleted arguments, new receipt store, database entity or framework for hypothetical tools. Server remains
+    the authoritative owner of grants, exact Artifact reads, CAS, receipts, retention and lifecycle. Existing
+    private/public/wire/persisted revision fields remain strict; only model-facing inputs change. Update numbered
+    owning specs, descriptions, active instructions and actual ADK schemas with implementation; this task
+    plan does not change shipped specs.
+  delivery_group: 2 / revision. Do not start until all three stage-one tasks are completed. Add TestRuntimeManagedMaterialVersionsAcrossProcesses
+    with the real Artifact API as the first read-side delivery.
+  selection_decision: 'User chose on 2026-11-22: retain revision in results, remove it from arguments, keep
+    ordinary current reads and continue exact pages through a Runtime-issued cursor. Do not add a refresh
+    mode or general artifact-handle addressing. A first namespace/name/window read selects current; a cursor
+    selects its exact version/window. Trusted task inputs can receive a start cursor from the same owner so
+    their exact selected version remains readable without model revision input.'
+  accepted_risk: Arbitrary historical versions not selected by trusted inputs, an authorized prior read or
+    an existing domain selector are no longer chosen by raw revision. Existing selected materials remain exact
+    and authorized. Reject ambiguous same-address source selections outside the cursor reader; reopen only
+    for a concrete caller needing another semantic selection, not by restoring model revision arguments.
+scope:
+  in:
+  - Remove revision from read_artifact, open_source_archive, load_openapi and load_likec4 while keeping current
+    namespace/name addressing and returned artifact.revision.
+  - Define one explicit tool-owned read-selection contract for assigned exact inputs, current reads, continuation
+    and exact consumer reads; reuse the private invocation bindings and read cache.
+  - Adapt the V476 tool-owned key/admission lifecycle to runtime-selected exact versions without suppressing
+    mutable latest reads or expanding to other tool families.
+  out:
+  - New general artifact-handle addressing, renamed model-supplied version/ETag preconditions, force/replace
+    flags, compatibility aliases and automatic semantic rebasing. The approved read_artifact pagination cursor
+    is in scope in V479-004.
+  - Removal of Server/API/wire/store revision checks, changed grants/retention or model/tool budget semantics.
+  - Unrelated UI redesign, live model evaluation, demo deployment and full repository test gates.
+requirements:
+- id: R1
+  text: Remove revision from read_artifact, open_source_archive, load_openapi and load_likec4. A fresh read_artifact
+    requires namespace and name, accepts existing start_line/max_lines/line_offset window controls and selects
+    the current binding. Continuation calls supply only cursor; namespace/name and nondefault window overrides
+    cannot be mixed with cursor. Keep types informative and errors actionable despite the two mutually exclusive
+    argument forms; do not discard conflicting fields. The other three tools retain existing namespace/name/target
+    addressing and resolve admitted exact input sources from trusted invocation roles.
+- id: R2
+  text: Issue nextCursor for the next unread window, or null at end, fixing the exact ref, next line/byte
+    offset and effective page size. The cursor is produced and validated by the tool, scoped to the owning
+    logical invocation and grants, never supplied as a free-form revision. Reuse toolsets.common.cursors;
+    enforce a proposed 2048-character encoded ceiling and existing bounded fields before decode. Cursor continuation
+    cannot mix pages across a changed binding; unknown, tampered, expired, foreign or evicted exact selections
+    fail without latest substitution. A fresh namespace/name/window call can intentionally read the newer
+    version. Replace redundant nextStartLine/nextLineOffset continuation instructions/fields with nextCursor
+    across active model callers; retain text/line counts, truncation, partial-line flags and actual artifact.revision.
+- id: R3
+  text: Use the same cursor owner to expose a start cursor for trusted pinned task inputs (and exact read
+    results when needed for rereading), including images with the default whole-image window. A current read
+    by namespace/name is always advertised as current, never silently interpreted as pinned just because the
+    same binding appears in task context. Input context retains its full informational exact ref alongside
+    the machine-issued read cursor. Source archive/document seeds and evidence consumers preserve trusted
+    exact inputs through their own deterministic owner path. Do not introduce a second material handle registry
+    or make a cursor grant access/retention.
+- id: R4
+  text: Preserve source archive/index identity, document seed identity and binary/image media bounds. A retired/missing
+    exact revision fails; there is no latest fallback. A successful own write can establish a new current
+    write/read base but cannot retarget an already-issued continuation or evidence source.
+- id: R5
+  text: For cursor/exact-input reads, V476 equivalence uses the decoded actual exact selection plus effective
+    window and image context generation, not raw cursor text. Keep two successful/in-flight consecutive exact
+    reads, reject the third and later with tool_repeat_limit, and keep Worker running with ordinary accounting.
+    A fresh namespace/name current read remains outside the initially approved limiter coverage and interrupts
+    the series, as versionless reads do today. Do not extend suppression to current reads in this task; a
+    new current version must never be blocked because its arguments match. Multiple valid cursors addressing
+    the same exact window must not bypass the allowance.
+- id: R6
+  text: The tool owns cursor validation, exact selection and its repeat rule; the ADK plugin remains generic,
+    bounded and has no tool-name dispatch or I/O. Decode/validate the immutable selection once for consistent
+    admission and payload execution; do not admit one version and read another. Invalid cursors retain ordinary
+    strict-input errors and interrupt the previous series. Refused exact repeats perform no payload read or
+    image decoding. Update WRK-R202/ART-R146 together to replace the explicit revision requirement with the
+    approved cursor/private exact-selection form.
+- id: R7
+  text: Any changed tool/window or validation rejection interrupts the consecutive series; failed/cancelled
+    reads release reservations. Only a committed checkpoint or a new logical invocation resets that series.
+    Preserve selected material versions across compaction and distinguish them from the reset repeat counter;
+    image attachment eviction permits an exact reread through the existing image generation.
+- id: R8
+  text: Keep revision in results, model-visible exact input metadata and technical records as informational
+    metadata. Models can compare returned versions but cannot submit one, including through raw unknown fields.
+    Do not trust revision strings quoted in model summaries or reread history as state. Reuse server grants,
+    content-observation semantics and current private read APIs.
+failure_outcomes:
+- operation: Resolve a selected version and perform the existing owner operation
+  permanent: Unknown/ambiguous/unavailable selection, malformed or removed argument, stale precondition, denied
+    authority and owner limit failures return a bounded classified tool error before a new effect. Preserve
+    existing owner codes; new codes must be documented at their owner. No implicit latest substitution on
+    conflict.
+  retryable: Existing classified infrastructure failures retain bounded attempts and the original call/invocation
+    deadline. No retry loop for deterministic conflicts.
+  ambiguous: Reuse existing exact-byte CAS recovery or owner receipt with the same frozen payload, precondition
+    and identity. Never regenerate intent from latest state or repeat a semantic append after a lost response.
+  cancelled: Existing invocation/session owners join admitted I/O and preparation before cleanup. Late completions
+    cannot update another invocation or a newer operation generation.
+  timeout: Keep existing operation and invocation deadlines; do not introduce an unrelated timeout, poller
+    or budget reset.
+cardinality:
+- collection: Runtime-held selected versions and pending operations
+  expected: A few input roles, current document targets and explicitly used materials; admit only actual consumers.
+  maximum: Keep existing owner row/byte/page/in-flight limits. Any added shared selection map has an explicit
+    proposed ceiling of 4096 entries and 4 MiB encoded metadata per logical invocation, defined once in the
+    owning limits registry.
+  bound: Point lookup and bounded admission; no entire Run/Project enumeration, raw payload copies or history
+    scans on each tool call. Refuse new admissions at the bound without silently evicting an in-use selection
+    or relabeling it as current.
+- collection: One read_artifact continuation or exact-input start cursor
+  expected: One exact ref and line/window position, normally a few hundred encoded characters.
+  maximum: Proposed 2048 encoded characters plus existing ArtifactRef and line/page bounds; register once
+    at the owning tool boundary.
+  bound: Authenticate/decode and validate in bounded CPU time without network I/O or an unbounded cursor registry;
+    payload/image caches keep their existing limits. No automatic Artifact history hold.
+lifecycle:
+- entity: Private version/precondition state of the existing tool session or logical invocation
+  delete: Clear through the existing owner after completion/cancellation and joined work; allocation close
+    clears all remaining private state.
+  cascade: Successful compaction preserves selected versions and pending write identity; it only resets the
+    V476 consecutive series where specified. SDK turns and failed checkpoints do not refresh materials or
+    grant write authority.
+  retention: No new persistent owner or holds. Replay/recovery uses only existing trusted inputs, admitted
+    operation state and validated owner records. A model-written summary or returned revision supplied as
+    an argument is never authority. If exact state cannot be restored, require a fresh semantic read/select
+    instead of guessing latest.
+acceptance_criteria:
+- id: A1
+  given: Pinned task inputs with Runtime-issued start cursors and mutable current artifacts in the actual
+    Worker
+  when: The four callables read without revision and read_artifact uses either fresh namespace/name/window
+    or cursor mode
+  then: Fresh reads select current; trusted source/start-cursor reads select admitted exact bytes. Actual
+    revisions remain in results/context; removed or conflicting arguments fail before effects.
+- id: A2
+  given: A long/partial-line artifact, external update, own write, native image and committed checkpoint
+  when: The model follows nextCursor, reuses a selected start cursor or starts another namespace/name read
+  then: Continuation and pinned rereads preserve exact versions across checkpoints; fresh reads observe current.
+    Invalid/expired cursors and evicted history never fall forward; there is no generic artifact-handle or
+    refresh interface.
+- id: A3
+  given: Text/image exact reads through the real ADK repeat plugin
+  when: A,A,A,A; another tool/window; failure; and checkpoint cases execute
+  then: Two exact reads run, further repeats are refused once each, failed work releases reservations, checkpoint
+    permits reread, and versions/native images remain correct.
+- id: A4
+  given: A current read whose binding changes, parallel selections and old-generation completions
+  when: Selection/admission/read races and cancellation execute
+  then: Current reads stay unguarded and break the series; exact cursors cannot mismatch key/payload or bypass
+    limits through alternate encodings. Cancellation/recovery do not leak tasks or cross-invocation authority.
+- id: A5
+  given: The largest admitted private selection state and unknown/historical model-supplied revisions
+  when: Runtime validates and reaches the limit
+  then: Bounded deterministic failure preserves existing admitted selections, and neither compaction nor a
+    returned token creates authority.
+tests:
+- command: cd runtime && uv run pytest tests/test_artifact_cursors.py tests/test_run_artifacts_toolset.py tests/test_source_analysis_toolset.py
+    tests/test_openapi_toolset.py tests/test_likec4_toolset.py tests/test_artifact_images.py tests/test_tool_repeats.py
+    tests/test_worker_artifact_bindings.py tests/test_worker_compaction.py tests/test_worker_history.py tests/test_worker_function_tools.py
+    tests/test_instrumentation.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: go test -tags=e2e -count=1 -run '^(TestRuntimeManagedMaterialVersionsAcrossProcesses|TestRuntimeGuidanceAcrossProductionProcesses|TestArtifactImagesAcrossProcesses)$'
+    -timeout=20m ./tests/e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: cd runtime && uv run lint-imports
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: python3 scripts/check_spec.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+verification_policy: Commands listed here are required implementation checks, not planning results. Run complete
+  affected test files/packages and actual ADK declarations/calls, not only helper tests. New named tests must
+  be added by the task; zero matches is a failure. Real persistence claims require a disposable PostgreSQL
+  database; missing/skipped prerequisites are not passes. Reuse and explicitly drop one owned database after
+  its pools/processes stop. Keep CONTRACTOR_TEST_HEAVY_IO unset unless explicitly requested. Do not run make
+  verify, make release-verify, make test-runtime, make test-go or make lint. Use targeted Ruff, import, spec/task
+  and selected process checks; extend only to actually affected sibling owners. Changed pinned catalog content
+  needs new immutable identities/paths and lock entries; tests use testdata fixtures, not the live configs
+  tree. Do not change the configured model or claim measured quality improvement.
+assignment: "User request 2026-11-22: implement all V479 in one pass; stage-one prerequisites are complete."
+
+sibling_verification: "Also run complete test_adk_runtime.py, test_allocation.py, test_worker_guidance.py and test_tool_operation_ownership.py; their scripted inputs consume the changed signatures. Migrate remaining e2e gateway write fixtures that explicitly sent expected_revision=null instead of silently accepting the removed field."
+
+implementation_commit: bc44b3a90747b38597be6b9e79435f602c1ac399

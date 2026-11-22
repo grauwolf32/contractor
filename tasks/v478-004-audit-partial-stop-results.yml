@@ -42,19 +42,25 @@ context:
     and the Audit can finish with visible unresolved conclusions, without mandatory automatic repeats. When
     an assigned hypothesis check stops without an accepted conclusion, expose a system-authored inconclusive
     with observed stop reason and source, meaning no conclusion was accepted. Preserve existing accepted judgments,
-    keep hypothesis-free exploration without a verdict, and never turn a failed/cancelled Run into success.'
+    keep hypothesis-free exploration without a verdict, and never turn a failed/cancelled Run into success.
+    User request 2026-11-22: review this package against updated main and reconcile affected tasks. Apply
+    the already merged V479 contracts for Runtime-owned versions and correction generations; this review
+    does not assign feature implementation or change the agreed retention/stop policy.'
   implementation_gate: 'All product review decisions recorded below are settled for the task draft. Keep tasks
     pending: this thread is planning/review, not an implementation assignment. Do not deploy or launch an Audit.
     The user requested review before merging the task package into main; report the reconciled package before
     integration. Implementation must follow these task contracts; an unforeseen consequential prerequisite
     needs its own review, not silent scope growth.'
-  baseline: Local main 6a4d479d361f8fcb1ce5c74c7f512c5dfe4666af; Invoice Lab demonstrated one broad exploration
-    item ending after one accepted conclusion. This is motivation, not a live quality benchmark.
+  baseline: Reviewed main cd2974674def375c1838b496c8f288e86989dc8a, including completed V479-001 through
+    V479-009. The earlier Invoice Lab run motivates this package; it is not a current live quality benchmark.
   specification:
   - docs/spec/audits/common-contract.md
   - docs/spec/audits/worker-completion.md
   - docs/spec/audits/execution.md
   - docs/spec/audits/review-and-reports.md
+  - docs/spec/audits/worker-completion.md#AWC-R48
+  - docs/spec/audits/worker-completion.md#AWC-R49
+  - docs/spec/artifacts/artifact-store.md#ART-R147
   boundary: Extend existing common Task/hypothesis, Runtime collector, Artifact and Audit intake owners. Source
     adapters own observation extraction; Server owns assignment, authority, exact retention and lifecycle.
     No alternate execution engine or coverage ledger. Update numbered owning specs and all API/wire/schema
@@ -83,6 +89,11 @@ context:
     by the system. Preserve hypothesis-free exploration without verdict and existing pending/unassigned work
     without claiming execution. Model-authored inconclusive may settle an attempt; no new automatic retry policy
     is added. System interruption records never satisfy normal Worker success.
+  main_reconciliation_2026_11_22: V479 correction generations and source versions are private invocation
+    state, preserved through compaction but cleared on exit; the Audit collector still discards local
+    items on failure. These changes do not satisfy durable partial-result retention. Extend the existing
+    owner/receipts so the latest Server-accepted correction survives stop, preserving V479 replay ordering.
+    Never rebuild accepted evidence from current aliases or model summaries after private state disappears.
 scope:
   in:
   - Retain accepted per-item judgments during submission rather than relying solely on an all-item terminal
@@ -102,9 +113,10 @@ scope:
     solely for semantic coverage.
 requirements:
 - id: R1
-  text: Preserve every durably accepted conclusion and Finding receipt as-is. For a stopped assigned hypothesis check
-    lacking a conclusion, a system inconclusive marker explicitly means no accepted conclusion, not a claim
-    that an evidence sufficiency assessment occurred.
+  text: Stop reconciliation preserves the latest durably accepted conclusion per item and accepted Finding
+    receipts as-is; it does not roll back a correction, create a new semantic revision or replace a judgment
+    with system inconclusive. For a stopped assigned hypothesis check lacking an accepted conclusion,
+    system inconclusive means no accepted conclusion, not an evidence-sufficiency assessment.
 - id: R2
   text: Record observed stop facts separately from semantic limitations, including their source and uncertainty.
     Use the owning finite error/reason vocabulary; missing telemetry yields unknown, never guessed budget_exhausted
@@ -140,6 +152,13 @@ requirements:
     check result and without a hypothesis association. A rejected or unconfirmed Finding call is not promoted
     to a published Finding by stop reconciliation. Preserve accepted evidence and actual publication diagnostics,
     without an extra post-stop model/target call.
+- id: R10
+  text: Durable result acceptance preserves Runtime-owned generations and original mutation identity.
+    After committed A then B, a lost acknowledgement or old retry of A cannot restore A over B. If B never
+    committed, retain A and an observed unconfirmed tail; reconcile a committed but unacknowledged B by
+    existing owner receipt. Private selected-version state/cursors and local recorded receipts are not
+    durable acceptance. Stop recovery uses retained exact sources, not current bindings or a new model
+    call.
 failure_outcomes:
 - operation: Reconcile an interrupted attempt against durable observations and accepted judgments
   permanent: Reject invalid membership, foreign/exact-revision mismatches, quota violations and malformed input
@@ -195,6 +214,13 @@ acceptance_criteria:
   then: The accepted Project Finding and its exact sources survive without a fabricated hypothesis; the other
     publication remains failed/unknown unless its original receipt is reconciled. No new semantic Finding is
     manufactured at stop.
+- id: A5
+  given: An accepted result A, a later correction B and an old retry of A, with stop or acknowledgement
+    loss on either side of the B commit
+  when: Real Server/store reconciliation runs after Runtime loss and its private version state is gone
+  then: The latest committed result survives exactly once, old retries never roll it back, an uncommitted
+    correction is not reported accepted, and original sources remain readable without latest substitution,
+    target replay or model-authored version recovery.
 tests:
 - command: make test-runtime
   covers:
@@ -202,28 +228,33 @@ tests:
   - A2
   - A3
   - A4
+  - A5
 - command: go test -tags=integration -count=1 ./internal/auditcontroller/... ./internal/auditimport/... ./internal/auditstore/...
     ./internal/auditservice/... ./internal/runservice/... ./internal/artifacts/...
   covers:
   - A1
   - A2
   - A3
+  - A5
 - command: make test-audit-basic-e2e
   covers:
   - A1
   - A2
   - A3
   - A4
+  - A5
 - command: make test-audit-completion-e2e
   covers:
   - A1
   - A2
   - A3
+  - A5
 - command: make test-wire-cross-language
   covers:
   - A1
   - A2
   - A3
+  - A5
 - command: make verify-public-api-postgres
   covers:
   - A1

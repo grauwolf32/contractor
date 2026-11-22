@@ -393,7 +393,7 @@ model-visible artifact tools:
    `run-artifacts@1`, which exports exactly `list_artifacts`, `read_artifact`
    and `write_artifact` for explicit current-Run refs.
 
-`write_artifact(namespace, name, source_path, media_type, expected_revision?)`
+`write_artifact(namespace, name, source_path, media_type)`
 reads an existing file through the Worker's project-workspace owner and publishes
 its actual bytes. The sole model-supplied source is a relative local path.
 Inline content, including encoded bytes alongside a path, is rejected before
@@ -631,8 +631,8 @@ same line numbers as the decoded text. The selected reader accepts `start_line`
 (1-based, default 1), `max_lines` (1 through 400, default 200) and
 `line_offset` (UTF-8 byte offset, default 0). It returns exact artifact metadata,
 `text`, `startLine`, `endLine`, `totalLines`, `truncated`, `partialLine` and
-`nextStartLine`/`nextLineOffset`. Continue with the exact returned revision and
-the returned position. No encoded payload appears in its text response.
+`readCursor` and `nextCursor`. Continue with `nextCursor` alone; Runtime
+preserves the selected version and position. No encoded payload appears in its text response.
 `text-artifacts@1` exposes only `write_text_artifact` for text authoring.
 Reopen this if a reader needs
 character rather than byte positions inside a line.
@@ -1734,10 +1734,59 @@ existing scope lists retain namespace/name order. No extra store or table is
 introduced; ordinary lifecycle and retention remain authoritative.
 
 **ART-R146.** The initial callable repeat rule covers only `read_artifact`
-with an explicit exact revision and valid effective line window. Two consecutive
+with a Runtime-issued exact cursor and valid effective line window. Two consecutive
 successful or in-flight equivalent reads are allowed (LIM-WRK-40); further
 identical reads are refused until another call or a committed checkpoint.
-Defaults equal their explicit values. Versionless reads and other tools are
+Defaults equal their explicit values. Fresh namespace/name current reads and other tools are
 unguarded. The tool's description and rule share the allowance. A read whose
 image attachment has left the current context is eligible again through the
 image owner's context generation; no image bytes enter history or telemetry.
+
+**ART-R147.** Generic artifact publication, UTF-8 text authoring and the
+OpenAPI/LikeC4 load/create/replace entry points have no model-supplied
+`expected_revision`. Runtime remembers successful content reads and writes in
+private invocation state. A new target uses create-only CAS; an existing target
+uses its selected base. A metadata/list result alone supplies no base. An
+unknown existing target conflicts and requires an explicit content read/load.
+Successful results retain the actual revision. Raw removed arguments are
+rejected by the model-tool boundary, including null values. Server/private API
+preconditions remain explicit and strict (ART-R58).
+
+At every main-model request Runtime freezes the current bases for all sibling
+operations from that response. A sibling cannot use another sibling's newly
+written revision to authorize an overwrite. Document mutations retain their
+lock and check the frozen base. Only accepted or exactly reconciled writes
+advance private bases; reconciliation reads of mismatching bytes grant no new
+write authority. Conflicts are never silently refreshed or semantically merged.
+Committed compaction preserves these bases; invocation end clears them. Model
+summaries and historical returned tokens cannot restore them. The bounded map
+holds at most 4,096 selections and 4 MiB of encoded reference metadata
+(LIM-TLS-7), without payload copies or additional retention holds. Admission
+checks a new write before its effect, reserving up to 1 KiB for its returned ref.
+
+**ART-R148.** Model read arguments contain no `revision`. A fresh
+`read_artifact(namespace, name, ...)` selects current at that call; cursor mode
+accepts only a Runtime-issued `cursor` and default window arguments. A result
+retains its exact `artifact.revision`, a `readCursor` for its selected window,
+and `nextCursor` (null at end). Continuation fixes version, line, byte offset
+and page size, including partial UTF-8 lines. It never mixes a later binding
+version into the selected page sequence. Native images receive an exact whole
+image readCursor and no continuation. A new revision identifies a saved version
+without promising changed bytes.
+
+Cursors use the common signed canonical codec and its 2 KiB bound (LIM-TLS-8).
+Each logical invocation owns one key, initialized at construction and rotated
+at invocation exit. Compaction preserves it independently of the reset V476
+series. Unknown, tampered or prior-invocation cursors are tool input errors.
+An exact read never falls forward when the selected bytes are unavailable;
+ordinary bounded exact caches retain ART-R117 semantics. No cursor creates an
+Artifact hold or bypasses model visibility, allocation or Server authorization.
+
+Named task input metadata includes a Runtime-issued start readCursor alongside
+its informational exact ref. This cursor reads the admitted input even after a
+current alias changes. Source archive and OpenAPI/LikeC4 seed selection uses
+trusted exact input roles first, then the privately selected content version,
+then an initial metadata resolution. Ambiguous same-address input versions fail.
+Explicitly resuming a document's own editable target reads current and requires
+a later response before the new base can authorize a mutation. The model
+supplies namespace/name, never a revision or a replacement version token.

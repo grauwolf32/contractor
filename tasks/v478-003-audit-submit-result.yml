@@ -10,6 +10,7 @@ depends_on:
 - V478-001
 - V478-002
 - V477-002
+- V479-002
 languages:
 - go
 - python
@@ -18,10 +19,10 @@ languages:
 goal: The model records a bounded judgment for an assigned item without assembling evidence, provenance or
   a final package, using the clear submit_result name.
 demonstration: After recording observations, call submit_result with item_key, rationale, optional hypothesis
-  verdict, limitations and correction revision. Runtime assembles and accepts the exact result; a sibling item
-  remains outstanding and an invalid claim gets an actionable field error. In a companion scripted case publish
-  an incidental evidenced problem before the last result; the Server retains it without associating it with
-  the unrelated hypothesis.
+  verdict and limitations. Before sealing, correct the same item in a later model response without a revision
+  argument. Runtime assembles and accepts the exact result; a sibling item remains outstanding and an
+  invalid claim gets an actionable field error. In a companion scripted case publish an incidental evidenced
+  problem before the last result; the Server retains it without associating it with the unrelated hypothesis.
 context:
   authority: 'User request 2026-11-22: prepare tasks for a concrete Audit check plan, evidence collected during
     work, a thin result submission tool, and partial results on interruption without invented coverage conclusions.
@@ -55,14 +56,17 @@ context:
     can finish with visible unresolved conclusions, without mandatory automatic repeats. When an assigned hypothesis
     check stops without an accepted conclusion, expose a system-authored inconclusive with observed stop reason
     and source, meaning no conclusion was accepted. Preserve existing accepted judgments, keep hypothesis-free
-    exploration without a verdict, and never turn a failed/cancelled Run into success.'
+    exploration without a verdict, and never turn a failed/cancelled Run into success.
+    User request 2026-11-22: review this package against updated main and reconcile affected tasks. Apply
+    the already merged V479 contracts for Runtime-owned versions and correction generations; this review
+    does not assign feature implementation or change the agreed retention/stop policy.'
   implementation_gate: 'All product review decisions recorded below are settled for the task draft. Keep tasks
     pending: this thread is planning/review, not an implementation assignment. Do not deploy or launch an Audit.
     The user requested review before merging the task package into main; report the reconciled package before
     integration. Implementation must follow these task contracts; an unforeseen consequential prerequisite
     needs its own review, not silent scope growth.'
-  baseline: Local main 6a4d479d361f8fcb1ce5c74c7f512c5dfe4666af; Invoice Lab demonstrated one broad exploration
-    item ending after one accepted conclusion. This is motivation, not a live quality benchmark.
+  baseline: Reviewed main cd2974674def375c1838b496c8f288e86989dc8a, including completed V479-001 through
+    V479-009. The earlier Invoice Lab run motivates this package; it is not a current live quality benchmark.
   specification:
   - docs/spec/audits/common-contract.md
   - docs/spec/audits/worker-completion.md
@@ -70,6 +74,9 @@ context:
   - docs/spec/audits/review-and-reports.md
   - docs/spec/findings/findings.md
   - docs/spec/audits/hypotheses.md
+  - docs/spec/audits/worker-completion.md#AWC-R42
+  - docs/spec/audits/worker-completion.md#AWC-R46
+  - docs/spec/audits/worker-completion.md#AWC-R48
   boundary: Extend existing common Task/hypothesis, Runtime collector, Artifact and Audit intake owners. Source
     adapters own observation extraction; Server owns assignment, authority, exact retention and lifecycle.
     No alternate execution engine or coverage ledger. Update numbered owning specs and all API/wire/schema
@@ -93,12 +100,16 @@ context:
     not automatically independent evidence of its claim. Evidence may also support an exploratory observation
     or a Finding without a hypothesis. These are semantic roles over existing owners/artifacts, not three new
     stores.
-  sources_interface_decision: Use a common sources argument with explicitly supported typed selectors for code,
-    local HTTP request IDs and exact artifacts/material handles. Runtime resolves selectors into exact source
-    descriptors through toolsets.common helpers and owning adapters; no universal obs_id or automatic changes
-    to every reader. For code distinguish an exact pinned source selection from a current workspace capture,
-    preserving source context and rejecting unsupported mappings. Existing source retention can be reused across
-    independent check, Finding and Fact claims; shared bytes are not independent corroboration.
+  sources_interface_decision: Use common sources with typed selectors for code, local HTTP request IDs
+    and artifact materials. Model artifact selectors reuse MaterialSelector (namespace/name only); assigned
+    source handles may refer to trusted input roles, never to a model-supplied revision. Reuse SelectedVersions
+    to resolve trusted inputs and successful content selections into exact internal refs; reject unknown,
+    hidden or ambiguous sources without looking up latest as a fallback. Metadata-only listings grant
+    no evidence selection. Code adapters preserve exact pinned source versus workspace capture and reject
+    unsupported mappings; HTTP adapters use actual local captures without replay. Runtime-issued cursors
+    remain exact read-continuation inputs, not replacement write/version preconditions. No universal obs_id,
+    new version registry or changes to every reader. Exact retained sources can support independent check/Finding/Fact
+    claims; shared bytes are not independent corroboration.
   finding_publication_decision: Publish each distinct evidenced security problem immediately through finding,
     including incidental discoveries unrelated to the assigned hypothesis. Complete required publications and
     inspect their receipts before final submit_result/submit_results, since accepted final submissions can
@@ -136,11 +147,18 @@ context:
   collection_decision: Explicit selection only through evidence, finding and fact; acknowledged Server acceptance
     is the durability boundary. Unselected volatile captures or unsaved thoughts may be lost at stop. Retain
     the selected sources using existing owners and quotas; do not build an automatic observation archive.
-  interface_decision: Use submit_result for the thin per-item conclusion and preserve the existing batch capability
-    as submit_results, with identical item semantics and no old-name aliases. Keep item_key, rationale, limitations,
-    optional hypothesis verdict and existing single-item expected_revision correction. Evidence and tested
-    conditions come from earlier accepted records; no fixed-plan field or automatic semantic assessment is
-    added.
+  interface_decision: Use submit_result(item_key, rationale, limitations, optional verdict); submit_results
+    preserves the existing batch capability with the same judgment shape. No expected_revision, revision
+    or replacement flag. Before sealing, a later scalar for the same item replaces changed content and
+    identical content replays. Runtime owns generations; same-response conflicting changes cannot silently
+    overwrite, and technical retries cannot replay old content over a newer conclusion. Batch changed-existing
+    members still reject atomically. Evidence/condition notes come from earlier accepted records; no final
+    inventory, fixed-plan field or automatic semantic assessment.
+  main_reconciliation_2026_11_22: V479-002 has already removed expected_revision from submit_check_result.
+    Its collector freezes one starting item generation per model response, accepts sequential changed
+    scalar content and preserves identical replay plus atomic non-replacing batches. Thin submit_result/submit_results
+    must retain this behavior. Current recorded receipts remain invocation-local; V478-004 supplies durable
+    partial-result acceptance rather than treating those existing local receipts as Server acknowledgements.
 scope:
   in:
   - Rename both model-facing submission tools throughout declarations, selection validation, current templates/instructions,
@@ -149,8 +167,8 @@ scope:
     code; expose their provenance separately from the model conclusion.
   - Return bounded receipts with missing assigned items and unmet structural requirements through current completion
     diagnostics.
-  - Preserve exploration without a fabricated hypothesis verdict, atomic batch validation and revision-based
-    single-item correction.
+  - Preserve exploration without a fabricated hypothesis verdict, atomic batch validation and Runtime-owned
+    single-item correction generations.
   - 'Update effective Worker instructions, tool docstrings and Workflow/template selections together for source,
     HTTP, trace and batch callers: evidenced task-related and incidental problems are published before final
     result submission, with explicit evidence handling and receipt semantics. Use new immutable catalog identities/paths;
@@ -162,9 +180,11 @@ scope:
     an explicit decision.
 requirements:
 - id: R1
-  text: submit_result has item_key, rationale, limitations, optional verdict and optional expected_revision;
-    exact schema/defaults stay informative. submit_results uses the same judgment shape, validates all members
-    before mutation and preserves the existing batch correction policy.
+  text: submit_result accepts item_key, rationale, limitations and optional verdict only; evidence and
+    trusted identity are assembled by Runtime. submit_results uses the same judgment shape and preserves
+    atomic batch validation. No model revision/expected_revision or replacement flag, including raw removed
+    arguments with null. Actual accepted revisions remain observable in receipts; internal preconditions
+    stay strict.
 - id: R2
   text: The model supplies neither evidence ID inventories nor completed-step inventories in final submission.
     The assembler freezes explicitly accepted evidence associations and attributed condition notes for that
@@ -174,10 +194,11 @@ requirements:
   text: For a hypothesis require supported/refuted/inconclusive; exploration omits verdict. Nonempty evidence
     is necessary where the contract requires it but never sufficient to claim independent semantic verification.
 - id: R4
-  text: Reject invalid membership, malformed fields, unavailable exact sources, stale revisions or conclusive
-    hypothesis results lacking selected evidence/tested conditions with safe diagnostics. These are existing
-    structural guarantees; do not add mandatory evidence-role/criterion schemas or pretend to detect arbitrary
-    wrong reasoning. Semantic uncertainty stays an attributed limitation or inconclusive judgment.
+  text: Reject invalid membership, malformed fields, unavailable exact sources, stale internally admitted
+    generations or conclusive hypothesis results lacking selected evidence/tested conditions with safe
+    diagnostics. Correct a conflict with a later semantic scalar submission, never by asking the model
+    for a counter. These are structural guarantees; no mandatory evidence-role/criterion schema or arbitrary
+    reasoning detector. Uncertainty remains an attributed limitation or inconclusive judgment.
 - id: R5
   text: The last accepted item may trigger existing normal Worker completion, but a submit receipt is not Audit-wide
     success, conclusive coverage or a finding. An inconclusive conclusion remains a valid bounded attempt disposition.
@@ -202,6 +223,13 @@ requirements:
     an unrelated check. Inspect source/Finding persistence responses; publication failure or ambiguity stays
     an explicit limitation, not a success claim. No unconditional minimum findings, new semantic parser, final
     LLM pass or mandatory publication flag is introduced by this instruction change.
+- id: R10
+  text: 'Preserve AWC-R42 through AWC-R48: create missing items; replay identical canonical content without
+    an increment; replace changed scalar content in a later response before seal. Different same-item
+    changes in one response share a starting generation and cannot both overwrite; independent items remain
+    admissible. A technical retry keeps original generation/content/identity and cannot restore an older
+    conclusion over a newer one. Changed existing batch members reject the whole batch and direct correction
+    to scalar submission. Compaction preserves generations without extending completion.'
 failure_outcomes:
 - operation: Record or correct a single judgment, or atomically record a batch
   permanent: Reject invalid membership, foreign/exact-revision mismatches, quota violations and malformed input
@@ -237,11 +265,12 @@ acceptance_criteria:
 - id: A1
   given: Recorded observations for two items with distinct evidence and one hypothesis-free exploration
   when: The real ADK declaration invokes single and batch submission including a correction/replay
-  then: Exact per-item results assemble without model evidence arrays; exploration has no invented verdict,
-    batch validation is atomic and revisions reconcile correctly.
+  then: Exact per-item results assemble without model evidence or revision arguments; exploration has
+    no invented verdict, batches remain atomic, and scalar replacement/replay preserve the Runtime-owned
+    generations.
 - id: A2
-  given: A foreign item, unavailable selected source, conclusive hypothesis result without any selected evidence,
-    stale revision or malformed arguments
+  given: A foreign item, unavailable selected source, conclusive hypothesis result without selected evidence,
+    competing stale internal generation, removed revision argument (including null) or malformed arguments
   when: submit_result is called
   then: No result mutation occurs; tool-owned safe diagnostics allow repair and distinguish structural rejection
     from semantic uncertainty.
@@ -266,6 +295,13 @@ acceptance_criteria:
     and correct automatic origin; incidental mode does not acquire a hypothesis, even with an explicitly selected
     Task. Case (c) completes without a fabricated Finding. Accepted final results need no subsequent model
     turn for publication; scripted cases are not live quality evidence.
+- id: A6
+  given: An unsealed two-item collector, sequential corrections, conflicting siblings, identical duplicates,
+    mixed create/replay/change batches and an old ambiguous update
+  when: Actual model facades submit without revision arguments through compaction and final sealing
+  then: Sequential corrections and identical replay preserve V479 behavior, siblings cannot silently overwrite,
+    the batch is atomic, and an old technical retry cannot restore superseded content. No replacement
+    flag or additional model turn after completion is introduced.
 tests:
 - command: make test-runtime
   covers:
@@ -274,6 +310,7 @@ tests:
   - A3
   - A4
   - A5
+  - A6
 - command: go test -tags=integration -count=1 ./internal/contracts/auditcontract/... ./internal/auditimport/...
     ./internal/auditservice/... ./internal/config/... ./internal/findingintake/...
   covers:
@@ -289,6 +326,7 @@ tests:
   - A3
   - A4
   - A5
+  - A6
 - command: make test-audit-basic-e2e
   covers:
   - A1
@@ -296,6 +334,7 @@ tests:
   - A3
   - A4
   - A5
+  - A6
 - command: make test-config
   covers:
   - A1
@@ -309,6 +348,7 @@ tests:
   - A2
   - A3
   - A4
+  - A6
 - command: make verify-public-api-postgres
   covers:
   - A1

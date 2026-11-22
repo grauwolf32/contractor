@@ -1,0 +1,70 @@
+schema_version: '1.0'
+id: V479-008
+title: Keep trusted tool execution distinct from model argument facades
+milestone: runtime-owned-tool-versions-2026-11
+epic: planner-worker
+kind: feature
+priority: P1
+status: completed
+depends_on: [V479-001]
+languages: [python, markdown]
+goal: Model tools omit revision arguments while deterministic tool Workers retain exact configured preconditions and artifact inputs.
+demonstration: The existing real sitemap-editor tool Worker executes its pinned explicit CAS command; the model-facing facade exposes no expected_revision. Scanner consumers use the same mechanism in V479-005.
+context:
+  authority: >-
+    User assignment 2026-11-22: merge and implement V479 in one pass. Investigation found a concrete prerequisite:
+    tool@1 validates and calls the same callable as ADK, but its configured Sitemap/scanner inputs already carry exact
+    preconditions and refs. Agent implementation choice: one optional owner-provided trusted callable, selected only
+    by ToolWorkerRuntime. This does not expose another model tool or accept obsolete model fields.
+  specification: [docs/spec/tools/scanners.md#SCN-R5, docs/spec/tools/toolsets.md#TLS-R39]
+  atomic_delivery: >-
+    Land with V479-003 because the first production owner supplies the new model and trusted facets together.
+    The two tasks have completed prerequisites and are jointly verified; the atomic commit keeps the trusted
+    execution input schema and its real caller valid. Do not add a speculative hook without that consumer.
+scope:
+  in:
+    - Select an owner-provided contractor_trusted_call in tool@1 for both strict input-schema construction and execution.
+    - Keep ordinary ADK declarations bound to the model-facing callable; preserve execution metrics and owner lifecycle.
+    - First consumer is the existing Sitemap editor; exact scanner inputs follow in V479-005.
+  out: [New execution engines, coercion, compatibility aliases, wire changes, live runs]
+requirements:
+  - id: R1
+    text: Strictly validate the chosen trusted callable signature and inputs; absence of a distinct facet means the ordinary callable is already suitable for deterministic use.
+  - id: R2
+    text: Preserve owner tool identity, close and artifact-observation behavior. Do not replace the owner object with its bound method for telemetry/lifecycle or observation readers.
+  - id: R3
+    text: Only tool@1 selects the internal facet. ADK raw unknown arguments and model schemas never include trusted revision fields.
+failure_outcomes:
+  - operation: Select and invoke a trusted tool facet
+    permanent: Invalid signature or configured fields fail normal strict tool admission before effects.
+    retryable: Preserve existing execution classifications and original deadlines.
+    ambiguous: Keep existing tool invocation receipts and frozen argument bytes; no semantic resend.
+    cancelled: Existing ToolWorker joins owned tasks and closes the owner.
+    timeout: Existing allocation and execution timeouts remain authoritative.
+cardinality:
+  - collection: Selected execution callable
+    expected: One callable for one pinned tool Worker.
+    maximum: One; unchanged input byte and artifact limits.
+    bound: No registry, history traversal or extra network call.
+lifecycle:
+  - entity: Internal callable facet
+    delete: Owned by the same tool allocation.
+    cascade: Existing owner close and tool-runtime cleanup.
+    retention: No additional persisted state.
+acceptance_criteria:
+  - id: A1
+    given: A tool with model and trusted signatures
+    when: ADK and tool@1 prepare and execute their inputs
+    then: Each sees its correct strict schema; trusted execution cannot be requested through the model facade.
+  - id: A2
+    given: The real Sitemap tool Worker and normal tool Worker regression cases
+    when: The production process and owner suites execute
+    then: Exact CAS, receipts, artifact observations, errors and cleanup remain intact.
+tests:
+  - command: cd runtime && uv run pytest tests/test_tool_worker.py tests/test_tool_worker_deadline.py tests/test_sitemap_tools.py
+    covers: [A1, A2]
+  - command: go test -tags=e2e -count=1 -run '^TestProjectSitemapToolsAcrossProductionProcesses$' -timeout=15m ./tests/e2e
+    covers: [A1, A2]
+  - command: cd runtime && uv run ruff check src/contractor_runtime/worker/tool_runtime.py src/contractor_runtime/toolsets/sitemap
+    covers: [A1, A2]
+implementation_commit: 3dc1d1b4ce3c2d459199838d6313766d32945de1

@@ -180,18 +180,16 @@ def test_exact_seed_is_copied_and_later_stage_resumes(tmp_path: Path) -> None:
         seed = client.seed("inputs", "existing-likec4", "text/vnd.likec4", seed_data)
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
 
-        with pytest.raises(ValueError, match="requires an exact revision"):
-            await tools["load_likec4"]("inputs", "existing-likec4")
-        copied = await tools["load_likec4"]("inputs", "existing-likec4", seed.revision)
+        with pytest.raises(TypeError, match="revision"):
+            await tools["load_likec4"]("inputs", "existing-likec4", revision=None)
+        copied = await tools["load_likec4"]("inputs", "existing-likec4")
         assert copied["copied"] and copied["changed"]
         assert copied["artifact"]["namespace"] == "architecture"
         assert client.history[("inputs", "existing-likec4", seed.revision)].data == seed_data
         writes_after_copy = client.write_count
 
         later = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
-        resumed = await later["load_likec4"](
-            "architecture", "architecture", copied["artifact"]["revision"]
-        )
+        resumed = await later["load_likec4"]("architecture", "architecture")
         assert not resumed["copied"] and not resumed["changed"]
         assert client.write_count == writes_after_copy
         updated = await later["append_likec4"]("// resumed\n")
@@ -218,25 +216,17 @@ def test_likec4_tools_enforce_shared_memory_source_target_and_ref_visibility(
         calls_before = (client.read_count, client.write_count)
 
         with pytest.raises(ValueError, match="purpose-specific"):
-            await tools["load_likec4"](
-                hidden.namespace,
-                hidden.name,
-                hidden.revision,
-                target_name="safe_target",
-            )
+            await tools["load_likec4"](hidden.namespace, hidden.name, target_name="safe_target")
         with pytest.raises(ValueError, match="purpose-specific"):
             await tools["load_likec4"](
-                allowed.namespace,
-                allowed.name,
-                allowed.revision,
-                target_name="memory.hidden_target",
+                allowed.namespace, allowed.name, target_name="memory.hidden_target"
             )
         with pytest.raises(ValueError, match="purpose-specific"):
             await tools["write_likec4"](BASE_DOCUMENT, target_name="memory.hidden_target")
         assert (client.read_count, client.write_count) == calls_before
         assert session._document is None and session._target_name is None
 
-        copied = await tools["load_likec4"](allowed.namespace, allowed.name, allowed.revision)
+        copied = await tools["load_likec4"](allowed.namespace, allowed.name)
         assert copied["artifact"]["namespace"] == "architecture"
         observed = {
             (ref.namespace, ref.name) for tool in tools.values() for ref in tool.known_exact_refs
@@ -252,7 +242,7 @@ def test_plain_text_seed_is_canonicalized_on_copy(tmp_path: Path) -> None:
         client = MemoryArtifactClient()
         seed = client.seed("inputs", "plain", "text/plain", BASE_DOCUMENT.encode())
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
-        copied = await tools["load_likec4"]("inputs", "plain", seed.revision)
+        copied = await tools["load_likec4"]("inputs", "plain")
         assert copied["mediaType"] == "text/vnd.likec4"
         target = client.bindings[("architecture", "architecture")]
         assert target.media_type == "text/vnd.likec4"
@@ -265,11 +255,9 @@ def test_plain_text_seed_is_canonicalized_on_copy(tmp_path: Path) -> None:
 def test_seed_requires_media_type_utf8_and_size_without_target_write(tmp_path: Path) -> None:
     async def scenario() -> None:
         client = MemoryArtifactClient()
-        wrong_media = client.seed(
-            "inputs", "binary-media", "application/octet-stream", BASE_DOCUMENT.encode()
-        )
-        invalid_utf8 = client.seed("inputs", "binary", "text/vnd.likec4", b"\xff")
-        oversized = client.seed(
+        client.seed("inputs", "binary-media", "application/octet-stream", BASE_DOCUMENT.encode())
+        client.seed("inputs", "binary", "text/vnd.likec4", b"\xff")
+        client.seed(
             "inputs",
             "large",
             "text/vnd.likec4",
@@ -278,11 +266,11 @@ def test_seed_requires_media_type_utf8_and_size_without_target_write(tmp_path: P
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
 
         with pytest.raises(ValueError, match=r"text/vnd\.likec4"):
-            await tools["load_likec4"]("inputs", "binary-media", wrong_media.revision)
+            await tools["load_likec4"]("inputs", "binary-media")
         with pytest.raises(ValueError, match="valid UTF-8"):
-            await tools["load_likec4"]("inputs", "binary", invalid_utf8.revision)
+            await tools["load_likec4"]("inputs", "binary")
         with pytest.raises(ValueError, match="1 MiB"):
-            await tools["load_likec4"]("inputs", "large", oversized.revision)
+            await tools["load_likec4"]("inputs", "large")
         assert client.read_limits == [MAX_DOCUMENT_UTF8_BYTES] * 3
         assert ("architecture", "architecture") not in client.bindings
         assert client.write_count == 0
@@ -296,7 +284,7 @@ def test_replace_bounds_and_stale_cas_preserve_selected_document(tmp_path: Path)
         state = WorkerState()
         tools = await make_tools(tmp_path, client, state, namespace="architecture")
         created = await tools["write_likec4"]("node node node\n")
-        first_revision = created["artifact"]["revision"]
+        created["artifact"]["revision"]
         writes = client.write_count
 
         with pytest.raises(ValueError, match="ambiguous"):
@@ -325,7 +313,7 @@ def test_replace_bounds_and_stale_cas_preserve_selected_document(tmp_path: Path)
         with pytest.raises(ValueError, match="CAS"):
             await tools["append_likec4"]("stale append\n")
         with pytest.raises(ValueError, match="CAS"):
-            await tools["write_likec4"]("stale whole write\n", expected_revision=first_revision)
+            await tools["write_likec4"]("stale whole write\n")
         assert (await tools["read_likec4"]())["text"] == "service service node\n"
         durable = client.bindings[("architecture", "architecture")]
         assert durable.revision == external.artifact.revision
@@ -751,10 +739,10 @@ def test_likec4_document_work_runs_on_worker_threads_while_the_loop_runs(
             ),
         )
         client = MemoryArtifactClient()
-        seed = client.seed("inputs", "seed", "text/plain", BASE_DOCUMENT.encode())
+        client.seed("inputs", "seed", "text/plain", BASE_DOCUMENT.encode())
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
 
-        load = asyncio.create_task(tools["load_likec4"]("inputs", "seed", seed.revision))
+        load = asyncio.create_task(tools["load_likec4"]("inputs", "seed"))
         try:
             await gate.wait_entered(load)
             await loop_callback(order)
@@ -884,6 +872,16 @@ class MemoryArtifactClient:
 
     def seed(self, namespace: str, name: str, media_type: str, data: bytes) -> ArtifactRef:
         return self._store(namespace, name, media_type, data)
+
+    async def read_artifact_metadata(self, ref):
+        from types import SimpleNamespace
+
+        stored = (
+            self.bindings[(ref.namespace, ref.name)]
+            if ref.revision is None
+            else self.history[(ref.namespace, ref.name, ref.revision)]
+        )
+        return SimpleNamespace(artifact=ref.model_copy(update={"revision": stored.revision}))
 
     async def read_artifact(
         self, ref: ArtifactRef, *, max_bytes: int = MAX_ARTIFACT_BYTES

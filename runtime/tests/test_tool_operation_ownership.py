@@ -61,7 +61,11 @@ def test_source_abort_and_release_join_file_work_before_reusing_slot(
             "inputs", "source", "application/zip", make_zip({"src/private.py": "source"})
         )
         model = scripted_model(
-            [tool_call("open_source_archive", ref.model_dump(), call_id="source-1")]
+            [
+                tool_call(
+                    "open_source_archive", ref.model_dump(exclude={"revision"}), call_id="source-1"
+                )
+            ]
         )
         factory = SourceAnalysisToolsetFactory(lambda *_: client)
         registry = FactoryRegistry(

@@ -308,7 +308,7 @@ def test_shared_go_python_fixture_and_exact_consumer_reads():
                 assert ref["revision"].startswith("consumer-revision-")
                 assert document["source"]["ref"]["revision"] == "rev-1"
                 assert document["source"]["scope"]["kind"] == "run"
-                read = await reader(**ref)
+                read = await reader(cursor=reader._cursors.issue(ArtifactRef.model_validate(ref)))
                 assert read["text"].encode() == contents[ref["name"]]
         first, second = result["items"]
         assert first["evidence"][0]["digest"] == second["evidence"][0]["digest"]
@@ -1312,9 +1312,15 @@ def test_project_finding_tools_use_exact_selection_and_transport_replay():
         assert len(transport.selection_requests) == 2
         assert transport.selection_requests[0] == transport.selection_requests[1]
         reader = tools["read_finding_selection"]
-        first = await reader(selected["artifact"]["ref"], limit=1)
+        first = await reader(
+            {k: v for k, v in selected["artifact"]["ref"].items() if k != "revision"}, limit=1
+        )
         assert len(first["items"]) == 1 and first["next_cursor"]
-        second = await reader(selected["artifact"]["ref"], limit=1, cursor=first["next_cursor"])
+        second = await reader(
+            {k: v for k, v in selected["artifact"]["ref"].items() if k != "revision"},
+            limit=1,
+            cursor=first["next_cursor"],
+        )
         assert len(second["items"]) == 1 and second["next_cursor"] is None
         assert first["items"][0]["proposal"]["ref"]["revision"]
         invalid = ("invalid-revision", COLLECTION_MEDIA_TYPE, b"invalid package")
@@ -1322,14 +1328,16 @@ def test_project_finding_tools_use_exact_selection_and_transport_replay():
         transport.versions[("reader", "invalid", "invalid-revision")] = invalid
         with pytest.raises(FindingsError):
             await reader({"namespace": "reader", "name": "invalid", "revision": "invalid-revision"})
-        restored = await reader(selected["artifact"]["ref"], limit=1)
+        restored = await reader(
+            {k: v for k, v in selected["artifact"]["ref"].items() if k != "revision"}, limit=1
+        )
         assert restored["items"] == first["items"]
         await reader.close()
         for name, tool in tools.items():
             assert tool.name == name
             await tool.close()
         with pytest.raises(FindingsError, match="findings_reader_unavailable"):
-            await reader(selected["artifact"]["ref"])
+            await reader({k: v for k, v in selected["artifact"]["ref"].items() if k != "revision"})
 
     asyncio.run(scenario())
 

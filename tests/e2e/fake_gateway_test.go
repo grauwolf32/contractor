@@ -151,7 +151,7 @@ func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	switch call {
 	case 1:
 		message = toolCallMessage("read-1", "read_artifact", map[string]any{
-			"namespace": "inputs", "name": "source", "revision": nil,
+			"namespace": "inputs", "name": "source",
 		})
 	case 2:
 		data, ok := lastStringValue(request, "text")
@@ -161,7 +161,7 @@ func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		message = toolCallMessage("write-1", "write_text_artifact", map[string]any{
 			"name": "copied", "media_type": "text/plain",
-			"text": e2eReport, "expected_revision": nil,
+			"text": e2eReport,
 		})
 	case 3:
 		_, ok := lastExactArtifact(request, "builder", "copied")
@@ -174,7 +174,7 @@ func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	default:
 		message = toolCallMessage(fmt.Sprintf("bounded-read-%d", call), "read_artifact", map[string]any{
-			"namespace": "inputs", "name": "source", "revision": nil,
+			"namespace": "inputs", "name": "source",
 		})
 	}
 

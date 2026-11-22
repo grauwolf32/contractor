@@ -32,6 +32,7 @@ from contractor_runtime.contracts import (
     ArtifactRef,
 )
 from contractor_runtime.mtls import verify_control_plane_peer
+from contractor_runtime.toolsets.common.versions import ModelArtifacts, SelectedVersions
 
 SHARED_LIST_CASES = (
     Path(__file__).resolve().parents[2] / "api/testdata/v1alpha1/artifact-list-cases.json"
@@ -44,7 +45,10 @@ TIMESTAMP_HEADERS = {
 }
 
 
-def test_project_read_target_keeps_run_provenance_and_shared_metadata_contract() -> None:
+@pytest.mark.parametrize("model_adapter", [False, True])
+def test_project_read_target_keeps_run_provenance_and_shared_metadata_contract(
+    model_adapter,
+) -> None:
     async def scenario() -> None:
         ref = ArtifactRef(namespace="analysis", name="report")
         project_ref = ArtifactRef(namespace=ref.namespace, name=ref.name, revision="project-rev")
@@ -72,6 +76,9 @@ def test_project_read_target_keeps_run_provenance_and_shared_metadata_contract()
             ]
         )
         client = ArtifactClient("allocation-1", transport)
+        versions = SelectedVersions()
+        if model_adapter:
+            client = ModelArtifacts(client, versions)
         run = await client.read_artifact(ref)
         cursor = client.observation_cursor
         target = ArtifactReadTarget(scope="project", operation="read_report")
@@ -84,6 +91,10 @@ def test_project_read_target_keeps_run_provenance_and_shared_metadata_contract()
         assert value.revision_created_at == run.revision_created_at
         assert client.known_exact_refs == (run.artifact,)
         assert client.observed_exact_refs_since(cursor) == ()
+        if model_adapter:
+            versions.begin_response()
+            assert versions.resolve({"namespace": ref.namespace, "name": ref.name}) == run.artifact
+            assert versions.base(ref.namespace, ref.name) == "run-rev"
         root = "/allocations/allocation-1/artifacts/analysis/report"
         assert [request.path for request in transport.requests] == [
             root,

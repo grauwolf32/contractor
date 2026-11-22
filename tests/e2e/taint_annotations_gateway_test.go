@@ -125,7 +125,7 @@ func taintMutationGatewayStage() domainGatewayStage {
 				tool: "write_text_artifact", validate: requireTaintDiff(),
 				arguments: fixedArguments(map[string]any{
 					"name": "report", "text": taintTraceReport,
-					"media_type": "text/markdown", "expected_revision": nil,
+					"media_type": "text/markdown",
 				}),
 			},
 			{
@@ -173,7 +173,7 @@ func taintCleanReuseGatewayStage() domainGatewayStage {
 				tool: "write_text_artifact", validate: requireEmptyWorkspaceDiff(),
 				arguments: fixedArguments(map[string]any{
 					"name": "report", "text": taintReuseReport,
-					"media_type": "text/markdown", "expected_revision": nil,
+					"media_type": "text/markdown",
 				}),
 			},
 			{

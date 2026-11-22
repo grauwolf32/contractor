@@ -43,11 +43,16 @@ type workerCallOutput struct {
 	Error  *toolFailure            `json:"error,omitempty"`
 }
 
+type materialSelection struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
 type finishArgs struct {
-	Outcome   stageresult.StageOutcome         `json:"outcome"`
-	Summary   string                           `json:"summary"`
-	Artifacts map[string]contracts.ArtifactRef `json:"artifacts"`
-	Error     *contracts.TerminationError      `json:"error,omitempty"`
+	Outcome   stageresult.StageOutcome     `json:"outcome"`
+	Summary   string                       `json:"summary"`
+	Artifacts map[string]materialSelection `json:"artifacts"`
+	Error     *contracts.TerminationError  `json:"error,omitempty"`
 }
 
 type addSubtaskArgs struct {
@@ -155,7 +160,7 @@ func (p *streamlinePlanner) buildTools(
 	}
 	finish, err := functiontool.New(functiontool.Config{
 		Name:        finishToolName,
-		Description: "Finish the Stage with a succeeded or failed candidate. A failed candidate requires a safe error; a succeeded candidate forbids one. Every artifact must name a declared result slot and include an exact revision. Workflow Scheduler remains the acceptance and transition owner.",
+		Description: "Finish the Stage with a succeeded or failed candidate. A failed candidate requires a safe error; a succeeded candidate forbids one. Every artifact names a declared result slot and a namespace/name material from accepted Worker results or trusted Stage inputs. The adapter supplies its exact revision. Workflow Scheduler remains the acceptance and transition owner.",
 	}, func(ctx agent.Context, args finishArgs) (completionToolOutput, error) {
 		return p.finish(ctx, state, identity, args), nil
 	})
@@ -358,6 +363,11 @@ func (p *streamlinePlanner) callWorker(
 			state.setExternalFailure(failure)
 		}
 	}
+	if !state.selectWorkerArtifacts(binding.logicalName, result.Artifacts) {
+		failure := planner.NewError("finish_rejected", "Selected result material limit exceeded", false, nil)
+		state.setExternalFailure(failure)
+		return workerFailure(failure.Failure)
+	}
 	encoded, _ := json.Marshal(result)
 	state.recordTool(executeCurrentSubtaskToolName, safeArguments, true, time.Since(started), len(encoded), nil)
 	return workerCallOutput{OK: true, Result: &result}
@@ -478,9 +488,16 @@ func (p *streamlinePlanner) finish(
 	if args.Outcome == stageresult.StageSucceeded || args.Outcome == stageresult.StageFailed {
 		safeOutcome = string(args.Outcome)
 	}
+	selected, selectionError := p.finishArtifacts(state, args.Artifacts)
+	if selectionError != nil {
+		failure := planner.Failure{Code: "finish_rejected", Message: selectionError.Error()}
+		span.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
+		state.recordTool(finishToolName, map[string]any{"outcome": safeOutcome}, false, time.Since(started), 0, &failure)
+		return completionToolOutput{Error: toolFailureFrom(failure)}
+	}
 	result := stageresult.StageContentResult{
 		APIVersion: contracts.APIVersion, Outcome: args.Outcome,
-		Summary: args.Summary, Artifacts: contracts.CloneArtifactRefs(args.Artifacts), Error: clone.Pointer(args.Error),
+		Summary: args.Summary, Artifacts: selected, Error: clone.Pointer(args.Error),
 	}
 	if err := planner.ValidateCandidate(
 		ctx, p.invocation.RunID, p.resultContract, result, p.inspector,
@@ -653,4 +670,52 @@ func safeSubtaskID(value string) string {
 		return "invalid"
 	}
 	return value
+}
+
+// finishArtifacts resolves only admitted facts, never a mutable Artifact alias or model history.
+func (p *streamlinePlanner) finishArtifacts(state *executionState, selections map[string]materialSelection) (map[string]contracts.ArtifactRef, error) {
+	type key struct{ namespace, name string }
+	exact := map[key]contracts.ArtifactRef{}
+	ambiguous := map[key]bool{}
+	add := func(ref contracts.ArtifactRef) {
+		k := key{ref.Namespace, ref.Name}
+		if old, ok := exact[k]; ok && (old.Revision == nil || ref.Revision == nil || *old.Revision != *ref.Revision) {
+			ambiguous[k] = true
+		}
+		exact[k] = ref
+	}
+	state.mu.Lock()
+	for _, refs := range state.materials {
+		for _, ref := range refs {
+			add(ref)
+		}
+	}
+	state.mu.Unlock()
+	// Accepted Worker outputs supersede inputs at the same address. Distinct
+	// trusted input roles at an otherwise unproduced address must agree exactly.
+	produced := maps.Clone(exact)
+	for _, ref := range p.invocation.Context.Artifacts {
+		if ref != nil {
+			if _, ok := produced[key{ref.Namespace, ref.Name}]; !ok {
+				add(*ref)
+			}
+		}
+	}
+	if prior := p.invocation.Context.Continuation; prior != nil {
+		for _, ref := range prior.Artifacts {
+			if _, ok := produced[key{ref.Namespace, ref.Name}]; !ok {
+				add(ref)
+			}
+		}
+	}
+	result := make(map[string]contracts.ArtifactRef, len(selections))
+	for slot, selection := range selections {
+		k := key{selection.Namespace, selection.Name}
+		ref, ok := exact[k]
+		if !ok || ambiguous[k] || ref.Revision == nil {
+			return nil, fmt.Errorf("finish material is unknown or ambiguous; use an accepted Worker output or unambiguous Stage input")
+		}
+		result[slot] = ref.Clone()
+	}
+	return result, nil
 }

@@ -297,8 +297,8 @@ def test_source_state_and_path_errors_reach_the_model(tmp_path):
         with pytest.raises(ValueError) as caught:
             await tools["read_source"]("app.py")
         assert_model_facing(caught.value, "must be called first", "source_archive_not_open")
-        ref = client.seed("inputs", "source", "application/zip", make_zip({"app.py": "x\n"}))
-        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        client.seed("inputs", "source", "application/zip", make_zip({"app.py": "x\n"}))
+        await tools["open_source_archive"]("inputs", "source")
         with pytest.raises(ValueError) as caught:
             await tools["read_source"]("missing.py")
         assert_model_facing(caught.value, "source path is absent", "source_path_not_found")

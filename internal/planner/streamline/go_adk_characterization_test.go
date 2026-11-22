@@ -139,6 +139,7 @@ func TestGoADKMigrationRawArguments(t *testing.T) {
 	}{
 		{name: "core-extra", family: "core", tool: addSubtaskToolName, args: map[string]any{"objective": "test", "instructions": "test", "unexpected": true}, executionError: true},
 		{name: "core-context", family: "core", tool: addSubtaskToolName, args: map[string]any{"objective": "test", "instructions": "test", "tool_context": "injected"}, executionError: true},
+		{name: "core-nested-revision", family: "core", tool: finishToolName, args: map[string]any{"outcome": "succeeded", "summary": "test", "artifacts": map[string]any{"report": map[string]any{"namespace": "builder", "name": "report", "revision": "r1"}}}, executionError: true},
 		{name: "core-nested-extra", family: "core", tool: finishToolName, args: map[string]any{"outcome": "succeeded", "summary": "test", "artifacts": map[string]any{"report": map[string]any{"namespace": "builder", "name": "report", "revision": "r1", "unexpected": true}}}, executionError: true},
 		{name: "core-number", family: "core", tool: addSubtaskToolName, args: map[string]any{"objective": 42, "instructions": "test"}, executionError: true},
 		{name: "core-bool", family: "core", tool: addSubtaskToolName, args: map[string]any{"objective": true, "instructions": "test"}, executionError: true},

@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: AuditProfile
 metadata:
   name: source-openapi-sqlmap-scan
-  version: '2'
+  version: "3"
 spec:
   schema: contractor.audit.program.v1
   inputs:
@@ -20,7 +20,7 @@ spec:
       - application/json
   workflows:
     prepare:
-      ref: source-openapi-prepare-work@2
+      ref: source-openapi-prepare-work@3
       inputs:
         engagement:
           source: audit-input

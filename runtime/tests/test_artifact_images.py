@@ -23,7 +23,7 @@ from test_otlp_adapter import adapter_context, telemetry_settings
 
 from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory
 from contractor_runtime.artifacts import ArtifactTransportError, ArtifactValue
-from contractor_runtime.contracts import API_VERSION, ArtifactMetadataResult
+from contractor_runtime.contracts import API_VERSION, ArtifactMetadataResult, ArtifactRef
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.llm.client import new_gateway_client
 from contractor_runtime.llm.image_parts import (
@@ -164,7 +164,11 @@ def test_exact_image_bytes_replay_after_head_change_and_context_reset(fmt, mime)
         client.head = "image-r2"
         client.values[client.head] = picture(fmt, (3, 1))
         budget.reconcile([])
-        replay = await tool("inputs", "source", "image-r1")
+        replay = await tool(
+            cursor=tool._cursors.issue(
+                ArtifactRef(namespace="inputs", name="source", revision="image-r1")
+            )
+        )
         assert replay[ARTIFACT_IMAGE_PART].inline_data.data == data
         assert client.calls == ["read_artifact"] and client.read_limits == [MAX_IMAGE_BYTES]
 
@@ -234,10 +238,20 @@ def test_parallel_image_admission_is_bounded_and_context_can_release_it():
         ]
         budget.reconcile(contents)
         with pytest.raises(ToolInputError) as error:
-            await tool("inputs", "source", "image-r1")
+            await tool(
+                cursor=tool._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="source", revision="image-r1")
+                )
+            )
         assert error.value.code == "image_context_limit" and client.calls == ["read_artifact"]
         budget.reconcile([])
-        assert (await tool("inputs", "source", "image-r1"))["imageDelivery"] == "inline"
+        assert (
+            await tool(
+                cursor=tool._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="source", revision="image-r1")
+                )
+            )
+        )["imageDelivery"] == "inline"
         assert client.calls == ["read_artifact"]
 
     asyncio.run(scenario())
@@ -344,9 +358,13 @@ def test_actual_worker_delivers_native_image_through_http_gateway(tmp_path):
                                 "name": "read_artifact",
                                 "arguments": json.dumps(
                                     {
-                                        "namespace": "inputs",
-                                        "name": "source",
-                                        "revision": "image-r1",
+                                        "cursor": tool._cursors.issue(
+                                            ArtifactRef(
+                                                namespace="inputs",
+                                                name="source",
+                                                revision="image-r1",
+                                            )
+                                        ),
                                     }
                                 ),
                             },
@@ -567,7 +585,11 @@ def test_actual_compaction_releases_images_and_rereads_exact_ref(tmp_path):
                         assert "reread_required" in json.dumps(payload)
                     name, args = (
                         "read_artifact",
-                        {"namespace": "inputs", "name": "source", "revision": "image-r1"},
+                        {
+                            "cursor": tool._cursors.issue(
+                                ArtifactRef(namespace="inputs", name="source", revision="image-r1")
+                            )
+                        },
                     )
                     if ordinal == 2:
                         prompt = 600

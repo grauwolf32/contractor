@@ -14,8 +14,13 @@ from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.strict_json import strict_json_loads
 from contractor_runtime.toolsets.common.artifact_visibility import require_model_visible_binding
+from contractor_runtime.toolsets.common.artifact_write import (
+    definite_write_rejection,
+    write_artifact_exact,
+)
 from contractor_runtime.toolsets.common.factory import require_selected_tools
 from contractor_runtime.toolsets.common.tool_base import ArtifactTool
+from contractor_runtime.toolsets.common.versions import SelectedVersions
 
 
 class SubmitHypothesisProposalsTool(ArtifactTool):
@@ -26,27 +31,28 @@ class SubmitHypothesisProposalsTool(ArtifactTool):
     hypotheses_json maps local names to statement/scope/grounds, with optional
     sources listing material handles. work_json lists key/workflow/objective,
     optional hypothesis alias and inputs mapping checking slots to handles.
-    selected_materials_json optionally maps new handles to exact own-Run refs,
+    selected_materials_json maps optional new handles to selected own-Run
+    namespace/name materials,
     such as snapshots selected with the Project Findings reader. Scope and
     persisted IDs/revisions/origin are assigned by the Server. Repeated calls
-    keep prior selected materials and require expected_revision for correction.
+    keep prior selected materials; Runtime manages correction preconditions.
     Empty hypotheses and work express a successful decision to stop.
     Returns saved proposal metadata; hypotheses are published after Run success.
     """
 
-    def __init__(self, client, metrics, secrets, namespace, run_id):
+    def __init__(self, client, metrics, secrets, namespace, run_id, versions=None):
         super().__init__(client, metrics, secrets)
         self._namespace = namespace
         self._run_id = run_id
+        self._versions = versions if versions is not None else SelectedVersions()
 
     async def __call__(
         self,
         hypotheses_json: str,
         work_json: str,
-        expected_revision: str | None = None,
         selected_materials_json: str = "{}",
     ) -> dict:
-        with self._recorded({"expected_revision": expected_revision}) as call:
+        with self._recorded({}) as call:
             roles_value = await self._client.read_artifact(
                 ArtifactRef(namespace=AUDIT_CONTEXT_NAMESPACE, name="hypothesis-proposals"),
                 max_bytes=8192,
@@ -65,6 +71,7 @@ class SubmitHypothesisProposalsTool(ArtifactTool):
                     raise ValueError("proposal role")
             except (ValueError, TypeError, KeyError, ValidationError):
                 raise ToolInputError("Invalid configured proposal role.") from None
+            expected_revision = self._versions.base(target.namespace, target.name)
             context = await self._client.read_artifact(
                 ArtifactRef.model_validate(roles["context"]), max_bytes=8 << 20
             )
@@ -80,6 +87,10 @@ class SubmitHypothesisProposalsTool(ArtifactTool):
                 selected = strict_json_loads(selected_materials_json)
                 if not isinstance(selected, dict) or len(selected) > 32:
                     raise ValueError("selection shape")
+                selected = {
+                    key: self._versions.resolve(value).model_dump(exclude_none=True)
+                    for key, value in selected.items()
+                }
                 if prior is not None:
                     saved = strict_json_loads(prior.data.decode())
                     previous = saved.get("selected_materials", {})
@@ -132,6 +143,7 @@ class SubmitHypothesisProposalsTool(ArtifactTool):
             except (ValueError, TypeError, KeyError, UnicodeError, ValidationError):
                 raise ToolInputError("Invalid proposal content or selected binding.") from None
             if prior is not None and prior.data == data:
+                self._versions.observe(prior.artifact)
                 result = {
                     "artifact": prior.artifact.model_dump(by_alias=True),
                     "mediaType": prior.media_type,
@@ -139,14 +151,26 @@ class SubmitHypothesisProposalsTool(ArtifactTool):
                 }
                 call.succeed(result)
                 return result
-            saved = await self._client.write_artifact(
+            self._versions.admit_write(target)
+            saved = await write_artifact_exact(
+                self._client,
                 target,
                 data=data,
                 media_type="application/json",
                 expected_revision=expected_revision,
+                max_bytes=1 << 20,
+                reject_first=definite_write_rejection,
+                reject_replay=lambda error: (
+                    definite_write_rejection(error) and error.code != "artifact_conflict"
+                ),
             )
-            result = saved.model_dump(by_alias=True)
-            call.succeed({"artifact": result["artifact"], "size": saved.size})
+            self._versions.observe(saved.artifact)
+            result = {
+                "artifact": saved.artifact.model_dump(by_alias=True),
+                "mediaType": saved.media_type,
+                "size": len(data),
+            }
+            call.succeed({"artifact": result["artifact"], "size": len(data)})
             return result
 
 
@@ -248,5 +272,6 @@ class AuditProposalsToolsetFactory:
                 runtime_secrets(runtime_settings),
                 namespace,
                 kwargs["run_id"],
+                resources.selected_versions,
             )
         }

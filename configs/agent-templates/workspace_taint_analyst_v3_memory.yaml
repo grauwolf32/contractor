@@ -3,13 +3,13 @@ kind: AgentTemplate
 
 metadata:
   name: workspace_taint_analyst
-  version: "4"
+  version: "5"
 
 spec:
   description: Traces one assigned target through a project workspace, inserts structured annotations, and publishes an evidence report
   runtime: adk@1
   instructions:
-    ref: instructions/workspace-taint-analyst-worker-memory-artifact-reader.md
+    ref: instructions/workspace-taint-analyst-worker-memory-artifact-reader-cursor-reads.md
   summarizer:
     instructions:
       ref: instructions/terminal-summarizer.md

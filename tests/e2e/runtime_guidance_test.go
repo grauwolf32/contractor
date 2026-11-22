@@ -55,7 +55,7 @@ func TestRuntimeGuidanceAcrossProductionProcesses(t *testing.T) {
 		stages := []domainGatewayStage{}
 		for _, media := range []string{"text/plain", "image/png"} {
 			read := func(extra map[string]any) domainGatewayStep {
-				return toolGatewayStep("read_artifact", stageRefArguments("source", extra))
+				return toolGatewayStep("read_artifact", stageReadArguments("source", extra))
 			}
 			check := func(request map[string]any) error { return validateExecutionFacts(request, "remainingToolCalls") }
 			third := read(nil)

@@ -8,6 +8,7 @@ priority: P1
 status: pending
 depends_on:
 - V64-012
+- V479-002
 languages:
 - yaml
 - markdown
@@ -34,20 +35,25 @@ context:
     without mandatory automatic repeats. When an assigned hypothesis check stops without an accepted conclusion,
     expose a system-authored inconclusive with observed stop reason and source, meaning no conclusion was accepted.
     Preserve existing accepted judgments, keep hypothesis-free exploration without a verdict, and never turn
-    a failed/cancelled Run into success.'
+    a failed/cancelled Run into success.
+    User request 2026-11-22: review this package against updated main and reconcile affected tasks. Apply
+    the already merged V479 contracts for Runtime-owned versions and correction generations; this review
+    does not assign feature implementation or change the agreed retention/stop policy.'
   implementation_gate: 'All product review decisions recorded below are settled for the task draft. Keep tasks
     pending: this thread is planning/review, not an implementation assignment. Do not deploy or launch an Audit.
     The user requested review before merging the task package into main; report the reconciled package before
     integration. Implementation must follow these task contracts; an unforeseen consequential prerequisite
     needs its own review, not silent scope growth.'
-  baseline: Local main 6a4d479d361f8fcb1ce5c74c7f512c5dfe4666af; Invoice Lab demonstrated one broad exploration
-    item ending after one accepted conclusion. This is motivation, not a live quality benchmark.
+  baseline: Reviewed main cd2974674def375c1838b496c8f288e86989dc8a, including completed V479-001 through
+    V479-009. The earlier Invoice Lab run motivates this package; it is not a current live quality benchmark.
   specification:
   - docs/spec/configuration/agent-templates.md
   - docs/spec/configuration/catalog.md
   - docs/spec/audits/common-contract.md
   - docs/spec/audits/worker-completion.md
   - docs/spec/findings/findings.md
+  - docs/spec/audits/worker-completion.md#AWC-R46
+  - docs/spec/artifacts/artifact-store.md#ART-R148
   boundary_decision: This task owns a small methodology change in effective Worker instructions and their immutable
     catalog bindings. It uses existing tools and completion contracts. V478-002/003 own adoption of evidence/fact/sources
     and submit_result later; avoid circular dependencies by not referring to unavailable tools in this first
@@ -78,10 +84,20 @@ context:
     scenario-appropriate guidance, not universal mandatory dimensions or an Invoice Lab recipe. No automatic
     endpoint inventory, discovery loop, all-endpoints proof or numerical coverage score is introduced.
   sources:
-  - configs/instructions/audit-source-checker-worker-project-findings-keyed-results.md
-  - configs/instructions/audit-wstg-http-verifier-worker-project-findings-keyed-results.md
-  - configs/instructions/audit-openapi-operation-tracer-worker-project-findings-keyed-results.md
+  - configs/instructions/audit-source-checker-worker-project-findings-keyed-results-runtime-versions.md
+  - configs/instructions/audit-wstg-http-verifier-worker-project-findings-keyed-results-runtime-versions.md
+  - configs/instructions/audit-openapi-operation-tracer-worker-project-findings-keyed-results-runtime-versions.md
+  - configs/instructions/audit-openapi-operation-observer-worker-keyed-results-runtime-versions.md
+  - configs/instructions/audit-asvs-source-verifier-worker-project-findings-keyed-results-runtime-versions.md
+  - configs/instructions/audit-standard-source-verifier-worker-project-findings-keyed-results-runtime-versions.md
+  - configs/instructions/audit-risk-source-checker-worker-project-findings-keyed-results-runtime-versions.md
   - configs/instructions/source-findings-reviewer-project-findings.md
+  main_reconciliation_2026_11_22: V479 already published Runtime-version-aware Audit instructions and
+    bumped their catalog closures. Start from the effective current instructions, including source checker@5,
+    HTTP verifier@5 and operation tracer@4 at this baseline. V479 only changed version/correction wording;
+    the general investigation guidance here is still outstanding. Keep sequential item-key correction
+    and cursor read guidance; publish new identities from the current locked catalog rather than editing
+    old paths.
 scope:
   in:
   - Update the effective general investigation instructions and their selected Workflow/AgentTemplate bindings
@@ -112,9 +128,11 @@ requirements:
     a mandatory checklist artifact, new states or a structured role evaluator. Existing assignment membership
     and hypothesis/result semantics remain authoritative.
 - id: R5
-  text: Revise effective selected instruction paths consistently and version immutable catalog entries. Test
-    fixtures remain self-contained; unit tests do not read the live configs tree. A deterministic scripted
-    model validates loaded guidance and tool wiring, not live compliance or coverage quality.
+  text: Revise effective selected instruction paths consistently from the current V479 catalog and publish
+    new immutable versions/lock entries. Preserve Runtime-owned item-key corrections and exact cursor
+    reads; never ask the model to copy a revision into an argument. Test fixtures remain self-contained
+    and unit tests do not read live configs. Scripted models validate loaded guidance and tool wiring,
+    not live compliance or coverage quality.
 failure_outcomes:
 - operation: Resolve revised instruction/catalog identities and execute an ordinary investigation
   permanent: Existing catalog validation rejects unresolved or changed-content identities; tool authorization
@@ -154,8 +172,8 @@ acceptance_criteria:
 - id: A3
   given: Changed instruction content, current catalog closures and historical Run pins
   when: Configuration and ordinary process validation run
-  then: New immutable identities resolve, old pinned content is not overwritten and deterministic gates contain
-    nonzero executed cases.
+  then: New immutable identities resolve from the current V479 catalog, old pinned content is not overwritten,
+    guidance preserves revision-free model inputs and deterministic gates contain nonzero executed cases.
 tests:
 - command: make test-config
   covers:

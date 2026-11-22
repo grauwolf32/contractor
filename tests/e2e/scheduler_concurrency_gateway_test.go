@@ -131,7 +131,7 @@ func (g *schedulerConcurrencyGateway) serveHTTP(w http.ResponseWriter, r *http.R
 		g.respond(w, request, toolCallMessage(
 			fmt.Sprintf("scheduler-write-%d", time.Now().UnixNano()), "write_text_artifact", map[string]any{
 				"name": "copied", "media_type": "text/plain",
-				"text": e2eReport, "expected_revision": nil,
+				"text": e2eReport,
 			},
 		), "tool_calls")
 		return
@@ -158,7 +158,7 @@ func (g *schedulerConcurrencyGateway) serveHTTP(w http.ResponseWriter, r *http.R
 	g.mu.Unlock()
 	g.respond(w, request, toolCallMessage(
 		fmt.Sprintf("scheduler-read-%d", time.Now().UnixNano()), "read_artifact", map[string]any{
-			"namespace": "inputs", "name": "source", "revision": nil,
+			"namespace": "inputs", "name": "source",
 		},
 	), "tool_calls")
 }

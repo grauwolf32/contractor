@@ -254,3 +254,30 @@ def test_invalid_batch_keys_preserve_all_revisions(kind):
         assert len(snapshot.items) == 1 and snapshot.items[0].revision == 1
 
     asyncio.run(scenario())
+
+
+def test_model_response_updates_are_automatic_but_parallel_changes_share_one_base():
+    async def scenario():
+        expected, inputs = assigned(count=2)
+        collector, tool, _ = tool_for(inputs)
+        value = expected.items[0].value
+        first = await tool(CONTEXT, **arguments(value, keyed=True))
+        assert first["revisions"][0]["revision"] == 1
+        collector.begin_response()
+        a, b = replace(value, rationale="Trace A"), replace(value, rationale="Trace B")
+        results = await asyncio.gather(
+            tool(CONTEXT, **arguments(a, keyed=True)),
+            tool(CONTEXT, **arguments(b, keyed=True)),
+        )
+        assert sum(result["status"] == "error" for result in results) == 1
+        current = (await collector.snapshot()).items[0]
+        assert current.revision == 2
+        collector.begin_response()
+        replay = await tool(CONTEXT, **arguments(current.value, keyed=True))
+        assert replay["revisions"][0]["revision"] == 2
+        # This is a new semantic call, not an infrastructure replay of revision 1.
+        changed = await tool(CONTEXT, **arguments(value, keyed=True))
+        assert changed["revisions"][0]["revision"] == 3
+        assert (await collector.snapshot()).items[0].value == value
+
+    asyncio.run(scenario())

@@ -3,7 +3,7 @@ kind: Workflow
 
 metadata:
   name: openapi-from-analysis
-  version: "5"
+  version: "6"
 
 spec:
   parameters:
@@ -57,7 +57,7 @@ spec:
       planner: passthrough@1
       agents:
         builder:
-          template: openapi_builder@4
+          template: openapi_builder@5
           namespace: openapi
       context:
         workspace: &workspace_overlay
@@ -120,7 +120,7 @@ spec:
       planner: passthrough@1
       agents:
         validator:
-          template: openapi_validator@4
+          template: openapi_validator@5
           namespace: openapi
       context:
         workspace: *workspace_overlay

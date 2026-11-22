@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: Workflow
 metadata:
   name: source-openapi-prepare-work
-  version: '2'
+  version: "3"
 spec:
   parameters:
     objective:
@@ -86,7 +86,7 @@ spec:
       planner: passthrough@1
       agents:
         analyst:
-          template: workspace_source_graph_analyst@4
+          template: workspace_source_graph_analyst@5
           namespace: analysis
       context:
         artifacts:
@@ -154,7 +154,7 @@ spec:
       planner: passthrough@1
       agents:
         analyst:
-          template: workspace_source_graph_analyst@4
+          template: workspace_source_graph_analyst@5
           namespace: analysis
       context:
         artifacts:

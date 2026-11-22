@@ -97,7 +97,7 @@ func TestArtifactImagesAcrossProcesses(t *testing.T) {
 			return nil
 		}
 		stages = append(stages, domainGatewayStage{name: fmt.Sprint("image-route-", vision), tools: []string{"read_artifact"}, steps: []domainGatewayStep{
-			toolGatewayStep("read_artifact", stageRefArguments("source", nil)), final,
+			toolGatewayStep("read_artifact", stageReadArguments("source", nil)), final,
 		}})
 	}
 	h := startConfiguredFindingsHarness(t, stages, func(root string) {

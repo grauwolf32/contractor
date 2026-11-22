@@ -9,8 +9,9 @@ from fakes.sitemap import SitemapTransport, document, identity
 from fakes.worker_state import WorkerState
 
 from contractor_runtime.artifacts import ArtifactClient, ArtifactTransportError
-from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.toolsets.sitemap.session import manual_source_id
 from contractor_runtime.toolsets.sitemap.tools import SitemapToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -41,7 +42,7 @@ def test_selected_factory_capability_and_exact_private_mutation():
         tools, state = await tools_for(transport, ["upsert_sitemap_entry"])
         assert set(tools) == {"upsert_sitemap_entry"}
         assert "Returns:" in tools["upsert_sitemap_entry"].__doc__
-        result = await tools["upsert_sitemap_entry"](
+        result = await tools["upsert_sitemap_entry"].contractor_trusted_call(
             "absent", url="https://example.test/manual", method="GET", idempotency_key="stable-key"
         )
         assert result["artifact"]["revision"] == "accepted-revision"
@@ -72,12 +73,13 @@ def test_keyed_transport_reconciliation_does_not_retry_definite_errors_or_target
         transport.ambiguous_once = True
         tools, _ = await tools_for(transport, ["remove_sitemap_entry"])
         tool = tools["remove_sitemap_entry"]
-        await tool("revision-original", [identity("member")], "marker", idempotency_key="key")
+        trusted = tool.contractor_trusted_call
+        await trusted("revision-original", [identity("member")], "marker", idempotency_key="key")
         assert len(transport.requests) == 2
         assert transport.requests[0] == transport.requests[1]
         transport.requests.clear()
         transport.post_error = (409, "sitemap_conflict", False)
-        result = await tool(
+        result = await trusted(
             "stale-revision", [identity("member")], "marker", idempotency_key="different-key"
         )
         assert result == {
@@ -88,7 +90,7 @@ def test_keyed_transport_reconciliation_does_not_retry_definite_errors_or_target
         assert len(transport.requests) == 1
         transport.requests.clear()
         transport.post_error = (503, "artifact_history_maintenance_pending", True)
-        result = await tool(
+        result = await trusted(
             "revision-original", [identity("member")], "marker", idempotency_key="retry-key"
         )
         assert result["error"] == {
@@ -117,7 +119,7 @@ def test_known_short_encoded_credentials_remain_metadata_but_not_tool_metrics():
         tools, state = await tools_for(transport, ["upsert_sitemap_entry"], settings=settings)
         paths = ["/tiny", "/t%69ny", "/t%2569ny", "/alice", "/token/" + "a" * 64]
         for path in paths:
-            result = await tools["upsert_sitemap_entry"](
+            result = await tools["upsert_sitemap_entry"].contractor_trusted_call(
                 "absent", url="https://example.test" + path, method="GET"
             )
             assert result["status"] == "completed"
@@ -125,7 +127,7 @@ def test_known_short_encoded_credentials_remain_metadata_but_not_tool_metrics():
             assert request["mutation"]["url"] == "https://example.test" + path
         note = "token=tiny; password=alice"
         tags = ["tiny", "alice", "authorization"]
-        result = await tools["upsert_sitemap_entry"](
+        result = await tools["upsert_sitemap_entry"].contractor_trusted_call(
             "revision-original", member_ids=[identity("member")], note=note, tags=tags
         )
         assert result["status"] == "completed"
@@ -148,7 +150,9 @@ def test_explicit_sitemap_arguments_keep_the_nesting_bound():
         for _ in range(33):
             rules = [rules]
         with pytest.raises(ToolInputError, match="nesting bound"):
-            await tools["configure_sitemap_grouping"]("revision-original", rules)
+            await tools["configure_sitemap_grouping"].contractor_trusted_call(
+                "revision-original", rules
+            )
         assert transport.requests == []
         await tools["configure_sitemap_grouping"].close()
 
@@ -182,7 +186,7 @@ def test_empty_map_metadata_supplies_complete_source_precondition_to_editor():
     async def scenario():
         source = {
             "provenance": {
-                "sourceId": identity("manual"),
+                "sourceId": manual_source_id("research"),
                 "kind": "manual",
             },
             "generation": 2,
@@ -218,9 +222,7 @@ def test_empty_map_metadata_supplies_complete_source_precondition_to_editor():
             }
         ]
         before = len(transport.requests)
-        result = await tools["configure_sitemap_grouping"](
-            first["revision"], rules, expected_source=first["entries"][0]["value"]
-        )
+        result = await tools["configure_sitemap_grouping"](rules)
         assert result["status"] == "completed"
         assert len(transport.requests) == before + 1
         command = json.loads(transport.requests[-1][3])["mutation"]
@@ -265,7 +267,7 @@ def test_import_dispatch_seam_is_explicit_and_uses_same_allocation_client():
 
         transport = SitemapTransport()
         tools, _ = await tools_for(transport, ["import_sitemap_source"], dispatcher=dispatcher)
-        result = await tools["import_sitemap_source"](
+        result = await tools["import_sitemap_source"].contractor_trusted_call(
             "test-only",
             {"namespace": "inputs", "name": "report", "revision": "exact"},
             "import-key",
@@ -297,7 +299,7 @@ def test_close_joins_inflight_mutation_and_denies_later_calls():
         tools, _ = await tools_for(transport, ["upsert_sitemap_entry"])
         tool = tools["upsert_sitemap_entry"]
         writing = asyncio.create_task(
-            tool("absent", url="https://example.test/write", method="GET")
+            tool.contractor_trusted_call("absent", url="https://example.test/write", method="GET")
         )
         await started.wait()
         closing = asyncio.create_task(tool.close())
@@ -307,7 +309,9 @@ def test_close_joins_inflight_mutation_and_denies_later_calls():
         assert (await writing)["status"] == "completed"
         await closing
         calls = len(transport.requests)
-        denied = await tool("absent", url="https://example.test/late", method="GET")
+        denied = await tool.contractor_trusted_call(
+            "absent", url="https://example.test/late", method="GET"
+        )
         assert denied["status"] == "failed" and denied["error"]["code"] == "sitemap_cursor_expired"
         assert len(transport.requests) == calls
 
@@ -341,5 +345,159 @@ def test_cached_page_rechecks_its_exact_operation_when_only_editor_and_collectio
         assert sum("/map?" in path for _, path, _, _ in transport.requests) == 1
         for tool in tools.values():
             await tool.close()
+
+    asyncio.run(scenario())
+
+
+def test_model_edits_require_review_and_keep_old_pages_without_edit_authority():
+    from contractor_runtime.worker.function_tools import ContractorFunctionTool
+
+    async def scenario():
+        transport = SitemapTransport(document(105))
+        tools, _ = await tools_for(transport, ["list_sitemap_entries", "upsert_sitemap_entry"])
+        edit, listing = tools["upsert_sitemap_entry"], tools["list_sitemap_entries"]
+        schema = (
+            ContractorFunctionTool(edit, logical_invocation_id=lambda _: "logical")
+            ._get_declaration()
+            .parameters_json_schema
+        )
+        assert "expected_revision" not in schema["properties"]
+        with pytest.raises(ToolInputError, match="Read/list"):
+            await edit(url="https://example.test/new", method="GET")
+        assert transport.requests == []
+        first = await listing(limit=1)
+        result = await edit(url="https://example.test/new", method="GET")
+        assert result["artifact"]["revision"] == "accepted-revision"
+        assert (
+            json.loads(transport.requests[-1][3])["mutation"]["expectedRevision"]
+            == first["revision"]
+        )
+        # Reading an old continuation cannot silently authorize another edit.
+        await listing(limit=1, cursor=first["nextCursor"])
+        with pytest.raises(ToolInputError, match="refresh"):
+            await edit(url="https://example.test/other", method="GET")
+        await listing(refresh=True)
+        transport.post_error = (409, "sitemap_conflict", False)
+        rejected = await edit(url="https://example.test/other", method="GET")
+        assert rejected["error"]["code"] == "sitemap_conflict"
+        with pytest.raises(ToolInputError, match="refresh"):
+            await edit(url="https://example.test/other", method="GET")
+
+    asyncio.run(scenario())
+
+
+def test_shared_manual_editor_identity_matches_fixture():
+    cases = json.loads(
+        (Path(__file__).parents[2] / "api/testdata/sitemap-editor-source-id.json").read_text()
+    )
+    for case in cases:
+        assert manual_source_id(case["namespace"], case["deployment"]) == case["sourceId"]
+
+
+def test_ambiguous_model_edit_reuses_frozen_precondition_after_refresh():
+    class LostReplies(SitemapTransport):
+        lost = True
+
+        async def request(self, method, path, **kwargs):
+            if method == "POST" and self.lost:
+                self.requests.append((method, path, dict(kwargs["headers"]), kwargs["body"]))
+                raise ArtifactTransportError("Acknowledgement unavailable")
+            return await super().request(method, path, **kwargs)
+
+    async def scenario():
+        transport = LostReplies()
+        tools, _ = await tools_for(transport, ["list_sitemap_entries", "upsert_sitemap_entry"])
+        await tools["list_sitemap_entries"]()
+        edit = tools["upsert_sitemap_entry"]
+        with pytest.raises(ArtifactTransportError):
+            await edit(url="https://example.test/new", method="GET", idempotency_key="same")
+        original = transport.requests[-1]
+        transport.lost = False
+        transport.revision = "newer-current"
+        await tools["list_sitemap_entries"](refresh=True)
+        with pytest.raises(ToolInputError, match="pending"):
+            await edit(url="https://example.test/different", method="GET", idempotency_key="other")
+        await edit(url="https://example.test/new", method="GET", idempotency_key="same")
+        assert transport.requests[-1] == original
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure", ["api", "transport"])
+@pytest.mark.parametrize(
+    "name,arguments",
+    [
+        ("upsert_sitemap_entry", {"url": "https://example.test/new", "method": "GET"}),
+        ("remove_sitemap_entry", {"member_ids": [identity("member")], "marker_id": "marker"}),
+        ("restore_sitemap_entry", {"marker_id": "marker"}),
+        ("configure_sitemap_grouping", {"rules": []}),
+    ],
+)
+def test_keyless_model_edit_reconciles_original_intent_after_refresh(name, arguments, failure):
+    class Failing(SitemapTransport):
+        lose_replies = False
+
+        async def request(self, method, path, **kwargs):
+            if method == "POST" and self.lose_replies:
+                self.requests.append((method, path, dict(kwargs["headers"]), kwargs["body"]))
+                raise ArtifactTransportError("Acknowledgement unavailable")
+            return await super().request(method, path, **kwargs)
+
+    async def scenario():
+        transport = Failing()
+        tools, _ = await tools_for(
+            transport, sorted({"list_sitemap_entries", "upsert_sitemap_entry", name})
+        )
+        edit, listing = tools[name], tools["list_sitemap_entries"]
+        try:
+            await listing()
+            if failure == "api":
+                transport.post_error = (503, "storage_transaction_conflict", True)
+                assert (await edit(**arguments))["error"]["retryable"] is True
+            else:
+                transport.lose_replies = True
+                with pytest.raises(ArtifactTransportError):
+                    await edit(**arguments)
+                assert transport.requests[-2] == transport.requests[-1]
+            original = transport.requests[-1]
+            transport.post_error, transport.lose_replies = None, False
+            transport.revision = "newer-current"
+            await listing(refresh=True)
+            with pytest.raises(ToolInputError, match="pending"):
+                await edit(**arguments, idempotency_key="different")
+            with pytest.raises(ToolInputError, match="pending"):
+                await tools["upsert_sitemap_entry"](
+                    url="https://example.test/different", method="GET"
+                )
+            assert (await edit(**arguments))["status"] == "completed"
+            assert transport.requests[-1] == original
+            await listing(refresh=True)
+            await edit(**arguments)
+            assert transport.requests[-1][2]["Idempotency-Key"] != original[2]["Idempotency-Key"]
+        finally:
+            await edit.close()
+
+    asyncio.run(scenario())
+
+
+def test_project_sitemap_read_does_not_select_run_evidence():
+    async def scenario():
+        transport = SitemapTransport()
+        tools, state = await tools_for(transport, ["list_sitemap_entries"])
+        listing, versions = tools["list_sitemap_entries"], state.resources.selected_versions
+        selector = {"namespace": "sitemap", "name": "map"}
+        try:
+            await listing()
+            with pytest.raises(ToolInputError, match="not selected"):
+                versions.resolve(selector)
+            run_ref = ArtifactRef(**selector, revision="reviewed-run-revision")
+            versions.observe(run_ref)
+            await listing(refresh=True)
+            versions.begin_response()
+            assert versions.resolve(selector) == run_ref
+            assert versions.base("sitemap", "map") == run_ref.revision
+            assert listing.known_exact_refs == ()
+        finally:
+            await listing.close()
 
     asyncio.run(scenario())

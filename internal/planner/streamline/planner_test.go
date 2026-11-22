@@ -110,7 +110,7 @@ func TestStreamlineDispatchAndFinishInspectMetadataWithTransferSlotsSaturated(t 
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		functionStep(finishToolName, map[string]any{
 			"outcome": string(stageresult.StageSucceeded), "summary": "complete",
-			"artifacts": map[string]any{"report": artifactArgs("review", "report", revision)},
+			"artifacts": map[string]any{"report": materialArgs("review", "report")},
 		}),
 	}}
 	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
@@ -141,7 +141,7 @@ func TestStreamlineCallsSingleWorkerWithStoredSubtaskAndCompleteContext(t *testi
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		functionStep(finishToolName, map[string]any{
 			"outcome": string(stageresult.StageSucceeded), "summary": "complete", "artifacts": map[string]any{
-				"report": artifactArgs("review", "report", reportRevision),
+				"report": materialArgs("review", "report"),
 			},
 		}),
 	}}
@@ -304,17 +304,17 @@ func TestStreamlineRejectsUnknownToolAndInvalidFinishThenCorrects(t *testing.T) 
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		functionStep(finishToolName, map[string]any{
 			"outcome": string(stageresult.StageSucceeded), "summary": "invalid", "artifacts": map[string]any{
-				"undeclared": artifactArgs("builder", "report", revision),
+				"undeclared": materialArgs("builder", "report"),
 			},
 		}),
 		functionStep(finishToolName, map[string]any{
 			"outcome": string(stageresult.StageSucceeded), "summary": "valid", "artifacts": map[string]any{
-				"report": artifactArgs("builder", "report", revision),
+				"report": materialArgs("builder", "report"),
 			},
 		}),
 	}}
 	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
-		"builder": stageResult("report prepared", map[string]contracts.ArtifactRef{}),
+		"builder": stageResult("report prepared", map[string]contracts.ArtifactRef{"report": exactRef("builder", "report", revision)}),
 	}}
 	sessions := newFakeSessions()
 	inspector := &fakeInspector{mediaTypes: map[string]string{
@@ -611,11 +611,11 @@ func TestStreamlineRejectsModelSelectedContextBeforeWorkerCall(t *testing.T) {
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		functionStep(finishToolName, map[string]any{
 			"outcome": string(stageresult.StageSucceeded), "summary": "complete",
-			"artifacts": map[string]any{"report": artifactArgs("builder", "report", revision)},
+			"artifacts": map[string]any{"report": materialArgs("builder", "report")},
 		}),
 	}}
 	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
-		"builder": stageResult("complete", map[string]contracts.ArtifactRef{}),
+		"builder": stageResult("complete", map[string]contracts.ArtifactRef{"report": exactRef("builder", "report", revision)}),
 	}}
 	inspector := &fakeInspector{mediaTypes: map[string]string{
 		refKey(exactRef("builder", "report", revision)): "application/json",
@@ -762,16 +762,16 @@ func TestStreamlineRejectsPendingSuccessfulFinishThenCompletesSubtask(t *testing
 		addSubtaskStep("Build the report", "Produce the declared output"),
 		functionStep(finishToolName, map[string]any{
 			"outcome": string(stageresult.StageSucceeded), "summary": "premature",
-			"artifacts": map[string]any{"report": artifactArgs("builder", "report", revision)},
+			"artifacts": map[string]any{"report": materialArgs("builder", "report")},
 		}),
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		functionStep(finishToolName, map[string]any{
 			"outcome": string(stageresult.StageSucceeded), "summary": "complete",
-			"artifacts": map[string]any{"report": artifactArgs("builder", "report", revision)},
+			"artifacts": map[string]any{"report": materialArgs("builder", "report")},
 		}),
 	}}
 	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
-		"builder": stageResult("work complete", map[string]contracts.ArtifactRef{}),
+		"builder": stageResult("work complete", map[string]contracts.ArtifactRef{"report": exactRef("builder", "report", revision)}),
 	}}
 	inspector := &fakeInspector{mediaTypes: map[string]string{
 		refKey(exactRef("builder", "report", revision)): "application/json",
@@ -805,11 +805,11 @@ func TestStreamlineRejectsStaleSubtaskBeforeWorkerSideEffect(t *testing.T) {
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "1"}),
 		functionStep(finishToolName, map[string]any{
 			"outcome": string(stageresult.StageSucceeded), "summary": "complete",
-			"artifacts": map[string]any{"report": artifactArgs("builder", "report", revision)},
+			"artifacts": map[string]any{"report": materialArgs("builder", "report")},
 		}),
 	}}
 	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
-		"builder": stageResult("work complete", map[string]contracts.ArtifactRef{}),
+		"builder": stageResult("work complete", map[string]contracts.ArtifactRef{"report": exactRef("builder", "report", revision)}),
 	}}
 	inspector := &fakeInspector{mediaTypes: map[string]string{
 		refKey(exactRef("builder", "report", revision)): "application/json",
@@ -853,13 +853,13 @@ func TestStreamlineWorkerErrorClearsClaimAndAllowsNextSubtask(t *testing.T) {
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "1"}),
 		functionStep(finishToolName, map[string]any{
 			"outcome": string(stageresult.StageSucceeded), "summary": "recovered",
-			"artifacts": map[string]any{"report": artifactArgs("builder", "report", revision)},
+			"artifacts": map[string]any{"report": materialArgs("builder", "report")},
 		}),
 	}}
 	workers := &fakeWorkerInvoker{
 		failures: map[string][]error{"builder": {errors.New("temporary Worker failure")}},
 		results: map[string]stageresult.StageContentResult{
-			"builder": stageResult("report complete", map[string]contracts.ArtifactRef{}),
+			"builder": stageResult("report complete", map[string]contracts.ArtifactRef{"report": exactRef("builder", "report", revision)}),
 		},
 	}
 	inspector := &fakeInspector{mediaTypes: map[string]string{
@@ -1007,11 +1007,11 @@ func TestStreamlineFinishesAfterWorkerBudgetAndTextTurn(t *testing.T) {
 		textStep("The report is ready."),
 		functionStep(finishToolName, map[string]any{
 			"outcome": string(stageresult.StageSucceeded), "summary": "complete",
-			"artifacts": map[string]any{"report": artifactArgs("builder", "report", revision)},
+			"artifacts": map[string]any{"report": materialArgs("builder", "report")},
 		}),
 	}}
 	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
-		"builder": stageResult("report ready", map[string]contracts.ArtifactRef{}),
+		"builder": stageResult("report ready", map[string]contracts.ArtifactRef{"report": exactRef("builder", "report", revision)}),
 	}}
 	inspector := &fakeInspector{mediaTypes: map[string]string{
 		refKey(exactRef("builder", "report", revision)): "application/json",
@@ -1476,8 +1476,8 @@ func exactRef(namespace, name, revision string) contracts.ArtifactRef {
 
 func pointerRef(value contracts.ArtifactRef) *contracts.ArtifactRef { return &value }
 
-func artifactArgs(namespace, name, revision string) map[string]any {
-	return map[string]any{"namespace": namespace, "name": name, "revision": revision}
+func materialArgs(namespace, name string) map[string]any {
+	return map[string]any{"namespace": namespace, "name": name}
 }
 
 func refKey(ref contracts.ArtifactRef) string {

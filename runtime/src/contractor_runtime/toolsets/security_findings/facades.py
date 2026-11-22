@@ -16,7 +16,6 @@ from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
 from contractor_runtime.toolsets.common.check_plans import ProposedCheck
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.finding_locations import (
-    ExactEvidenceRef,
     FindingSeverity,
     LineNumber,
     LineRange,
@@ -24,6 +23,7 @@ from contractor_runtime.toolsets.common.finding_locations import (
     StandardReference,
 )
 from contractor_runtime.toolsets.common.resources import ToolResources
+from contractor_runtime.toolsets.common.versions import MaterialSelector
 from contractor_runtime.toolsets.security_findings.project_reader import (
     ListProjectFindingsTool,
     ProjectFindingTools,
@@ -64,7 +64,7 @@ class GeneralFindingTool(_FindingFacade):
         request_id: Local request_id returned by a Contractor tool in this allocation.
             Runtime retrieves and saves the request and available response.
         cwe: Optional CWE-NNN weakness identifier from the pinned catalog.
-        evidence_refs: Optional exact artifact references copied from tool output.
+        evidence_refs: Optional selected materials with namespace/name; Runtime supplies revisions.
             With any selected exchange they total at most 64 MiB; a larger set
             fails with invalid_finding_request, so cite fewer artifacts.
         standard_refs: Optional exact standard identities copied from an assigned
@@ -89,7 +89,7 @@ class GeneralFindingTool(_FindingFacade):
         locations: list[Location] | None = None,
         request_id: LineNumber | None = None,
         cwe: str | None = None,
-        evidence_refs: list[ExactEvidenceRef] | None = None,
+        evidence_refs: list[MaterialSelector] | None = None,
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
         severity_suggestion: FindingSeverity | None = None,
@@ -123,7 +123,7 @@ class RecordFactTool(_FindingFacade):
     Args:
         title: Short non-empty observation title.
         description: Observation, source quality, conditions and limitations.
-        evidence_refs: Exact artifact references copied from tool output. At most four
+        evidence_refs: Selected materials with namespace/name. At most four
             sources including a selected HTTP exchange; authored content is at most 32 KiB.
         request_id: Local request_id returned by a Contractor tool in this allocation.
             Runtime retrieves and saves its request and available response.
@@ -140,7 +140,7 @@ class RecordFactTool(_FindingFacade):
         title: str,
         description: str,
         tool_context: ToolContext,
-        evidence_refs: list[ExactEvidenceRef] | None = None,
+        evidence_refs: list[MaterialSelector] | None = None,
         memory_name: str | None = None,
         request_id: LineNumber | None = None,
         item_key: str | None = None,
@@ -176,7 +176,7 @@ class CodeFindingTool(_FindingFacade):
         line: Optional one-based line number.
         range: Optional inclusive start_line/end_line object.
         cwe: Optional CWE-NNN weakness identifier from the pinned catalog.
-        evidence_refs: Optional exact artifact references copied from tool output.
+        evidence_refs: Optional selected materials with namespace/name; Runtime supplies revisions.
             They total at most 64 MiB; a larger set fails with
             invalid_finding_request, so cite fewer artifacts.
         standard_refs: Optional exact standard identities copied from an assigned
@@ -202,7 +202,7 @@ class CodeFindingTool(_FindingFacade):
         line: LineNumber | None = None,
         range: LineRange | None = None,
         cwe: str | None = None,
-        evidence_refs: list[ExactEvidenceRef] | None = None,
+        evidence_refs: list[MaterialSelector] | None = None,
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
         severity_suggestion: FindingSeverity | None = None,
@@ -245,7 +245,7 @@ class HTTPFindingTool(_FindingFacade):
         request_id: Local request_id returned by a Contractor tool in this allocation.
             Runtime retrieves and saves the exchange without sending a target request.
         cwe: Optional CWE-NNN weakness identifier from the pinned catalog.
-        evidence_refs: Optional exact artifact references copied from tool output.
+        evidence_refs: Optional selected materials with namespace/name; Runtime supplies revisions.
             With any selected exchange they total at most 64 MiB; a larger set
             fails with invalid_finding_request, so cite fewer artifacts.
         standard_refs: Optional exact standard identities copied from an assigned
@@ -271,7 +271,7 @@ class HTTPFindingTool(_FindingFacade):
         tool_context: ToolContext,
         request_id: LineNumber | None = None,
         cwe: str | None = None,
-        evidence_refs: list[ExactEvidenceRef] | None = None,
+        evidence_refs: list[MaterialSelector] | None = None,
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
         severity_suggestion: FindingSeverity | None = None,
@@ -352,7 +352,13 @@ class GeneralFindingsToolsetFactory:
             result["list_findings"] = await prepare_reader(
                 client, metrics, runtime_secrets(runtime_settings)
             )
-        project = ProjectFindingTools(client, metrics, runtime_secrets(runtime_settings), namespace)
+        project = ProjectFindingTools(
+            client,
+            metrics,
+            runtime_secrets(runtime_settings),
+            namespace,
+            resources.selected_versions,
+        )
         for tool_class in (
             ListProjectFindingsTool,
             ReadProjectFindingTool,
@@ -360,7 +366,11 @@ class GeneralFindingsToolsetFactory:
         ):
             if tool_class.name in selected:
                 result[tool_class.name] = tool_class(
-                    client, metrics, runtime_secrets(runtime_settings), namespace
+                    client,
+                    metrics,
+                    runtime_secrets(runtime_settings),
+                    namespace,
+                    resources.selected_versions,
                 )
         if "read_finding_selection" in selected:
             result["read_finding_selection"] = ReadFindingSelection(project)

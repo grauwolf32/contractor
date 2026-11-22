@@ -18,7 +18,7 @@ from test_http_toolset import FakeArtifactClient, close_tools, create_tools, mak
 from test_security_findings_toolset import FakeFindingClient, _settings, _workspace
 
 from contractor_runtime.artifacts import ArtifactClient
-from contractor_runtime.contracts import HTTPOriginTargetSettings, RuntimeSettings
+from contractor_runtime.contracts import ArtifactRef, HTTPOriginTargetSettings, RuntimeSettings
 from contractor_runtime.core.http_limits import MAX_HISTORY, MAX_REQUEST_HEADER_BYTES
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.llm.openai import _tools
@@ -56,8 +56,8 @@ def test_actual_provider_schema(tool_type, required):
     schema = wire["parameters"]
     assert set(schema["required"]) == required
     assert "tool_context" not in schema["properties"]
-    evidence = schema["$defs"]["ExactEvidenceRef"]
-    assert set(evidence["required"]) == {"namespace", "name", "revision"}
+    evidence = schema["$defs"]["MaterialSelector"]
+    assert set(evidence["required"]) == {"namespace", "name"}
     assert evidence["additionalProperties"] is False
     check = schema["$defs"]["ProposedCheck"]
     assert set(check["required"]) == {"objective", "method"}
@@ -419,7 +419,11 @@ def test_stored_http_evidence_failure_never_submits_a_finding(tmp_path, failure)
 def test_code_call_normalizes_coordinates_and_keeps_retry_identity():
     async def scenario():
         client = FakeFindingClient()
-        tool = await finding_tool(CodeFindingsToolsetFactory, client, WorkerState())
+        state = WorkerState()
+        state.resources.selected_versions.observe(
+            ArtifactRef(namespace="worker", name="proof", revision="r1")
+        )
+        tool = await finding_tool(CodeFindingsToolsetFactory, client, state)
         adk = FunctionTool(tool)
         args = {
             "title": "Ownership guard missing",
@@ -427,7 +431,7 @@ def test_code_call_normalizes_coordinates_and_keeps_retry_identity():
             "file": "src/order.py",
             "range": {"start_line": 10, "end_line": 12},
             "cwe": "CWE-639",
-            "evidence_refs": [{"namespace": "worker", "name": "proof", "revision": "r1"}],
+            "evidence_refs": [{"namespace": "worker", "name": "proof"}],
             "standard_refs": [
                 {"scheme": "OWASP-ASVS", "version": "5.0.0", "requirement_id": "v5.0.0-1.1.1"}
             ],
@@ -439,7 +443,9 @@ def test_code_call_normalizes_coordinates_and_keeps_retry_identity():
         assert document["subject"] is None
         assert document["locations"] == [{"file": "src/order.py", "range": args["range"]}]
         assert any(ref["requirement_id"] == "CWE-639" for ref in document["standard_refs"])
-        assert client.requests[0]["evidenceRefs"] == args["evidence_refs"]
+        assert client.requests[0]["evidenceRefs"] == [
+            {**args["evidence_refs"][0], "revision": "r1"}
+        ]
         assert _proposal(json.dumps(document).encode()) == document
         await adk.run_async(args=args, tool_context=context("call-2"))
         assert client.requests[2]["submissionId"] != client.requests[0]["submissionId"]
@@ -563,12 +569,12 @@ def test_audit_and_ordinary_findings_share_the_cwe_reference_check():
         (
             "evidence_refs",
             [{"namespace": "worker", "name": "private-proof-canary"}],
-            "non-empty revision",
+            "Material",
         ),
         (
             "evidence_refs",
             [{"namespace": "worker", "name": "private-proof-canary", "revision": ""}],
-            "non-empty revision",
+            "Material",
         ),
         (
             "evidence_refs",
@@ -580,7 +586,7 @@ def test_audit_and_ordinary_findings_share_the_cwe_reference_check():
                     "mediaType": "private-media-canary",
                 }
             ],
-            "non-empty revision",
+            "Material",
         ),
         (
             "evidence_refs",
@@ -588,7 +594,7 @@ def test_audit_and_ordinary_findings_share_the_cwe_reference_check():
                 {"namespace": "worker", "name": "valid", "revision": "r1"},
                 {"namespace": "worker", "name": "private-proof-canary"},
             ],
-            "non-empty revision",
+            "Material",
         ),
         (
             "standard_refs",
@@ -982,12 +988,16 @@ def test_informational_findings_leave_evidence_equality_to_server(
 
     async def scenario():
         client = FakeFindingClient()
-        tool = await finding_tool(factory_type, client, WorkerState())
+        state = WorkerState()
+        state.resources.selected_versions.observe(
+            ArtifactRef(namespace="proof", name="selected", revision="r1")
+        )
+        tool = await finding_tool(factory_type, client, state)
         result = await tool(
             title="Reported technology",
             description="Observed in selected material",
             severity_suggestion="informational",
-            evidence_refs=[{"namespace": "proof", "name": "selected", "revision": "r1"}],
+            evidence_refs=[{"namespace": "proof", "name": "selected"}],
             tool_context=context(),
             **location_args,
         )

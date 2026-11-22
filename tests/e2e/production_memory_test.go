@@ -206,7 +206,7 @@ func stageProductionMemoryConfiguration(t *testing.T, repositoryRoot, target str
 func productionMemoryCopyResponse(step int, request map[string]any) (map[string]any, string, string, error) {
 	switch step {
 	case 1:
-		return gatewayToolCall("production-read", "read_artifact", map[string]any{"namespace": "inputs", "name": "source", "revision": nil})
+		return gatewayToolCall("production-read", "read_artifact", map[string]any{"namespace": "inputs", "name": "source"})
 	case 2:
 		if data, ok := lastStringValue(request, "text"); !ok || data == "" {
 			return nil, "", "", fmt.Errorf("production input not observed")

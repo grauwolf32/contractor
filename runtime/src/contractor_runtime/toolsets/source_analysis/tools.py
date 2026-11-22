@@ -52,6 +52,7 @@ from contractor_runtime.toolsets.common.line_window import (
 )
 from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.common.tool_base import SessionArtifactTool
+from contractor_runtime.toolsets.common.versions import ModelArtifacts
 from contractor_runtime.workspace import AllocationWorkspace
 
 _DEFAULT_LIMITS = default_source_archive_limits()
@@ -161,7 +162,9 @@ class SourceAnalysisToolsetFactory:
         del run_id, namespace, adapter_handles
         require_selected_tools(selected, self.exported_tools)
         metrics = require_metrics(resources, "source-analysis@1")
-        client = self._client_factory(allocation_id, runtime_settings)
+        client = ModelArtifacts(
+            self._client_factory(allocation_id, runtime_settings), resources.selected_versions
+        )
         session = _SourceArchiveSession(
             client,
             workspace,
@@ -472,29 +475,23 @@ class OpenSourceArchiveTool(_BaseSourceTool):
     Args:
         namespace: Source artifact namespace.
         name: Artifact binding name with media type application/zip.
-        revision: Required exact source artifact revision.
 
     Returns:
         The exact artifact reference, fileCount, totalUncompressedBytes and
         ignoredCount for the opened archive.
     """
 
-    async def __call__(self, namespace: str, name: str, revision: str) -> dict[str, Any]:
-        arguments = {"namespace": namespace, "name": name, "revision": revision}
+    async def __call__(self, namespace: str, name: str) -> dict[str, Any]:
+        arguments = {"namespace": namespace, "name": name}
         return await self._call(
             arguments,
-            self._open(namespace, name, revision),
+            self._open(namespace, name),
             lambda result: dict(result),
         )
 
-    async def _open(self, namespace: str, name: str, revision: str) -> dict[str, Any]:
-        summary = await self._session.open(
-            ArtifactRef(
-                namespace=namespace,
-                name=name,
-                **({"revision": revision} if revision is not None else {}),
-            )
-        )
+    async def _open(self, namespace: str, name: str) -> dict[str, Any]:
+        ref = await self._client.select(namespace, name)
+        summary = await self._session.open(ref)
         return summary.payload()
 
 

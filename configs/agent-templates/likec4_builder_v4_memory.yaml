@@ -3,13 +3,13 @@ kind: AgentTemplate
 
 metadata:
   name: likec4_builder
-  version: "5"
+  version: "6"
 
 spec:
   description: Incrementally builds one evidence-linked single-file LikeC4 architecture model
   runtime: adk@1
   instructions:
-    ref: instructions/likec4-builder-worker-v2-memory.md
+    ref: instructions/likec4-builder-worker-v2-memory-cursor-reads.md
   summarizer:
     instructions:
       ref: instructions/terminal-summarizer.md

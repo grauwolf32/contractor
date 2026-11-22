@@ -21,6 +21,7 @@ from contractor_runtime.toolsets.common.factory import require_metrics, require_
 from contractor_runtime.toolsets.common.report_observations import REPORT_FORMATS, prepare_report
 from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.common.tool_base import SessionArtifactTool
+from contractor_runtime.toolsets.common.versions import MaterialSelector, ModelArtifacts
 from contractor_runtime.toolsets.sitemap.session import SitemapSession
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -90,12 +91,20 @@ class SitemapToolsetFactory:
         resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
+        deployment_marker: str | None = None,
     ) -> Mapping[str, Any]:
-        del run_id, namespace, workspace, adapter_handles, project_workspace
+        del run_id, workspace, adapter_handles, project_workspace
         require_selected_tools(selected, await self.probe())
         metrics = require_metrics(resources, self.ref)
-        artifact = self._clients(allocation_id, runtime_settings)
-        session = SitemapSession(artifact, resources.sitemap_read_flush)
+        artifact = ModelArtifacts(
+            self._clients(allocation_id, runtime_settings), resources.selected_versions
+        )
+        session = SitemapSession(
+            artifact,
+            resources.sitemap_read_flush,
+            namespace=namespace,
+            deployment=deployment_marker or "",
+        )
         secrets = runtime_secrets(runtime_settings)
         classes = (
             ListSitemapEntries,
@@ -155,7 +164,9 @@ class _SitemapTool(SessionArtifactTool[SitemapSession]):
             return result
 
     async def _mutate(self, command: dict, key: str | None) -> dict:
-        return await self._session.mutate(command, key or str(uuid4()))
+        if "expectedRevision" in command:
+            return await self._session.mutate(command, key or str(uuid4()))
+        return await self._session.edit(command, key)
 
 
 class ListSitemapEntries(_SitemapTool):
@@ -257,11 +268,10 @@ class UpsertSitemapEntry(_SitemapTool):
 
     A declaration is an assertion, not an observed successful target request.
     Supply either url/method for a declaration or member_ids with note/tags for
-    an annotation. The Server rejects a stale expected_revision; review the
-    current view before creating a new intent. Omit absent fields.
+    an annotation. Runtime uses the reviewed map version. Read/list first; after a successful
+    edit or conflict, explicitly refresh before another change. Omit absent fields.
 
     Args:
-        expected_revision: Reviewed map revision, or absent for an empty map.
         url: Concrete URL for a declaration.
         method: HTTP method for a declaration.
         member_ids: Fixed concrete member IDs for an annotation.
@@ -274,6 +284,31 @@ class UpsertSitemapEntry(_SitemapTool):
     """
 
     async def __call__(
+        self,
+        url: str | None = None,
+        method: str | None = None,
+        member_ids: list[str] | None = None,
+        note: str | None = None,
+        tags: list[str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict:
+        arguments = locals().copy()
+        del arguments["self"]
+        command = {
+            "operation": "annotate" if member_ids is not None else "declare",
+        }
+        for key, value in (
+            ("url", url),
+            ("method", method),
+            ("memberIds", member_ids),
+            ("note", note),
+            ("tags", tags),
+        ):
+            if value is not None:
+                command[key] = value
+        return await self._invoke(arguments, lambda: self._mutate(command, idempotency_key))
+
+    async def contractor_trusted_call(
         self,
         expected_revision: str,
         url: str | None = None,
@@ -309,7 +344,6 @@ class RemoveSitemapEntry(_SitemapTool):
     it explicitly. Later newly discovered members are outside this selection.
 
     Args:
-        expected_revision: Reviewed map revision.
         member_ids: Up to 64 concrete member IDs returned by read_sitemap_entry.
         marker_id: Stable marker identity for this selection.
         idempotency_key: Reuse only for an identical ambiguous operation.
@@ -319,6 +353,21 @@ class RemoveSitemapEntry(_SitemapTool):
     """
 
     async def __call__(
+        self,
+        member_ids: list[str],
+        marker_id: str,
+        idempotency_key: str | None = None,
+    ) -> dict:
+        arguments = locals().copy()
+        del arguments["self"]
+        command = {
+            "operation": "remove",
+            "memberIds": member_ids,
+            "markerId": marker_id,
+        }
+        return await self._invoke(arguments, lambda: self._mutate(command, idempotency_key))
+
+    async def contractor_trusted_call(
         self,
         expected_revision: str,
         member_ids: list[str],
@@ -341,7 +390,6 @@ class RestoreSitemapEntry(_SitemapTool):
     description = """Restore one explicitly suppressed concrete selection.
 
     Args:
-        expected_revision: Reviewed map revision.
         marker_id: The reviewed removal marker to restore.
         idempotency_key: Reuse only for an identical ambiguous operation.
 
@@ -349,7 +397,21 @@ class RestoreSitemapEntry(_SitemapTool):
         Exact accepted artifact reference and replay/change information, or a classified error.
     """
 
-    async def __call__(
+    async def __call__(self, marker_id: str, idempotency_key: str | None = None) -> dict:
+        arguments = locals().copy()
+        del arguments["self"]
+        return await self._invoke(
+            arguments,
+            lambda: self._mutate(
+                {
+                    "operation": "restore",
+                    "markerId": marker_id,
+                },
+                idempotency_key,
+            ),
+        )
+
+    async def contractor_trusted_call(
         self, expected_revision: str, marker_id: str, idempotency_key: str | None = None
     ) -> dict:
         arguments = locals().copy()
@@ -371,17 +433,15 @@ class ConfigureSitemapGrouping(_SitemapTool):
     name = "configure_sitemap_grouping"
     description = """Replace this editor's grouping source using reviewed exact preconditions.
 
-    The Server supplies source identity and attribution. Supply the complete
-    prior Source returned by list_sitemap_entries(scope="metadata"); omit it only
-    to create a source.
+    The Server supplies source identity and attribution. Runtime derives the
+    prior source precondition from the reviewed map. Read/list first, then
+    refresh explicitly after a successful edit or conflict.
     A stale source/map precondition is a permanent conflict, never refreshed for you.
     Structural query parameters require an explicit finite allowed set in rules.
 
     Args:
-        expected_revision: Reviewed map revision.
         rules: Bounded rules with origin, method, path, pointer, parameters
             and structural selectors.
-        expected_source: Complete prior Source, including generation, provenance and policyDigest.
         idempotency_key: Reuse only for an identical ambiguous operation.
 
     Returns:
@@ -389,6 +449,26 @@ class ConfigureSitemapGrouping(_SitemapTool):
     """
 
     async def __call__(
+        self,
+        rules: list[dict[str, Any]],
+        idempotency_key: str | None = None,
+    ) -> dict:
+        arguments = locals().copy()
+        del arguments["self"]
+
+        async def operation() -> dict:
+            source = {"rules": rules}
+            return await self._mutate(
+                {
+                    "operation": "replace-source",
+                    "source": source,
+                },
+                idempotency_key,
+            )
+
+        return await self._invoke(arguments, operation)
+
+    async def contractor_trusted_call(
         self,
         expected_revision: str,
         rules: list[dict[str, Any]],
@@ -462,7 +542,7 @@ class ImportSitemapSource(_SitemapTool):
 
     Args:
         format: ffuf-report@1 or katana-report@1.
-        artifact_ref: Exact current-Run artifact with namespace, name and revision.
+        artifact_ref: Selected current-Run material with namespace and name.
         idempotency_key: Reuse only for an identical ambiguous operation.
 
     Returns:
@@ -470,6 +550,14 @@ class ImportSitemapSource(_SitemapTool):
     """
 
     async def __call__(
+        self, format: str, artifact_ref: MaterialSelector, idempotency_key: str | None = None
+    ) -> dict:
+        exact = self._client.versions.resolve(artifact_ref)
+        return await self.contractor_trusted_call(
+            format, exact.model_dump(exclude_none=True), idempotency_key
+        )
+
+    async def contractor_trusted_call(
         self, format: str, artifact_ref: dict[str, Any], idempotency_key: str | None = None
     ) -> dict:
         selection = {"format": format, "artifact": artifact_ref}

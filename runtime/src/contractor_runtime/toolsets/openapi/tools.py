@@ -43,6 +43,7 @@ from contractor_runtime.toolsets.common.document_session import (
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.common.tool_base import SessionArtifactTool
+from contractor_runtime.toolsets.common.versions import ModelArtifacts
 from contractor_runtime.toolsets.openapi import yaml_scalars
 from contractor_runtime.toolsets.openapi.models import (
     PathItem,
@@ -153,7 +154,9 @@ class OpenAPIToolsetFactory:
         if project_workspace is None:
             raise ValueError("openapi@1 requires a project workspace")
         metrics = require_metrics(resources, "openapi@1")
-        client = self._client_factory(allocation_id, runtime_settings)
+        client = ModelArtifacts(
+            self._client_factory(allocation_id, runtime_settings), resources.selected_versions
+        )
         session = _OpenAPISession(client, namespace, project_workspace=project_workspace)
         secrets = runtime_secrets(runtime_settings)
         constructors = {
@@ -185,9 +188,6 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
     max_bytes = MAX_DOCUMENT_BYTES
     reload_tool = "load_openapi"
     read_tool = "read_openapi_document"
-    seed_revision_message = (
-        "an OpenAPI seed outside the Worker namespace requires an exact revision"
-    )
     seed_too_large_message = DOCUMENT_BYTES_MESSAGE
     seed_media_type_message = "OpenAPI seed media type must be application/yaml or application/json"
     not_loaded_message = "load_openapi or initialize_openapi must be called first"
@@ -230,10 +230,10 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
         version: str,
         description: str,
         target_name: str,
-        expected_revision: str | None,
     ) -> dict[str, Any]:
         _require_nonempty("title", title)
         _require_nonempty("version", version)
+        expected_revision = self._client.versions.base(self._namespace, target_name)
         validate_target_name(target_name)
         document = copy.deepcopy(BASE_DOCUMENT)
         document["info"] = {"title": title, "description": description, "version": version}
@@ -593,10 +593,7 @@ class LoadOpenAPITool(_BaseOpenAPITool):
     Args:
         namespace: Source artifact namespace.
         name: Source artifact binding name.
-        revision: Source revision; required for a source outside the Worker's namespace.
         target_name: Destination binding in the Worker's namespace; defaults to "openapi".
-        expected_revision: Current destination revision when copying over an existing
-            binding; omit to create it. Resuming the same binding uses its revision.
 
     Returns:
         Exact current artifact reference, mediaType, targetName and changed/copied flags.
@@ -606,25 +603,19 @@ class LoadOpenAPITool(_BaseOpenAPITool):
         self,
         namespace: str,
         name: str,
-        revision: str | None = None,
         target_name: str = DEFAULT_TARGET_NAME,
-        expected_revision: str | None = None,
     ) -> dict[str, Any]:
         arguments = {
             "namespace": namespace,
             "name": name,
-            "revision": revision,
             "target_name": target_name,
-            "expected_revision": expected_revision,
         }
         return await self._call(
             arguments,
             self._session.load(
                 namespace=namespace,
                 name=name,
-                revision=revision,
                 target_name=target_name,
-                expected_revision=expected_revision,
             ),
             _artifact_metric,
         )
@@ -641,8 +632,6 @@ class InitializeOpenAPITool(_BaseOpenAPITool):
         version: Non-empty API version; defaults to "1.0.0".
         description: API description; defaults to an empty string.
         target_name: Destination artifact binding; defaults to "openapi".
-        expected_revision: Current destination revision to replace; omit only to
-            create a new binding.
 
     Returns:
         Exact saved artifact reference, mediaType, targetName and changed/copied flags.
@@ -654,12 +643,10 @@ class InitializeOpenAPITool(_BaseOpenAPITool):
         version: str = "1.0.0",
         description: str = "",
         target_name: str = DEFAULT_TARGET_NAME,
-        expected_revision: str | None = None,
     ) -> dict[str, Any]:
         arguments = {
             "content": {"title": title, "version": version, "description": description},
             "target_name": target_name,
-            "expected_revision": expected_revision,
         }
         return await self._call(
             arguments,
@@ -668,7 +655,6 @@ class InitializeOpenAPITool(_BaseOpenAPITool):
                 version=version,
                 description=description,
                 target_name=target_name,
-                expected_revision=expected_revision,
             ),
             _artifact_metric,
         )

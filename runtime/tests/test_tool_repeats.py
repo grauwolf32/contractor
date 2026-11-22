@@ -9,6 +9,7 @@ from fakes.worker_state import WorkerState
 from test_adk_runtime import CapturingScriptedLlm, create_runtime, stage_request
 from test_run_artifacts_toolset import FakeArtifactClient
 
+from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.toolsets.run_artifacts.tools import ReadArtifactTool
 from contractor_runtime.worker.repeats import ToolRepeatPlugin
 
@@ -17,8 +18,24 @@ def test_exact_reads_are_refused_and_work_continues(tmp_path):
     async def scenario():
         state = WorkerState()
         read = ReadArtifactTool(FakeArtifactClient(), state.metrics, ())
-        args = {"namespace": "inputs", "name": "source", "revision": "revision-read"}
-        sequence = [args, {**args, "max_lines": 200}, args, args, {**args, "max_lines": 1}, args]
+        args = {
+            "cursor": read._cursors.issue(
+                ArtifactRef(namespace="inputs", name="source", revision="revision-read")
+            )
+        }
+        sequence = [
+            args,
+            {**args, "max_lines": 200},
+            args,
+            args,
+            {
+                "cursor": read._cursors.issue(
+                    ArtifactRef(namespace="inputs", name="source", revision="revision-read"),
+                    max_lines=1,
+                )
+            },
+            args,
+        ]
         model = CapturingScriptedLlm(
             model="worker-model",
             responses=[
@@ -56,7 +73,11 @@ def test_reservations_failure_interruption_and_checkpoint():
     async def scenario():
         read = ReadArtifactTool(FakeArtifactClient(), WorkerState().metrics, ())
         tool = SimpleNamespace(func=read)
-        args = {"namespace": "inputs", "name": "source", "revision": "exact"}
+        args = {
+            "cursor": read._cursors.issue(
+                ArtifactRef(namespace="inputs", name="source", revision="exact")
+            )
+        }
         plugin = ToolRepeatPlugin()
         contexts = [object() for _ in range(8)]
 
@@ -78,7 +99,7 @@ def test_reservations_failure_interruption_and_checkpoint():
         assert (await call(6))["ok"] is False
         plugin.reset()  # the invocation/checkpoint owner calls this only after commit
         assert await call(7) is None
-        assert await call(0, {**args, "revision": None}) is None
+        assert await call(0, {"namespace": "inputs", "name": "source"}) is None
         assert plugin._series is None
         for invalid in ({"start_line": True}, {"max_lines": 401}, {"line_offset": -1}):
             assert read.contractor_repeat_rule({**args, **invalid}) is None
@@ -90,7 +111,11 @@ def test_raw_rejection_breaks_series_without_bypassing_validation(tmp_path):
     async def scenario():
         state = WorkerState()
         read = ReadArtifactTool(FakeArtifactClient(), state.metrics, ())
-        args = {"namespace": "inputs", "name": "source", "revision": "revision-read"}
+        args = {
+            "cursor": read._cursors.issue(
+                ArtifactRef(namespace="inputs", name="source", revision="revision-read")
+            )
+        }
         calls = [args, args, {**args, "secret_unknown": "do-not-echo"}, args, args, args]
         model = CapturingScriptedLlm(
             model="worker-model",

@@ -11,6 +11,7 @@ depends_on:
 - V478-002
 - V478-003
 - V478-004
+- V479-007
 languages:
 - go
 - python
@@ -57,14 +58,17 @@ context:
     can finish with visible unresolved conclusions, without mandatory automatic repeats. When an assigned hypothesis
     check stops without an accepted conclusion, expose a system-authored inconclusive with observed stop reason
     and source, meaning no conclusion was accepted. Preserve existing accepted judgments, keep hypothesis-free
-    exploration without a verdict, and never turn a failed/cancelled Run into success.'
+    exploration without a verdict, and never turn a failed/cancelled Run into success.
+    User request 2026-11-22: review this package against updated main and reconcile affected tasks. Apply
+    the already merged V479 contracts for Runtime-owned versions and correction generations; this review
+    does not assign feature implementation or change the agreed retention/stop policy.'
   implementation_gate: 'All product review decisions recorded below are settled for the task draft. Keep tasks
     pending: this thread is planning/review, not an implementation assignment. Do not deploy or launch an Audit.
     The user requested review before merging the task package into main; report the reconciled package before
     integration. Implementation must follow these task contracts; an unforeseen consequential prerequisite
     needs its own review, not silent scope growth.'
-  baseline: Local main 6a4d479d361f8fcb1ce5c74c7f512c5dfe4666af; Invoice Lab demonstrated one broad exploration
-    item ending after one accepted conclusion. This is motivation, not a live quality benchmark.
+  baseline: Reviewed main cd2974674def375c1838b496c8f288e86989dc8a, including completed V479-001 through
+    V479-009. The earlier Invoice Lab run motivates this package; it is not a current live quality benchmark.
   specification:
   - docs/spec/audits/common-contract.md
   - docs/spec/audits/worker-completion.md
@@ -76,6 +80,10 @@ context:
   - docs/testing/README.md
   - docs/spec/findings/findings.md
   - docs/spec/audits/hypotheses.md
+  - docs/spec/artifacts/artifact-store.md#ART-R147
+  - docs/spec/artifacts/artifact-store.md#ART-R148
+  - docs/spec/findings/findings.md#FND-R240
+  - docs/spec/audits/worker-completion.md#AWC-R48
   boundary: Extend existing common Task/hypothesis, Runtime collector, Artifact and Audit intake owners. Source
     adapters own observation extraction; Server owns assignment, authority, exact retention and lifecycle.
     No alternate execution engine or coverage ledger. Update numbered owning specs and all API/wire/schema
@@ -92,12 +100,16 @@ context:
     not automatically independent evidence of its claim. Evidence may also support an exploratory observation
     or a Finding without a hypothesis. These are semantic roles over existing owners/artifacts, not three new
     stores.
-  sources_interface_decision: Use a common sources argument with explicitly supported typed selectors for code,
-    local HTTP request IDs and exact artifacts/material handles. Runtime resolves selectors into exact source
-    descriptors through toolsets.common helpers and owning adapters; no universal obs_id or automatic changes
-    to every reader. For code distinguish an exact pinned source selection from a current workspace capture,
-    preserving source context and rejecting unsupported mappings. Existing source retention can be reused across
-    independent check, Finding and Fact claims; shared bytes are not independent corroboration.
+  sources_interface_decision: Use common sources with typed selectors for code, local HTTP request IDs
+    and artifact materials. Model artifact selectors reuse MaterialSelector (namespace/name only); assigned
+    source handles may refer to trusted input roles, never to a model-supplied revision. Reuse SelectedVersions
+    to resolve trusted inputs and successful content selections into exact internal refs; reject unknown,
+    hidden or ambiguous sources without looking up latest as a fallback. Metadata-only listings grant
+    no evidence selection. Code adapters preserve exact pinned source versus workspace capture and reject
+    unsupported mappings; HTTP adapters use actual local captures without replay. Runtime-issued cursors
+    remain exact read-continuation inputs, not replacement write/version preconditions. No universal obs_id,
+    new version registry or changes to every reader. Exact retained sources can support independent check/Finding/Fact
+    claims; shared bytes are not independent corroboration.
   planning_boundary: Audit planning is a separate open design question. This task consumes existing assignments/hypotheses
     when present, and also supports exploration without a hypothesis. Do not introduce a frozen-plan requirement,
     new criterion_key/step schema or semantic coverage gate as an evidence/result prerequisite. V478-001 provides
@@ -108,6 +120,19 @@ context:
   presentation_decision: Use existing Audit Task/material/result views and retained snapshots for evidence,
     conclusion authorship, stop reasons and uncertainty. No separate plan editor/dashboard or inferred application-wide
     coverage percentage. The broader V411 report/setup tasks consume these common reads.
+  main_reconciliation_2026_11_22: V479-007 already verifies the integrated revision-free tool surface.
+    Extend its actual ADK schema guard and existing version/compaction process cases for evidence/fact/submit_result
+    and common sources, updating the expected tool inventory for the new evidence export. Keep trusted
+    internal tool@1/API preconditions distinct from model facades. V479-009 Project/Run isolation remains
+    part of source selection; no new map or cursor is an Audit retention receipt. This gate proves the
+    new durable evidence/result path while preserving the completed version work, not reimplementing it.
+  sources:
+  - runtime/tests/test_tool_version_surfaces.py
+  - runtime/tests/test_tool_versions.py
+  - runtime/tests/test_artifact_cursors.py
+  - runtime/tests/test_audit_result_collector.py
+  - tests/e2e/runtime_versions_test.go
+  - tests/e2e/audit_compaction_test.go
 scope:
   in:
   - Update existing public Task/material/result reads and Audit UI consumers for current assignments, exact
@@ -170,6 +195,13 @@ requirements:
     problem independently of the assigned hypothesis conclusion. Verify effective instructions and publication
     receipts without interpreting deterministic scripted calls as proof of live-model compliance or imposing
     a minimum finding count.
+- id: R12
+  text: The integrated actual ADK declarations have no model revision/expected_revision or replacement
+    token, including nested sources. Preserve the existing trusted-tool/API exact-reference boundary,
+    V479 same-response conflicts, scalar correction/replay, atomic batches, cursor continuation and compaction.
+    Update the registered-tool surface guard for the renamed/new exports. Show source selection, local
+    recording and acknowledged durable acceptance separately; received revision metadata does not imply
+    an Audit hold or accepted conclusion.
 failure_outcomes:
 - operation: Read/project retained Audit evidence and result facts and render a stable snapshot
   permanent: Reject invalid membership, foreign/exact-revision mismatches, quota violations and malformed input
@@ -226,6 +258,15 @@ acceptance_criteria:
   then: Findings are real Project records with retained sources, incidental discoveries do not acquire an unrelated
     hypothesis or close its check, the control needs no Finding, and accepted publications survive stop. Effective
     evidence/publication guidance is present in actual prompts/tool declarations.
+- id: A5
+  given: The merged V479 version/schema guards and real material-version/compaction process cases, extended
+    with common sources and thin result tools
+  when: The composed V478 gate exercises source selection, scalar corrections and interruption after acknowledgement
+    loss
+  then: Model inputs remain revision-free while stored refs stay exact, current aliases and Project reads
+    cannot change retained Run sources, old retries cannot roll back accepted results, and private selection/local
+    recording are never displayed as durable acceptance. Existing gates have nonzero executed cases and
+    new exports appear in the actual schema inventory.
 tests:
 - command: make test-audit-basic-e2e
   covers:
@@ -233,11 +274,13 @@ tests:
   - A2
   - A3
   - A4
+  - A5
 - command: make test-audit-completion-e2e
   covers:
   - A1
   - A2
   - A3
+  - A5
 - command: make test-http-caido-e2e
   covers:
   - A1
@@ -255,12 +298,14 @@ tests:
   - A2
   - A3
   - A4
+  - A5
 - command: go test -tags=integration -count=1 ./internal/auditdomain/... ./internal/auditcontroller/... ./internal/auditimport/...
     ./internal/auditservice/... ./internal/auditstore/... ./internal/artifacts/... ./internal/httpapi/public/...
   covers:
   - A1
   - A2
   - A3
+  - A5
 - command: make verify-public-api-postgres
   covers:
   - A1
@@ -271,11 +316,13 @@ tests:
   - A1
   - A2
   - A3
+  - A5
 - command: make ui-verify
   covers:
   - A1
   - A2
   - A3
+  - A5
 - command: make lint
   covers:
   - A1
@@ -284,6 +331,11 @@ tests:
 - command: make test-findings-e2e
   covers:
   - A4
+- command: go test -tags=e2e -count=1 -run '^(TestRuntimeManagedMaterialVersionsAcrossProcesses|TestAuditCompactionPreservesTrustedCompletionAcrossProcesses|TestProjectFindingsReaderAcrossProcesses)$'
+    -timeout=30m ./tests/e2e
+  covers:
+  - A3
+  - A5
 verification_notes: Listed commands are required implementation gates, not results of task planning. Use one
   owned disposable PostgreSQL database, explicitly drop it after pools/processes stop, and never implicitly
   enable CONTRACTOR_TEST_HEAVY_IO. Zero matched cases and skipped required database/process cases fail acceptance.

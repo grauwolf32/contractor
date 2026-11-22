@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -145,7 +146,7 @@ func TestStreamlineFinishRejectionKeepsVerificationClass(t *testing.T) {
 			answers: []error{fmt.Errorf("read artifact metadata: %w",
 				&pgconn.PgError{Code: persistencepostgres.SQLStateLockNotAvailable}), nil},
 			retryable: true,
-			retry:     map[string]any{"report": artifactArgs("review", "report", "report-r1")},
+			retry:     map[string]any{"report": materialArgs("review", "report")},
 		},
 		{
 			name:    "missing artifact",
@@ -179,7 +180,7 @@ func TestStreamlineFinishRejectionKeepsVerificationClass(t *testing.T) {
 				})
 			}
 			model := &scriptedModel{steps: []modelStep{
-				failedFinish(map[string]any{"report": artifactArgs("review", "report", "report-r1")}),
+				failedFinish(map[string]any{"report": materialArgs("review", "report")}),
 				failedFinish(test.retry),
 			}}
 			sessions := newFakeSessions()
@@ -189,7 +190,10 @@ func TestStreamlineFinishRejectionKeepsVerificationClass(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			instance, err := factory.Create(testInvocation("builder"))
+			invocation := testInvocation("builder")
+			invocation.Context.Artifacts["selected_report"] = pointerRef(report)
+			invocation.Stage.Context.Artifacts["selected_report"] = resolved.ContextArtifact{Namespace: report.Namespace, Name: report.Name, Required: true}
+			instance, err := factory.Create(invocation)
 			if err != nil {
 				t.Fatal(err)
 			}

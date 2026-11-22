@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import secrets
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
@@ -36,7 +37,12 @@ from contractor_runtime.toolsets.sitemap.index import (
 
 class SitemapSession:
     def __init__(
-        self, artifacts: ArtifactClient, before_read: Callable[[], Awaitable[None]] | None = None
+        self,
+        artifacts: ArtifactClient,
+        before_read: Callable[[], Awaitable[None]] | None = None,
+        *,
+        namespace: str = "",
+        deployment: str = "",
     ) -> None:
         self.client = SitemapClient(artifacts)
         self._artifacts = artifacts
@@ -47,15 +53,20 @@ class SitemapSession:
         self._identity = ""
         self._revision = ""
         self._closed = False
+        self._editable = False
+        self._pending_edit: tuple[str, dict, dict] | None = None
+        self._source_id = manual_source_id(namespace, deployment)
 
     async def close(self) -> None:
         async with self._lock:
             self._closed = True
+            self._pending_edit = None
             self._drop()
             self._key[:] = b"\x00" * len(self._key)
 
     def _drop(self) -> None:
         self._view = None
+        self._editable = False
         self._identity = self._revision = ""
 
     @staticmethod
@@ -129,6 +140,7 @@ class SitemapSession:
                 lambda: ViewIndex(data), name="sitemap-view-index"
             )
             self._view = view
+            self._editable = True
             self._identity, self._revision = str(uuid4()), revision
         await self._artifacts.check_artifact_access(ref, target=target)
         if self._view is None:
@@ -308,6 +320,42 @@ class SitemapSession:
             else view.load((start, end)),
         }
 
+    async def edit(self, command: Mapping[str, object], key: str | None) -> dict:
+        async with self._lock:
+            if self._closed:
+                raise self.expired()
+            pending = self._pending_edit
+            if pending is not None:
+                if (key is not None and pending[0] != key) or pending[1] != command:
+                    raise ToolInputError(
+                        "Reconcile the pending edit using the same arguments and key"
+                    )
+                key, prepared = pending[0], pending[2]
+            else:
+                if self._view is None or not self._editable:
+                    raise ToolInputError("Read/list the sitemap with refresh=true before editing")
+                key = key or str(uuid4())
+                prepared = dict(command, expectedRevision=self._revision)
+                if command["operation"] == "replace-source":
+                    source = dict(command["source"])
+                    prior = self._view.sources.get(self._source_id)
+                    if prior is not None:
+                        source["expected"] = self._view.load(prior)
+                    prepared["source"] = source
+                self._pending_edit = (key, dict(command), prepared)
+            try:
+                result = await self.client.mutate(prepared, key)
+            except ArtifactAPIError as error:
+                if not error.retryable and error.status_code < 500:
+                    self._pending_edit = None
+                raise
+            else:
+                self._pending_edit = None
+            finally:
+                # Old cursors page their immutable view, not new edit authority.
+                self._editable = False
+            return result.model_dump(by_alias=True)
+
     async def mutate(self, command: Mapping[str, object], key: str) -> dict:
         async with self._lock:
             if self._closed:
@@ -337,3 +385,12 @@ class SitemapSession:
                 key,
             )
             return result.model_dump(by_alias=True)
+
+
+def manual_source_id(namespace: str, deployment: str = "") -> str:
+    # Shared identity fixture: api/testdata/sitemap-editor-source-id.json.
+    digest = hashlib.sha256()
+    for part in ("manual", deployment, namespace):
+        encoded = part.encode("utf-8")
+        digest.update(str(len(encoded)).encode() + b":" + encoded)
+    return digest.hexdigest()

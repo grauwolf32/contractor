@@ -30,7 +30,7 @@ func TestProjectFactsAcrossProcesses(t *testing.T) {
 			if !ok {
 				return nil, fmt.Errorf("missing exact source")
 			}
-			args := map[string]any{"title": fmt.Sprintf("Observation %d", index), "description": "Reported observation from selected material; not independently verified.", "evidence_refs": []any{proof}}
+			args := map[string]any{"title": fmt.Sprintf("Observation %d", index), "description": "Reported observation from selected material; not independently verified.", "evidence_refs": []any{materialSelector(proof)}}
 			if tool == "finding" && severity != "" {
 				args["severity_suggestion"] = severity
 			}
@@ -42,7 +42,7 @@ func TestProjectFactsAcrossProcesses(t *testing.T) {
 		if !ok {
 			return nil, fmt.Errorf("missing original fact evidence")
 		}
-		return map[string]any{"title": "Another title over the same source", "description": "Independent informational submission", "severity_suggestion": "informational", "evidence_refs": []any{proof}}, nil
+		return map[string]any{"title": "Another title over the same source", "description": "Independent informational submission", "severity_suggestion": "informational", "evidence_refs": []any{materialSelector(proof)}}, nil
 	}))
 	producer.steps = append(producer.steps, toolGatewayStep("list_project_findings", fixedArguments(map[string]any{"limit": 100})), toolGatewayStep("select_project_findings", func(request map[string]any) (map[string]any, error) {
 		pages := findingsToolResponses(request, "list_project_findings")
@@ -56,7 +56,7 @@ func TestProjectFactsAcrossProcesses(t *testing.T) {
 		for _, raw := range rows {
 			row := raw.(map[string]any)
 			if row["severitySuggestion"] == "informational" {
-				return map[string]any{"selection_key": "selected-findings", "findings": []any{map[string]any{"findingId": row["findingId"], "revision": row["revision"]}}}, nil
+				return map[string]any{"selection_key": "selected-findings", "findings": []any{map[string]any{"findingId": row["findingId"]}}}, nil
 			}
 		}
 		return nil, fmt.Errorf("missing informational record")
@@ -69,7 +69,7 @@ func TestProjectFactsAcrossProcesses(t *testing.T) {
 		if !ok {
 			return nil, fmt.Errorf("selection failed: %+v", responses)
 		}
-		return map[string]any{"collection_ref": artifact["ref"]}, nil
+		return map[string]any{"collection_ref": materialSelector(artifact["ref"])}, nil
 	}), toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{"name": "report", "text": "Facts and issues retained with an exact selected material.", "media_type": "text/markdown"})), finalGatewayStep("Retained", map[string]domainArtifactBinding{"report": {namespace: "findings-review", name: "report"}}))
 	rejected := domainGatewayStage{name: "facts/project-required", tools: tools, steps: []domainGatewayStep{
 		toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{"name": "proof", "text": "nginx source", "media_type": "text/plain"})),
@@ -80,7 +80,7 @@ func TestProjectFactsAcrossProcesses(t *testing.T) {
 			if !ok {
 				return nil, fmt.Errorf("missing source")
 			}
-			return map[string]any{"title": "nginx", "description": "Reported source", "evidence_refs": []any{proof}}, nil
+			return map[string]any{"title": "nginx", "description": "Reported source", "evidence_refs": []any{materialSelector(proof)}}, nil
 		}))
 	}
 	rejected.steps = append(rejected.steps, toolGatewayStep("write_text_artifact", func(request map[string]any) (map[string]any, error) {

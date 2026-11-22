@@ -1988,3 +1988,21 @@ with other tools sharing the allocation, so timing evidence is not a promise
 of exclusive target capacity. Refused, failed or truncated exchanges fail the
 scan even after a zero native exit. Preparation, process, proxy and temporary
 files follow the existing invocation deadline and joined cleanup.
+
+**SCN-R269.** A tool owner may provide one internal
+`contractor_trusted_call` with a distinct strict signature for model-free
+execution. ToolWorkerRuntime validates and invokes that signature, while
+retaining the original owner for observations, identity and cleanup. ADK exposes
+only the ordinary model callable; this internal facet is not another tool or a
+compatibility alias. Tools without a distinct facet use their ordinary callable.
+The Sitemap editor is the initial consumer: deterministic configuration retains
+explicit preconditions while its model facade obtains them from a reviewed view.
+Existing invocation receipts, bounds and retry/deadline rules remain authoritative.
+
+**SCN-R270.** Model scan_sqlmap.request_ref, scan_ffuf.wordlist_ref and
+scan_nuclei.rulepack_ref contain closed namespace/name selectors. Runtime resolves
+trusted assigned or already observed exact materials before scanner preparation;
+unknown/ambiguous/hidden selections fail before launch. Nested model revision
+fields are rejected. Deterministic tool@1 uses the trusted callable (SCN-R269),
+retains strict exact inputs and never resolves them to latest. Reports/manifests
+and tool results continue to record exact revisions.

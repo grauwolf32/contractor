@@ -86,8 +86,8 @@ def _normalize(key, value, notices, path=""):
         ) from None
 
 
-def _prepare_single(value, expected_revision):
-    admit_arguments({**value, "expected_revision": expected_revision})
+def _prepare_single(value):
+    admit_arguments(value)
     notices = NormalizationNotices()
     return _normalize(value["item_key"], value, notices), notices
 
@@ -165,7 +165,7 @@ class SubmitCheckResultTool:
     Read read_audit_task for item keys and evidence handles. For a hypothesis,
     verdict is supported, refuted or inconclusive. Supported/refuted need tested
     conditions and evidence. Inconclusive needs a limitation. Omit verdict for
-    exploration. Corrections replace the conclusion using its receipt revision.
+    exploration. A later submission with new content replaces this item; identical content replays.
 
     Args:
         item_key: Assigned item key, including for a single-item assignment.
@@ -177,7 +177,6 @@ class SubmitCheckResultTool:
         verdict: Hypothesis conclusion; omit for exploration.
         http_request_ids: Local IDs from http_request in this invocation; defaults
             to []. Runtime attaches actual exchanges without replaying requests.
-        expected_revision: Revision from the receipt when correcting a conclusion.
 
     All array arguments also accept one serialized JSON array. Nested values
     retain their types; request IDs must be integers, never strings or booleans.
@@ -207,8 +206,8 @@ class SubmitCheckResultTool:
         evidence: list[str] | str | None = None,
         verdict: AuditVerdict | None = None,
         http_request_ids: list[int] | str | None = None,
-        expected_revision: int | None = None,
     ) -> dict[str, Any]:
+        base = self._collector.item_base(item_key)
         return await self._submit(
             tool_context,
             partial(
@@ -222,9 +221,8 @@ class SubmitCheckResultTool:
                     "verdict": verdict,
                     "http_request_ids": [] if http_request_ids is None else http_request_ids,
                 },
-                expected_revision,
             ),
-            lambda collector, item: collector.record(item, expected_revision=expected_revision),
+            lambda collector, item: collector.record(item, expected_revision=base),
         )
 
     async def _submit(self, tool_context, prepare, submit) -> dict[str, Any]:
@@ -269,7 +267,7 @@ class SubmitCheckResultsTool(SubmitCheckResultTool):
     Items may arrive in any order. Each assigned key must occur exactly once.
     Validation and acceptance apply to the whole batch. Identical existing
     conclusions are replays. Correct a changed conclusion with submit_check_result
-    and its expected_revision. Field and evidence rules match the single-item tool.
+    alone. Field and evidence rules match the single-item tool.
 
     Args:
         items: Complete JSON array of conclusions, native or serialized once.

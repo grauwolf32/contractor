@@ -64,14 +64,14 @@ func locatedFindingProducer() domainGatewayStage {
 	return domainGatewayStage{name: "located/producer", tools: []string{
 		"open_source_archive", "list_source_files", "read_source", "search_source", "finding", "write_text_artifact",
 	}, steps: []domainGatewayStep{
-		toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),
+		toolGatewayStep("open_source_archive", stageSourceArguments("source", nil)),
 		toolGatewayStep("read_source", fixedArguments(map[string]any{"path": "app.py", "start_line": 1, "max_lines": 100})),
 		toolGatewayStep("finding", func(request map[string]any) (map[string]any, error) {
 			source, ok := stageArtifact(request, "source")
 			if !ok {
 				return nil, fmt.Errorf("missing inspected exact source")
 			}
-			return map[string]any{"title": "Query concatenation", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 6}, "cwe": "CWE-89", "evidence_refs": []any{source}}, nil
+			return map[string]any{"title": "Query concatenation", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 6}, "cwe": "CWE-89", "evidence_refs": []any{materialSelector(source)}}, nil
 		}),
 		toolGatewayStep("write_text_artifact", func(request map[string]any) (map[string]any, error) {
 			responses := findingsToolResponses(request, "finding")
