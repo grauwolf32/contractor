@@ -5,7 +5,7 @@ milestone: adk-python215-go28-2026-11
 epic: planner-worker
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V475-002]
 languages: [python, go, markdown]
 goal: Run the merged tool interfaces on Python ADK 2.15.0 and Go ADK 2.8.0 with unchanged Contractor execution guarantees and a verified dependency closure.
@@ -84,3 +84,5 @@ verification_policy:
   - Use one disposable PostgreSQL database for this lane; configured database failures fail verification. Serialize database test commands and use GOFLAGS=-p=2 after the initial concurrent run exhausted the private server lock table; those failed attempts are not passing evidence.
   - Optional heavy-I/O fixtures remain disabled unless explicitly requested and their skips are reported honestly.
   - Do not change assertions merely to accept drift in an existing Contractor guarantee.
+
+implementation_commit: d5042c98e50efcf2c466cee170079f1e63b4ae4f
