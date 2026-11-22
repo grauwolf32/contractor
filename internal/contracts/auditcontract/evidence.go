@@ -30,20 +30,27 @@ type EvidenceReceipt struct {
 }
 
 func (v EvidenceSubmission) Validate() error {
-	if v.APIVersion != contracts.APIVersion || !contracts.ValidResourceID(v.InvocationID) || len(v.InvocationID) > 128 || !contracts.ValidResourceID(v.SubmissionID) || len(v.SubmissionID) > 128 || v.TestedConditions == nil || v.Limitations == nil || len(v.Sources) == 0 || len(v.Sources) > 256 || len(v.TestedConditions) > 512 || len(v.Limitations) > 512 {
+	if v.APIVersion != contracts.APIVersion || !contracts.ValidResourceID(v.InvocationID) || len(v.InvocationID) > 128 || !contracts.ValidResourceID(v.SubmissionID) || len(v.SubmissionID) > 128 {
 		return errInvalid
 	}
 	if _, ok := ExecutionItemOrdinal(v.ItemKey); !ok {
 		return errInvalid
 	}
+	return validateEvidenceContent(v.Sources, v.Interpretation, v.TestedConditions, v.Limitations)
+}
+
+func validateEvidenceContent(sources []contracts.ArtifactRef, interpretation string, testedConditions, limitations []string) error {
+	if testedConditions == nil || limitations == nil || len(sources) == 0 || len(sources) > 256 || len(testedConditions) > 512 || len(limitations) > 512 {
+		return errInvalid
+	}
 	text := func(s string, n int) bool {
 		return utf8.ValidString(s) && strings.TrimSpace(s) != "" && !strings.ContainsRune(s, 0) && len(s) <= n
 	}
-	if !text(v.Interpretation, 65536) {
+	if !text(interpretation, 65536) {
 		return errInvalid
 	}
 	seen := map[string]bool{}
-	for _, ref := range v.Sources {
+	for _, ref := range sources {
 		if ref.ValidateExact() != nil {
 			return errInvalid
 		}
@@ -53,7 +60,7 @@ func (v EvidenceSubmission) Validate() error {
 		}
 		seen[key] = true
 	}
-	for _, values := range [][]string{v.TestedConditions, v.Limitations} {
+	for _, values := range [][]string{testedConditions, limitations} {
 		seen = map[string]bool{}
 		for _, s := range values {
 			if !text(s, 512) || seen[s] {
@@ -105,7 +112,7 @@ type EvidenceRecord struct {
 // Validate checks stored annotations as strictly as normalized submissions.
 // Origin authority and assignment membership remain with the Audit owner.
 func (v EvidenceRecord) Validate() error {
-	if v.Schema != "contractor.audit.evidence.v1" || !contentdigest.Valid(v.RequestDigest) || len(v.Sources) != len(v.SelectedSources) {
+	if len(v.Origin.InvocationID) > 128 || len(v.Origin.SubmissionID) > 128 || v.Schema != "contractor.audit.evidence.v1" || !contentdigest.Valid(v.RequestDigest) || len(v.Sources) != len(v.SelectedSources) {
 		return errInvalid
 	}
 	for _, id := range []string{v.Origin.AuditID, v.Origin.TaskID, v.Origin.RunID, v.Origin.ExecutionID, v.Origin.AllocationID, v.Origin.StageExecutionID, v.Origin.LogicalAgentName, v.Origin.InvocationID, v.Origin.SubmissionID} {
@@ -124,7 +131,5 @@ func (v EvidenceRecord) Validate() error {
 		}
 		refs = append(refs, source.Ref)
 	}
-	// The record uses machine Task identity; this submission validator is reused
-	// only for the same closed content/ref bounds, not for record membership.
-	return (EvidenceSubmission{APIVersion: contracts.APIVersion, InvocationID: v.Origin.InvocationID, SubmissionID: "stored-content", ItemKey: ExecutionItemKey(0), Sources: refs, Interpretation: v.Interpretation, TestedConditions: v.TestedConditions, Limitations: v.Limitations}).Validate()
+	return validateEvidenceContent(refs, v.Interpretation, v.TestedConditions, v.Limitations)
 }
