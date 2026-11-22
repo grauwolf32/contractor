@@ -5,7 +5,8 @@ milestone: audit-evidence-results-2026-11
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 4edf1b09af1adfe6ae076abefce946ef52f9dd7b
 depends_on:
 - V64-002
 - V64-012
@@ -381,3 +382,5 @@ tests:
 verification_notes: Listed commands are required implementation gates, not results of task planning. Use one
   owned disposable PostgreSQL database, explicitly drop it after pools/processes stop, and never implicitly
   enable CONTRACTOR_TEST_HEAVY_IO. Zero matched cases and skipped required database/process cases fail acceptance.
+
+verification_results: "Required gates pass: make test-runtime (6596 passed, 135 declared skips; 577 selected compaction cases); full listed Go/integration packages plus touched Audit store and private intake packages on real UTF8 PostgreSQL; make test-http-caido-e2e (74.573s); make test-audit-basic-e2e (13 required cases, 366.790s); make test-wire-cross-language (406 fixtures, 460 Go and 292 Python shared tests; one explicitly disabled heavy-I/O case is not passing coverage); make verify-public-api-postgres (nine selected race cases, 10.020s); make lint; make test-findings-e2e (25 required process cases and 310 Runtime contracts, 580.503s); make test-code-analysis-e2e (Runtime and actual process suites). The strengthened actual-HTTP crash/lost-ack/restart/producer-purge scenario passes in the full Audit gate (14.06s) with exactly two target requests and no fabricated conclusion. Real-store record/byte saturation, foreign membership, immutable selection, fenced replay and atomic rejection pass. No live model, demo deployment or main merge was performed. The reusable owned test database remains active for the dependent V478 work and must be removed after its final pools/processes stop."
