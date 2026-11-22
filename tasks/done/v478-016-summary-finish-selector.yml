@@ -6,7 +6,8 @@ epic: execution-core
 kind: chore
 introduced_by: V479-006
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: fc6f3bb34d1d3ec230d9cee0845aa0cfcf7bc989
 depends_on: [V479-006]
 languages: [go]
 goal: Scheduler summary continuation regressions reach their actual progression and retention assertions under the current Planner finish contract.
@@ -35,3 +36,8 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A2]
+verification_results: >-
+  Full real-PostgreSQL Scheduler, Streamline and Router packages pass (42.569s,
+  28.987s and 0.449s). Full make lint passes on the implementation. The summary
+  regression reaches its continuation/retention assertions without changing any
+  production lease, timeout or finish validator.
