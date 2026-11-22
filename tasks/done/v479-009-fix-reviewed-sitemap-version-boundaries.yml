@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: defect
 introduced_by: V479-003
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V479-003, V479-004, V479-005]
 languages: [python, markdown]
 goal: Model Sitemap edits recover from temporary failures with their original identity, and Project reads never change selected Run versions.
@@ -79,3 +79,4 @@ verification:
     Tests exercise production factory/session/ArtifactClient paths with controlled
     transports. No Server persistence changed; no database or real-process run is
     claimed. Full Runtime/Go/lint/release gates and live calls were not run.
+implementation_commit: e07c93a389f828613ef76868ac21eb9cccdb7353
