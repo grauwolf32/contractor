@@ -6,7 +6,8 @@ epic: scan-tools
 kind: chore
 introduced_by: V479-005
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 209a9e9d03f2f2c196d1c5bfdda5166dbea49e20
 depends_on: [V479-005, V479-004]
 languages: [python]
 goal: Scanner and source regression fixtures reach their intended transport, cancellation and numeric validation paths under the current model argument contract.
@@ -35,3 +36,5 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A2]
+
+verification_results: "All 70 tests in the five required fixture suites pass with the pinned ffuf 2.3.0; complete Runtime verification passes 6596 tests, with 135 declared skips not counted as passing coverage. Full make lint passes."

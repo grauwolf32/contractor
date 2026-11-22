@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-72 open tasks: 14 in progress, 45 pending, 13 deferred. 1664 finished: 1646 completed, 18 archived.
+71 open tasks: 13 in progress, 45 pending, 13 deferred. 1665 finished: 1647 completed, 18 archived.
 
 ## In progress
 
@@ -22,7 +22,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V478-002](v478-002-audit-incremental-evidence.yml) | audits | feature | P1 | Retain explicitly selected evidence through common source selectors |
-| [V478-012](v478-012-scanner-version-fixtures.yml) | scan-tools | chore | P2 | Finish remaining test callers of Runtime-owned versions |
 | [V478-013](v478-013-inactive-audit-submission.yml) | audits | defect | P2 | Classify inactive Audit submissions before reading their generation |
 | [V478-014](v478-014-http-caido-current-workflow.yml) | http-tools | chore | P2 | Select the current security workflow in the HTTP Caido process gate |
 
@@ -171,7 +170,7 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 6 | 26 | 38 | 16 | 39 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 13 | 30 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 13 | 30 |
 | Findings tools and collections (`findings`) | 0 | 22 | 15 | 13 | 29 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 21 | 76 |
