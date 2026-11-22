@@ -255,7 +255,11 @@ boundaries, two successful RSS observations and no uncovered interval above 30 s
 Shared Go/Python cases also verify cross-field invariants beyond JSON Schema.
 
 `http-exchange.schema.json` describes the captured exchange submitted as
-`httpEvidence` with an allocation finding. `#/$defs/artifact` describes the
+`httpEvidence` with an allocation finding. Its required paired
+`httpEvidenceInvocationId` identifies the original capture invocation, independently
+of the Finding's current `invocationId`; `#/$defs/selection` describes that pair.
+The Runtime capture owner supplies it, and Server derives the Run from the allocation.
+`#/$defs/artifact` describes the
 frozen selected evidence, whose finding association is supplied by Server
 intake. Go and Runtime validate `api/testdata/http-capture-cases.json`; the
 Runtime schema check also pins the closed object structure.

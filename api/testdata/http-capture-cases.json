@@ -2922,5 +2922,84 @@
         "request_tag": ""
       }
     }
+  ],
+  "selectionOrigins": [
+    {
+      "name": "absent-selection",
+      "capture": false,
+      "present": false,
+      "value": null,
+      "valid": true
+    },
+    {
+      "name": "missing-origin",
+      "capture": true,
+      "present": false,
+      "value": null,
+      "valid": false
+    },
+    {
+      "name": "origin-without-capture",
+      "capture": false,
+      "present": true,
+      "value": "original-invocation",
+      "valid": false
+    },
+    {
+      "name": "empty-origin-without-capture",
+      "capture": false,
+      "present": true,
+      "value": "",
+      "valid": false
+    },
+    {
+      "name": "same-invocation",
+      "capture": true,
+      "present": true,
+      "value": "current-invocation",
+      "valid": true
+    },
+    {
+      "name": "earlier-invocation",
+      "capture": true,
+      "present": true,
+      "value": "original-invocation",
+      "valid": true
+    },
+    {
+      "name": "empty-origin",
+      "capture": true,
+      "present": true,
+      "value": "",
+      "valid": false
+    },
+    {
+      "name": "null-origin",
+      "capture": true,
+      "present": true,
+      "value": null,
+      "valid": false
+    },
+    {
+      "name": "numeric-origin",
+      "capture": true,
+      "present": true,
+      "value": 1,
+      "valid": false
+    },
+    {
+      "name": "invalid-origin",
+      "capture": true,
+      "present": true,
+      "value": "not an identity",
+      "valid": false
+    },
+    {
+      "name": "long-origin",
+      "capture": true,
+      "present": true,
+      "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "valid": false
+    }
   ]
 }

@@ -325,6 +325,8 @@ def test_caido_evidence_resolves_local_id_without_model_inspection(
                 tool_context=context(invocation_id="later-invocation"),
             )
             assert client.requests[-1]["httpEvidence"] == capture
+            assert client.requests[-1]["httpEvidenceInvocationId"] == "invocation-1"
+            assert client.requests[-1]["invocationId"] == "later-invocation"
             assert observed == ["RequestsByOffset", "RequestDetail"]
         finally:
             await close_caido(caido)
@@ -716,6 +718,8 @@ def test_http_evidence_captures_actual_request_and_survives_history_eviction(tmp
             tool_context=context(invocation_id="later-invocation"),
         )
         assert client.requests[-1]["httpEvidence"] == client.requests[0]["httpEvidence"]
+        assert client.requests[-1]["httpEvidenceInvocationId"] == "invocation-1"
+        assert client.requests[-1]["invocationId"] == "later-invocation"
         retained = json.dumps(document)
         for _ in range(MAX_HISTORY):
             await http["http_request"]("https://target.example/later", tool_context=context())

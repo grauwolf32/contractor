@@ -154,7 +154,7 @@ class FindingPublisher:
             if normalized:
                 proposal["locations"] = normalized
             if exchange is not None:
-                request["httpEvidence"] = exchange
+                request["httpEvidenceInvocationId"], request["httpEvidence"] = exchange
             validate_informational_payload(
                 proposal, len(refs) + (exchange is not None) + (memory_name is not None)
             )
@@ -207,7 +207,7 @@ class FindingPublisher:
 
     async def _http_evidence(
         self, request_id: int | None, invocation_id: str
-    ) -> dict[str, Any] | None:
+    ) -> tuple[str, dict[str, Any]] | None:
         if request_id is None:
             return None
         captures = self.resources.http_captures

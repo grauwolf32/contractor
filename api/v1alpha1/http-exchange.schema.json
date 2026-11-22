@@ -312,6 +312,27 @@
           }
         }
       }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "httpEvidence": {
+          "$ref": "#/$defs/capture"
+        },
+        "httpEvidenceInvocationId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        }
+      },
+      "dependentRequired": {
+        "httpEvidence": [
+          "httpEvidenceInvocationId"
+        ],
+        "httpEvidenceInvocationId": [
+          "httpEvidence"
+        ]
+      }
     }
   }
 }

@@ -423,7 +423,8 @@ represent truthfully has no embedded projection; its evidence remains intact.
 Artifacts, using media type `application/vnd.contractor.http-exchange+json` and
 schema `contractor.http.exchange.v1`. The frozen RunScope namespace is
 `http-exchanges`. Its binding name is `exchange-` plus the lowercase SHA-256 of
-the RFC 8785 JSON array `[invocation_id, source, request_id]`. Finding intake
+the RFC 8785 JSON array `[invocation_id, source, request_id]`, using the original
+capture invocation even when a later invocation selects the request. Finding intake
 creates the selected Artifact atomically with its proposal, or reuses its exact
 existing bytes. Ordinary check-result selection publishes the same independent
 format through HTP-R150 without requiring a proposal. Results and Findings cite
@@ -490,8 +491,15 @@ allocation and validates the publication origin. It preserves historical origin
 through reuse and ordinary Audit/Project retention forks. The envelope has no
 `finding` member. Proposal/receipt associations stay with Finding intake.
 Embedded origin is historical provenance; an uploaded copy grants neither access
-nor trusted capture authority. The private finding submission carries optional
-`httpEvidence: capture`; intake returns ordered exact `evidence` descriptors.
+nor trusted capture authority. A private finding submission with `httpEvidence: capture`
+requires `httpEvidenceInvocationId`, the original capture invocation supplied by
+the allocation's Runtime capture owner. Both fields are omitted without a selection.
+The authenticated allocation still supplies the Run and publication authority;
+the capture invocation grants no additional access. It determines the evidence
+origin and frozen binding, while `invocationId` remains the Finding author's
+invocation. Reusing a request reuses its exact frozen evidence, without changing
+its origin. Both capture and origin participate in the submission replay digest.
+Intake returns ordered exact `evidence` descriptors.
 
 **FND-R161.** `capture` has `source: http|caido`, string `request_id`, optional
 `request_tag` (required for HTTP), and 1–13 `attempts`. Runtime HTTP selected

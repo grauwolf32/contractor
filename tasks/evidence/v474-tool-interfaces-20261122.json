@@ -242,5 +242,83 @@
   ],
   "fixtureRepairRevision": "9e62b79900191319bf1e5de8d0683587ef6b6386",
   "productionChangesSinceSourceRevision": [],
-  "callbackRepairRevision": "1d368856c8ace8e3c58795d60cfbc5efe2464438"
+  "callbackRepairRevision": "1d368856c8ace8e3c58795d60cfbc5efe2464438",
+  "reviewCorrections": [
+    {
+      "date": "2026-11-22",
+      "baseRevision": "ce0a137e7e143efdbd60ebd5e6a221fafc6aa077",
+      "authority": "User requested the review fix without a separate task and restricted verification to changed components.",
+      "change": "Preserve the allocation capture owner invocation in private httpEvidenceInvocationId. Intake uses it for immutable HTTP evidence origin and binding, while invocationId remains the Finding author. Capture origin participates in the replay digest.",
+      "regressions": [
+        "Request captured in A and selected in B, with or without prior publication",
+        "One frozen exact exchange reused across invocations",
+        "Changed capture origin rejected on receipt replay",
+        "Duplicate raw/exact selection rejected using original binding",
+        "Missing, null, empty, invalid and unpaired capture origins rejected by shared Go/Python cases"
+      ],
+      "verification": {
+        "runtime": {
+          "status": "passed",
+          "tests": 228,
+          "skipped": 0,
+          "command": "runtime/.venv/bin/python -m pytest -q -W error runtime/tests/test_finding_facades.py runtime/tests/test_security_findings_toolset.py runtime/tests/test_http_capture.py runtime/tests/test_local_http_requests.py runtime/tests/test_http_selected_evidence.py runtime/tests/test_caido_read_tools.py runtime/tests/test_http_toolset.py runtime/tests/test_audit_result_collector.py",
+          "log": "/private/tmp/contractor-v474-origin-focused-runtime.log"
+        },
+        "intake": {
+          "status": "passed",
+          "command": "go test -tags=integration -count=1 -timeout=10m ./internal/findingintake",
+          "realPostgres": true,
+          "encoding": "UTF8",
+          "seconds": 94.681,
+          "heavyIOEnabled": false,
+          "log": "/private/tmp/contractor-v474-origin-go.log"
+        },
+        "process": {
+          "status": "passed",
+          "roots": 2,
+          "seconds": 149.257,
+          "command": "go test -tags=e2e -count=1 -timeout=10m ./tests/e2e -run '^(TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses)$'",
+          "log": "/private/tmp/contractor-v474-origin-process.log"
+        },
+        "ui": {
+          "status": "passed",
+          "files": 3,
+          "tests": 93,
+          "command": "vitest run src/api/http-exchange.test.ts src/routes/runs/http-materials.test.tsx src/routes/artifacts/previews/http-exchange.test.tsx --maxWorkers=2",
+          "log": "/private/tmp/contractor-v474-origin-ui.log"
+        },
+        "static": {
+          "status": "passed",
+          "checks": [
+            "Ruff check and format on six changed Python files",
+            "go vet -tags=integration ./internal/findingintake",
+            "Shared-fixture source validation",
+            "Specification and generated dependency graph validation",
+            "git diff --check"
+          ]
+        }
+      },
+      "nonAcceptanceRuns": [
+        {
+          "gate": "Initial intake run",
+          "status": "failed",
+          "reason": "Owned cluster was initialized as SQL_ASCII; read-budget tests require UTF8. An empty-origin case also read code compiled before the final pair-presence check. Final component run above used UTF8 and final code.",
+          "log": "/private/tmp/contractor-v474-origin-go-attempt-1.log"
+        },
+        {
+          "gate": "Full Runtime",
+          "status": "interrupted",
+          "reason": "Stopped when the user restricted verification to changed components; not full-suite acceptance.",
+          "log": "/private/tmp/contractor-v474-origin-runtime.log"
+        },
+        {
+          "gate": "Full lint",
+          "status": "interrupted",
+          "reason": "Stopped when the user restricted verification to changed components; focused static checks above passed.",
+          "log": "/private/tmp/contractor-v474-origin-lint.log"
+        }
+      ],
+      "cleanup": "Owned test database dropped and PostgreSQL cluster stopped and removed."
+    }
+  ]
 }

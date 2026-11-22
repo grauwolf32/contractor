@@ -79,8 +79,10 @@ func TestPostgresProposalEvidenceQuotaAdmitsExactlyItsLimit(t *testing.T) {
 	overLimit := []contracts.ArtifactRef{large, write("refs-over-limit", exchange+4)}
 	exchangeAt.EvidenceRefs, exchangeAt.Proposal.EvidenceIDs = []contracts.ArtifactRef{large, write("exchange-at-limit", 3)}, []string{"evidence-1", "evidence-2"}
 	exchangeAt.HTTPEvidence = &capture
+	exchangeAt.HTTPEvidenceInvocationID = exchangeAt.InvocationID
 	exchangeOver.EvidenceRefs, exchangeOver.Proposal.EvidenceIDs = []contracts.ArtifactRef{large, write("exchange-over-limit", 4)}, []string{"evidence-1", "evidence-2"}
 	exchangeOver.HTTPEvidence = &capture
+	exchangeOver.HTTPEvidenceInvocationID = exchangeOver.InvocationID
 
 	for _, over := range []Submission{testSubmission("refs-invocation", "refs-over-limit", overLimit), exchangeOver} {
 		_, _, err := service.Submit(ctx, grant, over)

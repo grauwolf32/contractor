@@ -282,7 +282,7 @@ class RecentHTTPCaptures:
     def bind_stored_reader(self, reader: Callable[[str, str, str], Awaitable[None]] | None) -> None:
         self._stored_reader = reader
 
-    async def read_exchange(self, local_id: int, invocation_id: str) -> dict[str, Any]:
+    async def read_exchange(self, local_id: int, invocation_id: str) -> tuple[str, dict[str, Any]]:
         key = self.resolve(local_id)
         if key not in self._entries:
             reader = self._stored_reader
@@ -293,7 +293,10 @@ class RecentHTTPCaptures:
             # expired locator or substitute another request for it.
             if self.resolve(local_id) != key:
                 raise ValueError("stored HTTP exchange is unavailable")
-        return await self.get(*key)
+        origin, _ = self._entries.get(key, (None, b""))
+        if not origin:
+            raise ValueError("HTTP capture invocation is unavailable")
+        return origin, await self.get(*key)
 
     def _remove_capture(self, key: tuple[str, str]) -> None:
         previous = self._entries.pop(key, None)

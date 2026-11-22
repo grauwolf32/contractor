@@ -140,7 +140,7 @@ func (s *Service) submit(ctx context.Context, execution intakeExecution, input S
 	receiptID, proposalID := execution.receiptID(input), execution.proposalID(input)
 	var httpPayload *artifacts.Payload
 	if canonical.request.HTTPEvidence != nil {
-		data, encodeErr := auditdomain.EncodeHTTPExchangeArtifact(*canonical.request.HTTPEvidence, execution.RunID, input.InvocationID)
+		data, encodeErr := auditdomain.EncodeHTTPExchangeArtifact(*canonical.request.HTTPEvidence, execution.RunID, input.HTTPEvidenceInvocationID)
 		if encodeErr != nil || len(data) > artifacts.MaxPayloadSize {
 			return Receipt{}, false, fmt.Errorf("%w: HTTP evidence payload", ErrInvalid)
 		}
@@ -251,7 +251,7 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, execution.Run
 				return fmt.Errorf("%w: proposal evidence quota exceeded", ErrInvalid)
 			}
 			written, writeErr := artifactService.CreateFrozen(ctx, mustRunScope(execution.RunID),
-				contracts.ArtifactRef{Namespace: artifactpolicy.HTTPExchangeNamespace, Name: auditdomain.HTTPExchangeArtifactName(input.InvocationID, canonical.request.HTTPEvidence.Source, canonical.request.HTTPEvidence.RequestID)}, *httpPayload)
+				contracts.ArtifactRef{Namespace: artifactpolicy.HTTPExchangeNamespace, Name: auditdomain.HTTPExchangeArtifactName(input.HTTPEvidenceInvocationID, canonical.request.HTTPEvidence.Source, canonical.request.HTTPEvidence.RequestID)}, *httpPayload)
 			if writeErr != nil {
 				if errors.Is(writeErr, artifacts.ErrAuditArtifactCollision) {
 					return ErrConflict

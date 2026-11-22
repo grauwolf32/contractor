@@ -72,6 +72,24 @@ def capture(request_id="1"):
     }
 
 
+def test_shared_finding_http_selection_origin():
+    import jsonschema
+
+    fixture = json.loads(
+        (Path(__file__).parents[2] / "api/testdata/http-capture-cases.json").read_text()
+    )
+    validator = private_validator("http-exchange.schema.json#/$defs/selection")
+    for row in fixture["selectionOrigins"]:
+        value = {"httpEvidence": fixture["cases"][0]["value"]} if row["capture"] else {}
+        if row["present"]:
+            value["httpEvidenceInvocationId"] = row["value"]
+        if row["valid"]:
+            validator.validate(value)
+        else:
+            with pytest.raises(jsonschema.ValidationError):
+                validator.validate(value)
+
+
 def test_capture_buffer_count_ownership_replacement_and_clear():
     async def scenario():
         buffer = RecentHTTPCaptures()
@@ -157,7 +175,7 @@ def test_observation_metadata_shares_capture_ownership_eviction_and_byte_budget(
         body, selected = buffer.select_observation("1", "owner")
         assert selected == metadata
         assert buffer._bytes == len(body) + metadata.size_bytes
-        assert await buffer.read_exchange(1, "foreign") == json.loads(body)
+        assert await buffer.read_exchange(1, "foreign") == ("owner", json.loads(body))
         assert buffer.select_observation("1", "owner") == (body, metadata)
         with pytest.raises(ValueError, match="unavailable"):
             buffer.select_observation("1", "foreign")
