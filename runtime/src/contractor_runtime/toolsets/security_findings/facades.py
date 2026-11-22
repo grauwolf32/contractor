@@ -23,7 +23,7 @@ from contractor_runtime.toolsets.common.finding_locations import (
     StandardReference,
 )
 from contractor_runtime.toolsets.common.resources import ToolResources
-from contractor_runtime.toolsets.common.versions import MaterialSelector
+from contractor_runtime.toolsets.common.sources import SourcePreparer, SourceSelector
 from contractor_runtime.toolsets.security_findings.project_reader import (
     ListProjectFindingsTool,
     ProjectFindingTools,
@@ -61,12 +61,14 @@ class GeneralFindingTool(_FindingFacade):
         title: Short non-empty finding title.
         description: Observation, impact, prerequisites and reproduction details.
         locations: Optional explicit source or web locations.
-        request_id: Local request_id returned by a Contractor tool in this allocation.
-            Runtime retrieves and saves the request and available response.
         cwe: Optional CWE-NNN weakness identifier from the pinned catalog.
-        evidence_refs: Optional selected materials with namespace/name; Runtime supplies revisions.
-            With any selected exchange they total at most 64 MiB; a larger set
-            fails with invalid_finding_request, so cite fewer artifacts.
+        sources: Selected code, HTTP or artifact objects, native array or serialized once.
+            Artifact selectors use kind=artifact and namespace/name; Runtime supplies
+            the selected revision. Code selects file/start_line/end_line in the opened
+            pinned archive; workspace=true verifies current workspace coordinates.
+            HTTP selects kind=http and a local request_id without replay; at most one
+            local exchange. Retained sources preserve their original observation context.
+            A fact statement or Memory note does not independently verify its claim.
         standard_refs: Optional exact standard identities copied from an assigned
             Audit task. A finding linked to a standard-mapped Audit result must
             cite every assigned entry ID.
@@ -87,9 +89,8 @@ class GeneralFindingTool(_FindingFacade):
         description: str,
         tool_context: ToolContext,
         locations: list[Location] | None = None,
-        request_id: LineNumber | None = None,
         cwe: str | None = None,
-        evidence_refs: list[MaterialSelector] | None = None,
+        sources: list[SourceSelector] | str | None = None,
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
         severity_suggestion: FindingSeverity | None = None,
@@ -102,18 +103,17 @@ class GeneralFindingTool(_FindingFacade):
             locations=locations or [],
             context=tool_context,
             cwe=cwe,
-            evidence_refs=evidence_refs,
+            source_selection=sources,
             standard_refs=standard_refs,
             proposed_checks=proposed_checks,
             severity_suggestion=severity_suggestion,
             item_key=item_key,
             incidental=incidental,
-            request_id=request_id,
         )
 
 
-class RecordFactTool(_FindingFacade):
-    name = "record_fact"
+class FactTool(_FindingFacade):
+    name = "fact"
     description = """Save one informational Project observation with exact evidence.
 
     An active Project and selected exact evidence are required. Describe what the
@@ -123,10 +123,13 @@ class RecordFactTool(_FindingFacade):
     Args:
         title: Short non-empty observation title.
         description: Observation, source quality, conditions and limitations.
-        evidence_refs: Selected materials with namespace/name. At most four
-            sources including a selected HTTP exchange; authored content is at most 32 KiB.
-        request_id: Local request_id returned by a Contractor tool in this allocation.
-            Runtime retrieves and saves its request and available response.
+        sources: Selected code, HTTP or artifact objects, native array or serialized once.
+            Artifact selectors use kind=artifact and namespace/name; Runtime supplies
+            the selected revision. Code selects file/start_line/end_line in the opened
+            pinned archive; workspace=true verifies current workspace coordinates.
+            HTTP selects kind=http and a local request_id without replay; at most one
+            local exchange. Retained sources preserve their original observation context.
+            A fact statement or Memory note does not independently verify its claim.
         memory_name: Optional exact memory name from the assigned memories snapshot.
             Attaches its complete original content, description and tags; no quotation
             is required. Describe uncertainty and inference in your own words.
@@ -140,9 +143,8 @@ class RecordFactTool(_FindingFacade):
         title: str,
         description: str,
         tool_context: ToolContext,
-        evidence_refs: list[MaterialSelector] | None = None,
+        sources: list[SourceSelector] | str | None = None,
         memory_name: str | None = None,
-        request_id: LineNumber | None = None,
         item_key: str | None = None,
         incidental: bool = True,
     ) -> dict[str, Any]:
@@ -152,9 +154,8 @@ class RecordFactTool(_FindingFacade):
             locations=[],
             context=tool_context,
             cwe=None,
-            evidence_refs=evidence_refs,
+            source_selection=sources,
             memory_name=memory_name,
-            request_id=request_id,
             severity_suggestion="informational",
             _tool_name=self.name,
             item_key=item_key,
@@ -176,9 +177,13 @@ class CodeFindingTool(_FindingFacade):
         line: Optional one-based line number.
         range: Optional inclusive start_line/end_line object.
         cwe: Optional CWE-NNN weakness identifier from the pinned catalog.
-        evidence_refs: Optional selected materials with namespace/name; Runtime supplies revisions.
-            They total at most 64 MiB; a larger set fails with
-            invalid_finding_request, so cite fewer artifacts.
+        sources: Selected code, HTTP or artifact objects, native array or serialized once.
+            Artifact selectors use kind=artifact and namespace/name; Runtime supplies
+            the selected revision. Code selects file/start_line/end_line in the opened
+            pinned archive; workspace=true verifies current workspace coordinates.
+            HTTP selects kind=http and a local request_id without replay; at most one
+            local exchange. Retained sources preserve their original observation context.
+            A fact statement or Memory note does not independently verify its claim.
         standard_refs: Optional exact standard identities copied from an assigned
             Audit task. A finding linked to a standard-mapped Audit result must
             cite every assigned entry ID.
@@ -202,7 +207,7 @@ class CodeFindingTool(_FindingFacade):
         line: LineNumber | None = None,
         range: LineRange | None = None,
         cwe: str | None = None,
-        evidence_refs: list[MaterialSelector] | None = None,
+        sources: list[SourceSelector] | str | None = None,
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
         severity_suggestion: FindingSeverity | None = None,
@@ -220,7 +225,7 @@ class CodeFindingTool(_FindingFacade):
             locations=[location],
             context=tool_context,
             cwe=cwe,
-            evidence_refs=evidence_refs,
+            source_selection=sources,
             standard_refs=standard_refs,
             proposed_checks=proposed_checks,
             severity_suggestion=severity_suggestion,
@@ -233,21 +238,23 @@ class HTTPFindingTool(_FindingFacade):
     description = """Record one HTTP finding at an explicit URL and method.
 
     Describe the observed behavior, impact and authorization context. An optional
-    request_id attaches the captured outgoing request and response evidence from
-    the allocation's recent HTTP history. Omit the ID to report without captured
-    evidence. Reporting never sends or replays an HTTP request.
+    HTTP source selector attaches the captured outgoing request and response
+    from the allocation's recent HTTP history. Reporting never sends or replays
+    an HTTP request.
 
     Args:
         title: Short non-empty finding title.
         description: Observations, impact, prerequisites and reproduction details.
         url: Absolute HTTP/HTTPS URL of the affected endpoint.
         method: Explicit HTTP method; no default method is inferred.
-        request_id: Local request_id returned by a Contractor tool in this allocation.
-            Runtime retrieves and saves the exchange without sending a target request.
         cwe: Optional CWE-NNN weakness identifier from the pinned catalog.
-        evidence_refs: Optional selected materials with namespace/name; Runtime supplies revisions.
-            With any selected exchange they total at most 64 MiB; a larger set
-            fails with invalid_finding_request, so cite fewer artifacts.
+        sources: Selected code, HTTP or artifact objects, native array or serialized once.
+            Artifact selectors use kind=artifact and namespace/name; Runtime supplies
+            the selected revision. Code selects file/start_line/end_line in the opened
+            pinned archive; workspace=true verifies current workspace coordinates.
+            HTTP selects kind=http and a local request_id without replay; at most one
+            local exchange. Retained sources preserve their original observation context.
+            A fact statement or Memory note does not independently verify its claim.
         standard_refs: Optional exact standard identities copied from an assigned
             Audit task. A finding linked to a standard-mapped Audit result must
             cite every assigned entry ID.
@@ -269,9 +276,8 @@ class HTTPFindingTool(_FindingFacade):
         url: str,
         method: str,
         tool_context: ToolContext,
-        request_id: LineNumber | None = None,
         cwe: str | None = None,
-        evidence_refs: list[MaterialSelector] | None = None,
+        sources: list[SourceSelector] | str | None = None,
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
         severity_suggestion: FindingSeverity | None = None,
@@ -284,13 +290,12 @@ class HTTPFindingTool(_FindingFacade):
             locations=[{"url": url, "method": method}],
             context=tool_context,
             cwe=cwe,
-            evidence_refs=evidence_refs,
+            source_selection=sources,
             standard_refs=standard_refs,
             proposed_checks=proposed_checks,
             severity_suggestion=severity_suggestion,
             item_key=item_key,
             incidental=incidental,
-            request_id=request_id,
         )
 
 
@@ -298,7 +303,7 @@ class GeneralFindingsToolsetFactory:
     ref = "security-findings@1"
     exported_tools = frozenset(
         {
-            "record_fact",
+            "fact",
             "finding",
             "list_findings",
             "list_project_findings",
@@ -329,7 +334,7 @@ class GeneralFindingsToolsetFactory:
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
-        del run_id, workspace, adapter_handles, project_workspace
+        del workspace, adapter_handles
         require_selected_tools(
             selected, self.exported_tools, description="unknown selected finding tools"
         )
@@ -342,12 +347,20 @@ class GeneralFindingsToolsetFactory:
             resources,
             artifacts=client,
             namespace=namespace,
+            source_preparer=SourcePreparer(
+                client,
+                resources,
+                run_id,
+                namespace,
+                runtime_settings.request_timeout_seconds,
+                project_workspace,
+            ),
         )
         result = {}
         if "finding" in selected:
             result["finding"] = self.tool_class(publisher)
-        if "record_fact" in selected:
-            result["record_fact"] = RecordFactTool(publisher)
+        if "fact" in selected:
+            result["fact"] = FactTool(publisher)
         if "list_findings" in selected:
             result["list_findings"] = await prepare_reader(
                 client, metrics, runtime_secrets(runtime_settings)

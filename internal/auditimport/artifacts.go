@@ -15,6 +15,7 @@ import (
 )
 
 type ArtifactAccess interface {
+	ReadAuditExact(context.Context, string, contracts.ExactArtifact) ([]byte, error)
 	DescribeRunBinding(context.Context, string, contracts.ArtifactRef) (auditstore.ExactArtifact, bool, error)
 	PutImmutableAudit(context.Context, string, contracts.ArtifactRef, artifacts.Payload) (auditstore.ExactArtifact, error)
 	WithClaim(auditstore.ControllerClaim) ArtifactAccess
@@ -176,4 +177,20 @@ func (a *ServiceArtifactAccess) retainRunExact(ctx context.Context, runID string
 		return auditstore.ExactArtifact{}, blob.ErrIntegrity
 	}
 	return retained, nil
+}
+
+func (a *ServiceArtifactAccess) ReadAuditExact(ctx context.Context, auditID string, exact contracts.ExactArtifact) ([]byte, error) {
+	scope, err := artifacts.AuditScope(auditID)
+	if err != nil {
+		return nil, err
+	}
+	store, err := a.service.Scoped(scope)
+	if err != nil {
+		return nil, err
+	}
+	read, err := store.ReadExact(ctx, exact)
+	if err != nil {
+		return nil, err
+	}
+	return read.Payload.Data, nil
 }

@@ -17,7 +17,7 @@ import (
 
 func completionBinding(t *testing.T) BindingRequirement {
 	template := testTemplate(t)
-	template.Toolsets = []contracts.ToolsetSelection{{Ref: contracts.ToolsetRef{ToolsetID: "audit-results", Version: "2"}, Tools: []string{"read_audit_task", "submit_check_result", "submit_check_results"}}}
+	template.Toolsets = []contracts.ToolsetSelection{{Ref: contracts.ToolsetRef{ToolsetID: "audit-results", Version: "2"}, Tools: []string{"read_audit_task", "submit_check_result", "submit_check_results", "evidence"}}}
 	binding := testBinding(t, "checker", "check", template)
 	task := "context-r1"
 	binding.CompletionContract = &contracts.WorkerCompletionContract{Kind: contracts.AuditCheckResultsV1,
@@ -31,7 +31,7 @@ func TestAuditCompletionMixedFleetAndReservationReplay(t *testing.T) {
 	for _, id := range []string{"a-old", "b-tools-only", "c-capable"} {
 		registration := testRegistration(id)
 		if id != "a-old" {
-			registration.SupportedToolsets = append(registration.SupportedToolsets, control.ToolsetCapability{Ref: "audit-results@2", Tools: []string{"read_audit_task", "submit_check_result", "submit_check_results"}})
+			registration.SupportedToolsets = append(registration.SupportedToolsets, control.ToolsetCapability{Ref: "audit-results@2", Tools: []string{"read_audit_task", "submit_check_result", "submit_check_results", "evidence"}})
 		}
 		if id == "c-capable" {
 			registration.Capabilities = &contracts.RuntimeCompletionCapabilities{CompletionContracts: []string{contracts.AuditCheckResultsV1}}
@@ -123,7 +123,7 @@ func TestCompletionCapabilitySnapshotsCannotChangePlacement(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
 	registration := testRegistration("capable")
 	registration.Capabilities = &contracts.RuntimeCompletionCapabilities{CompletionContracts: []string{contracts.AuditCheckResultsV1}}
-	registration.SupportedToolsets = append(registration.SupportedToolsets, control.ToolsetCapability{Ref: "audit-results@2", Tools: []string{"read_audit_task", "submit_check_result", "submit_check_results"}})
+	registration.SupportedToolsets = append(registration.SupportedToolsets, control.ToolsetCapability{Ref: "audit-results@2", Tools: []string{"read_audit_task", "submit_check_result", "submit_check_results", "evidence"}})
 	returned, err := registry.Register(registration)
 	if err != nil {
 		t.Fatal(err)

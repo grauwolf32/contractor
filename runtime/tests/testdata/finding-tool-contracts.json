@@ -1,9 +1,101 @@
 {
   "general": {
     "name": "finding",
-    "description": "Record one finding with optional source/web locations.\n\nA proposal records an observation, not a confirmed vulnerability. Describe\nthe impact and supporting observations. Locations may combine code and HTTP.\nEach location is either file with optional line/range, or url with optional\nmethod. Omit unknown coordinates and classification instead of guessing.\n\nArgs:\n    title: Short non-empty finding title.\n    description: Observation, impact, prerequisites and reproduction details.\n    locations: Optional explicit source or web locations.\n    request_id: Local request_id returned by a Contractor tool in this allocation.\n        Runtime retrieves and saves the request and available response.\n    cwe: Optional CWE-NNN weakness identifier from the pinned catalog.\n    evidence_refs: Optional selected materials with namespace/name; Runtime supplies revisions.\n        With any selected exchange they total at most 64 MiB; a larger set\n        fails with invalid_finding_request, so cite fewer artifacts.\n    standard_refs: Optional exact standard identities copied from an assigned\n        Audit task. A finding linked to a standard-mapped Audit result must\n        cite every assigned entry ID.\n    proposed_checks: Optional follow-up questions, each with objective and\n        method. At most 512; these suggestions grant no execution authority.\n    item_key: Optional actual Audit member key from read_audit_task. Required\n        for task-bound batches; omit for a general incidental observation.\n    incidental: An independent discovery that does not test the assigned hypothesis.\n        Without item_key, retains Run/Audit origin only. Selecting a member adds\n        Task origin; incidental calls never associate its hypothesis.\n    severity_suggestion: Optional producer severity; leaves analyst assessment unset.\n        Saving always requires an active Project and selected exact evidence.",
+    "description": "Record one finding with optional source/web locations.\n\nA proposal records an observation, not a confirmed vulnerability. Describe\nthe impact and supporting observations. Locations may combine code and HTTP.\nEach location is either file with optional line/range, or url with optional\nmethod. Omit unknown coordinates and classification instead of guessing.\n\nArgs:\n    title: Short non-empty finding title.\n    description: Observation, impact, prerequisites and reproduction details.\n    locations: Optional explicit source or web locations.\n    cwe: Optional CWE-NNN weakness identifier from the pinned catalog.\n    sources: Selected code, HTTP or artifact objects, native array or serialized once.\n        Artifact selectors use kind=artifact and namespace/name; Runtime supplies\n        the selected revision. Code selects file/start_line/end_line in the opened\n        pinned archive; workspace=true verifies current workspace coordinates.\n        HTTP selects kind=http and a local request_id without replay; at most one\n        local exchange. Retained sources preserve their original observation context.\n        A fact statement or Memory note does not independently verify its claim.\n    standard_refs: Optional exact standard identities copied from an assigned\n        Audit task. A finding linked to a standard-mapped Audit result must\n        cite every assigned entry ID.\n    proposed_checks: Optional follow-up questions, each with objective and\n        method. At most 512; these suggestions grant no execution authority.\n    item_key: Optional actual Audit member key from read_audit_task. Required\n        for task-bound batches; omit for a general incidental observation.\n    incidental: An independent discovery that does not test the assigned hypothesis.\n        Without item_key, retains Run/Audit origin only. Selecting a member adds\n        Task origin; incidental calls never associate its hypothesis.\n    severity_suggestion: Optional producer severity; leaves analyst assessment unset.\n        Saving always requires an active Project and selected exact evidence.",
     "parameters": {
       "$defs": {
+        "ArtifactSource": {
+          "additionalProperties": false,
+          "properties": {
+            "namespace": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Namespace",
+              "type": "string"
+            },
+            "name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            },
+            "kind": {
+              "const": "artifact",
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          "required": [
+            "namespace",
+            "name",
+            "kind"
+          ],
+          "title": "ArtifactSource",
+          "type": "object"
+        },
+        "CodeSource": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "code",
+              "title": "Kind",
+              "type": "string"
+            },
+            "file": {
+              "maxLength": 512,
+              "minLength": 1,
+              "title": "File",
+              "type": "string"
+            },
+            "start_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "Start Line",
+              "type": "integer"
+            },
+            "end_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "End Line",
+              "type": "integer"
+            },
+            "workspace": {
+              "default": false,
+              "title": "Workspace",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "file",
+            "start_line",
+            "end_line"
+          ],
+          "title": "CodeSource",
+          "type": "object"
+        },
+        "HTTPSource": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "http",
+              "title": "Kind",
+              "type": "string"
+            },
+            "request_id": {
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Request Id",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "request_id"
+          ],
+          "title": "HTTPSource",
+          "type": "object"
+        },
         "LineRange": {
           "additionalProperties": false,
           "properties": {
@@ -25,30 +117,6 @@
             "end_line"
           ],
           "title": "LineRange",
-          "type": "object"
-        },
-        "MaterialSelector": {
-          "additionalProperties": false,
-          "description": "Model selection, deliberately distinct from an exact stored ArtifactRef.",
-          "properties": {
-            "namespace": {
-              "maxLength": 128,
-              "minLength": 1,
-              "title": "Namespace",
-              "type": "string"
-            },
-            "name": {
-              "maxLength": 128,
-              "minLength": 1,
-              "title": "Name",
-              "type": "string"
-            }
-          },
-          "required": [
-            "namespace",
-            "name"
-          ],
-          "title": "MaterialSelector",
           "type": "object"
         },
         "ProposedCheck": {
@@ -172,20 +240,6 @@
           "default": null,
           "title": "Locations"
         },
-        "request_id": {
-          "anyOf": [
-            {
-              "maximum": 9007199254740991,
-              "minimum": 1,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Request Id"
-        },
         "cwe": {
           "anyOf": [
             {
@@ -198,20 +252,41 @@
           "default": null,
           "title": "Cwe"
         },
-        "evidence_refs": {
+        "sources": {
           "anyOf": [
             {
               "items": {
-                "$ref": "#/$defs/MaterialSelector"
+                "discriminator": {
+                  "mapping": {
+                    "artifact": "#/$defs/ArtifactSource",
+                    "code": "#/$defs/CodeSource",
+                    "http": "#/$defs/HTTPSource"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/ArtifactSource"
+                  },
+                  {
+                    "$ref": "#/$defs/HTTPSource"
+                  },
+                  {
+                    "$ref": "#/$defs/CodeSource"
+                  }
+                ]
               },
               "type": "array"
+            },
+            {
+              "type": "string"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "title": "Evidence Refs"
+          "title": "Sources"
         },
         "standard_refs": {
           "anyOf": [
@@ -289,13 +364,12 @@
     }
   },
   "fact": {
-    "name": "record_fact",
-    "description": "Save one informational Project observation with exact evidence.\n\nAn active Project and selected exact evidence are required. Describe what the\nsource actually reports, including uncertainty; a note is a reported claim.\nThe record has no automatic analyst verdict or severity assessment.\n\nArgs:\n    title: Short non-empty observation title.\n    description: Observation, source quality, conditions and limitations.\n    evidence_refs: Selected materials with namespace/name. At most four\n        sources including a selected HTTP exchange; authored content is at most 32 KiB.\n    request_id: Local request_id returned by a Contractor tool in this allocation.\n        Runtime retrieves and saves its request and available response.\n    memory_name: Optional exact memory name from the assigned memories snapshot.\n        Attaches its complete original content, description and tags; no quotation\n        is required. Describe uncertainty and inference in your own words.\n    item_key: Optional assigned Audit member key to retain Task origin.\n    incidental: True retains Run/Audit origin without a hypothesis. Set false\n        to derive the selected Task's exact hypothesis; batch tasks need item_key.",
+    "name": "fact",
+    "description": "Save one informational Project observation with exact evidence.\n\nAn active Project and selected exact evidence are required. Describe what the\nsource actually reports, including uncertainty; a note is a reported claim.\nThe record has no automatic analyst verdict or severity assessment.\n\nArgs:\n    title: Short non-empty observation title.\n    description: Observation, source quality, conditions and limitations.\n    sources: Selected code, HTTP or artifact objects, native array or serialized once.\n        Artifact selectors use kind=artifact and namespace/name; Runtime supplies\n        the selected revision. Code selects file/start_line/end_line in the opened\n        pinned archive; workspace=true verifies current workspace coordinates.\n        HTTP selects kind=http and a local request_id without replay; at most one\n        local exchange. Retained sources preserve their original observation context.\n        A fact statement or Memory note does not independently verify its claim.\n    memory_name: Optional exact memory name from the assigned memories snapshot.\n        Attaches its complete original content, description and tags; no quotation\n        is required. Describe uncertainty and inference in your own words.\n    item_key: Optional assigned Audit member key to retain Task origin.\n    incidental: True retains Run/Audit origin without a hypothesis. Set false\n        to derive the selected Task's exact hypothesis; batch tasks need item_key.",
     "parameters": {
       "$defs": {
-        "MaterialSelector": {
+        "ArtifactSource": {
           "additionalProperties": false,
-          "description": "Model selection, deliberately distinct from an exact stored ArtifactRef.",
           "properties": {
             "namespace": {
               "maxLength": 128,
@@ -308,13 +382,82 @@
               "minLength": 1,
               "title": "Name",
               "type": "string"
+            },
+            "kind": {
+              "const": "artifact",
+              "title": "Kind",
+              "type": "string"
             }
           },
           "required": [
             "namespace",
-            "name"
+            "name",
+            "kind"
           ],
-          "title": "MaterialSelector",
+          "title": "ArtifactSource",
+          "type": "object"
+        },
+        "CodeSource": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "code",
+              "title": "Kind",
+              "type": "string"
+            },
+            "file": {
+              "maxLength": 512,
+              "minLength": 1,
+              "title": "File",
+              "type": "string"
+            },
+            "start_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "Start Line",
+              "type": "integer"
+            },
+            "end_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "End Line",
+              "type": "integer"
+            },
+            "workspace": {
+              "default": false,
+              "title": "Workspace",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "file",
+            "start_line",
+            "end_line"
+          ],
+          "title": "CodeSource",
+          "type": "object"
+        },
+        "HTTPSource": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "http",
+              "title": "Kind",
+              "type": "string"
+            },
+            "request_id": {
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Request Id",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "request_id"
+          ],
+          "title": "HTTPSource",
           "type": "object"
         }
       },
@@ -327,20 +470,41 @@
           "title": "Description",
           "type": "string"
         },
-        "evidence_refs": {
+        "sources": {
           "anyOf": [
             {
               "items": {
-                "$ref": "#/$defs/MaterialSelector"
+                "discriminator": {
+                  "mapping": {
+                    "artifact": "#/$defs/ArtifactSource",
+                    "code": "#/$defs/CodeSource",
+                    "http": "#/$defs/HTTPSource"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/ArtifactSource"
+                  },
+                  {
+                    "$ref": "#/$defs/HTTPSource"
+                  },
+                  {
+                    "$ref": "#/$defs/CodeSource"
+                  }
+                ]
               },
               "type": "array"
+            },
+            {
+              "type": "string"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "title": "Evidence Refs"
+          "title": "Sources"
         },
         "memory_name": {
           "anyOf": [
@@ -353,20 +517,6 @@
           ],
           "default": null,
           "title": "Memory Name"
-        },
-        "request_id": {
-          "anyOf": [
-            {
-              "maximum": 9007199254740991,
-              "minimum": 1,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Request Id"
         },
         "item_key": {
           "anyOf": [
@@ -390,15 +540,107 @@
         "title",
         "description"
       ],
-      "title": "record_factParams",
+      "title": "factParams",
       "type": "object"
     }
   },
   "code": {
     "name": "finding",
-    "description": "Record one code finding at an explicit source file.\n\nExplain the observation, impact and prerequisites. This records a proposal;\nit does not confirm exploitability. Use line or range, never both. Coordinates\nare one-based and inclusive. Omit unknown line numbers rather than guessing.\n\nArgs:\n    title: Short non-empty finding title.\n    description: Source observation, reasoning, impact and prerequisites.\n    file: Exact case-sensitive relative POSIX path in the inspected source.\n    line: Optional one-based line number.\n    range: Optional inclusive start_line/end_line object.\n    cwe: Optional CWE-NNN weakness identifier from the pinned catalog.\n    evidence_refs: Optional selected materials with namespace/name; Runtime supplies revisions.\n        They total at most 64 MiB; a larger set fails with\n        invalid_finding_request, so cite fewer artifacts.\n    standard_refs: Optional exact standard identities copied from an assigned\n        Audit task. A finding linked to a standard-mapped Audit result must\n        cite every assigned entry ID.\n    proposed_checks: Optional follow-up questions, each with objective and\n        method. At most 512; these suggestions grant no execution authority.\n    item_key: Optional actual Audit member key from read_audit_task. Required\n        for task-bound batches; omit for a general incidental observation.\n    incidental: An independent discovery that does not test the assigned hypothesis.\n        Without item_key, retains Run/Audit origin only. Selecting a member adds\n        Task origin; incidental calls never associate its hypothesis.\n    severity_suggestion: Optional producer severity; leaves analyst assessment unset.\n        Saving always requires an active Project and selected exact evidence.",
+    "description": "Record one code finding at an explicit source file.\n\nExplain the observation, impact and prerequisites. This records a proposal;\nit does not confirm exploitability. Use line or range, never both. Coordinates\nare one-based and inclusive. Omit unknown line numbers rather than guessing.\n\nArgs:\n    title: Short non-empty finding title.\n    description: Source observation, reasoning, impact and prerequisites.\n    file: Exact case-sensitive relative POSIX path in the inspected source.\n    line: Optional one-based line number.\n    range: Optional inclusive start_line/end_line object.\n    cwe: Optional CWE-NNN weakness identifier from the pinned catalog.\n    sources: Selected code, HTTP or artifact objects, native array or serialized once.\n        Artifact selectors use kind=artifact and namespace/name; Runtime supplies\n        the selected revision. Code selects file/start_line/end_line in the opened\n        pinned archive; workspace=true verifies current workspace coordinates.\n        HTTP selects kind=http and a local request_id without replay; at most one\n        local exchange. Retained sources preserve their original observation context.\n        A fact statement or Memory note does not independently verify its claim.\n    standard_refs: Optional exact standard identities copied from an assigned\n        Audit task. A finding linked to a standard-mapped Audit result must\n        cite every assigned entry ID.\n    proposed_checks: Optional follow-up questions, each with objective and\n        method. At most 512; these suggestions grant no execution authority.\n    item_key: Optional actual Audit member key from read_audit_task. Required\n        for task-bound batches; omit for a general incidental observation.\n    incidental: An independent discovery that does not test the assigned hypothesis.\n        Without item_key, retains Run/Audit origin only. Selecting a member adds\n        Task origin; incidental calls never associate its hypothesis.\n    severity_suggestion: Optional producer severity; leaves analyst assessment unset.\n        Saving always requires an active Project and selected exact evidence.",
     "parameters": {
       "$defs": {
+        "ArtifactSource": {
+          "additionalProperties": false,
+          "properties": {
+            "namespace": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Namespace",
+              "type": "string"
+            },
+            "name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            },
+            "kind": {
+              "const": "artifact",
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          "required": [
+            "namespace",
+            "name",
+            "kind"
+          ],
+          "title": "ArtifactSource",
+          "type": "object"
+        },
+        "CodeSource": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "code",
+              "title": "Kind",
+              "type": "string"
+            },
+            "file": {
+              "maxLength": 512,
+              "minLength": 1,
+              "title": "File",
+              "type": "string"
+            },
+            "start_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "Start Line",
+              "type": "integer"
+            },
+            "end_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "End Line",
+              "type": "integer"
+            },
+            "workspace": {
+              "default": false,
+              "title": "Workspace",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "file",
+            "start_line",
+            "end_line"
+          ],
+          "title": "CodeSource",
+          "type": "object"
+        },
+        "HTTPSource": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "http",
+              "title": "Kind",
+              "type": "string"
+            },
+            "request_id": {
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Request Id",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "request_id"
+          ],
+          "title": "HTTPSource",
+          "type": "object"
+        },
         "LineRange": {
           "additionalProperties": false,
           "properties": {
@@ -420,30 +662,6 @@
             "end_line"
           ],
           "title": "LineRange",
-          "type": "object"
-        },
-        "MaterialSelector": {
-          "additionalProperties": false,
-          "description": "Model selection, deliberately distinct from an exact stored ArtifactRef.",
-          "properties": {
-            "namespace": {
-              "maxLength": 128,
-              "minLength": 1,
-              "title": "Namespace",
-              "type": "string"
-            },
-            "name": {
-              "maxLength": 128,
-              "minLength": 1,
-              "title": "Name",
-              "type": "string"
-            }
-          },
-          "required": [
-            "namespace",
-            "name"
-          ],
-          "title": "MaterialSelector",
           "type": "object"
         },
         "ProposedCheck": {
@@ -541,20 +759,41 @@
           "default": null,
           "title": "Cwe"
         },
-        "evidence_refs": {
+        "sources": {
           "anyOf": [
             {
               "items": {
-                "$ref": "#/$defs/MaterialSelector"
+                "discriminator": {
+                  "mapping": {
+                    "artifact": "#/$defs/ArtifactSource",
+                    "code": "#/$defs/CodeSource",
+                    "http": "#/$defs/HTTPSource"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/ArtifactSource"
+                  },
+                  {
+                    "$ref": "#/$defs/HTTPSource"
+                  },
+                  {
+                    "$ref": "#/$defs/CodeSource"
+                  }
+                ]
               },
               "type": "array"
+            },
+            {
+              "type": "string"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "title": "Evidence Refs"
+          "title": "Sources"
         },
         "standard_refs": {
           "anyOf": [
@@ -634,12 +873,11 @@
   },
   "http": {
     "name": "finding",
-    "description": "Record one HTTP finding at an explicit URL and method.\n\nDescribe the observed behavior, impact and authorization context. An optional\nrequest_id attaches the captured outgoing request and response evidence from\nthe allocation's recent HTTP history. Omit the ID to report without captured\nevidence. Reporting never sends or replays an HTTP request.\n\nArgs:\n    title: Short non-empty finding title.\n    description: Observations, impact, prerequisites and reproduction details.\n    url: Absolute HTTP/HTTPS URL of the affected endpoint.\n    method: Explicit HTTP method; no default method is inferred.\n    request_id: Local request_id returned by a Contractor tool in this allocation.\n        Runtime retrieves and saves the exchange without sending a target request.\n    cwe: Optional CWE-NNN weakness identifier from the pinned catalog.\n    evidence_refs: Optional selected materials with namespace/name; Runtime supplies revisions.\n        With any selected exchange they total at most 64 MiB; a larger set\n        fails with invalid_finding_request, so cite fewer artifacts.\n    standard_refs: Optional exact standard identities copied from an assigned\n        Audit task. A finding linked to a standard-mapped Audit result must\n        cite every assigned entry ID.\n    proposed_checks: Optional follow-up questions, each with objective and\n        method. At most 512; these suggestions grant no execution authority.\n    item_key: Optional actual Audit member key from read_audit_task. Required\n        for task-bound batches; omit for a general incidental observation.\n    incidental: An independent discovery that does not test the assigned hypothesis.\n        Without item_key, retains Run/Audit origin only. Selecting a member adds\n        Task origin; incidental calls never associate its hypothesis.\n    severity_suggestion: Optional producer severity; leaves analyst assessment unset.\n        Saving always requires an active Project and selected exact evidence.",
+    "description": "Record one HTTP finding at an explicit URL and method.\n\nDescribe the observed behavior, impact and authorization context. An optional\nHTTP source selector attaches the captured outgoing request and response\nfrom the allocation's recent HTTP history. Reporting never sends or replays\nan HTTP request.\n\nArgs:\n    title: Short non-empty finding title.\n    description: Observations, impact, prerequisites and reproduction details.\n    url: Absolute HTTP/HTTPS URL of the affected endpoint.\n    method: Explicit HTTP method; no default method is inferred.\n    cwe: Optional CWE-NNN weakness identifier from the pinned catalog.\n    sources: Selected code, HTTP or artifact objects, native array or serialized once.\n        Artifact selectors use kind=artifact and namespace/name; Runtime supplies\n        the selected revision. Code selects file/start_line/end_line in the opened\n        pinned archive; workspace=true verifies current workspace coordinates.\n        HTTP selects kind=http and a local request_id without replay; at most one\n        local exchange. Retained sources preserve their original observation context.\n        A fact statement or Memory note does not independently verify its claim.\n    standard_refs: Optional exact standard identities copied from an assigned\n        Audit task. A finding linked to a standard-mapped Audit result must\n        cite every assigned entry ID.\n    proposed_checks: Optional follow-up questions, each with objective and\n        method. At most 512; these suggestions grant no execution authority.\n    item_key: Optional actual Audit member key from read_audit_task. Required\n        for task-bound batches; omit for a general incidental observation.\n    incidental: An independent discovery that does not test the assigned hypothesis.\n        Without item_key, retains Run/Audit origin only. Selecting a member adds\n        Task origin; incidental calls never associate its hypothesis.\n    severity_suggestion: Optional producer severity; leaves analyst assessment unset.\n        Saving always requires an active Project and selected exact evidence.",
     "parameters": {
       "$defs": {
-        "MaterialSelector": {
+        "ArtifactSource": {
           "additionalProperties": false,
-          "description": "Model selection, deliberately distinct from an exact stored ArtifactRef.",
           "properties": {
             "namespace": {
               "maxLength": 128,
@@ -652,13 +890,82 @@
               "minLength": 1,
               "title": "Name",
               "type": "string"
+            },
+            "kind": {
+              "const": "artifact",
+              "title": "Kind",
+              "type": "string"
             }
           },
           "required": [
             "namespace",
-            "name"
+            "name",
+            "kind"
           ],
-          "title": "MaterialSelector",
+          "title": "ArtifactSource",
+          "type": "object"
+        },
+        "CodeSource": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "code",
+              "title": "Kind",
+              "type": "string"
+            },
+            "file": {
+              "maxLength": 512,
+              "minLength": 1,
+              "title": "File",
+              "type": "string"
+            },
+            "start_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "Start Line",
+              "type": "integer"
+            },
+            "end_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "End Line",
+              "type": "integer"
+            },
+            "workspace": {
+              "default": false,
+              "title": "Workspace",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "file",
+            "start_line",
+            "end_line"
+          ],
+          "title": "CodeSource",
+          "type": "object"
+        },
+        "HTTPSource": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "http",
+              "title": "Kind",
+              "type": "string"
+            },
+            "request_id": {
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Request Id",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "request_id"
+          ],
+          "title": "HTTPSource",
           "type": "object"
         },
         "ProposedCheck": {
@@ -723,20 +1030,6 @@
           "title": "Method",
           "type": "string"
         },
-        "request_id": {
-          "anyOf": [
-            {
-              "maximum": 9007199254740991,
-              "minimum": 1,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Request Id"
-        },
         "cwe": {
           "anyOf": [
             {
@@ -749,20 +1042,41 @@
           "default": null,
           "title": "Cwe"
         },
-        "evidence_refs": {
+        "sources": {
           "anyOf": [
             {
               "items": {
-                "$ref": "#/$defs/MaterialSelector"
+                "discriminator": {
+                  "mapping": {
+                    "artifact": "#/$defs/ArtifactSource",
+                    "code": "#/$defs/CodeSource",
+                    "http": "#/$defs/HTTPSource"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/ArtifactSource"
+                  },
+                  {
+                    "$ref": "#/$defs/HTTPSource"
+                  },
+                  {
+                    "$ref": "#/$defs/CodeSource"
+                  }
+                ]
               },
               "type": "array"
+            },
+            {
+              "type": "string"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "title": "Evidence Refs"
+          "title": "Sources"
         },
         "standard_refs": {
           "anyOf": [

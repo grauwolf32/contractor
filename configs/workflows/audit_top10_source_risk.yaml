@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: Workflow
 metadata:
   name: audit-top10-source-risk
-  version: "5"
+  version: "6"
 spec:
   parameters: {}
   inputs:
@@ -30,11 +30,11 @@ spec:
     check:
       objective: Evaluate one exact OWASP Top 10 source-risk scenario and publish its bounded result
       instructions:
-        ref: instructions/audit-risk-source-checker-worker-project-findings-keyed-results-runtime-versions-investigation.md
+        ref: instructions/audit-risk-source-checker-worker-project-findings-keyed-results-runtime-versions-investigation-sources.md
       planner: passthrough@1
       agents:
         checker:
-          template: audit_risk_source_checker@5
+          template: audit_risk_source_checker@6
           namespace: audit-risk
       context:
         artifacts:

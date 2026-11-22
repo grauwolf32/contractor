@@ -19,7 +19,7 @@ func TestFindingLocationsAcrossProcesses(t *testing.T) {
 	project := createProjectResource(t, h.client, h.baseURL)
 	source := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID,
 		"sources", "located-source", "application/zip", auditProgramZip(t, map[string][]byte{"app.py": []byte(findingsSource)}))
-	body, err := json.Marshal(map[string]any{"workflow": "source-findings-review@3", "artifacts": map[string]artifactRef{"source": source}})
+	body, err := json.Marshal(map[string]any{"workflow": "source-findings-review@4", "artifacts": map[string]artifactRef{"source": source}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func locatedFindingProducer() domainGatewayStage {
 			if !ok {
 				return nil, fmt.Errorf("missing inspected exact source")
 			}
-			return map[string]any{"title": "Query concatenation", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 6}, "cwe": "CWE-89", "evidence_refs": []any{materialSelector(source)}}, nil
+			return map[string]any{"title": "Query concatenation", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 6}, "cwe": "CWE-89", "sources": []any{artifactSourceSelector(source)}}, nil
 		}),
 		toolGatewayStep("write_text_artifact", func(request map[string]any) (map[string]any, error) {
 			responses := findingsToolResponses(request, "finding")

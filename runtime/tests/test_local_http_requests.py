@@ -28,9 +28,9 @@ from contractor_runtime.toolsets.caido.tools import (
 )
 from contractor_runtime.toolsets.common.http_capture import RecentHTTPCaptures
 from contractor_runtime.toolsets.security_findings.facades import (
+    FactTool,
     GeneralFindingsToolsetFactory,
     HTTPFindingsToolsetFactory,
-    RecordFactTool,
 )
 
 
@@ -159,7 +159,7 @@ def test_mixed_local_ids_discovery_inspection_and_publication(tmp_path, facade):
         factory = HTTPFindingsToolsetFactory if facade == "http" else GeneralFindingsToolsetFactory
         finding = await finding_tool(factory, client, state)
         if facade == "fact":
-            finding = RecordFactTool(finding._publisher)
+            finding = FactTool(finding._publisher)
         args = {"title": "Observed", "description": "Transport observation"}
         if facade == "http":
             args.update(url="https://target.example/", method="GET")

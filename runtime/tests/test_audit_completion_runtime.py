@@ -89,7 +89,7 @@ async def runtime_for(
     if request_timeout_seconds is not None:
         context.runtime_settings.request_timeout_seconds = request_timeout_seconds
     tools = await AuditResultsToolsetFactory(lambda *_: client).create_selected(
-        selected=["read_audit_task", "submit_check_result", "submit_check_results"],
+        selected=["read_audit_task", "submit_check_result", "submit_check_results", "evidence"],
         allocation_id="allocation-1",
         namespace="builder",
         runtime_settings=context.runtime_settings,
@@ -441,7 +441,7 @@ def test_exact_preparation_rejects_alias_receipt_and_toolset_without_contract(tm
         context = build_context(tmp_path, state, {})
         factory = AuditResultsToolsetFactory(lambda *_: client)
         kwargs = dict(
-            selected=["read_audit_task", "submit_check_result", "submit_check_results"],
+            selected=["read_audit_task", "submit_check_result", "submit_check_results", "evidence"],
             allocation_id="allocation-1",
             namespace="builder",
             runtime_settings=context.runtime_settings,
@@ -610,7 +610,12 @@ def test_allocation_preparation_and_registration_require_positive_completion_sup
         spec.agent_template.toolsets = [
             ToolsetSelection(
                 ref=ToolsetRef(toolsetId="audit-results", version="2"),
-                tools=["read_audit_task", "submit_check_result", "submit_check_results"],
+                tools=[
+                    "read_audit_task",
+                    "submit_check_result",
+                    "submit_check_results",
+                    "evidence",
+                ],
             )
         ]
         spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)

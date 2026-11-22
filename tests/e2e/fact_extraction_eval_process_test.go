@@ -11,10 +11,10 @@ import (
 
 func TestFactExtractionAuditEvalAcrossProcesses(t *testing.T) {
 	stage := func(name string) domainGatewayStage {
-		return domainGatewayStage{name: name, tools: []string{"read_artifact", "record_fact", "read_audit_task", "submit_check_result", "submit_check_results"}, steps: []domainGatewayStep{
+		return domainGatewayStage{name: name, tools: []string{"read_artifact", "fact", "read_audit_task", "submit_check_result", "submit_check_results", "evidence"}, steps: []domainGatewayStep{
 			toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
 			toolGatewayStep("read_artifact", stageReadArguments("memories", nil)),
-			toolGatewayStep("record_fact", func(request map[string]any) (map[string]any, error) {
+			toolGatewayStep("fact", func(request map[string]any) (map[string]any, error) {
 				tasks := findingsToolResponses(request, "read_audit_task")
 				if len(tasks) != 1 {
 					return nil, fmt.Errorf("expected assigned Audit task")

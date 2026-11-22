@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+from fakes.source_selectors import artifact_sources
 from fakes.worker_state import WorkerState
 
 import contractor_runtime
@@ -129,10 +130,12 @@ def test_finding_uses_runtime_identity_and_exact_evidence() -> None:
         result = await tools["finding"](
             title="Missing ownership guard",
             description="The selected path reaches storage without a visible ownership check.",
-            evidence_refs=[
-                MaterialSelector(namespace="worker", name="trace"),
-                MaterialSelector(namespace="worker", name="source"),
-            ],
+            sources=artifact_sources(
+                [
+                    MaterialSelector(namespace="worker", name="trace"),
+                    MaterialSelector(namespace="worker", name="source"),
+                ]
+            ),
             tool_context=FakeToolContext("worker-invocation-1"),
         )
         assert result["proposal_id"] == "proposal-1" and result["receipt_id"] == "receipt-1"
@@ -187,7 +190,7 @@ def test_finding_rejects_non_exact_and_duplicate_evidence() -> None:
             await tools["finding"](
                 title="Candidate",
                 description="Description",
-                evidence_refs=[ref, ref],
+                sources=artifact_sources([ref, ref]),
                 tool_context=FakeToolContext("worker-invocation-1"),
             )
         assert client.requests == []

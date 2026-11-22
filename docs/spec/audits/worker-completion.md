@@ -357,10 +357,11 @@ The model supplies no proposal-key list in a conclusion.
 require tested conditions and selected evidence. Inconclusive requires at
 least one limitation. These rules are shared by both submission tools.
 
-**AWC-R37.** None of these tools identifies an Audit, changes its assignment, accepts
-evidence or bypasses the trusted importer.
+**AWC-R37.** Task reading and result submission identify no Audit and change no
+assignment. The evidence operation retains explicit sources under AWC-R133;
+it does not bypass trusted membership, source authority or result normalization.
 
-**AWC-R38.** All three tools use the invocation's validated snapshot of the exact
+**AWC-R38.** All completion tools use the invocation's validated snapshot of the exact
 contract input refs. Reading the current `inputs/task` or
 `inputs/execution_manifest`, as `audit-results@1` did, is insufficient: later
 alias changes must not change the assignment or what `read_audit_task` presents
@@ -1038,3 +1039,42 @@ is implied. Instructions distinguish observations from interpretation and requir
 truthful examined areas, remaining gaps, uncertainty and known stop reasons within
 existing permissions and budgets. This guidance applies across source, HTTP and trace
 scenarios without a mandatory plan document, endpoint counter or planner tool.
+
+
+**AWC-R133.** `audit-results@2` also exports `evidence(item_key, sources,
+interpretation, tested_conditions=[], limitations=[])`. It records an explicit
+check-specific interpretation of selected actual sources during investigation,
+without settling the check or publishing a Finding. Runtime uses TLS-R43 source
+adapters; the model selects only a real assigned item key. Server derives Audit,
+Task, exact hypothesis, execution, Run, Stage, allocation and agent origin from
+the authenticated allocation and accepted execution membership. An annotation
+keeps interpretation, actual tested conditions and uncertainty separate from
+its retained source descriptors. The Server acknowledgment begins the durability
+guarantee; local captures, source reads and private version selections do not.
+
+The private allocation-bound `POST .../audit-evidence` accepts a strict versioned
+normalized submission: invocationId, submissionId, itemKey, exact sources,
+interpretation, testedConditions and limitations. It returns an exact Audit
+annotation material, retained Audit sources, frozen ordinary Run input aliases
+(selectedSources), itemKey and replayed. Runtime returns ready sourceSelectors
+for reusing those immutable aliases in Finding/fact. Source forks, annotation,
+Audit links, byte accounting and the receipt commit in one owner transaction,
+using existing Artifact bindings/lineage and Audit links. No evidence table,
+new journal, universal handle registry or target replay is added.
+
+The natural receipt identity includes allocation, invocation and tool call.
+Identical retries replay before source reads, including under an authenticated
+read grant after write fencing. A changed request under that identity rejects
+with private `409 audit_evidence_conflict` (not retryable). New writes after a
+terminal Run/Audit fence reject (`409 audit_evidence_closed` where applicable);
+unknown transport/receipt outcomes remain persistence unknown after two
+byte-identical attempts. Invalid input is a permanent rejection; storage
+transaction conflict retains the ordinary retryable 503 contract.
+
+Each execution collection admits at most 256 annotation/source occurrences and
+8 MiB of retained annotations plus selected source bytes; repeated selections
+consume that collection bound. Existing Audit maxEvidenceBytes accounting also
+applies, charging exact retained material once under the existing owner.
+Exhaustion rejects atomically with private `409 audit_evidence_limit_exceeded`
+(not retryable). Unacknowledged or unselected volatile tails may be unavailable.
+Permitted producer Run deletion does not delete the Audit-owned exact bytes.

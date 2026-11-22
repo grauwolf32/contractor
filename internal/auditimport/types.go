@@ -23,6 +23,7 @@ type Store interface {
 
 // Reader returns only the bounded selected Task membership and collection receipt.
 type Reader interface {
+	ListExecutionEvidence(context.Context, string, string) ([]auditstore.ArtifactLink, error)
 	ListExecutionTasks(context.Context, string, string) ([]auditstore.Task, error)
 	CollectionReceipt(context.Context, string, string) (auditstore.CollectionReceipt, error)
 }

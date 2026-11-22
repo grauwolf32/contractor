@@ -278,7 +278,7 @@ func findingsProducerStage(name string) domainGatewayStage {
 	tools := append([]string{"list_skills", "load_skill", "load_skill_resource",
 		"read_audit_task", "submit_check_result", "submit_check_results", "ls", "glob", "grep", "read_file",
 		"write_text_artifact", "finding", "annotate_trace", "annotate_validate", "annotate_sink",
-		"changed_paths", "diff", "rollback_changes"}, completeCodeAnalysisTools...)
+		"changed_paths", "diff", "rollback_changes", "evidence"}, completeCodeAnalysisTools...)
 	final := finalGatewayStep("All assigned results recorded", nil)
 	final.validate = requireRecordedAuditResults(1)
 	return domainGatewayStage{name: "findings/" + name, tools: withMemoryTools(tools), steps: []domainGatewayStep{
@@ -302,7 +302,7 @@ func findingsProducerStage(name string) domainGatewayStage {
 				"title":       "Query concatenation in lookup",
 				"description": "GET /items/{item_id} passes its input to lookup (app.py:4-10). The query uses concatenation. Reproduce by supplying a quote in item_id and checking query parsing; source-inferred and unexecuted, database availability and surrounding controls remain unverified.",
 				"file":        "app.py", "range": map[string]int{"start_line": 4, "end_line": 6},
-				"evidence_refs": []any{materialSelector(evidence)},
+				"sources": []any{artifactSourceSelector(evidence)},
 			}, nil
 		}),
 		toolGatewayStep("submit_check_result", func(request map[string]any) (map[string]any, error) {
@@ -420,7 +420,7 @@ func findingsDocumentArguments(index int, evidence bool) func(map[string]any) (m
 		if !ok || !strings.HasPrefix(fmt.Sprint(ref["namespace"]), "findings-") || ref["revision"] == nil {
 			return nil, fmt.Errorf("reader attempted a non-consumer or versionless ref")
 		}
-		return ref, nil
+		return materialSelector(ref), nil
 	}
 }
 

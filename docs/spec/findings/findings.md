@@ -390,7 +390,7 @@ source bytes.
 ### Selected HTTP evidence
 
 **FND-R42.** The HTTP facade requires `url` and `method` even without a
-captured source. The general and HTTP facades and `record_fact` accept an optional local integer
+captured source. The general and HTTP facades and `fact` accept an optional local integer
 `request_id` shared by HTTP and Caido tools (HTP-R72). Omitting it permits
 publication without captured HTTP evidence, subject to the ordinary evidence rules.
 
@@ -1407,7 +1407,7 @@ It selects `list_findings`, `read_artifact` and text report writing. Its
 generic analysis requires no hypothesis, annotation, OpenAPI input or Audit
 origin.
 
-**FND-R149.** The ordinary `source-findings-review@3` Workflow uses the
+**FND-R149.** The ordinary `source-findings-review@4` Workflow uses the
 code facade. Source verifier and tracer templates select the code facade; the
 HTTP verifier selects the HTTP facade.
 
@@ -1842,7 +1842,7 @@ Unassessed state is explicitly null. Reopening is an analyst action and records
 its own rationale, actor and time. Immutable first-source identity and claim do
 not change when another source or check arrives.
 
-**FND-R210.** Direct `finding` and `record_fact` calls require an active ordinary
+**FND-R210.** Direct `finding` and `fact` calls require an active ordinary
 Project and selected exact evidence. A successful call always admits a Project
 Finding and returns its identity with the immutable receipt; there is no direct
 publication flag or proposal-only success. Server rejects a projectless call
@@ -1853,7 +1853,7 @@ Audit bindings before materializing memory evidence. Preparatory ordinary Run
 Artifacts can remain if subsequent intake rejects the call; they follow ordinary
 Run retention and do not imply a saved Finding. Supporting observations, positive
 properties and refuted checks can still be ordinary check/report Artifacts.
-`record_fact` is a separately selected `security-findings@1` facade over the same
+`fact` is a separately selected `security-findings@1` facade over the same
 publisher, assigning producer `severity_suggestion=informational`. Ordinary
 `finding` accepts an optional suggestion from the existing severity enum, including
 informational. Neither facade sets analyst assessment or a separate Fact identity.
@@ -1954,7 +1954,7 @@ origin from trusted allocation/Stage/Run membership. Task-bound `finding` may om
 submission without `item_key` retains Audit/execution only, including single-member
 and batch Runs. An explicit valid member adds Task origin; incidental mode omits
 hypothesis association, while task-bound mode derives the Task's optional exact
-system-pinned hypothesis. Foreign keys fail. `record_fact` defaults to incidental
+system-pinned hypothesis. Foreign keys fail. `fact` defaults to incidental
 mode and exposes both optional association paths. Origin IDs confer no model
 authority. Collections omit absent Task fields; a hypothesis requires a Task.
 Run-level sources remain Project/Audit readable and retained; per-Task result
@@ -2189,7 +2189,7 @@ reopening it. No title discriminator or semantic repair is implicit.
 
 ### Original memories as informational evidence
 
-**FND-R238.** Common `record_fact` additionally accepts optional `memory_name`.
+**FND-R238.** Common `fact` additionally accepts optional `memory_name`.
 The selected Worker task supplies an exact ordinary Artifact in its `memories`
 slot. Runtime resolves the name only inside that frozen Memory snapshot
 (MEM-R100/R101); it never reads mutable Memory or searches other artifacts.
@@ -2217,7 +2217,7 @@ provenance remains on the ordinary source receipt. Memory-derived evidence is a
 reported statement, never an independent verification badge.
 
 **FND-R239.** When the exact `memories` input is selected, Runtime admits at most
-eight distinct `record_fact` call identities per invocation (LIM-FND-60). The
+eight distinct `fact` call identities per invocation (LIM-FND-60). The
 small private quota is checked before source work, counts repair attempts, lets
 an existing call reconcile without consuming a new slot and resets for a fresh
 invocation. It adds no durable receipt store. Accepted Finding receipts survive
@@ -2227,11 +2227,26 @@ A report completing with zero selected observations is valid. An unusable blank
 model reply alone does not establish completion. Existing Worker budgets,
 cancellation, response recovery and result assembly remain authoritative.
 
-**FND-R240.** Model finding/fact evidence_refs and read_finding_selection
-collection_ref contain only namespace/name. Runtime resolves exact refs from
+**FND-R240.** Finding/fact artifact selectors within `sources`, and
+read_finding_selection `collection_ref`, contain only namespace/name. Runtime resolves exact refs from
 trusted invocation inputs or successful content observations/selected collections.
 Unknown, ambiguous or hidden materials fail before publication; metadata-only
 listing is not evidence. Nested revision/unknown keys are rejected. Internal
 submission, private API and stored evidence remain exact; returned revisions
 remain informational. Successful compaction preserves selections; logical
 invocation exit clears them. No new retention or access grant is created.
+
+
+**FND-R241.** `finding` and `fact` use common typed sources (TLS-R43) with their
+existing independent Project intake, receipts and retention. The former
+model-facing `evidence_refs` and top-level `request_id` arguments are removed;
+internal normalized exact refs and HTTP/Caido intake envelopes remain exact.
+At most one local HTTP exchange is selected per Finding/fact. Informational
+facts retain their four-source maximum, including a selected memory snapshot.
+No prior Audit evidence record or hypothesis is required for a Finding.
+A fact is attributed reusable knowledge, not an independent verification of its
+statement. Its exact underlying sources can be selected for another claim with
+an explicit interpretation and preserved observation context. A summary or note
+is evidence that its author recorded a claim; it is not automatically primary
+observation of the asserted system property. No recursive source crawler or
+universal observation registry is introduced.

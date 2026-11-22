@@ -146,11 +146,11 @@ func builtInDescriptors() descriptorTable {
 				Tools: []string{"submit_hypothesis_proposals"},
 			},
 			AuditResultsToolsetID + "@" + AuditResultsToolsetVersion: {
-				Tools: []string{ReadAuditTaskTool, SubmitCheckResultTool, SubmitCheckResultsTool},
+				Tools: []string{ReadAuditTaskTool, SubmitCheckResultTool, SubmitCheckResultsTool, EvidenceTool},
 			},
 			"security-findings@1": {
-				Tools:                []string{"finding", "record_fact", "list_findings", "list_project_findings", "read_project_finding", "select_project_findings", "read_finding_selection"},
-				FindingProposalTools: []string{"finding", "record_fact"},
+				Tools:                []string{"finding", "fact", "list_findings", "list_project_findings", "read_project_finding", "select_project_findings", "read_finding_selection"},
+				FindingProposalTools: []string{"finding", "fact"},
 				RequiredWorkflowInputs: map[string]workflowInputRequirement{
 					"list_findings": {Input: "findings", MediaType: FindingCollectionMediaType},
 				},

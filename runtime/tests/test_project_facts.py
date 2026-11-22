@@ -7,6 +7,7 @@ from typing import get_args
 
 import jcs
 import pytest
+from fakes.source_selectors import artifact_sources
 from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 from test_finding_facades import context
@@ -37,7 +38,7 @@ def test_record_fact_is_separately_selected_and_retains_optional_association():
         tools = await GeneralFindingsToolsetFactory(
             lambda _allocation, _settings: ArtifactClient("allocation-test", client)
         ).create_selected(
-            selected=["record_fact"],
+            selected=["fact"],
             allocation_id="allocation-test",
             run_id="run-test",
             namespace="worker",
@@ -45,16 +46,16 @@ def test_record_fact_is_separately_selected_and_retains_optional_association():
             workspace=_workspace(),
             resources=state.resources,
         )
-        assert set(tools) == {"record_fact"}
-        tool = tools["record_fact"]
+        assert set(tools) == {"fact"}
+        tool = tools["fact"]
         declaration = FunctionTool(tool)._get_declaration()
-        assert declaration.name == "record_fact"
+        assert declaration.name == "fact"
         evidence = [{"namespace": "notes", "name": "selected"}]
         for extra in ({}, {"item_key": "item-00"}, {"item_key": "item-01", "incidental": False}):
             result = await tool(
                 title="nginx",
                 description="Reported by the selected source, unverified.",
-                evidence_refs=evidence,
+                sources=artifact_sources(evidence),
                 tool_context=context(),
                 **extra,
             )

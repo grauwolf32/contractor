@@ -29,6 +29,7 @@ from contractor_runtime.toolsets.audit_results.contracts import (
     AuditVerdict,
     NormalizedAuditItem,
 )
+from contractor_runtime.toolsets.audit_results.evidence import EvidenceTool
 from contractor_runtime.toolsets.common.argument_diagnostics import NormalizationNotices
 from contractor_runtime.toolsets.common.resources import ToolResources
 
@@ -299,7 +300,9 @@ def _record_cancelled(metrics, name, started):
 
 class AuditResultsToolsetFactory:
     ref = "audit-results@2"
-    exported_tools = frozenset({"read_audit_task", "submit_check_result", "submit_check_results"})
+    exported_tools = frozenset(
+        {"read_audit_task", "submit_check_result", "submit_check_results", "evidence"}
+    )
     infrastructure_channels = MappingProxyType({})
 
     def __init__(self, client_factory):
@@ -338,6 +341,15 @@ class AuditResultsToolsetFactory:
         binding.diagnostics_sink = resources.metrics.record_completion
         resources.proposal_collector = binding.current
         tools = {
+            "evidence": EvidenceTool(
+                binding.current,
+                self._client_factory(allocation_id, runtime_settings),
+                resources,
+                binding.run_id,
+                namespace,
+                runtime_settings.request_timeout_seconds,
+                kwargs.get("project_workspace"),
+            ),
             "read_audit_task": ReadAuditTaskTool(
                 binding.current, completion_contract.context, resources.metrics
             ),

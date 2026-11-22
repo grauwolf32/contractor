@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
@@ -36,6 +37,7 @@ type Dependencies struct {
 	Registry        AllocationRegistry
 	Artifacts       *artifacts.Service
 	Findings        FindingIntake
+	AuditEvidence   AuditEvidenceIntake
 	ProjectFindings *findingintake.CollectionPublisher
 	NewRequestID    func() (string, error)
 	Logger          *slog.Logger
@@ -50,6 +52,10 @@ type RunProjectReader interface {
 
 type ProjectReader interface {
 	Get(context.Context, string, string) (projectstore.Project, error)
+}
+
+type AuditEvidenceIntake interface {
+	RecordEvidence(context.Context, controlplane.AllocationGrant, auditcontract.EvidenceSubmission) (auditcontract.EvidenceReceipt, error)
 }
 
 type FindingIntake interface {
@@ -97,6 +103,7 @@ func (h *handler) routes() []httpx.Route {
 		{Method: http.MethodGet, Path: allocation + "/artifacts/{namespace}/{name}/metadata", Handler: h.getArtifactMetadata},
 		{Method: http.MethodGet, Path: allocation + "/artifacts/{namespace}/{name}/access", Handler: h.getArtifactAccess},
 		{Method: http.MethodPut, Path: allocation + "/artifacts/{namespace}/{name}", Handler: h.putArtifact},
+		{Method: http.MethodPost, Path: allocation + "/audit-evidence", Handler: h.postAuditEvidence},
 		{Method: http.MethodPost, Path: allocation + "/finding-proposals", Handler: h.postFindingProposal},
 		{Method: http.MethodGet, Path: allocation + "/findings", Handler: h.listProjectFindings},
 		{Method: http.MethodGet, Path: allocation + "/findings/{findingID}", Handler: h.readProjectFinding},

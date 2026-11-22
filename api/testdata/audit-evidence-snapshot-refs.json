@@ -1,0 +1,35 @@
+[
+  {
+    "source": {
+      "namespace": "inputs",
+      "name": "source",
+      "revision": "source-r1"
+    },
+    "snapshot": {
+      "namespace": "inputs",
+      "name": "selected-de2c1d73066fcc6320f90b95ad0cc0d10f0deb4e73ba1a971f137b270012e1bc"
+    }
+  },
+  {
+    "source": {
+      "namespace": "worker",
+      "name": "report",
+      "revision": "report-r2"
+    },
+    "snapshot": {
+      "namespace": "inputs",
+      "name": "selected-5930261f46057407f51f9e76c5921d99582c830cc6abb0b0218f7d6e9223b2e8"
+    }
+  },
+  {
+    "source": {
+      "namespace": "http-exchanges",
+      "name": "http-abc123",
+      "revision": "exact-r3"
+    },
+    "snapshot": {
+      "namespace": "inputs",
+      "name": "selected-2d38bfc9eec6b8d6c9d305b632378f8747e9bc6b821f439d85b4789cf7e42b1f"
+    }
+  }
+]

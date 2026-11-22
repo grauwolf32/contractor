@@ -61,7 +61,7 @@ func TestAuditInvestigationInstructionCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, ref := range []string{"audit_source_checker@6", "audit_wstg_http_verifier@6", "audit_openapi_operation_tracer@5", "audit_openapi_operation_observer@4", "audit_asvs_source_verifier@5", "audit_standard_source_verifier@5", "audit_risk_source_checker@5", "source_findings_reviewer@3"} {
+	for _, ref := range []string{"audit_source_checker@7", "audit_wstg_http_verifier@7", "audit_openapi_operation_tracer@6", "audit_openapi_operation_observer@5", "audit_asvs_source_verifier@6", "audit_standard_source_verifier@6", "audit_risk_source_checker@6", "source_findings_reviewer@4"} {
 		template, err := configloadtest.AgentTemplate(snapshot, ref)
 		if err != nil {
 			t.Fatal(err)

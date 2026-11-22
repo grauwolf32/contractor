@@ -1,6 +1,6 @@
 apiVersion: contractor/v1alpha1
 kind: Workflow
-metadata: {name: fact-extraction-audit-eval, version: "3"}
+metadata: {name: fact-extraction-audit-eval, version: "4"}
 spec:
   parameters: {}
   inputs:
@@ -14,10 +14,10 @@ spec:
   stages:
     extract:
       objective: Select useful reported observations from the exact memories and record the assigned exploration
-      instructions: {ref: instructions/fact-extractor-audit-eval-v3.md}
+      instructions: {ref: instructions/fact-extractor-audit-eval-v3-sources.md}
       planner: passthrough@1
       agents:
-        extractor: {template: fact_extractor_audit_eval@3, namespace: facts}
+        extractor: {template: fact_extractor_audit_eval@4, namespace: facts}
       context:
         artifacts:
           memories: {namespace: inputs, name: memories, required: true}

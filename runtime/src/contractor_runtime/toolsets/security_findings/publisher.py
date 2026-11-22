@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 from contextlib import nullcontext
 from typing import Any
 
@@ -14,6 +13,8 @@ from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.finding_proposals import FindingProposalClient
+from contractor_runtime.toolsets.common.argument_diagnostics import NormalizationNotices
+from contractor_runtime.toolsets.common.call_identity import call_client_key
 from contractor_runtime.toolsets.common.check_plans import ProposedCheck
 from contractor_runtime.toolsets.common.cwe import (
     check_cwe_reference,
@@ -40,15 +41,6 @@ from contractor_runtime.toolsets.security_findings.submission import (
 )
 
 
-def call_client_key(context: ToolContext) -> str:
-    call_id = getattr(context, "function_call_id", None)
-    if not isinstance(call_id, str) or not call_id:
-        raise ToolInputError("Runtime tool-call identity is unavailable; finding was not submitted")
-    # The provider call ID is retained on the ADK event. Hash the complete value;
-    # retries of that event reuse it, while distinct calls remain distinct.
-    return "call-" + hashlib.sha256(call_id.encode("utf-8")).hexdigest()
-
-
 class FindingPublisher:
     def __init__(
         self,
@@ -58,6 +50,7 @@ class FindingPublisher:
         resources: ToolResources,
         artifacts: ArtifactClient | None = None,
         namespace: str = "facts",
+        source_preparer=None,
     ):
         self.client = client
         self.metrics = metrics
@@ -69,6 +62,7 @@ class FindingPublisher:
         self._fact_calls: set[str] = set()
         # The publisher lives as long as the allocation's tools.
         self.sources = ExactSourceCache()
+        self.source_preparer = source_preparer
 
     def _resolve_evidence_refs(self, refs):
         if refs is not None and (not isinstance(refs, list) or len(refs) > 256):
@@ -78,6 +72,36 @@ class FindingPublisher:
             for ref in refs or []
         ]
 
+    async def prepare_source_selection(self, kwargs):
+        selected = kwargs.pop("source_selection", None)
+        if selected is not None:
+            if self.resources.proposal_collector is not None:
+                self.resources.proposal_collector().check_finding_item(
+                    kwargs["context"].invocation_id,
+                    kwargs.get("item_key"),
+                    incidental=kwargs.get("incidental", False),
+                )
+            if self.source_preparer is None:
+                raise RuntimeError("Finding source preparation is unavailable")
+            context = kwargs["context"]
+            notices = NormalizationNotices()
+            refs, request_id = await self.source_preparer.prepare_for_finding(
+                selected,
+                context.invocation_id,
+                call_client_key(context),
+                max_sources=4 if kwargs.get("_tool_name") == "fact" else 256,
+                additional_sources=int(kwargs.get("memory_name") is not None),
+                notices=notices,
+            )
+            normalization = {}
+            notices.attach(normalization)
+            kwargs["_source_normalization"] = normalization.get("normalization")
+            kwargs["evidence_refs"] = [ref.model_dump(exclude_none=True) for ref in refs]
+            kwargs["request_id"] = request_id
+        else:
+            kwargs["evidence_refs"] = self._resolve_evidence_refs(kwargs.get("evidence_refs"))
+        return kwargs
+
     async def submit(self, **kwargs):
         with RecordedToolCall(
             self.metrics,
@@ -86,7 +110,7 @@ class FindingPublisher:
             secrets=self.secrets,
             bound_error=_bounded_finding_error,
         ) as call:
-            kwargs["evidence_refs"] = self._resolve_evidence_refs(kwargs.get("evidence_refs"))
+            kwargs = await self.prepare_source_selection(kwargs)
             return await self._submit(**kwargs, _call=call)
 
     async def _submit(
@@ -107,6 +131,7 @@ class FindingPublisher:
         incidental: bool = False,
         _call: RecordedToolCall | None = None,
         _tool_name: str = "finding",
+        _source_normalization=None,
     ) -> dict[str, Any]:
         recording = (
             nullcontext(_call)
@@ -120,7 +145,7 @@ class FindingPublisher:
             )
         )
         with recording as call:
-            if _tool_name == "record_fact" and "memories" in self.resources.invocation_artifacts:
+            if _tool_name == "fact" and "memories" in self.resources.invocation_artifacts:
                 if self._fact_invocation != context.invocation_id:
                     self._fact_invocation = context.invocation_id
                     self._fact_calls.clear()
@@ -222,6 +247,8 @@ class FindingPublisher:
             if exchange is not None or memory_name is not None:
                 result["evidence_refs"] = [item["ref"] for item in receipt["evidence"]]
             call.succeed(result, arguments={"location_count": len(normalized)})
+            if _source_normalization:
+                result["normalization"] = _source_normalization
             return result
 
     async def _http_evidence(
