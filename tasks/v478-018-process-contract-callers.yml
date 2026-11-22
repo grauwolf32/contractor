@@ -8,7 +8,7 @@ introduced_by: V478-003
 priority: P1
 status: in_progress
 depends_on: [V478-002, V478-003, V479-002]
-languages: [go, python, markdown]
+languages: [go, python, typescript, markdown]
 goal: Existing browser and offline model-selection scenarios reach their intended assertions with the shipped catalog and explicit evidence followed by thin judgments.
 context:
   authority: 'User assignment 2026-11-22: implement the reviewed package and resolve the process Server lease timeout while continuing V478.'
