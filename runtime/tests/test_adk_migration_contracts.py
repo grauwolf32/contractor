@@ -350,7 +350,8 @@ def test_runner_preserves_production_numeric_sibling_contracts(
                     make_zip({"a.py": "def target(): pass\n"}),
                 )
                 tools = await source_tools(tmp_path, client, state)
-                await tools["open_source_archive"]("inputs", "source", source.revision)
+                state.resources.selected_versions.observe(source)
+                await tools["open_source_archive"]("inputs", "source")
             elif family == "http":
                 from test_http_toolset import create_tools as http_tools
 

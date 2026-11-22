@@ -12,6 +12,7 @@ from fakes.worker_state import WorkerState
 from test_engagement_identity import identity_spec
 
 from contractor_runtime.adapters.http_transport import HTTPTransport
+from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.contracts.engagement import HTTPLimits
 from contractor_runtime.toolsets.scan import tools as scan
 from contractor_runtime.workspace import AllocationWorkspace
@@ -30,6 +31,10 @@ async def scanner(tmp_path, target, *, spec=None, tls=None, document=None):
         return SimpleNamespace(data=json.dumps(document).encode(), media_type="application/json")
 
     factory = scan.ScanToolsetFactory(lambda *_: SimpleNamespace(read_artifact=read))
+    state = WorkerState()
+    state.resources.selected_versions.observe(
+        ArtifactRef(namespace="inputs", name="request", revision="1")
+    )
     tools = await factory.create_selected(
         selected=["scan_sqlmap"],
         allocation_id=spec.allocation_id,
@@ -37,7 +42,7 @@ async def scanner(tmp_path, target, *, spec=None, tls=None, document=None):
         namespace="scanner",
         runtime_settings=spec.runtime_settings,
         workspace=AllocationWorkspace(root=tmp_path, path=workspace),
-        resources=WorkerState().resources,
+        resources=state.resources,
         controlled_http=owner,
     )
     return tools["scan_sqlmap"], owner
@@ -71,7 +76,7 @@ def test_sqlmap_prepared_request_uses_shared_identity_and_cancels(tmp_path, sche
             tool, owner = await scanner(tmp_path, target, spec=spec, tls=client, document=document)
             invocation = asyncio.create_task(
                 tool(
-                    request_ref={"namespace": "inputs", "name": "request", "revision": "1"},
+                    request_ref={"namespace": "inputs", "name": "request"},
                     credential_id="credential-account",
                     timeout_seconds=30,
                 )
