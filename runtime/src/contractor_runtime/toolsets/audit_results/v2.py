@@ -1,6 +1,7 @@
 """audit-results@2: bounded judgments recorded in the active invocation."""
 
 import asyncio
+import json
 import time
 from collections.abc import Callable
 from functools import partial
@@ -227,6 +228,8 @@ class SubmitResultTool:
                 "totalCount": receipt.total_count,
                 "missingItemKeys": list(receipt.missing_item_keys),
                 "complete": receipt.complete,
+                "persistence": "accepted",
+                "materials": [json.loads(value) for value in receipt.materials],
             }
             notices.attach(result)
         except (AuditCollectionError, AuditArgumentError) as error:

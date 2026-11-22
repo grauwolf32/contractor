@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
@@ -102,8 +103,29 @@ func (s *QueryStore) ListTaskAttempts(ctx context.Context, p auditstore.TaskAtte
 	page := auditstore.TaskAttemptPage{Items: []auditstore.TaskAttempt{}, AuditRevision: audit.Revision}
 	for rows.Next() {
 		var a auditstore.TaskAttempt
-		if err := rows.Scan(&a.Attempt, &a.ExecutionID, &a.RunID, &a.RunDeleted, &a.Outcome, &a.Disposition, &a.State, &a.CreatedAt, &a.CollectedAt); err != nil {
+		var stop, ref json.RawMessage
+		var digest, media *string
+		var size *int64
+		var checking bool
+		if err := rows.Scan(&a.Attempt, &a.ExecutionID, &a.RunID, &a.RunDeleted, &a.Outcome, &a.Disposition, &a.State, &a.CreatedAt, &a.CollectedAt, &stop, &ref, &digest, &media, &size, &a.ResultKey, &checking); err != nil {
 			return page, err
+		}
+		if ref != nil {
+			material := auditcontract.Material{ScopeKind: "audit", ScopeID: p.AuditID}
+			if digest == nil || media == nil || size == nil || a.ResultKey == nil || strictjson.Decode(ref, &material.Ref) != nil {
+				return page, errors.New("invalid retained attempt result")
+			}
+			material.Digest, material.MediaType, material.SizeBytes = *digest, *media, *size
+			if material.Validate() != nil || a.State != "settled" {
+				return page, errors.New("invalid retained attempt result")
+			}
+			a.Result = &material
+		}
+		if stop != nil {
+			a.Stop = &auditcontract.TaskStop{}
+			if strictjson.Decode(stop, a.Stop) != nil || a.Stop.Validate(p.AuditID, checking) != nil || a.State != "settled" || a.Result != nil {
+				return page, errors.New("invalid retained attempt stop")
+			}
 		}
 		if a.Attempt < 1 || a.Attempt > auditprofile.MaxAuditRunAttempts || !contracts.ValidResourceID(a.ExecutionID) || a.RunID != nil && !contracts.ValidResourceID(*a.RunID) || a.RunDeleted && a.RunID == nil || a.Outcome != nil && !a.Outcome.Valid() || a.Disposition != nil && !a.Disposition.Valid() || (a.State != "submitted" && a.State != "collecting" && a.State != "settled") {
 			return page, errors.New("invalid stored Task attempt")

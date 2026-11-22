@@ -30,6 +30,7 @@ type auditTaskResponse struct {
 	Attempts      int                                `json:"attempts"`
 	LastExecution *string                            `json:"last_execution_id,omitempty"`
 	Result        *auditcontract.Material            `json:"result,omitempty"`
+	Stop          *auditcontract.TaskStop            `json:"stop,omitempty"`
 	GapCode       *string                            `json:"gap_code,omitempty"`
 	CreatedAt     time.Time                          `json:"created_at"`
 	UpdatedAt     time.Time                          `json:"updated_at"`
@@ -38,7 +39,7 @@ type auditTaskResponse struct {
 func auditTaskReadModel(task auditstore.Task) auditTaskResponse {
 	return auditTaskResponse{Findings: task.Findings, Hypothesis: task.Hypothesis, Attention: task.Attention, Document: task.Document, Source: task.Source, Ordinal: task.Ordinal,
 		Iteration: task.Iteration, State: task.State, Attempts: task.Attempts, LastExecution: task.LastExecution,
-		Result: task.Result, GapCode: task.GapCode, CreatedAt: task.CreatedAt, UpdatedAt: task.UpdatedAt}
+		Result: task.Result, Stop: task.Stop, GapCode: task.GapCode, CreatedAt: task.CreatedAt, UpdatedAt: task.UpdatedAt}
 }
 
 // Task pages budget canonical metadata. Preserve that encoding at the HTTP

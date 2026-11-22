@@ -6,6 +6,7 @@ import threading
 
 import pytest
 from audit_fixtures import accept_fixture_sources, arguments, assigned
+from fakes.audit_judgments import acknowledged_judgments
 from fakes.tool_arguments import http_receiver, received, run_calls
 from fakes.worker_state import WorkerState
 
@@ -191,7 +192,9 @@ def test_invalid_audit_batch_has_no_partial_mutation(tmp_path, change, serialize
 
     async def scenario():
         expected, inputs = assigned(batch=True)
-        collector = InvocationAuditCollector(inputs, CanonicalAuditResultEncoder())
+        collector = InvocationAuditCollector(
+            inputs, CanonicalAuditResultEncoder(), persist=acknowledged_judgments(inputs)
+        )
         tool = SubmitResultsTool(collector, WorkerState().metrics)
         items = [arguments(item.value, keyed=True) for item in expected.items]
         items[-1].update(change)
@@ -214,7 +217,9 @@ def test_whole_audit_call_is_admitted_before_decoding_individual_fields(monkeypa
 
     async def scenario():
         expected, inputs = assigned(count=64)
-        collector = InvocationAuditCollector(inputs, CanonicalAuditResultEncoder())
+        collector = InvocationAuditCollector(
+            inputs, CanonicalAuditResultEncoder(), persist=acknowledged_judgments(inputs)
+        )
         tool = SubmitResultsTool(collector, WorkerState().metrics)
         items = [arguments(item.value, keyed=True) for item in expected.items]
         for item in items:
@@ -386,7 +391,9 @@ def test_normalization_notices_are_bounded_and_never_contain_values():
 
     async def scenario():
         expected, inputs = assigned(count=64)
-        collector = InvocationAuditCollector(inputs, CanonicalAuditResultEncoder())
+        collector = InvocationAuditCollector(
+            inputs, CanonicalAuditResultEncoder(), persist=acknowledged_judgments(inputs)
+        )
         await accept_fixture_sources(collector)
         tool = SubmitResultsTool(collector, WorkerState().metrics)
         items = [arguments(item.value, keyed=True) for item in expected.items]

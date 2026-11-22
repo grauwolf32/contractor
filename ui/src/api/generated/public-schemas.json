@@ -5490,6 +5490,25 @@
       "required": ["ref", "inputs", "parameters", "outputs"],
       "type": "object"
     },
+    "AuditResultStop": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 4096,
+          "type": "string",
+          "x-maxUtf8Bytes": 4096
+        },
+        "source": { "enum": ["run", "unknown"], "type": "string" }
+      },
+      "required": ["source", "code", "message"],
+      "type": "object"
+    },
     "AuditTaskMaterial": {
       "allOf": [
         {
@@ -5507,6 +5526,27 @@
           }
         }
       ]
+    },
+    "AuditTaskStop": {
+      "additionalProperties": false,
+      "properties": {
+        "author": { "const": "system", "type": "string" },
+        "evidence": {
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditTaskMaterial"
+          },
+          "maxItems": 256,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "meaning": { "const": "no_accepted_conclusion", "type": "string" },
+        "reason": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditResultStop"
+        },
+        "verdict": { "const": "inconclusive", "type": "string" }
+      },
+      "required": ["author", "meaning", "reason", "evidence"],
+      "type": "object"
     },
     "WorkflowMaterialDescriptor": {
       "additionalProperties": false,
@@ -6470,6 +6510,9 @@
         },
         "result": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditTaskMaterial"
+        },
+        "stop": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditTaskStop"
         },
         "gap_code": { "type": "string", "minLength": 1, "maxLength": 128 },
         "created_at": { "type": "string", "format": "date-time" },
@@ -7763,7 +7806,16 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCollectionDisposition"
         },
         "created_at": { "type": "string", "format": "date-time" },
-        "collected_at": { "type": "string", "format": "date-time" }
+        "collected_at": { "type": "string", "format": "date-time" },
+        "result": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditTaskMaterial"
+        },
+        "result_key": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditArtifactKey"
+        },
+        "stop": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditTaskStop"
+        }
       }
     },
     "AuditMaterialPage": {

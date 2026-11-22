@@ -82,6 +82,16 @@ context:
     The ordinary result schema/read path distinguishes model and system authors;
     normal Worker intake rejects system-authored stop records. Existing attempt
     refs retain failed/cancelled partial results; no new attempt/retry policy.
+  stop_storage_decision: >-
+    Store system interruption metadata on the existing Task/attempt rows in the
+    terminal collection transaction. An additional frozen stop Artifact could
+    fail exactly when the selected-material budget is exhausted; owner metadata
+    must remain available then. Existing accepted judgment Artifacts remain the
+    model result. The common read contract exposes the distinct system stop
+    record, with exact already-held evidence references and observed Run reason.
+    No second journal, semantic revision, new execution state or target call is
+    introduced. Reopen this placement only if Task/attempt owner metadata gains
+    a separate storage budget that cannot retain the bounded stop record.
   sources:
   - runtime/src/contractor_runtime/toolsets/audit_results/completion.py
   - runtime/src/contractor_runtime/toolsets/audit_results/collector.py

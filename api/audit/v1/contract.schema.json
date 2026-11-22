@@ -858,6 +858,9 @@
           },
           "maxItems": 128,
           "uniqueItems": true
+        },
+        "author": {
+          "const": "model"
         }
       },
       "required": [
@@ -866,7 +869,8 @@
         "tested_conditions",
         "evidence",
         "limitations",
-        "origin"
+        "origin",
+        "author"
       ],
       "additionalProperties": false
     },
@@ -1581,6 +1585,66 @@
       },
       "required": [
         "required"
+      ],
+      "additionalProperties": false
+    },
+    "result_stop": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "enum": [
+            "run",
+            "unknown"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 4096,
+          "x-maxUtf8Bytes": 4096
+        }
+      },
+      "required": [
+        "source",
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "task_stop": {
+      "type": "object",
+      "properties": {
+        "author": {
+          "const": "system"
+        },
+        "meaning": {
+          "const": "no_accepted_conclusion"
+        },
+        "verdict": {
+          "const": "inconclusive"
+        },
+        "reason": {
+          "$ref": "#/$defs/result_stop"
+        },
+        "evidence": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        }
+      },
+      "required": [
+        "author",
+        "meaning",
+        "reason",
+        "evidence"
       ],
       "additionalProperties": false
     }

@@ -12,6 +12,7 @@ OUTPUT = ROOT / "api/openapi/contractor-public-v1.yaml"
 START = "    # BEGIN GENERATED COMMON AUDIT PROGRAM\n"
 END = "    # END GENERATED COMMON AUDIT PROGRAM\n"
 NAMES = {
+    "task_stop": "AuditTaskStop", "result_stop": "AuditResultStop",
     "parameter": "AuditProgramParameter",
     "program": "AuditProgram", "input": "AuditProgramInput", "limits": "AuditProgramLimits",
     "workflow": "AuditProgramWorkflow", "input_mapping": "AuditProgramInputMapping",
@@ -69,6 +70,7 @@ def generated():
     copy({"$ref": "#/$defs/program"})
     copy({"$ref": "#/$defs/hypothesis"})
     copy({"$ref": "#/$defs/assertion_source"})
+    copy({"$ref": "#/$defs/task_stop"})
     selected["AuditProgramPolicy"] = copy(schema["$defs"]["program"]["properties"]["policy"])
     selected["AuditProgram"]["properties"]["policy"] = {"$ref": "#/components/schemas/AuditProgramPolicy"}
     body = yaml.safe_dump(selected, sort_keys=True, allow_unicode=True, width=100)
