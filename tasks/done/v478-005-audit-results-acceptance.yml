@@ -5,7 +5,8 @@ milestone: audit-evidence-results-2026-11
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 44a29331cb04cea6697aa8a9b2f011288cc16dc7
 depends_on:
 - V478-001
 - V478-002
@@ -336,6 +337,31 @@ tests:
   covers:
   - A3
   - A5
-verification_notes: Listed commands are required implementation gates, not results of task planning. Use one
-  owned disposable PostgreSQL database, explicitly drop it after pools/processes stop, and never implicitly
-  enable CONTRACTOR_TEST_HEAVY_IO. Zero matched cases and skipped required database/process cases fail acceptance.
+verification_notes: >-
+  Accepted 2026-11-23. The ordinary UI distinguishes saved model assessments,
+  system no-accepted-conclusion records, technical outcomes and work without
+  recorded activity; prior attempt reads use the exact retained key/revision.
+  UI version is 0.11.43. Actual Server/Runtime/PostgreSQL/browser continuation
+  and interrupted scenarios passed, including an incidental mixed code/HTTP/
+  artifact Finding before stop, no false hypothesis association, unchanged Run
+  outcome, two target calls only, and retained exact source bytes after Run purge.
+  Desktop and 390px light/dark/black were executed and visually inspected.
+  All 249 mocked browser cases passed. Full UI verification passed with two
+  Vitest workers: 228 files, 2584 passes and one declared expected failure;
+  no case or timeout was relaxed. The terminal off-page refresh regression
+  exposed duplicate sibling React keys; distinct result/attempt identities fix
+  the stale empty-state DOM, with a red/green actual browser regression.
+  The three version/compaction/Project-reader process roots passed; both
+  compaction and lease-loss cases also passed, preserving original budgets.
+  Basic gate passed 14 cases, full listed Go packages used real PostgreSQL,
+  public API race gate passed nine cases, HTTP/Caido process gate and full lint
+  passed. Completed V478-004 Runtime/completion/wire and V478-019 Findings
+  gates are reused after verifying identical owning internal/runtime/api/configs
+  Git trees; counts and SHA-256 log digests are in
+  tasks/evidence/v478-005-audit-results-20261123.json.
+  Earlier transient overloaded test timeouts and superseded fixture/selector
+  failures are not accepted evidence. No live quality or complete release-verify
+  claim. All owned test processes were joined; v478_test was dropped and its
+  absence verified. The independent review lane removed its own databases;
+  the now-unused owned PostgreSQL cluster was then stopped. No other database,
+  demo data, configured model or main branch was changed.
