@@ -5,11 +5,13 @@ milestone: audit-evidence-results-2026-11
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: f81aa2e98fbd09c12938c9187f8f01330abaf18b
 depends_on:
 - V478-001
 - V478-002
 - V478-015
+- V478-016
 - V477-002
 - V479-002
 languages:
@@ -367,3 +369,17 @@ tests:
 verification_notes: Listed commands are required implementation gates, not results of task planning. Use one
   owned disposable PostgreSQL database, explicitly drop it after pools/processes stop, and never implicitly
   enable CONTRACTOR_TEST_HEAVY_IO. Zero matched cases and skipped required database/process cases fail acceptance.
+verification_results: >-
+  make test-runtime passes 6620 tests and its 577 selected compaction cases;
+  134 declared skips are not passing coverage. All required real-PostgreSQL
+  auditcontract, auditimport, auditservice, config and findingintake packages
+  pass, as do full touched controlplane/runservice/config/resolved/auditprofile
+  packages. V478-016 verifies the full Scheduler and Planner packages.
+  Completion gate passes 199 Go and 465 Runtime cases, basic gate passes all
+  13 process cases, Findings passes all 25 required process cases and 310
+  Runtime contracts. test-config validates the locked shipped catalog;
+  wire passes 406 shared fixtures (460 Go/292 Python fixture reads) and its
+  selected Runtime cases; the optional heavy fixture skip is not coverage.
+  Public API PostgreSQL gate passes all nine race cases; full make lint passes.
+  Exact HTTP source/Finding reuse, actual scalar/batch argument correction and
+  observe/trace source processes also pass. No live model, deployment or merge.
