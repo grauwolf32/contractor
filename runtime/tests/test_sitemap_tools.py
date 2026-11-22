@@ -9,7 +9,7 @@ from fakes.sitemap import SitemapTransport, document, identity
 from fakes.worker_state import WorkerState
 
 from contractor_runtime.artifacts import ArtifactClient, ArtifactTransportError
-from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.sitemap.session import manual_source_id
 from contractor_runtime.toolsets.sitemap.tools import SitemapToolsetFactory
@@ -267,7 +267,7 @@ def test_import_dispatch_seam_is_explicit_and_uses_same_allocation_client():
 
         transport = SitemapTransport()
         tools, _ = await tools_for(transport, ["import_sitemap_source"], dispatcher=dispatcher)
-        result = await tools["import_sitemap_source"](
+        result = await tools["import_sitemap_source"].contractor_trusted_call(
             "test-only",
             {"namespace": "inputs", "name": "report", "revision": "exact"},
             "import-key",
@@ -419,5 +419,85 @@ def test_ambiguous_model_edit_reuses_frozen_precondition_after_refresh():
             await edit(url="https://example.test/different", method="GET", idempotency_key="other")
         await edit(url="https://example.test/new", method="GET", idempotency_key="same")
         assert transport.requests[-1] == original
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure", ["api", "transport"])
+@pytest.mark.parametrize(
+    "name,arguments",
+    [
+        ("upsert_sitemap_entry", {"url": "https://example.test/new", "method": "GET"}),
+        ("remove_sitemap_entry", {"member_ids": [identity("member")], "marker_id": "marker"}),
+        ("restore_sitemap_entry", {"marker_id": "marker"}),
+        ("configure_sitemap_grouping", {"rules": []}),
+    ],
+)
+def test_keyless_model_edit_reconciles_original_intent_after_refresh(name, arguments, failure):
+    class Failing(SitemapTransport):
+        lose_replies = False
+
+        async def request(self, method, path, **kwargs):
+            if method == "POST" and self.lose_replies:
+                self.requests.append((method, path, dict(kwargs["headers"]), kwargs["body"]))
+                raise ArtifactTransportError("Acknowledgement unavailable")
+            return await super().request(method, path, **kwargs)
+
+    async def scenario():
+        transport = Failing()
+        tools, _ = await tools_for(
+            transport, sorted({"list_sitemap_entries", "upsert_sitemap_entry", name})
+        )
+        edit, listing = tools[name], tools["list_sitemap_entries"]
+        try:
+            await listing()
+            if failure == "api":
+                transport.post_error = (503, "storage_transaction_conflict", True)
+                assert (await edit(**arguments))["error"]["retryable"] is True
+            else:
+                transport.lose_replies = True
+                with pytest.raises(ArtifactTransportError):
+                    await edit(**arguments)
+                assert transport.requests[-2] == transport.requests[-1]
+            original = transport.requests[-1]
+            transport.post_error, transport.lose_replies = None, False
+            transport.revision = "newer-current"
+            await listing(refresh=True)
+            with pytest.raises(ToolInputError, match="pending"):
+                await edit(**arguments, idempotency_key="different")
+            with pytest.raises(ToolInputError, match="pending"):
+                await tools["upsert_sitemap_entry"](
+                    url="https://example.test/different", method="GET"
+                )
+            assert (await edit(**arguments))["status"] == "completed"
+            assert transport.requests[-1] == original
+            await listing(refresh=True)
+            await edit(**arguments)
+            assert transport.requests[-1][2]["Idempotency-Key"] != original[2]["Idempotency-Key"]
+        finally:
+            await edit.close()
+
+    asyncio.run(scenario())
+
+
+def test_project_sitemap_read_does_not_select_run_evidence():
+    async def scenario():
+        transport = SitemapTransport()
+        tools, state = await tools_for(transport, ["list_sitemap_entries"])
+        listing, versions = tools["list_sitemap_entries"], state.resources.selected_versions
+        selector = {"namespace": "sitemap", "name": "map"}
+        try:
+            await listing()
+            with pytest.raises(ToolInputError, match="not selected"):
+                versions.resolve(selector)
+            run_ref = ArtifactRef(**selector, revision="reviewed-run-revision")
+            versions.observe(run_ref)
+            await listing(refresh=True)
+            versions.begin_response()
+            assert versions.resolve(selector) == run_ref
+            assert versions.base("sitemap", "map") == run_ref.revision
+            assert listing.known_exact_refs == ()
+        finally:
+            await listing.close()
 
     asyncio.run(scenario())

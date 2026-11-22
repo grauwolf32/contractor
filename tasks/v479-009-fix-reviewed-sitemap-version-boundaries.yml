@@ -1,0 +1,81 @@
+schema_version: '1.0'
+id: V479-009
+title: Preserve Sitemap retry identity and Run version boundaries
+milestone: runtime-owned-tool-versions-2026-11
+epic: projects-artifacts
+kind: defect
+introduced_by: V479-003
+priority: P2
+status: in_progress
+depends_on: [V479-003, V479-004, V479-005]
+languages: [python, markdown]
+goal: Model Sitemap edits recover from temporary failures with their original identity, and Project reads never change selected Run versions.
+context:
+  authority: 'User request 2026-11-22: fix all three V479 review findings compactly and run only affected-component tests.'
+  severity: medium
+  specification:
+    - docs/spec/artifacts/project-sitemap.md#SMT-R6
+    - docs/spec/artifacts/project-sitemap.md#SMT-R7
+    - docs/spec/artifacts/artifact-store.md#ART-R135
+    - docs/spec/artifacts/artifact-store.md#ART-R147
+  finding: >-
+    sitemap/tools.py:166-168 creates a fresh default key for every attempt, but
+    sitemap/session.py:327-344 requires the frozen key after a retryable error;
+    the model cannot recover without having supplied an explicit key initially.
+    common/versions.py:154-157 (adapter V479-001, Project consumer V479-003) observes Project-target reads as Run refs,
+    overwriting a same-address selection. tests/test_sitemap_tools.py:270-274
+    still sends revision to the model import facade changed by V479-005.
+  siblings: >-
+    All four model editors share SitemapSession.edit; trusted facets keep explicit
+    preconditions and their current one-call default keys. Explicit key changes and
+    differing pending intents must still reject. All ModelArtifacts consumers share
+    the same scope check, matching ArtifactClient's existing target semantics.
+    Import model and trusted paths retain separate strict signatures.
+  boundary_decision: >-
+    The session owns an optional auto-generated pending key, original prepared
+    command and reviewed preconditions until reconciliation or definite rejection.
+    No new receipt, retry loop or model argument. Project-target reads remain out
+    of Run selection/provenance; Server grants and CAS are unchanged.
+scope:
+  in:
+    - Reuse pending automatic keys for identical model edits across refresh and retry.
+    - Preserve explicit-key mismatch and changed-intent rejection, close and conflict behavior.
+    - Exclude reads with a non-null target from ModelArtifacts version observations.
+    - Correct the import dispatcher test to exercise the trusted facet and test model strictness.
+    - Add regression coverage through production factories and ArtifactClient with controlled transport.
+  out:
+    - Server persistence, API, model schemas, new retry mechanisms, full suites and live calls.
+acceptance_criteria:
+  - id: A1
+    text: Identical keyless edits recover after retryable API errors or exhausted transport replay using identical key, bytes and preconditions, including after refresh; differing intent or explicit key rejects.
+  - id: A2
+    text: Project-target reads cannot select a Run version or overwrite its selected ref/write base; ordinary reads still select their actual Run revision.
+  - id: A3
+    text: Import dispatcher coverage uses the trusted exact facet, model selectors reject nested revision, and all affected tests pass.
+  - id: A4
+    text: Regression probes fail on unfixed production code; normative scope/retry guarantees remain explicit without new stores or unbounded state.
+tests:
+  - command: cd runtime && uv run pytest -o addopts='' -q tests/test_sitemap_tools.py tests/test_sitemap_views.py tests/test_sitemap_imports.py tests/test_artifacts.py tests/test_tool_versions.py tests/test_text_artifacts_toolset.py tests/test_run_artifacts_toolset.py tests/test_openapi_toolset.py tests/test_likec4_toolset.py tests/test_artifact_cursors.py tests/test_tool_repeats.py tests/test_tool_version_surfaces.py tests/test_tool_worker.py
+    covers: [A1, A2, A3, A4]
+  - command: cd runtime && uv run ruff check src/contractor_runtime/toolsets/common/versions.py src/contractor_runtime/toolsets/sitemap/session.py src/contractor_runtime/toolsets/sitemap/tools.py tests/test_artifacts.py tests/test_sitemap_tools.py
+    covers: [A1, A2, A3, A4]
+  - command: cd runtime && uv run ruff format --check src/contractor_runtime/toolsets/common/versions.py src/contractor_runtime/toolsets/sitemap/session.py src/contractor_runtime/toolsets/sitemap/tools.py tests/test_artifacts.py tests/test_sitemap_tools.py
+    covers: [A1, A2, A3, A4]
+  - command: cd runtime && uv run lint-imports
+    covers: [A2, A4]
+  - command: python3 scripts/check_spec.py
+    covers: [A4]
+  - command: python3 scripts/check_tasks.py
+    covers: [A4]
+verification:
+  date: '2026-11-22'
+  regression_before_fix: >-
+    Focused production-factory/ArtifactClient probes: 11 failed and 1 passed,
+    including the existing obsolete import call, all eight keyless editor/error
+    combinations and both adapter/factory Project selection failures.
+  runtime: '342 passed, zero skips, in 33.25 seconds across the 13 listed affected-component test files.'
+  checks: 'Targeted Ruff check/format pass; four import contracts kept; 51 specification documents and 1722 task records consistent; git diff --check passes.'
+  boundaries: >-
+    Tests exercise production factory/session/ArtifactClient paths with controlled
+    transports. No Server persistence changed; no database or real-process run is
+    claimed. Full Runtime/Go/lint/release gates and live calls were not run.

@@ -164,8 +164,9 @@ class _SitemapTool(SessionArtifactTool[SitemapSession]):
             return result
 
     async def _mutate(self, command: dict, key: str | None) -> dict:
-        operation = self._session.mutate if "expectedRevision" in command else self._session.edit
-        return await operation(command, key or str(uuid4()))
+        if "expectedRevision" in command:
+            return await self._session.mutate(command, key or str(uuid4()))
+        return await self._session.edit(command, key)
 
 
 class ListSitemapEntries(_SitemapTool):
