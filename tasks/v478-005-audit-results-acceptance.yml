@@ -1,7 +1,7 @@
 schema_version: '1.0'
 id: V478-005
-title: Expose honest plan progress and gate partial-result lifecycle
-milestone: audit-plan-evidence-results-2026-11
+title: Expose honest Audit results and gate partial-result lifecycle
+milestone: audit-evidence-results-2026-11
 epic: audits
 kind: feature
 priority: P1
@@ -18,18 +18,18 @@ languages:
 - css
 - json
 - markdown
-goal: Users can inspect the frozen plan, attributed conclusions, retained observations and unresolved work
-  after normal completion or interruption, with real-process evidence of the integrated behavior.
-demonstration: 'The ordinary Audit page and retained result view show a four-check Invoice Lab-style scenario
-  after a limit: two accepted judgments with distinct verdicts, one evidence-bearing system interruption and
-  one unresolved obligation with no recorded activity. The same facts remain readable after permitted Run deletion.'
+goal: Users can inspect existing Audit assignments, attributed conclusions, selected evidence, findings and
+  unresolved work after normal completion or interruption, with real-process evidence of integrated behavior.
+demonstration: 'The ordinary Audit Task/result views show existing tasks after a limit: an accepted conclusive
+  judgment, a model inconclusive, a system interruption with retained evidence and a pending task with no recorded
+  activity. The same facts remain readable after permitted Run deletion, without requiring a new plan or deriving
+  coverage from activity counts.'
 context:
   authority: 'User request 2026-11-22: prepare tasks for a concrete Audit check plan, evidence collected during
     work, a thin result submission tool, and partial results on interruption without invented coverage conclusions.
     The user corrected the assumption that limits reveal completed/remaining semantic steps: execution facts
     do not establish semantic coverage. The user proposed submit_result and explicitly requested joint review
-    and agreement before merging these tasks into main. This is planning authorization only. Names, retention
-    policy and stop representation below are agent recommendations pending review, not accepted user decisions.
+    and agreement before merging these tasks into main. This is planning authorization only. The decisions below supersede the initial agent proposals.
     User review question 2026-11-22: clarify the relationship between Project facts and check-specific evidence,
     including whether a fact may serve as evidence. The user suggests facts as reusable system knowledge and
     evidence as specific to a hypothesis; the distinction was initially proposed for joint review. User decision
@@ -45,10 +45,24 @@ context:
     explicitly instruct the Worker how to use evidence. Publication must precede final result submission when
     feasible; independent discoveries keep honest incidental origin. This approves publication/evidence guidance
     in the task plan, not a new mandatory result flag, a minimum Finding count, semantic auto-detection, implementation
-    or merge.'
-  implementation_gate: Keep pending. Do not implement, deploy, launch an Audit or merge this task plan into
-    main until the user reviews and agrees to the concrete tasks. Record that agreement and resolve context.decision_needed
-    before implementation; task-plan approval alone does not authorize implementation.
+    or merge. User decision 2026-11-22 supersedes the earlier fixed-plan proposal: decide how an Audit plans
+    its work separately. For this package make a small scenario-independent instruction improvement using existing
+    assignments; no mandatory frozen check-plan document, new criterion/step contract, per-endpoint Task expansion,
+    ReAct planner tools or automatic plan generation. Future options include scenario-specific coverage instructions,
+    Worker planner tools or executor discretion; none is selected here. User decision 2026-11-22: durably retain
+    explicitly selected sources through evidence, finding and fact, with the guarantee beginning at Server
+    acknowledgement. Rename the proposed record_evidence tool to evidence and the existing record_fact tool
+    to fact; no compatibility aliases. Automatic archival of every observation is not part of this package.
+    User decision 2026-11-22 accepts review points 3 and 4: inconclusive can settle an attempt and the Audit
+    can finish with visible unresolved conclusions, without mandatory automatic repeats. When an assigned hypothesis
+    check stops without an accepted conclusion, expose a system-authored inconclusive with observed stop reason
+    and source, meaning no conclusion was accepted. Preserve existing accepted judgments, keep hypothesis-free
+    exploration without a verdict, and never turn a failed/cancelled Run into success.'
+  implementation_gate: 'All product review decisions recorded below are settled for the task draft. Keep tasks
+    pending: this thread is planning/review, not an implementation assignment. Do not deploy or launch an Audit.
+    The user requested review before merging the task package into main; report the reconciled package before
+    integration. Implementation must follow these task contracts; an unforeseen consequential prerequisite
+    needs its own review, not silent scope growth.'
   baseline: Local main 6a4d479d361f8fcb1ce5c74c7f512c5dfe4666af; Invoice Lab demonstrated one broad exploration
     item ending after one accepted conclusion. This is motivation, not a live quality benchmark.
   specification:
@@ -65,14 +79,11 @@ context:
   boundary: Extend existing common Task/hypothesis, Runtime collector, Artifact and Audit intake owners. Source
     adapters own observation extraction; Server owns assignment, authority, exact retention and lifecycle.
     No alternate execution engine or coverage ledger. Update numbered owning specs and all API/wire/schema
-    readers with implementation, not in this unapproved plan.
-  decision_needed: 'Review recommendation: extend existing Audit Task/result views and retained snapshots only,
-    with separate factual progress, conclusion authorship and semantic uncertainty. No new dashboard, aggregate
-    security score or coverage percentage derived from HTTP counts. The broader V411-016 report and V411-018
-    setup journey consume this shared behavior rather than reimplementing it.'
+    readers as part of implementation; these task drafts alone do not change runtime behavior.
   boundary_decision: Read models project accepted owner facts; UI never reconstructs a verdict from Run status
-    or request count. This milestone gate owns the narrow integrated plan/evidence/stop path; V411-020 keeps
-    the larger optional HTTP composition and V411-021 keeps repeated live quality measurements.
+    or request count. This milestone gates the selected evidence/result/stop path and general instructions,
+    not plan generation. V411-020 retains larger HTTP composition and V411-021 retains repeated live quality
+    measurements.
   facts_evidence_decision: Observation/material is an exact retained source. A Project fact is a reusable attributed
     statement about a scoped system, with its own sources and observation context; it is not universally true
     merely because it is called a fact. Evidence is the explicit use of selected sources for an assigned check/claim
@@ -87,10 +98,20 @@ context:
     to every reader. For code distinguish an exact pinned source selection from a current workspace capture,
     preserving source context and rejecting unsupported mappings. Existing source retention can be reused across
     independent check, Finding and Fact claims; shared bytes are not independent corroboration.
+  planning_boundary: Audit planning is a separate open design question. This task consumes existing assignments/hypotheses
+    when present, and also supports exploration without a hypothesis. Do not introduce a frozen-plan requirement,
+    new criterion_key/step schema or semantic coverage gate as an evidence/result prerequisite. V478-001 provides
+    only general methodology guidance.
+  collection_decision: Explicit selection only through evidence, finding and fact; acknowledged Server acceptance
+    is the durability boundary. Unselected volatile captures or unsaved thoughts may be lost at stop. Retain
+    the selected sources using existing owners and quotas; do not build an automatic observation archive.
+  presentation_decision: Use existing Audit Task/material/result views and retained snapshots for evidence,
+    conclusion authorship, stop reasons and uncertainty. No separate plan editor/dashboard or inferred application-wide
+    coverage percentage. The broader V411 report/setup tasks consume these common reads.
 scope:
   in:
-  - Update existing public Task/material/result reads and Audit UI consumers for plan obligations, exact evidence,
-    model/system authorship, stop reasons and unresolved judgments.
+  - Update existing public Task/material/result reads and Audit UI consumers for current assignments, exact
+    selected evidence, model/system authorship, stop reasons and unresolved judgments.
   - Render explicit gaps in ordinary retained snapshots without a new report store or mandatory finalization
     model.
   - Register deterministic real Server/Runtime/PostgreSQL process cases and truthful report verification in
@@ -102,13 +123,16 @@ scope:
     security certification.
   - Live-model quality claims, new demo deployment/audit, and prerequisites on optional sitemap/browser/scanner
     integration.
+  - Mandatory frozen-plan authoring or admission, new criterion fields and planning tools.
 requirements:
 - id: R1
   text: Display technical attempt outcome, accepted result, evidence persistence and semantic conclusion as
     separate facts. Label system interruption as no accepted conclusion, not a model uncertainty assessment.
 - id: R2
-  text: Keep the full frozen denominator visible; show unresolved and additional discovered scope separately.
-    Never turn record counts or synthetic inconclusive records into verified/complete-security coverage.
+  text: Show known assignments and explicit unresolved judgments/limitations without inventing a denominator
+    for the whole system. Preserve existing authored-standard denominators only where already configured; no
+    new plan requirement. Record counts and system inconclusive markers never imply verified/complete-security
+    coverage.
 - id: R3
   text: A missing activity record is displayed as no recorded activity, not proof of never executed. Model-authored
     tested conditions/remaining-work notes retain attribution; unknown values remain unknown.
@@ -147,7 +171,7 @@ requirements:
     receipts without interpreting deterministic scripted calls as proof of live-model compliance or imposing
     a minimum finding count.
 failure_outcomes:
-- operation: Read/project retained plan progress and render a stable result snapshot
+- operation: Read/project retained Audit evidence and result facts and render a stable snapshot
   permanent: Reject invalid membership, foreign/exact-revision mismatches, quota violations and malformed input
     before mutation using owning classified errors. No retry of deterministic invalid input; specify any new
     public code/status in the owning error registry and OpenAPI in the implementation.
@@ -160,15 +184,15 @@ failure_outcomes:
   timeout: Use existing operation and invocation deadlines; terminal persistence uses only the existing owner-authorized
     bounded drain/reconciliation path, never an unbounded extension of model execution.
 cardinality:
-- collection: Frozen checks, per-invocation observations and selected evidence
-  expected: 'Invoice Lab fixture: 4 checks, 2 identities plus anonymous, tens of observations; scale fixture:
-    128 frozen checks and 64 assigned items.'
-  maximum: Reuse 128 checks / 1 MiB frozen seed metadata, 64 assigned items, 256 selected evidence records
-    and 8 MiB encoded evidence plus conclusions per invocation; Audit maxEvidenceBytes remains an additional
-    bound.
-  bound: Bound admission by rows and bytes, use existing paged reads (at most 200 items and 1 MiB where applicable),
-    and never hydrate the whole Audit in one transaction. Register any changed bound in the owning spec and
-    shared fixtures before implementing it.
+- collection: Existing assigned items and explicitly selected evidence/annotations
+  expected: One exploratory task or a small existing multi-item assignment; tens of selected sources.
+  maximum: Keep the existing 64-item assignment and Audit collection bounds of 256 selected evidence records
+    / 8 MiB encoded evidence plus conclusions; Audit maxEvidenceBytes also applies. Independent Finding/Fact
+    callers retain their existing tighter or owner-specific limits, including four selected sources for informational
+    facts.
+  bound: Bound each operation by rows and bytes, use existing paged reads, and never hydrate the whole Audit
+    in one transaction. Repeated annotations and revisions consume their owning bounds; no new frozen-plan
+    denominator is introduced.
 lifecycle:
 - entity: Task/attempt-associated exact artifacts and results under existing Run/Audit/Project ownership
   delete: Use ordinary drained deletion and purge authorization. A held evidence artifact must remain readable
@@ -179,10 +203,11 @@ lifecycle:
     holds through the ordinary Audit/Project lifecycle; volatile or unacknowledged observations may be unavailable.
 acceptance_criteria:
 - id: A1
-  given: Normal and interrupted four-check fixture Audits with attributed model and system results
+  given: Normal and interrupted Audits over existing exploratory/singleton/batch assignments with attributed
+    model and system results
   when: Users open Task/result/material views on desktop and 390px layouts
-  then: They can identify retained evidence and unresolved work without reading traces; no false complete-plan
-    or unstarted assertion appears.
+  then: Users identify retained evidence and unresolved judgments without reading traces; no complete-security
+    or unstarted assertion is invented and no new plan setup is required.
 - id: A2
   given: The composed real-process fault and maximum-cardinality matrix
   when: Required gates and report verification run
@@ -259,6 +284,6 @@ tests:
 - command: make test-findings-e2e
   covers:
   - A4
-verification_notes: Commands below are required implementation gates, not results of task planning. Use one
+verification_notes: Listed commands are required implementation gates, not results of task planning. Use one
   owned disposable PostgreSQL database, explicitly drop it after pools/processes stop, and never implicitly
   enable CONTRACTOR_TEST_HEAVY_IO. Zero matched cases and skipped required database/process cases fail acceptance.

@@ -374,13 +374,14 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
-  - id: audit-plan-evidence-results-2026-11
+  - id: audit-evidence-results-2026-11
     exit_task: V478-005
     outcome: >-
-      A frozen authored Audit plan retains attributed observations and thin per-item results
-      throughout execution and interruption. Existing readers distinguish accepted judgments,
-      system stop records and unresolved obligations without inferring semantic coverage.
-      The task plan awaits user review before merge; implementation and deployment are unassigned.
+      General Worker instructions encourage systematic investigation of relevant known surface.
+      Explicit evidence/finding/fact source selection and thin per-item results retain acknowledged
+      material through interruption. Existing readers distinguish accepted judgments, system stop
+      records and unresolved work without inferred semantic coverage or a new planning mechanism.
+      Implementation and deployment remain unassigned; this is the reviewed task package.
   - id: model-runtime-guidance-2026-11
     exit_task: V476-005
     outcome: >-

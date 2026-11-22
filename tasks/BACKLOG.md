@@ -79,11 +79,11 @@ the epics are in [epics.yml](epics.yml).
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V478-005, V411-015, V411-014 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | — | Drive the cumulative 64 MiB machine report check to its rejection in a test |
 | [V469-004](v469-004-opencode-audit-workflow.yml) | feature | P1 | V469-003 | Ship the minimal OpenCode Audit workflow and environment view |
-| [V478-001](v478-001-audit-check-plan.yml) | feature | P1 | — | Freeze concrete Audit checks and demonstrate per-item completion |
-| [V478-002](v478-002-audit-incremental-evidence.yml) | feature | P1 | V478-001 | Retain check observations during work through existing artifacts |
-| [V478-003](v478-003-audit-submit-result.yml) | feature | P1 | V478-002 | Submit a thin attributed result over accumulated observations |
+| [V478-001](v478-001-general-investigation-guidance.yml) | feature | P1 | — | Guide systematic investigation through general Worker instructions |
+| [V478-002](v478-002-audit-incremental-evidence.yml) | feature | P1 | — | Retain explicitly selected evidence through common source selectors |
+| [V478-003](v478-003-audit-submit-result.yml) | feature | P1 | V478-001, V478-002 | Submit a thin attributed result over accumulated observations |
 | [V478-004](v478-004-audit-partial-stop-results.yml) | feature | P1 | V478-002, V478-003 | Preserve partial Audit results without inventing coverage at stop |
-| [V478-005](v478-005-audit-plan-results-acceptance.yml) | feature | P1 | V478-001, V478-002, V478-003, V478-004 | Expose honest plan progress and gate partial-result lifecycle |
+| [V478-005](v478-005-audit-results-acceptance.yml) | feature | P1 | V478-001, V478-002, V478-003, V478-004 | Expose honest Audit results and gate partial-result lifecycle |
 
 ### Evaluations (`evals`)
 
