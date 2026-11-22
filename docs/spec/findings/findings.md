@@ -17,7 +17,7 @@ It leaves to other documents:
 
 - HTTP sessions, the outgoing request records that a `request_id` resolves
   against (their capacity, content, ownership, invocation binding and
-  erasure), which captured exchanges `finding(request_id=...)` can attach and
+  erasure), which captured exchanges `finding(sources=...)` can attach and
   that they are not truncated, the `http_request` header and response bounds
   including `http_response_invalid`, ambient session authentication and what
   `http_session_get` reports (`auth_kind`, redacted headers, cookie names and

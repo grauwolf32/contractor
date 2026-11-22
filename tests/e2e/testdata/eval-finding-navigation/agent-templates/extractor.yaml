@@ -7,6 +7,6 @@ spec:
   instructions: {ref: instructions/finding-navigation-checker.md}
   toolsets:
     - {ref: run-artifacts@1, tools: [read_artifact]}
-    - {ref: security-findings@1, tools: [record_fact]}
+    - {ref: security-findings@1, tools: [fact]}
     - {ref: audit-results@2, tools: [read_audit_task, submit_check_result, submit_check_results, evidence]}
   sandboxProfile: local-workdir@1

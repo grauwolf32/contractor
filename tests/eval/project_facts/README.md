@@ -2,9 +2,9 @@
 
 This frozen six-case corpus covers reported technology, repeated claims,
 speculation, a limited negative probe, prompt injection and sixteen memories with
-distractors. `corpus-v3.lock.json` pins the input bytes, private expectations and
+distractors. `corpus-v4.lock.json` pins the input bytes, private expectations and
 native experiment template. The original corpus lock and experiment template remain frozen.
-The v3 recipe selects the keyed Audit interfaces. Upload only the selected `cases/*.json` snapshots.
+The v4 recipe selects the common-source `fact` interface and the keyed Audit interfaces. Upload only the selected `cases/*.json` snapshots.
 Keep `corpus.json`, expectations, rubric and authoring files outside the material
 provided to a Worker. The dataset's privateChecks retains the private rubric.
 

@@ -99,7 +99,7 @@ func TestProjectFactsAcrossProcesses(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		data = []byte(strings.Replace(string(data), "tools: [list_project_findings, read_project_finding, select_project_findings, read_finding_selection]", "tools: [finding, record_fact, list_project_findings, read_project_finding, select_project_findings, read_finding_selection]", 1))
+		data = []byte(strings.Replace(string(data), "tools: [list_project_findings, read_project_finding, select_project_findings, read_finding_selection]", "tools: [finding, fact, list_project_findings, read_project_finding, select_project_findings, read_finding_selection]", 1))
 		if err := os.WriteFile(p, data, 0600); err != nil {
 			t.Fatal(err)
 		}

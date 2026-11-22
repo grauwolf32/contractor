@@ -143,7 +143,7 @@ Each allocation of `http-tools@1` holds this state in memory:
 | Default headers | Session default request headers | Non-sensitive values; redaction markers for sensitive headers |
 | Authentication | `none`, `bearer` or `basic` | `auth_kind` |
 | History | Recent request summaries and explicit failed outcomes | `http_history`; the history count |
-| Outgoing exchange store | Shared bounded HTTP/Caido capture buffer, including attempts, available response bytes and invocation ownership | HTTP bodies through `http_read_body`; selection through `finding(request_id=...)` or `record_fact(request_id=...)`; selected current-invocation Runtime HTTP capture through Audit result `http_request_ids` (AWC-R126) |
+| Outgoing exchange store | Shared bounded HTTP/Caido capture buffer, including attempts, available response bytes and invocation ownership | HTTP bodies through `http_read_body`; selection through HTTP entries in common `sources` for `evidence`, `finding` and `fact`; selected current-invocation Runtime HTTP capture through Audit result `http_request_ids` (AWC-R126) |
 | Project target | Target URL, derived `Authorization` header and source secret | Never |
 
 ### One `http_request` call
@@ -719,7 +719,8 @@ selectors to provider IDs; the normalized capture retains provider identity.
 Session/workflow/scope IDs and provider query expressions keep their own meanings.
 Buffer bytes and locator mappings never enter serialized Worker state.
 
-**HTP-R73.** `finding(request_id=...)` or `record_fact(request_id=...)` selects
+**HTP-R73.** An HTTP entry in the common `sources` argument of `evidence`,
+`finding` or `fact` selects
 one retained allocation-local exchange without sending or replaying target
 traffic. An unavailable ID fails explicitly. A request with an absent or
 incomplete response can be selected with its explicit outcome; selection does
@@ -1121,8 +1122,8 @@ Toolset call counters and Runtime adapter metrics remain the only ones.
   `http_session_set(cookies, headers, auth, replace_cookies, replace_headers)`
   (HTP-R34), `http_session_get` and `http_session_clear` (HTP-R19); the ten
   Caido tools (HTP-R78).
-- Finding evidence selection: `finding(request_id=...)` or
-  `finding(request_id=...)` (HTP-R73), specified in
+- Finding evidence selection: HTTP entries in `finding(sources=...)` or
+  `fact(sources=...)` (HTP-R73), specified in
   [Findings](../findings/findings.md).
 - Adapter: `caido-graphql@1` with the private handle `caido-graphql-client` and
   the client `execute(operation, variables)` (HTP-R13, HTP-R17).

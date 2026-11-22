@@ -2106,7 +2106,7 @@ binding on success, failure and cancellation before releasing that invocation.
 It never serializes these private bindings into model-editable State. The bound
 collection has the existing StageContentRequest row/byte bounds; role lookup is
 a point lookup. This exposes no new tool or Artifact grant. The concrete
-`record_fact(memory_name=...)` consumer is specified by FND-R238 in
+`fact(memory_name=...)` consumer is specified by FND-R238 in
 [Findings](../findings/findings.md).
 
 **WRK-R200.** A Worker with confirmed image support carries admitted Artifact

@@ -146,7 +146,7 @@ func runFindingEvalNavigation(t *testing.T, stage func(string) domainGatewayStag
 		facts, _ := basicAuditRequest(t, h, http.MethodGet, "/v1/projects/"+*submission.ExecutionProjectID+"/findings", nil, "", 0, http.StatusOK)
 		rows, ok := facts["items"].([]any)
 		if !ok || len(rows) != 1 || !strings.Contains(fmt.Sprint(rows[0]), "Reported nginx") {
-			t.Fatal("record_fact is unavailable through the Eval member's actual Audit/Project sources")
+			t.Fatal("fact is unavailable through the Eval member's actual Audit/Project sources")
 		}
 	}
 	ownerWide, _ := basicAuditRequest(t, h, http.MethodGet, "/v1/findings", nil, "", 0, http.StatusOK)
