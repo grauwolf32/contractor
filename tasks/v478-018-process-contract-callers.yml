@@ -18,6 +18,8 @@ context:
     These callers were missed by V478-002/003. model_selection_test.go:59 and
     live_test.go:233 select retired openapi/likec4 @8 after V479-002 published @9;
     full offline package fails before its actual Gateway route assertion.
+    The UI streamline finish fixture also forwards a Worker revision after
+    V479-006 removed model finish revisions, preventing the browser journey from completing.
   siblings: >-
     Update UI-stack argument assertions and closure pins, project Workflow E2E/live/offline
     consumers, and current operator guide examples. Historical immutable snapshots,
