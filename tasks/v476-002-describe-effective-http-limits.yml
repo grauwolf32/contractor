@@ -19,7 +19,10 @@ demonstration: A controlled HTTP tool built from a real allocation transport exp
 context:
   authority: 'User request 2026-11-22: plan runtime guidance and tool-owned repeat rules enforced by a separate
     ADK plugin. Planning only; implementation, live experiments and deployment are not assigned. User testing
-    constraint: run only checks for changed components, not full Runtime, Go, lint or release suites.'
+    constraint: run only checks for changed components, not full Runtime, Go, lint or release suites.
+    User follow-up 2026-11-22 plans JSON-container helpers and exact HTTP payload support in V477-001/002/003;
+    contracts belong to each tool, which explicitly calls the common utilities. This task continues to own
+    only effective-limit descriptions; its final declaration must coexist with the V477 body/argument contract.'
   baseline: Local main 4807373ec907584ac7b44432faf4ff860eafb1bf; Python ADK 2.15.0 and Go ADK 2.8.0 are merged.
     Recheck the affected owners if main advances.
   specification:
@@ -38,6 +41,9 @@ context:
   implementation_boundary: Update the owning numbered specifications with implementation; these tasks describe
     planned behavior, not shipped behavior. Reuse state, budget, validation and receipt owners. No hint registry,
     status tool, new persistence, generic policy DSL or new public/wire fields.
+  integration: V477-001/002/003 own representation, diagnostics and body behavior. Keep their declarations and
+    the effective-limit projection in one selected http_request description, using the same enforced bounds.
+    Neither lane adds global argument coercion; V476-005 verifies the combined declaration and actual requests.
 scope:
   in:
   - Configured RPS/concurrency and effective request/response body bounds with clear units and allocation scope.
