@@ -22,6 +22,7 @@ context:
     gets 404 before dispatch; audit_common_prepared_process_test.go:206 selects retired audit-openapi-operation-observe@2
     and Server refuses startup. V479-002 versioned their shipped successors without updating these gate
     consumers.
+  further_evidence: V478-001 acceptance passed all 12 basic Audit cases, then the code-analysis prerequisite found retired http_explorer@4 and openapi-from-workspace@8 consumers. Update those HTTP/source sibling pins as part of this same gate repair.
   siblings: Audit configuration/library matrices and profile-removal selectors, HTTP/source process fixture
     closures and ordinary root-catalog Finding workflow selectors. Check all relevant Go/YAML/UI consumers
     and update exact fixture pins; no legacy catalog reader.

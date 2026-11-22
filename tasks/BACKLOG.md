@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-72 open tasks: 13 in progress, 46 pending, 13 deferred. 1657 finished: 1639 completed, 18 archived.
+74 open tasks: 15 in progress, 46 pending, 13 deferred. 1657 finished: 1639 completed, 18 archived.
 
 ## In progress
 
@@ -24,6 +24,8 @@ the epics are in [epics.yml](epics.yml).
 | [V478-001](v478-001-general-investigation-guidance.yml) | audits | feature | P1 | Guide systematic investigation through general Worker instructions |
 | [V478-006](v478-006-audit-catalog-gate-pins.yml) | audits | defect | P1 | Keep Audit process gate selections aligned with the shipped catalog |
 | [V478-007](v478-007-planner-unused-revision-fixture.yml) | planner-worker | chore | P3 | Remove the obsolete Router test revision constant |
+| [V478-008](v478-008-sitemap-shared-fixture-reader.yml) | projects-artifacts | chore | P3 | Read the shared Sitemap identity fixture through its registered owner |
+| [V478-009](v478-009-fact-version-fixture.yml) | findings | chore | P3 | Select the fact fixture material through the Runtime version owner |
 
 ## Pending
 
@@ -172,9 +174,9 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 26 | 38 | 15 | 39 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
-| Findings tools and collections (`findings`) | 0 | 22 | 15 | 11 | 27 |
+| Findings tools and collections (`findings`) | 1 | 22 | 15 | 12 | 28 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 20 | 75 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 41 | 41 | 21 | 76 |
 | Audits (`audits`) | 16 | 77 | 99 | 42 | 173 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 21 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
