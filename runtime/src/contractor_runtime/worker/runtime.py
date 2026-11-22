@@ -79,6 +79,7 @@ from contractor_runtime.worker.failures import (
     _gateway_worker_failure,
 )
 from contractor_runtime.worker.function_tools import ContractorFunctionTool
+from contractor_runtime.worker.guidance import capacity_content
 from contractor_runtime.worker.history import ToolHistory
 from contractor_runtime.worker.instrumentation import (
     WorkerCompactionRequested,
@@ -99,6 +100,7 @@ from contractor_runtime.worker.prompts import (
     _summarizer_secrets,
     _task_prompt,
 )
+from contractor_runtime.worker.repeats import ToolRepeatPlugin
 from contractor_runtime.worker.sessions import (
     WorkerSessionLifecycle,
     WorkerSessionLifecycleError,
@@ -196,7 +198,10 @@ class AdkWorkerRuntime:
                     metrics=self._metrics,
                 )
             )
+        self._repeats = ToolRepeatPlugin()
         self._plugin = WorkerInstrumentationPlugin(
+            tool_rejected=self._repeats.interrupt,
+            tool_settled=self._repeats.settled,
             response_recovery=context.response_recovery == "document@1",
             state=self._worker_state,
             compactor_model_alias=(
@@ -235,6 +240,7 @@ class AdkWorkerRuntime:
             check_active=self._check_active,
             admit=self._admit_semantic_work,
         )
+        self._guidance = None
         instruction = context.instruction
         self._agent = LlmAgent(
             name="contractor_worker",
@@ -246,16 +252,12 @@ class AdkWorkerRuntime:
             instruction=lambda _: instruction,
             tools=adk_tools,
             generate_content_config=generation,
-            before_model_callback=(
-                self._project_compacted_request
-                if self._compaction is not None or policy.supports_images is True
-                else None
-            ),
+            before_model_callback=self._prepare_model_request,
         )
         self._app = App(
             name=self._app_name,
             root_agent=self._agent,
-            plugins=[self._plugin],
+            plugins=[self._plugin, self._repeats],
         )
         self._runner = Runner(
             app=self._app,
@@ -426,6 +428,7 @@ class AdkWorkerRuntime:
         )
         try:
             budget.start()
+            self._repeats.reset()
             if self._completion is not None:
                 self._completion.reset_diagnostics()
             self._plugin.prepare_invocation(
@@ -499,6 +502,8 @@ class AdkWorkerRuntime:
             self._metrics.record_outcome("failed")
             invocation_phase = "failed"
         finally:
+            self._repeats.reset()
+            self._guidance = None
             self._resources.invocation_artifacts = MappingProxyType({})
             try:
                 if self._completion is not None and invocation_phase != "succeeded":
@@ -839,7 +844,7 @@ class AdkWorkerRuntime:
             self._pipeline.refs.clear()
             _clear_artifact_observation_logs(self._context.tools)
 
-    async def _project_compacted_request(self, callback_context: Any, llm_request: Any) -> None:
+    async def _prepare_model_request(self, callback_context: Any, llm_request: Any) -> None:
         compaction = self._compaction
         if compaction is not None:
             contents = compaction.project(list(callback_context.session.events))
@@ -851,6 +856,19 @@ class AdkWorkerRuntime:
                 )
         if self._context.model_policy.supports_images is True:
             self._resources.image_input.reconcile(llm_request.contents or [])
+        budget = self._invocation.budget
+        if budget is None:
+            raise RuntimeError("Worker guidance requires an admitted invocation")
+        mode = (
+            "compact@1"
+            if compaction is not None
+            else ("terminal@1" if self._context.summarizer is not None else "none")
+        )
+        contents = [
+            content for content in llm_request.contents or [] if content is not self._guidance
+        ]
+        self._guidance = capacity_content(budget, mode)
+        llm_request.contents = [*contents, self._guidance]
         return None
 
     def _history_tool(self) -> Any:
@@ -997,6 +1015,7 @@ class AdkWorkerRuntime:
             self._admit_semantic_work()
             if self._invocation.budget is not None:
                 self._invocation.budget.commit_call_checkpoint(compaction.generation)
+            self._repeats.reset()
             outcome, cause = "succeeded", ""
         except BaseException as error:
             primary_error = error

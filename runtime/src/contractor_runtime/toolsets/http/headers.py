@@ -13,7 +13,8 @@ from contractor_runtime.core.http_limits import (
     header_block_bytes,
     request_header_max_bytes,
 )
-from contractor_runtime.toolsets.http.errors import HTTPToolError
+from contractor_runtime.toolsets.common.argument_diagnostics import json_type
+from contractor_runtime.toolsets.http.errors import HTTPArgumentError, HTTPToolError
 
 _FORBIDDEN_REQUEST_HEADERS = frozenset(
     {
@@ -92,3 +93,15 @@ def body_headers(
     if content_type is not None and "content-type" not in {name.lower() for name in selected}:
         selected["Content-Type"] = content_type
     return merge_headers(defaults, selected)
+
+
+def request_headers(value):
+    try:
+        return validate_headers(value)
+    except HTTPToolError:
+        raise HTTPArgumentError(
+            "headers",
+            "Use bounded string headers without reserved names or CR/LF.",
+            expected_type="object or null",
+            actual_type=json_type(value),
+        ) from None

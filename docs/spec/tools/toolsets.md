@@ -355,6 +355,30 @@ Planner tools enforce their existing closed declarations at their entry points.
 
 ## Interfaces
 
+**TLS-R41.** Individual tools may explicitly accept an object/array natively or
+as one strict serialized JSON document. The tool owns the declaration, field,
+byte ceiling, optional/null behavior and subsequent domain validation. Common
+Runtime helpers decode one layer only and apply the same bounded UTF-8, finite
+number, container-depth and value-node checks to both representations
+(LIM-TLS-3/4). Duplicate keys, trailing content, wrong roots and invalid Unicode
+fail before effects. Nested strings and scalar types are unchanged. Parsing and
+large traversal use joined threads outside session/accounting locks. This is a
+declared model-input representation; canonical records, public/wire readers,
+unselected tools and the raw unknown-field guard remain strict.
+
+**TLS-R42.** Opted-in tools construct argument diagnostics at their own validation
+sites using their existing error code/envelope. Safe details identify the declared
+`field`, `expected_type` and fixed JSON `actual_type` where applicable, with a
+Runtime-authored repair message. Paths contain declared property names and bounded
+indices, never supplied map keys, values or parser/provider text (LIM-TLS-5).
+One invalid attempt consumes one ordinary call and fails before effects; correction
+requires another model call. A successful representation decode may add
+`normalization.fields` (field/from_type/to_type only) and an explicit `omitted`
+count under LIM-TLS-6. Normalization is success, not a retry or failure. HTTP
+telemetry remains metadata-only; exception/infrastructure/cancellation and
+possibly-sent semantics retain their owners. Instrumentation transports diagnostics
+without interpreting argument semantics or adding synthetic calls.
+
 - The model-facing API of a Toolset is the set of declarations of its selected
   tools, including their descriptions (TLS-R29 to TLS-R36).
 - The AgentTemplate `spec.toolsets` wire shape is specified in
@@ -448,3 +472,11 @@ operations of `likec4@1` but omit `validate_likec4` when only that operation
 depends on the executable. A template that selects `validate_likec4` cannot be
 placed there, while a template selecting only the advertised editing operations
 can ([Control Plane](../execution/control-plane.md)).
+
+**TLS-R40.** A selected callable may declare a private repeat rule: equivalence
+key, allowed consecutive successful/in-flight calls and safe repair text.
+Tools own resource interpretation and rule text; a separate Worker ADK plugin
+owns bounded series admission. No rule means no suppression. Another call
+(including a raw-validation rejection) breaks a series. Function-call IDs and
+SDK turn changes do not. Domain receipts and transport retries remain owned
+by their existing components; this is not mutation idempotency or result replay.

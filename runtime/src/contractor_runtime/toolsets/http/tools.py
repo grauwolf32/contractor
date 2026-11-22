@@ -66,6 +66,7 @@ from contractor_runtime.http_body import (
 )
 from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.shared_config import get_shared_config
+from contractor_runtime.toolsets.common.argument_diagnostics import json_type
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
     _reject_unconfigured_client,
@@ -84,15 +85,17 @@ from contractor_runtime.toolsets.common.http_observations import (
     notify_http_observations,
 )
 from contractor_runtime.toolsets.common.resources import ToolResources
+from contractor_runtime.toolsets.http.arguments import request_containers
 from contractor_runtime.toolsets.http.capture import CapturedAttempt, CapturedExchange
 from contractor_runtime.toolsets.http.cookies import (
     CookieCheckpoint,
 )
-from contractor_runtime.toolsets.http.errors import HTTPToolError
+from contractor_runtime.toolsets.http.errors import HTTPArgumentError, HTTPToolError
 from contractor_runtime.toolsets.http.fields import is_cookie_pair
 from contractor_runtime.toolsets.http.headers import (
     body_headers,
     merge_headers,
+    request_headers,
     request_utf8_size,
     validate_headers,
 )
@@ -312,6 +315,15 @@ class _RequestRecord:
 
 
 class _HTTPSession:
+    @property
+    def request_body_limit(self) -> int:
+        return get_shared_config().http_request_body_max_bytes
+
+    async def _prepare_body(self, body_type, body):
+        return await threads.to_thread_until_done(
+            _request_body, body_type, body, self.request_body_limit, name="http-body-encoding"
+        )
+
     def credential_catalog(self):
         return []
 
@@ -385,6 +397,7 @@ class _HTTPSession:
     ) -> dict[str, Any]:
         if credential_id is not None:
             raise HTTPToolError("http_credential_unavailable")
+        payload, content_type = await self._prepare_body(body_type, body)
         async with self._lock:
             self._require_open()
             self._checkpoint.require_confirmed()
@@ -395,11 +408,15 @@ class _HTTPSession:
             started_ns = time.perf_counter_ns()
             selected_method = _method(method)
             selected_url = _url_with_query(url, query)
-            selected_headers = validate_headers(headers)
-            payload, content_type = _request_body(body_type, body)
+            selected_headers = request_headers(headers)
             selected_timeout = _timeout(timeout_seconds, self._timeout_cap_seconds)
             if type(follow_redirects) is not bool:
-                raise HTTPToolError("http_request_invalid")
+                raise HTTPArgumentError(
+                    "follow_redirects",
+                    "Use a JSON boolean.",
+                    expected_type="boolean",
+                    actual_type=json_type(follow_redirects),
+                )
 
             merged_headers = body_headers(self._default_headers, selected_headers, content_type)
             merged_headers["X-Request-Id"] = f"r{self._nonce}-h{request_id:06d}"
@@ -1142,13 +1159,19 @@ class HTTPRequestTool(_HTTPTool):
     Args:
         url: Absolute HTTP or HTTPS URL; a #fragment is removed before sending.
         method: GET, POST, PUT, PATCH, DELETE, HEAD or OPTIONS; defaults to GET.
-        headers: Per-request string headers merged over session defaults; both
+        headers: Object of string headers, native or serialized once as JSON,
+            merged over session defaults; both
             together at most 48 KiB. The complete header block sent, including
             session cookies and auth, must stay within 64 KiB.
-        query: Query parameter mapping.
-        body: Payload shaped according to body_type.
-        body_type: "none" for no body, "json" for JSON data, "form" for a field
-            mapping, or "text" for a string; defaults to "none".
+        query: Query parameter object, native or serialized once as JSON.
+        body: Native object/array or one serialized JSON container for json;
+            native or serialized field object for form; exact UTF-8 string for text.
+        body_type: "none" requires no body; "json" serializes an object/array once;
+            "form" encodes fields; "text" sends the exact string bytes. Defaults to none.
+            Nested values keep their types. JSON scalar/string/null, duplicate keys
+            and intentionally malformed JSON require text with Content-Type=application/json.
+            For example, text body ' {"x":1,"x":2} ' retains duplicate keys and spaces;
+            text body '"value"' sends a JSON string. Supplied Content-Type is preserved.
         timeout: Overall deadline in seconds for the whole call (every redirect,
             retry and the complete response body), within the configured runtime
             cap; omit to use that cap.
@@ -1159,7 +1182,8 @@ class HTTPRequestTool(_HTTPTool):
 
     Returns:
         Request ID, response status and headers, body kind and preview, timing,
-        redirect/retry counts. Select exchanges with submit_check_result or finding;
+        redirect/retry counts and any argument normalization notice.
+        Select exchanges with submit_check_result or finding;
         failed attempts can be inspected through http_history when selected.
     """
 
@@ -1167,9 +1191,9 @@ class HTTPRequestTool(_HTTPTool):
         self,
         url: str,
         method: str = "GET",
-        headers: dict[str, Any] | None = None,
-        query: dict[str, Any] | None = None,
-        body: Any = None,
+        headers: dict[str, Any] | str | None = None,
+        query: dict[str, Any] | str | None = None,
+        body: dict[str, Any] | list[Any] | str | None = None,
         body_type: str = "none",
         timeout: int | float | None = None,
         follow_redirects: bool = True,
@@ -1191,6 +1215,15 @@ class HTTPRequestTool(_HTTPTool):
             "followRedirects": follow_redirects if type(follow_redirects) is bool else False,
         }
         with self._recorded(safe_arguments) as call:
+            headers, query, body, notices = await threads.to_thread_until_done(
+                request_containers,
+                headers,
+                query,
+                body_type,
+                body,
+                self._session.request_body_limit,
+                name="http-tool-arguments",
+            )
             result = await self._session.request(
                 url=url,
                 method=method,
@@ -1212,7 +1245,7 @@ class HTTPRequestTool(_HTTPTool):
                     "retries": result["retries"],
                 }
             )
-            return result
+            return notices.attach(result)
 
 
 class HTTPReadBodyTool(_HTTPTool):
@@ -1444,28 +1477,43 @@ def _target_origin(settings: RuntimeSettings) -> tuple[str, str, int] | None:
 
 
 def _method(value: object) -> str:
+    invalid = HTTPArgumentError(
+        "method",
+        "Use GET, POST, PUT, PATCH, DELETE, HEAD or OPTIONS.",
+        expected_type="string",
+        actual_type=json_type(value),
+    )
     if not isinstance(value, str) or value.upper() not in _METHODS:
-        raise HTTPToolError("http_request_invalid")
+        raise invalid
     return value.upper()
 
 
 def _url_with_query(url: object, query: Mapping[str, Any] | None) -> str:
-    if not isinstance(url, str) or not 1 <= request_utf8_size(url) <= MAX_URL_BYTES:
-        raise HTTPToolError("http_request_invalid")
+    invalid = HTTPArgumentError(
+        "url",
+        "Use a bounded absolute HTTP(S) URL and bounded query parameters.",
+        expected_type="string",
+        actual_type=json_type(url),
+    )
+    try:
+        if not isinstance(url, str) or not 1 <= len(url.encode("utf-8")) <= MAX_URL_BYTES:
+            raise invalid
+    except UnicodeError:
+        raise invalid from None
     # A fragment is client-side state that is never sent on the wire.
     url = url.partition("#")[0]
     try:
         parsed = urlsplit(url)
         existing = parse_qsl(parsed.query, keep_blank_values=True, strict_parsing=False)
     except (UnicodeError, ValueError):
-        raise HTTPToolError("http_request_invalid") from None
+        raise invalid from None
     additions = _query_pairs(query)
     if len(existing) + len(additions) > MAX_QUERY_KEYS:
-        raise HTTPToolError("http_request_invalid")
+        raise invalid
     try:
         added_query = urlencode(additions, doseq=True)
     except UnicodeError:
-        raise HTTPToolError("http_request_invalid") from None
+        raise invalid from None
     raw_query = parsed.query
     result = url
     if added_query:
@@ -1475,21 +1523,27 @@ def _url_with_query(url: object, query: Mapping[str, Any] | None) -> str:
         result = url + separator + added_query
         raw_query += ("&" if raw_query else "") + added_query
     if len(raw_query.encode("utf-8")) > MAX_QUERY_BYTES:
-        raise HTTPToolError("http_request_invalid")
+        raise invalid
     if len(result.encode("utf-8")) > MAX_URL_BYTES:
-        raise HTTPToolError("http_request_invalid")
+        raise invalid
     return result
 
 
-def _query_pairs(query: Mapping[str, Any] | None) -> list[tuple[str, str]]:
+def _query_pairs(query: Mapping[str, Any] | None, field: str = "query") -> list[tuple[str, str]]:
+    invalid = HTTPArgumentError(
+        field,
+        "Use bounded query/form keys and scalar values or arrays of scalars.",
+        expected_type="object",
+        actual_type=json_type(query),
+    )
     if query is None:
         return []
     if not isinstance(query, Mapping) or len(query) > MAX_QUERY_KEYS:
-        raise HTTPToolError("http_request_invalid")
+        raise invalid
     result: list[tuple[str, str]] = []
     for key, value in query.items():
         if not isinstance(key, str) or not key or any(char in key for char in "\r\n\x00"):
-            raise HTTPToolError("http_request_invalid")
+            raise invalid
         values = value if isinstance(value, list) else [value]
         if not values:
             result.append((key, ""))
@@ -1498,49 +1552,73 @@ def _query_pairs(query: Mapping[str, Any] | None) -> list[tuple[str, str]]:
                 rendered = ""
             elif type(item) in {str, int, float, bool}:
                 if isinstance(item, float) and not math.isfinite(item):
-                    raise HTTPToolError("http_request_invalid")
+                    raise invalid
                 rendered = str(item).lower() if type(item) is bool else str(item)
             else:
-                raise HTTPToolError("http_request_invalid")
+                raise invalid
             if request_utf8_size(rendered) > MAX_HEADER_VALUE_BYTES:
-                raise HTTPToolError("http_request_invalid")
+                raise invalid
             result.append((key, rendered))
     if len(result) > MAX_QUERY_KEYS:
-        raise HTTPToolError("http_request_invalid")
+        raise invalid
     return result
 
 
-def _request_body(body_type: object, body: Any) -> tuple[bytes, str | None]:
+def _request_body(body_type: object, body: Any, max_bytes: int) -> tuple[bytes, str | None]:
+    invalid = HTTPArgumentError(
+        "body",
+        "Match body to body_type: none, json, form (object), or text (string).",
+        expected_type="object, array, string or null",
+        actual_type=json_type(body),
+    )
     if not isinstance(body_type, str) or body_type not in _BODY_TYPES:
-        raise HTTPToolError("http_request_invalid")
+        raise HTTPArgumentError(
+            "body_type",
+            "Choose none, json, form or text.",
+            expected_type="string",
+            actual_type=json_type(body_type),
+        )
     try:
         if body_type == "none":
             if body is not None:
-                raise HTTPToolError("http_request_invalid")
+                raise invalid
             return b"", None
         if body_type == "json":
+            if type(body) not in (dict, list):
+                raise invalid
             encoded = json.dumps(
                 body, ensure_ascii=False, allow_nan=False, separators=(",", ":")
             ).encode("utf-8")
             media_type = "application/json"
         elif body_type == "form":
-            encoded = urlencode(_query_pairs(body), doseq=True).encode("utf-8")
+            encoded = urlencode(_query_pairs(body, "body"), doseq=True).encode("utf-8")
             media_type = "application/x-www-form-urlencoded"
         else:
-            if not isinstance(body, str):
-                raise HTTPToolError("http_request_invalid")
+            if not isinstance(body, str) or len(body) > max_bytes:
+                raise invalid
             encoded = body.encode("utf-8")
             media_type = "text/plain; charset=utf-8"
     except HTTPToolError:
         raise
     except (TypeError, ValueError, UnicodeError):
-        raise HTTPToolError("http_request_invalid") from None
-    if len(encoded) > get_shared_config().http_request_body_max_bytes:
-        raise HTTPToolError("http_request_invalid")
+        raise invalid from None
+    if len(encoded) > max_bytes:
+        raise HTTPArgumentError(
+            "body",
+            f"Use at most {max_bytes} encoded request bytes.",
+            expected_type="bounded body",
+            actual_type=json_type(body),
+        )
     return encoded, media_type
 
 
 def _timeout(value: object, cap: int) -> float:
+    invalid = HTTPArgumentError(
+        "timeout",
+        "Use a finite timeout within the allocation limit, from 1 to 120 seconds.",
+        expected_type="number or null",
+        actual_type=json_type(value),
+    )
     selected: float
     if value is None:
         selected = min(float(cap), 120.0)
@@ -1548,11 +1626,11 @@ def _timeout(value: object, cap: int) -> float:
         try:
             selected = float(value)
         except OverflowError:
-            raise HTTPToolError("http_request_invalid") from None
+            raise invalid from None
     else:
-        raise HTTPToolError("http_request_invalid")
+        raise invalid
     if not math.isfinite(selected) or selected < 1 or selected > 120:
-        raise HTTPToolError("http_request_invalid")
+        raise invalid
     return min(selected, float(cap))
 
 
@@ -1572,6 +1650,12 @@ def _retry_delay(retry: int, retry_after: float | None, deadline: float) -> floa
 
 
 def _validate_target(url: str, policy: TargetPolicy) -> None:
+    invalid = HTTPArgumentError(
+        "url",
+        "Use an absolute HTTP(S) URL without userinfo and with a valid host.",
+        expected_type="string",
+        actual_type=json_type(url),
+    )
     try:
         validate_web_url(url)
         parsed = urlsplit(url)
@@ -1583,7 +1667,7 @@ def _validate_target(url: str, policy: TargetPolicy) -> None:
             or parsed.password is not None
             or parsed.fragment
         ):
-            raise HTTPToolError("http_request_invalid")
+            raise invalid
         # The shared rule rejects percent-escapes and sub-delimiters that a
         # resolver or forward proxy could interpret differently.
         validate_host_syntax(host)
@@ -1591,7 +1675,7 @@ def _validate_target(url: str, policy: TargetPolicy) -> None:
     except HTTPToolError:
         raise
     except (httpx.InvalidURL, UnicodeError, ValueError):
-        raise HTTPToolError("http_request_invalid") from None
+        raise invalid from None
     # Literal and name checks run before every hop in both routes. A direct
     # client repeats the address check on the resolved peer at connect time.
     try:

@@ -434,9 +434,10 @@ def test_received_http_policy_controls_post_import_models_and_tools(monkeypatch)
         StructuredHTTPMessage(
             kind="structured", headers=[dict(name="X", value="ééxx")], body_base64=""
         )
-    assert http_tools._request_body("text", "éx")[0] == "éx".encode()
+    limit = shared_config.get_shared_config().http_request_body_max_bytes
+    assert http_tools._request_body("text", "éx", limit)[0] == "éx".encode()
     with pytest.raises(http_tools.HTTPToolError):
-        http_tools._request_body("text", "éxx")
+        http_tools._request_body("text", "éxx", limit)
     assert http_tools.decoded_body_cache_max_bytes() == 4 * 5 + 128
     assert http_headers.request_header_max_bytes() == 6
 

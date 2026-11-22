@@ -60,6 +60,7 @@ EXPECTED_PROCESS_TESTS = {
     "TestLocalGoToPythonArtifactCopy",
     "TestArtifactFilePublicationAcrossProcesses",
     "TestArtifactImagesAcrossProcesses",
+    "TestRuntimeGuidanceAcrossProductionProcesses",
     "TestProductionMemoryTemplatesAcrossProcesses",
     "TestProjectWorkspaceLifecycleAcrossProductionProcesses",
     "TestRoutingAndEscalationProductionBoundaries",

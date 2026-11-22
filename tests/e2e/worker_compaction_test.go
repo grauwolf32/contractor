@@ -100,8 +100,10 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
 	expectedOrigin := "workflow.executionConfig.workers"
 	expectedAttempts := 1
 	expectedWorkers := 1
-	if layer == "router" {
-		expectedWorkers = 2
+	if layer == "router" || layer == "streamline" {
+		if layer == "router" {
+			expectedWorkers = 2
+		}
 		path := filepath.Join(configRoot, "workflows/worker_compaction.yaml")
 		source, err := os.ReadFile(path)
 		if err != nil {
@@ -117,14 +119,18 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
         agents:
           builder: {compactorModelPolicy: worker_compactor@1}
     workers:`, 1)
-		text = strings.Replace(text, "planner: passthrough@1", "planner: router@1", 1)
-		text = strings.Replace(text, "      agents:\n        builder:", "      agents:\n        observer: {template: artifact_builder@4}\n        builder:", 1)
+		text = strings.Replace(text, "planner: passthrough@1", "planner: "+layer+"@1", 1)
+		if layer == "router" {
+			text = strings.Replace(text, "      agents:\n        builder:", "      agents:\n        observer: {template: artifact_builder@4}\n        builder:", 1)
+		} else {
+			gateway.streamline = true
+		}
 		if err := os.WriteFile(path, []byte(text), 0600); err != nil {
 			t.Fatal(err)
 		}
 		expectedOrigin = "workflow.executionConfig.stages.compact.agents.builder"
 	}
-	if layer != "default" && layer != "router" {
+	if layer != "default" && layer != "router" && layer != "streamline" {
 		policyPath := filepath.Join(configRoot, "model-policies/worker_compactor.yaml")
 		original, err := os.ReadFile(policyPath)
 		if err != nil {
@@ -277,7 +283,7 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
 	}
 	// Planner calls are charged separately from the same nine Worker calls.
 	expectedModelCalls := int64(9)
-	if layer == "router" {
+	if layer == "router" || layer == "streamline" {
 		expectedModelCalls += 3
 	}
 	if attempt.Metrics == nil || !attempt.Metrics.ReportsComplete ||
@@ -410,6 +416,7 @@ type compactionGateway struct {
 
 	mu            sync.Mutex
 	failFirstMain bool
+	streamline    bool
 	main          int
 	compactor     int
 	finalizer     int
@@ -519,6 +526,10 @@ func (g *compactionGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *compactionGateway) serveRouter(w http.ResponseWriter, request map[string]any, model string) {
+	if err := validateExecutionFacts(request, "additionalModelCallsAfterThisCall"); err != nil {
+		g.fail(w, err.Error())
+		return
+	}
 	g.mu.Lock()
 	g.planner++
 	step := g.planner
@@ -528,7 +539,11 @@ func (g *compactionGateway) serveRouter(w http.ResponseWriter, request map[strin
 	case 1:
 		message = toolCallMessage("compact-router-add", "add_subtask", map[string]any{"objective": "Complete the source analysis", "instructions": "Use the exact source and produce builder/result"})
 	case 2:
-		message = toolCallMessage("compact-router-execute", "execute_current_subtask", map[string]any{"subtask_id": "0", "worker_name": "builder"})
+		args := map[string]any{"subtask_id": "0"}
+		if !g.streamline {
+			args["worker_name"] = "builder"
+		}
+		message = toolCallMessage("compact-router-execute", "execute_current_subtask", args)
 	case 3:
 		artifact, ok := exactArtifactValue(request, "builder", "result")
 		if !ok {
@@ -586,6 +601,10 @@ func compactorSummary(summary string) map[string]any {
 }
 
 func (g *compactionGateway) serveMain(w http.ResponseWriter, request map[string]any, model, text string) {
+	if err := validateExecutionFacts(request, "remainingToolCalls"); err != nil {
+		g.fail(w, err.Error())
+		return
+	}
 	tools, err := optionalRequestToolNames(request)
 	if err != nil || !equalStringSlices(tools, []string{"read_context_history", "write_text_artifact"}) {
 		g.fail(w, fmt.Sprintf("compacted Worker exposed tools %v", tools))

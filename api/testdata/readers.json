@@ -93,6 +93,7 @@
     "v1alpha1/runtime-label-set-cases.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/workspace-path-cases.json": {"readers": ["go", "python", "ui"]},
     "document-response-policy.json": {"readers": ["go", "python"]},
-    "model-response-recovery.json": {"readers": ["go", "python"]}
+    "model-response-recovery.json": {"readers": ["go", "python"]},
+    "request-guidance.json": {"readers": ["go", "python"]}
   }
 }

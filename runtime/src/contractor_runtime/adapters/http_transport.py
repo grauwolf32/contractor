@@ -272,6 +272,20 @@ class HTTPTransport:
         """Configured slot limits for execution provenance; omitted values stay absent."""
         return self._http_limits.model_dump(by_alias=True, exclude_none=True)
 
+    def effective_body_limits(self) -> dict[str, int]:
+        """Body ceilings shared by controlled interactive execution and its description."""
+        shared = get_shared_config()
+        return {
+            "requestBodyBytes": min(
+                shared.http_request_body_max_bytes,
+                self._http_limits.request_body_bytes or shared.http_request_body_max_bytes,
+            ),
+            "responseBodyBytes": min(
+                shared.http_response_body_max_bytes,
+                self._http_limits.response_body_bytes or shared.http_response_body_max_bytes,
+            ),
+        }
+
     def private_values(self) -> tuple[str, ...]:
         """Static assigned credentials and their HTTP authentication encodings."""
         values = []
@@ -341,10 +355,7 @@ class HTTPTransport:
             return HTTPOutcome(kind="denied", reason="policy_denied"), None
         if session.state == "blocked":
             raise ValueError("selected credential does not authorize this origin")
-        if (
-            self._http_limits.request_body_bytes is not None
-            and len(options.get("body", b"")) > self._http_limits.request_body_bytes
-        ):
+        if len(options.get("body", b"")) > self.effective_body_limits()["requestBodyBytes"]:
             raise ValueError("request body exceeds the Runtime slot bound")
         if credential_id is not None and any(
             name.lower() == b"authorization"
@@ -577,11 +588,7 @@ class HTTPTransport:
         )
         if not url.isascii():
             raise ValueError("unsupported target URL encoding")
-        limit = min(
-            get_shared_config().http_response_body_max_bytes,
-            self._http_limits.response_body_bytes
-            or get_shared_config().http_response_body_max_bytes,
-        )
+        limit = self.effective_body_limits()["responseBodyBytes"]
         response = await self._engine.request(
             url, boundary, request, policy, session.identity.id, limit
         )

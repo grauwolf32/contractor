@@ -3,6 +3,7 @@
 import asyncio
 import time
 from collections.abc import Callable
+from functools import partial
 from types import MappingProxyType
 from typing import Any
 
@@ -10,9 +11,11 @@ from google.adk.tools.tool_context import ToolContext
 
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.core.tool_metrics import ToolCallCancelled, ToolMetrics, elapsed_ms
+from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.audit_results.arguments import (
     AuditArgumentError,
     BatchResultArgument,
+    admit_arguments,
     array_argument,
 )
 from contractor_runtime.toolsets.audit_results.collector import (
@@ -26,10 +29,11 @@ from contractor_runtime.toolsets.audit_results.contracts import (
     AuditVerdict,
     NormalizedAuditItem,
 )
+from contractor_runtime.toolsets.common.argument_diagnostics import NormalizationNotices
 from contractor_runtime.toolsets.common.resources import ToolResources
 
 
-def _normalize(key, value):
+def _normalize(key, value, notices, path=""):
     if not isinstance(key, str) or not key:
         raise AuditCollectionError("item_key", "Every conclusion requires its assigned item_key.")
     allowed = {
@@ -42,25 +46,60 @@ def _normalize(key, value):
         "http_request_ids",
     }
     if not isinstance(value, dict) or set(value) - allowed:
-        raise AuditCollectionError("result", "Use only declared conclusion fields.")
+        raise AuditArgumentError(
+            path.rstrip(".") or "result",
+            "Use only declared conclusion fields.",
+            expected_type="object",
+            actual_type="object",
+        )
     try:
         return NormalizedAuditItem(
             item_key=key,
             rationale=value.get("rationale"),
             tested_conditions=tuple(
-                array_argument("tested_conditions", value.get("tested_conditions"), MAX_VALUES)
+                array_argument(
+                    path + "tested_conditions", value.get("tested_conditions"), MAX_VALUES, notices
+                )
             ),
-            limitations=tuple(array_argument("limitations", value.get("limitations"), MAX_VALUES)),
-            evidence=tuple(array_argument("evidence", value.get("evidence", []), MAX_EVIDENCE)),
+            limitations=tuple(
+                array_argument(path + "limitations", value.get("limitations"), MAX_VALUES, notices)
+            ),
+            evidence=tuple(
+                array_argument(path + "evidence", value.get("evidence", []), MAX_EVIDENCE, notices)
+            ),
             verdict=value.get("verdict"),
             http_request_ids=tuple(
-                array_argument("http_request_ids", value.get("http_request_ids", []), MAX_EVIDENCE)
+                array_argument(
+                    path + "http_request_ids",
+                    value.get("http_request_ids", []),
+                    MAX_EVIDENCE,
+                    notices,
+                    int,
+                )
             ),
         )
+    except AuditArgumentError:
+        raise
     except (ValueError, TypeError, UnicodeError):
         raise AuditCollectionError(
             "result", "Use bounded nonempty text, distinct arrays and the declared verdicts."
         ) from None
+
+
+def _prepare_single(value, expected_revision):
+    admit_arguments({**value, "expected_revision": expected_revision})
+    notices = NormalizationNotices()
+    return _normalize(value["item_key"], value, notices), notices
+
+
+def _prepare_batch(items):
+    admit_arguments({"items": items})
+    notices = NormalizationNotices()
+    values = tuple(
+        _normalize(value.get("item_key"), value, notices, f"items[{index}].")
+        for index, value in enumerate(array_argument("items", items, MAX_ITEMS, notices, dict))
+    )
+    return values, notices
 
 
 class ReadAuditTaskTool:
@@ -131,17 +170,21 @@ class SubmitCheckResultTool:
     Args:
         item_key: Assigned item key, including for a single-item assignment.
         rationale: Bounded explanation of the conclusion.
-        tested_conditions: Conditions examined, as a JSON array including [].
-        limitations: Remaining limitations, as a JSON array including [].
+        tested_conditions: Conditions examined as a native or once-serialized JSON
+            array, including [].
+        limitations: Remaining limitations, as a native or once-serialized JSON array, including [].
         evidence: Selected evidence handles from this item's assignment; defaults to [].
         verdict: Hypothesis conclusion; omit for exploration.
         http_request_ids: Local IDs from http_request in this invocation; defaults
             to []. Runtime attaches actual exchanges without replaying requests.
         expected_revision: Revision from the receipt when correcting a conclusion.
 
+    All array arguments also accept one serialized JSON array. Nested values
+    retain their types; request IDs must be integers, never strings or booleans.
+
     Returns:
-        Local revisions, missing item keys and completeness. Runtime publishes
-        the accepted conclusions after Worker completion.
+        Local revisions, missing item keys, completeness and any normalization notice.
+        Runtime publishes the accepted conclusions after Worker completion.
     """
 
     @property
@@ -159,37 +202,38 @@ class SubmitCheckResultTool:
         tool_context: ToolContext,
         item_key: str,
         rationale: str,
-        tested_conditions: list[str],
-        limitations: list[str],
-        evidence: list[str] | None = None,
+        tested_conditions: list[str] | str,
+        limitations: list[str] | str,
+        evidence: list[str] | str | None = None,
         verdict: AuditVerdict | None = None,
-        http_request_ids: list[int] | None = None,
+        http_request_ids: list[int] | str | None = None,
         expected_revision: int | None = None,
     ) -> dict[str, Any]:
         return await self._submit(
             tool_context,
-            lambda collector: collector.record(
-                _normalize(
-                    item_key,
-                    {
-                        "rationale": rationale,
-                        "tested_conditions": tested_conditions,
-                        "limitations": limitations,
-                        "evidence": [] if evidence is None else evidence,
-                        "verdict": verdict,
-                        "http_request_ids": [] if http_request_ids is None else http_request_ids,
-                    },
-                ),
-                expected_revision=expected_revision,
+            partial(
+                _prepare_single,
+                {
+                    "item_key": item_key,
+                    "rationale": rationale,
+                    "tested_conditions": tested_conditions,
+                    "limitations": limitations,
+                    "evidence": [] if evidence is None else evidence,
+                    "verdict": verdict,
+                    "http_request_ids": [] if http_request_ids is None else http_request_ids,
+                },
+                expected_revision,
             ),
+            lambda collector, item: collector.record(item, expected_revision=expected_revision),
         )
 
-    async def _submit(self, tool_context, submit) -> dict[str, Any]:
+    async def _submit(self, tool_context, prepare, submit) -> dict[str, Any]:
         started, failure = time.perf_counter_ns(), None
         try:
             collector = self._collector
             collector.check_invocation(tool_context.invocation_id)
-            receipt = await submit(collector)
+            values, notices = await to_thread_until_done(prepare, name="audit-tool-arguments")
+            receipt = await submit(collector, values)
             binding = getattr(self, "completion_binding", None)
             if binding is not None:
                 binding.record_progress(receipt.accepted_count)
@@ -201,6 +245,7 @@ class SubmitCheckResultTool:
                 "missingItemKeys": list(receipt.missing_item_keys),
                 "complete": receipt.complete,
             }
+            notices.attach(result)
         except (AuditCollectionError, AuditArgumentError) as error:
             failure, result = error, {"status": "error", "error": error.as_dict()}
         except asyncio.CancelledError:
@@ -227,25 +272,24 @@ class SubmitCheckResultsTool(SubmitCheckResultTool):
     and its expected_revision. Field and evidence rules match the single-item tool.
 
     Args:
-        items: Complete JSON array of conclusions. Each requires item_key,
+        items: Complete JSON array of conclusions, native or serialized once.
+            Declared arrays inside each conclusion also accept one serialized array.
+            Each requires item_key,
             rationale, tested_conditions and limitations. Optional evidence and
             http_request_ids default to []. Supply verdict only for a hypothesis.
 
     Returns:
-        Local revisions in assignment order, missing keys and completeness.
+        Local revisions in assignment order, missing keys, completeness and any
+        normalization notice.
     """
 
     async def __call__(
-        self, tool_context: ToolContext, items: list[BatchResultArgument]
+        self, tool_context: ToolContext, items: list[BatchResultArgument] | str
     ) -> dict[str, Any]:
         return await self._submit(
             tool_context,
-            lambda collector: collector.record_batch(
-                tuple(
-                    _normalize(value.get("item_key") if isinstance(value, dict) else None, value)
-                    for value in array_argument("items", items, MAX_ITEMS)
-                )
-            ),
+            partial(_prepare_batch, items),
+            lambda collector, values: collector.record_batch(values),
         )
 
 

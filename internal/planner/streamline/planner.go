@@ -50,6 +50,7 @@ type streamlinePlanner struct {
 	deadline                  time.Time
 	finishRecovery            bool
 	finishRecoveryCallStarted bool
+	guidance                  *genai.Content
 	recoveryArtifacts         map[string]bool
 	// compactionSettings selects compact@1; compaction is its live state and
 	// compactor its tool-free model client (PLN-R125).
@@ -398,6 +399,9 @@ func (p *streamlinePlanner) newRootAgent(
 					p.finishRecoveryCallStarted = true
 				}
 				if err := state.beforeModel(); err != nil {
+					return nil, err
+				}
+				if err := p.prepareGuidance(state, request); err != nil {
 					return nil, err
 				}
 				startModelSpan(request)

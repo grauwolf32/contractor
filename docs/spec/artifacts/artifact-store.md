@@ -1732,3 +1732,12 @@ snapshots: a later revision can change its binding's category. Removing the
 cursor binding does not invalidate continuation. Absent `order=material`, all
 existing scope lists retain namespace/name order. No extra store or table is
 introduced; ordinary lifecycle and retention remain authoritative.
+
+**ART-R146.** The initial callable repeat rule covers only `read_artifact`
+with an explicit exact revision and valid effective line window. Two consecutive
+successful or in-flight equivalent reads are allowed (LIM-WRK-40); further
+identical reads are refused until another call or a committed checkpoint.
+Defaults equal their explicit values. Versionless reads and other tools are
+unguarded. The tool's description and rule share the allowance. A read whose
+image attachment has left the current context is eligible again through the
+image owner's context generation; no image bytes enter history or telemetry.

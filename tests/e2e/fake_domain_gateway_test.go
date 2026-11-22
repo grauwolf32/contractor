@@ -121,14 +121,16 @@ type domainGateway struct {
 	server *httptest.Server
 	token  string
 
-	mu           sync.Mutex
-	stages       []domainGatewayStage
-	stageIndex   int
-	stepIndex    int
-	calls        int
-	failures     []string
-	observations []domainGatewayObservation
-	forbidden    []string
+	mu             sync.Mutex
+	stages         []domainGatewayStage
+	compactSummary string
+	compactions    int
+	stageIndex     int
+	stepIndex      int
+	calls          int
+	failures       []string
+	observations   []domainGatewayObservation
+	forbidden      []string
 
 	blockNext  bool
 	blocked    chan struct{}
@@ -355,6 +357,11 @@ func (g *domainGateway) awaitInitialRelease(ctx context.Context) bool {
 func (g *domainGateway) next(request map[string]any) (map[string]any, string, int, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	if strings.TrimPrefix(fmt.Sprint(request["model"]), "openai/") == "worker-compactor-model" && g.compactSummary != "" {
+		g.compactions++
+		encoded, err := json.Marshal(map[string]string{"summary": g.compactSummary})
+		return map[string]any{"role": "assistant", "content": string(encoded)}, "stop", g.calls, err
+	}
 	finalizerInput, isFinalizer, err := decodeWorkerResultFinalizerRequest(request)
 	if err != nil {
 		return nil, "", 0, err
