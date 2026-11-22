@@ -111,7 +111,7 @@ def test_adapter_schema_failures_remain_python_failures():
     async def scenario():
         from pydantic import ValidationError
 
-        selected, resources, writes = preparer()
+        selected, _resources, writes = preparer()
 
         class BrokenCapture:
             def select_observation(self, *args):
