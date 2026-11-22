@@ -6,7 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V479-002
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 085127eb068fa76fe87b17a6b0b6e1121a26da67
 depends_on: [V479-002]
 languages: [python]
 goal: A stale submission after invocation exit receives the ordinary safe Audit argument error without retaining authority or raising an unclassified tool exception.
@@ -34,3 +35,5 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A2]
+
+verification_results: "All 59 tests in the three required Audit suites pass, including real shared-session reuse, frozen response generations, scalar corrections and atomic batches. Complete Runtime verification and full make lint pass."

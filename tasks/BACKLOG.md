@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-71 open tasks: 13 in progress, 45 pending, 13 deferred. 1665 finished: 1647 completed, 18 archived.
+70 open tasks: 12 in progress, 45 pending, 13 deferred. 1666 finished: 1648 completed, 18 archived.
 
 ## In progress
 
@@ -22,7 +22,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V478-002](v478-002-audit-incremental-evidence.yml) | audits | feature | P1 | Retain explicitly selected evidence through common source selectors |
-| [V478-013](v478-013-inactive-audit-submission.yml) | audits | defect | P2 | Classify inactive Audit submissions before reading their generation |
 | [V478-014](v478-014-http-caido-current-workflow.yml) | http-tools | chore | P2 | Select the current security workflow in the HTTP Caido process gate |
 
 ## Pending
@@ -174,7 +173,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 0 | 22 | 15 | 13 | 29 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 21 | 76 |
-| Audits (`audits`) | 15 | 77 | 100 | 42 | 174 |
+| Audits (`audits`) | 14 | 77 | 100 | 42 | 174 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 21 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
 | Web UI (`ui`) | 1 | 56 | 81 | 34 | 80 |
