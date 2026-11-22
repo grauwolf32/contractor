@@ -1,0 +1,188 @@
+schema_version: '1.0'
+id: V478-003
+title: Submit a thin attributed result over accumulated observations
+milestone: audit-plan-evidence-results-2026-11
+epic: audits
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V478-002
+- V477-002
+languages:
+- go
+- python
+- json
+- markdown
+goal: The model records a bounded judgment for an assigned item without assembling evidence, provenance or
+  a final package, using the clear submit_result name.
+demonstration: After recording observations, call submit_result with item_key, rationale, optional hypothesis
+  verdict, limitations and correction revision. Runtime assembles and accepts the exact result; a sibling item
+  remains outstanding and an invalid claim gets an actionable field error.
+context:
+  authority: 'User request 2026-11-22: prepare tasks for a concrete Audit check plan, evidence collected during
+    work, a thin result submission tool, and partial results on interruption without invented coverage conclusions.
+    The user corrected the assumption that limits reveal completed/remaining semantic steps: execution facts
+    do not establish semantic coverage. The user proposed submit_result and explicitly requested joint review
+    and agreement before merging these tasks into main. This is planning authorization only. Names, retention
+    policy and stop representation below are agent recommendations pending review, not accepted user decisions.'
+  implementation_gate: Keep pending. Do not implement, deploy, launch an Audit or merge this task plan into
+    main until the user reviews and agrees to the concrete tasks. Record that agreement and resolve context.decision_needed
+    before implementation; task-plan approval alone does not authorize implementation.
+  baseline: Local main 6a4d479d361f8fcb1ce5c74c7f512c5dfe4666af; Invoice Lab demonstrated one broad exploration
+    item ending after one accepted conclusion. This is motivation, not a live quality benchmark.
+  specification:
+  - docs/spec/audits/common-contract.md
+  - docs/spec/audits/worker-completion.md
+  - docs/spec/audits/execution.md
+  - docs/spec/audits/review-and-reports.md
+  boundary: Extend existing common Task/hypothesis, Runtime collector, Artifact and Audit intake owners. Source
+    adapters own observation extraction; Server owns assignment, authority, exact retention and lifecycle.
+    No alternate execution engine or coverage ledger. Update numbered owning specs and all API/wire/schema
+    readers with implementation, not in this unapproved plan.
+  decision_needed: 'Review recommendation: rename submit_check_result to submit_result and retain the existing
+    batch capability as submit_results, with identical item semantics and no compatibility aliases. Keep item_key,
+    rationale, limitations, optional hypothesis verdict and expected_revision for single-item corrections;
+    evidence and tested conditions are accumulated earlier. Alternative: keep the check-specific names; removing
+    batch submission is not required by thinness.'
+  sources:
+  - runtime/src/contractor_runtime/toolsets/audit_results/v2.py
+  - runtime/src/contractor_runtime/toolsets/audit_results/collector.py
+  - runtime/src/contractor_runtime/toolsets/audit_results/completion.py
+  boundary_decision: Tools record judgments, not Audit termination. The collector validates known structural
+    requirements and assembles exact facts; Audit intake remains authoritative. Thinness removes model-side
+    reconstruction, not validation or correction/idempotency guarantees. Shared argument helpers and safe diagnostics
+    remain tool-owned as in V477.
+  retirement_boundary: Replace active tool-name validators, completion wiring and current catalog callers.
+    Retain immutable historical snapshots as data only. Do not edit generated clients or historical completed-task
+    text to make a name search empty.
+scope:
+  in:
+  - Rename both model-facing submission tools throughout declarations, selection validation, current templates/instructions,
+    runtime composition, diagnostics consumers, tests and owning specs.
+  - Assemble selected accumulated evidence, tested-condition annotations and Finding association in deterministic
+    code; expose their provenance separately from the model conclusion.
+  - Return bounded receipts with missing assigned items and unmet structural requirements through current completion
+    diagnostics.
+  - Preserve exploration without a fabricated hypothesis verdict, atomic batch validation and revision-based
+    single-item correction.
+  out:
+  - A generic final-output tool for every unrelated Workflow, a new result publication owner or a model-authored
+    structured package.
+  - Old-name aliases, lenient stored readers, historical evidence rewrites or removal of batch capability without
+    an explicit decision.
+requirements:
+- id: R1
+  text: submit_result has item_key, rationale, limitations, optional verdict and optional expected_revision;
+    exact schema/defaults stay informative. submit_results uses the same judgment shape, validates all members
+    before mutation and preserves the existing batch correction policy.
+- id: R2
+  text: The model supplies neither evidence ID inventories nor completed-step inventories in final submission.
+    The assembler binds the current acknowledged observation snapshot and its attributed condition notes to
+    the exact result revision; later observations cannot mutate that immutable result.
+- id: R3
+  text: For a hypothesis require supported/refuted/inconclusive; exploration omits verdict. Nonempty evidence
+    is necessary where the contract requires it but never sufficient to claim independent semantic verification.
+- id: R4
+  text: Reject missing structural prerequisites with safe item/field and missing-role diagnostics. An interpretation
+    that cannot establish its preconditions must remain inconclusive or explicitly unverified; do not promise
+    an automatic detector for arbitrary wrong reasoning.
+- id: R5
+  text: The last accepted item may trigger existing normal Worker completion, but a submit receipt is not Audit-wide
+    success, conclusive coverage or a finding. An inconclusive conclusion remains a valid bounded attempt disposition.
+- id: R6
+  text: Remove old tool names from active code/contracts/callers atomically. Immutable catalog changes get
+    new identities and lock entries; retain historical run snapshots and completed-task evidence without creating
+    an old execution path. Go/Python/shared fixtures enforce the same result contract.
+failure_outcomes:
+- operation: Record or correct a single judgment, or atomically record a batch
+  permanent: Reject invalid membership, foreign/exact-revision mismatches, quota violations and malformed input
+    before mutation using owning classified errors. No retry of deterministic invalid input; specify any new
+    public code/status in the owning error registry and OpenAPI in the implementation.
+  retryable: Use existing bounded storage_transaction_conflict 503 and Artifact retry contracts, original receipt
+    identity and owning deadline. Never retry target traffic to recover a persistence failure.
+  ambiguous: Reconcile the same natural Artifact binding or existing keyed Audit mutation receipt. Return unknown/unconfirmed
+    persistence if reconciliation fails; do not claim durable acceptance or create another logical effect.
+  cancelled: Honor existing allocation/Run/Audit fences. Join owned I/O before cleanup; retained committed
+    records survive. Do not send additional target/model calls to repair a partial result.
+  timeout: Use existing operation and invocation deadlines; terminal persistence uses only the existing owner-authorized
+    bounded drain/reconciliation path, never an unbounded extension of model execution.
+cardinality:
+- collection: Frozen checks, per-invocation observations and selected evidence
+  expected: 'Invoice Lab fixture: 4 checks, 2 identities plus anonymous, tens of observations; scale fixture:
+    128 frozen checks and 64 assigned items.'
+  maximum: Reuse 128 checks / 1 MiB frozen seed metadata, 64 assigned items, 256 selected evidence records
+    and 8 MiB encoded evidence plus conclusions per invocation; Audit maxEvidenceBytes remains an additional
+    bound.
+  bound: Bound admission by rows and bytes, use existing paged reads (at most 200 items and 1 MiB where applicable),
+    and never hydrate the whole Audit in one transaction. Register any changed bound in the owning spec and
+    shared fixtures before implementing it.
+lifecycle:
+- entity: Task/attempt-associated exact artifacts and results under existing Run/Audit/Project ownership
+  delete: Use ordinary drained deletion and purge authorization. A held evidence artifact must remain readable
+    after permitted producer Run deletion.
+  cascade: Register any added relation/read/hold in existing ownership and purge mechanisms; no independent
+    journal, queue, receipt store or retention service.
+  retention: Only acknowledged durable records carry a persistence guarantee. Release existing Audit-owned
+    holds through the ordinary Audit/Project lifecycle; volatile or unacknowledged observations may be unavailable.
+acceptance_criteria:
+- id: A1
+  given: Recorded observations for two items with distinct evidence and one hypothesis-free exploration
+  when: The real ADK declaration invokes single and batch submission including a correction/replay
+  then: Exact per-item results assemble without model evidence arrays; exploration has no invented verdict,
+    batch validation is atomic and revisions reconcile correctly.
+- id: A2
+  given: Missing required observation role, foreign item, stale revision or malformed arguments
+  when: submit_result is called
+  then: No result mutation occurs; tool-owned safe diagnostics allow repair and distinguish structural rejection
+    from semantic uncertainty.
+- id: A3
+  given: All active configurations and tooling after the incompatible rename
+  when: Catalog validation, real process completion and repository caller checks run
+  then: Only submit_result/submit_results are exposed; current callers resolve new immutable config identities
+    and historical pins/evidence are not rewritten.
+tests:
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: go test -tags=integration -count=1 ./internal/contracts/auditcontract/... ./internal/auditimport/...
+    ./internal/auditservice/... ./internal/config/...
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-audit-completion-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-audit-basic-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-config
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make verify-public-api-postgres
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+verification_notes: Commands below are required implementation gates, not results of task planning. Use one
+  owned disposable PostgreSQL database, explicitly drop it after pools/processes stop, and never implicitly
+  enable CONTRACTOR_TEST_HEAVY_IO. Zero matched cases and skipped required database/process cases fail acceptance.

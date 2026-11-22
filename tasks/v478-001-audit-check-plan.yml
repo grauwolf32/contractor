@@ -1,0 +1,191 @@
+schema_version: '1.0'
+id: V478-001
+title: Freeze concrete Audit checks and demonstrate per-item completion
+milestone: audit-plan-evidence-results-2026-11
+epic: audits
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V64-012
+- V64-002
+- V477-001
+languages:
+- go
+- python
+- json
+- markdown
+goal: An owner launches a finite authored check plan and sees each obligation independently; one broad exploration
+  conclusion cannot stand in for the remaining planned checks.
+demonstration: Through the real Server, Runtime and PostgreSQL, launch a four-check Invoice Lab-style fixture,
+  record one result and observe the other three obligations still outstanding. The first deliverable is an
+  executable narrow path using current result/evidence tools; subsequent tasks improve evidence and interruption
+  handling.
+context:
+  authority: 'User request 2026-11-22: prepare tasks for a concrete Audit check plan, evidence collected during
+    work, a thin result submission tool, and partial results on interruption without invented coverage conclusions.
+    The user corrected the assumption that limits reveal completed/remaining semantic steps: execution facts
+    do not establish semantic coverage. The user proposed submit_result and explicitly requested joint review
+    and agreement before merging these tasks into main. This is planning authorization only. Names, retention
+    policy and stop representation below are agent recommendations pending review, not accepted user decisions.'
+  implementation_gate: Keep pending. Do not implement, deploy, launch an Audit or merge this task plan into
+    main until the user reviews and agrees to the concrete tasks. Record that agreement and resolve context.decision_needed
+    before implementation; task-plan approval alone does not authorize implementation.
+  baseline: Local main 6a4d479d361f8fcb1ce5c74c7f512c5dfe4666af; Invoice Lab demonstrated one broad exploration
+    item ending after one accepted conclusion. This is motivation, not a live quality benchmark.
+  specification:
+  - docs/spec/audits/common-contract.md
+  - docs/spec/audits/worker-completion.md
+  - docs/spec/audits/execution.md
+  - docs/spec/audits/review-and-reports.md
+  boundary: Extend existing common Task/hypothesis, Runtime collector, Artifact and Audit intake owners. Source
+    adapters own observation extraction; Server owns assignment, authority, exact retention and lifecycle.
+    No alternate execution engine or coverage ledger. Update numbered owning specs and all API/wire/schema
+    readers with implementation, not in this unapproved plan.
+  decision_needed: 'Review recommendation: start with an explicitly authored finite plan through existing assertions/Tasks;
+    automatic discovery and model-generated plans remain separate. Structural completion requires disposition
+    of each assigned item; semantic coverage stays unknown/inconclusive where appropriate, without automatic
+    infinite retries. Simpler alternative: only narrow objectives in current seed entries, accepting weaker
+    machine validation of plan obligations.'
+  review_sequence:
+  - 'V478-001: plan and completion meaning'
+  - 'V478-002: observation collection and durability'
+  - 'V478-003: submit_result and sibling tools'
+  - 'V478-004: stop records and partial results'
+  - 'V478-005: truthful readers and composed acceptance'
+  sources:
+  - internal/auditdomain/initial_assertions.go
+  - api/audit/v1/contract.schema.json
+  - runtime/src/contractor_runtime/toolsets/audit_results/completion.py
+  boundary_decision: Audit owns the frozen plan and admitted changes, Runtime owns assigned-item structural
+    validation, and the model owns attributed semantic judgments. Use ordinary Tasks and hypothesis pins. Prefer
+    explicit plan fields over encoding a new contract into free-form scope strings; no condition-evaluation
+    DSL. Reopen only when a concrete non-HTTP caller cannot express its obligations.
+  first_fixture:
+  - Administrative listing access under ordinary/admin identities
+  - Cross-account invoice transition with valid starting state and control
+  - Stored note output context with explicit limits on execution claims
+  - Email-change authorization as an independent obligation
+  first_fixture_note: These are isolated authored test-plan examples, not confirmed target capabilities or
+    benchmark knowledge added to shipped model instructions. The deterministic fixture supplies their documented
+    behavior.
+scope:
+  in:
+  - Add a bounded explicit per-check contract for objective/property, scoped surface, preconditions, required
+    observation roles and human-readable completion criteria through the existing common documents.
+  - Pin the plan at Audit start and expose it through existing Task/context reads; provide one real authored-plan
+    Workflow caller and test fixture.
+  - Use separate assigned items for checks; retain existing multi-item assignment support without one item
+    closing another. Keep hypothesis-free exploration available.
+  - Define structural acceptance separately from assessed coverage and reconcile obsolete checklist/ZIP-era
+    completion wording with the current common document path.
+  out:
+  - Automatic endpoint discovery, exhaustive security coverage, dynamic plan generation, scheduling redesign
+    or a mandatory one-Run-per-check policy.
+  - Changes to V411-015 in_progress ownership, live demo deployment or benchmark-specific bug knowledge in
+    shipped prompts.
+requirements:
+- id: R1
+  text: A check names its scope, preconditions and required observation roles. Identity and exact plan revision
+    are system-owned; the model cannot remove obligations, rewrite the denominator or silently mark checks
+    inapplicable.
+- id: R2
+  text: Presence/type/origin/membership can be validated deterministically. Whether evidence establishes a
+    role, precondition or security conclusion remains an attributed assessment unless an actual deterministic
+    verifier exists; count/status/method alone cannot prove it.
+- id: R3
+  text: An inconclusive result may settle an attempt and allow bounded orchestration to stop, but never contributes
+    conclusive coverage. Unassigned/unadmitted fixed entries and exclusions remain visible; no automatic endless
+    retries or mandatory human approval workflow.
+- id: R4
+  text: Newly discovered surface is reported as additional scope/gaps through existing mechanisms; it neither
+    silently expands nor shrinks the frozen denominator.
+- id: R5
+  text: 'Use the invoice-state counterexample: 409 not_pending on an already-approved object cannot establish
+    authorization denial. Describe this as a judgment/evidence criterion, not a universal status-code classifier.'
+- id: R6
+  text: Retain successful Run vs accepted result vs conclusive coverage distinctions. Update Go/Python/shared
+    fixtures together for every changed common field. Version changed shipped catalog identities and preserve
+    existing run pins.
+failure_outcomes:
+- operation: Freeze/admit a plan and validate ordinary per-item results
+  permanent: Reject invalid membership, foreign/exact-revision mismatches, quota violations and malformed input
+    before mutation using owning classified errors. No retry of deterministic invalid input; specify any new
+    public code/status in the owning error registry and OpenAPI in the implementation.
+  retryable: Use existing bounded storage_transaction_conflict 503 and Artifact retry contracts, original receipt
+    identity and owning deadline. Never retry target traffic to recover a persistence failure.
+  ambiguous: Reconcile the same natural Artifact binding or existing keyed Audit mutation receipt. Return unknown/unconfirmed
+    persistence if reconciliation fails; do not claim durable acceptance or create another logical effect.
+  cancelled: Honor existing allocation/Run/Audit fences. Join owned I/O before cleanup; retained committed
+    records survive. Do not send additional target/model calls to repair a partial result.
+  timeout: Use existing operation and invocation deadlines; terminal persistence uses only the existing owner-authorized
+    bounded drain/reconciliation path, never an unbounded extension of model execution.
+cardinality:
+- collection: Frozen checks, per-invocation observations and selected evidence
+  expected: 'Invoice Lab fixture: 4 checks, 2 identities plus anonymous, tens of observations; scale fixture:
+    128 frozen checks and 64 assigned items.'
+  maximum: Reuse 128 checks / 1 MiB frozen seed metadata, 64 assigned items, 256 selected evidence records
+    and 8 MiB encoded evidence plus conclusions per invocation; Audit maxEvidenceBytes remains an additional
+    bound.
+  bound: Bound admission by rows and bytes, use existing paged reads (at most 200 items and 1 MiB where applicable),
+    and never hydrate the whole Audit in one transaction. Register any changed bound in the owning spec and
+    shared fixtures before implementing it.
+lifecycle:
+- entity: Task/attempt-associated exact artifacts and results under existing Run/Audit/Project ownership
+  delete: Use ordinary drained deletion and purge authorization. A held evidence artifact must remain readable
+    after permitted producer Run deletion.
+  cascade: Register any added relation/read/hold in existing ownership and purge mechanisms; no independent
+    journal, queue, receipt store or retention service.
+  retention: Only acknowledged durable records carry a persistence guarantee. Release existing Audit-owned
+    holds through the ordinary Audit/Project lifecycle; volatile or unacknowledged observations may be unavailable.
+acceptance_criteria:
+- id: A1
+  given: Four frozen check obligations and a deterministic Worker that submits one general result
+  when: The result is collected through real processes
+  then: Only its assigned item is settled; three obligations remain visible, and no complete-plan claim is
+    emitted.
+- id: A2
+  given: Missing/foreign/duplicate check IDs, empty preconditions and a result whose only evidence is an unrelated
+    HTTP exchange
+  when: Plan and result validation run
+  then: Malformed membership/shape is rejected; semantically uncertain evidence is never automatically labelled
+    verified by its presence alone.
+- id: A3
+  given: 128 frozen checks, batches up to 64 items, exclusions and optional exploration
+  when: Admission, paging, cancellation and result reads run against PostgreSQL
+  then: Bounds hold, denominator and exact pins remain stable, and per-item results do not fan out to siblings.
+tests:
+- command: go test -tags=integration -count=1 ./internal/auditdomain/... ./internal/contracts/auditcontract/...
+    ./internal/auditservice/... ./internal/auditstore/... ./internal/auditcontroller/... ./internal/auditimport/...
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-audit-basic-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make verify-public-api-postgres
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+verification_notes: Commands below are required implementation gates, not results of task planning. Use one
+  owned disposable PostgreSQL database, explicitly drop it after pools/processes stop, and never implicitly
+  enable CONTRACTOR_TEST_HEAVY_IO. Zero matched cases and skipped required database/process cases fail acceptance.

@@ -1,0 +1,203 @@
+schema_version: '1.0'
+id: V478-005
+title: Expose honest plan progress and gate partial-result lifecycle
+milestone: audit-plan-evidence-results-2026-11
+epic: audits
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V478-001
+- V478-002
+- V478-003
+- V478-004
+languages:
+- go
+- python
+- typescript
+- css
+- json
+- markdown
+goal: Users can inspect the frozen plan, attributed conclusions, retained observations and unresolved work
+  after normal completion or interruption, with real-process evidence of the integrated behavior.
+demonstration: 'The ordinary Audit page and retained result view show a four-check Invoice Lab-style scenario
+  after a limit: two accepted judgments with distinct verdicts, one evidence-bearing system interruption and
+  one unresolved obligation with no recorded activity. The same facts remain readable after permitted Run deletion.'
+context:
+  authority: 'User request 2026-11-22: prepare tasks for a concrete Audit check plan, evidence collected during
+    work, a thin result submission tool, and partial results on interruption without invented coverage conclusions.
+    The user corrected the assumption that limits reveal completed/remaining semantic steps: execution facts
+    do not establish semantic coverage. The user proposed submit_result and explicitly requested joint review
+    and agreement before merging these tasks into main. This is planning authorization only. Names, retention
+    policy and stop representation below are agent recommendations pending review, not accepted user decisions.'
+  implementation_gate: Keep pending. Do not implement, deploy, launch an Audit or merge this task plan into
+    main until the user reviews and agrees to the concrete tasks. Record that agreement and resolve context.decision_needed
+    before implementation; task-plan approval alone does not authorize implementation.
+  baseline: Local main 6a4d479d361f8fcb1ce5c74c7f512c5dfe4666af; Invoice Lab demonstrated one broad exploration
+    item ending after one accepted conclusion. This is motivation, not a live quality benchmark.
+  specification:
+  - docs/spec/audits/common-contract.md
+  - docs/spec/audits/worker-completion.md
+  - docs/spec/audits/execution.md
+  - docs/spec/audits/review-and-reports.md
+  - docs/spec/ui/ui.md
+  - docs/spec/ui/journeys.md
+  - docs/spec/api/public-api.md
+  - docs/testing/README.md
+  boundary: Extend existing common Task/hypothesis, Runtime collector, Artifact and Audit intake owners. Source
+    adapters own observation extraction; Server owns assignment, authority, exact retention and lifecycle.
+    No alternate execution engine or coverage ledger. Update numbered owning specs and all API/wire/schema
+    readers with implementation, not in this unapproved plan.
+  decision_needed: 'Review recommendation: extend existing Audit Task/result views and retained snapshots only,
+    with separate factual progress, conclusion authorship and semantic uncertainty. No new dashboard, aggregate
+    security score or coverage percentage derived from HTTP counts. The broader V411-016 report and V411-018
+    setup journey consume this shared behavior rather than reimplementing it.'
+  boundary_decision: Read models project accepted owner facts; UI never reconstructs a verdict from Run status
+    or request count. This milestone gate owns the narrow integrated plan/evidence/stop path; V411-020 keeps
+    the larger optional HTTP composition and V411-021 keeps repeated live quality measurements.
+scope:
+  in:
+  - Update existing public Task/material/result reads and Audit UI consumers for plan obligations, exact evidence,
+    model/system authorship, stop reasons and unresolved judgments.
+  - Render explicit gaps in ordinary retained snapshots without a new report store or mandatory finalization
+    model.
+  - Register deterministic real Server/Runtime/PostgreSQL process cases and truthful report verification in
+    the existing release graph.
+  - Review active callers and retire superseded result assembly, names and duplicated coverage logic; maintain
+    generated API clients through their generators.
+  out:
+  - Independent HTTP setup redesign, endpoint discovery, new dashboards, global traffic accounting or automatic
+    security certification.
+  - Live-model quality claims, new demo deployment/audit, and prerequisites on optional sitemap/browser/scanner
+    integration.
+requirements:
+- id: R1
+  text: Display technical attempt outcome, accepted result, evidence persistence and semantic conclusion as
+    separate facts. Label system interruption as no accepted conclusion, not a model uncertainty assessment.
+- id: R2
+  text: Keep the full frozen denominator visible; show unresolved and additional discovered scope separately.
+    Never turn record counts or synthetic inconclusive records into verified/complete-security coverage.
+- id: R3
+  text: A missing activity record is displayed as no recorded activity, not proof of never executed. Model-authored
+    tested conditions/remaining-work notes retain attribution; unknown values remain unknown.
+- id: R4
+  text: Use existing pagination and bounded server aggregates, refetch terminal changes, stop settled polling
+    and show stale reads/conflicts. Validate 390px and light/dark/black themes; bump UI version for implementation
+    release.
+- id: R5
+  text: Real-process matrix covers one-result early finish, all-conclusive completion, model inconclusive,
+    hard limit, cancellation, crash, ambiguous writes, invalid membership, quota bounds, compaction and deletion.
+    Evidence contains executed case counts and no skipped database case claimed passing.
+- id: R6
+  text: Pin independent vulnerable/fixed fixture behavior outside agent-visible materials. Scripted models
+    prove plumbing and contract behavior only; do not claim they prove useful semantic judgments by small live
+    models.
+- id: R7
+  text: Reuse one owned disposable database and cleanup owned processes/resources; no global prune, implicit
+    heavy-I/O fixture enablement, live gateway calls or configured model changes.
+- id: R8
+  text: Verify that system stop records cannot satisfy the normal completion gate or convert a cancelled/failed
+    Run to success. A valid model-authored inconclusive may settle an attempt while leaving semantic coverage
+    unresolved.
+failure_outcomes:
+- operation: Read/project retained plan progress and render a stable result snapshot
+  permanent: Reject invalid membership, foreign/exact-revision mismatches, quota violations and malformed input
+    before mutation using owning classified errors. No retry of deterministic invalid input; specify any new
+    public code/status in the owning error registry and OpenAPI in the implementation.
+  retryable: Use existing bounded storage_transaction_conflict 503 and Artifact retry contracts, original receipt
+    identity and owning deadline. Never retry target traffic to recover a persistence failure.
+  ambiguous: Reconcile the same natural Artifact binding or existing keyed Audit mutation receipt. Return unknown/unconfirmed
+    persistence if reconciliation fails; do not claim durable acceptance or create another logical effect.
+  cancelled: Honor existing allocation/Run/Audit fences. Join owned I/O before cleanup; retained committed
+    records survive. Do not send additional target/model calls to repair a partial result.
+  timeout: Use existing operation and invocation deadlines; terminal persistence uses only the existing owner-authorized
+    bounded drain/reconciliation path, never an unbounded extension of model execution.
+cardinality:
+- collection: Frozen checks, per-invocation observations and selected evidence
+  expected: 'Invoice Lab fixture: 4 checks, 2 identities plus anonymous, tens of observations; scale fixture:
+    128 frozen checks and 64 assigned items.'
+  maximum: Reuse 128 checks / 1 MiB frozen seed metadata, 64 assigned items, 256 selected evidence records
+    and 8 MiB encoded evidence plus conclusions per invocation; Audit maxEvidenceBytes remains an additional
+    bound.
+  bound: Bound admission by rows and bytes, use existing paged reads (at most 200 items and 1 MiB where applicable),
+    and never hydrate the whole Audit in one transaction. Register any changed bound in the owning spec and
+    shared fixtures before implementing it.
+lifecycle:
+- entity: Task/attempt-associated exact artifacts and results under existing Run/Audit/Project ownership
+  delete: Use ordinary drained deletion and purge authorization. A held evidence artifact must remain readable
+    after permitted producer Run deletion.
+  cascade: Register any added relation/read/hold in existing ownership and purge mechanisms; no independent
+    journal, queue, receipt store or retention service.
+  retention: Only acknowledged durable records carry a persistence guarantee. Release existing Audit-owned
+    holds through the ordinary Audit/Project lifecycle; volatile or unacknowledged observations may be unavailable.
+acceptance_criteria:
+- id: A1
+  given: Normal and interrupted four-check fixture Audits with attributed model and system results
+  when: Users open Task/result/material views on desktop and 390px layouts
+  then: They can identify retained evidence and unresolved work without reading traces; no false complete-plan
+    or unstarted assertion appears.
+- id: A2
+  given: The composed real-process fault and maximum-cardinality matrix
+  when: Required gates and report verification run
+  then: Every named case executes through production owners with nonzero case counts, stable identities, bounded
+    reads, no repeated target mutations and retained evidence after source deletion.
+- id: A3
+  given: Current shipped configs, API clients, Runtime tools, report snapshots and broader V411 consumers
+  when: Integration review checks active contracts and lifecycle cleanup
+  then: New names and common result semantics agree end to end; obsolete active paths are removed, independent
+    pending tasks retain ownership and no live quality/deployment claim is made.
+tests:
+- command: make test-audit-basic-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-audit-completion-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-http-caido-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-audit-research-ui
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: go test -tags=integration -count=1 ./internal/auditdomain/... ./internal/auditcontroller/... ./internal/auditimport/...
+    ./internal/auditservice/... ./internal/auditstore/... ./internal/artifacts/... ./internal/httpapi/public/...
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make verify-public-api-postgres
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make ui-verify
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+verification_notes: Commands below are required implementation gates, not results of task planning. Use one
+  owned disposable PostgreSQL database, explicitly drop it after pools/processes stop, and never implicitly
+  enable CONTRACTOR_TEST_HEAVY_IO. Zero matched cases and skipped required database/process cases fail acceptance.
