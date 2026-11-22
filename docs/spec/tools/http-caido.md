@@ -1596,3 +1596,11 @@ Shared scanner proxy ingress preserves fatal transport signals to its caller.
 RPS waits keep the current call pending, honor its original deadline and
 cancellation, and recheck authority before sending; no blanket error sleep,
 response backoff or repeated-error threshold is introduced.
+
+**HTP-R158.** The existing controlled `http_request` description includes
+allocation-local configured rate/concurrency/body limits and effective body
+ceilings in bytes from the execution owner's shared calculation. Omitted
+fields impose no engagement bound, not unlimited tool bodies. This fixed safe
+projection extends authorized scope without credentials, mutable rate state,
+a remaining-request count or another status tool. It is built with the tool;
+existing possibly-sent errors and their no-automatic-repeat advice are retained.

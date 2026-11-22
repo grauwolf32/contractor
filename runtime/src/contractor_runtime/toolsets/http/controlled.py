@@ -75,8 +75,23 @@ class ControlledHTTPSession(_HTTPSession):
 
     @property
     def scope_description(self) -> str:
-        return "\nAuthorized HTTP scope (DNS/IP restrictions are also enforced): " + json.dumps(
-            self._transport.model_scope(), separators=(",", ":"), ensure_ascii=True
+        return (
+            "\nAuthorized HTTP scope (DNS/IP restrictions are also enforced): "
+            + json.dumps(self._transport.model_scope(), separators=(",", ":"), ensure_ascii=True)
+            + "\nAllocation-local HTTP limits: "
+            + json.dumps(
+                {
+                    "configured": self._transport.configured_limits(),
+                    "effectiveBodyLimits": self._transport.effective_body_limits(),
+                },
+                separators=(",", ":"),
+                ensure_ascii=True,
+            )
+            + (
+                " Body sizes are bytes; requestsPerSecond is requests/second; concurrentRequests is"
+                " simultaneous requests. Omitted configured fields impose no engagement limit;"
+                " ordinary tool bounds still apply. There is no total HTTP request quota."
+            )
         )
 
     def credential_catalog(self):

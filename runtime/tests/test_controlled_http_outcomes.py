@@ -473,3 +473,55 @@ def test_pending_native_rps_wait_never_sends_after_termination(stop):
             assert not owner._tasks
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "configured",
+    [
+        {},
+        {"requestBodyBytes": 3, "responseBodyBytes": 5},
+        {
+            "requestBodyBytes": 2**32 - 1,
+            "responseBodyBytes": 2**32 - 1,
+            "requestsPerSecond": 2,
+            "concurrentRequests": 3,
+        },
+    ],
+)
+def test_description_uses_enforced_body_limits(configured):
+    from contractor_runtime.shared_config import get_shared_config
+
+    async def scenario():
+        async with SocketTarget() as target:
+            spec = socket_spec(target)
+            spec.engagement.http.routes[0].methods = ["GET", "POST"]
+            async with preflight(target, spec=spec, limits=HTTPLimits(**configured)) as (owner, _):
+                owner.configure(authority_deadline=lambda: time.monotonic() + 60)
+                tools, _state = await tools_for(owner)
+                description = tools["http_request"].__doc__
+                payload = description.split("Allocation-local HTTP limits: ")[1]
+                limits, _ = json.JSONDecoder().raw_decode(payload)
+                assert limits["configured"] == configured
+                shared = get_shared_config()
+                assert limits["effectiveBodyLimits"] == {
+                    "requestBodyBytes": min(
+                        configured.get("requestBodyBytes", 2**32),
+                        shared.http_request_body_max_bytes,
+                    ),
+                    "responseBodyBytes": min(
+                        configured.get("responseBodyBytes", 2**32),
+                        shared.http_response_body_max_bytes,
+                    ),
+                }
+                assert "no total HTTP request quota" in description
+                if configured.get("requestBodyBytes") == 3:
+                    await tools["http_request"](
+                        target.origin + "/allowed", method="POST", body_type="text", body="abc"
+                    )
+                    with pytest.raises(HTTPToolError):
+                        await tools["http_request"](
+                            target.origin + "/allowed", method="POST", body_type="text", body="abcd"
+                        )
+                    assert len(target.requests) == 1
+
+    asyncio.run(scenario())
