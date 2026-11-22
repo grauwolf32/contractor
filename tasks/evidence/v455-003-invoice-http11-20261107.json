@@ -1,0 +1,90 @@
+{
+  "task": "V455-003",
+  "authority_date": "2026-11-07",
+  "recorded_at": "2026-11-07T11:32:18.384778+00:00",
+  "source_repository": "/Users/ruslan/src/contractor-playground",
+  "source_branch": "codex/v455-003-invoice-http11",
+  "source_commit": "2ae58c7d345834928157fe7fe2061ea7afc8bfd2",
+  "target_url": "http://10.77.0.11:18081",
+  "image_id": "c2a84c6152e571f6a672846247dd3dab676c0d8cf7be58fcc479f98f0362274a",
+  "container": "contractor-invoice-lab-v411015",
+  "rollback_container": "contractor-invoice-lab-v411015-http10",
+  "volume": "contractor-invoice-lab-v411015-data",
+  "data_before_sha256": "d07a6bad9d0be29aea926959768ef7acc49b710dae8a722cf100d70f08a36e87",
+  "data_after_sha256": "d07a6bad9d0be29aea926959768ef7acc49b710dae8a722cf100d70f08a36e87",
+  "data_reset": false,
+  "stop_outcome": "The old PID-1 Python process did not exit on SIGTERM; Podman joined it with SIGKILL after 15 seconds before starting its replacement. Business-state hashes match.",
+  "controlled_runtime_smoke": {
+    "runtime_source": "/Users/ruslan/src/contractor/.local/demo/releases/main-1142c2681d65/runtime",
+    "observations": [
+      {
+        "identity": "anonymous",
+        "status": 401,
+        "invoice_owners": []
+      },
+      {
+        "identity": "alice",
+        "status": 200,
+        "invoice_owners": [
+          "alice"
+        ]
+      },
+      {
+        "identity": "bob",
+        "status": 200,
+        "invoice_owners": [
+          "bob"
+        ]
+      }
+    ],
+    "transport": "production engagement-controlled HTTPTransport",
+    "requests": 3
+  },
+  "regression_before_fix": "Standalone wire check fails for both variants: response.version 10 != 11.",
+  "tests": {
+    "standalone": {
+      "passed": 14,
+      "skipped": 0
+    },
+    "private_fixture_gate": {
+      "passed": 16,
+      "skipped": 0
+    },
+    "lint": "passed"
+  },
+  "previous_run_id": "run_e7c83a88520dd043674e62a8e5001f2d",
+  "project_id": "project_eeaea116fb0b26cc949a5576ec77d3e9",
+  "audit_id": "audit_b54394decf54943e4526c572d4ab82d3",
+  "run_id": "run_780569669abd9ff2027fc32bd2337579",
+  "run_state": "running",
+  "trace_label": "invoice-lab-traces",
+  "trace_config": {
+    "name": "invoice-lab-traces",
+    "version": "1",
+    "digest": "sha256:61795502f9232fe163eee4118fb89435e6e00474af61d0e9a2c3f0ae904b779d"
+  },
+  "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+  "note": "The user explicitly authorized the new investigation after fixing the target; no automatic Audit retry or target data reset was performed. V411-015 deterministic acceptance remains separate.",
+  "trace_span_count_at_verification": 0,
+  "fix_acceptance": "passed: HTTP/1.1 wire regression, exact fixture gate, deployed controlled anonymous/Alice/Bob smoke, unchanged target state on restart, and replacement Audit with pinned trace config",
+  "reconciliation_2026_11_22": {
+    "snapshot_note": "run_state and trace_span_count_at_verification above describe the original 2026-11-07 verification snapshot.",
+    "terminal_outcome_source": "tasks/done/v455-004-runtime-trace-delivery.yml",
+    "run_final_state": "failed",
+    "failure_code": "worker_budget_exhausted",
+    "budget": "tool_calls",
+    "finding_receipts": 0,
+    "acceptance": "The target HTTP/1.1 fix remains accepted; deterministic V411-015 A1/A2/A3 acceptance remains incomplete. No demo rerun or deployment was performed during reconciliation.",
+    "revalidation": {
+      "playground_file_digests_verified": 10,
+      "standalone_tests_passed": 14,
+      "private_fixture_checks_passed": 16,
+      "fixture_skipped": 0,
+      "fixture_command": "CONTAINER_CONNECTION=podman-machine-default-root make test-pentest-fixtures",
+      "owned_fixture_resources_removed": true,
+      "make_lint": "passed",
+      "lint_script_tests_skipped": 4,
+      "lint_skip_reason": "Optional PostgreSQL and Podman storage test prerequisites are unset; these skips are not passing coverage."
+    }
+  }
+}
