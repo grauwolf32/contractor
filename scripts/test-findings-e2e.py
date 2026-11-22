@@ -30,6 +30,8 @@ PROCESS_TESTS = (
     "TestEvalFindingProjectNavigationAcrossProcesses",
     "TestProjectDocumentResponseRecoveryAcrossProcesses",
     "TestProjectDocumentOutputLimitRecoveryAcrossProcesses",
+    "TestIndependentFindingsServersAcrossProcesses",
+    "TestProcessDatabaseIsolation",
 )
 REQUIRED_TESTS = frozenset(
     (
