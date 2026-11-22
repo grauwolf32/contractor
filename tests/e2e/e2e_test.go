@@ -915,22 +915,26 @@ func isolatedDatabase(t *testing.T, ctx context.Context, databaseURL string) str
 		admin.Close()
 		t.Fatalf("ping PostgreSQL: %v", err)
 	}
-	schema := "contractor_e2e_" + randomHex(t, 8)
-	identifier := pgx.Identifier{schema}.Sanitize()
-	if _, err := admin.Exec(ctx, "CREATE SCHEMA "+identifier); err != nil {
+	// A schema does not isolate the database-wide active-Server lease.
+	database := "contractor_e2e_" + randomHex(t, 8)
+	identifier := pgx.Identifier{database}.Sanitize()
+	if _, err := admin.Exec(ctx, "CREATE DATABASE "+identifier); err != nil {
 		admin.Close()
-		t.Fatalf("create E2E schema: %v", err)
+		t.Fatalf("create E2E database: %v", err)
 	}
 	t.Cleanup(func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		if _, err := admin.Exec(cleanup, "DROP SCHEMA "+identifier+" CASCADE"); err != nil {
-			t.Logf("drop E2E schema: %v", err)
+		// Child processes and pools register later cleanups and have already joined.
+		if _, err := admin.Exec(cleanup, "DROP DATABASE "+identifier+" WITH (FORCE)"); err != nil {
+			t.Errorf("drop E2E database: %v", err)
 		}
 		admin.Close()
 	})
+	parsed.Path = "/" + database
+	parsed.RawPath = ""
 	query := parsed.Query()
-	query.Set("search_path", schema)
+	query.Del("search_path")
 	parsed.RawQuery = query.Encode()
 	return parsed.String()
 }

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-75 open tasks: 16 in progress, 46 pending, 13 deferred. 1657 finished: 1639 completed, 18 archived.
+76 open tasks: 17 in progress, 46 pending, 13 deferred. 1657 finished: 1639 completed, 18 archived.
 
 ## In progress
 
@@ -27,6 +27,7 @@ the epics are in [epics.yml](epics.yml).
 | [V478-008](v478-008-sitemap-shared-fixture-reader.yml) | projects-artifacts | chore | P3 | Read the shared Sitemap identity fixture through its registered owner |
 | [V478-009](v478-009-fact-version-fixture.yml) | findings | chore | P3 | Select the fact fixture material through the Runtime version owner |
 | [V478-010](v478-010-finding-reader-version-argument.yml) | findings | chore | P3 | Keep the Findings process reader arguments revision-free |
+| [V478-011](v478-011-process-server-database-isolation.yml) | execution-core | defect | P1 | Isolate process Servers in separate PostgreSQL databases |
 
 ## Pending
 
@@ -166,7 +167,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 50 | 71 | 40 | 107 |
+| Run execution core (`execution-core`) | 4 | 50 | 72 | 40 | 108 |
 | Planners and the Worker model boundary (`planner-worker`) | 6 | 49 | 60 | 48 | 96 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
