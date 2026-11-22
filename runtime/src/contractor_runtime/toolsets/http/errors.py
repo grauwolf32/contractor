@@ -2,6 +2,8 @@
 
 from types import MappingProxyType
 
+from contractor_runtime.core.input_errors import ToolInputError
+
 _ERROR_RETRYABILITY = MappingProxyType(
     {
         "http_request_invalid": False,
@@ -47,6 +49,17 @@ class HTTPToolError(RuntimeError):
         self.code = normalized
         self.retryable = _ERROR_RETRYABILITY[normalized]
         super().__init__(f"HTTP operation failed ({normalized})")
+
+
+class HTTPArgumentError(HTTPToolError, ToolInputError):
+    def __init__(self, field: str, message: str):
+        HTTPToolError.__init__(self, "http_request_invalid")
+        self.field = field
+        self.message = message
+
+    @property
+    def diagnostic_message(self) -> str:
+        return f"{self.field}: {self.message}"
 
 
 def controlled_http_message(code: str) -> str:

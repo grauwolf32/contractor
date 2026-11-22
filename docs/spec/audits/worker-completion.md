@@ -986,6 +986,18 @@ Normal supporting outputs retain their declared ordinary media types without
 semantic reinterpretation. A missing/invalid result is a truthful technical gap;
 source or persistence ambiguity never causes repeated target activity.
 
+**AWC-R131.** Audit submission tools accept `tested_conditions`, `limitations`,
+`evidence` and `http_request_ids` as native or once-serialized JSON arrays;
+`submit_check_results.items` has the same explicit array representation. Before
+decoding fields, the complete supplied call must fit the existing LIM-AWC-6
+compact UTF-8 byte ceiling, measured incrementally without constructing an
+oversized serialization. One envelope and item record may surround a selected
+container. Each decoded container obeys TLS-R41. The ordinary item/value/evidence
+and final collected-byte bounds remain authoritative. Declared records reject
+unknown keys even when decoded from strings; all items validate before batch
+mutation. Nested scalar types, evidence authority, assignment order, receipts
+and CAS behavior are unchanged. Canonical stored documents remain native JSON.
+
 **AWC-R130.** Isolated `compact@1` continues one logical Audit invocation
 through internal SDK turns. The same prepared completion owner and collector
 retain exact Task/hypothesis membership, accepted partial conclusions, evidence

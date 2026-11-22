@@ -84,6 +84,7 @@ from contractor_runtime.toolsets.common.http_observations import (
     notify_http_observations,
 )
 from contractor_runtime.toolsets.common.resources import ToolResources
+from contractor_runtime.toolsets.http.arguments import request_containers
 from contractor_runtime.toolsets.http.capture import CapturedAttempt, CapturedExchange
 from contractor_runtime.toolsets.http.cookies import (
     CookieCheckpoint,
@@ -1142,13 +1143,15 @@ class HTTPRequestTool(_HTTPTool):
     Args:
         url: Absolute HTTP or HTTPS URL; a #fragment is removed before sending.
         method: GET, POST, PUT, PATCH, DELETE, HEAD or OPTIONS; defaults to GET.
-        headers: Per-request string headers merged over session defaults; both
+        headers: Object of string headers, native or serialized once as JSON,
+            merged over session defaults; both
             together at most 48 KiB. The complete header block sent, including
             session cookies and auth, must stay within 64 KiB.
-        query: Query parameter mapping.
+        query: Query parameter object, native or serialized once as JSON.
         body: Payload shaped according to body_type.
         body_type: "none" for no body, "json" for JSON data, "form" for a field
-            mapping, or "text" for a string; defaults to "none".
+            mapping (native or serialized once as JSON), or "text" for a string;
+            defaults to "none". Nested values are not converted.
         timeout: Overall deadline in seconds for the whole call (every redirect,
             retry and the complete response body), within the configured runtime
             cap; omit to use that cap.
@@ -1167,8 +1170,8 @@ class HTTPRequestTool(_HTTPTool):
         self,
         url: str,
         method: str = "GET",
-        headers: dict[str, Any] | None = None,
-        query: dict[str, Any] | None = None,
+        headers: dict[str, Any] | str | None = None,
+        query: dict[str, Any] | str | None = None,
         body: Any = None,
         body_type: str = "none",
         timeout: int | float | None = None,
@@ -1191,6 +1194,9 @@ class HTTPRequestTool(_HTTPTool):
             "followRedirects": follow_redirects if type(follow_redirects) is bool else False,
         }
         with self._recorded(safe_arguments) as call:
+            headers, query, body = await threads.to_thread_until_done(
+                request_containers, headers, query, body_type, body, name="http-tool-arguments"
+            )
             result = await self._session.request(
                 url=url,
                 method=method,

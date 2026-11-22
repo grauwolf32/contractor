@@ -355,6 +355,17 @@ Planner tools enforce their existing closed declarations at their entry points.
 
 ## Interfaces
 
+**TLS-R41.** Individual tools may explicitly accept an object/array natively or
+as one strict serialized JSON document. The tool owns the declaration, field,
+byte ceiling, optional/null behavior and subsequent domain validation. Common
+Runtime helpers decode one layer only and apply the same bounded UTF-8, finite
+number, container-depth and value-node checks to both representations
+(LIM-TLS-3/4). Duplicate keys, trailing content, wrong roots and invalid Unicode
+fail before effects. Nested strings and scalar types are unchanged. Parsing and
+large traversal use joined threads outside session/accounting locks. This is a
+declared model-input representation; canonical records, public/wire readers,
+unselected tools and the raw unknown-field guard remain strict.
+
 - The model-facing API of a Toolset is the set of declarations of its selected
   tools, including their descriptions (TLS-R29 to TLS-R36).
 - The AgentTemplate `spec.toolsets` wire shape is specified in

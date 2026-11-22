@@ -359,6 +359,14 @@ and CR/LF header injection are rejected.
 **HTP-R27.** `body_type` is one of `none|json|form|text`, with at most 1 MiB of
 encoded request body (LIM-HTP-5).
 
+**HTP-R159.** `http_request` explicitly accepts native or once-serialized JSON
+objects for `headers`, `query` and a `form` body, on ordinary direct/proxy and
+controlled routes. Omitted/null headers and query remain optional; form requires
+an object. Representation bytes use LIM-HTP-5; decoded values still satisfy the
+tighter header/query/form rules. TLS-R41 structural bounds apply before any
+send or session mutation. Session auth/cookie tools, Caido raw replay and private
+transport byte inputs do not opt in.
+
 **HTP-R28.** `timeout` is 1..120 seconds, capped by the allocation settings
 (LIM-HTP-6); when it is omitted it is
 `min(allocation request timeout, 120 seconds)`.
