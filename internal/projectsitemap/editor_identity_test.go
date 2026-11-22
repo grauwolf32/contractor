@@ -2,17 +2,14 @@ package projectsitemap
 
 import (
 	"encoding/json"
-	"os"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"testing"
 )
 
 func TestSharedManualEditorIdentityFixture(t *testing.T) {
-	data, err := os.ReadFile("../../api/testdata/sitemap-editor-source-id.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "sitemap-editor-source-id.json")
 	var cases []struct{ Namespace, Deployment, SourceID string }
-	if err = json.Unmarshal(data, &cases); err != nil {
+	if err := json.Unmarshal(data, &cases); err != nil {
 		t.Fatal(err)
 	}
 	if len(cases) != 4 {

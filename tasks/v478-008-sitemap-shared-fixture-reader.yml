@@ -1,0 +1,43 @@
+schema_version: '1.0'
+id: V478-008
+title: Read the shared Sitemap identity fixture through its registered owner
+milestone: runtime-owned-tool-versions-2026-11
+epic: projects-artifacts
+kind: chore
+introduced_by: V479-009
+priority: P3
+status: in_progress
+depends_on:
+- V479-009
+languages:
+- go
+goal: The Sitemap identity test participates in shared fixture accounting and the mandatory source guard
+  passes.
+context:
+  authority: User assignment 2026-11-22 authorizes V478 implementation and its required checks. The full
+    lint gate found this concrete pre-existing fixture-reader prerequisite.
+  finding: internal/projectsitemap/editor_identity_test.go:10 reads api/testdata directly with os.ReadFile.
+    scripts/shared_fixture_gate.py --sources-only rejects that access; the test is already named TestShared
+    and must use contractstest.ReadFile.
+scope:
+  in:
+  - Replace the direct shared-fixture read with contractstest.ReadFile and verify the owning Sitemap package
+    and shared source guard.
+  out:
+  - Production behavior, schema changes, new fixtures or unregistered readers.
+acceptance_criteria:
+- id: A1
+  text: The shared source guard accepts the reader and records the existing TestShared fixture access.
+- id: A2
+  text: The complete projectsitemap package passes with the existing fixture content.
+tests:
+- command: python3 scripts/shared_fixture_gate.py --sources-only
+  covers:
+  - A1
+- command: go test -count=1 ./internal/projectsitemap
+  covers:
+  - A2
+- command: make lint
+  covers:
+  - A1
+  - A2
