@@ -341,6 +341,15 @@ class AllocationPreparation:
                 ),
                 **({"controlled_http": http_transport} if ref == "scan@1" else {}),
                 **(
+                    {
+                        "deployment_marker": spec.agent_template.sitemap.deployment
+                        if spec.agent_template.sitemap is not None
+                        else None
+                    }
+                    if ref == "sitemap@1"
+                    else {}
+                ),
+                **(
                     {"completion_contract": spec.completion_contract}
                     if ref == "audit-results@2"
                     else {}

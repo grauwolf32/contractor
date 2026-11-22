@@ -1521,7 +1521,6 @@ def read_write_script() -> object:
                     "name": "report",
                     "media_type": "application/json",
                     "text": "{}",
-                    "expected_revision": None,
                 },
                 call_id="write-1",
             ),

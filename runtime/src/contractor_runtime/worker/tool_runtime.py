@@ -137,9 +137,14 @@ class ToolWorkerRuntime:
         self._tool = context.tools[execution.tool]
         if not callable(self._tool):
             raise ValueError("tool@1 selected tool is not callable")
-        signature = inspect.signature(self._tool)
+        self._callable = getattr(self._tool, "contractor_trusted_call", self._tool)
+        if not callable(self._callable):
+            raise ValueError("tool@1 trusted facet is not callable")
+        signature = inspect.signature(self._callable)
         hints = get_type_hints(
-            self._tool if inspect.isfunction(self._tool) else self._tool.__call__
+            self._callable
+            if inspect.isfunction(self._callable) or inspect.ismethod(self._callable)
+            else self._callable.__call__
         )
         fields = {}
         for name, parameter in signature.parameters.items():
@@ -296,7 +301,7 @@ class ToolWorkerRuntime:
         async def call():
             # Scheduling the owned task can itself cross the deadline.
             _check_deadline(deadline)
-            return await self._tool(**arguments)
+            return await self._callable(**arguments)
 
         task = asyncio.create_task(call())
         try:

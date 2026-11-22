@@ -9,6 +9,7 @@ status: pending
 depends_on:
 - V479-005
 - V479-006
+- V479-008
 languages:
 - go
 - python
@@ -96,7 +97,7 @@ acceptance_criteria:
   then: Signatures/statuses match the actual integrated commit; UTF-8 remains correct, limitations are explicit,
     and no live-quality/full-release claim is made.
 tests:
-- command: go test -tags=e2e -count=1 -run '^(TestRuntimeManagedArtifactWritesAcrossProcesses|TestRuntimeManagedMaterialVersionsAcrossProcesses|TestRuntimeGuidanceAcrossProductionProcesses|TestAuditCompactionPreservesTrustedCompletionAcrossProcesses|TestProjectSitemapToolsAcrossProductionProcesses|TestProjectFindingsReaderAcrossProcesses)$'
+- command: go test -tags=e2e -count=1 -run '^(TestRuntimeManagedArtifactWritesAcrossProcesses|TestRuntimeManagedMaterialVersionsAcrossProcesses|TestRuntimeGuidanceAcrossProductionProcesses|TestAuditCompactionPreservesTrustedCompletionAcrossProcesses|TestProjectSitemapToolsAcrossProductionProcesses|TestRuntimeManagedSitemapEditsAcrossProcesses|TestProjectFindingsReaderAcrossProcesses)$'
     -timeout=30m ./tests/e2e
   covers:
   - A1

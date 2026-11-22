@@ -29,6 +29,30 @@
         "catalog lock and validation"
       ],
       "notes": "Sequential scalar replacements are automatic; sibling changes share an internal base. Batch corrections remain explicit single-item operations. Eight new instruction paths and 27 dependent manifest identities preserve catalog immutability. V478 is still outside main; apply the newer correction contract to its future renamed tools."
+    },
+    "V479-003": {
+      "runtime_tests": 227,
+      "allocation_tests": 69,
+      "runtime_result": "passed",
+      "go_package": "./internal/projectsitemap",
+      "go_result": "passed",
+      "go_seconds": 7.936,
+      "process_tests": {
+        "TestProjectSitemapToolsAcrossProductionProcesses": 95.718,
+        "TestRuntimeManagedSitemapEditsAcrossProcesses": 14.948
+      },
+      "process_result": "passed",
+      "checks": [
+        "targeted Ruff",
+        "four import contracts",
+        "specifications"
+      ],
+      "notes": "No model preconditions; runtime-held reviewed map and derived manual-source predecessor. Old pages remain read-only after edits. Ambiguous calls keep frozen key/command across refresh. Shared Go/Python source identity fixture; canonical TMPDIR avoids the macOS /var symlink."
+    },
+    "V479-008": {
+      "result": "passed",
+      "evidence_task": "V479-003",
+      "notes": "Atomic delivery with the first concrete Sitemap owner. Strict model and tool@1 facets share owner identity/lifecycle; complete tool Worker and deadline tests plus real production process pass."
     }
   }
 }
