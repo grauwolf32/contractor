@@ -51,7 +51,8 @@ test("an off-page selected Task receives its final collected result", async ({
   await page.goto(
     `/projects/${RESEARCH_PROJECT}/audits/${RESEARCH_AUDIT}/work?task=${collected.document.task_id}`,
   );
-  await expect(page.getByText("No accepted conclusion yet.")).toBeVisible();
+  const detail = page.locator(".research-task-detail");
+  await expect(detail.getByText("No accepted conclusion yet.")).toBeVisible();
   expect(selectedReads).toBe(1);
   settled = true;
   Object.assign(fixture.audit, {
@@ -64,7 +65,9 @@ test("an off-page selected Task receives its final collected result", async ({
   await expect(
     page.getByRole("button", { name: "Read saved result" }),
   ).toBeVisible();
-  await expect(page.getByText("No accepted conclusion yet.")).not.toBeVisible();
+  await expect(
+    detail.getByText("No accepted conclusion yet."),
+  ).not.toBeVisible();
   expect(selectedReads).toBeGreaterThan(1);
 });
 

@@ -266,6 +266,21 @@ async function inspectInterruptedCheck(page: Page) {
   await expect(
     page.getByRole("navigation", { name: "Check sections" }),
   ).toBeVisible();
+  const findingsResponse = await page.request.get(
+    api + `/v1/projects/${project}/findings?limit=50`,
+  );
+  expect(findingsResponse.status()).toBe(200);
+  const independent = (
+    (await findingsResponse.json()) as Schemas["ProjectFindingPage"]
+  ).items;
+  expect(independent).toHaveLength(1);
+  expect(independent[0]!.title).toBe(
+    "Incidental query concatenation observation",
+  );
+  await page.goto(`/issues/${project}/${independent[0]!.findingId}`);
+  await expect(
+    page.getByRole("heading", { name: independent[0]!.title, exact: true }),
+  ).toBeVisible();
   expect(errors).toEqual([]);
   await writeFile(
     path.join(directory, "partial-journey.json"),
