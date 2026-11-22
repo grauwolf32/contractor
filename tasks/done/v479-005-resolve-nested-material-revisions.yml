@@ -5,7 +5,7 @@ milestone: runtime-owned-tool-versions-2026-11
 epic: findings
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V479-004
 languages:
@@ -214,3 +214,5 @@ verification_policy: Commands listed here are required implementation checks, no
 assignment: "User request: implement V479 in one pass; V478 remains unmerged and its worktree untouched."
 
 sibling_verification: "Include test_scan_toolset.py, test_nuclei_engagement.py, common version/Worker completion owners, tool argument/input diagnostics and observation ownership; Nuclei rulepack_ref and deterministic Sitemap import are active exact-ref siblings."
+
+implementation_commit: f5609b48a404e5c989d6a8aec2958dbd3c720f68

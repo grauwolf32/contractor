@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-68 open tasks: 10 in progress, 45 pending, 13 deferred. 1653 finished: 1635 completed, 18 archived.
+67 open tasks: 10 in progress, 44 pending, 13 deferred. 1654 finished: 1636 completed, 18 archived.
 
 ## In progress
 
@@ -39,7 +39,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 | [V469-001](v469-001-opencode-audit-prototype.yml) | chore | P1 | — | Prove two ordinary Runs can reuse one OpenCode Audit container |
 | [V479-006](v479-006-resolve-planner-finish-revisions.yml) | feature | P1 | — | Assemble exact Planner finish references without model revisions |
-| [V479-007](v479-007-verify-runtime-owned-tool-versions.yml) | chore | P1 | V479-005, V479-006 | Verify revision-free model inputs across the integrated tool surface |
+| [V479-007](v479-007-verify-runtime-owned-tool-versions.yml) | chore | P1 | V479-006 | Verify revision-free model inputs across the integrated tool surface |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -57,12 +57,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
 | [V410-026](v410-026-sitemap-source-comparison.yml) | chore | P2 | — | Compare transport observations and scanner report projections for sitemap |
-
-### Findings tools and collections (`findings`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V479-005](v479-005-resolve-nested-material-revisions.yml) | feature | P1 | — | Resolve nested finding scanner and evidence versions in Runtime |
 
 ### Workflow catalog and document workflows (`workflows`)
 
@@ -173,7 +167,7 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 26 | 38 | 15 | 39 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
-| Findings tools and collections (`findings`) | 1 | 22 | 15 | 11 | 27 |
+| Findings tools and collections (`findings`) | 0 | 22 | 15 | 11 | 27 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 40 | 20 | 74 |
 | Audits (`audits`) | 10 | 72 | 98 | 42 | 172 |
