@@ -1,0 +1,54 @@
+schema_version: '1.0'
+id: V478-011
+title: Isolate process Servers in separate PostgreSQL databases
+milestone: audit-evidence-results-2026-11
+epic: execution-core
+kind: defect
+introduced_by: V107-001
+priority: P1
+status: completed
+implementation_commit: 23c5cf2f27a1fa11ce3b5c4ff521a3a68524cb7f
+depends_on: []
+languages: [go, python, markdown]
+goal: Independent process test Servers can run concurrently without competing for the database-wide active-Server lease.
+context:
+  authority: 'User request 2026-11-22: investigate and fix the second test Server waiting for a lease until timeout, while continuing V478.'
+  specification: [docs/spec/platform/persistence.md, docs/spec/execution/scheduler.md]
+  finding: >-
+    tests/e2e/e2e_test.go:904 names its helper isolatedDatabase but only creates a schema.
+    Concurrent Findings gates therefore start different Servers in the same database.
+    internal/app/single_active.go:125 correctly permits only one active Server per database;
+    the second logs standby and its Run times out. Reproduced in
+    /tmp/v478-findings-fixed-cases.log, TestFindingLocationsAcrossProcesses.
+    V107-001 introduced the database-wide lease without updating the older MVP-015 harness isolation.
+  siblings: >-
+    Every tests/e2e process harness using isolatedDatabase shares this defect and is fixed through
+    the helper. tests/integration/lease already uses actual databases, and ordinary repository
+    tests may keep schema isolation because they do not start competing Servers.
+  boundary: Keep production lease identity, standby behavior and deadlines unchanged. Test fixture isolation owns the correction.
+scope:
+  in:
+  - Create a random, owned database per process harness, remove inherited search_path, and explicitly drop only that database after process cleanup.
+  - Fail on configured connection, CREATEDB or cleanup errors; preserve all other database URL options without logging credentials.
+  - Real PostgreSQL isolation and two simultaneously live Server/Runtime regression checks, included in the existing release graph.
+  - Update test storage documentation to describe database ownership and cleanup.
+  out:
+  - Per-schema production leases, longer Run timeouts, global pruning and demo deployment changes.
+acceptance_criteria:
+- id: A1
+  text: Two helper results connect to distinct databases, retain ordinary URL options, have no inherited search_path, and are dropped after their owning tests close connections.
+- id: A2
+  text: Two concurrently live Findings Server/Runtime harnesses both execute real source Finding workflows, without standby contention or invented skips.
+- id: A3
+  text: The existing production single-active/standby checks still enforce one active Server within the same database.
+tests:
+- command: go test -tags=e2e -count=1 -run '^(TestProcessDatabaseIsolation|TestIndependentFindingsServersAcrossProcesses)$' -timeout=10m ./tests/e2e
+  covers: [A1, A2]
+- command: go test -count=1 ./internal/app -run 'ControlPlaneLease|Standby'
+  covers: [A3]
+- command: go test -race -count=1 ./tests/integration/lease
+  covers: [A3]
+- command: make lint
+  covers: [A1, A2, A3]
+
+verification_results: "Actual two-Server/Runtime regression and database cleanup pass (27.337s); the same test rejects the original schema-only helper. Full internal/app package passes (15.807s), lease integration passes under race (4.270s), and make lint passes. Full make test-findings-e2e also passes: 25 required process cases and 310 Runtime contracts, with no required process skips (572.964s). The isolated lane database and harness-owned databases are removed."

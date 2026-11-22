@@ -6,7 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V479-002
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 868b1c2f79f70d504d03d6f724dfa68bebc62df5
 depends_on:
 - V479-007
 languages:
@@ -22,6 +23,7 @@ context:
     gets 404 before dispatch; audit_common_prepared_process_test.go:206 selects retired audit-openapi-operation-observe@2
     and Server refuses startup. V479-002 versioned their shipped successors without updating these gate
     consumers.
+  finding_process_pin: The complete Findings gate also uses runCommonFindingAudit with the same retired operation-trace profile; align this sibling fixture with the current exact profile.
   further_evidence: V478-001 acceptance passed all 12 basic Audit cases, then the code-analysis prerequisite found retired http_explorer@4 and openapi-from-workspace@8 consumers. Update those HTTP/source sibling pins as part of this same gate repair.
   siblings: Audit configuration/library matrices and profile-removal selectors, HTTP/source process fixture
     closures and ordinary root-catalog Finding workflow selectors. Check all relevant Go/YAML/UI consumers
@@ -61,3 +63,5 @@ tests:
   - A1
   - A2
   - A3
+
+verification_results: "make test-audit-basic-e2e passes 12 selected cases without skips. The listed four catalog/library regression cases pass. The full Findings process gate also passes after the shared profile correction; make lint passes."

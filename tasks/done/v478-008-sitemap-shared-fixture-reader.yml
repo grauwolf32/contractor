@@ -6,7 +6,8 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V479-009
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: c96c7f13ef9ae25f7af14a86ec8876b21a1377ab
 depends_on:
 - V479-009
 languages:
@@ -41,3 +42,5 @@ tests:
   covers:
   - A1
   - A2
+
+verification_results: "python3 scripts/shared_fixture_gate.py --sources-only passes, go test -count=1 ./internal/projectsitemap passes (8.416s), and make lint passes."
