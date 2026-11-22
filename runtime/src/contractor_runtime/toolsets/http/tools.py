@@ -315,6 +315,15 @@ class _RequestRecord:
 
 
 class _HTTPSession:
+    @property
+    def request_body_limit(self) -> int:
+        return get_shared_config().http_request_body_max_bytes
+
+    async def _prepare_body(self, body_type, body):
+        return await threads.to_thread_until_done(
+            _request_body, body_type, body, self.request_body_limit, name="http-body-encoding"
+        )
+
     def credential_catalog(self):
         return []
 
@@ -388,6 +397,7 @@ class _HTTPSession:
     ) -> dict[str, Any]:
         if credential_id is not None:
             raise HTTPToolError("http_credential_unavailable")
+        payload, content_type = await self._prepare_body(body_type, body)
         async with self._lock:
             self._require_open()
             self._checkpoint.require_confirmed()
@@ -399,7 +409,6 @@ class _HTTPSession:
             selected_method = _method(method)
             selected_url = _url_with_query(url, query)
             selected_headers = request_headers(headers)
-            payload, content_type = _request_body(body_type, body)
             selected_timeout = _timeout(timeout_seconds, self._timeout_cap_seconds)
             if type(follow_redirects) is not bool:
                 raise HTTPArgumentError(
@@ -1155,10 +1164,14 @@ class HTTPRequestTool(_HTTPTool):
             together at most 48 KiB. The complete header block sent, including
             session cookies and auth, must stay within 64 KiB.
         query: Query parameter object, native or serialized once as JSON.
-        body: Payload shaped according to body_type.
-        body_type: "none" for no body, "json" for JSON data, "form" for a field
-            mapping (native or serialized once as JSON), or "text" for a string;
-            defaults to "none". Nested values are not converted.
+        body: Native object/array or one serialized JSON container for json;
+            native or serialized field object for form; exact UTF-8 string for text.
+        body_type: "none" requires no body; "json" serializes an object/array once;
+            "form" encodes fields; "text" sends the exact string bytes. Defaults to none.
+            Nested values keep their types. JSON scalar/string/null, duplicate keys
+            and intentionally malformed JSON require text with Content-Type=application/json.
+            For example, text body ' {"x":1,"x":2} ' retains duplicate keys and spaces;
+            text body '"value"' sends a JSON string. Supplied Content-Type is preserved.
         timeout: Overall deadline in seconds for the whole call (every redirect,
             retry and the complete response body), within the configured runtime
             cap; omit to use that cap.
@@ -1180,7 +1193,7 @@ class HTTPRequestTool(_HTTPTool):
         method: str = "GET",
         headers: dict[str, Any] | str | None = None,
         query: dict[str, Any] | str | None = None,
-        body: Any = None,
+        body: dict[str, Any] | list[Any] | str | None = None,
         body_type: str = "none",
         timeout: int | float | None = None,
         follow_redirects: bool = True,
@@ -1203,7 +1216,13 @@ class HTTPRequestTool(_HTTPTool):
         }
         with self._recorded(safe_arguments) as call:
             headers, query, body, notices = await threads.to_thread_until_done(
-                request_containers, headers, query, body_type, body, name="http-tool-arguments"
+                request_containers,
+                headers,
+                query,
+                body_type,
+                body,
+                self._session.request_body_limit,
+                name="http-tool-arguments",
             )
             result = await self._session.request(
                 url=url,
@@ -1545,7 +1564,7 @@ def _query_pairs(query: Mapping[str, Any] | None, field: str = "query") -> list[
     return result
 
 
-def _request_body(body_type: object, body: Any) -> tuple[bytes, str | None]:
+def _request_body(body_type: object, body: Any, max_bytes: int) -> tuple[bytes, str | None]:
     invalid = HTTPArgumentError(
         "body",
         "Match body to body_type: none, json, form (object), or text (string).",
@@ -1565,6 +1584,8 @@ def _request_body(body_type: object, body: Any) -> tuple[bytes, str | None]:
                 raise invalid
             return b"", None
         if body_type == "json":
+            if type(body) not in (dict, list):
+                raise invalid
             encoded = json.dumps(
                 body, ensure_ascii=False, allow_nan=False, separators=(",", ":")
             ).encode("utf-8")
@@ -1573,7 +1594,7 @@ def _request_body(body_type: object, body: Any) -> tuple[bytes, str | None]:
             encoded = urlencode(_query_pairs(body, "body"), doseq=True).encode("utf-8")
             media_type = "application/x-www-form-urlencoded"
         else:
-            if not isinstance(body, str):
+            if not isinstance(body, str) or len(body) > max_bytes:
                 raise invalid
             encoded = body.encode("utf-8")
             media_type = "text/plain; charset=utf-8"
@@ -1581,8 +1602,13 @@ def _request_body(body_type: object, body: Any) -> tuple[bytes, str | None]:
         raise
     except (TypeError, ValueError, UnicodeError):
         raise invalid from None
-    if len(encoded) > get_shared_config().http_request_body_max_bytes:
-        raise invalid
+    if len(encoded) > max_bytes:
+        raise HTTPArgumentError(
+            "body",
+            f"Use at most {max_bytes} encoded request bytes.",
+            expected_type="bounded body",
+            actual_type=json_type(body),
+        )
     return encoded, media_type
 
 

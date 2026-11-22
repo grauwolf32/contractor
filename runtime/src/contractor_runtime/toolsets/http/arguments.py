@@ -10,24 +10,36 @@ from contractor_runtime.toolsets.common.arguments import (
 from contractor_runtime.toolsets.http.errors import HTTPArgumentError
 
 
-def request_containers(headers, query, body_type, body):
+def request_containers(headers, query, body_type, body, body_limit):
     notices = NormalizationNotices()
 
-    def object_argument(field, value):
+    def argument(field, value, kinds=(dict,)):
+        def invalid(field, message, **details):
+            if field == "body" and body_type == "json":
+                message += (
+                    " For scalar or exact JSON use body_type=text"
+                    " and Content-Type=application/json."
+                )
+            return HTTPArgumentError(field, message, **details)
+
         result, normalized = container_argument(
             value,
             field=field,
-            kinds=(dict,),
-            max_bytes=get_shared_config().http_request_body_max_bytes,
+            kinds=kinds,
+            max_bytes=body_limit
+            if field == "body"
+            else get_shared_config().http_request_body_max_bytes,
             max_depth=MAX_CONTAINER_DEPTH,
             max_nodes=MAX_CONTAINER_NODES,
-            invalid=HTTPArgumentError,
+            invalid=invalid,
         )
-        notices.record(field, normalized, "object")
+        notices.record(field, normalized, "object" if type(result) is dict else "array")
         return result
 
-    headers = object_argument("headers", headers) if headers is not None else None
-    query = object_argument("query", query) if query is not None else None
+    headers = argument("headers", headers) if headers is not None else None
+    query = argument("query", query) if query is not None else None
     if body_type == "form":
-        body = object_argument("body", body)
+        body = argument("body", body)
+    elif body_type == "json":
+        body = argument("body", body, (dict, list))
     return headers, query, body, notices

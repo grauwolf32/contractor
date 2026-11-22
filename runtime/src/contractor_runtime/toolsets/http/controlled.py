@@ -28,7 +28,6 @@ from contractor_runtime.toolsets.http.tools import (
     _encode_body,
     _HTTPSession,
     _method,
-    _request_body,
     _RequestRecord,
     _response_headers,
     _timeout,
@@ -73,6 +72,10 @@ class ControlledHTTPSession(_HTTPSession):
         self._nonce = secrets.token_hex(8)
         self._closed = False
         transport.attach_response_buffer(self._erase_response_buffer)
+
+    @property
+    def request_body_limit(self) -> int:
+        return self._transport.effective_body_limits()["requestBodyBytes"]
 
     @property
     def metric_secrets(self) -> tuple[str, ...]:
@@ -145,7 +148,7 @@ class ControlledHTTPSession(_HTTPSession):
         }:
             raise ControlledHTTPError("http_credential_unavailable")
         selected_url = _url_with_query(url, query)
-        payload, content_type = _request_body(body_type, body)
+        payload, content_type = await self._prepare_body(body_type, body)
         if type(follow_redirects) is not bool:
             raise HTTPArgumentError(
                 "follow_redirects",

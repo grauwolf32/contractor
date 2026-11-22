@@ -357,7 +357,8 @@ bounds remain independent.
 and CR/LF header injection are rejected.
 
 **HTP-R27.** `body_type` is one of `none|json|form|text`, with at most 1 MiB of
-encoded request body (LIM-HTP-5).
+encoded request body (LIM-HTP-5), tightened by allocation-local effective bounds.
+The structured/exact representation contract is HTP-R160.
 
 **HTP-R159.** `http_request` explicitly accepts native or once-serialized JSON
 objects for `headers`, `query` and a `form` body, on ordinary direct/proxy and
@@ -366,6 +367,26 @@ an object. Representation bytes use LIM-HTP-5; decoded values still satisfy the
 tighter header/query/form rules. TLS-R41 structural bounds apply before any
 send or session mutation. Session auth/cookie tools, Caido raw replay and private
 transport byte inputs do not opt in.
+
+**HTP-R160.** `body_type=json` accepts only a native object/array or one strict
+serialized JSON object/array. Tool-owned TLS-R41 validation precedes one JSON
+serialization; nested keys, scalar types and strings are never repaired. Null,
+scalar roots, duplicate keys, extra encoding layers and malformed documents
+fail `http_request_invalid` before sending, with TLS-R42 field/type guidance.
+`body_type=text` requires a valid UTF-8 string and sends exactly its encoded bytes
+without parsing, quoting, trimming or normalization. JSON scalars/strings/null,
+intentional malformed JSON, duplicate keys, whitespace and escapes use this text
+mode with an explicit `Content-Type: application/json`. A supplied Content-Type
+is preserved; otherwise text retains its ordinary default. `none` accepts only
+omitted/null body; `form` retains HTP-R159's object and encoding rules.
+
+Structured representation bytes and final encoded bytes both obey the effective
+request-body ceiling. Bounded parsing and encoding join outside session locks.
+Ordinary direct, mandatory proxy and controlled requests consume this shared
+preparation. Capture records actual transmitted bytes under existing credential
+redaction. Target status responses, method retry rules, possibly-sent failures,
+authority, cookies and request/evidence identity are unchanged. No automatic
+semantic correction/resend, binary interface or exact HTTP framing is implied.
 
 **HTP-R28.** `timeout` is 1..120 seconds, capped by the allocation settings
 (LIM-HTP-6); when it is omitted it is

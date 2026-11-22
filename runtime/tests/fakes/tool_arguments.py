@@ -18,7 +18,7 @@ from fakes.model import scripted_model, text_result, tool_call
 from fakes.worker_state import WorkerState
 
 
-async def run_calls(tmp_path, tool, state, arguments):
+async def run_calls(tmp_path, tool, state, arguments, *, inspect_results=None):
     model = scripted_model(
         [
             *(tool_call(tool.name, value, call_id=f"arg-{i}") for i, value in enumerate(arguments)),
@@ -50,20 +50,27 @@ async def run_calls(tmp_path, tool, state, arguments):
             if part.function_response is not None
         ]
         assert len(responses) == len(arguments)
+        if inspect_results is not None:
+            await inspect_results(responses)
         return responses
     finally:
         await worker.finalize(datetime.now(UTC) + timedelta(seconds=5))
 
 
 @asynccontextmanager
-async def http_receiver(tmp_path, route):
+async def http_receiver(tmp_path, route, *, status=200, limits=None):
     if route == "controlled":
-        async with SocketTarget() as target, preflight(target) as (owner, _):
+
+        async def reply(_target, _reader, writer, _message):
+            writer.write(f"HTTP/1.1 {status} Result\r\nContent-Length: 2\r\n\r\nok".encode())
+            await writer.drain()
+
+        async with SocketTarget(reply) as target, preflight(target, limits=limits) as (owner, _):
             owner.configure(authority_deadline=lambda: time.monotonic() + 60)
             tools, state = await tools_for(owner)
             yield tools["http_request"], state, target.origin + "/allowed", target.requests
         return
-    async with fake_proxy(text_response) as receiver:
+    async with fake_proxy(lambda request: (status, text_response(request)[1])) as receiver:
         proxy = None
         state = WorkerState()
         settings = RuntimeSettings(
