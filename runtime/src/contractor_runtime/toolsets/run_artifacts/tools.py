@@ -455,11 +455,11 @@ class WriteArtifactTool(ArtifactTool):
             "source_path": source_path,
             "media_type": media_type,
         }
-        expected_revision = self._client.versions.base(namespace, name)
         with self._recorded(arguments) as call:
             require_model_visible_binding(namespace, name)
             if self._source is None:
                 raise ToolInputError("source_path requires an available project workspace")
+            expected_revision = self._client.versions.base(namespace, name)
             try:
                 data = await self._source.read_bytes(source_path)
             except WorkspaceStorageError as error:
