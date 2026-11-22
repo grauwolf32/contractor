@@ -208,7 +208,6 @@ class SubmitCheckResultTool:
         verdict: AuditVerdict | None = None,
         http_request_ids: list[int] | str | None = None,
     ) -> dict[str, Any]:
-        base = self._collector.item_base(item_key)
         return await self._submit(
             tool_context,
             partial(
@@ -223,16 +222,18 @@ class SubmitCheckResultTool:
                     "http_request_ids": [] if http_request_ids is None else http_request_ids,
                 },
             ),
-            lambda collector, item: collector.record(item, expected_revision=base),
+            lambda collector, item, base: collector.record(item, expected_revision=base),
+            item_key=item_key,
         )
 
-    async def _submit(self, tool_context, prepare, submit) -> dict[str, Any]:
+    async def _submit(self, tool_context, prepare, submit, *, item_key=None) -> dict[str, Any]:
         started, failure = time.perf_counter_ns(), None
         try:
             collector = self._collector
             collector.check_invocation(tool_context.invocation_id)
+            base = collector.item_base(item_key) if item_key is not None else None
             values, notices = await to_thread_until_done(prepare, name="audit-tool-arguments")
-            receipt = await submit(collector, values)
+            receipt = await submit(collector, values, base)
             binding = getattr(self, "completion_binding", None)
             if binding is not None:
                 binding.record_progress(receipt.accepted_count)
@@ -288,7 +289,7 @@ class SubmitCheckResultsTool(SubmitCheckResultTool):
         return await self._submit(
             tool_context,
             partial(_prepare_batch, items),
-            lambda collector, values: collector.record_batch(values),
+            lambda collector, values, _base: collector.record_batch(values),
         )
 
 
