@@ -1,6 +1,7 @@
 package auditservice
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,6 +24,7 @@ import (
 
 func TestSharedPostgresIncrementalEvidenceExactReplayFencesAndBounds(t *testing.T) {
 	f := newCommonTaskServiceFixture(t, func(program *auditcontract.Program) {
+		program.Limits.MaxEvidenceBytes = 16 << 20
 		binding := program.Workflows["inspect"]
 		binding.Ref = "audit-contract-check@1"
 		binding.Inputs["context"] = auditcontract.InputMapping{Source: "task-context"}
@@ -138,6 +140,25 @@ func TestSharedPostgresIncrementalEvidenceExactReplayFencesAndBounds(t *testing.
 	invalid.ItemKey = auditcontract.ExecutionItemKey(0)
 	if _, err := f.service.RecordEvidence(ctx, fenced, invalid); err == nil {
 		t.Fatal("new write passed fence")
+	}
+
+	before, err := f.service.Get(ctx, "owner", f.audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	large, err := run.Write(ctx, contracts.ArtifactRef{Namespace: grant.Namespace, Name: "large-source"}, artifacts.Payload{MediaType: "application/octet-stream", Data: bytes.Repeat([]byte{'x'}, 7<<20)}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oversized := submission
+	oversized.SubmissionID = "oversized"
+	oversized.Sources = []contracts.ArtifactRef{large.Ref}
+	if _, err := f.service.RecordEvidence(ctx, grant, oversized); !errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
+		t.Fatalf("reserved result/stop capacity: %v", err)
+	}
+	after, err := f.service.Get(ctx, "owner", f.audit.AuditID)
+	if err != nil || after.Revision != before.Revision || after.RetainedEvidenceBytes != before.RetainedEvidenceBytes {
+		t.Fatalf("failed evidence changed the Audit: %v", err)
 	}
 	// Real persisted receipts, not a counter-only fake, exercise the collection cap.
 	for index := 1; index < 128; index++ {

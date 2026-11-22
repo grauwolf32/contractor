@@ -161,13 +161,24 @@ func basicConclusionStage(withFinding bool) domainGatewayStage {
 		toolGatewayStep("read_artifact", fixedArguments(map[string]any{"namespace": "inputs", "name": "material"})),
 		toolGatewayStep("read_file", fixedArguments(map[string]any{"path": "app.py", "start_line": 1, "max_lines": 100})),
 	}}
+	stage.steps = append(stage.steps, toolGatewayStep("evidence", auditResultArguments(map[string]any{
+		"sources":           []any{map[string]any{"kind": "artifact", "namespace": "inputs", "name": "material"}},
+		"interpretation":    "Selected source supports only the stated source observation.",
+		"tested_conditions": []string{"source inspected; no live target action"},
+		"limitations":       []string{"Source reasoning does not verify deployment behavior"},
+	})))
 	if withFinding {
 		stage.steps = append(stage.steps, toolGatewayStep("finding", func(request map[string]any) (map[string]any, error) {
-			evidence, ok := lastExactArtifact(request, "inputs", "material")
-			if !ok {
-				return nil, fmt.Errorf("assigned exact source was not read")
+			receipts := findingsToolResponses(request, "evidence")
+			if len(receipts) != 1 || receipts[0]["persistence"] != "accepted" {
+				return nil, fmt.Errorf("evidence was not Server accepted: %v", receipts)
 			}
-			return map[string]any{"title": "Query concatenation in lookup", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 10}, "cwe": "CWE-89", "sources": []any{artifactSourceSelector(evidence)}}, nil
+			selected, ok := receipts[0]["sourceSelectors"].([]any)
+			if !ok || len(selected) != 1 {
+				return nil, fmt.Errorf("missing exact reusable source selector")
+			}
+
+			return map[string]any{"title": "Query concatenation in lookup", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 10}, "cwe": "CWE-89", "sources": selected}, nil
 		}))
 	}
 	stage.steps = append(stage.steps, toolGatewayStep("submit_check_result", auditResultArguments(map[string]any{"rationale": findingsEvidence, "tested_conditions": []string{"selected source inspected; no external target action"}, "limitations": []string{"No live exploit was executed"}, "evidence": []string{"evidence-000", "evidence-001"}})), finalGatewayStep("Recorded exploration", nil))

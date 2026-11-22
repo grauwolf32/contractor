@@ -150,7 +150,9 @@ class InvocationAuditCollector:
                 raise AuditCollectionError("client_key", "Invocation finding limit reached.")
             self._proposals[client_key] = refs
 
-    async def record_evidence(self, invocation_id, item_key, save):
+    async def record_evidence(
+        self, invocation_id, item_key, save, *, tested_conditions=(), limitations=()
+    ):
         async with self._lock:
             self._check_live(writing=True)
             self.check_invocation(invocation_id)
@@ -162,7 +164,11 @@ class InvocationAuditCollector:
                 raise AuditCollectionError("sources", "Selected evidence limit reached.")
             if receipt["itemKey"] != item_key:
                 raise RuntimeError("Evidence receipt has another item")
-            self._evidence[key] = receipt
+            self._evidence[key] = {
+                **receipt,
+                "tested_conditions": tuple(tested_conditions),
+                "limitations": tuple(limitations),
+            }
             return receipt
 
     def _with_evidence(self, item):
@@ -172,6 +178,13 @@ class InvocationAuditCollector:
         # annotation. The result freezes its exact association and source selection.
         selected.update(jcs.canonicalize(r["material"]) for r in records)
         return replace(item, selected_evidence=tuple(sorted(selected)))
+
+    def _retained_evidence_bytes(self):
+        return sum(
+            record["material"]["size_bytes"]
+            + sum(source["size_bytes"] for source in record["sources"])
+            for record in self._evidence.values()
+        )
 
     def _validate(self, item: NormalizedAuditItem):
         if not isinstance(item, NormalizedAuditItem) or item.item_key not in self._tasks:
@@ -213,7 +226,9 @@ class InvocationAuditCollector:
             }
             if (
                 len(selected) > MAX_EVIDENCE
-                or len(encoded.data) + sum(self._http_selected[key][1] for key in selected)
+                or len(encoded.data)
+                + self._retained_evidence_bytes()
+                + sum(self._http_selected[key][1] for key in selected)
                 > MAX_COLLECTED_BYTES
             ):
                 raise AuditResultError("audit_result_size_exceeded")

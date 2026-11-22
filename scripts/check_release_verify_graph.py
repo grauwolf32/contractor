@@ -28,6 +28,7 @@ EXPECTED_PROCESS_TESTS = {
     "TestAuditHypothesisContinuationAcrossProductionProcesses",
     "TestAuditBasicExactHandoffAcrossProductionProcesses",
     "TestAuditFixedHypothesesAcrossProductionProcesses",
+    "TestAuditIncrementalEvidenceAcrossProcesses",
     "TestAuditCompactionPreservesTrustedCompletionAcrossProcesses",
     "TestAuditCompactionLeaseLossAcrossProcesses",
     "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+from fakes.source_selectors import http_sources
 from google.adk.tools import FunctionTool
 from http_cookie_store import HTTPToolsetFactory
 from test_caido_read_tools import (
@@ -172,7 +173,7 @@ def test_mixed_local_ids_discovery_inspection_and_publication(tmp_path, facade):
             assert selected != sent["request_id"]
             assert "id" not in discovered["requests"][0]
             before = len(operations)
-            await finding(**args, request_id=selected, tool_context=context)
+            await finding(**args, sources=http_sources(selected), tool_context=context)
             assert len(operations) == before + 1
             assert operations[-1]["operationName"] == "RequestDetail"
             assert operations[-1]["variables"] == {"id": "1"}
@@ -186,16 +187,16 @@ def test_mixed_local_ids_discovery_inspection_and_publication(tmp_path, facade):
             assert detail["request_id"] == selected
             assert operations[-1]["variables"] == {"id": "1"}
             before = len(operations)
-            await finding(**args, request_id=selected, tool_context=context)
+            await finding(**args, sources=http_sources(selected), tool_context=context)
             assert client.requests[-1]["httpEvidence"]["source"] == "caido"
             assert client.requests[-1]["httpEvidence"]["request_id"] == "1"
             context.function_call_id = "http-second"
-            await finding(**args, request_id=sent["request_id"], tool_context=context)
+            await finding(**args, sources=http_sources(sent["request_id"]), tool_context=context)
             assert client.requests[-1]["httpEvidence"]["source"] == "http"
             assert len(operations) == before
             context.invocation_id = "foreign"
             context.function_call_id = "caido-later"
-            await finding(**args, request_id=selected, tool_context=context)
+            await finding(**args, sources=http_sources(selected), tool_context=context)
             assert client.requests[-1]["httpEvidence"]["source"] == "caido"
             assert len(operations) == before
         finally:

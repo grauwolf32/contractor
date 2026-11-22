@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"strings"
 )
+
+const evidenceStopReserve = auditcontract.MaximumDocumentBytes / 8
 
 // RetainEvidenceLinks commits ordinary exact Artifact links while the caller
 // holds LockTaskInputs. Frozen Audit forks own bytes independently of a Run.
@@ -23,7 +26,8 @@ func (s *OwnerTxStore) RetainEvidenceLinks(ctx context.Context, audit auditstore
 	if !valid {
 		return auditstore.ErrConflict
 	}
-	if cost > audit.Limits.MaxEvidenceBytes-audit.RetainedEvidenceBytes {
+	reserve := min(int64(evidenceStopReserve), audit.Limits.MaxEvidenceBytes/8)
+	if cost > audit.Limits.MaxEvidenceBytes-audit.RetainedEvidenceBytes-reserve {
 		return auditstore.ErrEvidenceBudgetExhausted
 	}
 	_, err := s.tx.Exec(ctx, insertEvidenceLinksSQL, audit.AuditID, encoded, cost)
@@ -39,7 +43,7 @@ func (s *OwnerTxStore) AdmitEvidenceCollection(ctx context.Context, auditID, pre
 	if err := s.tx.QueryRow(ctx, evidenceCollectionSizeSQL, auditID, prefix, prefix+"~").Scan(&count, &used, &sources); err != nil {
 		return err
 	}
-	if count+sources+newSources+1 > 256 || used+newBytes > 8<<20 {
+	if count+sources+newSources+1 > 256 || used+newBytes > auditcontract.MaximumDocumentBytes-evidenceStopReserve {
 		return auditstore.ErrEvidenceBudgetExhausted
 	}
 	return nil

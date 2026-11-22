@@ -75,7 +75,7 @@ func (s *Service) RecordEvidence(ctx context.Context, grant controlplane.Allocat
 		service := artifacts.NewService(s.storage.TxRepository(tx))
 		scope, _ := artifacts.AuditScope(audit.AuditID)
 		sourceScope, _ := artifacts.RunScope(run.RunID)
-		receiptKey := "evidence/" + *run.AuditExecutionID + "/" + grant.AllocationID + "/" + input.InvocationID + "/" + input.SubmissionID
+		receiptKey := "evidence/" + *run.AuditExecutionID + "/" + auditdomain.DeterministicID("receipt", grant.AllocationID, input.InvocationID, input.SubmissionID)
 		name := auditdomain.DeterministicID("evidence", grant.AllocationID, input.InvocationID, input.SubmissionID)
 		target := contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(audit.AuditID), Name: name}
 		// Resolve a replay before reading source bytes: the source Run may have
@@ -141,7 +141,7 @@ func (s *Service) RecordEvidence(ctx context.Context, grant controlplane.Allocat
 			selectedSources = append(selectedSources, selected)
 			links = append(links, auditstore.ArtifactLink{Scope: artifacts.ScopeAudit, LogicalKey: "evidence-source/" + name, Artifact: exact, SourceProvenance: []byte(`{"kind":"selected-source"}`)})
 		}
-		record := auditcontract.EvidenceRecord{Schema: "contractor.audit.evidence.v1", RequestDigest: requestDigest, Origin: auditcontract.EvidenceOrigin{AllocationID: grant.AllocationID, StageExecutionID: grant.StageExecutionID, LogicalAgentName: grant.LogicalAgentName, InvocationID: input.InvocationID, AuditID: audit.AuditID, TaskID: task.TaskID, RunID: run.RunID, ExecutionID: *run.AuditExecutionID, Hypothesis: task.Hypothesis}, Sources: sources, SelectedSources: selectedSources, Interpretation: input.Interpretation, TestedConditions: input.TestedConditions, Limitations: input.Limitations}
+		record := auditcontract.EvidenceRecord{Schema: "contractor.audit.evidence.v1", RequestDigest: requestDigest, Origin: auditcontract.EvidenceOrigin{AllocationID: grant.AllocationID, StageExecutionID: grant.StageExecutionID, LogicalAgentName: grant.LogicalAgentName, InvocationID: input.InvocationID, SubmissionID: input.SubmissionID, AuditID: audit.AuditID, TaskID: task.TaskID, RunID: run.RunID, ExecutionID: *run.AuditExecutionID, Hypothesis: task.Hypothesis}, Sources: sources, SelectedSources: selectedSources, Interpretation: input.Interpretation, TestedConditions: input.TestedConditions, Limitations: input.Limitations}
 		data, err := strictjson.Canonical(record)
 		if err != nil {
 			return err
@@ -184,7 +184,7 @@ func (s *Service) replayEvidence(ctx context.Context, grant controlplane.Allocat
 	if err != nil {
 		return auditcontract.EvidenceReceipt{}, false, err
 	}
-	key := "evidence/" + *run.AuditExecutionID + "/" + grant.AllocationID + "/" + input.InvocationID + "/" + input.SubmissionID
+	key := "evidence/" + *run.AuditExecutionID + "/" + auditdomain.DeterministicID("receipt", grant.AllocationID, input.InvocationID, input.SubmissionID)
 	link, err := s.reads().GetArtifactLink(ctx, task.AuditID, key)
 	if errors.Is(err, auditstore.ErrNotFound) {
 		return auditcontract.EvidenceReceipt{}, false, nil
@@ -203,7 +203,7 @@ func (s *Service) replayEvidence(ctx context.Context, grant controlplane.Allocat
 	if err != nil {
 		return auditcontract.EvidenceReceipt{}, false, ErrInvalid
 	}
-	if strictjson.Decode(read.Payload.Data, &record) != nil || record.Validate() != nil || record.RequestDigest != auditdomain.DigestBytes(raw) || record.Origin.RunID != run.RunID || record.Origin.TaskID != task.TaskID || record.Origin.AllocationID != grant.AllocationID || record.Origin.StageExecutionID != grant.StageExecutionID || record.Origin.LogicalAgentName != grant.LogicalAgentName || record.Origin.InvocationID != input.InvocationID {
+	if strictjson.Decode(read.Payload.Data, &record) != nil || record.Validate() != nil || record.RequestDigest != auditdomain.DigestBytes(raw) || record.Origin.RunID != run.RunID || record.Origin.TaskID != task.TaskID || record.Origin.AllocationID != grant.AllocationID || record.Origin.StageExecutionID != grant.StageExecutionID || record.Origin.LogicalAgentName != grant.LogicalAgentName || record.Origin.InvocationID != input.InvocationID || record.Origin.SubmissionID != input.SubmissionID {
 		return auditcontract.EvidenceReceipt{}, false, auditstore.ErrConflict
 	}
 	return auditcontract.EvidenceReceipt{APIVersion: contracts.APIVersion, Material: materialFromWrite(task.AuditID, read.Ref, read.Payload), Sources: record.Sources, SelectedSources: record.SelectedSources, ItemKey: input.ItemKey, Replayed: true}, true, nil

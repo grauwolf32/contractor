@@ -84,6 +84,7 @@ type EvidenceOrigin struct {
 	StageExecutionID string         `json:"stage_execution_id"`
 	LogicalAgentName string         `json:"logical_agent_name"`
 	InvocationID     string         `json:"invocation_id"`
+	SubmissionID     string         `json:"submission_id"`
 	AuditID          string         `json:"audit_id"`
 	TaskID           string         `json:"task_id"`
 	RunID            string         `json:"run_id"`
@@ -107,7 +108,7 @@ func (v EvidenceRecord) Validate() error {
 	if v.Schema != "contractor.audit.evidence.v1" || !contentdigest.Valid(v.RequestDigest) || len(v.Sources) != len(v.SelectedSources) {
 		return errInvalid
 	}
-	for _, id := range []string{v.Origin.AuditID, v.Origin.TaskID, v.Origin.RunID, v.Origin.ExecutionID, v.Origin.AllocationID, v.Origin.StageExecutionID, v.Origin.LogicalAgentName, v.Origin.InvocationID} {
+	for _, id := range []string{v.Origin.AuditID, v.Origin.TaskID, v.Origin.RunID, v.Origin.ExecutionID, v.Origin.AllocationID, v.Origin.StageExecutionID, v.Origin.LogicalAgentName, v.Origin.InvocationID, v.Origin.SubmissionID} {
 		if !contracts.ValidResourceID(id) {
 			return errInvalid
 		}

@@ -30,7 +30,9 @@ class EvidenceTool(ArtifactTool):
     alone does not record check evidence. Reuse exact sources for a different claim
     with an independent interpretation; repeated bytes are not corroboration.
     Inspect persistence=accepted before considering this evidence durable. This does
-    not publish a problem Finding or settle an item. Publish evidenced problems,
+    not publish a problem Finding or settle an item. A collection is bounded to
+    256 annotation/source occurrences and 8 MiB with reserved result/stop space.
+    On a limit or unknown receipt, report the persistence gap; do not repeat traffic. Publish evidenced problems,
     including incidental ones, through finding before final result submission.
 
     Args:
@@ -113,7 +115,13 @@ class EvidenceTool(ArtifactTool):
                     }
                 )
 
-            receipt = await collector.record_evidence(tool_context.invocation_id, item_key, save)
+            receipt = await collector.record_evidence(
+                tool_context.invocation_id,
+                item_key,
+                save,
+                tested_conditions=conditions,
+                limitations=gaps,
+            )
             if receipt["material"]["scope_id"] != collector.audit_id:
                 raise RuntimeError("Evidence receipt belongs to another Audit")
             for selected in receipt["selectedSources"]:

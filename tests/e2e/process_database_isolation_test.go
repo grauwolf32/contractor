@@ -89,7 +89,7 @@ func TestIndependentFindingsServersAcrossProcesses(t *testing.T) {
 			}
 			project := createProjectResource(t, h.client, h.baseURL)
 			source := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "sources", "concurrent-source", "application/zip", auditProgramZip(t, map[string][]byte{"app.py": []byte(findingsSource)}))
-			body, err := json.Marshal(map[string]any{"workflow": "source-findings-review@3", "artifacts": map[string]artifactRef{"source": source}})
+			body, err := json.Marshal(map[string]any{"workflow": "source-findings-review@4", "artifacts": map[string]artifactRef{"source": source}})
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -140,6 +140,8 @@ context:
     with sources. This task adds code/HTTP/artifact source preparation and early durable Audit association,
     not another version resolver. The private version map, discovery metadata and cursors add no holds
     and do not prove Server acceptance.
+  admission_implementation: >-
+    The existing Audit link owner bounds each execution collection to 256 annotation/source occurrences and 8 MiB, including repeated annotations and selected bytes. Early intake reserves 1 MiB from the invocation allowance and min(1 MiB, maxEvidenceBytes/8) from Audit capacity for conclusion/stop metadata. Frozen ordinary Run input aliases support exact later reuse; accepted annotations keep model conditions/limitations privately through compaction. Source forks, note, receipt, links and accounting commit together; no new store or automatic observation archive is introduced.
 scope:
   in:
   - Persist explicitly selected source/annotation artifacts and their exact Task/attempt association when evidence

@@ -57,16 +57,16 @@ func (h *handler) postAuditEvidence(w http.ResponseWriter, r *http.Request) {
 	transfer.ReleaseBeforeWrite(0)
 	var stateConflict *runstore.StateConflictError
 	switch {
-	case errors.Is(err, auditstore.ErrPrecondition), errors.As(err, &stateConflict):
-		h.writeError(w, http.StatusConflict, "audit_evidence_closed", "Audit attempt no longer accepts evidence", false)
+	case errors.Is(err, auditstore.ErrEvidenceBudgetExhausted):
+		h.writeError(w, http.StatusConflict, "audit_evidence_limit_exceeded", "selected evidence exceeds the Audit collection limit", false)
 		return
 	case errors.Is(err, auditstore.ErrConflict):
 		h.writeError(w, http.StatusConflict, "audit_evidence_conflict", "evidence submission identity conflicts", false)
 		return
-	case errors.Is(err, auditstore.ErrEvidenceBudgetExhausted):
-		h.writeError(w, http.StatusConflict, "audit_evidence_limit_exceeded", "selected evidence exceeds the Audit collection limit", false)
+	case errors.Is(err, auditstore.ErrPrecondition), errors.Is(err, runstore.ErrNotFound), errors.Is(err, runstore.ErrPrecondition), errors.Is(err, runstore.ErrProjectDeleting), errors.Is(err, auditstore.ErrProjectDeleting), errors.As(err, &stateConflict):
+		h.writeError(w, http.StatusConflict, "audit_evidence_closed", "Audit attempt no longer accepts evidence", false)
 		return
-	case errors.Is(err, auditstore.ErrInvalid), errors.Is(err, auditservice.ErrInvalid):
+	case errors.Is(err, auditstore.ErrInvalid), errors.Is(err, auditservice.ErrInvalid), errors.Is(err, auditstore.ErrNotFound):
 		h.handleError(w, errInvalidRequest)
 		return
 	case err != nil:
