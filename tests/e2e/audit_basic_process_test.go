@@ -158,7 +158,7 @@ func basicReportStage() domainGatewayStage {
 func basicConclusionStage(withFinding bool) domainGatewayStage {
 	stage := domainGatewayStage{name: "basic-check", tools: []string{"list_artifacts", "read_artifact", "write_text_artifact", "finding", "read_file", "read_audit_task", "submit_check_result", "submit_check_results"}, steps: []domainGatewayStep{
 		toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
-		toolGatewayStep("read_artifact", fixedArguments(map[string]any{"namespace": "inputs", "name": "material", "revision": nil})),
+		toolGatewayStep("read_artifact", fixedArguments(map[string]any{"namespace": "inputs", "name": "material"})),
 		toolGatewayStep("read_file", fixedArguments(map[string]any{"path": "app.py", "start_line": 1, "max_lines": 100})),
 	}}
 	if withFinding {

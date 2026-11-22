@@ -56,7 +56,7 @@ func TestProjectFactsAcrossProcesses(t *testing.T) {
 		for _, raw := range rows {
 			row := raw.(map[string]any)
 			if row["severitySuggestion"] == "informational" {
-				return map[string]any{"selection_key": "selected-findings", "findings": []any{map[string]any{"findingId": row["findingId"], "revision": row["revision"]}}}, nil
+				return map[string]any{"selection_key": "selected-findings", "findings": []any{map[string]any{"findingId": row["findingId"]}}}, nil
 			}
 		}
 		return nil, fmt.Errorf("missing informational record")
@@ -69,7 +69,7 @@ func TestProjectFactsAcrossProcesses(t *testing.T) {
 		if !ok {
 			return nil, fmt.Errorf("selection failed: %+v", responses)
 		}
-		return map[string]any{"collection_ref": artifact["ref"]}, nil
+		return map[string]any{"collection_ref": materialSelector(artifact["ref"])}, nil
 	}), toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{"name": "report", "text": "Facts and issues retained with an exact selected material.", "media_type": "text/markdown"})), finalGatewayStep("Retained", map[string]domainArtifactBinding{"report": {namespace: "findings-review", name: "report"}}))
 	rejected := domainGatewayStage{name: "facts/project-required", tools: tools, steps: []domainGatewayStep{
 		toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{"name": "proof", "text": "nginx source", "media_type": "text/plain"})),

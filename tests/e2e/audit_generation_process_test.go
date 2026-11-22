@@ -180,7 +180,7 @@ func generationProposalStage(prior, empty, exploratory bool) domainGatewayStage 
 				return nil, fmt.Errorf("missing exact observation")
 			}
 			ref := selected.Materials[selected.Observations[0].Key].Ref
-			return map[string]any{"namespace": ref.Namespace, "name": ref.Name, "revision": *ref.Revision}, nil
+			return map[string]any{"namespace": ref.Namespace, "name": ref.Name}, nil
 		}))
 	}
 	if prior && !empty {
@@ -200,7 +200,7 @@ func generationProposalStage(prior, empty, exploratory bool) domainGatewayStage 
 			for _, key := range slices.Sorted(maps.Keys(selected.Materials)) {
 				m := selected.Materials[key]
 				if m.Ref.Namespace == "material-inputs" && m.MediaType == "text/plain" {
-					return map[string]any{"namespace": m.Ref.Namespace, "name": m.Ref.Name, "revision": *m.Ref.Revision}, nil
+					return map[string]any{"namespace": m.Ref.Namespace, "name": m.Ref.Name}, nil
 				}
 			}
 			return nil, fmt.Errorf("missing native architecture input")
@@ -213,18 +213,18 @@ func generationProposalStage(prior, empty, exploratory bool) domainGatewayStage 
 					return nil, fmt.Errorf("missing live Project finding")
 				}
 				item := pages[0]["items"].([]any)[0].(map[string]any)
-				return map[string]any{"finding_id": item["findingId"], "revision": item["revision"]}, nil
+				return map[string]any{"finding_id": item["findingId"]}, nil
 			}),
 			toolGatewayStep("select_project_findings", func(request map[string]any) (map[string]any, error) {
 				item := findingsToolResponses(request, "list_project_findings")[0]["items"].([]any)[0].(map[string]any)
-				return map[string]any{"selection_key": "selected-grounds", "findings": []any{map[string]any{"findingId": item["findingId"], "revision": item["revision"]}}}, nil
+				return map[string]any{"selection_key": "selected-grounds", "findings": []any{map[string]any{"findingId": item["findingId"]}}}, nil
 			}),
 			toolGatewayStep("read_finding_selection", func(request map[string]any) (map[string]any, error) {
 				selected := findingsToolResponses(request, "select_project_findings")
 				if len(selected) != 1 {
 					return nil, fmt.Errorf("missing exact Finding selection")
 				}
-				return map[string]any{"collection_ref": selected[0]["artifact"].(map[string]any)["ref"]}, nil
+				return map[string]any{"collection_ref": materialSelector(selected[0]["artifact"].(map[string]any)["ref"])}, nil
 			}),
 		)
 	}
@@ -310,7 +310,7 @@ func installGenerationAuditProgram(t *testing.T, root string, initial bool) {
 	check.Inputs["material"] = auditcontract.InputMapping{Source: "audit-input", Name: "report"}
 	p.Workflows["check"] = check
 	inputs := map[string]auditcontract.InputMapping{"context": {Source: "task-context"}, "analysis": {Source: "prior-results"}, "results": {Source: "task-results"}, "materials": {Source: "audit-input", Name: "materials"}, "material": {Source: "audit-input", Name: "report"}}
-	p.Workflows["generate"] = auditcontract.ProgramWorkflow{Ref: "audit-hypothesis-generation@2", Inputs: inputs, Parameters: map[string]string{}, Outputs: map[string]string{"proposals": "proposals"}}
+	p.Workflows["generate"] = auditcontract.ProgramWorkflow{Ref: "audit-hypothesis-generation@4", Inputs: inputs, Parameters: map[string]string{}, Outputs: map[string]string{"proposals": "proposals"}}
 	p.Continuation = &auditcontract.Continuation{Workflow: "generate"}
 	p.InitialWork = []auditcontract.InitialWork{{Key: "initial-generation", Workflow: "generate", Objective: "Propose a scoped check from selected materials"}}
 	if !initial {

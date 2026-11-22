@@ -354,7 +354,7 @@ func auditCompactionStep(request map[string]any, n int) (string, map[string]any,
 	case 1, 6, 10, 11:
 		return "read_audit_task", map[string]any{}, map[int]int{1: 100, 6: 600, 10: 650, 11: 200}[n], nil
 	case 2:
-		return "read_artifact", map[string]any{"namespace": "inputs", "name": "material", "revision": nil}, 100, nil
+		return "read_artifact", map[string]any{"namespace": "inputs", "name": "material"}, 100, nil
 	case 3:
 		return "read_file", map[string]any{"path": "app.py", "start_line": 1, "max_lines": 100}, 100, nil
 	}

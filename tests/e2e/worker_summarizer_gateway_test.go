@@ -542,7 +542,7 @@ func (g *summarizerGateway) serveContinuationPlanner(w http.ResponseWriter, requ
 			g.fail(w, http.StatusBadRequest, "continuation did not publish an exact final report")
 			return
 		}
-		message = toolCallMessage("continue-finish", "finish", map[string]any{"outcome": "succeeded", "summary": "Report completed", "artifacts": map[string]any{"result": ref}})
+		message = toolCallMessage("continue-finish", "finish", map[string]any{"outcome": "succeeded", "summary": "Report completed", "artifacts": map[string]any{"result": materialSelector(ref)}})
 	default:
 		g.fail(w, http.StatusBadRequest, "continuation exceeded its bounded Planner script")
 		return

@@ -60,11 +60,11 @@ class SelectedVersions:
                 if isinstance(value, MaterialSelector)
                 else MaterialSelector.model_validate(value)
             )
+            ref = ArtifactRef(namespace=selector.namespace, name=selector.name)
         except (ValueError, TypeError):
             raise ToolInputError(
                 "Material selector requires namespace/name only; Runtime supplies revision"
             ) from None
-        ref = ArtifactRef(namespace=selector.namespace, name=selector.name)
         require_model_visible_binding(ref.namespace, ref.name)
         selected = self.selected(ref.namespace, ref.name)
         if selected is None:

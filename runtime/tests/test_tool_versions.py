@@ -88,3 +88,15 @@ def test_material_selectors_reject_versions_and_discovery_survives_response_boun
     versions.clear()
     with pytest.raises(ToolInputError, match="discovered"):
         versions.finding_revision("finding-1")
+
+
+@pytest.mark.parametrize(
+    "selector",
+    [
+        {"namespace": "bad namespace", "name": "proof"},
+        {"namespace": "inputs", "name": "../proof"},
+    ],
+)
+def test_invalid_material_names_are_tool_input_errors(selector):
+    with pytest.raises(ToolInputError, match="namespace/name only"):
+        SelectedVersions().resolve(selector)

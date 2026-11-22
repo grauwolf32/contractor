@@ -892,7 +892,7 @@ func routingPlannerResponse(
 		}
 		return toolCallMessage(scenario+"-finish", "finish", map[string]any{
 			"outcome": "succeeded", "summary": scenario + " completed",
-			"artifacts": map[string]any{resultSlot: artifact},
+			"artifacts": map[string]any{resultSlot: materialSelector(artifact)},
 		}), "tool_calls", "finish", nil
 	default:
 		return nil, "", "", fmt.Errorf("%s exceeded its three-call script", scenario)
@@ -928,7 +928,7 @@ func routingWorkerResponse(
 	switch step {
 	case 1:
 		return toolCallMessage(scenario+"-read", "read_artifact", map[string]any{
-			"namespace": "inputs", "name": "source", "revision": nil,
+			"namespace": "inputs", "name": "source",
 		}), "tool_calls", "read_artifact", nil
 	case 2:
 		data, ok := lastStringValue(request, "text")

@@ -158,7 +158,7 @@ func (g *schedulerConcurrencyGateway) serveHTTP(w http.ResponseWriter, r *http.R
 	g.mu.Unlock()
 	g.respond(w, request, toolCallMessage(
 		fmt.Sprintf("scheduler-read-%d", time.Now().UnixNano()), "read_artifact", map[string]any{
-			"namespace": "inputs", "name": "source", "revision": nil,
+			"namespace": "inputs", "name": "source",
 		},
 	), "tool_calls")
 }
