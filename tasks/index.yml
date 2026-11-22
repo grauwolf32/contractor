@@ -374,6 +374,16 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: runtime-owned-tool-versions-2026-11
+    exit_task: V479-007
+    outcome: >-
+      LLM tools accept no expected_revision or revision preconditions/selectors,
+      including nested model references, while results retain actual revisions.
+      Runtime and deterministic Planner adapters own exact selections, CAS and
+      recovery; sequential Audit corrections replace by item key. Compaction
+      preserves selected versions and V476 keeps its bounded consecutive-read
+      semantics. Stage one (V479-001/002/003) precedes all read-side changes;
+      focused real-component acceptance does not claim live-model quality.
   - id: model-runtime-guidance-2026-11
     exit_task: V476-005
     outcome: >-
