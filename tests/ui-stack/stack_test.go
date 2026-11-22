@@ -34,7 +34,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/localpki"
-	"github.com/jackc/pgx/v5"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -1102,36 +1102,7 @@ func newMTLSClient(t *testing.T, caFile string, identity localpki.Paths) *http.C
 
 func isolatedDatabase(t *testing.T, ctx context.Context, databaseURL string) string {
 	t.Helper()
-	parsed, err := url.Parse(databaseURL)
-	if err != nil || parsed.Scheme != "postgres" && parsed.Scheme != "postgresql" {
-		t.Fatal("CONTRACTOR_TEST_DATABASE_URL must be a PostgreSQL URL")
-	}
-	admin, err := pgxpool.New(ctx, databaseURL)
-	if err != nil {
-		t.Fatalf("open PostgreSQL: %v", err)
-	}
-	if err := admin.Ping(ctx); err != nil {
-		admin.Close()
-		t.Fatalf("ping PostgreSQL: %v", err)
-	}
-	schema := "contractor_ui_stack_" + randomHex(t, 8)
-	identifier := pgx.Identifier{schema}.Sanitize()
-	if _, err := admin.Exec(ctx, "CREATE SCHEMA "+identifier); err != nil {
-		admin.Close()
-		t.Fatalf("create UI-stack schema: %v", err)
-	}
-	t.Cleanup(func() {
-		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if _, err := admin.Exec(cleanup, "DROP SCHEMA "+identifier+" CASCADE"); err != nil {
-			t.Logf("drop UI-stack schema: %v", err)
-		}
-		admin.Close()
-	})
-	query := parsed.Query()
-	query.Set("search_path", schema)
-	parsed.RawQuery = query.Encode()
-	return parsed.String()
+	return postgrestest.NewDatabase(t, ctx, databaseURL)
 }
 
 func randomHex(t *testing.T, size int) string {

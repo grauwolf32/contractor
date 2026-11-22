@@ -1,5 +1,5 @@
-// Package postgrestest opens schema-isolated PostgreSQL pools for real-store
-// tests. Callers own migrations, fixtures and operation-specific settings.
+// Package postgrestest opens isolated PostgreSQL schemas for repository tests
+// and databases for process Servers. Callers own migrations and fixtures.
 package postgrestest
 
 import (
