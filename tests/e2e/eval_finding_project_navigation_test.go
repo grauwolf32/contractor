@@ -36,7 +36,7 @@ func TestEvalFindingProjectNavigationAcrossProcesses(t *testing.T) {
 					return nil, fmt.Errorf("missing assigned member")
 				}
 				member := members[0].(map[string]any)
-				return map[string]any{"title": "Reported nginx", "description": "Reported observation with selected exact material", "evidence_refs": []any{reads[0]["artifact"]}, "item_key": member["item_key"]}, nil
+				return map[string]any{"title": "Reported nginx", "description": "Reported observation with selected exact material", "evidence_refs": []any{materialSelector(reads[0]["artifact"])}, "item_key": member["item_key"]}, nil
 			}),
 			toolGatewayStep("submit_check_result", auditResultArguments(map[string]any{"rationale": "Selected the reported observation", "tested_conditions": []string{"Read exact material"}, "limitations": []string{"No independent probe"}, "evidence": []string{}})),
 			finalGatewayStep("Recorded exploration", nil),

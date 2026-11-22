@@ -376,7 +376,7 @@ func auditCompactionStep(request map[string]any, n int) (string, map[string]any,
 		if !ok {
 			return "", nil, 0, errors.New("Finding has no exact evidence read")
 		}
-		return "finding", map[string]any{"item_key": member(0), "title": "Query concatenation in lookup", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 10}, "cwe": "CWE-89", "evidence_refs": []any{evidence}}, 100, nil
+		return "finding", map[string]any{"item_key": member(0), "title": "Query concatenation in lookup", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 10}, "cwe": "CWE-89", "evidence_refs": []any{materialSelector(evidence)}}, 100, nil
 	}
 	index, verdict, tokens := 0, "supported", 100
 	switch n {

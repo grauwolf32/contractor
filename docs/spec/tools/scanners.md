@@ -1998,3 +1998,11 @@ compatibility alias. Tools without a distinct facet use their ordinary callable.
 The Sitemap editor is the initial consumer: deterministic configuration retains
 explicit preconditions while its model facade obtains them from a reviewed view.
 Existing invocation receipts, bounds and retry/deadline rules remain authoritative.
+
+**SCN-R270.** Model scan_sqlmap.request_ref, scan_ffuf.wordlist_ref and
+scan_nuclei.rulepack_ref contain closed namespace/name selectors. Runtime resolves
+trusted assigned or already observed exact materials before scanner preparation;
+unknown/ambiguous/hidden selections fail before launch. Nested model revision
+fields are rejected. Deterministic tool@1 uses the trusted callable (SCN-R269),
+retains strict exact inputs and never resolves them to latest. Reports/manifests
+and tool results continue to record exact revisions.

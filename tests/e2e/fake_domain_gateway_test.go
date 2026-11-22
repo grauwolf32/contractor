@@ -982,3 +982,9 @@ func stageSourceArguments(slot string, extra map[string]any) func(map[string]any
 		return args, nil
 	}
 }
+
+// materialSelector reflects model input only; exact response/wire refs remain intact.
+func materialSelector(value any) map[string]any {
+	ref := value.(map[string]any)
+	return map[string]any{"namespace": ref["namespace"], "name": ref["name"]}
+}

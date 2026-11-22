@@ -41,7 +41,7 @@ func TestFactExtractionAcrossProcesses(t *testing.T) {
 			for _, read := range findingsToolResponses(request, "read_artifact") {
 				candidate, _ := read["artifact"].(map[string]any)
 				if candidate["name"] == kind {
-					args["evidence_refs"] = []any{candidate}
+					args["evidence_refs"] = []any{materialSelector(candidate)}
 					return args, nil
 				}
 			}

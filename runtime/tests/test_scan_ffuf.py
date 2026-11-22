@@ -16,7 +16,7 @@ import contractor_runtime.toolsets.scan.ffuf as ffuf_module
 import contractor_runtime.toolsets.scan.process as process_module
 import contractor_runtime.toolsets.scan.tools as scan
 from contractor_runtime.artifacts import ArtifactClient, ArtifactHTTPResponse
-from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.scan.wordlist import (
     MAX_WORDLIST_ARTIFACT_BYTES,
@@ -196,10 +196,11 @@ def test_exact_wordlist_private_file_arguments_results_and_cleanup(
     async def scenario():
         transport = WordlistTransport(data, media_type=media_type)
         tool, state = await make_ffuf(tmp_path, transport)
+        tool._session.versions.assign([ArtifactRef.model_validate(WORDLIST_REF)])
         try:
             result = await tool(
                 TARGET,
-                WORDLIST_REF,
+                {"namespace": "inputs", "name": "wordlist"},
                 rate=7,
                 match_status="200-299,401",
                 filter_status="404",
@@ -262,9 +263,10 @@ def test_invalid_refs_fail_before_read(tmp_path, monkeypatch, wordlist_ref):
     async def scenario():
         transport = WordlistTransport()
         tool, state = await make_ffuf(tmp_path, transport)
+        tool._session.versions.assign([ArtifactRef.model_validate(WORDLIST_REF)])
         try:
             with pytest.raises(ToolInputError) as caught:
-                await tool(TARGET, wordlist_ref)
+                await tool.contractor_trusted_call(TARGET, wordlist_ref)
             assert "canary" not in str(caught.value)
             assert transport.calls == 0
             assert_private_metrics_and_cleanup(state, tmp_path)
@@ -316,9 +318,12 @@ def test_invalid_arguments_fail_before_read(tmp_path, monkeypatch, changes):
     async def scenario():
         transport = WordlistTransport()
         tool, state = await make_ffuf(tmp_path, transport)
+        tool._session.versions.assign([ArtifactRef.model_validate(WORDLIST_REF)])
         try:
             with pytest.raises(ToolInputError) as caught:
-                await tool(**{"url": TARGET, "wordlist_ref": WORDLIST_REF, **changes})
+                await tool.contractor_trusted_call(
+                    **{"url": TARGET, "wordlist_ref": WORDLIST_REF, **changes}
+                )
             assert "canary" not in str(caught.value)
             assert transport.calls == 0
             assert_private_metrics_and_cleanup(state, tmp_path)
@@ -353,9 +358,10 @@ def test_invalid_artifact_never_launches(tmp_path, monkeypatch, options):
     async def scenario():
         transport = WordlistTransport(**options)
         tool, state = await make_ffuf(tmp_path, transport)
+        tool._session.versions.assign([ArtifactRef.model_validate(WORDLIST_REF)])
         try:
             with pytest.raises(ToolInputError) as caught:
-                await tool(TARGET, WORDLIST_REF)
+                await tool.contractor_trusted_call(TARGET, WORDLIST_REF)
             assert caught.value.code == "tool_input_invalid"
             assert not caught.value.retryable
             assert "canary" not in str(caught.value)
@@ -390,7 +396,7 @@ def test_partial_failed_or_malformed_scans_are_never_complete(
     async def scenario():
         tool, state = await make_ffuf(tmp_path, WordlistTransport())
         try:
-            result = await tool(TARGET, WORDLIST_REF)
+            result = await tool.contractor_trusted_call(TARGET, WORDLIST_REF)
             assert result["status"] == "failed", result
             assert result["errorCode"] == error_code
             assert result["scanComplete"] is False
@@ -428,7 +434,7 @@ def test_invalid_result_records_are_dropped(tmp_path, monkeypatch, record):
     async def scenario():
         tool, state = await make_ffuf(tmp_path, WordlistTransport())
         try:
-            result = await tool(TARGET, WORDLIST_REF)
+            result = await tool.contractor_trusted_call(TARGET, WORDLIST_REF)
             assert result["errorCode"] == "invalid_scanner_output"
             assert result["scanComplete"] is False
             assert result["results"] == []
@@ -453,7 +459,7 @@ def test_results_are_bounded_with_explicit_truncation(tmp_path, monkeypatch, bou
             tmp_path, WordlistTransport((payload + "\n").encode() * count)
         )
         try:
-            result = await tool(TARGET, WORDLIST_REF)
+            result = await tool.contractor_trusted_call(TARGET, WORDLIST_REF)
             assert result["resultsTruncated"] is True
             assert 0 < len(result["results"]) <= 100
             assert len(result["results"]) < count
@@ -506,7 +512,7 @@ def test_output_overflow_preserves_bounded_partial_matches(tmp_path, monkeypatch
     async def scenario():
         tool, state = await make_ffuf(tmp_path, WordlistTransport())
         try:
-            result = await asyncio.wait_for(tool(TARGET, WORDLIST_REF), 3)
+            result = await asyncio.wait_for(tool.contractor_trusted_call(TARGET, WORDLIST_REF), 3)
             assert result["errorCode"] == "output_limit_exceeded"
             assert result["outputLimitExceeded"] is True
             assert result["scanComplete"] is False
@@ -547,6 +553,7 @@ def test_stopping_ffuf_cleans_files_processes_and_metrics(tmp_path, monkeypatch,
     async def scenario():
         transport = WordlistTransport(b"payload-canary\n", block=phase == "artifact-read")
         tool, state = await make_ffuf(tmp_path, transport)
+        tool._session.versions.assign([ArtifactRef.model_validate(WORDLIST_REF)])
         output_read = asyncio.Event()
         original_read = asyncio.StreamReader.read
 
@@ -558,7 +565,9 @@ def test_stopping_ffuf_cleans_files_processes_and_metrics(tmp_path, monkeypatch,
 
         monkeypatch.setattr(asyncio.StreamReader, "read", observed_read)
         scan_budget = 60
-        task = asyncio.create_task(tool(TARGET, WORDLIST_REF, timeout_seconds=scan_budget))
+        task = asyncio.create_task(
+            tool.contractor_trusted_call(TARGET, WORDLIST_REF, timeout_seconds=scan_budget)
+        )
         try:
             async with asyncio.timeout(30):
                 await transport.started.wait()

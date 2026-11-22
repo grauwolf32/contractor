@@ -302,7 +302,7 @@ func findingsProducerStage(name string) domainGatewayStage {
 				"title":       "Query concatenation in lookup",
 				"description": "GET /items/{item_id} passes its input to lookup (app.py:4-10). The query uses concatenation. Reproduce by supplying a quote in item_id and checking query parsing; source-inferred and unexecuted, database availability and surrounding controls remain unverified.",
 				"file":        "app.py", "range": map[string]int{"start_line": 4, "end_line": 6},
-				"evidence_refs": []any{evidence},
+				"evidence_refs": []any{materialSelector(evidence)},
 			}, nil
 		}),
 		toolGatewayStep("submit_check_result", func(request map[string]any) (map[string]any, error) {

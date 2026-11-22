@@ -14,7 +14,7 @@ from contractor_runtime.artifacts import (
     ArtifactHTTPResponse,
     ArtifactTransportError,
 )
-from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.contracts.artifacts import (
     AUDIT_CONTEXT_NAMESPACE,
     FINDING_PROPOSAL_NAMESPACE,
@@ -30,6 +30,7 @@ from contractor_runtime.toolsets.common.cwe import (
     cwe_reference,
 )
 from contractor_runtime.toolsets.common.finding_locations import ExactEvidenceRef
+from contractor_runtime.toolsets.common.versions import MaterialSelector
 from contractor_runtime.toolsets.security_findings.facades import GeneralFindingsToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -119,12 +120,18 @@ def test_finding_uses_runtime_identity_and_exact_evidence() -> None:
             workspace=_workspace(),
             resources=state.resources,
         )
+        state.resources.selected_versions.observe(
+            ArtifactRef(namespace="worker", name="trace", revision="rev-2")
+        )
+        state.resources.selected_versions.observe(
+            ArtifactRef(namespace="worker", name="source", revision="rev-1")
+        )
         result = await tools["finding"](
             title="Missing ownership guard",
             description="The selected path reaches storage without a visible ownership check.",
             evidence_refs=[
-                ExactEvidenceRef(namespace="worker", name="trace", revision="rev-2"),
-                ExactEvidenceRef(namespace="worker", name="source", revision="rev-1"),
+                MaterialSelector(namespace="worker", name="trace"),
+                MaterialSelector(namespace="worker", name="source"),
             ],
             tool_context=FakeToolContext("worker-invocation-1"),
         )
@@ -172,7 +179,10 @@ def test_finding_rejects_non_exact_and_duplicate_evidence() -> None:
         )
         with pytest.raises(ValueError):
             ExactEvidenceRef(namespace="worker", name="trace")
-        ref = ExactEvidenceRef(namespace="worker", name="trace", revision="r1")
+        state.resources.selected_versions.observe(
+            ArtifactRef(namespace="worker", name="trace", revision="r1")
+        )
+        ref = MaterialSelector(namespace="worker", name="trace")
         with pytest.raises(ValueError, match="duplicate"):
             await tools["finding"](
                 title="Candidate",

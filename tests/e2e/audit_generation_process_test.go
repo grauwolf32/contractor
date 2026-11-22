@@ -265,7 +265,7 @@ func generationProposalStage(prior, empty, exploratory bool) domainGatewayStage 
 				return nil, fmt.Errorf("missing architecture set or exact checked hypothesis: materials=%d", len(selected.Materials))
 			}
 			selection := findingsToolResponses(request, "select_project_findings")[0]["artifact"].(map[string]any)["ref"]
-			raw, _ := json.Marshal(map[string]any{"finding": selection})
+			raw, _ := json.Marshal(map[string]any{"finding": materialSelector(selection)})
 			args["selected_materials_json"] = string(raw)
 			var content map[string]any
 			_ = json.Unmarshal([]byte(hypotheses), &content)
@@ -381,7 +381,7 @@ func hypothesisFindingSeedStage() domainGatewayStage {
 			if !found {
 				return nil, fmt.Errorf("missing Project proof")
 			}
-			return map[string]any{"title": "Observed boundary problem", "description": "An evidenced observed problem under the selected conditions", "evidence_refs": []any{ref}}, nil
+			return map[string]any{"title": "Observed boundary problem", "description": "An evidenced observed problem under the selected conditions", "evidence_refs": []any{materialSelector(ref)}}, nil
 		}),
 		toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{"name": "report", "text": "Project problem retained", "media_type": "text/markdown"})),
 		finalGatewayStep("Project problem saved", map[string]domainArtifactBinding{"report": {namespace: "findings-review", name: "report"}}),

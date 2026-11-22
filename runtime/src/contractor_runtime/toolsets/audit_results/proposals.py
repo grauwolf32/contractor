@@ -31,7 +31,8 @@ class SubmitHypothesisProposalsTool(ArtifactTool):
     hypotheses_json maps local names to statement/scope/grounds, with optional
     sources listing material handles. work_json lists key/workflow/objective,
     optional hypothesis alias and inputs mapping checking slots to handles.
-    selected_materials_json optionally maps new handles to exact own-Run refs,
+    selected_materials_json maps optional new handles to selected own-Run
+    namespace/name materials,
     such as snapshots selected with the Project Findings reader. Scope and
     persisted IDs/revisions/origin are assigned by the Server. Repeated calls
     keep prior selected materials; Runtime manages correction preconditions.
@@ -86,6 +87,10 @@ class SubmitHypothesisProposalsTool(ArtifactTool):
                 selected = strict_json_loads(selected_materials_json)
                 if not isinstance(selected, dict) or len(selected) > 32:
                     raise ValueError("selection shape")
+                selected = {
+                    key: self._versions.resolve(value).model_dump(exclude_none=True)
+                    for key, value in selected.items()
+                }
                 if prior is not None:
                     saved = strict_json_loads(prior.data.decode())
                     previous = saved.get("selected_materials", {})

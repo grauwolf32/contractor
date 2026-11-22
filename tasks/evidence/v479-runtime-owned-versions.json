@@ -72,6 +72,27 @@
         "catalog lock and validation"
       ],
       "notes": "Current reads, pinned start cursors, exact continuations, native images, checkpoint/repeat lifecycle verified. Scripted e2e callers reject removed input fields rather than relying on compatibility."
+    },
+    "V479-005": {
+      "runtime_tests": 713,
+      "runtime_result": "passed",
+      "final_changed_owner_cases": 222,
+      "additional_worker_cases": 108,
+      "argument_owner_cases": 96,
+      "process_tests": [
+        "TestProjectFindingsReaderAcrossProcesses",
+        "TestProjectSitemapReportImportsAcrossProductionProcesses",
+        "TestScannerFindingsAcrossProcesses"
+      ],
+      "process_result": "passed",
+      "process_seconds": 106.999,
+      "checks": [
+        "targeted Ruff",
+        "four import contracts",
+        "specifications",
+        "catalog lock and validation"
+      ],
+      "notes": "Nuclei rulepack and trace-derived evidence included. Model selectors are closed namespace/name records; trusted tool Workers retain exact scanner/import arguments. No V478 files changed."
     }
   }
 }

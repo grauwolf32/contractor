@@ -137,7 +137,7 @@ def test_installed_sqlmap_preserves_prepared_request_on_wire(tmp_path, scheme, m
                 workspace=AllocationWorkspace(root=tmp_path, path=workspace),
             )
             tool = tools["scan_sqlmap"]
-            invocation = asyncio.create_task(tool(request_ref=ref, timeout_seconds=20))
+            invocation = asyncio.create_task(tool.contractor_trusted_call(request_ref=ref, timeout_seconds=20))
             seen = asyncio.create_task(probe_seen.wait())
             try:
                 done, _ = await asyncio.wait(

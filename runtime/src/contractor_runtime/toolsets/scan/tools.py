@@ -45,6 +45,7 @@ from contractor_runtime.toolsets.common.artifact_visibility import require_model
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, _unconfigured_client
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.resources import ToolResources
+from contractor_runtime.toolsets.common.versions import MaterialSelector, SelectedVersions
 from contractor_runtime.toolsets.scan.ffuf import (
     ffuf_observation,
     validate_ffuf_filter,
@@ -172,6 +173,7 @@ class _ScanSession:
         target_policy: TargetPolicy | None,
         controlled_http: HTTPTransport | None = None,
     ):
+        self.versions = SelectedVersions()
         self.workspace = workspace
         self.executables = executables
         self.templates = templates
@@ -903,7 +905,7 @@ class NucleiTool(JSONLinesScanTool):
             artifact before scanning. A mismatch fails without scanning.
         credential_id: Optional exact credential ID from the engagement assignment;
             omitted uses the anonymous session. Unavailable without an engagement.
-        rulepack_ref: Optional exact RunScope artifact ref for application/yaml or
+        rulepack_ref: Optional selected namespace/name RunScope material for application/yaml or
             application/vnd.contractor.nuclei-rulepack+zip. Custom mode validates
             every HTTP template and exclusively scans the pack, without installed
             templates. A bad supplied pack fails; it never selects installed rules.
@@ -949,6 +951,34 @@ class NucleiTool(JSONLinesScanTool):
         ]
 
     async def __call__(
+        self,
+        url: str,
+        template_ids: str = "",
+        tags: str = "",
+        severity: str = "",
+        rate_limit: int = 10,
+        timeout_seconds: int = 300,
+        templates_digest: str = "",
+        rulepack_ref: MaterialSelector | None = None,
+        credential_id: str | None = None,
+    ) -> dict:
+        if rulepack_ref is not None:
+            rulepack_ref = self._session.versions.resolve(rulepack_ref).model_dump(
+                exclude_none=True
+            )
+        return await self.contractor_trusted_call(
+            url=url,
+            template_ids=template_ids,
+            tags=tags,
+            severity=severity,
+            rate_limit=rate_limit,
+            timeout_seconds=timeout_seconds,
+            templates_digest=templates_digest,
+            rulepack_ref=rulepack_ref,
+            credential_id=credential_id,
+        )
+
+    async def contractor_trusted_call(
         self,
         url: str,
         template_ids: str = "",
@@ -1024,7 +1054,7 @@ class SQLMapTool(ScanTool):
         level: sqlmap test coverage level, 1 through 5; defaults to 1.
         risk: sqlmap test risk level, 1 through 3; defaults to 1.
         timeout_seconds: Total scan deadline, 1 through 3600 seconds; defaults to 300.
-        request_ref: Exact artifact reference with namespace, name and revision.
+        request_ref: Selected material with namespace and name; Runtime fixes its version.
             Contains one schemaVersion 1 HTTP request (method, url, headers, body,
             testParameters). Mutually exclusive with url, parameter, data and cookie.
             Only supported UTF-8 text requests are accepted; see the scan request contract.
@@ -1086,6 +1116,32 @@ class SQLMapTool(ScanTool):
         ]
 
     async def __call__(
+        self,
+        url: str = "",
+        parameter: str = "",
+        data: str = "",
+        cookie: str = "",
+        level: int = 1,
+        risk: int = 1,
+        timeout_seconds: int = 300,
+        request_ref: MaterialSelector | None = None,
+        credential_id: str | None = None,
+    ) -> dict:
+        if request_ref is not None:
+            request_ref = self._session.versions.resolve(request_ref).model_dump(exclude_none=True)
+        return await self.contractor_trusted_call(
+            url=url,
+            parameter=parameter,
+            data=data,
+            cookie=cookie,
+            level=level,
+            risk=risk,
+            timeout_seconds=timeout_seconds,
+            request_ref=request_ref,
+            credential_id=credential_id,
+        )
+
+    async def contractor_trusted_call(
         self,
         url: str = "",
         parameter: str = "",
@@ -1325,7 +1381,7 @@ class FFUFTool(ScanTool):
 
     Args:
         url: HTTP(S) URL containing FUZZ in its path or query, never the authority.
-        wordlist_ref: Exact artifact ref (namespace, name, revision) for text/plain or
+        wordlist_ref: Selected material (namespace, name) for text/plain or
             text/vnd.contractor.wordlist; max 1 MiB, 10000 entries, 4096 bytes per entry.
         rate: Standalone payloads per second, 1 through 1000; defaults to 10.
             Standalone ffuf may retry once outside this limiter. Engagement scans
@@ -1359,6 +1415,36 @@ class FFUFTool(ScanTool):
         return ["-config", str(config)]
 
     async def __call__(
+        self,
+        url: str,
+        wordlist_ref: MaterialSelector,
+        rate: int = 10,
+        match_status: str = "all",
+        filter_status: str = "",
+        filter_size: str = "",
+        filter_words: str = "",
+        filter_lines: str = "",
+        timeout_seconds: int = 300,
+        credential_id: str | None = None,
+    ) -> dict:
+        if wordlist_ref is not None:
+            wordlist_ref = self._session.versions.resolve(wordlist_ref).model_dump(
+                exclude_none=True
+            )
+        return await self.contractor_trusted_call(
+            url=url,
+            wordlist_ref=wordlist_ref,
+            rate=rate,
+            match_status=match_status,
+            filter_status=filter_status,
+            filter_size=filter_size,
+            filter_words=filter_words,
+            filter_lines=filter_lines,
+            timeout_seconds=timeout_seconds,
+            credential_id=credential_id,
+        )
+
+    async def contractor_trusted_call(
         self,
         url: str,
         wordlist_ref: dict[str, str],
@@ -1744,6 +1830,7 @@ class ScanToolsetFactory:
             else None,
             controlled_http=controlled_http,
         )
+        session.versions = resources.selected_versions
         return {name: self._scanners[name](session, metrics) for name in selected}
 
 

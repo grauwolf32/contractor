@@ -20,6 +20,7 @@ from contractor_runtime.contracts.base import MAX_EXACT_INTEGER, RESOURCE_ID_PAT
 from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.common.artifact_visibility import ArtifactObservingTool
+from contractor_runtime.toolsets.common.versions import MaterialSelector, SelectedVersions
 from contractor_runtime.toolsets.security_findings.collection import (
     COLLECTION_MEDIA_TYPE,
     MAX_ARCHIVE_BYTES,
@@ -34,7 +35,6 @@ from contractor_runtime.toolsets.security_findings.reader import ListFindingsToo
 
 class FindingSelector(TypedDict):
     findingId: str
-    revision: int
 
 
 def _identity(value: object) -> bool:
@@ -141,9 +141,15 @@ class ProjectFindingTools:
     name = "project-findings"
 
     def __init__(
-        self, client: ArtifactClient, metrics: ToolMetrics, secrets: tuple[str, ...], namespace: str
+        self,
+        client: ArtifactClient,
+        metrics: ToolMetrics,
+        secrets: tuple[str, ...],
+        namespace: str,
+        versions=None,
     ):
         self.client, self.metrics, self.secrets = client, metrics, secrets
+        self.versions = versions if versions is not None else SelectedVersions()
         self.namespace = namespace
         self.closed = False
         self.__name__ = self.name
@@ -229,14 +235,14 @@ class ProjectFindingTools:
         )
         for item in value["items"]:
             _current(item)
+        self.versions.discover_findings(value["items"])
         return value
 
-    async def read_project_finding(self, finding_id: str, revision: int) -> dict:
+    async def read_project_finding(self, finding_id: str) -> dict:
         """Read current canonical finding metadata at a discovered revision.
 
         Args:
             finding_id: Finding identity returned by list_project_findings.
-            revision: Exact current revision returned by discovery.
 
         Returns:
             Current analyst assessment and original claim metadata. Source refs
@@ -247,10 +253,7 @@ class ProjectFindingTools:
             isinstance(finding_id, str) and RESOURCE_ID_PATTERN.fullmatch(finding_id),
             "findings_arguments_invalid",
         )
-        require(
-            type(revision) is int and 1 <= revision <= MAX_EXACT_INTEGER,
-            "findings_arguments_invalid",
-        )
+        revision = self.versions.finding_revision(finding_id)
         value = await self.invoke(
             "read_project_finding", "GET", f"findings/{finding_id}?revision={revision}"
         )
@@ -274,7 +277,7 @@ class ProjectFindingTools:
 
         Args:
             selection_key: Portable Artifact name identifying this selection.
-            findings: Explicit objects with findingId and revision from discovery.
+            findings: Objects with findingId from discovery; Runtime supplies the version.
             receipt_ids: Optional explicit Project source receipts; absent means none.
                 At most 128 selectors total. Empty arrays explicitly select nothing.
 
@@ -282,10 +285,21 @@ class ProjectFindingTools:
             Exact immutable collection Artifact, snapshot time, entry count and replay marker.
             Use read_finding_selection with artifact.ref to page its retained contents.
         """
+        require(isinstance(findings, list) and len(findings) <= 128, "findings_arguments_invalid")
+        resolved = []
+        for item in findings:
+            object_fields(item, "findingId")
+            require(_identity(item["findingId"]), "findings_arguments_invalid")
+            resolved.append(
+                {
+                    "findingId": item["findingId"],
+                    "revision": self.versions.finding_revision(item["findingId"]),
+                }
+            )
         request = _selection_request(
             {
                 "clientKey": selection_key,
-                "findings": findings,
+                "findings": resolved,
                 "receiptIds": [] if receipt_ids is None else receipt_ids,
             }
         )
@@ -306,6 +320,7 @@ class ProjectFindingTools:
             and type(value["replayed"]) is bool
             and isinstance(value["snapshotAt"], str)
         )
+        self.versions.observe(ref)
         return value
 
 
@@ -332,7 +347,7 @@ class ReadFindingSelection(ArtifactObservingTool):
     description = """Page one explicitly selected exact finding collection.
 
     Args:
-        collection_ref: Exact current-Run artifact.ref returned by select_project_findings.
+        collection_ref: Namespace/name of the collection returned by select_project_findings.
             A declared frozen collection input may also be used explicitly.
         limit: Maximum entries, 1 to 100; defaults to 20.
         cursor: next_cursor from the same exact collection, or omit to begin.
@@ -354,14 +369,10 @@ class ReadFindingSelection(ArtifactObservingTool):
         self.__name__, self.__doc__ = self.name, self.description
 
     async def __call__(
-        self, collection_ref: ArtifactRef, limit: int = 20, cursor: str | None = None
+        self, collection_ref: MaterialSelector, limit: int = 20, cursor: str | None = None
     ) -> dict:
         try:
-            ref = (
-                collection_ref
-                if isinstance(collection_ref, ArtifactRef)
-                else ArtifactRef.model_validate(collection_ref)
-            ).require_exact()
+            ref = self.owner.versions.resolve(collection_ref)
         except (ValueError, TypeError) as error:
             raise FindingsError("findings_arguments_invalid") from error
         require(ref.namespace in {self.owner.namespace, "inputs"}, "findings_arguments_invalid")

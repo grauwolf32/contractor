@@ -67,3 +67,24 @@ def test_selected_versions_bound_preserves_previously_admitted_bases():
     assert versions.base("worker", "n0") == "r1"
     versions.begin_response()
     assert versions.base("worker", "n0") == "r2"
+
+
+def test_material_selectors_reject_versions_and_discovery_survives_response_boundaries():
+    versions = SelectedVersions()
+    ref = ArtifactRef(namespace="inputs", name="proof", revision="pinned")
+    versions.assign([ref])
+    versions.discover_findings([{"findingId": "finding-1", "revision": 3}])
+    for _ in range(3):
+        versions.begin_response()
+        assert versions.resolve({"namespace": "inputs", "name": "proof"}) == ref
+        assert versions.finding_revision("finding-1") == 3
+    with pytest.raises(ToolInputError, match="namespace/name only"):
+        versions.resolve(ref.model_dump())
+    with pytest.raises(ToolInputError, match="not selected"):
+        versions.resolve({"namespace": "inputs", "name": "unknown"})
+    versions.assign([ref, ref.model_copy(update={"revision": "other"})])
+    with pytest.raises(ToolInputError, match="Ambiguous"):
+        versions.resolve({"namespace": "inputs", "name": "proof"})
+    versions.clear()
+    with pytest.raises(ToolInputError, match="discovered"):
+        versions.finding_revision("finding-1")

@@ -71,7 +71,7 @@ func locatedFindingProducer() domainGatewayStage {
 			if !ok {
 				return nil, fmt.Errorf("missing inspected exact source")
 			}
-			return map[string]any{"title": "Query concatenation", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 6}, "cwe": "CWE-89", "evidence_refs": []any{source}}, nil
+			return map[string]any{"title": "Query concatenation", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 6}, "cwe": "CWE-89", "evidence_refs": []any{materialSelector(source)}}, nil
 		}),
 		toolGatewayStep("write_text_artifact", func(request map[string]any) (map[string]any, error) {
 			responses := findingsToolResponses(request, "finding")

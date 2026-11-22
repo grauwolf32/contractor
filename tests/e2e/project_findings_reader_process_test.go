@@ -37,7 +37,7 @@ func projectFindingsReview(t *testing.T, responseFailure string) {
 			if !ok {
 				return nil, fmt.Errorf("missing exact proof")
 			}
-			return map[string]any{"title": fmt.Sprintf("Project problem %03d", index), "description": "An evidenced observed problem in the selected conditions", "evidence_refs": []any{exact}}, nil
+			return map[string]any{"title": fmt.Sprintf("Project problem %03d", index), "description": "An evidenced observed problem in the selected conditions", "evidence_refs": []any{materialSelector(exact)}}, nil
 		}))
 	}
 	seed.steps = append(seed.steps, toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{"name": "report", "text": "Seeded Project problems", "media_type": "text/markdown"})), finalGatewayStep("Project problems retained", map[string]domainArtifactBinding{"report": {namespace: "findings-review", name: "report"}}))
@@ -54,17 +54,17 @@ func projectFindingsReview(t *testing.T, responseFailure string) {
 			return nil, fmt.Errorf("did not finish Project discovery")
 		}
 		item := pages[0]["items"].([]any)[0].(map[string]any)
-		return map[string]any{"finding_id": item["findingId"], "revision": item["revision"]}, nil
+		return map[string]any{"finding_id": item["findingId"]}, nil
 	}), toolGatewayStep("select_project_findings", func(request map[string]any) (map[string]any, error) {
 		pages := findingsToolResponses(request, "list_project_findings")
 		item := pages[0]["items"].([]any)[0].(map[string]any)
-		return map[string]any{"selection_key": "selected-findings", "findings": []any{map[string]any{"findingId": item["findingId"], "revision": item["revision"]}}}, nil
+		return map[string]any{"selection_key": "selected-findings", "findings": []any{map[string]any{"findingId": item["findingId"]}}}, nil
 	}), toolGatewayStep("read_finding_selection", func(request map[string]any) (map[string]any, error) {
 		selected := findingsToolResponses(request, "select_project_findings")
 		if len(selected) != 1 {
 			return nil, fmt.Errorf("no selected snapshot")
 		}
-		return map[string]any{"collection_ref": selected[0]["artifact"].(map[string]any)["ref"]}, nil
+		return map[string]any{"collection_ref": materialSelector(selected[0]["artifact"].(map[string]any)["ref"])}, nil
 	}))
 	for _, evidence := range []bool{false, true} {
 		reader.steps = append(reader.steps, toolGatewayStep("read_artifact", func(request map[string]any) (map[string]any, error) {
@@ -77,7 +77,7 @@ func projectFindingsReview(t *testing.T, responseFailure string) {
 			if evidence {
 				exact = item["evidence"].([]any)[0].(map[string]any)
 			}
-			return exact["ref"].(map[string]any), nil
+			return materialSelector(exact["ref"]), nil
 		}))
 	}
 	reader.steps = append(reader.steps, toolGatewayStep("read_artifact", stageReadArguments("check_results", nil)), toolGatewayStep("write_text_artifact", func(request map[string]any) (map[string]any, error) {

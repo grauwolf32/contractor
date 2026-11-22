@@ -601,3 +601,9 @@ the existing report collector independently of Finding publication. Missing
 concrete request method produces a projection gap rather than an invented member;
 missing response records only the factual request attempt. No target traffic or
 Audit report export is added.
+
+**SMT-R32.** Model import_sitemap_source.artifact_ref contains namespace/name
+only. Runtime resolves a trusted/observed exact selection before dispatching the
+existing format adapter; nested revision fields and unknown/ambiguous materials
+fail before import. Results/provenance retain exact versions. This grants no
+additional access or retention and adds no alternate import mechanism.

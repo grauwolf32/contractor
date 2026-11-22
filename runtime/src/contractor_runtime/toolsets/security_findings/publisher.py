@@ -70,7 +70,26 @@ class FindingPublisher:
         # The publisher lives as long as the allocation's tools.
         self.sources = ExactSourceCache()
 
-    async def submit(
+    def _resolve_evidence_refs(self, refs):
+        if refs is not None and (not isinstance(refs, list) or len(refs) > 256):
+            raise ToolInputError("evidence_refs must be an array of at most 256 selected materials")
+        return [
+            self.resources.selected_versions.resolve(ref).model_dump(exclude_none=True)
+            for ref in refs or []
+        ]
+
+    async def submit(self, **kwargs):
+        with RecordedToolCall(
+            self.metrics,
+            kwargs.get("_tool_name", "finding"),
+            {},
+            secrets=self.secrets,
+            bound_error=_bounded_finding_error,
+        ) as call:
+            kwargs["evidence_refs"] = self._resolve_evidence_refs(kwargs.get("evidence_refs"))
+            return await self._submit(**kwargs, _call=call)
+
+    async def _submit(
         self,
         *,
         title: str,

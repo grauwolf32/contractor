@@ -482,6 +482,7 @@ class WorkerCompletionPipeline:
                 exact = ref.require_exact()
                 if not is_reserved_memory_binding(exact.namespace, exact.name):
                     self.refs.append(exact)
+                    self._resources.selected_versions.observe(exact)
         except Exception:
             # A provenance adapter defect must not turn a completed tool side
             # effect into an invented result. Omitting the ref fails the Stage

@@ -21,6 +21,7 @@ from contractor_runtime.toolsets.common.factory import require_metrics, require_
 from contractor_runtime.toolsets.common.report_observations import REPORT_FORMATS, prepare_report
 from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.common.tool_base import SessionArtifactTool
+from contractor_runtime.toolsets.common.versions import MaterialSelector, ModelArtifacts
 from contractor_runtime.toolsets.sitemap.session import SitemapSession
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -95,7 +96,9 @@ class SitemapToolsetFactory:
         del run_id, workspace, adapter_handles, project_workspace
         require_selected_tools(selected, await self.probe())
         metrics = require_metrics(resources, self.ref)
-        artifact = self._clients(allocation_id, runtime_settings)
+        artifact = ModelArtifacts(
+            self._clients(allocation_id, runtime_settings), resources.selected_versions
+        )
         session = SitemapSession(
             artifact,
             resources.sitemap_read_flush,
@@ -538,7 +541,7 @@ class ImportSitemapSource(_SitemapTool):
 
     Args:
         format: ffuf-report@1 or katana-report@1.
-        artifact_ref: Exact current-Run artifact with namespace, name and revision.
+        artifact_ref: Selected current-Run material with namespace and name.
         idempotency_key: Reuse only for an identical ambiguous operation.
 
     Returns:
@@ -546,6 +549,14 @@ class ImportSitemapSource(_SitemapTool):
     """
 
     async def __call__(
+        self, format: str, artifact_ref: MaterialSelector, idempotency_key: str | None = None
+    ) -> dict:
+        exact = self._client.versions.resolve(artifact_ref)
+        return await self.contractor_trusted_call(
+            format, exact.model_dump(exclude_none=True), idempotency_key
+        )
+
+    async def contractor_trusted_call(
         self, format: str, artifact_ref: dict[str, Any], idempotency_key: str | None = None
     ) -> dict:
         selection = {"format": format, "artifact": artifact_ref}

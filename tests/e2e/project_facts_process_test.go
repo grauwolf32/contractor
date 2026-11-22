@@ -30,7 +30,7 @@ func TestProjectFactsAcrossProcesses(t *testing.T) {
 			if !ok {
 				return nil, fmt.Errorf("missing exact source")
 			}
-			args := map[string]any{"title": fmt.Sprintf("Observation %d", index), "description": "Reported observation from selected material; not independently verified.", "evidence_refs": []any{proof}}
+			args := map[string]any{"title": fmt.Sprintf("Observation %d", index), "description": "Reported observation from selected material; not independently verified.", "evidence_refs": []any{materialSelector(proof)}}
 			if tool == "finding" && severity != "" {
 				args["severity_suggestion"] = severity
 			}
@@ -42,7 +42,7 @@ func TestProjectFactsAcrossProcesses(t *testing.T) {
 		if !ok {
 			return nil, fmt.Errorf("missing original fact evidence")
 		}
-		return map[string]any{"title": "Another title over the same source", "description": "Independent informational submission", "severity_suggestion": "informational", "evidence_refs": []any{proof}}, nil
+		return map[string]any{"title": "Another title over the same source", "description": "Independent informational submission", "severity_suggestion": "informational", "evidence_refs": []any{materialSelector(proof)}}, nil
 	}))
 	producer.steps = append(producer.steps, toolGatewayStep("list_project_findings", fixedArguments(map[string]any{"limit": 100})), toolGatewayStep("select_project_findings", func(request map[string]any) (map[string]any, error) {
 		pages := findingsToolResponses(request, "list_project_findings")
@@ -80,7 +80,7 @@ func TestProjectFactsAcrossProcesses(t *testing.T) {
 			if !ok {
 				return nil, fmt.Errorf("missing source")
 			}
-			return map[string]any{"title": "nginx", "description": "Reported source", "evidence_refs": []any{proof}}, nil
+			return map[string]any{"title": "nginx", "description": "Reported source", "evidence_refs": []any{materialSelector(proof)}}, nil
 		}))
 	}
 	rejected.steps = append(rejected.steps, toolGatewayStep("write_text_artifact", func(request map[string]any) (map[string]any, error) {
