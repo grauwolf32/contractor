@@ -32,7 +32,11 @@ context:
     2026-11-22: accept the distinction between reusable Project facts, exact observations/materials, and evidence
     selected for a specific claim. Fact summaries do not automatically verify their claims; original exact
     sources may be explicitly reused with applicability and attribution preserved. This agreement settles that
-    distinction only, not other open task choices, implementation or merge.'
+    distinction only, not other open task choices, implementation or merge. User decision 2026-11-22: accept
+    sources as the shared model-facing selection of code, HTTP and exact artifact materials for record_evidence,
+    finding and record_fact. Evidence is a relation to the particular check/claim; a Finding need not consume
+    an Audit evidence record or have a hypothesis. Preserve independent owners and reuse exact material bytes.
+    This does not approve unrelated pending choices or authorize implementation/merge.'
   implementation_gate: Keep pending. Do not implement, deploy, launch an Audit or merge this task plan into
     main until the user reviews and agrees to the concrete tasks. Record that agreement and resolve context.decision_needed
     before implementation; task-plan approval alone does not authorize implementation.
@@ -73,6 +77,18 @@ context:
     not automatically independent evidence of its claim. Evidence may also support an exploratory observation
     or a Finding without a hypothesis. These are semantic roles over existing owners/artifacts, not three new
     stores.
+  sources_interface_decision: Use a common sources argument with explicitly supported typed selectors for code,
+    local HTTP request IDs and exact artifacts/material handles. Runtime resolves selectors into exact source
+    descriptors through toolsets.common helpers and owning adapters; no universal obs_id or automatic changes
+    to every reader. For code distinguish an exact pinned source selection from a current workspace capture,
+    preserving source context and rejecting unsupported mappings. Existing source retention can be reused across
+    independent check, Finding and Fact claims; shared bytes are not independent corroboration.
+  finding_publication_review: User question 2026-11-22 prioritizes actual Finding publication. Current demo
+    instruction explicitly says save a supported problem immediately with finding; current ready_to_finish
+    counts result items, not findings, and instrumentation stops before the next model call once complete.
+    A problem described only in rationale can therefore lack a Finding. Review publication-before-submit guidance
+    and any proposed explicit publication obligation separately; no automatic verdict-to-Finding conversion
+    or minimum Finding count has been approved.
 scope:
   in:
   - Rename both model-facing submission tools throughout declarations, selection validation, current templates/instructions,

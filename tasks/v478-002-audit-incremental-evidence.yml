@@ -31,7 +31,11 @@ context:
     2026-11-22: accept the distinction between reusable Project facts, exact observations/materials, and evidence
     selected for a specific claim. Fact summaries do not automatically verify their claims; original exact
     sources may be explicitly reused with applicability and attribution preserved. This agreement settles that
-    distinction only, not other open task choices, implementation or merge.'
+    distinction only, not other open task choices, implementation or merge. User decision 2026-11-22: accept
+    sources as the shared model-facing selection of code, HTTP and exact artifact materials for record_evidence,
+    finding and record_fact. Evidence is a relation to the particular check/claim; a Finding need not consume
+    an Audit evidence record or have a hypothesis. Preserve independent owners and reuse exact material bytes.
+    This does not approve unrelated pending choices or authorize implementation/merge.'
   implementation_gate: Keep pending. Do not implement, deploy, launch an Audit or merge this task plan into
     main until the user reviews and agrees to the concrete tasks. Record that agreement and resolve context.decision_needed
     before implementation; task-plan approval alone does not authorize implementation.
@@ -51,21 +55,21 @@ context:
     adapters own observation extraction; Server owns assignment, authority, exact retention and lifecycle.
     No alternate execution engine or coverage ledger. Update numbered owning specs and all API/wire/schema
     readers with implementation, not in this unapproved plan.
-  decision_needed: 'Review recommendation: explicitly enable bounded automatic capture retention for assigned
-    Audit checks, with an explicit item key in multi-item invocations; supplement it with one small record_observation
-    tool for semantic notes and grouping exact handles. Alternative: require explicit record_observation selection
-    for every capture, reducing retained traffic but losing unselected observations at a hard stop. These alternatives
-    have different persistence guarantees; settle before implementation. The recommended record_observation
-    name and precise note fields are also proposed, not approved; use existing exact observation handles plus
-    bounded interpretation/tested-condition/limitation fields, with no final verdict or fabricated system facts.'
+  decision_needed: 'Collection policy still needs review: bounded automatic retention of assigned observations
+    vs explicit durable selection through record_evidence during work. Recommendation after the source-path
+    review: start with explicit selection using existing captures/pinned sources and guarantee acknowledged
+    records only; do not promise retention of every pre-selection observation. Resolve exact selector fields,
+    bounded annotation fields and revision correction before implementation. sources and independent check/Finding/Fact
+    semantics are agreed.'
   sources:
   - runtime/src/contractor_runtime/toolsets/common/http_capture.py
   - runtime/src/contractor_runtime/toolsets/common/http_publication.py
   - runtime/src/contractor_runtime/toolsets/audit_results/collector.py
-  boundary_decision: Extend the existing capture publisher and Task-owned Artifact attachment/hold path. Shared
-    toolset plumbing lives in toolsets.common, with explicit tool opt-in; the HTTP adapter produces HTTP facts.
-    First production consumers are HTTP exchanges and explicitly selected exact input-artifact evidence. This
-    is not a global trace archive or new persistence service.
+  boundary_decision: Use one Runtime source-preparation mechanism in toolsets.common with explicit adapters
+    for existing HTTP captures, exact source/proof and artifacts. record_evidence uses the existing Audit owner
+    for early acceptance and holds; finding and record_fact keep their existing Project Finding intake/receipts.
+    Source selection does not require prior Audit evidence creation. Both existing HTTP intake forms must preserve
+    provenance, bounds, masking and receipt behavior; transport unification is not a new requirement.
   facts_evidence_decision: Observation/material is an exact retained source. A Project fact is a reusable attributed
     statement about a scoped system, with its own sources and observation context; it is not universally true
     merely because it is called a fact. Evidence is the explicit use of selected sources for an assigned check/claim
@@ -74,8 +78,14 @@ context:
     not automatically independent evidence of its claim. Evidence may also support an exploratory observation
     or a Finding without a hypothesis. These are semantic roles over existing owners/artifacts, not three new
     stores. Keep record_fact on its existing deliberate Project publication path; no automatic publication
-    of every observation as a fact. The proposed check-local annotation tool name and collection policy remain
-    open in decision_needed.
+    of every observation as a fact. The check-local tool is record_evidence; collection policy and detailed
+    fields remain open in decision_needed.
+  sources_interface_decision: Use a common sources argument with explicitly supported typed selectors for code,
+    local HTTP request IDs and exact artifacts/material handles. Runtime resolves selectors into exact source
+    descriptors through toolsets.common helpers and owning adapters; no universal obs_id or automatic changes
+    to every reader. For code distinguish an exact pinned source selection from a current workspace capture,
+    preserving source context and rejecting unsupported mappings. Existing source retention can be reused across
+    independent check, Finding and Fact claims; shared bytes are not independent corroboration.
 scope:
   in:
   - Persist bounded capture/observation artifacts and their exact Task/attempt association during execution
@@ -86,6 +96,10 @@ scope:
     clearly attributed as interpretations.
   - Preserve independent Finding receipts and reuse the same exact evidence without copying arbitrary traces
     into the result.
+  - Apply the agreed common sources selection to record_evidence, finding and record_fact, including current
+    general/code/HTTP/trace consumers. Replace superseded model-facing source arguments consistently, with
+    versioned catalog identities; do not require a new generic observation registry or an Audit for incidental
+    Project publications.
   out:
   - Automatically retaining every tool input/output, raw credentials, full transcripts or all direct-Run HTTP
     traffic.
@@ -101,9 +115,9 @@ requirements:
     retention during work, so permitted Run deletion cannot destroy them before a final submit. A pointer alone
     is not a hold.
 - id: R3
-  text: Distinguish factual adapter observations from model interpretation. A record_observation note can cite
-    exact admitted handles and describe tested conditions, uncertainty and role; it cannot assert trusted provenance
-    or system-confirmed coverage.
+  text: Distinguish factual adapter observations from model interpretation. A record_evidence annotation can
+    cite exact admitted handles and describe tested conditions, uncertainty and role; it cannot assert trusted
+    provenance or system-confirmed coverage.
 - id: R4
   text: Reuse current sanitization and evidence envelopes. Do not automatically promote materials, notes, status
     codes or tool-call counts into verified evidence of a security claim.
@@ -134,6 +148,11 @@ requirements:
     without duplicating bytes or claiming independent corroboration. A note/report supports that someone recorded
     a claim, not automatic verification of the underlying system property. No recursive fact/source crawler
     or causal graph engine is introduced.
+- id: R11
+  text: sources identifies materials, not preexisting Audit evidence records. Each consumer supplies its own
+    claim and authority; Finding/Fact callers may publish independently of a hypothesis. Reuse exact prepared
+    source artifacts and keep current source-specific validation, HTTP/Caido identity and trace mapping guarantees.
+    Model arguments never grant Project/Audit/Run/hypothesis identity.
 failure_outcomes:
 - operation: Publish an observation and attach its exact artifact to Audit-owned retention
   permanent: Reject invalid membership, foreign/exact-revision mismatches, quota violations and malformed input
@@ -199,6 +218,12 @@ acceptance_criteria:
   then: Primary source and reported statement remain distinguishable; no automatic promotion or authority expansion
     occurs, shared evidence is not independent corroboration, and uncertain applicability stays attributed/unknown
     rather than deterministically certified.
+- id: A5
+  given: Code, HTTP and artifact sources selected for an Audit check, an incidental Finding and a Project fact
+  when: The real model-facing facades resolve and publish the same source materials
+  then: All use the common selector contract without universal obs IDs or an obligatory Audit evidence record;
+    trusted origins remain separate, exact sources survive their owner lifecycle and no new independent evidence
+    store is introduced.
 tests:
 - command: make test-runtime
   covers:
@@ -206,13 +231,15 @@ tests:
   - A2
   - A3
   - A4
+  - A5
 - command: go test -tags=integration -count=1 ./internal/artifacts/... ./internal/auditstore/... ./internal/auditservice/...
-    ./internal/auditimport/... ./internal/httpapi/privateartifacts/...
+    ./internal/auditimport/... ./internal/httpapi/privateartifacts/... ./internal/findingintake/...
   covers:
   - A1
   - A2
   - A3
   - A4
+  - A5
 - command: make test-http-caido-e2e
   covers:
   - A1
@@ -242,6 +269,13 @@ tests:
   - A1
   - A2
   - A3
+- command: make test-findings-e2e
+  covers:
+  - A4
+  - A5
+- command: make test-code-analysis-e2e
+  covers:
+  - A5
 verification_notes: Commands below are required implementation gates, not results of task planning. Use one
   owned disposable PostgreSQL database, explicitly drop it after pools/processes stop, and never implicitly
   enable CONTRACTOR_TEST_HEAVY_IO. Zero matched cases and skipped required database/process cases fail acceptance.
