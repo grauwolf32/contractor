@@ -1,0 +1,116 @@
+schema_version: '1.0'
+id: V476-002
+title: Expose effective HTTP limits in the existing tool description
+milestone: model-runtime-guidance-2026-11
+epic: http-tools
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V475-001
+languages:
+- python
+- markdown
+goal: A Worker can see the allocation's configured HTTP rate/concurrency limits and the effective interactive
+  body bounds alongside its authorized scope, before choosing an HTTP action.
+demonstration: A controlled HTTP tool built from a real allocation transport exposes configured limits and
+  actual enforced body ceilings in its ADK declaration. A scripted request at each body boundary is admitted
+  or rejected consistently with that declaration, without credential values entering the model input.
+context:
+  authority: 'User request 2026-11-22: plan runtime guidance and tool-owned repeat rules enforced by a separate
+    ADK plugin. Planning only; implementation, live experiments and deployment are not assigned. User testing
+    constraint: run only checks for changed components, not full Runtime, Go, lint or release suites.'
+  baseline: Local main 4807373ec907584ac7b44432faf4ff860eafb1bf; Python ADK 2.15.0 and Go ADK 2.8.0 are merged.
+    Recheck the affected owners if main advances.
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R145
+  - docs/spec/tools/toolsets.md#TLS-R33
+  - docs/spec/platform/limits.md
+  sources:
+  - runtime/src/contractor_runtime/toolsets/http/controlled.py
+  - runtime/src/contractor_runtime/toolsets/http/tools.py
+  - runtime/src/contractor_runtime/adapters/http_transport.py
+  - runtime/src/contractor_runtime/core/http_limits.py
+  design_decision: 'Agent proposal: extend ControlledHTTPSession.scope_description, already included in http_request''s
+    declaration. The transport owns configured limits; each interactive tool owns any stricter bound. A dynamic
+    per-turn status block would add repeated content without more useful information because these selections
+    are allocation-stable. Reopen only if an actual limit becomes mutable in an allocation.'
+  implementation_boundary: Update the owning numbered specifications with implementation; these tasks describe
+    planned behavior, not shipped behavior. Reuse state, budget, validation and receipt owners. No hint registry,
+    status tool, new persistence, generic policy DSL or new public/wire fields.
+scope:
+  in:
+  - Configured RPS/concurrency and effective request/response body bounds with clear units and allocation scope.
+  - A shared effective calculation used by enforcement and the displayed values where the existing code lacks
+    one.
+  - Regression coverage of safe existing ControlledHTTPError diagnostics and possibly-sent outcomes.
+  out:
+  - Total or remaining HTTP request quotas, transport policy changes, new bridge APIs and fresh rate accounting.
+  - Broad HTTP/Caido interface redesign, repeat blocking for active requests, credentials or cookie contents.
+requirements:
+- id: R1
+  text: Preserve omitted engagement fields as absent limits. Explain that absence removes only the engagement
+    bound, while ordinary tool/global limits still apply. Never invent a remaining-request counter or interpret
+    allocation-local RPS/concurrency as a global Run/Audit quota.
+- id: R2
+  text: Project effective bounds from the same owners/helpers used by the interactive request path, including
+    stricter tool ceilings. Do not label configured_limits() alone as effective limits. Include only a fixed
+    set of safe scalar fields and units; do not dump transport state or environment settings.
+- id: R3
+  text: Preserve authorized scope/routes/credential IDs and their existing bounds. Add the limit description
+    once at tool construction; no model-call callback, new tool argument or new wire field is needed.
+- id: R4
+  text: Keep local errors in the existing diagnostic_message/model_details contract. A possibly-sent failure
+    keeps its unknown-outcome/no-automatic-repeat explanation; this task does not introduce semantic retries.
+failure_outcomes:
+- operation: Build the model-facing description of an existing controlled HTTP session
+  permanent: Invalid configuration fails at its existing validation boundary; never display guessed defaults.
+  retryable: This projection adds no external call, retry or new HTTP outcome.
+  ambiguous: Existing possibly-sent classification and retained request evidence remain unchanged; no replay
+    is initiated.
+  cancelled: Existing transport owner joins pending requests and releases allocation resources.
+  timeout: Existing request, admission and allocation deadlines continue to enforce their own bounds.
+cardinality:
+- collection: Safe scope plus HTTP limit metadata in one selected tool declaration
+  expected: One allocation scope and at most four configured limit fields plus effective body ceilings.
+  maximum: Existing engagement scope bounds; constant-sized added scalar metadata.
+  bound: No request/history list reads, quota scans or per-turn rebuilding; no weakening of the existing scope
+    projection limit.
+lifecycle:
+- entity: Allocation-stable HTTP declaration text
+  delete: Discard with the selected toolset on allocation release.
+  cascade: Transport lifecycle, credential cleanup and rate-state reset remain unchanged.
+  retention: No additional persistent copy or private authentication material.
+acceptance_criteria:
+- id: A1
+  given: Omitted, partial and fully configured engagement HTTP limits
+  when: The actual selected http_request declaration is built
+  then: It truthfully describes allocation-local limits and absence, units and effective tool ceilings, without
+    a total quota.
+- id: A2
+  given: Engagement body limits both below and above interactive tool ceilings
+  when: Real controlled-session requests run at and across each effective boundary
+  then: Displayed values match enforcement; omitted fields do not disable ordinary tool bounds.
+- id: A3
+  given: Credential-bearing allocations, rate waits, cancellation and possibly-sent transport errors
+  when: Descriptions and existing errors are rendered
+  then: No secret appears, current error classifications remain intact, and no automatic replay or new cleanup
+    state is introduced.
+tests:
+- command: cd runtime && uv run pytest tests/test_http_toolset.py tests/test_http_target_policy.py tests/test_controlled_http_outcomes.py
+    tests/test_http_engine.py tests/test_http_retries.py tests/test_http_toolset_lifecycle.py tests/test_http_caido_redaction.py
+  covers:
+  - A1
+  - A2
+  - A3
+- command: cd runtime && uv run ruff check src/contractor_runtime/toolsets/http src/contractor_runtime/adapters/http_transport.py
+    src/contractor_runtime/core/http_limits.py
+  covers:
+  - A1
+  - A2
+  - A3
+- command: python3 scripts/check_spec.py
+  covers:
+  - A1
+  - A2
+  - A3

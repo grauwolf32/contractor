@@ -1,0 +1,187 @@
+schema_version: '1.0'
+id: V476-003
+title: Reject consecutive redundant artifact reads through tool-owned repeat rules
+milestone: model-runtime-guidance-2026-11
+epic: planner-worker
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V475-001
+languages:
+- python
+- markdown
+goal: Repeated identical exact artifact reads receive an actionable refusal before repeating work, while the
+  Worker can correct its next action and legitimately reread evidence after compaction.
+demonstration: A real ADK Worker calls read_artifact with the same exact revision/window on three successive
+  turns. The first two succeed; the third reaches history/metrics and consumes tool capacity but does not run
+  the callable. The Worker then reads another window and continues. After a committed checkpoint the original
+  read is admitted again, including native image delivery. A1-A4 cover the actual Runner path.
+context:
+  authority: 'User request 2026-11-22: plan runtime guidance and tool-owned repeat rules enforced by a separate
+    ADK plugin. Planning only; implementation, live experiments and deployment are not assigned. User testing
+    constraint: run only checks for changed components, not full Runtime, Go, lint or release suites. User
+    decisions 2026-11-22: the tool owns repeat semantics; a separate ADK plugin enforces them. Allow two identical
+    consecutive calls and reject the third and later calls in that series; the Worker continues under its ordinary
+    budgets, without a new automatic stop. First scope is read_artifact with an explicitly supplied exact revision.
+    Only consecutive calls count; reset the series after a successfully committed compaction checkpoint. Other
+    tools retain their behavior. The follow-up confirmation explicitly accepts this scope and checkpoint reset.'
+  baseline: Local main 4807373ec907584ac7b44432faf4ff860eafb1bf; Python ADK 2.15.0 and Go ADK 2.8.0 are merged.
+    Recheck the affected owners if main advances.
+  specification:
+  - docs/spec/tools/toolsets.md#TLS-R39
+  - docs/spec/artifacts/artifact-store.md#ART-R117
+  - docs/spec/execution/worker.md#WRK-R23
+  - docs/spec/execution/worker.md#WRK-R190
+  - docs/spec/execution/worker.md#WRK-R192
+  - docs/spec/execution/worker.md#WRK-R200
+  sources:
+  - runtime/src/contractor_runtime/worker/function_tools.py
+  - runtime/src/contractor_runtime/worker/instrumentation.py
+  - runtime/src/contractor_runtime/worker/runtime.py
+  - runtime/src/contractor_runtime/toolsets/run_artifacts/tools.py
+  - runtime/src/contractor_runtime/toolsets/common
+  design_decision: Keep a minimal internal rule/result contract in toolsets.common, without importing Worker
+    or ADK into tools. The callable decides equivalence, relevant resource state and safe reason; the ADK plugin
+    owns admission, bounded series tracking and lifecycle. Do not switch on tool names in the plugin. No rule
+    means no suppression. Keep the descriptor internal, not an LLM-supplied policy argument. A global same-JSON
+    hash is simpler but incorrectly treats mutable reads, polling and active commands as redundant. Reopen
+    coverage only with a concrete tool-owned state/outcome rule and its regressions.
+  sdk_evidence: The pinned ADK plugin manager stops a callback chain at the first non-None return. Instrumentation
+    must admit/count before repeat rejection, and observe the final refusal exactly once. Raw-argument validation
+    can return earlier; its existing outcome must remain visible and must not be bypassed.
+  implementation_boundary: Update the owning numbered specifications with implementation; these tasks describe
+    planned behavior, not shipped behavior. Reuse state, budget, validation and receipt owners. No hint registry,
+    status tool, new persistence, generic policy DSL or new public/wire fields.
+scope:
+  in:
+  - Separate ADK repeat plugin, minimal callable-owned rule and its first production consumer in read_artifact.
+  - Consecutive-series semantics, logical invocation/checkpoint lifecycle, safe refusal and truthful existing
+    accounting.
+  - Text windows and current-context image rereading, concurrent reservations and actual SDK callback short
+    circuits.
+  out:
+  - Versionless reads, artifact writes/publications, findings, Audit submissions, HTTP requests, polling and
+    shell commands.
+  - Go Planner repeat suppression, A-B-A cycles, semantic similarity, automatic result replay, new receipts
+    and early Worker termination.
+requirements:
+- id: R1
+  text: The rule for a valid explicit revision identifies namespace/name/revision and the effective text window
+    (including line_offset and defaults); preserve types, string bytes and array order. Do not coerce invalid
+    inputs or hide undeclared arguments. Function-call IDs and injected contexts are not equivalence keys.
+    A versionless read has no rule and interrupts an existing series.
+- id: R2
+  text: 'Admission order defines consecutiveness across model turns: A,A,A rejects the third; A,B,A starts
+    a new A series. Any different model-selected tool/argument call breaks the old series, including calls
+    without rules and validation-rejected calls. ADK internal retries are not new model calls. Rejected repeats
+    do not themselves reset the series. Do not keep a map of every historic argument.'
+- id: R3
+  text: Count successful equivalent reads plus in-flight reservations toward the allowance of two. Reserve
+    capacity atomically for concurrent calls without holding a lock across tool work. Final outcomes settle
+    reservations; failed/cancelled reads release their reservation rather than establish successful reuse.
+    Retryable read failures remain retryable through the existing owner, and every admitted or rejected attempt
+    still consumes ordinary tool budget. Late completions from an older series or generation cannot reset or
+    poison the current series.
+- id: R4
+  text: Reset at a new logical invocation and a successfully committed checkpoint, never on an SDK turn-ID
+    change, attempted/failed compaction or refused duplicate. Failed compaction still follows its existing
+    terminal outcome. Image results whose attachment is no longer available in current context must be eligible
+    for reread through the existing image owner; no new image cache or base64 history is added.
+- id: R5
+  text: Return a bounded nonretryable tool-result diagnostic (proposed code tool_repeat_limit) before callable
+    work, with the tool-owned reason and a concrete correction such as using the returned next position or
+    existing result. Nonretryable describes the unchanged refused action, not Worker failure. Do not echo input
+    strings, payloads or secret-bearing keys; never return a cached result as fresh success.
+- id: R6
+  text: Keep blocked calls in the normal model history, tool failure metrics and tool budget exactly once.
+    Use the existing invocation history/instrumentation path; account for pinned ADK short-circuit order and
+    raw-argument rejections. A neutral admission notification is permitted if needed to observe any series-breaking
+    call, but repeat decisions/state must stay in the separate plugin/tool contract.
+- id: R7
+  text: Derive the short static repeat description and enforcement from the same tool-owned policy; avoid independent
+    threshold literals. Register the rule's limit/error with implementation. Keep domain CAS, receipts, retry
+    classifications and hard-budget stop behavior unchanged; add no force/retry override.
+failure_outcomes:
+- operation: Admit an equivalent model tool call
+  permanent: The third consecutive redundant read receives tool_repeat_limit before work; Worker remains active
+    and the attempt consumes ordinary tool budget.
+  retryable: Underlying retryable read failures do not establish successful reusable output or consume successful-repeat
+    allowance; existing transport retries remain inside one admitted operation.
+  ambiguous: No mutation is introduced; the limiter neither replays nor reconciles domain writes and never
+    infers that an unknown outcome succeeded.
+  cancelled: Settle admitted reservations and history through existing owners; release all repeat state after
+    invocation work has joined.
+  timeout: Existing invocation/read timeouts remain authoritative; no repeat timer, sleep or independent timeout
+    is introduced.
+cardinality:
+- collection: One invocation's current consecutive series and in-flight reservations
+  expected: One key/counter plus zero to two reservations for equivalent reads.
+  maximum: One current series; settling entries bounded by already admitted in-flight tool calls under existing
+    call/window limits.
+  bound: O(1) series state and bounded keys/digests from validated fields; no history scans, raw payload retention
+    or new persistent store.
+lifecycle:
+- entity: Repeat series and pending admission reservations
+  delete: Invocation owner clears them after cancellation/completion and joined tool work; plugin is not shared
+    across logical invocations.
+  cascade: A committed checkpoint advances the generation and starts an empty series without resetting cumulative
+    budgets.
+  retention: Private transient state only; existing redacted outcome history records the rejected call, never
+    private argument hashes as telemetry.
+acceptance_criteria:
+- id: A1
+  given: The actual Worker Runner with read_artifact and a scripted model issuing equivalent calls with different
+    function-call IDs
+  when: It emits A,A,A,A across turns, then a different window B and A
+  then: Only the first two A operations run before the interruption; both refusals count once, B and the new
+    A run, and Worker can finish normally.
+- id: A2
+  given: Default/explicit-default windows, changed revisions or offsets, versionless reads, unrelated tools
+    and raw invalid arguments
+  when: Consecutive sequences are admitted
+  then: Only equivalent valid exact reads are guarded; all other calls preserve validation and interrupt the
+    prior series without weakening strict arguments.
+- id: A3
+  given: Successful/failed compaction, new logical invocations and text/image evidence reads
+  when: Identical calls occur across those boundaries
+  then: A committed checkpoint/new invocation permits rereading; an SDK turn does not reset the series, failed
+    compaction does not forge a reset, and required native images remain deliverable.
+- id: A4
+  given: Parallel duplicate calls, delayed old-generation completions, retryable read failures, cancellation
+    and budget exhaustion
+  when: The pinned SDK executes admission and settlement callbacks
+  then: Reservations prevent excess work, failures do not poison legitimate retries, each refusal is recorded
+    once, existing failures win correctly and cleanup leaves no state or task.
+- id: A5
+  given: Maximum valid argument sizes, invalid/secret-bearing inputs and tools with no repeat rule
+  when: Rules, descriptions and diagnostics are exercised
+  then: Work/storage stay bounded, safe text matches enforcement, no private payload escapes, and the plugin
+    has no tool-name dispatch table.
+tests:
+- command: cd runtime && uv run pytest tests/test_tool_repeats.py tests/test_run_artifacts_toolset.py tests/test_artifact_images.py
+    tests/test_worker_function_tools.py tests/test_instrumentation.py tests/test_worker_history.py tests/test_worker_compaction.py
+    tests/test_adk_runtime_call_limits.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: cd runtime && uv run ruff check src/contractor_runtime/worker src/contractor_runtime/toolsets/common
+    src/contractor_runtime/toolsets/run_artifacts tests/test_tool_repeats.py
+  covers:
+  - A2
+  - A4
+  - A5
+- command: cd runtime && uv run lint-imports
+  covers:
+  - A5
+- command: python3 scripts/check_spec.py
+  covers:
+  - A1
+  - A3
+  - A5
+verification_policy: Add test_tool_repeats.py as part of this implementation and use the actual pinned ADK
+  Runner, not only direct plugin method tests. A fake Artifact client may cover pure reads with strict validation;
+  combined production ArtifactStore coverage belongs to V476-005. No full Runtime or release gate.
