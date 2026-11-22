@@ -6,7 +6,8 @@ epic: execution-core
 kind: defect
 introduced_by: V107-001
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 23c5cf2f27a1fa11ce3b5c4ff521a3a68524cb7f
 depends_on: []
 languages: [go, python, markdown]
 goal: Independent process test Servers can run concurrently without competing for the database-wide active-Server lease.
@@ -49,3 +50,5 @@ tests:
   covers: [A3]
 - command: make lint
   covers: [A1, A2, A3]
+
+verification_results: "Actual two-Server/Runtime regression and database cleanup pass (27.337s); the same test rejects the original schema-only helper. Full internal/app package passes (15.807s), lease integration passes under race (4.270s), and make lint passes. Full Findings gate is additionally running on the immutable implementation in its own worktree."
