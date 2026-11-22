@@ -333,7 +333,7 @@ Its model-facing shape is:
 ```text
 submit_check_result(
   item_key, rationale, tested_conditions, limitations,
-  evidence=[], verdict=None, http_request_ids=[], expected_revision=None
+  evidence=[], verdict=None, http_request_ids=[]
 )
 ```
 
@@ -383,28 +383,31 @@ recorded identical members are replays and absent members are creates. Any
 changed existing member conflicts and leaves the entire collection unchanged
 (FAIL-AWC-2).
 
-**AWC-R42.** Corrections use scalar calls with `expected_revision`; the batch
-form does not silently replace items.
+**AWC-R42.** Corrections use scalar calls for the same item key; the batch
+form does not silently replace items. No model-supplied revision or replacement
+flag is required.
 
 **AWC-R43.** Each accepted item has an invocation-local positive revision,
 starting at 1.
 
-**AWC-R44.** In a scalar submission, an absent `expected_revision` creates an
-unrecorded item.
+**AWC-R44.** A scalar submission creates an unrecorded item. Runtime captures
+the internal item generation before asynchronous preparation.
 
 **AWC-R45.** Identical canonical content repeated without a revision returns
 the existing receipt without incrementing the revision (FAIL-AWC-2).
 
-**AWC-R46.** Different content without the current `expected_revision`
-conflicts (FAIL-AWC-2).
+**AWC-R46.** Different content in a subsequent model response replaces the
+previous conclusion. Different sibling updates in one model response share its
+starting generation; at most one can replace the item (FAIL-AWC-2).
 
-**AWC-R47.** An explicit update with the current revision atomically replaces
-the item and increments its revision; a stale revision fails without mutation
-(FAIL-AWC-2).
+**AWC-R47.** Runtime atomically replaces an item against its captured internal
+generation and increments its revision. A stale admitted operation fails without
+mutation. Compaction preserves the collection and its generations (FAIL-AWC-2).
 
-**AWC-R48.** A retry of an already applied explicit update returns its receipt
-only when the expected revision and the content match that immediately
-preceding update (FAIL-AWC-2).
+**AWC-R48.** Identical current canonical content returns its current receipt.
+A technical retry preserves its original admitted generation and cannot replay
+old content over a newer conclusion. A new later model call with that old
+content is a new semantic replacement, allowed before sealing (FAIL-AWC-2).
 
 **AWC-R49.** A receipt reports `status: recorded`, the item key and
 revision(s), the accepted count, the total count, the missing item keys and
@@ -774,7 +777,7 @@ not complete the invocation a second time (FAIL-AWC-6).
 `passthrough@1` Worker and no target summarizer.
 
 **AWC-R122.** Its completion-specific instruction explains scalar `item_key`
-submissions, `expected_revision`, local `recorded` receipts, truthful gaps and
+submissions, Runtime-owned correction generations, local `recorded` receipts, truthful gaps and
 Runtime-owned ZIP publication.
 
 **AWC-R123.** Both failed and interrupted transitions end the child Run; the

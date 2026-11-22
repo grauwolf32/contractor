@@ -2154,3 +2154,17 @@ reserve or additional calls. Compactor, finalizer and summarizer requests
 receive no such block. Preparation replaces only its own request object,
 never persists events or modifies authored instructions (LIM-WRK-39). There
 is no independent counter store; existing budget/stop rules remain authoritative.
+
+**WRK-R204.** The Worker clears private selected-version bases at logical
+invocation entry/exit and freezes them before each main-model request. Sibling
+model tool calls share that starting view. A committed checkpoint preserves
+selected versions independently of its model-authored summary and the reset
+repeat series. Artifact-owned write semantics and bounds are ART-R147.
+
+**WRK-R205.** Runtime renders an exact start readCursor beside each named input
+ref in the task prompt. The cursor owner shares the logical invocation lifetime
+and survives committed compaction; invocation exit rotates its key. V476
+admission decodes cursor-selected exact windows without I/O and uses their
+actual ref/window and image generation. Fresh namespace/name reads remain
+unguarded and interrupt an exact-read series. Revision metadata stays visible
+but is not a model input precondition or a source of recovered authority.

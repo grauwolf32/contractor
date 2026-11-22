@@ -158,7 +158,7 @@ func basicReportStage() domainGatewayStage {
 func basicConclusionStage(withFinding bool) domainGatewayStage {
 	stage := domainGatewayStage{name: "basic-check", tools: []string{"list_artifacts", "read_artifact", "write_text_artifact", "finding", "read_file", "read_audit_task", "submit_check_result", "submit_check_results"}, steps: []domainGatewayStep{
 		toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
-		toolGatewayStep("read_artifact", fixedArguments(map[string]any{"namespace": "inputs", "name": "material", "revision": nil})),
+		toolGatewayStep("read_artifact", fixedArguments(map[string]any{"namespace": "inputs", "name": "material"})),
 		toolGatewayStep("read_file", fixedArguments(map[string]any{"path": "app.py", "start_line": 1, "max_lines": 100})),
 	}}
 	if withFinding {
@@ -167,7 +167,7 @@ func basicConclusionStage(withFinding bool) domainGatewayStage {
 			if !ok {
 				return nil, fmt.Errorf("assigned exact source was not read")
 			}
-			return map[string]any{"title": "Query concatenation in lookup", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 10}, "cwe": "CWE-89", "evidence_refs": []any{evidence}}, nil
+			return map[string]any{"title": "Query concatenation in lookup", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 10}, "cwe": "CWE-89", "evidence_refs": []any{materialSelector(evidence)}}, nil
 		}))
 	}
 	stage.steps = append(stage.steps, toolGatewayStep("submit_check_result", auditResultArguments(map[string]any{"rationale": findingsEvidence, "tested_conditions": []string{"selected source inspected; no external target action"}, "limitations": []string{"No live exploit was executed"}, "evidence": []string{"evidence-000", "evidence-001"}})), finalGatewayStep("Recorded exploration", nil))

@@ -128,8 +128,9 @@ class TraceFindingPublisher(FindingPublisher):
             secrets=self.secrets,
             bound_error=_bounded_finding_error,
         ) as call:
+            kwargs["evidence_refs"] = self._resolve_evidence_refs(kwargs.get("evidence_refs"))
             prepared = await self._prepare(kwargs)
-            return await super().submit(**prepared, _call=call)
+            return await super()._submit(**prepared, _call=call)
 
     async def _prepare(self, kwargs: dict) -> dict:
         context = kwargs["context"]

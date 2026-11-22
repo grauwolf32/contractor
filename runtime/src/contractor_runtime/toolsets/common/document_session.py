@@ -29,7 +29,6 @@ class DocumentSession[D]:
     max_bytes: int
     reload_tool: str
     read_tool: str
-    seed_revision_message: str
     seed_too_large_message: str
     seed_media_type_message: str
     not_loaded_message: str
@@ -66,20 +65,18 @@ class DocumentSession[D]:
         *,
         namespace: str,
         name: str,
-        revision: str | None,
         target_name: str,
-        expected_revision: str | None,
     ) -> dict[str, Any]:
+        expected_revision = self._client.versions.base(self._namespace, target_name)
         validate_target_name(target_name)
         require_model_visible_binding(namespace, name)
         require_model_visible_binding(self._namespace, target_name)
-        if namespace != self._namespace and revision is None:
-            raise ToolInputError(self.seed_revision_message)
-        source_ref = ArtifactRef(
-            namespace=namespace,
-            name=name,
-            **({"revision": revision} if revision is not None else {}),
+        source_ref = (
+            ArtifactRef(namespace=namespace, name=name)
+            if namespace == self._namespace and name == target_name
+            else await self._client.select(namespace, name)
         )
+        revision = source_ref.revision
         async with self._lock:
             try:
                 value = await self._client.read_artifact(source_ref, max_bytes=self.max_bytes)
@@ -168,8 +165,14 @@ class DocumentSession[D]:
         """Write bytes that a preparation rendered from a validated document."""
 
         require_model_visible_binding(self._namespace, target_name)
-        return await write_document_exact(
-            self._client,
+        if self._client.versions.base(self._namespace, target_name) != expected_revision:
+            raise ToolInputError(
+                "Document changed in this response; reload before editing", code="document_changed"
+            )
+        target = ArtifactRef(namespace=self._namespace, name=target_name)
+        self._client.versions.admit_write(target)
+        result = await write_document_exact(
+            self._client.client,
             ArtifactRef(namespace=self._namespace, name=target_name),
             data=data,
             media_type=self.media_type,
@@ -178,6 +181,8 @@ class DocumentSession[D]:
             reload_tool=self.reload_tool,
             read_tool=self.read_tool,
         )
+        self._client.versions.observe(result.artifact)
+        return result
 
 
 def validate_target_name(value: str) -> None:

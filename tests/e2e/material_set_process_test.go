@@ -50,7 +50,7 @@ func TestWorkflowMaterialSetsAcrossProductionProcesses(t *testing.T) {
 }
 
 func materialSetReadSteps() []domainGatewayStep {
-	steps := []domainGatewayStep{toolGatewayStep("read_artifact", stageRefArguments("materials", nil))}
+	steps := []domainGatewayStep{toolGatewayStep("read_artifact", stageReadArguments("materials", nil))}
 	for _, index := range []int{0, 16} {
 		steps = append(steps, toolGatewayStep("read_artifact", func(request map[string]any) (map[string]any, error) {
 			responses := findingsToolResponses(request, "read_artifact")
@@ -90,7 +90,7 @@ func installMaterialSetProgram(t *testing.T, root string) {
 	}
 	p := profile.Spec
 	p.Inputs = map[string]auditcontract.ProgramInput{"materials": {Required: true, MediaTypes: []string{"application/json"}}}
-	p.Workflows = map[string]auditcontract.ProgramWorkflow{"generate": {Ref: "audit-hypothesis-generation@2", Inputs: map[string]auditcontract.InputMapping{"materials": {Source: "audit-input", Name: "materials"}, "context": {Source: "task-context"}, "analysis": {Source: "prior-results"}, "results": {Source: "task-results"}}, Parameters: map[string]string{}, Outputs: map[string]string{"proposals": "proposals"}}}
+	p.Workflows = map[string]auditcontract.ProgramWorkflow{"generate": {Ref: "audit-hypothesis-generation@4", Inputs: map[string]auditcontract.InputMapping{"materials": {Source: "audit-input", Name: "materials"}, "context": {Source: "task-context"}, "analysis": {Source: "prior-results"}, "results": {Source: "task-results"}}, Parameters: map[string]string{}, Outputs: map[string]string{"proposals": "proposals"}}}
 	p.Continuation = nil
 	value := map[string]any{"apiVersion": "contractor/v1alpha1", "kind": "AuditProfile", "metadata": map[string]string{"name": "material-set-process", "version": "1"}, "spec": p}
 	if e = os.WriteFile(filepath.Join(root, "audit-profiles/basic_process.yaml"), mustBasicJSON(t, value), 0600); e != nil {

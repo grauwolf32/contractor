@@ -1,23 +1,22 @@
 schema_version: '1.0'
-id: V479-001
-title: Manage artifact and document write preconditions inside Runtime
+id: V479-006
+title: Assemble exact Planner finish references without model revisions
 milestone: runtime-owned-tool-versions-2026-11
-epic: projects-artifacts
+epic: planner-worker
 kind: feature
 priority: P1
-status: pending
+status: completed
 depends_on:
-- V474-003
-- V476-005
+- V479-004
 languages:
+- go
 - python
 - markdown
-goal: A Worker creates and edits artifacts and documents without copying expected_revision, while concurrent
-  changes still cannot be silently overwritten.
-demonstration: Through the real Worker and Artifact API, create a file-backed artifact, update it after a
-  successful read/write, then change it externally before another update. The first two operations succeed
-  without expected_revision; the stale change is rejected and the newer bytes remain intact. A1 is the first
-  end-to-end delivery.
+goal: Streamline and Router finish with model-selected result slots/materials while their deterministic adapters
+  supply and verify the exact revisions.
+demonstration: A real Planner receives a Worker result, compacts and finishes using revision-free model input.
+  The adapter reconstructs the same exact Worker-produced ArtifactRefs and Scheduler accepts them; an unrelated/newer
+  alias cannot be substituted.
 context:
   authority: 'User request 2026-11-22: create tasks in two ordered stages: remove expected_revision from LLM
     interfaces first, then revision; Runtime manages preconditions and version selection, including compaction
@@ -33,20 +32,17 @@ context:
     cursor fixing version and position, rather than a snapshot-until-refresh interface.'
   baseline: 6a4d479d361f8fcb1ce5c74c7f512c5dfe4666af on local main; recheck actual active callers before implementation.
   specification:
-  - docs/spec/artifacts/artifact-store.md#ART-R58
-  - docs/spec/artifacts/artifact-store.md#ART-R60
-  - docs/spec/tools/memory.md#MEM-R67
+  - docs/spec/execution/planners.md#PLN-R71
+  - docs/spec/execution/planners.md#PLN-R118
+  - docs/spec/execution/worker.md#WRK-R145
   - docs/spec/execution/worker.md#WRK-R192
-  - docs/spec/tools/toolsets.md#TLS-R39
+  - docs/spec/artifacts/artifact-store.md#ART-R58
   sources:
-  - runtime/src/contractor_runtime/toolsets/run_artifacts/tools.py
-  - runtime/src/contractor_runtime/toolsets/text_artifacts/tools.py
-  - runtime/src/contractor_runtime/toolsets/common/document_session.py
-  - runtime/src/contractor_runtime/toolsets/common/document_write.py
-  - runtime/src/contractor_runtime/toolsets/common/artifact_write.py
-  - runtime/src/contractor_runtime/toolsets/openapi/tools.py
-  - runtime/src/contractor_runtime/toolsets/likec4/tools.py
-  - runtime/src/contractor_runtime/toolsets/common/resources.py
+  - internal/planner/streamline/tools.go
+  - internal/planner/streamline
+  - internal/planner/router
+  - runtime/src/contractor_runtime/worker/completion.py
+  - runtime/src/contractor_runtime/worker/prompts.py
   boundary_decision: Tools own the semantic selection and validation. Shared Runtime helpers live in toolsets.common
     and are explicitly called by production consumers; no universal argument-rewriting plugin, hidden acceptance
     of deleted arguments, new receipt store, database entity or framework for hypothetical tools. Server remains
@@ -54,19 +50,19 @@ context:
     private/public/wire/persisted revision fields remain strict; only model-facing inputs change. Update numbered
     owning specs, descriptions, active instructions and actual ADK schemas with implementation; this task
     plan does not change shipped specs.
-  delivery_group: 1 / expected_revision. Implement the narrow create-update-conflict process test in this
-    task, not only at the final milestone gate.
-  alternative_and_reversal: The simplest alternative fetches latest before each write, but loses the reviewed/prepared-base
-    guarantee. Reuse current document sessions and exact-byte recovery instead. Revisit selection state only
-    if an actual consumer cannot identify its preparation base without a new model-side protocol.
+  delivery_group: 2 / nested revision. May follow V479-004 independently of V479-005, with both required by
+    the exit task.
+  ownership_decision: The user's Runtime direction means deterministic execution ownership, not moving Go
+    Planner domain work across processes. Runtime owns Python tools; existing Go Planner adapters own finish.
+    A round trip to Runtime would add a boundary without a caller need.
 scope:
   in:
-  - 'Remove expected_revision from write_artifact, write_text_artifact, load_openapi, initialize_openapi,
-    load_likec4 and write_likec4: six current exported callables.'
-  - Reuse DocumentSession and existing Artifact CAS reconciliation, adding only shared private write-base
-    state needed by real generic publication consumers.
-  - Update model descriptions, relevant instructions, fixtures and schemas together; retain revision in successful
-    results and technical diagnostics.
+  - Remove revision-bearing model input from finish.artifacts for both modeled Planners without changing the
+    exact internal StageContentResult/WorkerResult contract.
+  - Resolve from accepted Worker results and trusted Stage inputs/declared slots; preserve version metadata
+    in model-visible results and context.
+  - Verify the existing Runtime-owned Worker finalizer stays deterministic; do not reintroduce model assembly
+    of output refs.
   out:
   - New general artifact-handle addressing, renamed model-supplied version/ETag preconditions, force/replace
     flags, compatibility aliases and automatic semantic rebasing. The approved read_artifact pagination cursor
@@ -75,35 +71,28 @@ scope:
   - Unrelated UI redesign, live model evaluation, demo deployment and full repository test gates.
 requirements:
 - id: R1
-  text: A new destination uses create-only CAS. A destination previously read/loaded or successfully written
-    by this invocation/session uses that exact remembered base. Do not fetch latest immediately before replacing
-    prepared bytes. Metadata listings and references merely mentioned in content do not count as a reviewed
-    write base. Unknown existing targets reject safely and instruct a fresh read/load; do not require a redundant
-    read for a target just successfully written by this owner.
+  text: Use a closed revision-free model input record with the existing logical slot and namespace/name selection
+    where required. The Go Planner adapter supplies exact refs from trusted admitted inputs/verified Worker
+    outputs, with deterministic ambiguity rejection. Do not fetch current to make an unrecognized result pass,
+    discard slot validation or delegate this Server-local operation to Python Runtime.
 - id: R2
-  text: Capture an operation base from trusted invocation/tool state before asynchronous preparation, and
-    advance it only after accepted or exactly reconciled success. Calls from one parallel model response must
-    not obtain authority from whichever sibling happens to finish first; conflicting same-target changes cannot
-    silently become last-writer-wins. Keep document operations lock-guarded and share state only through explicit
-    common resources.
+  text: Keep outcome/summary/error validation, CanFinish admission, exact Artifact inspector checks, authority
+    and Scheduler acceptance unchanged. Public/private wire and persisted Worker/Stage results retain exact
+    revisions. Old nested revision arguments are rejected, not ignored; no compatibility reader or force option.
 - id: R3
-  text: Keep all removed fields absent from real ADK declarations. Raw expected_revision, including null,
-    is an unknown-argument error; there is no wrapper that silently strips it. Read-side revision remains
-    supported until stage two. Return actual committed revision as before; a new revision is not a promise
-    that bytes changed.
+  text: Restore exact mapping from existing validated Planner state/Worker facts, not model summaries or arbitrary
+    text in compacted history. Compaction must preserve the selection needed to finish. Unknown, conflicting
+    same-address versions and no longer retained sources reject with an actionable finish error; preserve
+    retryability distinctions for real inspector failures.
 - id: R4
-  text: 'Preserve file-based publication: Runtime reads source_path bytes from the authorized workspace; the
-    model never reproduces file contents or base64. A selected source file is captured once for the frozen
-    write attempt. Retain existing text-authoring scope of write_text_artifact and document tools.'
+  text: Reuse trusted result bindings already held by the ordinary Worker finalizer and accepted completion
+    strategy. Inspect existing consumers before adding any mapping; do not create another finalizer, persistent
+    registry or transport round trip. Version output metadata remains visible and does not authorize model-selected
+    historical refs.
 - id: R5
-  text: A stale write leaves the prior trusted base intact or marks it invalid and returns a semantic reload
-    hint. No automatic reload-and-overwrite, content merge, repeated append or new receipt system. Distinguish
-    definite conflict from unresolved acknowledgement loss, retaining existing write_artifact_exact recovery.
-- id: R6
-  text: Compaction preserves private write bases and exact in-flight/recovery identity independently of its
-    summary. New logical invocations cannot inherit an unverified old base from model history; reuse only
-    explicit current owner state allowed by session lifecycle. Reconcile every already stateful OpenAPI/LikeC4
-    mutation so removing entry-point arguments does not create a weaker sibling path.
+  text: Keep Streamline/Router behavior aligned through their shared tool implementation and tests. Register
+    new input-shape fixtures only where multiple sides actually parse that shape; do not change generated
+    HTTP clients for a Planner-only model schema.
 failure_outcomes:
 - operation: Resolve a selected version and perform the existing owner operation
   permanent: Unknown/ambiguous/unavailable selection, malformed or removed argument, stale precondition, denied
@@ -140,49 +129,34 @@ lifecycle:
     instead of guessing latest.
 acceptance_criteria:
 - id: A1
-  given: A real Worker and PostgreSQL ArtifactStore with a source file and editable document
-  when: The scripted model creates then edits without expected_revision
-  then: Actual persisted bytes and returned exact versions agree; all six callables have the new declaration
-    and the narrow real-process scenario passes.
+  given: Streamline and Router with successful Worker artifacts and declared result slots
+  when: Actual ADK finish is called without nested revision
+  then: The same exact refs reach Stage acceptance; exposed output/context versions remain and no namespace/slot
+    authority changes.
 - id: A2
-  given: A target changes after the Worker selected its write base, or parallel sibling updates race
-  when: The Worker attempts replacement including transport-loss reconciliation
-  then: The competing committed bytes survive; stale operations fail without adopting latest, duplicate append
-    or fabricated success.
+  given: Compaction or existing Planner recovery and a later alias advance
+  when: The model finishes the earlier selected output
+  then: Trusted exact output survives; current alias is not substituted and ambiguous/foreign/missing selections
+    reject.
 - id: A3
-  given: A loaded target, a committed/failed compaction and a new invocation
-  when: Further reads/writes, cancellation and recovery run
-  then: Committed compaction preserves valid bases, failed checkpoints do not refresh them, and old invocation
-    state cannot authorize a new write.
+  given: Malformed removed fields, failed inspector, invalid finish outcome and cancellation
+  when: Both Planner modes validate/settle the operation
+  then: Unknown fields fail, permanent/transient classes remain correct and no extra Runtime call/state store
+    is introduced.
 - id: A4
-  given: Removed arguments, an unobserved existing target and the selection-state limit
-  when: Actual ADK tools validate and admit the operations
-  then: Unknown fields and over-limit state fail before effects; results retain revision and unchanged Server
-    CAS/grants remain authoritative.
+  given: Ordinary/Audit Runtime completion and their trusted output bindings
+  when: Their current tests run against changed model projections
+  then: Runtime continues assembling exact WorkerResult itself; no model-authored final structured package
+    is added.
 tests:
-- command: cd runtime && uv run pytest tests/test_run_artifacts_toolset.py tests/test_text_artifacts_toolset.py
-    tests/test_openapi_toolset.py tests/test_likec4_toolset.py tests/test_worker_artifact_bindings.py tests/test_worker_compaction.py
-    tests/test_worker_function_tools.py tests/test_result_finalizer.py
+- command: go test -race -count=1 ./internal/planner/streamline ./internal/planner/router
   covers:
   - A1
   - A2
   - A3
   - A4
-- command: go test -tags=e2e -count=1 -run '^TestRuntimeManagedArtifactWritesAcrossProcesses$' -timeout=15m
-    ./tests/e2e
-  covers:
-  - A1
-  - A2
-  - A3
-  - A4
-- command: cd runtime && uv run ruff check src/contractor_runtime/toolsets/common src/contractor_runtime/toolsets/run_artifacts
-    src/contractor_runtime/toolsets/text_artifacts src/contractor_runtime/toolsets/openapi src/contractor_runtime/toolsets/likec4
-  covers:
-  - A1
-  - A2
-  - A3
-  - A4
-- command: cd runtime && uv run lint-imports
+- command: cd runtime && uv run pytest tests/test_worker_completion.py tests/test_result_finalizer.py tests/test_worker_artifact_bindings.py
+    tests/test_worker_compaction.py
   covers:
   - A1
   - A2
@@ -203,3 +177,9 @@ verification_policy: Commands listed here are required implementation checks, no
   and selected process checks; extend only to actually affected sibling owners. Changed pinned catalog content
   needs new immutable identities/paths and lock entries; tests use testdata fixtures, not the live configs
   tree. Do not change the configured model or claim measured quality improvement.
+
+assignment: "User request: implement V479 in one pass; deterministic Planner owns finish selection locally."
+
+selection_decision: "Adapter choice within the revision-free contract: each logical Worker's latest accepted result replaces its prior result selection; this is a sequential owner update, not a conflict. An external alias advance cannot retarget it. Distinct Workers or trusted input roles that currently disagree at one address are ambiguous. Arbitrary older revisions at the same address need a distinct existing material binding, not a new model technical version field. The two-checkpoint fixture now returns the latest verified Worker report r2; historical r1 remains readable from retained history but does not silently override that current output."
+
+implementation_commit: 4c38492ebaa42ab6640980afa8f4737b30797aac

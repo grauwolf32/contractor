@@ -115,7 +115,7 @@ func TestPodmanSandboxAcrossProductionProcesses(t *testing.T) {
 		t.Fatal(err)
 	}
 	input := uploadProjectScopeArtifact(t, client, publicURL, project.ProjectID, "sources", "python", "application/zip", source.Bytes())
-	body, err := json.Marshal(map[string]any{"workflow": "podman-python-check@3", "parameters": map[string]string{}, "artifacts": map[string]artifactRef{"source": input}})
+	body, err := json.Marshal(map[string]any{"workflow": "podman-python-check@4", "parameters": map[string]string{}, "artifacts": map[string]artifactRef{"source": input}})
 	if err != nil {
 		t.Fatal(err)
 	}

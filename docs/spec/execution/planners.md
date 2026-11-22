@@ -570,9 +570,9 @@ either a `succeeded` or a `failed` candidate.
 not complete the Stage task; it does not select retry, escalation or any
 Workflow transition.
 
-**PLN-R71.** `finish` validates outcome shape, declared result slots,
-exact revisions and media types, but cannot accept or advance Artifact
-bindings.
+**PLN-R71.** `finish` resolves model namespace/name selections from admitted
+exact materials (PLN-R134), then validates outcome shape, declared result slots,
+exact revisions and media types. It cannot accept or advance Artifact bindings.
 
 **PLN-R72.** An invalid completion call returns a bounded tool
 error so the model may correct it within the remaining budget (FAIL-PLN-4).
@@ -1331,3 +1331,15 @@ artifact reads, does not alter limits or recovery, and carries no task text,
 token/time countdown or raw SDK State. It is request-only (LIM-WRK-39), never a
 session event or compactor input. Repeated preparation replaces only its own
 object. Counters come from their existing owners; no parallel store is added.
+
+**PLN-R134.** Modeled finish.artifacts maps declared result slots to closed
+namespace/name selectors, rejecting nested revision fields. The deterministic Go
+adapter supplies exact versions from each logical Worker's latest accepted result
+refs, then trusted Stage inputs/continuation when no Worker produced that address.
+Sequential results from one Worker replace its prior selection; differing versions
+from distinct Workers or input roles are ambiguous and rejected. Exact inspector,
+CanFinish and Scheduler validation remain unchanged. Private refs survive ADK
+compaction, are bounded by LIM-PLN-21/22, and end with executionState. Recovered
+completed Stage results keep their existing exact validation path. Model summaries
+and mutable alias lookups cannot supply a missing version; no Runtime round trip
+or persistent registry is introduced. Returned/input metadata retain revisions.

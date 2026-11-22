@@ -158,7 +158,7 @@ def test_real_nuclei_custom_artifact_rules_use_the_same_http_boundary(tmp_path):
             data = yaml.safe_dump(template(), sort_keys=False).encode()
             store.values[("inputs", "rules")] = (data, "application/yaml", "r1")
             try:
-                result = await tool(
+                result = await tool.contractor_trusted_call(
                     target.origin + "/allowed",
                     rulepack_ref={"namespace": "inputs", "name": "rules", "revision": "r1"},
                     timeout_seconds=30,

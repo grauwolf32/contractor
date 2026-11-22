@@ -69,7 +69,7 @@ func artifactReportGatewayStage(name string) domainGatewayStage {
 		name: name, tools: withMemoryTools([]string{"list_artifacts", "read_artifact", "write_text_artifact"}),
 		steps: []domainGatewayStep{
 			toolGatewayStep("read_artifact", fixedArguments(map[string]any{
-				"namespace": "inputs", "name": "source", "revision": nil,
+				"namespace": "inputs", "name": "source",
 			})),
 			toolGatewayStep("write_text_artifact", func(request map[string]any) (map[string]any, error) {
 				data, ok := lastStringValue(request, "text")
@@ -78,7 +78,7 @@ func artifactReportGatewayStage(name string) domainGatewayStage {
 				}
 				return map[string]any{
 					"name": "copied", "media_type": "text/plain",
-					"text": e2eReport, "expected_revision": nil,
+					"text": e2eReport,
 				}, nil
 			}),
 			finalGatewayStep("Source report authored", map[string]domainArtifactBinding{

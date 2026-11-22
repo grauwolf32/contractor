@@ -55,7 +55,7 @@ func TestEngagementOrdinaryRunAcrossProcesses(t *testing.T) {
 	}
 	steps = append(steps, toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{
 		"name": "result", "media_type": "text/plain",
-		"text": "ordinary HTTP policy verified", "expected_revision": nil,
+		"text": "ordinary HTTP policy verified",
 	})), finalGatewayStep("Ordinary Run complete", map[string]domainArtifactBinding{"result": {namespace: "engagement-run", name: "result"}}))
 	h.gateway.mu.Lock()
 	h.gateway.stages = []domainGatewayStage{{name: "ordinary-engagement", tools: []string{"http_request", "http_credentials", "write_text_artifact"}, steps: steps}}

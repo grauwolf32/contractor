@@ -15,7 +15,7 @@ from test_scan_toolset import executable
 
 import contractor_runtime.toolsets.scan.tools as scan
 from contractor_runtime.artifacts import ArtifactClient, ArtifactHTTPResponse
-from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.scan.http_request import MAX_BODY_BYTES, MAX_REQUEST_ARTIFACT_BYTES
 from contractor_runtime.workspace import AllocationWorkspace
@@ -121,9 +121,10 @@ def test_invalid_or_reserved_ref_fails_before_artifact_read(tmp_path, monkeypatc
     async def scenario():
         transport = RequestTransport()
         tool, state = await make_sqlmap(tmp_path, transport)
+        tool._session.versions.assign([ArtifactRef.model_validate(REQUEST_REF)])
         try:
             with pytest.raises(scan.ScanInputError) as caught:
-                await tool(request_ref=request_ref)
+                await tool.contractor_trusted_call(request_ref=request_ref)
             assert "canary" not in str(caught.value)
             assert transport.calls == 0
             assert_failed_call_is_private(state, tmp_path)
@@ -140,9 +141,12 @@ def test_request_ref_rejects_every_url_mode_argument_before_read(tmp_path, monke
     async def scenario():
         transport = RequestTransport()
         tool, state = await make_sqlmap(tmp_path, transport)
+        tool._session.versions.assign([ArtifactRef.model_validate(REQUEST_REF)])
         try:
             with pytest.raises(scan.ScanInputError) as caught:
-                await tool(request_ref=REQUEST_REF, **{argument: "secret-canary"})
+                await tool.contractor_trusted_call(
+                    request_ref=REQUEST_REF, **{argument: "secret-canary"}
+                )
             assert "canary" not in str(caught.value)
             assert transport.calls == 0
             assert_failed_call_is_private(state, tmp_path)
@@ -213,9 +217,10 @@ def test_invalid_artifact_is_rejected_before_launch(tmp_path, monkeypatch, optio
     async def scenario():
         transport = RequestTransport(**options)
         tool, state = await make_sqlmap(tmp_path, transport)
+        tool._session.versions.assign([ArtifactRef.model_validate(REQUEST_REF)])
         try:
             with pytest.raises(ToolInputError) as caught:
-                await tool(request_ref=REQUEST_REF)
+                await tool.contractor_trusted_call(request_ref=REQUEST_REF)
             assert caught.value.code == "tool_input_invalid"
             assert not caught.value.retryable
             assert "canary" not in str(caught.value)
@@ -241,8 +246,9 @@ def test_request_artifact_destination_is_checked_before_launch(tmp_path, monkeyp
     async def scenario():
         transport = RequestTransport(json.dumps(request_document(url=url)).encode())
         tool, state = await make_sqlmap(tmp_path, transport)
+        tool._session.versions.assign([ArtifactRef.model_validate(REQUEST_REF)])
         try:
-            result = await tool(request_ref=REQUEST_REF)
+            result = await tool(request_ref={"namespace": "inputs", "name": "request"})
             assert result["status"] == "failed"
             assert result["errorCode"] == "scan_target_denied"
             assert result["requestArtifact"] == REQUEST_REF
@@ -284,6 +290,7 @@ def test_stopping_prepared_request_cleans_files_processes_and_metrics(
     async def scenario():
         transport = RequestTransport(block=phase == "artifact-read")
         tool, state = await make_sqlmap(tmp_path, transport)
+        tool._session.versions.assign([ArtifactRef.model_validate(REQUEST_REF)])
         output_read = asyncio.Event()
         original_read = asyncio.StreamReader.read
 
@@ -297,7 +304,11 @@ def test_stopping_prepared_request_cleans_files_processes_and_metrics(
         # A one-second deadline can expire before the Python fixture starts.
         # Expire a generous test-owned deadline only in the established phase.
         scan_budget = 60
-        task = asyncio.create_task(tool(request_ref=REQUEST_REF, timeout_seconds=scan_budget))
+        task = asyncio.create_task(
+            tool(
+                request_ref={"namespace": "inputs", "name": "request"}, timeout_seconds=scan_budget
+            )
+        )
         try:
             async with asyncio.timeout(30):
                 await transport.started.wait()

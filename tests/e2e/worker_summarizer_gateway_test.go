@@ -304,7 +304,7 @@ func (g *summarizerGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		message := toolCallMessage("summary-write-"+mode, "write_text_artifact", map[string]any{
 			"name": name, "text": "artifact produced for " + mode,
-			"media_type": "text/plain", "expected_revision": nil,
+			"media_type": "text/plain",
 		})
 		// This text is model-visible history, but neither a result nor an
 		// artifact. It proves that the bounded transcript reaches only the live
@@ -542,7 +542,7 @@ func (g *summarizerGateway) serveContinuationPlanner(w http.ResponseWriter, requ
 			g.fail(w, http.StatusBadRequest, "continuation did not publish an exact final report")
 			return
 		}
-		message = toolCallMessage("continue-finish", "finish", map[string]any{"outcome": "succeeded", "summary": "Report completed", "artifacts": map[string]any{"result": ref}})
+		message = toolCallMessage("continue-finish", "finish", map[string]any{"outcome": "succeeded", "summary": "Report completed", "artifacts": map[string]any{"result": materialSelector(ref)}})
 	default:
 		g.fail(w, http.StatusBadRequest, "continuation exceeded its bounded Planner script")
 		return

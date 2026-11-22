@@ -3,13 +3,13 @@ kind: AgentTemplate
 
 metadata:
   name: http_explorer
-  version: "4"
+  version: "5"
 
 spec:
   description: Performs bounded authorized HTTP exploration and publishes an evidence report
   runtime: adk@1
   instructions:
-    ref: instructions/http-explorer-worker-memory.md
+    ref: instructions/http-explorer-worker-memory-cursor-reads.md
   summarizer:
     instructions:
       ref: instructions/terminal-summarizer.md

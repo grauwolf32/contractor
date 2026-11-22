@@ -1989,6 +1989,9 @@ refuted claim alone does not invoke direct Finding intake.
 **FND-R224.** `security-findings@1` additionally exports `list_project_findings`,
 `read_project_finding`, `select_project_findings` and `read_finding_selection`.
 These tools are selected independently from proposal emission and analyst commands.
+Model reads accept finding_id without revision; Runtime supplies the version from
+its last validated discovery page. Unknown IDs require discovery; a changed
+Server revision still conflicts. Model finding selectors contain findingId only.
 The existing allocation Registry derives its selected Finding tools from the pinned
 AgentTemplate and detaches the selection on every clone. Private reads and selections
 join the existing allocation gate: principal, instance, allocation, durable Stage/Run,
@@ -2015,6 +2018,10 @@ request metadata use LIM-ACT-2. Finding selection expands its independent Projec
 sources only up to the existing collection sentinel; an oversized source history
 fails and can be narrowed to explicit receipt IDs. Public collection publication
 also accepts a `project` source through the same owner and capture path.
+
+Runtime retains discovery revisions privately across compaction, clears them at
+logical invocation end, and bounds discovery to 4096 IDs (LIM-TLS-7). Discovery
+metadata grants neither byte access nor an evidence write base.
 
 The existing publisher validates the complete selection and exact documents before
 publishing the collection and its ordinary Artifact receipt together. Allocation
@@ -2219,3 +2226,12 @@ one ordinary model-backed Worker and no Planner model; omitting it adds no hook.
 A report completing with zero selected observations is valid. An unusable blank
 model reply alone does not establish completion. Existing Worker budgets,
 cancellation, response recovery and result assembly remain authoritative.
+
+**FND-R240.** Model finding/fact evidence_refs and read_finding_selection
+collection_ref contain only namespace/name. Runtime resolves exact refs from
+trusted invocation inputs or successful content observations/selected collections.
+Unknown, ambiguous or hidden materials fail before publication; metadata-only
+listing is not evidence. Nested revision/unknown keys are rejected. Internal
+submission, private API and stored evidence remain exact; returned revisions
+remain informational. Successful compaction preserves selections; logical
+invocation exit clears them. No new retention or access grant is created.

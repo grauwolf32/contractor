@@ -131,7 +131,7 @@ func TestPostgresCompactionTwoCheckpointsKeepRawContextOutOfDurableFacts(t *test
 				t.Fatal(err)
 			}
 			assertCompactionReleased(t, instance)
-			if result.Outcome != stageresult.StageSucceeded || refKey(result.Artifacts["report"]) != "builder/review@report-r1" {
+			if result.Outcome != stageresult.StageSucceeded || refKey(result.Artifacts["report"]) != "builder/review@report-r2" {
 				t.Fatalf("result = %+v", result)
 			}
 			if llm.callCount() != 6 || workers.count() != 2 || len(compactor.calls()) != 2 || sessions.count() != 2 {

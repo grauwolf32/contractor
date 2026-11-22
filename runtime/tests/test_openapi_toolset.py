@@ -295,18 +295,16 @@ def test_exact_seed_is_copied_and_later_stage_resumes_same_binding(
         seed = client.seed("inputs", "existing-openapi", media_type, seed_bytes)
         first_stage = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
 
-        with pytest.raises(ValueError, match="requires an exact revision"):
-            await first_stage["load_openapi"]("inputs", "existing-openapi")
-        copied = await first_stage["load_openapi"]("inputs", "existing-openapi", seed.revision)
+        with pytest.raises(TypeError, match="revision"):
+            await first_stage["load_openapi"]("inputs", "existing-openapi", revision=None)
+        copied = await first_stage["load_openapi"]("inputs", "existing-openapi")
         assert copied["copied"] and copied["changed"]
         assert copied["artifact"]["namespace"] == "openapi"
         assert client.history[("inputs", "existing-openapi", seed.revision)].data == seed_bytes
         writes_after_copy = client.write_count
 
         later_stage = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
-        resumed = await later_stage["load_openapi"](
-            "openapi", "openapi", copied["artifact"]["revision"]
-        )
+        resumed = await later_stage["load_openapi"]("openapi", "openapi")
         assert not resumed["copied"] and not resumed["changed"]
         assert client.write_count == writes_after_copy
         updated = await later_stage["set_openapi_info"]("Updated API")
@@ -331,9 +329,9 @@ def test_json_seed_escapes_survive_load_edit_and_yaml_reload(
         client = MemoryArtifactClient()
         namespace = "openapi" if same_binding else "inputs"
         payload = json.dumps(minimal_document("Seed"))[:-1] + "," + fragment + "}"
-        seed = client.seed(namespace, "openapi", "application/json", payload.encode())
+        client.seed(namespace, "openapi", "application/json", payload.encode())
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
-        loaded = await tools["load_openapi"](namespace, "openapi", seed.revision)
+        loaded = await tools["load_openapi"](namespace, "openapi")
         assert loaded["copied"] is True
         assert tools["load_openapi"]._session._document[key] == value
         await tools["set_openapi_info"]("Edited")
@@ -363,25 +361,17 @@ def test_openapi_tools_enforce_shared_memory_source_target_and_ref_visibility(
         calls_before = (client.read_count, client.write_count)
 
         with pytest.raises(ValueError, match="purpose-specific"):
-            await tools["load_openapi"](
-                hidden.namespace,
-                hidden.name,
-                hidden.revision,
-                target_name="safe_target",
-            )
+            await tools["load_openapi"](hidden.namespace, hidden.name, target_name="safe_target")
         with pytest.raises(ValueError, match="purpose-specific"):
             await tools["load_openapi"](
-                allowed.namespace,
-                allowed.name,
-                allowed.revision,
-                target_name="memory.hidden_target",
+                allowed.namespace, allowed.name, target_name="memory.hidden_target"
             )
         with pytest.raises(ValueError, match="purpose-specific"):
             await tools["initialize_openapi"]("Blocked", target_name="memory.hidden_target")
         assert (client.read_count, client.write_count) == calls_before
         assert session._document is None and session._target_name is None
 
-        copied = await tools["load_openapi"](allowed.namespace, allowed.name, allowed.revision)
+        copied = await tools["load_openapi"](allowed.namespace, allowed.name)
         assert copied["artifact"]["namespace"] == "openapi"
         observed = {
             (ref.namespace, ref.name) for tool in tools.values() for ref in tool.known_exact_refs
@@ -410,10 +400,10 @@ def test_openapi_tools_enforce_shared_memory_source_target_and_ref_visibility(
 def test_malformed_or_unsafe_seed_never_creates_target(tmp_path: Path, payload: bytes) -> None:
     async def scenario() -> None:
         client = MemoryArtifactClient()
-        seed = client.seed("inputs", "seed", "application/yaml", payload)
+        client.seed("inputs", "seed", "application/yaml", payload)
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
         with pytest.raises(ValueError):
-            await tools["load_openapi"]("inputs", "seed", seed.revision)
+            await tools["load_openapi"]("inputs", "seed")
         assert ("openapi", "openapi") not in client.bindings
         assert client.write_count == 0
 
@@ -463,9 +453,9 @@ def test_json_compatible_yaml_seed_with_31_boolean_schemas_loads_and_validates(
         source.mkdir(parents=True)
         (source / "app.py").write_text("route = '/items'\n")
         client = MemoryArtifactClient()
-        seed = client.seed("inputs", "seed", "application/yaml", VALID_31_SEED)
+        client.seed("inputs", "seed", "application/yaml", VALID_31_SEED)
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
-        await tools["load_openapi"]("inputs", "seed", seed.revision)
+        await tools["load_openapi"]("inputs", "seed")
 
         info = await tools["get_openapi_info"]()
         assert info["info"]["version"] == "2023-01-01"
@@ -600,16 +590,16 @@ def test_shared_openapi_json_escape_cases_match_server_readers(tmp_path: Path) -
             session = tools["load_openapi"]._session
             before = session._document
             writes = client.write_count
-            seed = client.seed("inputs", "seed", case["mediaType"], case["document"].encode())
+            client.seed("inputs", "seed", case["mediaType"], case["document"].encode())
             if not case["accepted"]:
                 with pytest.raises(ToolInputError) as rejected:
-                    await tools["load_openapi"]("inputs", "seed", seed.revision)
+                    await tools["load_openapi"]("inputs", "seed")
                 assert rejected.value.code == "tool_input_invalid", case["name"]
                 assert rejected.value.retryable is False, case["name"]
                 assert client.write_count == writes, case["name"]
                 assert session._document is before, case["name"]
                 continue
-            await tools["load_openapi"]("inputs", "seed", seed.revision, target_name="copy")
+            await tools["load_openapi"]("inputs", "seed", target_name="copy")
             assert same_json(session._document, case["value"]), case["name"]
             written = client.bindings[("openapi", "copy")]
             assert same_json(openapi_module._parse_document(written.data), case["value"])
@@ -733,9 +723,9 @@ def test_path_and_component_listings_fit_the_model_output_limit(tmp_path: Path) 
         # each listing still exceeds the model output limit.
         payload = yaml.safe_dump(document, allow_unicode=True).encode()
         assert len(payload) <= openapi_module.MAX_DOCUMENT_BYTES
-        seed = client.seed("inputs", "seed", "application/yaml", payload)
+        client.seed("inputs", "seed", "application/yaml", payload)
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
-        await tools["load_openapi"]("inputs", "seed", seed.revision)
+        await tools["load_openapi"]("inputs", "seed")
 
         paths = await tools["list_openapi_paths"]()
         components = await tools["list_openapi_components"]("schemas")
@@ -789,7 +779,7 @@ def test_parser_enforces_byte_depth_and_node_limits(
 ) -> None:
     async def oversized_scenario() -> None:
         client = MemoryArtifactClient()
-        seed = client.seed(
+        client.seed(
             "inputs",
             "oversized",
             "application/yaml",
@@ -797,7 +787,7 @@ def test_parser_enforces_byte_depth_and_node_limits(
         )
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
         with pytest.raises(ToolInputError, match="2 MiB"):
-            await tools["load_openapi"]("inputs", "oversized", seed.revision)
+            await tools["load_openapi"]("inputs", "oversized")
         assert client.read_limits == [MAX_DOCUMENT_BYTES]
         assert client.write_count == 0
 
@@ -848,10 +838,10 @@ def test_shared_openapi_document_bounds_match_scan_preparation(tmp_path: Path) -
 
     async def verdict(document: bytes, media_type: str) -> str | None:
         client = MemoryArtifactClient()
-        seed = client.seed("inputs", "bounds", media_type, document)
+        client.seed("inputs", "bounds", media_type, document)
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
         try:
-            loaded = await tools["load_openapi"]("inputs", "bounds", seed.revision)
+            loaded = await tools["load_openapi"]("inputs", "bounds")
         except ToolInputError as error:
             assert client.write_count == 0
             return str(error)
@@ -910,10 +900,10 @@ def test_document_beyond_the_bounds_is_rejected_before_vacuum(
         monkeypatch.setattr(openapi_module, "_run_vacuum", vacuum)
         client = MemoryArtifactClient()
         payload = bounds_document(BOUNDS_YAML_PREFIX, case)
-        seed = client.seed("inputs", "seed", "application/yaml", payload)
+        client.seed("inputs", "seed", "application/yaml", payload)
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
         with pytest.raises(ToolInputError) as rejected:
-            await tools["load_openapi"]("inputs", "seed", seed.revision)
+            await tools["load_openapi"]("inputs", "seed")
         assert _safe_tool_response("load_openapi", rejected.value)["error"] == {
             "code": "tool_input_invalid",
             "message": message,
@@ -944,9 +934,9 @@ def test_validation_checks_the_bounds_before_vacuum_and_keeps_semantic_checks(
         client = MemoryArtifactClient()
         document = minimal_document("Seed")
         document["paths"]["/health"] = valid_path_item()
-        seed = client.seed("inputs", "seed", "application/yaml", yaml.safe_dump(document).encode())
+        client.seed("inputs", "seed", "application/yaml", yaml.safe_dump(document).encode())
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
-        await tools["load_openapi"]("inputs", "seed", seed.revision)
+        await tools["load_openapi"]("inputs", "seed")
 
         # A document within the bounds keeps its semantic validation beside Vacuum.
         checked = await tools["validate_openapi"]()
@@ -1000,10 +990,10 @@ def test_seed_nested_beyond_the_parser_stack_reports_the_depth_limit(
 ) -> None:
     async def scenario() -> None:
         client = MemoryArtifactClient()
-        seed = client.seed("inputs", "deep", media_type, payload)
+        client.seed("inputs", "deep", media_type, payload)
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
         with pytest.raises(ToolInputError) as rejected:
-            await tools["load_openapi"]("inputs", "deep", seed.revision)
+            await tools["load_openapi"]("inputs", "deep")
         reply = _safe_tool_response("load_openapi", rejected.value)["error"]
         assert reply == {
             "code": "tool_input_invalid",
@@ -1179,17 +1169,15 @@ def test_validation_checks_seed_provenance_and_never_treats_missing_vacuum_as_cl
         document = minimal_document("Seed")
         document["paths"]["/health"] = valid_path_item()
         document["paths"]["/health"]["x-path-files"] = ["src/missing.py"]
-        seed = client.seed("inputs", "seed", "application/yaml", yaml.safe_dump(document).encode())
+        client.seed("inputs", "seed", "application/yaml", yaml.safe_dump(document).encode())
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
-        await tools["load_openapi"]("inputs", "seed", seed.revision)
+        await tools["load_openapi"]("inputs", "seed")
         monkeypatch.setattr(openapi_module, "_run_vacuum", clean_vacuum)
         invalid = await tools["validate_openapi"]()
         assert not invalid["valid"]
         assert "does not exist" in invalid["structuralErrors"][0]
 
-        await tools["initialize_openapi"](
-            "Replacement", expected_revision=invalid["artifact"]["revision"]
-        )
+        await tools["initialize_openapi"]("Replacement")
         monkeypatch.setattr(
             openapi_module,
             "_run_vacuum",
@@ -1279,9 +1267,9 @@ def test_seeded_openapi_30_aliases_validate_and_missing_provenance_names_entry(
 ) -> None:
     async def validate_seed(document: dict[str, Any]) -> dict[str, Any]:
         client = MemoryArtifactClient()
-        seed = client.seed("inputs", "seed", "application/yaml", yaml.safe_dump(document).encode())
+        client.seed("inputs", "seed", "application/yaml", yaml.safe_dump(document).encode())
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
-        await tools["load_openapi"]("inputs", "seed", seed.revision)
+        await tools["load_openapi"]("inputs", "seed")
         return await tools["validate_openapi"]()
 
     async def scenario() -> None:
@@ -1766,12 +1754,12 @@ def test_openapi_document_work_runs_on_worker_threads_while_the_loop_runs(
         source.mkdir(parents=True)
         (source / "app.py").write_text("route = '/health'\n")
         client = MemoryArtifactClient()
-        seed = client.seed(
+        client.seed(
             "inputs", "seed", "application/json", json.dumps(minimal_document("Seed")).encode()
         )
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
 
-        load = asyncio.create_task(tools["load_openapi"]("inputs", "seed", seed.revision))
+        load = asyncio.create_task(tools["load_openapi"]("inputs", "seed"))
         try:
             await gate.wait_entered(load)
             await loop_callback(order)
@@ -1813,7 +1801,7 @@ def test_openapi_seed_is_parsed_and_validated_once(
             yaml.safe_dump(document) if media_type == "application/yaml" else json.dumps(document)
         )
         client = MemoryArtifactClient()
-        seed = client.seed("inputs", "seed", media_type, payload.encode())
+        client.seed("inputs", "seed", media_type, payload.encode())
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
         session = tools["load_openapi"]._session
         parses = 0
@@ -1843,7 +1831,7 @@ def test_openapi_seed_is_parsed_and_validated_once(
             },
         )
 
-        assert (await tools["load_openapi"]("inputs", "seed", seed.revision))["copied"] is True
+        assert (await tools["load_openapi"]("inputs", "seed"))["copied"] is True
         loaded = session._document
         assert parses == 1
         assert [value is loaded for value in calls["_validate_json_tree"]] == [True]
@@ -1939,7 +1927,7 @@ def test_json_load_cancellation_and_close_join_decode(
         initialized = await tools["initialize_openapi"]("Before")
         session = tools["load_openapi"]._session
         before = session._document
-        seed = client.seed(
+        client.seed(
             "inputs", "seed", "application/json", json.dumps(minimal_document("After")).encode()
         )
         writes = client.write_count
@@ -1951,9 +1939,7 @@ def test_json_load_cancellation_and_close_join_decode(
             await tools["load_openapi"].close()
             order.append("closed")
 
-        loading = asyncio.create_task(
-            tools["load_openapi"]("inputs", "seed", seed.revision, target_name="copy")
-        )
+        loading = asyncio.create_task(tools["load_openapi"]("inputs", "seed", target_name="copy"))
         closing = None
         try:
             await gate.wait_entered(loading)
@@ -2094,7 +2080,7 @@ def test_openapi_written_bytes_and_noop_results_are_unchanged(tmp_path: Path) ->
         source.mkdir(parents=True)
         (source / "app.py").write_text("route = '/health'\n")
         client = MemoryArtifactClient()
-        seed = client.seed(
+        client.seed(
             "inputs",
             "seed",
             "application/json",
@@ -2113,7 +2099,7 @@ def test_openapi_written_bytes_and_noop_results_are_unchanged(tmp_path: Path) ->
             ).encode(),
         )
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
-        await tools["load_openapi"]("inputs", "seed", seed.revision)
+        await tools["load_openapi"]("inputs", "seed")
         await tools["set_openapi_info"]("Service", description="desc", framework="fastapi")
         await tools["set_openapi_servers"]([{"url": "https://a.example", "description": "A"}])
         await tools["set_openapi_tags"]([{"name": "health", "x-order": 1}])
@@ -2420,6 +2406,16 @@ class MemoryArtifactClient:
 
     def seed(self, namespace: str, name: str, media_type: str, data: bytes) -> ArtifactRef:
         return self._store(namespace, name, media_type, data)
+
+    async def read_artifact_metadata(self, ref):
+        from types import SimpleNamespace
+
+        stored = (
+            self.bindings[(ref.namespace, ref.name)]
+            if ref.revision is None
+            else self.history[(ref.namespace, ref.name, ref.revision)]
+        )
+        return SimpleNamespace(artifact=ref.model_copy(update={"revision": stored.revision}))
 
     async def read_artifact(
         self, ref: ArtifactRef, *, max_bytes: int = MAX_ARTIFACT_BYTES

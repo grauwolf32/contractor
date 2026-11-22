@@ -409,7 +409,7 @@ def test_proxy_missing_binary_and_missing_templates_are_explicit(tmp_path, monke
                     "url": "http://target.invalid/FUZZ",
                     "wordlist_ref": {"namespace": "inputs", "name": "wordlist", "revision": "r1"},
                 }
-            result = await tools[name](**args)
+            result = await getattr(tools[name], "contractor_trusted_call", tools[name])(**args)
             assert result["status"] == "failed"
             assert result["errorCode"] == "scan_proxy_unsupported"
         tools, _ = await make_tools(tmp_path)
@@ -500,7 +500,7 @@ def test_scan_destinations_are_checked_before_launch(name, arguments, code, tmp_
 
     async def scenario():
         tools, state = await make_policy_tools(tmp_path)
-        result = await tools[name](**arguments)
+        result = await getattr(tools[name], "contractor_trusted_call", tools[name])(**arguments)
         assert result["status"] == "failed"
         assert result["errorCode"] == code
         assert state.metrics.tool_calls[0].arguments is None
@@ -1563,7 +1563,7 @@ def test_rulepack_adapter_uses_only_exact_pack_without_installed_rules(
         tool = tools["scan_nuclei"]
         tool._session.artifact_client = ArtifactClient("allocation", store)
         invocation = asyncio.create_task(
-            tool(
+            tool.contractor_trusted_call(
                 "http://target.invalid/",
                 templates_digest="sha256:" + "f" * 64,
                 rulepack_ref={
@@ -1855,7 +1855,9 @@ async def off_loop_scanner(tmp_path, monkeypatch, case, stdout, stderr=b"", *, s
         state=state,
         store=store,
         launches=launches,
-        call=lambda **extra: tool(*arguments, **options, **extra),
+        call=lambda **extra: getattr(tool, "contractor_trusted_call", tool)(
+            *arguments, **options, **extra
+        ),
     )
 
 

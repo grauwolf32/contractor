@@ -3,13 +3,13 @@ kind: AgentTemplate
 
 metadata:
   name: openapi_builder
-  version: "4"
+  version: "5"
 
 spec:
   description: Incrementally builds one evidence-linked OpenAPI document from project source
   runtime: adk@1
   instructions:
-    ref: instructions/openapi-builder-worker-memory.md
+    ref: instructions/openapi-builder-worker-memory-cursor-reads.md
   summarizer:
     instructions:
       ref: instructions/terminal-summarizer.md

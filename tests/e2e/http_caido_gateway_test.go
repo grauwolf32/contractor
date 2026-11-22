@@ -73,7 +73,7 @@ func httpCaidoHTTPGatewayStage(name, targetURL string) domainGatewayStage {
 			},
 			toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{
 				"name": "report", "text": httpCaidoHTTPReport,
-				"media_type": "text/markdown", "expected_revision": nil,
+				"media_type": "text/markdown",
 			})),
 			toolGatewayStep("http_session_clear", fixedArguments(map[string]any{})),
 			{
@@ -148,7 +148,7 @@ func httpCaidoCaidoGatewayStage(name, scopeName string) domainGatewayStage {
 				tool: "write_text_artifact", validate: requireToolOutput("created"),
 				arguments: fixedArguments(map[string]any{
 					"name": "report", "text": httpCaidoCaidoReport,
-					"media_type": "text/markdown", "expected_revision": nil,
+					"media_type": "text/markdown",
 				}),
 			},
 			finalGatewayStep("Caido evidence report published", map[string]domainArtifactBinding{

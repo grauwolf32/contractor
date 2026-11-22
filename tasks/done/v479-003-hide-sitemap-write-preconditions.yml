@@ -5,10 +5,11 @@ milestone: runtime-owned-tool-versions-2026-11
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: pending
+status: completed
 depends_on:
 - V479-001
 languages:
+- go
 - python
 - markdown
 goal: The model edits a reviewed sitemap without copying map revisions or complete source-precondition objects,
@@ -146,7 +147,8 @@ acceptance_criteria:
   then: No partial mutation, stale state leak or unbounded map rescan is introduced.
 tests:
 - command: cd runtime && uv run pytest tests/test_sitemap_tools.py tests/test_sitemap_views.py tests/test_sitemap_contracts.py
-    tests/test_sitemap_collection.py tests/test_sitemap_imports.py tests/test_worker_compaction.py
+    tests/test_sitemap_collection.py tests/test_sitemap_imports.py tests/test_worker_compaction.py tests/test_tool_worker.py
+    tests/test_tool_worker_deadline.py
   covers:
   - A1
   - A2
@@ -172,6 +174,19 @@ tests:
   - A2
   - A3
   - A4
+- command: go test -count=1 ./internal/projectsitemap
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: go test -tags=e2e -count=1 -run '^TestRuntimeManagedSitemapEditsAcrossProcesses$' -timeout=15m
+    ./tests/e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
 verification_policy: Commands listed here are required implementation checks, not planning results. Run complete
   affected test files/packages and actual ADK declarations/calls, not only helper tests. New named tests must
   be added by the task; zero matches is a failure. Real persistence claims require a disposable PostgreSQL
@@ -181,3 +196,10 @@ verification_policy: Commands listed here are required implementation checks, no
   and selected process checks; extend only to actually affected sibling owners. Changed pinned catalog content
   needs new immutable identities/paths and lock entries; tests use testdata fixtures, not the live configs
   tree. Do not change the configured model or claim measured quality improvement.
+assignment: 'User assignment 2026-11-22: implement V479 in one pass. Land atomically with narrow prerequisite
+  V479-008 because the first trusted facet and its model facade must agree.'
+additional_verification: Run the full affected internal/projectsitemap Go package against the owned test database,
+  including the shared manual-source identity fixture.
+verification_environment: Go filesystem-backed tests use an owned canonical TMPDIR under /private/tmp, because
+  the macOS /var temporary path includes a symlink rejected by the strict blob directory owner.
+implementation_commit: 3dc1d1b4ce3c2d459199838d6313766d32945de1

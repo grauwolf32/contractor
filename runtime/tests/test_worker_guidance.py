@@ -14,6 +14,7 @@ from test_adk_runtime import CapturingScriptedLlm, create_runtime, stage_request
 from test_run_artifacts_toolset import FakeArtifactClient
 from test_worker_compaction import COMPACTOR_MODEL, compact_runtime, summary, usage
 
+from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.toolsets.run_artifacts.tools import ReadArtifactTool
 from contractor_runtime.worker.guidance import GUIDANCE_PREAMBLE, MAX_GUIDANCE_BYTES
 
@@ -38,7 +39,11 @@ def test_current_capacity_and_checkpoint_reread(tmp_path, mode):
     async def scenario():
         state = WorkerState()
         read = ReadArtifactTool(FakeArtifactClient(), state.metrics, ())
-        args = {"namespace": "inputs", "name": "source", "revision": "revision-read"}
+        args = {
+            "cursor": read._cursors.issue(
+                ArtifactRef(namespace="inputs", name="source", revision="revision-read")
+            )
+        }
         responses = [tool_call("read_artifact", args, call_id=f"read-{i}") for i in range(4)]
         # After the two successful reads and refusal, checkpoint before the fourth read.
         responses[2] = usage(responses[2], 600 if compact else 10)

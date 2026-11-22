@@ -470,7 +470,7 @@ func observationPlannerResponse(
 			}
 			return call("finish", "finish", "", map[string]any{
 				"outcome": "succeeded", "summary": "Worker observations inspected",
-				"artifacts": map[string]any{"report": artifact},
+				"artifacts": map[string]any{"report": materialSelector(artifact)},
 			})
 		}
 		return call("add-reviewer", "add_subtask", "", map[string]any{
@@ -531,7 +531,7 @@ func observationPlannerResponse(
 		return call("finish", "finish", "", map[string]any{
 			"outcome": "succeeded", "summary": "Both Worker observations inspected",
 			"artifacts": map[string]any{
-				"builder_report": builderArtifact, "reviewer_report": reviewerArtifact,
+				"builder_report": materialSelector(builderArtifact), "reviewer_report": materialSelector(reviewerArtifact),
 			},
 		})
 	}
@@ -557,7 +557,7 @@ func observationWorkerResponse(
 			}
 			return toolCallMessage(scenario+"-write", "write_text_artifact", map[string]any{
 				"name": "report", "text": fixture.ReviewerReport,
-				"media_type": "text/markdown", "expected_revision": nil,
+				"media_type": "text/markdown",
 			}), "tool_calls", "write_text_artifact", nil
 		case 3:
 			if _, ok := lastExactArtifact(request, "review", "report"); !ok {
@@ -605,7 +605,7 @@ func observationWorkerResponse(
 		}
 		return toolCallMessage(scenario+"-write", "write_text_artifact", map[string]any{
 			"name": "report", "text": fixture.BuilderReport,
-			"media_type": "text/markdown", "expected_revision": nil,
+			"media_type": "text/markdown",
 		}), "tool_calls", "write_text_artifact", nil
 	case 6:
 		if _, ok := lastExactArtifact(request, "builder", "report"); !ok {
@@ -892,7 +892,7 @@ func routingPlannerResponse(
 		}
 		return toolCallMessage(scenario+"-finish", "finish", map[string]any{
 			"outcome": "succeeded", "summary": scenario + " completed",
-			"artifacts": map[string]any{resultSlot: artifact},
+			"artifacts": map[string]any{resultSlot: materialSelector(artifact)},
 		}), "tool_calls", "finish", nil
 	default:
 		return nil, "", "", fmt.Errorf("%s exceeded its three-call script", scenario)
@@ -928,7 +928,7 @@ func routingWorkerResponse(
 	switch step {
 	case 1:
 		return toolCallMessage(scenario+"-read", "read_artifact", map[string]any{
-			"namespace": "inputs", "name": "source", "revision": nil,
+			"namespace": "inputs", "name": "source",
 		}), "tool_calls", "read_artifact", nil
 	case 2:
 		data, ok := lastStringValue(request, "text")
@@ -937,7 +937,7 @@ func routingWorkerResponse(
 		}
 		return toolCallMessage(scenario+"-write", "write_text_artifact", map[string]any{
 			"name": "copied", "media_type": "text/plain",
-			"text": e2eReport, "expected_revision": nil,
+			"text": e2eReport,
 		}), "tool_calls", "write_text_artifact", nil
 	case 3:
 		_, ok := lastExactArtifact(request, namespace, "copied")

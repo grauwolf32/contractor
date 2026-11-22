@@ -6,7 +6,7 @@ kind: Workflow
 
 metadata:
   name: router-openapi
-  version: "2"
+  version: "3"
 
 spec:
   parameters:
@@ -54,10 +54,10 @@ spec:
           ref: instructions/planner-compaction.md
       agents:
         reviewer:
-          template: openapi_validator@4
+          template: openapi_validator@5
           namespace: review
         builder:
-          template: openapi_builder@4
+          template: openapi_builder@5
           namespace: openapi
       context:
         workspace:

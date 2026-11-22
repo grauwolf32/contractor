@@ -114,7 +114,11 @@ principal attribution only for a concrete consumer with trusted identity inputs
 and a decision that needs them. No current caller supplies those inputs.
 
 **SMT-R6.** A manual edit, declaration, remove or restore must name its expected
-map revision, with `absent` for conditional creation. Suppression and annotation
+map revision, with `absent` for conditional creation. Model tools obtain this
+precondition from the Runtime-held reviewed view; their arguments contain no
+`expected_revision`. After an edit or conflict, another edit requires an explicit
+read/list with `refresh=true`. Old cursors still read their original view but
+provide no new write authority. Suppression and annotation
 commands must name an exact bounded member selection. Repeated traffic must not
 remove suppression. A grouping change must preserve retained member identity,
 metadata and selection, and must conflict when a structural change would make
@@ -131,7 +135,11 @@ member.
 **SMT-R7.** A source replacement must compare its expected generation,
 predecessor exact descriptor and policy digest, together with stable source and
 deployment attribution. Creation requires absence. Code assigns the next
-generation and computes the new policy digest. It must preserve independent
+generation and computes the new policy digest. The model grouping facade takes
+only rules and an optional operation key: Runtime derives the predecessor from
+the reviewed map using the pinned deployment/namespace manual-source identity
+(shared fixture `api/testdata/sitemap-editor-source-id.json`). The Server still
+derives and enforces actual source authority. It must preserve independent
 observations and reject stale source intent; retry must never refresh that
 intent automatically. Exact concrete source rules precede templates; ambiguous template matches
 remain concrete and explicitly ambiguous both on ingress and when a source
@@ -593,3 +601,9 @@ the existing report collector independently of Finding publication. Missing
 concrete request method produces a projection gap rather than an invented member;
 missing response records only the factual request attempt. No target traffic or
 Audit report export is added.
+
+**SMT-R32.** Model import_sitemap_source.artifact_ref contains namespace/name
+only. Runtime resolves a trusted/observed exact selection before dispatching the
+existing format adapter; nested revision fields and unknown/ambiguous materials
+fail before import. Results/provenance retain exact versions. This grants no
+additional access or retention and adds no alternate import mechanism.

@@ -1275,3 +1275,22 @@ def test_shared_optional_parameter_binding_omits_callable_argument(
         assert tool.calls == [expected]
 
     asyncio.run(scenario())
+
+
+def test_shared_tool_worker_selects_owner_trusted_signature_and_preserves_owner(tmp_path):
+    class SeparateFixture(FixtureTool):
+        async def __call__(self, source: str) -> dict:
+            raise AssertionError("Model facade cannot execute trusted arguments")
+
+        async def contractor_trusted_call(self, url: str, rate_limit: int = 10) -> dict:
+            return await super().__call__(url, rate_limit)
+
+    async def scenario():
+        store, tool, spec = ArtifactStore(), SeparateFixture(), tool_spec()
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        result = await runtime.invoke(request(spec))
+        assert result.failure is None, result
+        assert runtime._tool is tool
+        assert len(tool.calls) == 1
+
+    asyncio.run(scenario())

@@ -1,21 +1,23 @@
 schema_version: '1.0'
-id: V479-005
-title: Resolve nested finding scanner and evidence versions in Runtime
+id: V479-002
+title: Replace Audit conclusions by item key without revision arguments
 milestone: runtime-owned-tool-versions-2026-11
-epic: findings
+epic: audits
 kind: feature
 priority: P1
-status: pending
+status: completed
 depends_on:
-- V479-004
+- V479-001
+- V474-004
+- V477-002
 languages:
 - python
 - markdown
-goal: The model selects known findings and materials without reconstructing revision-bearing JSON, while stored
-  evidence and scanner inputs remain exact.
-demonstration: Discover a Project Finding, select it without supplying its revision, then use the retained
-  exact materials for a finding/fact and a scanner request. Changing a source or Finding between selection
-  and use yields the existing explicit conflict or retains the selected snapshot; no source is silently replaced.
+goal: The Worker corrects an accepted result by submitting the new conclusion for the same item_key, without
+  a revision number or replacement flag.
+demonstration: A two-item scripted Audit Worker records one item, repeats it identically, changes its rationale/verdict,
+  compacts, then completes the remaining item. Runtime publishes the latest accepted conclusion with unchanged
+  exact sources and trusted attribution.
 context:
   authority: 'User request 2026-11-22: create tasks in two ordered stages: remove expected_revision from LLM
     interfaces first, then revision; Runtime manages preconditions and version selection, including compaction
@@ -31,21 +33,17 @@ context:
     cursor fixing version and position, rather than a snapshot-until-refresh interface.'
   baseline: 6a4d479d361f8fcb1ce5c74c7f512c5dfe4666af on local main; recheck actual active callers before implementation.
   specification:
-  - docs/spec/findings/findings.md#FND-R224
-  - docs/spec/findings/findings.md#FND-R225
-  - docs/spec/findings/findings.md#FND-R226
-  - docs/spec/audits/hypotheses.md#HG-R5
+  - docs/spec/audits/worker-completion.md#AWC-R32
+  - docs/spec/audits/worker-completion.md#AWC-R40
+  - docs/spec/audits/worker-completion.md#AWC-R48
   - docs/spec/audits/hypotheses.md#HG-R7
-  - docs/spec/tools/scanners.md#SCN-R5
-  - docs/spec/artifacts/artifact-store.md#ART-R58
+  - docs/spec/execution/worker.md#WRK-R192
   sources:
-  - runtime/src/contractor_runtime/toolsets/security_findings/project_reader.py
-  - runtime/src/contractor_runtime/toolsets/security_findings/facades.py
-  - runtime/src/contractor_runtime/toolsets/common/finding_locations.py
-  - runtime/src/contractor_runtime/toolsets/scan/tools.py
-  - runtime/src/contractor_runtime/toolsets/sitemap/tools.py
+  - runtime/src/contractor_runtime/toolsets/audit_results/v2.py
+  - runtime/src/contractor_runtime/toolsets/audit_results/collector.py
   - runtime/src/contractor_runtime/toolsets/audit_results/proposals.py
-  - runtime/src/contractor_runtime/toolsets/common/artifact_visibility.py
+  - runtime/src/contractor_runtime/toolsets/audit_results/completion.py
+  - runtime/tests/test_audit_compaction.py
   boundary_decision: Tools own the semantic selection and validation. Shared Runtime helpers live in toolsets.common
     and are explicitly called by production consumers; no universal argument-rewriting plugin, hidden acceptance
     of deleted arguments, new receipt store, database entity or framework for hypothetical tools. Server remains
@@ -53,7 +51,8 @@ context:
     private/public/wire/persisted revision fields remain strict; only model-facing inputs change. Update numbered
     owning specs, descriptions, active instructions and actual ADK schemas with implementation; this task
     plan does not change shipped specs.
-  delivery_group: 2 / revision, after the common exact-selection behavior in V479-004.
+  delivery_group: 1 / expected_revision. Read-side revision removal waits until this and the other stage-one
+    tasks complete.
   parallel_plan_reconciliation: A separate, unmerged planning lane codex/v478-audit-plan-results exists at
     review time, with pending V478-002 (sources/evidence/fact) and V478-003 (submit_result/submit_results).
     Its task drafts still mention explicit correction revisions. This newer decision removes those model arguments
@@ -63,17 +62,17 @@ context:
     to the active names, never preserve submit_check_result aliases or restore revision arguments to satisfy
     an older draft. This is an integration precondition, not authorization to implement/merge V478 or widen
     this package into durable evidence collection.
-  surface_inventory: 'Do not count only JSON schema property names: scanner dict arguments and selected_materials_json
-    currently require revision in descriptions/runtime validation despite generic outer schemas. Inspect all
-    exported model callables and distinguish trusted non-model tool Workers.'
+  correction_decision: User explicitly chose automatic sequential replacement on 2026-11-22 after discussion.
+    This supersedes the agent suggestion to add replace_existing=true. Version counters stay in results; they
+    are not model-controlled concurrency tokens.
 scope:
   in:
-  - Remove read_project_finding revision and nested model revisions in select_project_findings selectors,
-    read_finding_selection collection_ref, finding/fact evidence_refs and selected_materials_json.
-  - 'Cover revision requirements hidden by generic schemas: scan_sqlmap request_ref, scan_ffuf wordlist_ref
-    and import_sitemap_source artifact_ref; audit every other actual LLM-selected exact-ref consumer.'
-  - Preserve the same field addressing where possible, using revision-free input records distinct from full
-    internal/output ArtifactRef; align V478 sources only when that separately owned plan lands.
+  - Remove expected_revision from submit_check_result and submit_hypothesis_proposals, including their active
+    replacement names if the separately planned V478 rename lands first.
+  - Keep item revision bookkeeping and result receipts; use runtime-owned exact output CAS and preserve proposal
+    material associations.
+  - Update old single/batch correction descriptions and tests without weakening atomic full-batch behavior
+    or terminal completion.
   out:
   - New general artifact-handle addressing, renamed model-supplied version/ETag preconditions, force/replace
     flags, compatibility aliases and automatic semantic rebasing. The approved read_artifact pagination cursor
@@ -82,41 +81,34 @@ scope:
   - Unrelated UI redesign, live model evaluation, demo deployment and full repository test gates.
 requirements:
 - id: R1
-  text: Keep normal namespace/name and Finding IDs as model selections; derive exact versions from trusted
-    invocation materials, prior selected tool results or the owning discovery view. Do not replace one revision
-    field with a model-authored digest, generation, ETag or opaque version argument. Return full resolved
-    revisions for observation. The approved read_artifact cursor addresses exact bounded reads and is not
-    a general replacement for every source selector.
+  text: 'For a live unsealed collector: missing item creates; identical canonical content replays the current
+    receipt without increment; changed content in a subsequent model response replaces that item atomically
+    and increments its internal revision. No replace_existing flag, separate confirm call or model-provided
+    expected counter. Keep revisions in receipts for observation.'
 - id: R2
-  text: Project Finding reads and selection use the discovered current revision held by Runtime, preserving
-    server conflict if it changed. Unknown IDs require discovery; do not invent a version or silently rediscover
-    on the model's behalf. Frozen collection cursors and explicitly selected sources retain their exact identity
-    and existing lifecycle checks.
+  text: Different changes of one item issued in the same parallel model response must not both successively
+    overwrite each other based on scheduler order. Admit them against the same runtime-owned starting generation;
+    at most one different update succeeds, others return a classified conflict. Identical duplicates can replay.
+    Different items remain independently admissible; invalid calls cannot erase accepted data.
 - id: R3
-  text: For evidence, material composition, scanner inputs and report imports, resolve the exact observed/selected
-    material, not whichever bytes are latest when the effect happens. A metadata listing alone is not content
-    evidence; retain current observation/provenance rules. Missing, expired, ambiguous, foreign or hidden
-    references fail before publication/scanner launch. A bound/current source cannot automatically replace
-    an older retained source.
+  text: Do not replay an older content A over newer B merely because A was previously accepted or its reply
+    was lost. Infrastructure retries preserve the original admitted generation/content/operation identity;
+    reconcile through existing receipt rules. A genuinely new later model call with A is a new semantic replacement.
+    This contract does not claim to detect hallucinated changes of mind.
 - id: R4
-  text: Separate model-input records from internal exact descriptors. Reject nested revision fields and duplicate/unknown
-    keys in native and serialized JSON inputs; keep V477 one-layer helpers and field diagnostics. Do not weaken
-    ArtifactRef.require_exact, stored schemas or Server validators. Only the Runtime adapter fills exact refs
-    after authorizing/resolving the semantic selection.
+  text: 'Keep complete batch atomicity: identical present items replay and absent items create; changed existing
+    members reject the entire batch and direct the model to a single-item submission. The user approved automatic
+    sequential single-item replacement, not silent batch replacement or additional work after the existing
+    seal/completion boundary.'
 - id: R5
-  text: Model-free tool@1 execution already receives exact ArtifactRefs from deterministic argument bindings.
-    Preserve that trusted path separately from the changed model-callable facade; do not strip exact versions
-    from scanner execution manifests or introduce compatibility unions to accept both model and internal formats
-    everywhere.
+  text: Proposal output uses the shared hidden CAS contract. Preserve previous selected-material associations
+    and immutable handle-to-source meaning; identical payload replay is effect-free. A stale/conflicting target
+    or ambiguous mismatching recovery never rebinds sources or automatically reloads a new base.
 - id: R6
-  text: Reuse existing selected material handles where they already belong to a domain, without creating a
-    generic new artifact-link interface or auto-archiving every observation. Shared preparation lives below
-    owners in toolsets.common. Preserve local request_id capture, origin/item membership, source retention
-    and existing idempotency keys; no false independent evidence through copied summaries.
-- id: R7
-  text: Compaction preserves trusted selections and discovery fences independently of summary text. New invocations/recovery
-    do not revive unvalidated stale IDs; explicit reread/reselection is required when state is unavailable.
-    Enforce shared bounded selection admission without whole-Project discovery or source-history hydration.
+  text: Retain V477 strict normalization/error behavior and local HTTP request_id capture; checkpoint compaction
+    preserves accepted conclusions, internal generations and replay identity. New invocation, seal, failure/cancellation
+    and release keep their existing ownership. A receipt is neither durable Audit acceptance nor permission
+    to resume a completed Worker.
 failure_outcomes:
 - operation: Resolve a selected version and perform the existing owner operation
   permanent: Unknown/ambiguous/unavailable selection, malformed or removed argument, stale precondition, denied
@@ -153,43 +145,43 @@ lifecycle:
     instead of guessing latest.
 acceptance_criteria:
 - id: A1
-  given: Actual LLM declarations and generic/serialized exact-ref fields
-  when: Every listed consumer is invoked without model revision fields
-  then: The owning Server/scanner receives exact validated descriptors; output revisions remain and nested
-    old fields are rejected.
+  given: A live two-item Audit collector through actual ADK
+  when: Calls create, identical replay, changed scalar and final completion occur without expected_revision
+  then: Only the new accepted scalar changes its revision; the sealed package contains the latest conclusion
+    and returned receipts still identify versions.
 - id: A2
-  given: Changed Finding metadata and changed/expired source artifacts after selection
-  when: Read/select, evidence publication, import and scanner preparation run
-  then: Existing stale/authority/retention failures remain explicit, with no automatic latest substitution,
-    partial publication or scan launch.
+  given: Parallel same-item changes, identical duplicates and independent item keys
+  when: One model response invokes them concurrently
+  then: Different same-base changes cannot silently overwrite; duplicates replay and distinct items stay correct;
+    no flag or revision is requested from the model.
 - id: A3
-  given: A model-free scanner Worker and the same scanner selected for an LLM
-  when: Trusted bindings and model selectors use their real execution paths
-  then: Both use intended exact request/wordlist bytes; the model never supplies revision while deterministic
-    manifests retain it.
+  given: A complete batch mixes new/identical/changed items, plus an old ambiguous update
+  when: Batch submission and technical recovery execute
+  then: The batch is atomic and the older retry cannot overwrite a newer accepted conclusion; a new deliberate
+    sequential scalar remains possible before seal.
 - id: A4
-  given: Compaction, duplicate selections, concurrency, unavailable provenance and maximum selectors
-  when: Real discovery/retention and tool paths complete or reject
-  then: Exact attribution and bounds survive; no extra store, whole-owner scan, history-based authority or
-    unjoined work appears.
+  given: An accepted result/proposal and successful/failed compaction, cancellation or response loss
+  when: The real completion and publication owners settle
+  then: Trusted evidence, associations, generations and exact output CAS remain coherent; no stale restore
+    or repeated target HTTP request occurs.
 tests:
-- command: cd runtime && uv run pytest tests/test_findings_reader_toolset.py tests/test_finding_facades.py
-    tests/test_finding_tool_contracts.py tests/test_security_findings_toolset.py tests/test_audit_proposals.py
-    tests/test_scan_sqlmap_request.py tests/test_scan_ffuf.py tests/test_scan_wordlist.py tests/test_sitemap_imports.py
-    tests/test_tool_worker.py tests/test_worker_artifact_bindings.py
+- command: cd runtime && uv run pytest tests/test_audit_results_toolset.py tests/test_audit_result_collector.py
+    tests/test_audit_proposals.py tests/test_audit_result_publication.py tests/test_audit_compaction.py tests/test_audit_completion_continuation.py
+    tests/test_tool_arguments.py tests/test_tool_input_errors.py
   covers:
   - A1
   - A2
   - A3
   - A4
-- command: go test -tags=e2e -count=1 -run '^(TestProjectFindingsReaderAcrossProcesses|TestProjectSitemapReportImportsAcrossProductionProcesses|TestScannerFindingsAcrossProcesses)$'
-    -timeout=20m ./tests/e2e
+- command: go test -tags=e2e -count=1 -run '^TestAuditCompactionPreservesTrustedCompletionAcrossProcesses$'
+    -timeout=15m ./tests/e2e
   covers:
   - A1
   - A2
   - A3
   - A4
-- command: cd runtime && uv run lint-imports
+- command: cd runtime && uv run ruff check src/contractor_runtime/toolsets/audit_results tests/test_audit_result_collector.py
+    tests/test_audit_proposals.py
   covers:
   - A1
   - A2
@@ -210,3 +202,5 @@ verification_policy: Commands listed here are required implementation checks, no
   and selected process checks; extend only to actually affected sibling owners. Changed pinned catalog content
   needs new immutable identities/paths and lock entries; tests use testdata fixtures, not the live configs
   tree. Do not change the configured model or claim measured quality improvement.
+assignment: "User request 2026-11-22: implement V479 in one pass after merging the task plan."
+implementation_commit: f51fb7a8e64e575b4df0e71ddf743364e1569c47

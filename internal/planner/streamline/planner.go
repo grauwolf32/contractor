@@ -567,7 +567,7 @@ func (p *streamlinePlanner) systemInstruction() string {
 		executionGuidance, authorityGuidance,
 		"The Stage is not complete when you emit prose. You must call finish with a succeeded or failed candidate.",
 		"A succeeded finish requires at least one succeeded subtask and no pending work. A failed finish is allowed whenever no Worker dispatch is active.",
-		"finish reports only the semantic outcome; Workflow Scheduler validates the candidate and alone chooses every Workflow transition, including retry or configured escalation.",
+		"finish artifact selectors contain only namespace and name; exact versions come from accepted Worker results or trusted inputs. Returned revisions remain informational. finish reports only the semantic outcome; Workflow Scheduler validates the candidate and alone chooses every Workflow transition, including retry or configured escalation.",
 		rosterHeading, strings.Join(roster, "\n"),
 	}
 	if guidance := p.memoryInstruction(); guidance != "" {

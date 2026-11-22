@@ -28,7 +28,7 @@ func TestMemorySnapshotAcrossProcesses(t *testing.T) {
 	}
 	reader := domainGatewayStage{name: "snapshot/reader", tools: tools, steps: []domainGatewayStep{
 		toolGatewayStep("read_artifact", fixedArguments(map[string]any{"namespace": "writer", "name": "memory.selected"})),
-		toolGatewayStep("read_artifact", stageRefArguments("snapshot", nil)),
+		toolGatewayStep("read_artifact", stageReadArguments("snapshot", nil)),
 		toolGatewayStep("write_text_artifact", func(request map[string]any) (map[string]any, error) {
 			reads := findingsToolResponses(request, "read_artifact")
 			if len(reads) != 2 {
