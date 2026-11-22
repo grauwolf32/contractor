@@ -6,7 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V478-002
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 0dfe031c3aa8b68edd22011fbc6b6616adffd4e5
 depends_on: [V478-002]
 languages: [python]
 goal: A common source selection fails safely before publishing an oversized prepared prefix or treating an unavailable HTTP selector as a Python bug.
@@ -39,3 +40,5 @@ tests:
   covers: [A1, A2, A3]
 - command: make lint
   covers: [A1, A2, A3]
+
+verification_results: "All 78 selected source/capture/Finding regressions pass on the isolated V478-002 plus V478-015 revision (0.91s), including two individually valid real-sized HTTP captures, mixed HTTP/code allowance, unavailable selectors and preserved adapter schema exceptions. Full make lint passes on the isolated revision; Ruff, formatting and dependency fingerprint are current. No database, target replay or new storage is introduced."
