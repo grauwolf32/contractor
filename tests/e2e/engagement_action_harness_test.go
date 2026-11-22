@@ -208,6 +208,25 @@ func engagementFixtureStage() domainGatewayStage {
 
 func engagementRequestStage(requests []map[string]any) domainGatewayStage {
 	steps := []domainGatewayStep{toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})), toolGatewayStep("http_credentials", fixedArguments(map[string]any{}))}
+	steps[0].validate = func(request map[string]any) error {
+		if err := validateExecutionFacts(request, "remainingToolCalls"); err != nil {
+			return err
+		}
+		tools, _ := request["tools"].([]any)
+		for _, raw := range tools {
+			tool, _ := raw.(map[string]any)
+			function, _ := tool["function"].(map[string]any)
+			if function["name"] != "http_request" {
+				continue
+			}
+			description, _ := function["description"].(string)
+			if !strings.Contains(description, "Allocation-local HTTP limits:") || !strings.Contains(description, "effectiveBodyLimits") || !strings.Contains(description, "no total HTTP request quota") {
+				return fmt.Errorf("HTTP declaration omitted allocation limits")
+			}
+			return nil
+		}
+		return fmt.Errorf("HTTP declaration missing")
+	}
 	for _, request := range requests {
 		steps = append(steps, toolGatewayStep("http_request", fixedArguments(request)))
 	}
