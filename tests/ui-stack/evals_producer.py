@@ -15,6 +15,7 @@ from pathlib import Path
 
 PRIVATE = "PRIVATE_MANAGED_EVAL_RELEASE_TRUTH"
 OUTPUT = b"Deterministic managed evaluation source\n"
+AUDIT_SOURCE_CODE = b"def fixture():\n    return True\n"
 MEMBERS = 8
 CHECK_DIGEST = "sha256:" + hashlib.sha256(b"release-fixture-check@1").hexdigest()
 
@@ -191,7 +192,7 @@ def seed(client, directory):
     source = upload(client, project_id, "plain-source", "text/plain", OUTPUT)
     archive = io.BytesIO()
     with zipfile.ZipFile(archive, "w") as package:
-        package.writestr("app.py", "def fixture():\n    return True\n")
+        package.writestr("app.py", AUDIT_SOURCE_CODE)
     audit_source = upload(
         client, project_id, "source-archive", "application/zip", archive.getvalue()
     )
@@ -449,7 +450,13 @@ def audit_task_evidence(client, parent, inventory):
         ground = item["evidence"][0]
         assert (ground["scope_kind"], ground["scope_id"]) == ("run", run_id), ground
         assert ground["ref"] == run["inputs"]["source"], ground
-        assert read(ground["ref"]) == OUTPUT
+        source_bytes = read(ground["ref"])
+        assert ground["media_type"] == "application/zip", ground
+        assert digest(source_bytes) == ground["digest"], ground
+        assert len(source_bytes) == ground["size_bytes"], ground
+        with zipfile.ZipFile(io.BytesIO(source_bytes)) as source_archive:
+            assert source_archive.namelist() == ["app.py"]
+            assert source_archive.read("app.py") == AUDIT_SOURCE_CODE
         annotation, note = notes[item["task_id"]]
         assert note["origin"]["hypothesis"] == pin, note
         assert note["interpretation"] and note["tested_conditions"], note
@@ -482,7 +489,7 @@ def audit_task_evidence(client, parent, inventory):
                 assert material[field] == original[field], (material, original)
                 assert local[field] == original[field], (local, original)
                 assert ground[field] == original[field], (ground, original)
-            assert read_material(material) == read_material(original) == OUTPUT
+            assert read_material(material) == read_material(original) == source_bytes
         normalized[item["item_key"]] = {
             **outcome,
             "origin": origin,

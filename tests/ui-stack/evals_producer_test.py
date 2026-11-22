@@ -1,11 +1,13 @@
 """Standard-library regressions for the actual managed Eval producer."""
 
 import copy
+import io
 import json
 import runpy
 import sys
 import tempfile
 import urllib.parse
+import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,6 +15,10 @@ from unittest.mock import patch
 def check(producer, root):
     fixture = runpy.run_path(str(producer))
     encoded = fixture["encoded"]
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as package:
+        package.writestr("app.py", fixture["AUDIT_SOURCE_CODE"])
+    source_bytes = archive.getvalue()
     shared = json.loads((root / "api/testdata/audit-common/results.json").read_text())
     example = shared["cases"][0]
     context = json.loads(example["context"])
@@ -50,8 +56,9 @@ def check(producer, root):
         item["evidence"][0].update(
             scope_kind="run",
             scope_id="run-1",
-            digest=fixture["digest"](fixture["OUTPUT"]),
-            size_bytes=len(fixture["OUTPUT"]),
+            digest=fixture["digest"](source_bytes),
+            size_bytes=len(source_bytes),
+            media_type="application/zip",
         )
         item["evidence"][0]["ref"].update(namespace="inputs", name="source")
         context["items"].append(item)
@@ -60,10 +67,10 @@ def check(producer, root):
         retained = copy.deepcopy(item["evidence"][0])
         retained.update(scope_kind="audit", scope_id="audit-1")
         retained["ref"].update(namespace="audit-inputs", revision="audit-source-1")
-        add_material("baseline/source", retained, fixture["OUTPUT"])
+        add_material("baseline/source", retained, source_bytes)
         selected = copy.deepcopy(retained)
         selected["ref"].update(namespace="audit-selected", revision="selected-source-1")
-        add_material("evidence-source/source", selected, fixture["OUTPUT"])
+        add_material("evidence-source/source", selected, source_bytes)
         local = copy.deepcopy(selected)
         local.update(scope_kind="run", scope_id="run-1")
         local["ref"] = {
@@ -167,7 +174,7 @@ def check(producer, root):
     }
 
     paths.update(material_paths)
-    paths["/v1/runs/run-1/artifacts/inputs/source?revision=rev-1"] = fixture["OUTPUT"]
+    paths["/v1/runs/run-1/artifacts/inputs/source?revision=rev-1"] = source_bytes
 
     def wrapper_path(task_id, revision="task-result-1"):
         return "/v1/audits/audit-1/artifacts?" + urllib.parse.urlencode(
