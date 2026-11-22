@@ -57,44 +57,45 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 	if err != nil {
 		return false, err
 	}
-	params := auditstore.CollectParams{Claim: claim, ExecutionID: execution.ExecutionID, ReceiptID: auditdomain.DeterministicID("receipt", execution.ExecutionID), RequestDigest: digest, Disposition: auditstore.CollectionAccepted, Retained: []auditstore.ArtifactLink{}}
-	findingResults := map[string]*auditstore.CanonicalFindingResult{}
-	commit := func(code string, retryable bool, result *auditcontract.Material) (bool, error) {
-		params.Tasks = make([]auditstore.TaskCollection, 0, len(tasks))
-		for _, task := range tasks {
-			var gap *string
-			if code != "" {
-				value := code
-				gap = &value
-			}
-			collection := auditstore.TaskCollection{ExecutionItemID: auditdomain.DeterministicID("attempt", execution.ExecutionID, task.Document.TaskID), TaskID: task.Document.TaskID, Findings: findingResults[task.Document.TaskID], Result: result, GapCode: gap, Retryable: retryable}
-			if err := partials.selectTask(execution, task, &collection, &params.Retained); err != nil {
-				return false, err
-			}
-			params.Tasks = append(params.Tasks, collection)
-		}
-		if code != "" {
-			params.ErrorCode = &code
-		}
-		_, changed, err := i.store.Collect(ctx, params)
-		return changed, err
+	collection := taskCollectionState{
+		params: auditstore.CollectParams{
+			Claim:         claim,
+			ExecutionID:   execution.ExecutionID,
+			ReceiptID:     auditdomain.DeterministicID("receipt", execution.ExecutionID),
+			RequestDigest: digest,
+			Disposition:   auditstore.CollectionAccepted,
+			Retained:      []auditstore.ArtifactLink{},
+		},
+		tasks:          tasks,
+		partials:       partials,
+		execution:      execution,
+		findingResults: map[string]*auditstore.CanonicalFindingResult{},
 	}
-	// A deterministic read/write rejection cannot become an endless retry of
-	// the same frozen output. Preserve a technical receipt without references
-	// whose validity failed. Transport/storage ambiguity keeps its original
-	// error and reconciles the existing natural receipt on the next pass.
-	defer func() {
-		if errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
-			params.Disposition = auditstore.CollectionContractInvalid
-			params.SourceOutput, params.Retained = nil, nil
-			changed, err = commit("evidence-budget-exhausted", false, nil)
-		}
-		if permanentTaskCollectionError(err) {
-			params.Disposition = auditstore.CollectionContractInvalid
-			params.SourceOutput, params.Retained = nil, nil
-			changed, err = commit("collection-contract-invalid", false, nil)
-		}
-	}()
+	changed, err = i.collectTaskOutputs(ctx, snapshot, &collection)
+	// Classify definite failures explicitly; transport ambiguity is returned
+	// unchanged so the next pass reconciles the existing natural receipt.
+	if errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
+		collection.params.Disposition = auditstore.CollectionContractInvalid
+		collection.params.SourceOutput, collection.params.Retained = nil, nil
+		changed, err = collection.commit(ctx, i.store, "evidence-budget-exhausted", false, nil)
+	}
+	if permanentTaskCollectionError(err) {
+		collection.params.Disposition = auditstore.CollectionContractInvalid
+		collection.params.SourceOutput, collection.params.Retained = nil, nil
+		changed, err = collection.commit(ctx, i.store, "collection-contract-invalid", false, nil)
+	}
+	return changed, err
+}
+
+func (i *Importer) collectTaskOutputs(ctx context.Context, snapshot auditstore.ReconcileSnapshot, collection *taskCollectionState) (bool, error) {
+	claim, execution := collection.params.Claim, collection.execution
+	params, tasks, partials := &collection.params, collection.tasks, collection.partials
+	findingResults := collection.findingResults
+	commit := func(code string, retryable bool, result *auditcontract.Material) (bool, error) {
+		return collection.commit(ctx, i.store, code, retryable, result)
+	}
+	var changed bool
+	var err error
 	if more, err := i.retainTaskFindings(ctx, snapshot, execution); more || err != nil {
 		if errors.Is(err, ErrPermanent) {
 			params.Disposition = auditstore.CollectionContractInvalid

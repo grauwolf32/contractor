@@ -131,49 +131,11 @@ func (s *Service) RecordJudgments(ctx context.Context, grant controlplane.Alloca
 		if err != nil {
 			return err
 		}
-		generations := make([]auditcontract.JudgmentGeneration, 0, len(input.Items))
-		stale := false
-		for index, update := range input.Items {
-			key := update.Conclusion.ItemKey
-			prior, exists := latest[key]
-			current := uint64(0)
-			if exists {
-				if prior.Generation.TaskID != members[key].Document.TaskID {
-					return ErrInvalid
-				}
-				current = prior.Generation.Generation
-			}
-			same := exists && reflect.DeepEqual(prior.Item.Conclusion, update.Conclusion)
-			if same {
-				normalized.Items[index] = prior.Item
-			} else {
-				if input.Mode == "batch" && exists {
-					return auditstore.ErrConflict
-				}
-				if current != update.BaseGeneration {
-					stale = true
-				}
-				if current == auditcontract.MaximumResultGeneration {
-					return auditstore.ErrEvidenceBudgetExhausted
-				}
-			}
-			generation := current
-			if !same {
-				generation++
-			}
-			generations = append(generations, auditcontract.JudgmentGeneration{ItemKey: key, TaskID: members[key].Document.TaskID, Generation: generation})
+		normalized, generations, err := assignJudgmentGenerations(input, members, latest, normalized)
+		if err != nil {
+			return err
 		}
-		if stale {
-			current := make([]auditcontract.JudgmentGeneration, 0, len(input.Items))
-			for _, update := range input.Items {
-				value := auditcontract.JudgmentGeneration{ItemKey: update.Conclusion.ItemKey, TaskID: members[update.Conclusion.ItemKey].Document.TaskID}
-				if prior, ok := latest[update.Conclusion.ItemKey]; ok {
-					value.Generation = prior.Generation.Generation
-				}
-				current = append(current, value)
-			}
-			return &JudgmentStaleError{Generations: current}
-		}
+
 		data, err := strictjson.Canonical(normalized)
 		if err != nil {
 			return err
@@ -182,7 +144,19 @@ func (s *Service) RecordJudgments(ctx context.Context, grant controlplane.Alloca
 			return err
 		}
 		request, _ := strictjson.Canonical(input)
-		metadata := auditcontract.JudgmentMutation{Schema: "contractor.audit.result-receipt.v1", RequestDigest: auditdomain.DigestBytes(request), AuditID: audit.AuditID, ExecutionID: *run.AuditExecutionID, RunID: run.RunID, AllocationID: grant.AllocationID, StageExecutionID: grant.StageExecutionID, LogicalAgentName: grant.LogicalAgentName, InvocationID: input.InvocationID, SubmissionID: input.SubmissionID, Generations: generations}
+		metadata := auditcontract.JudgmentMutation{
+			Schema:           "contractor.audit.result-receipt.v1",
+			RequestDigest:    auditdomain.DigestBytes(request),
+			AuditID:          audit.AuditID,
+			ExecutionID:      *run.AuditExecutionID,
+			RunID:            run.RunID,
+			AllocationID:     grant.AllocationID,
+			StageExecutionID: grant.StageExecutionID,
+			LogicalAgentName: grant.LogicalAgentName,
+			InvocationID:     input.InvocationID,
+			SubmissionID:     input.SubmissionID,
+			Generations:      generations,
+		}
 		provenance, err := strictjson.Canonical(metadata)
 		if err != nil || metadata.Validate() != nil {
 			return ErrInvalid
@@ -307,4 +281,53 @@ func normalizeJudgments(ctx context.Context, reads *querystore.Store, service *a
 		return result, ErrInvalid
 	}
 	return result, nil
+}
+
+// assignJudgmentGenerations applies correction rules without store access.
+// The caller holds the owner locks throughout the read, comparison and write.
+func assignJudgmentGenerations(input auditcontract.JudgmentSubmission, members map[string]auditstore.Task, latest map[string]auditcontract.AcceptedJudgment, normalized auditcontract.ResultDocument) (auditcontract.ResultDocument, []auditcontract.JudgmentGeneration, error) {
+	generations := make([]auditcontract.JudgmentGeneration, 0, len(input.Items))
+	stale := false
+	for index, update := range input.Items {
+		key := update.Conclusion.ItemKey
+		prior, exists := latest[key]
+		current := uint64(0)
+		if exists {
+			if prior.Generation.TaskID != members[key].Document.TaskID {
+				return auditcontract.ResultDocument{}, nil, ErrInvalid
+			}
+			current = prior.Generation.Generation
+		}
+		same := exists && reflect.DeepEqual(prior.Item.Conclusion, update.Conclusion)
+		if same {
+			normalized.Items[index] = prior.Item
+		} else {
+			if input.Mode == "batch" && exists {
+				return auditcontract.ResultDocument{}, nil, auditstore.ErrConflict
+			}
+			if current != update.BaseGeneration {
+				stale = true
+			}
+			if current == auditcontract.MaximumResultGeneration {
+				return auditcontract.ResultDocument{}, nil, auditstore.ErrEvidenceBudgetExhausted
+			}
+		}
+		generation := current
+		if !same {
+			generation++
+		}
+		generations = append(generations, auditcontract.JudgmentGeneration{ItemKey: key, TaskID: members[key].Document.TaskID, Generation: generation})
+	}
+	if stale {
+		current := make([]auditcontract.JudgmentGeneration, 0, len(input.Items))
+		for _, update := range input.Items {
+			value := auditcontract.JudgmentGeneration{ItemKey: update.Conclusion.ItemKey, TaskID: members[update.Conclusion.ItemKey].Document.TaskID}
+			if prior, ok := latest[update.Conclusion.ItemKey]; ok {
+				value.Generation = prior.Generation.Generation
+			}
+			current = append(current, value)
+		}
+		return auditcontract.ResultDocument{}, nil, &JudgmentStaleError{Generations: current}
+	}
+	return normalized, generations, nil
 }

@@ -1,0 +1,37 @@
+schema_version: '1.0'
+id: V478-032
+title: Make Audit persistence and source preparation explicit
+milestone: audit-evidence-results-2026-11
+epic: audits
+kind: chore
+introduced_by: V478-004
+priority: P2
+status: in_progress
+depends_on: [V478-002, V478-004]
+languages: [go, python]
+goal: Make Audit persistence and source preparation explicit through the existing Artifact and Audit owners.
+context:
+  authority: 'User request 2026-11-23 in the review side conversation: continue with the two reported defects and the proposed readability improvements.'
+  finding: 'internal/auditimport/tasks.go:86, internal/auditservice/judgments.go:134, runtime/src/contractor_runtime/toolsets/common/sources.py:163. Deferred persistence, inline generation decisions and heterogeneous source tuples obscure the operation being reviewed.'
+  siblings: 'Review Runtime prospective admission, Server execution and Audit quotas, normal final import, interrupted collection, scalar and batch judgments, and Finding/Fact source preparation.'
+  boundary: 'Keep existing transaction, authority, exact source and replay ownership. No new store, endpoint, schema variant or model contract.'
+scope:
+  in:
+  - 'Deferred persistence, inline generation decisions and heterogeneous source tuples obscure the operation being reviewed.'
+  - Real-path regressions and the full suites of touched packages.
+  out:
+  - UI acceptance work, live Audits, demo deployment and changes to another checkout.
+acceptance_criteria:
+- id: A1
+  text: 'Make Audit persistence and source preparation explicit; existing fences, exact provenance and replay semantics remain enforced.'
+- id: A2
+  text: 'All sibling paths retain their intended behavior and permanent failures remain atomic.'
+- id: A3
+  text: 'Relevant regressions and complete touched-package suites pass; owning specifications agree with the implementation.'
+tests:
+- command: go test -count=1 ./internal/auditservice ./internal/auditimport ./internal/auditstore/...
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+- command: make test-runtime
+  covers: [A1, A2, A3]

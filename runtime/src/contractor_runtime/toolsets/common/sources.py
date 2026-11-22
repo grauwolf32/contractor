@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass
 from typing import Annotated, Literal
 
 import jcs
@@ -124,6 +125,19 @@ def parse_sources(value, notices=None, *, allow_empty=False):
     return sources
 
 
+@dataclass(frozen=True, slots=True)
+class _PreparedHTTPSource:
+    request_id: int
+    data: bytes
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedCodeSource:
+    source_ref: ArtifactRef
+    target_ref: ArtifactRef
+    data: bytes
+
+
 class SourcePreparer:
     """No traffic, authority or independent registry; call only after owner admission."""
 
@@ -164,7 +178,7 @@ class SourcePreparer:
         sources = parse_sources(selected, notices)
         refs = []
         # Resolve all selectors before publishing any prepared bytes.
-        prepared = []
+        prepared: list[_PreparedHTTPSource | _PreparedCodeSource] = []
         prepared_bytes = 0
         for index, source in enumerate(sources):
             if isinstance(source, ArtifactSource):
@@ -176,76 +190,36 @@ class SourcePreparer:
                     raise SourceArgumentError("sources", str(error)) from None
                 refs.append(ref)
             elif isinstance(source, HTTPSource):
-                try:
-                    pending = await self.http.prepare(
-                        invocation_id,
-                        [source.request_id],
-                        max_bytes=MAX_PREPARED_SOURCE_BYTES - prepared_bytes,
-                    )
-                except HTTPSelectionLimitError:
-                    raise SourceArgumentError(
-                        "sources", "Selected source bytes exceed the preparation budget."
-                    ) from None
-                except HTTPSelectionUnavailableError:
-                    raise SourceArgumentError(
-                        f"sources[{index}].request_id",
-                        "The selected HTTP capture is unavailable in this invocation.",
-                    ) from None
-                prepared_bytes += len(pending[0][1])
-                prepared.append(("http", source.request_id, pending[0][1]))
+                capture = await self._prepare_http(
+                    source, invocation_id, index, MAX_PREPARED_SOURCE_BYTES - prepared_bytes
+                )
+                prepared_bytes += len(capture.data)
+                prepared.append(capture)
             else:
-                target = ArtifactRef(
-                    namespace=self.namespace,
-                    name="source-proof-"
-                    + hashlib.sha256(f"{invocation_id}:{call_id}:{index}".encode()).hexdigest(),
-                )
-                selector = source.model_dump()
-                digest = sha256_digest(jcs.canonicalize(selector))
-                if source.workspace:
-                    if self.workspace is None:
-                        raise ToolInputError("sources: workspace source capture is unavailable")
-                    capture = await self.workspace.capture_source_file(source.file)
-                    proof = await threads.to_thread_until_done(
-                        trace_source,
-                        capture,
-                        source.start_line,
-                        source.end_line,
-                        name="selected-code-source",
-                    )
-                else:
-                    capture = self.resources.source_evidence
-                    if capture is None:
-                        raise ToolInputError(
-                            "sources: open a pinned source archive before selecting code"
-                        )
-                    proof = await capture(source.file, source.start_line, source.end_line)
-                proof["selectionDigest"] = digest
-                raw = await threads.to_thread_until_done(
-                    jcs.canonicalize, proof, name="selected-code-encode"
-                )
-                if len(raw) > 1024 * 1024:
-                    raise ToolInputError("sources: code proof exceeds its byte bound")
-                prepared_bytes += len(raw)
+                proof = await self._prepare_code(source, invocation_id, call_id, index)
+                prepared_bytes += len(proof.data)
                 if prepared_bytes > MAX_PREPARED_SOURCE_BYTES:
                     raise SourceArgumentError(
                         "sources", "Selected source bytes exceed the preparation budget."
                     )
-                refs.append(ArtifactRef.model_validate(proof["source"]["artifact"]))
-                prepared.append(("code", target, raw))
+                refs.append(proof.source_ref)
+                prepared.append(proof)
         addresses = {(ref.namespace, ref.name, ref.revision) for ref in refs}
         if len(addresses) + len(prepared) > max_sources:
             raise SourceArgumentError("sources", "Selected sources exceed the claim source limit.")
-        for kind, key, raw in prepared:
-            if kind == "http":
+        for source in prepared:
+            if isinstance(source, _PreparedHTTPSource):
                 from contractor_runtime.strict_json import strict_json_loads
 
-                material = strict_json_loads(await self.http.publish(invocation_id, key, raw))
+                material = strict_json_loads(
+                    await self.http.publish(invocation_id, source.request_id, source.data)
+                )
                 refs.append(ArtifactRef.model_validate(material["ref"]))
             else:
                 saved = await write_artifact_exact(
                     self.client,
-                    key,
-                    data=raw,
+                    source.target_ref,
+                    data=source.data,
                     media_type="application/json",
                     expected_revision=None,
                     max_bytes=1024 * 1024,
@@ -261,3 +235,51 @@ class SourcePreparer:
         for ref in unique.values():
             self.resources.selected_versions.observe(ref)
         return list(unique.values())
+
+    async def _prepare_http(self, source, invocation_id, index, remaining_bytes):
+        try:
+            pending = await self.http.prepare(
+                invocation_id, [source.request_id], max_bytes=remaining_bytes
+            )
+        except HTTPSelectionLimitError:
+            raise SourceArgumentError(
+                "sources", "Selected source bytes exceed the preparation budget."
+            ) from None
+        except HTTPSelectionUnavailableError:
+            raise SourceArgumentError(
+                f"sources[{index}].request_id",
+                "The selected HTTP capture is unavailable in this invocation.",
+            ) from None
+        return _PreparedHTTPSource(source.request_id, pending[0][1])
+
+    async def _prepare_code(self, source, invocation_id, call_id, index):
+        target = ArtifactRef(
+            namespace=self.namespace,
+            name="source-proof-"
+            + hashlib.sha256(f"{invocation_id}:{call_id}:{index}".encode()).hexdigest(),
+        )
+        if source.workspace:
+            if self.workspace is None:
+                raise ToolInputError("sources: workspace source capture is unavailable")
+            capture = await self.workspace.capture_source_file(source.file)
+            proof = await threads.to_thread_until_done(
+                trace_source,
+                capture,
+                source.start_line,
+                source.end_line,
+                name="selected-code-source",
+            )
+        else:
+            capture = self.resources.source_evidence
+            if capture is None:
+                raise ToolInputError("sources: open a pinned source archive before selecting code")
+            proof = await capture(source.file, source.start_line, source.end_line)
+        proof["selectionDigest"] = sha256_digest(jcs.canonicalize(source.model_dump()))
+        raw = await threads.to_thread_until_done(
+            jcs.canonicalize, proof, name="selected-code-encode"
+        )
+        if len(raw) > 1024 * 1024:
+            raise ToolInputError("sources: code proof exceeds its byte bound")
+        return _PreparedCodeSource(
+            ArtifactRef.model_validate(proof["source"]["artifact"]), target, raw
+        )
