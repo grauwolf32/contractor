@@ -5,7 +5,7 @@ milestone: runtime-owned-tool-versions-2026-11
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V479-001
 - V479-002
@@ -250,3 +250,5 @@ verification_policy: Commands listed here are required implementation checks, no
 assignment: "User request 2026-11-22: implement all V479 in one pass; stage-one prerequisites are complete."
 
 sibling_verification: "Also run complete test_adk_runtime.py, test_allocation.py, test_worker_guidance.py and test_tool_operation_ownership.py; their scripted inputs consume the changed signatures. Migrate remaining e2e gateway write fixtures that explicitly sent expected_revision=null instead of silently accepting the removed field."
+
+implementation_commit: bc44b3a90747b38597be6b9e79435f602c1ac399
