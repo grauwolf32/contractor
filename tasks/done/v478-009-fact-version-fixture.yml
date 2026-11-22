@@ -6,7 +6,8 @@ epic: findings
 kind: chore
 introduced_by: V479-005
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 433c0880472bc77ad483edd036ada76d5a999920
 depends_on:
 - V479-005
 languages:
@@ -44,3 +45,5 @@ tests:
   covers:
   - A1
   - A2
+
+verification_results: "cd runtime && uv run pytest tests/test_project_facts.py passes within the complete 310-case Findings Runtime suite. make test-findings-e2e passes 23 required process cases and Runtime contracts; make lint passes."
