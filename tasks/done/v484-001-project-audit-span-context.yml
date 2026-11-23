@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V481-001
+id: V484-001
 title: Attach known Project and Audit identities to every OTLP span
 milestone: run-metadata-labels
 epic: execution-core
@@ -18,6 +18,11 @@ demonstration: >-
   verify that every exported span carries the same project.id and audit.id;
   repeat with a Project-only Run and an unbound Run to prove absence.
 context:
+  prior_task_id: V481-001 on codex/v481-trace-context before main integration.
+  integration_authority: >-
+    User request 2026-11-24 authorizes merging this feature into main. Main's
+    independent Project fact task already uses V481-001; assign this trace task
+    V484-001 without rewriting either implementation history or behavior.
   authority: >-
     User decision 2026-11-23: automatically propagate known Project and Audit
     IDs into all spans; create a task and implement it with tests. This
