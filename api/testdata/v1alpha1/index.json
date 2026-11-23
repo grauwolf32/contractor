@@ -220,6 +220,14 @@
     "agent-state-compaction-failed.json": {
       "type": "AgentStateSnapshot",
       "schema": "agent-state.schema.json"
+    },
+    "allocation-spec-project.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-spec-project-boundary.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
     }
   },
   "invalid": {
@@ -759,6 +767,36 @@
     "agent-state-compaction-cause.json": {
       "type": "AgentStateSnapshot",
       "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "allocation-project-null.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-project-empty.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-project-blank.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-project-malformed.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-project-oversized.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-project-number.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
       "strict": true
     }
   }

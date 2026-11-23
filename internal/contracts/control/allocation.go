@@ -95,6 +95,7 @@ func validateLifecycleRequest(apiVersion, allocationID, idField, idValue string,
 }
 
 type AllocationSpec struct {
+	ProjectID                       *string                                         `json:"projectId,omitempty"`
 	Engagement                      *engagementcontract.AllocationProjection        `json:"engagement,omitempty"`
 	SummarizerModelPolicy           *contracts.ResolvedModelPolicy                  `json:"summarizerModelPolicy,omitempty"`
 	CompactorModelPolicy            *contracts.ResolvedModelPolicy                  `json:"compactorModelPolicy,omitempty"`

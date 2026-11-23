@@ -186,12 +186,26 @@ func TestRunMetadataLabelsAcrossProcesses(t *testing.T) {
 	labelsA := cloneStrings(sharedLabels)
 	labelsA["eval.leg"] = "a"
 	labelsA["eval.sample"] = "1"
+	labelsA["audit.id"] = "metadata-audit-" + suffix
+	labelsA["project.id"] = "descriptive-project-canary"
 	labelsB := cloneStrings(sharedLabels)
 	labelsB["eval.leg"] = "b"
 	labelsB["eval.sample"] = "2"
 
+	projectData := operations.request(http.MethodPost, "/v1/projects", map[string]any{
+		"kind": "project", "name": "Metadata trace Project", "description": "",
+	}, http.StatusCreated, map[string]string{"Idempotency-Key": "metadata-project-" + suffix})
+	var project struct {
+		ProjectID string `json:"projectId"`
+	}
+	if err := json.Unmarshal(projectData, &project); err != nil || project.ProjectID == "" {
+		t.Fatalf("create metadata Project: %s, %v", projectData, err)
+	}
+
+	projectInput := uploadProjectScopeArtifact(t, publicClient, publicBaseURL, project.ProjectID, "projects", "source", e2eMediaType, []byte(e2eInput))
+
 	baseline := createMetadataRun(
-		t, operations, "metadata-baseline-"+suffix, uploaded, []string{"debug"}, nil,
+		t, operations, "metadata-baseline-"+suffix, uploaded, []string{"debug"}, nil, "",
 	)
 	baselineStatus := waitForRunAcross(
 		t, ctx, server, []*childProcess{runtimeProcess}, gateway,
@@ -202,9 +216,9 @@ func TestRunMetadataLabelsAcrossProcesses(t *testing.T) {
 	gateway.ResetScenario()
 
 	runA := createMetadataRun(
-		t, operations, "metadata-a-"+suffix, uploaded, []string{"debug"}, labelsA,
+		t, operations, "metadata-a-"+suffix, projectInput, []string{"debug"}, labelsA, project.ProjectID,
 	)
-	assertChangedMetadataReplayConflicts(t, operations, uploaded, "metadata-a-"+suffix, labelsA)
+	assertChangedMetadataReplayConflicts(t, operations, projectInput, "metadata-a-"+suffix, labelsA, project.ProjectID)
 	statusA := waitForRunAcross(
 		t, ctx, server, []*childProcess{runtimeProcess}, gateway,
 		publicClient, publicBaseURL, runA.RunID,
@@ -215,7 +229,7 @@ func TestRunMetadataLabelsAcrossProcesses(t *testing.T) {
 
 	collector.setReject(true)
 	runB := createMetadataRun(
-		t, operations, "metadata-b-"+suffix, uploaded, []string{"debug"}, labelsB,
+		t, operations, "metadata-b-"+suffix, uploaded, []string{"debug"}, labelsB, "",
 	)
 	statusB := waitForRunAcross(
 		t, ctx, server, []*childProcess{runtimeProcess}, gateway,
@@ -232,7 +246,7 @@ func TestRunMetadataLabelsAcrossProcesses(t *testing.T) {
 	gateway.ResetScenario()
 
 	reuse := createMetadataRun(
-		t, operations, "metadata-reuse-"+suffix, uploaded, []string{"debug"}, nil,
+		t, operations, "metadata-reuse-"+suffix, uploaded, []string{"debug"}, nil, "",
 	)
 	reuseStatus := waitForRunAcross(
 		t, ctx, server, []*childProcess{runtimeProcess}, gateway,
@@ -249,17 +263,20 @@ func TestRunMetadataLabelsAcrossProcesses(t *testing.T) {
 		t, baselineAllocation, allocationA, allocationB, reuseAllocation,
 	)
 	assertExactInputLineage(t, ctx, pool, uploaded, []string{
-		baseline.RunID, runA.RunID, runB.RunID, reuse.RunID,
+		baseline.RunID, runB.RunID, reuse.RunID,
 	})
+	assertProjectInputLineage(t, ctx, pool, project.ProjectID, runA.RunID, "source", projectInput)
 	assertMetadataLabelQueries(
 		t, operations, sharedLabels["eval.id"], runA, runB, labelsA, labelsB,
 	)
+	traceLabelsA := cloneStrings(labelsA)
+	traceLabelsA["project.id"] = project.ProjectID
 	assertMetadataOTLPRoots(
 		t, collector.payloads(), map[string]map[string]string{
-			baseline.RunID: {}, runA.RunID: labelsA, runB.RunID: labelsB, reuse.RunID: {},
+			baseline.RunID: {}, runA.RunID: traceLabelsA, runB.RunID: labelsB, reuse.RunID: {},
 		},
 	)
-	assertMetadataAbsentFromGateway(t, gateway.Payloads(), labelsA, labelsB)
+	assertMetadataAbsentFromGateway(t, gateway.Payloads(), labelsA, labelsB, map[string]string{"project.id": project.ProjectID})
 	assertMetadataAbsentFromExecutionRetention(
 		t, ctx, pool, []string{runA.RunID, runB.RunID}, sharedLabels,
 	)
@@ -323,12 +340,17 @@ func createMetadataRun(
 	input artifactRef,
 	runtimeLabels []string,
 	labels map[string]string,
+	projectID string,
 ) metadataRunCreateResponse {
 	t.Helper()
 	body := metadataRunBody(input, runtimeLabels, labels)
+	path := "/v1/runs"
+	if projectID != "" {
+		path = "/v1/projects/" + projectID + "/runs"
+	}
 	headers := map[string]string{"Idempotency-Key": idempotencyKey}
 	created := operations.requestResponse(
-		http.MethodPost, "/v1/runs", body, http.StatusAccepted, headers,
+		http.MethodPost, path, body, http.StatusAccepted, headers,
 	)
 	var result metadataRunCreateResponse
 	if err := json.Unmarshal(created.body, &result); err != nil || result.RunID == "" || !isRunAdmissionState(result.State) ||
@@ -337,7 +359,7 @@ func createMetadataRun(
 		t.Fatalf("create metadata Run = (%+v, %v): %s", result, err, created.body)
 	}
 	replayed := operations.requestResponse(
-		http.MethodPost, "/v1/runs", body, http.StatusAccepted, headers,
+		http.MethodPost, path, body, http.StatusAccepted, headers,
 	)
 	operations.requireReplay(replayed, "metadata Run create")
 	var replay metadataRunCreateResponse
@@ -355,12 +377,17 @@ func assertChangedMetadataReplayConflicts(
 	input artifactRef,
 	idempotencyKey string,
 	original map[string]string,
+	projectID string,
 ) {
 	t.Helper()
 	changed := cloneStrings(original)
 	changed["eval.leg"] = "changed-after-response-loss"
+	path := "/v1/runs"
+	if projectID != "" {
+		path = "/v1/projects/" + projectID + "/runs"
+	}
 	response := operations.requestResponse(
-		http.MethodPost, "/v1/runs", metadataRunBody(input, []string{"debug"}, changed),
+		http.MethodPost, path, metadataRunBody(input, []string{"debug"}, changed),
 		http.StatusConflict, map[string]string{"Idempotency-Key": idempotencyKey},
 	)
 	// The key stays bound to the first request, so only a new key can carry
@@ -633,14 +660,17 @@ func assertMetadataOTLPRoots(
 							dynamic[strings.TrimPrefix(key, "contractor.run.label.")] = value
 						}
 					}
+					want := expected
 					if !rootNames[span.Name] {
-						if len(dynamic) != 0 {
-							t.Fatalf("Run %s child span %s exposed metadata labels %v", runID, span.Name, dynamic)
+						want = make(map[string]string)
+						for _, key := range []string{"project.id", "audit.id"} {
+							if value := expected[key]; value != "" {
+								want[key] = value
+							}
 						}
-						continue
 					}
-					if !maps.Equal(dynamic, expected) {
-						t.Fatalf("Run %s root span %s labels = %v, want %v", runID, span.Name, dynamic, expected)
+					if !maps.Equal(dynamic, want) {
+						t.Fatalf("Run %s span %s labels = %v, want %v", runID, span.Name, dynamic, want)
 					}
 					if seen[runID] == nil {
 						seen[runID] = make(map[string]bool)
@@ -651,7 +681,7 @@ func assertMetadataOTLPRoots(
 		}
 	}
 	for runID := range expectedByRun {
-		for root := range rootNames {
+		for _, root := range []string{"contractor.planner.invocation", "contractor.worker.a2a_task", "contractor.worker.model", "contractor.worker.tool"} {
 			if !seen[runID][root] {
 				t.Errorf("Run %s has no captured %s root span", runID, root)
 			}

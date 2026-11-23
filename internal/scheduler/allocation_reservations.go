@@ -122,10 +122,15 @@ func stagePlacementRequest(
 	execution runstore.StageExecution,
 	requirements []controlplane.BindingRequirement,
 ) controlplane.ReservationRequest {
+	projectID := ""
+	if run.ProjectID != nil {
+		projectID = *run.ProjectID
+	}
 	return controlplane.ReservationRequest{
 		RequiredPlacementLabels: append([]string{}, run.RequiredPlacementLabels...),
 		RunID:                   run.RunID, StageExecutionID: execution.StageExecutionID,
 		RunMetadataLabels: run.MetadataLabels.Clone(),
+		ProjectID:         projectID,
 		Bindings:          requirements, RuntimeConfig: &run.RuntimeConfig,
 		ModelFree: resolved.StageLaneClass(workflow.stage) == resolved.LaneClassTool,
 	}

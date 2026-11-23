@@ -168,6 +168,7 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	reservation := testReservation("allocation_1", "builder", server.URL, server.URL, template, lease)
 	reservation.PerformanceCollectionPolicy = reporting.PerformanceCollectionRequested
 	reservation.PerformanceMetrics = reservation.PerformanceCollectionPolicy.Request()
+	reservation.ProjectID = "project-prepare"
 	reservation.RunMetadataLabels = runlabels.RunMetadataLabels{
 		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a",
 	}
@@ -211,6 +212,7 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	if received.Spec.AgentTemplate.Ref != template.Ref ||
 		received.Spec.WorkerSessionMode != contracts.WorkerSessionIsolated ||
 		!reflect.DeepEqual(received.Spec.RunMetadataLabels, reservation.RunMetadataLabels) ||
+		received.Spec.ProjectID == nil || *received.Spec.ProjectID != reservation.ProjectID ||
 		received.Spec.ModelPolicy.Ref != effectivePolicy.Ref ||
 		received.Spec.AgentTemplate.Summarizer == nil ||
 		received.Spec.SummarizerModelPolicy.Ref != summaryPolicy.Ref ||

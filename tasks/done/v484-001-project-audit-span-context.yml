@@ -1,0 +1,152 @@
+schema_version: "1.0"
+id: V484-001
+title: Attach known Project and Audit identities to every OTLP span
+milestone: run-metadata-labels
+epic: execution-core
+kind: feature
+priority: P2
+status: completed
+implementation_commit: 3966544a6525c78555c0fbe55352da3218adcd28
+depends_on: [V20-004]
+languages: [go, python, json, markdown, yaml]
+goal: >-
+  Operators can filter individual Planner and Worker spans, including model,
+  tool, auxiliary and error spans, by their known Project and Audit IDs.
+demonstration: >-
+  Execute a Project-bound Run with audit.id metadata through Scheduler and
+  private Runtime preparation. Capture both production OTLP exporters and
+  verify that every exported span carries the same project.id and audit.id;
+  repeat with a Project-only Run and an unbound Run to prove absence.
+context:
+  prior_task_id: V481-001 on codex/v481-trace-context before main integration.
+  integration_authority: >-
+    User request 2026-11-24 authorizes merging this feature into main. Main's
+    independent Project fact task already uses V481-001; assign this trace task
+    V484-001 without rewriting either implementation history or behavior.
+  authority: >-
+    User decision 2026-11-23: automatically propagate known Project and Audit
+    IDs into all spans; create a task and implement it with tests. This
+    explicitly extends V20-004's invocation-only correlation decision for
+    these two IDs; other metadata retains invocation-only projection.
+  specification:
+    - docs/spec/platform/observability.md#OBS-R102
+    - docs/spec/platform/observability.md#OBS-R104
+    - docs/spec/platform/observability.md#OBS-R107
+    - docs/spec/platform/observability.md#OBS-R128
+    - docs/spec/execution/runs.md#RUN-R77
+  ownership: >-
+    Server derives Project membership from WorkflowRun.ProjectID and Audit
+    correlation from the existing authoritative Run metadata audit.id. The
+    existing reservation/AllocationSpec mechanism carries an optional typed
+    projectId to the telemetry adapter only. Exporters own bounded per-span
+    projection under contractor.run.label.project.id and
+    contractor.run.label.audit.id. No model or provider infers identity.
+  decision: >-
+    Reuse existing telemetry and private allocation preparation. A dedicated
+    optional projectId avoids consuming a slot in the 32-entry user metadata
+    map or introducing store reads, migrations or a second baggage mechanism.
+    Project identity overrides a same-named descriptive metadata label and is
+    omitted when membership is absent. Audit metadata keeps its current
+    descriptive, non-authorizing meaning. Putting project.id into stored user
+    labels was rejected because it changes their capacity and immutable content.
+    Reopen only if a concrete new correlation identity needs a wider contract.
+scope:
+  in:
+    - Propagate optional Project identity through Scheduler, reservation replay and private allocation preparation, with strict shared wire fixtures.
+    - Attach Project identity and existing audit.id to every Planner and Worker span, preserving other labels on invocation spans only.
+    - Test exported protobuf, absent identities, metadata capacity, redaction, replay conflict and Runtime reuse without cross-Run leakage.
+    - Update the owning specification and Audit trace operator guide.
+  out:
+    - Project or Audit names, collector-specific native tags, metrics labels, new persistence, deployment and changes to model-visible input.
+requirements:
+  - id: R1
+    text: Every exported span carries known Project and Audit IDs under contractor.run.label.project.id and contractor.run.label.audit.id; unknown identities are omitted.
+  - id: R2
+    text: Project identity comes from Run membership and overrides descriptive project.id; other Run labels remain invocation-only and the 32-entry metadata limit is unchanged.
+  - id: R3
+    text: Private projectId is optional, non-null when present and validated with the existing ResourceId grammar in Go, Python and JSON Schema; changed identity conflicts on replay.
+  - id: R4
+    text: Correlation remains allocation/invocation-local, redacted and bounded, without model visibility, metrics dimensions, global Resource attributes or execution outcome changes.
+failure_outcomes:
+  - operation: Existing reservation and private allocation preparation
+    permanent: Invalid private identity returns non-retryable invalid_request (HTTP 400); changed preparation returns allocation_conflict (HTTP 409). In-process reservation changes return ErrReservationConflict before Worker construction.
+    retryable: Existing placement and prepare retries and deadlines are unchanged; no new external call is added.
+    ambiguous: Existing reservation fingerprint and allocation replay identity include projectId; retry cannot relabel a prepared Worker.
+    cancelled: Existing allocation ownership joins and releases work; telemetry remains supplementary.
+    timeout: Existing preparation, exporter queue and flush deadlines remain authoritative.
+cardinality:
+  - collection: Per-invocation telemetry correlation
+    expected: Zero to two identity attributes on each span.
+    maximum: Two identities plus existing at most 32 Run metadata labels on invocation spans, within LIM-OBS-9.
+    bound: ResourceId and existing label byte bounds apply; queues, request sizes, retries and flush work retain existing limits without database reads.
+lifecycle:
+  - entity: Telemetry identity context
+    delete: Released with its existing invocation/allocation; no new entity is persisted.
+    cascade: Runtime reuse constructs fresh context and cannot retain the previous Run's identities.
+    retention: Exported attributes follow collector retention; Run metadata retains its existing lifecycle.
+acceptance_criteria:
+  - id: A1
+    given: An Audit-labelled Project Run and recording OTLP collectors.
+    when: Scheduler prepares its Worker and Planner/Worker emit every supported span kind.
+    then: Every decoded span contains the exact known Project and Audit IDs, while other metadata remains invocation-only.
+  - id: A2
+    given: Project-only and unbound Runs, a reused Runtime, maximum metadata and secret canaries.
+    when: Their production exporters emit spans.
+    then: Unknown IDs are absent, Project membership wins over descriptive labels, no previous identity or secret leaks, and existing bounds hold.
+  - id: A3
+    given: Valid, absent, null, blank, malformed and oversized projectId wire values and changed replay IDs.
+    when: Go, Python, JSON Schema and real reservation/preparation paths validate them.
+    then: Shared fixtures agree; invalid or changed identity is rejected before Worker construction without new persistence.
+  - id: A4
+    given: Existing exporter delivery failures and telemetry-only context isolation checks.
+    when: All affected package and Runtime suites run.
+    then: Failure handling, bounded cleanup, model-input isolation and metric cardinality remain unchanged.
+tests:
+  - command: go test -race -count=1 ./internal/contracts/... ./internal/controlplane/... ./internal/scheduler/... ./internal/telemetry/...
+    covers: [A1, A2, A3, A4]
+  - command: make test-runtime
+    covers: [A1, A2, A3, A4]
+  - command: make test-wire-cross-language
+    covers: [A3]
+  - command: go test -count=1 ./tests/e2e
+    covers: [A1, A2, A3, A4]
+  - command: go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestRunMetadataLabelsAcrossProcesses$'
+    covers: [A1, A2, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+
+verification:
+  environment: >-
+    Go 1.26.10, Python 3.13.16, Node 24.20.0, pinned ffuf 2.3.0 and an
+    owned disposable PostgreSQL 17 cluster. CONTRACTOR_TEST_HEAVY_IO remains
+    unset; optional disk-heavy skips do not count as passing coverage.
+  fixture_generation: >-
+    Regenerated mutation-cases.json and required-member-cases.json through
+    TestSharedMutationCasesAreRejected and TestSharedRequiredMemberCasesAreRejected
+    with their update flags; regenerated the dependency graph with make
+    docs-dependencies. No generated file was manually edited.
+  environment_correction: >-
+    An initial Runtime run encountered the host ffuf 2.1.0-dev and was stopped
+    after confirming scan_proxy_unsupported. The existing pinned 2.3.0 binary
+    passes the complete ffuf conformance suite; final verification uses that
+    binary without changing scanner behavior or disabling tests.
+  results: >-
+    All listed commands passed. Full Go contracts, Control Plane, Scheduler and
+    telemetry packages passed with -race and the disposable PostgreSQL URL;
+    telemetry passed again after explicit close-context clearing. The real
+    Server/Runtime process scenario passed, including canonical Project
+    attribution, Audit correlation on every exported span, Project input lineage,
+    exporter rejection without semantic failure and subsequent unbound Runtime
+    reuse. Full Runtime: 6665 passed, 134 declared skips; report and 587-case
+    compaction verification passed. Skips cover Linux/Podman, explicit real-engine
+    gates, one upstream Interactsh gate and three unconfigured live-model checks.
+    Wire gate: 415 fixtures, 468 Go and 293 Python shared tests; one optional
+    disk-heavy case skipped, not counted as passing coverage. The complete
+    non-process e2e matrix suite and make lint passed. Owned test database and
+    PostgreSQL cluster were removed after all pools and processes stopped.
+  delivery: >-
+    Implemented in isolated worktree on codex/v481-trace-context from
+    5ccd89fe7. The user's primary checkout was not used for implementation.
+    At feature acceptance the branch was not merged into main; the subsequent
+    user-requested integration is tracked by V484-002. Deployment and live-model
+    calls were not requested or performed.

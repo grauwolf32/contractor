@@ -80,7 +80,7 @@ cases:
     category: telemetry
     acceptance: [A2, A3]
     faults: [F12]
-    expected: Planner exports exact namespaced attributes on its invocation root only, with no Resource, child-span, metric or content projection.
+    expected: Planner exports generic metadata on its invocation root only; known Project and Audit identities also appear on every child span, without Resource or metric projection.
     test: {source: internal/telemetry/planner_otlp_test.go, kind: go_test, name: TestPlannerOTLPHTTPExportsOnlyClosedSafeProjection}
   - id: worker_model_state_result_exclusion
     category: runtime_isolation
@@ -92,7 +92,7 @@ cases:
     category: telemetry
     acceptance: [A2, A3]
     faults: [F14]
-    expected: Worker OTLP is bounded and content-free; labels occur only on execution roots, never process Resource attributes or children.
+    expected: Worker OTLP is bounded and content-free; generic labels occur on execution roots and known Project/Audit identities occur on every span, never process Resource attributes.
     test: {source: runtime/tests/test_otlp_adapter.py, kind: pytest, name: test_otlp_protobuf_is_bounded_content_free_and_header_scoped}
   - id: exporter_failure_is_supplementary
     category: lifecycle

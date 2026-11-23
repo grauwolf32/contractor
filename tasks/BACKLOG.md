@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-65 open tasks: 10 in progress, 42 pending, 13 deferred. 1692 finished: 1674 completed, 18 archived.
+66 open tasks: 11 in progress, 42 pending, 13 deferred. 1693 finished: 1675 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V484-002](v484-002-trace-main-integration.yml) | quality | chore | P2 | Integrate Project and Audit span correlation into current main |
 
 ## Pending
 
@@ -156,7 +157,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 50 | 73 | 41 | 109 |
+| Run execution core (`execution-core`) | 3 | 51 | 73 | 41 | 109 |
 | Planners and the Worker model boundary (`planner-worker`) | 5 | 49 | 60 | 48 | 99 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
@@ -175,4 +176,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 51 | 18 |
-| Quality, CI and process (`quality`) | 11 | 1 | 38 | 155 | 32 |
+| Quality, CI and process (`quality`) | 12 | 1 | 38 | 156 | 32 |

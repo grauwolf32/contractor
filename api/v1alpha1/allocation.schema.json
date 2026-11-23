@@ -487,6 +487,10 @@
         "runId": {
           "$ref": "common.schema.json#/$defs/opaqueId"
         },
+        "projectId": {
+          "$ref": "common.schema.json#/$defs/resourceId",
+          "description": "Optional Project membership for allocation-local telemetry only."
+        },
         "stageExecutionId": {
           "$ref": "common.schema.json#/$defs/opaqueId"
         },

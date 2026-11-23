@@ -97,6 +97,9 @@ func validateBindingContextManagement(binding BindingRequirement) error {
 }
 
 func normalizeReservationRequest(request ReservationRequest) (string, []BindingRequirement, error) {
+	if request.ProjectID != "" && !contracts.ValidResourceID(request.ProjectID) {
+		return "", nil, fmt.Errorf("%w: Project identity is invalid", ErrInvalidRequest)
+	}
 	if err := contracts.ValidatePlacementLabels(request.RequiredPlacementLabels); err != nil {
 		return "", nil, fmt.Errorf("%w: required placement labels are invalid: %v", ErrInvalidRequest, err)
 	}
@@ -186,6 +189,7 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		RunID                   string
 		StageExecutionID        string
 		RunMetadataLabels       runlabels.RunMetadataLabels
+		ProjectID               string
 		Bindings                []BindingRequirement
 		RuntimeConfig           *runtimeconfig.RunSnapshot
 	}{
@@ -193,6 +197,7 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		RunID:                   request.RunID,
 		StageExecutionID:        request.StageExecutionID,
 		RunMetadataLabels:       metadataLabels,
+		ProjectID:               request.ProjectID,
 		Bindings:                bindings,
 		RuntimeConfig:           reservationRuntimeSnapshot(request.RuntimeConfig),
 	})

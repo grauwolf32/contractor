@@ -1504,3 +1504,31 @@ func testWorkerPolicy(t *testing.T) contracts.ResolvedModelPolicy {
 	}
 	return policy
 }
+
+func TestReservationReplayPinsProjectIdentity(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	registerReady(t, registry, "agent-project")
+	request := ReservationRequest{
+		RunID: "run-project", StageExecutionID: "stage-project", ProjectID: "project-1",
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
+	}
+	first, err := registry.ReserveAll(request)
+	if err != nil || len(first) != 1 || first[0].ProjectID != request.ProjectID {
+		t.Fatalf("Project reservation = (%+v, %v)", first, err)
+	}
+	first[0].ProjectID = "caller-mutated"
+	replayed, err := registry.ReserveAll(request)
+	if err != nil || len(replayed) != 1 || replayed[0].ProjectID != request.ProjectID {
+		t.Fatalf("Project replay = (%+v, %v)", replayed, err)
+	}
+	for _, changed := range []string{"project-2", ""} {
+		request.ProjectID = changed
+		if _, err := registry.ReserveAll(request); !errors.Is(err, ErrReservationConflict) {
+			t.Fatalf("changed Project %q replay = %v", changed, err)
+		}
+	}
+	request.ProjectID = "project/path"
+	if _, err := registry.ReserveAll(request); !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("invalid Project reservation = %v", err)
+	}
+}

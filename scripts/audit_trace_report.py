@@ -313,7 +313,7 @@ class Archive:
 
 def export_phoenix(args, budget, archive):
     client = Phoenix(args, budget)
-    # Audit labels are only copied onto Worker lifecycle and Planner invocation spans.
+    # Discover Audit traces, then retrieve every retained span of those traces.
     for page in client.pages({"attribute": AUDIT_LABEL + ":" + encode(args.audit_id)}):
         for span in page:
             if compact_span(span)["audit_id"] != args.audit_id:

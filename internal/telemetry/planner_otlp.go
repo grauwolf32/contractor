@@ -90,8 +90,8 @@ func (*OTLPHTTPPlannerAdapterFactory) Create(
 	result := &otlpHTTPPlannerTelemetry{
 		endpoint: settings.Endpoint, headers: settings.Headers,
 		flushTimeout: settings.FlushTimeout, resource: settings.Resource.clone(),
-		runMetadataLabels: settings.RunMetadataLabels.Clone(),
-		client:            client, ownedTransport: true, traceID: traceID,
+		runMetadataLabels: settings.RunMetadataLabels.Clone(), projectID: settings.ProjectID,
+		client: client, ownedTransport: true, traceID: traceID,
 		secretValues: secrets, redactText: secretmatch.ExactReplacer(secrets), spans: make([]*tracev1.Span, 0, 32),
 	}
 	result.pendingBytes = proto.Size(result.resourceProto())
@@ -106,6 +106,7 @@ type otlpHTTPPlannerTelemetry struct {
 	flushTimeout      time.Duration
 	resource          PlannerResource
 	runMetadataLabels runlabels.RunMetadataLabels
+	projectID         string
 	client            *http.Client
 	ownedTransport    bool
 	traceID           []byte
@@ -231,6 +232,7 @@ func (o *otlpHTTPPlannerTelemetry) enqueue(
 	traceID := append([]byte(nil), o.traceID...)
 	secrets := append([]string(nil), o.secretValues...)
 	metadataLabels := o.runMetadataLabels.Clone()
+	projectID := o.projectID
 	redactText := o.redactText
 	o.mu.Unlock()
 	values := plannerAttributeValues(attributes, secrets)
@@ -262,14 +264,18 @@ func (o *otlpHTTPPlannerTelemetry) enqueue(
 			values[key] = value
 		}
 	}
-	if name == PlannerSpanInvocation {
-		for key, value := range plannerRunMetadataLabelAttributes(metadataLabels, secrets) {
-			if text, ok := value.(string); ok {
-				values[key] = redactText(text)
-			} else {
-				values[key] = value
-			}
+	for key, value := range plannerRunMetadataLabelAttributes(metadataLabels, secrets) {
+		if name != PlannerSpanInvocation && key != "contractor.run.label.audit.id" {
+			continue
 		}
+		if text, ok := value.(string); ok {
+			values[key] = redactText(text)
+		} else {
+			values[key] = value
+		}
+	}
+	if contracts.ValidResourceID(projectID) && !secretmatch.Contains(projectID, secrets) {
+		values["contractor.run.label.project.id"] = redactText(projectID)
 	}
 	values["outcome"] = outcome
 	values["duration.ms"] = max(int64(0), finishedAt.Sub(startedAt).Milliseconds())
@@ -424,6 +430,7 @@ func (o *otlpHTTPPlannerTelemetry) Close() {
 	o.spans = nil
 	o.resource = PlannerResource{}
 	o.runMetadataLabels = nil
+	o.projectID = ""
 	client := o.client
 	owned := o.ownedTransport
 	o.client = nil
@@ -539,6 +546,10 @@ func plannerRunMetadataLabelAttributes(
 ) map[string]any {
 	result := make(map[string]any, len(labels))
 	for key, value := range labels {
+		// Project correlation comes only from authoritative Run membership.
+		if key == "project.id" || key == "audit.id" && value == "" {
+			continue
+		}
 		if runlabels.ValidateRunMetadataLabel(key, value) != nil {
 			continue
 		}

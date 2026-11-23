@@ -33,6 +33,11 @@ func (s AllocationSpec) validateEngagement() error {
 }
 
 func (s AllocationSpec) validateIdentity() error {
+	if s.ProjectID != nil {
+		if err := contracts.ValidateResourceID("projectId", *s.ProjectID); err != nil {
+			return err
+		}
+	}
 	if err := contracts.ValidateAPIVersion(s.APIVersion); err != nil {
 		return err
 	}
