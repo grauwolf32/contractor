@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: persistence
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -33,6 +33,10 @@ context:
     native roots; both real Podman container roots pass separately under V480-002. TestPodmanSandboxAcrossProductionProcesses
     requires an explicitly configured Linux Runtime sandbox image (CONTRACTOR_TEST_PODMAN_IMAGE), absent on this macOS lane;
     it is excluded explicitly and is not passing coverage. Optional heavy-I/O skips remain reported separately.
+  evidence:
+  - tasks/evidence/v480-001-schema-equivalence.json
+  - tasks/evidence/v480-001-demo-reset.json
+  - tasks/evidence/v480-001-verification.json
 scope:
   in:
   - One final baseline, equivalent schema/seed evidence and removal of retired upgrade-only tests.
@@ -124,3 +128,21 @@ tests:
   - A1
   - A2
   - A4
+implementation_commit: 9194cc2a7ac76658318e40613c35b2eabd959764
+verification:
+  baseline: Production install/replay and exact schema/seed comparison pass; stale ten-row ledgers fail closed. Full internal
+    Go/PostgreSQL integration suite and backup/restore package passed.
+  catalog: Required-lock validation, shared configuration and model generators pass. Current Workflow/AuditProfile/AgentTemplate
+    and related catalog identities are reset together; frozen Eval corpus bytes remain unchanged.
+  demo: Backup restored and verified across 61 tables and 453 files; fresh baseline applied, 13 Projects recreated via the
+    public API, all 35 Workflows and 16 AuditProfiles observed at version 1, and six Runtime agents ready/idle with model
+    choice and limits preserved. Previous business history remains in the verified backup and disabled old database.
+  package_suites: 'Full tests/ui-stack package passed (824.749s), both offline Eval packages passed, full make lint passed,
+    and all six disjoint E2E selections passed: 125 native roots plus both real macOS Podman container roots separately. V480-002
+    and V480-003 record the concrete verification corrections.'
+  coverage_boundary: One explicitly unconfigured Linux Runtime sandbox-image root is excluded; optional disk-heavy fixtures
+    were not enabled and no full release-verify or live-model quality claim is made.
+  cleanup: Owned disposable databases explicitly dropped, both owned PostgreSQL test clusters stopped/removed, demo and recoverable
+    backups retained.
+  delivery: Implementation is on isolated codex/reset-preproduction-delivery, not merged to main. Demo application reset is
+    deployed from 5ccd89fe736b7a9591b454d08b0803d4c6f2c952; later changes cover verification fixtures and documentation.
