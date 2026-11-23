@@ -1,0 +1,63 @@
+{
+  "apiVersion": "contractor/v1alpha1",
+  "kind": "AuditProfile",
+  "metadata": {
+    "name": "engagement-fixture",
+    "version": "1"
+  },
+  "spec": {
+    "schema": "contractor.audit.program.v1",
+    "inputs": {
+      "checklist": {
+        "required": true,
+        "media_types": [
+          "application/json"
+        ]
+      },
+      "engagement": {
+        "required": true,
+        "media_types": [
+          "application/vnd.contractor.engagement+json"
+        ]
+      }
+    },
+    "workflows": {
+      "check": {
+        "ref": "engagement-fixture-check@1",
+        "inputs": {
+          "context": {
+            "source": "task-context"
+          }
+        },
+        "parameters": {},
+        "outputs": {
+          "result": "result"
+        }
+      }
+    },
+    "hypotheses": {},
+    "initial_work": [
+      {
+        "key": "preflight",
+        "workflow": "check",
+        "objective": "Record bounded preflight conformance"
+      }
+    ],
+    "limits": {
+      "max_tasks": 1,
+      "max_iterations": 1,
+      "max_tasks_per_iteration": 1,
+      "batch_size": 1,
+      "max_submitted_runs": 1,
+      "max_attempts": 1,
+      "deadline_seconds": 180,
+      "max_evidence_bytes": 1048576,
+      "max_hypotheses": 1,
+      "max_hypothesis_revisions": 1,
+      "max_hypothesis_bytes": 32768
+    },
+    "policy": {
+      "active_operations": "allowed"
+    }
+  }
+}

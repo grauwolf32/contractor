@@ -1,0 +1,97 @@
+{
+  "task": "V64-033",
+  "date": "2026-11-05",
+  "status": "completed",
+  "implementation_commit": "a4940f78a1e56c4d21a98e85601cb390f8e14113",
+  "branch": "codex/audit-hypothesis-generation",
+  "merged_to_main": false,
+  "integrated_main": "7ee563eda667814a999018d03f1bc72e35c00c1a",
+  "document_commit": "7cb43ae863c958f565f6a80f276a4fc688452f79",
+  "migration_ledger": "Loaded all nine migrations on a disposable database. The unmerged continuation index migration is 000009; main 000008_runtime_snapshot_byte_order.sql is unchanged.",
+  "verification_source": "1ea07f316303eb595546f6ef87ecb36ab9558c7e",
+  "verification_prerequisite": {
+    "task": "V443-003",
+    "implementation_commit": "1ea07f316303eb595546f6ef87ecb36ab9558c7e",
+    "change": "Fixed-output scanner version test fixtures use /bin/sh, matching their existing sibling. Production scanner code and two-second deadline are unchanged."
+  },
+  "outcome": "An ordinary Workflow input declares materialSet true. Run creation checks a flat exact selection, preserves original input lineage, forks readable member bindings without copying payloads, and binds a local descriptor. The same owner serves initial Audit generation and ordinary non-Audit Runs.",
+  "checks": [
+    {
+      "command": "make require-database; go test -p 2 -tags=integration -count=1 ./internal/artifacts/... ./internal/runservice/... ./internal/config/... ./internal/configload/... ./internal/contracts/... ./internal/auditservice ./internal/auditstore/...",
+      "result": "Passed all selected packages in full against disposable PostgreSQL, including 1/17/32/33, whole rejection, cumulative sets/singletons, duplicate collapse, lost acknowledgement/restart, exact content version sharing and both source-purge race orders.",
+      "log": "/tmp/v64033-go-final.log",
+      "log_digest": "sha256:daaddc3d209b1a856a2a46894e93aba66c5a20e41d8d748c7a1870a75f451d0b"
+    },
+    {
+      "command": "make lint verify-public-api verify-public-api-postgres",
+      "result": "Passed all groups, including public schema projection and race-backed database API cases.",
+      "log": "/tmp/v64033-quality-final.log",
+      "log_digest": "sha256:a08b12c99167554f39840466477d76a85c956433dead9316ac1abc418e925ca7"
+    },
+    {
+      "command": "make ui-generate-check ui-lint ui-typecheck; cd ui && corepack pnpm exec vitest run --maxWorkers=2 && corepack pnpm test:server && corepack pnpm build",
+      "result": "Passed: 211 files, 2423 tests, one expected negative test; client generation, lint, typecheck, server tests and build succeeded.",
+      "log": "/tmp/v64033-ui-final.log",
+      "log_digest": "sha256:a22c164d47388539fe05fe54dbd7fedb6bcd620a7d2800cb3ad1fb79faae35c9"
+    },
+    {
+      "command": "make test-wire-cross-language test-audit-basic-e2e",
+      "result": "Passed on the clean verification revision: 375 fixtures, 411 Go and 263 Python shared tests; all 12 required process cases, zero selected skips. The added case reads two of 17 exact members through real Runtime Artifact tools in both an ordinary Run and initial Audit generation, then accepts a hypothesis-only proposal.",
+      "log": "/tmp/v64033-wire-process-final.log",
+      "log_digest": "sha256:227b0215a166e9dfeb290c4a65a22410636e463db51f1b00674a5eb64af9a8f2"
+    },
+    {
+      "command": "make test-runtime",
+      "result": "Passed: 5884 tests, 135 existing optional platform/environment skips; independent runtime report verifier passed.",
+      "log": "/tmp/v64033-runtime-third.log",
+      "log_digest": "sha256:8c3c1def90480870df8d6b57d1cc547d9af05e9ff00052366436a44414d4e408"
+    },
+    {
+      "command": "go run ./cmd/contractor server config validate --root ./configs",
+      "result": "Passed: 27 Workflows, 29 AgentTemplates, 15 AuditProfiles and 41 instructions, including the real initial generator caller.",
+      "log": "/tmp/v64033-config-final.log",
+      "log_digest": "sha256:95e8f43b5f76b70cc53ab09db1a535e6f3664f76428616926612133ba9a42e07"
+    }
+  ],
+  "process_evidence": {
+    "status": "passed",
+    "case_set": "core",
+    "source": {
+      "revision": "1ea07f316303eb595546f6ef87ecb36ab9558c7e",
+      "dirty": false
+    },
+    "matrix": {
+      "path": "scripts/audit-basic-matrix.json",
+      "digest": "sha256:cc6c09a9ebc9196c3946c31fd2832a925a3c8fc7b24b9ab8b6246d72ccae811a"
+    },
+    "go": [
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditBasicExactHandoffAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditBasicExactHandoffAcrossProductionProcesses/finding_false",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditBasicExactHandoffAcrossProductionProcesses/finding_true",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonObservationProfilesAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonObservationProfilesAcrossProductionProcesses/observe",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonObservationProfilesAcrossProductionProcesses/trace",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditFixedHypothesesAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditHypothesisContinuationAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditHypothesisContinuationAcrossProductionProcesses/initial=false",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditHypothesisContinuationAcrossProductionProcesses/initial=true",
+      "github.com/grauwolf32/contractor/tests/e2e/TestWorkflowMaterialSetsAcrossProductionProcesses"
+    ],
+    "reports": {
+      "go.jsonl": "sha256:a62a1d57a84bf265826cba152b41afcadbe37b33ff9843632ff1752274e403ee"
+    }
+  },
+  "process_evidence_path": ".local/audit-basic-gate/run-nia56j7_/executed.json",
+  "scope": "The common initial material-set path is complete. V64-034 remains responsible for selected hypothesis grounds, dynamic Run selections, configurable proposal roles and removal of the remaining numbered continuation path. No live-model quality or demo deployment is claimed.",
+  "retry_history": [
+    {
+      "log": "/tmp/v64033-acceptance-final.log",
+      "result": "Full Runtime stopped on two existing Katana version-matrix cases; the independent prerequisite V443-003 tracks the reproduced Python-child startup timeout."
+    },
+    {
+      "log": "/tmp/v64033-acceptance-retry.log",
+      "result": "After the fixture repair, full Runtime stopped on independent allocation preparation and sqlmap timeout-scanner test deadlines. Complete unchanged Runtime rerun passed; no cases were deselected."
+    }
+  ]
+}

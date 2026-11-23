@@ -1,0 +1,121 @@
+{
+  "task": "V471-004",
+  "date": "2026-11-21",
+  "implementation_commit": "8034cf717bbe622774228d781d685a78ce3c6690",
+  "verified_revision": "a3a03aefea7cfa5e3da48ef49f868111ade4cfbd",
+  "result": "Informational finding and record_fact use contractor/fact-evidence/v1 over the complete sorted unique set of authorized exact evidence content digests. Existing Project correlation, fence, unique key, receipts, exact retention and source selection own all admission and lifecycle. No new matcher, table, lock, group, review state or model matching parameter.",
+  "first_group": {
+    "V471-001": "41fc498a72f6bb8ace9a566a8d012f8b0df42fbc",
+    "V471-002": "05a80a94e5dec7f1d70543b881f92972ca04dbf2",
+    "V471-004": "8034cf717bbe622774228d781d685a78ce3c6690"
+  },
+  "integration": {
+    "main": "62f6b95c103293bb16a88d2d9d65b18c2a9d652c",
+    "merge": "a3a03aefea7cfa5e3da48ef49f868111ade4cfbd",
+    "preserved": "Existing response-recovery contracts, immutable catalog entries, task plan and both additional process scenarios."
+  },
+  "checks": [
+    {
+      "command": "go test ./internal/memory/... ./internal/operations/... ./internal/scheduler/... ./internal/config/... ./internal/findingintake/... ./internal/auditdomain/... ./internal/auditstore/... ./internal/auditservice/... ./internal/artifacts/... ./internal/persistence/... ./internal/planner/streamline ./internal/publicclient/... ./internal/httpapi/public ./internal/httpapi/privateartifacts ./internal/app",
+      "environment": {
+        "GOFLAGS": "-p=2",
+        "postgresql": "enabled"
+      },
+      "outcome": "passed"
+    },
+    {
+      "command": "go test -tags=integration ./internal/findingintake ./internal/auditservice ./internal/auditstore/... ./internal/httpapi/privateartifacts ./internal/httpapi/public ./internal/findingexport/... ./internal/publicclient/...",
+      "environment": {
+        "GOFLAGS": "-p=2",
+        "postgresql": "enabled"
+      },
+      "outcome": "passed"
+    },
+    {
+      "command": "make test-memory-snapshot-e2e test-project-facts-e2e",
+      "outcome": "passed",
+      "required_process_cases": 20,
+      "runtime_contract_cases": 294,
+      "notes": "Shared Findings family runs once per make invocation and includes the two response-recovery process checks from current main."
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "environment": {
+        "GOFLAGS": "-p=2"
+      },
+      "outcome": "passed",
+      "fixtures": 400,
+      "go_shared_tests": 452,
+      "python_shared_tests": 285,
+      "runtime_selected_passed": 1572,
+      "optional_disk_heavy_skipped": 1
+    },
+    {
+      "command": "make test-config verify-public-api",
+      "environment": {
+        "GOFLAGS": "-p=2"
+      },
+      "outcome": "passed",
+      "catalog_lock": "validated"
+    },
+    {
+      "command": "make test-runtime",
+      "outcome": "passed",
+      "tests_passed": 6341,
+      "skipped": 135,
+      "compaction_selected_passed": 577
+    },
+    {
+      "command": "VITEST_MAX_WORKERS=4 make ui-verify",
+      "outcome": "passed",
+      "test_files": 227,
+      "tests_passed": 2567,
+      "expected_failures": 1,
+      "build": "passed"
+    },
+    {
+      "command": "make lint",
+      "environment": {
+        "GOFLAGS": "-p=2"
+      },
+      "outcome": "passed"
+    }
+  ],
+  "real_store_coverage": [
+    "concurrent independent calls preserve distinct receipts and one canonical Finding",
+    "same-call replay adds no source and works after source-Run deletion",
+    "different titles, reordered evidence, forks, independent equal bytes and different media labels share a key",
+    "unique digest set, full-set equality, changed bytes, overlap and Project isolation",
+    "non-informational weak/native/normalized-candidate algorithms remain unchanged",
+    "analyst assessment and first-source claim remain unchanged on later informational admission",
+    "explicit exact receipt selection captures one source of a merged Finding and survives a newer revision",
+    "invalid evidence and malformed fact projection variants reject atomically on real PostgreSQL",
+    "ordinary retained-source reads, Run deletion and Project receipt/Artifact purge",
+    "existing integration regression pages 10000 Findings and 50000 sources, including 10000 sources of one Finding across bounded historical Run partitions, without payload hydration"
+  ],
+  "resolved_verification_failures": [
+    "Initial SQL function replacement copied the baseline and omitted normalized-candidate support. Restored the current migration-000002 branch exactly; both failing scanner cases and the entire intake package passed on repeat, then all affected suites passed again after main integration.",
+    "Parallel App session-lease tests collided with the running process-test Server on the shared disposable database. The complete Go command passed when repeated after all process Servers stopped."
+  ],
+  "test_environment": "Disposable PostgreSQL enabled throughout required store/process cases. Owned cluster lock capacity 1024 after an initial schema-cleanup resource failure. Named optional disk-heavy fixtures remained disabled and are not passing coverage; Runtime skips and the expected UI negative case are recorded separately.",
+  "accepted_approximation": "Different claims over the same broad artifact can merge; changed stored bytes can keep separate cards. Every independent receipt preserves its original claim and exact evidence. No title or provider/semantic normalization is added.",
+  "remaining": "V471-003, V471-005 and V471-006 remain pending. The extraction Worker and separate Facts UI are group 2; no live-model calls or deployment were performed.",
+  "landing": {
+    "merge_commit": "cb4b784fd9ee0e50e5ca81caacc7e2a640d4fe0e",
+    "previous_main": "62f6b95c103293bb16a88d2d9d65b18c2a9d652c",
+    "user_source_files_and_modes_preserved": 5,
+    "user_staged_delta_preserved": true,
+    "generated_backlog_regenerated_from_all_current_task_sources": true
+  },
+  "cleanup": {
+    "databases_dropped": [
+      "contractor_v471_group1"
+    ],
+    "client_connections_before_drop": 0,
+    "database_cleanup": "complete",
+    "cluster_stopped": true,
+    "cluster_data_removed": true,
+    "owned_temporary_directory_removed": true,
+    "verification_archive_retained": true
+  }
+}

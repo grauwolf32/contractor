@@ -1,0 +1,229 @@
+{
+  "schema_version": "2.0",
+  "scope": "Explicit common Task continuation, exact handoff, bounded preparation and lifecycle. Automatic generation is separate work; this gate no longer executes the retired Round pipeline.",
+  "prerequisites": [
+    "dedicated disposable PostgreSQL with CREATEDB",
+    "own locked Runtime",
+    "built Server and Runtime process prerequisites; local scripted providers only"
+  ],
+  "isolation": [
+    "PostgreSQL and real-process boundaries use different physical databases; a per-schema distinction does not isolate the one-active-Server lease.",
+    "Store fixtures use their existing isolated schemas; physical read-budget fixtures keep their own disposable database, vacuumed statistics and custom/generic plans.",
+    "At most two heavy Go/PostgreSQL lanes; no live/demo data, live configs, paid model or arbitrary target is used."
+  ],
+  "cases": [
+    {
+      "boundary": "harness",
+      "package": "test_audit_iterative_gate",
+      "case": "AuditIterativeGateTest.test_missing_prerequisites_fail_before_commands",
+      "covers": [
+        "A6"
+      ],
+      "purpose": "Fail closed on absent infrastructure, incomplete/invalid reports or stale evidence; cancellation/deadline cases join owned processes before cleanup.",
+      "limits": [
+        "actual named unittest execution",
+        "no skipped/empty mandatory selection",
+        "bounded redacted evidence"
+      ]
+    },
+    {
+      "boundary": "harness",
+      "package": "test_audit_iterative_gate",
+      "case": "AuditIterativeGateTest.test_zero_missing_skipped_failed_and_out_of_order_reports_fail",
+      "covers": [
+        "A6"
+      ],
+      "purpose": "Fail closed on absent infrastructure, incomplete/invalid reports or stale evidence; cancellation/deadline cases join owned processes before cleanup.",
+      "limits": [
+        "actual named unittest execution",
+        "no skipped/empty mandatory selection",
+        "bounded redacted evidence"
+      ]
+    },
+    {
+      "boundary": "harness",
+      "package": "test_audit_iterative_gate",
+      "case": "AuditIterativeGateTest.test_stale_evidence_is_not_reused",
+      "covers": [
+        "A6"
+      ],
+      "purpose": "Fail closed on absent infrastructure, incomplete/invalid reports or stale evidence; cancellation/deadline cases join owned processes before cleanup.",
+      "limits": [
+        "actual named unittest execution",
+        "no skipped/empty mandatory selection",
+        "bounded redacted evidence"
+      ]
+    },
+    {
+      "boundary": "harness",
+      "package": "test_audit_iterative_gate",
+      "case": "AuditIterativeGateTest.test_bounded_redacted_evidence_records_source_revision",
+      "covers": [
+        "A6"
+      ],
+      "purpose": "Fail closed on absent infrastructure, incomplete/invalid reports or stale evidence; cancellation/deadline cases join owned processes before cleanup.",
+      "limits": [
+        "actual named unittest execution",
+        "no skipped/empty mandatory selection",
+        "bounded redacted evidence"
+      ]
+    },
+    {
+      "boundary": "harness",
+      "package": "test_release_test_reports",
+      "case": "ReportReuseTest.test_cancellation_joins_the_owned_child",
+      "covers": [
+        "A6"
+      ],
+      "purpose": "Fail closed on absent infrastructure, incomplete/invalid reports or stale evidence; cancellation/deadline cases join owned processes before cleanup.",
+      "limits": [
+        "actual named unittest execution",
+        "no skipped/empty mandatory selection",
+        "bounded redacted evidence"
+      ]
+    },
+    {
+      "boundary": "harness",
+      "package": "test_release_test_reports",
+      "case": "ReportReuseTest.test_cancellation_joins_descendant_processes",
+      "covers": [
+        "A6"
+      ],
+      "purpose": "Fail closed on absent infrastructure, incomplete/invalid reports or stale evidence; cancellation/deadline cases join owned processes before cleanup.",
+      "limits": [
+        "actual named unittest execution",
+        "no skipped/empty mandatory selection",
+        "bounded redacted evidence"
+      ]
+    },
+    {
+      "boundary": "harness",
+      "package": "test_release_test_reports",
+      "case": "ReportReuseTest.test_deadline_joins_silent_child",
+      "covers": [
+        "A6"
+      ],
+      "purpose": "Fail closed on absent infrastructure, incomplete/invalid reports or stale evidence; cancellation/deadline cases join owned processes before cleanup.",
+      "limits": [
+        "actual named unittest execution",
+        "no skipped/empty mandatory selection",
+        "bounded redacted evidence"
+      ]
+    },
+    {
+      "boundary": "harness",
+      "package": "test_release_test_reports",
+      "case": "ReportReuseTest.test_iterative_report_cli_reuses_canonical_cases",
+      "covers": [
+        "A6"
+      ],
+      "purpose": "Fail closed on absent infrastructure, incomplete/invalid reports or stale evidence; cancellation/deadline cases join owned processes before cleanup.",
+      "limits": [
+        "actual named unittest execution",
+        "no skipped/empty mandatory selection",
+        "bounded redacted evidence"
+      ]
+    },
+    {
+      "boundary": "postgres",
+      "package": "github.com/grauwolf32/contractor/internal/auditservice",
+      "case": "TestCommonAuditDraftStartAndOriginalReplay",
+      "covers": [
+        "A1",
+        "A2"
+      ],
+      "purpose": "A common pinned program starts atomically and replays its original receipt."
+    },
+    {
+      "boundary": "postgres",
+      "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
+      "case": "TestSharedPostgresCommonTaskInputsStayExactAcrossProjectEdits",
+      "covers": [
+        "A1",
+        "A4"
+      ],
+      "purpose": "Task inputs keep exact ownership and revisions across edits to Project materials."
+    },
+    {
+      "boundary": "postgres",
+      "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+      "case": "TestPostgresCommonControllerPauseHandoffResume",
+      "covers": [
+        "A1",
+        "A3"
+      ],
+      "purpose": "Pause drains admitted work, accepts an explicit exact handoff and resumes ordinary Run dispatch."
+    },
+    {
+      "boundary": "postgres",
+      "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+      "case": "TestPostgresCommonControllerReconcilesLostCreationAcknowledgement",
+      "covers": [
+        "A2",
+        "A3"
+      ],
+      "purpose": "Lost creation acknowledgement reconciles the existing ordinary Run."
+    },
+    {
+      "boundary": "postgres",
+      "package": "github.com/grauwolf32/contractor/internal/auditimport",
+      "case": "TestCommonImporterReadOutageCreatesNoTechnicalReceipt",
+      "covers": [
+        "A1",
+        "A2"
+      ],
+      "purpose": "Transient reads create no receipt; permanent input failure is classified."
+    },
+    {
+      "boundary": "postgres",
+      "package": "github.com/grauwolf32/contractor/internal/findingintake",
+      "case": "TestPostgresFindingBatchTaskOriginAndBoundedResultReferences",
+      "covers": [
+        "A1",
+        "A4"
+      ],
+      "purpose": "Batch members derive trusted Task/hypothesis origin and bounded Finding references."
+    },
+    {
+      "boundary": "postgres",
+      "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
+      "case": "TestSharedPostgresCommonTaskPagesAndPurgeAtCeiling",
+      "covers": [
+        "A4",
+        "A6"
+      ],
+      "purpose": "Sparse 100,000-Task pages and purge remain bounded."
+    },
+    {
+      "boundary": "process",
+      "package": "github.com/grauwolf32/contractor/tests/e2e",
+      "case": "TestAuditBasicExactHandoffAcrossProductionProcesses",
+      "covers": [
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "purpose": "Two ordinary Workflows hand off an exact retained material through the public API."
+    },
+    {
+      "boundary": "process",
+      "package": "github.com/grauwolf32/contractor/tests/e2e",
+      "case": "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
+      "covers": [
+        "A2",
+        "A3",
+        "A6"
+      ],
+      "purpose": "256 prepared entries reconcile bounded slices through restart and cancellation."
+    },
+    {
+      "boundary": "process",
+      "package": "github.com/grauwolf32/contractor/tests/e2e",
+      "case": "TestAuditCommonObservationProfilesAcrossProductionProcesses",
+      "covers": [
+        "A5"
+      ],
+      "purpose": "Run both current passive observation/tracing programs through ordinary preparation and operation Tasks."
+    }
+  ]
+}

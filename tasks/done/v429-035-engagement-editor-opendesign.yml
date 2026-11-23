@@ -1,0 +1,94 @@
+schema_version: "1.0"
+id: V429-035
+title: Explore a usable engagement policy editor with OpenDesign
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: completed
+implementation_commit: f8604231fe60c6f5d5328cbe2568c0e444210d97
+depends_on: [V444-003, V449-003]
+languages: [html, css, javascript]
+goal: The user can review and try a coherent engagement editor for allowed egress, identity-to-credential references and optional allocation-local HTTP limits before production integration.
+demonstration: Open an OpenDesign-refined preview, edit one allowed route, assign a metadata-only credential to an identity, set or clear optional HTTP limits and inspect the exact non-secret engagement JSON and truthful validation/conflict states at desktop and phone widths.
+context:
+  authority: User 2026-11-06 asks which of V411-017/018 are UI tasks and requests taking the UI work with OpenDesign. Prior instructions preserve all native design data, existing configured Contractor gateway/model, sandbox isolation and shared project typography; open previews directly.
+  specification: [docs/spec/audits/audits.md#AUD-R241, docs/spec/audits/audits.md#AUD-R242, docs/spec/audits/audits.md#AUD-R243, docs/spec/execution/runs.md#RUN-R112, docs/spec/tools/http-caido.md#HTP-R145]
+  format: api/v1alpha1/engagement.schema.json
+  design: docs/design/ui/README.md
+  parent_scope: V411-017 owns API/CLI; V411-018 owns the complete HTTP Audit setup/evidence journey. Their pending HTTP/report/common-UI dependencies are not satisfied. This independent authoring design task does not start or complete those integrations.
+  main_merge_authority: User 2026-11-06 explicitly requests merging the reviewed design branch into main; production API integration remains outside this delivery.
+  boundary: Engagement contains only egress, identities and optional HTTP limits. Existing Artifact and credential operations own publication/metadata; Audit/Run own materials and execution budgets. No new backend, validator authority, authentication recipe or execution path is introduced.
+scope:
+  in:
+    - A new isolated native OpenDesign project using only synthetic policy/credential metadata, current contract notes and existing theme/font references.
+    - Interactive preview of routes/exclusions, identity kinds and matching credential metadata, optional limits and exact JSON export.
+    - Clear edited, invalid, stale-revision, missing-credential and Server rejection examples with no false success or traffic claims.
+    - Preserve and verify all previous native projects/files/history, clean up the bounded model relay, check three themes and narrow screens, and open the preview.
+  out:
+    - Production transfer/main merge, pending V411-017/018 full implementation or backend prerequisites, live target traffic, real credential values or demo writes.
+requirements:
+  - id: R1
+    text: Policy shape and limits follow the current shared engagement schema; exactly one anonymous identity has no credential, non-anonymous kinds use corresponding references and unconfigured limits remain omitted.
+  - id: R2
+    text: Egress routes expose origin, path prefixes, HTTP methods and address ranges; exclusions stay explicit. Role/tenant are declarations, not verified authentication, and HTTP limits are allocation-local.
+  - id: R3
+    text: Use existing typography/theme tokens and meaningful icons/hierarchy without a new system; controls remain usable at 1440/1100/390/320px in light/dark/black.
+  - id: R4
+    text: Native generation is confined to its existing isolated container and expiring single-model relay; no host repository mount, credential disclosure or previous artifact/history change.
+failure_outcomes:
+  - operation: Native design generation
+    permanent: Retain inputs/partial outputs and report native failure; do not pretend host styling is native output.
+    retryable: At most one bounded continuation under the same configured model/project, with retained Run identities and existing total relay request cap.
+    ambiguous: Inspect the saved client request/Run receipt before any resubmission.
+    cancelled: Stop owned generation/relay work, remove the relay's upstream credential and retain recoverable design state.
+    timeout: Raise bounded native wait rather than change the model; use the relay expiry and request cap.
+  - operation: Preview editing and simulated publication
+    permanent: Show field errors and Server rejection examples; no real mutation or target request is sent.
+    retryable: Local preview reset/retry preserves the edited draft and never implies a Server save.
+    ambiguous: No real write exists; export only a valid non-secret document.
+    cancelled: No target/background operation is launched.
+    timeout: No live API dependency is required by the reviewable preview.
+cardinality:
+  - collection: Engagement policy
+    expected: One route, one optional exclusion, two identities and a small credential metadata catalog.
+    maximum: Schema bounds of 128 routes/exclusions, 128 prefixes/ranges per route, 16 origins and 8 identities; five optional uint32-positive limits; document below 4 MiB.
+    bound: Fixed synthetic preview data and schema-derived editor bounds; no whole-project scan or credential secret reads.
+lifecycle:
+  - entity: Native design and preview draft
+    delete: Preserve prior projects/files/history; clear only this task's owned expiring relay credentials after generation.
+    cascade: No production entity or persistence mechanism is created.
+    retention: Keep original native output, host refinements, checked backup/preservation metadata and review captures.
+acceptance_criteria:
+  - id: A1
+    text: A genuine OpenDesign contribution is retained and the interactive preview produces schema-valid non-secret engagement JSON from the supported controls.
+  - id: A2
+    text: Optional limits, credential-kind mismatch, validation/conflict/rejection states and responsive themes are truthful and usable without overflow or browser errors.
+  - id: A3
+    text: Previous native files/history are verified unchanged, relay access is cleaned up, no live target/API write occurs, and the new preview opens directly for the user.
+tests:
+  - command: node docs/design/ui/experiments/engagement-editor-opendesign-2026-11-06/verify.mjs
+    covers: [A1, A2, A3]
+  - command: >-
+      cd runtime && uv run python -c 'from pathlib import Path;
+      from contractor_runtime.contracts.engagement import Engagement;
+      Engagement.model_validate_json(Path("../docs/design/ui/experiments/engagement-editor-opendesign-2026-11-06/review/exported-policy.json").read_text());
+      print("Exported policy accepted by the shared Runtime contract")'
+    covers: [A1, A2]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2, A3]
+  - command: git diff --check
+    covers: [A1, A2, A3]
+verification:
+  results:
+    - Native OpenDesign generation succeeded under the existing configured model; original CSS and exact inputs are retained separately from host refinements.
+    - The browser verifier passed 78 layout/state and interaction checks across three themes and four widths, with no browser errors or forbidden requests; exported JSON matches the actual shared schema.
+    - The exported policy passed Engagement.model_validate_json in the existing Runtime contract. Optional-limit omission, matching credential references and truthful simulated failure states were verified.
+    - Task/spec validators and git diff --check passed. No production UI source, generated API client, public contract or package version changed.
+    - Recoverable pre/post native state archives passed SQLite integrity checks. Previous files and stable application/OpenCode history rows were preserved; only shared access metadata and append-only operational logs changed normally.
+    - The owned model relay stopped after 18 of 24 allowed requests and its upstream credential was removed. The preview sent no live API mutation or target traffic.
+    - The preview was opened directly and visually reviewed; the mobile heading/action wrap was corrected in a separate host stylesheet and all checks passed again.
+  artifact: docs/design/ui/experiments/engagement-editor-opendesign-2026-11-06/verification.json
+  delivery: Merged into local main through the user-requested no-fast-forward integration on 2026-11-06. V411-017 and V411-018 remain pending with their integration dependencies unchanged; original native output and recoverable backups are preserved.

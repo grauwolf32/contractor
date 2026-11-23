@@ -1,0 +1,105 @@
+package auth
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+
+	"github.com/grauwolf32/contractor/internal/helpers/securefile"
+	"go.yaml.in/yaml/v4"
+)
+
+const maximumBootstrapBytes = 8 * 1024
+
+type Bootstrap struct {
+	Principal Principal
+	hash      passwordHash
+	valid     bool
+}
+
+func (b Bootstrap) String() string {
+	return fmt.Sprintf("auth.Bootstrap{UserID:%q Username:%q PasswordHash:[REDACTED]}", b.Principal.UserID, b.Principal.Username)
+}
+
+func (b Bootstrap) GoString() string { return b.String() }
+
+// Format, LogValue and MarshalJSON redact the password hash for every verb,
+// for log/slog and for JSON (SEC-R88).
+func (b Bootstrap) Format(state fmt.State, _ rune) { _, _ = io.WriteString(state, b.String()) }
+func (b Bootstrap) LogValue() slog.Value           { return slog.StringValue(b.String()) }
+func (b Bootstrap) MarshalJSON() ([]byte, error)   { return json.Marshal(b.String()) }
+
+type bootstrapDocument struct {
+	User bootstrapUser `yaml:"user"`
+}
+
+type bootstrapUser struct {
+	UserID       string `yaml:"userId"`
+	Username     string `yaml:"username"`
+	PasswordHash string `yaml:"passwordHash"`
+}
+
+func NewBootstrap(userID, username, encodedHash string) (Bootstrap, error) {
+	principal, err := NewPrincipal(userID, username)
+	if err != nil {
+		return Bootstrap{}, err
+	}
+	hash, err := parsePasswordHash(encodedHash)
+	if err != nil {
+		return Bootstrap{}, ErrInvalidBootstrap
+	}
+	return Bootstrap{Principal: principal, hash: hash, valid: true}, nil
+}
+
+func LoadBootstrap(path string) (Bootstrap, error) {
+	data, err := readBootstrap(path)
+	if err != nil {
+		return Bootstrap{}, err
+	}
+	defer clear(data)
+	var documents []bootstrapDocument
+	if err := yaml.Load(
+		data,
+		&documents,
+		yaml.WithAllDocuments(),
+		yaml.WithKnownFields(),
+		yaml.WithUniqueKeys(),
+	); err != nil || len(documents) != 1 {
+		return Bootstrap{}, fmt.Errorf("%w: decode strict local-auth YAML", ErrInvalidBootstrap)
+	}
+	return NewBootstrap(
+		documents[0].User.UserID,
+		documents[0].User.Username,
+		documents[0].User.PasswordHash,
+	)
+}
+
+func BootstrapYAML(userID, username, encodedHash string) ([]byte, error) {
+	if _, err := NewBootstrap(userID, username, encodedHash); err != nil {
+		return nil, err
+	}
+	document := bootstrapDocument{User: bootstrapUser{
+		UserID: userID, Username: username, PasswordHash: encodedHash,
+	}}
+	encoded, err := yaml.Marshal(document)
+	if err != nil {
+		return nil, fmt.Errorf("encode local-auth bootstrap: %w", err)
+	}
+	return encoded, nil
+}
+
+func readBootstrap(path string) ([]byte, error) {
+	data, err := securefile.Read(path, maximumBootstrapBytes)
+	switch {
+	case err == nil:
+		return data, nil
+	case errors.Is(err, securefile.ErrPath):
+		return nil, fmt.Errorf("%w: local-auth path must be clean and absolute", ErrInvalidBootstrap)
+	case errors.Is(err, securefile.ErrUnsafePath):
+		return nil, fmt.Errorf("%w: local-auth file must be regular, non-symlinked, and owner-only", ErrInvalidBootstrap)
+	default:
+		return nil, ErrInvalidBootstrap
+	}
+}

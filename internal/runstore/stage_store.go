@@ -1,0 +1,497 @@
+package runstore
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/stageresult"
+	"github.com/jackc/pgx/v5"
+)
+
+const terminalReleaseRecoveryBatchLimit = 32
+const terminalReleaseCandidateBatchLimit = 128
+
+// HasSummaryEscalation uses the unique ordinal-root index. It reads neither
+// attempt snapshots nor the whole Run history for a one-shot summary policy.
+func (s *PostgresStore) HasSummaryEscalation(ctx context.Context, runID, stageName string) (bool, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return false, err
+	}
+	if err := validateOpaque("stageName", stageName); err != nil {
+		return false, err
+	}
+	var exists bool
+	err := s.db.QueryRow(ctx, hasSummaryEscalationSQL, runID, stageName).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("read summary escalation root: %w", err)
+	}
+	return exists, nil
+}
+
+func (s *PostgresStore) CreateStageExecution(
+	ctx context.Context,
+	params CreateStageExecutionParams,
+) (StageExecution, error) {
+	return s.createStageExecution(ctx, params, nil)
+}
+
+// resumedBy is set only by the atomic manual-continuation operation. Its
+// receipt is inserted with the new attempt, never attached to an existing one.
+func (s *PostgresStore) createStageExecution(ctx context.Context, params CreateStageExecutionParams, resumedBy *string) (StageExecution, error) {
+	if params.ExecutionConfigVariant == "" {
+		params.ExecutionConfigVariant = StageExecutionConfigBase
+	}
+	if err := validateCreateStageExecution(params); err != nil {
+		return StageExecution{}, err
+	}
+	contextSnapshot := params.StageContext
+	if contextSnapshot.Parameters == nil {
+		contextSnapshot.Parameters = map[string]string{}
+	}
+	if contextSnapshot.Artifacts == nil {
+		contextSnapshot.Artifacts = map[string]PinnedContextArtifact{}
+	}
+	encodedContext, err := json.Marshal(contextSnapshot)
+	if err != nil {
+		return StageExecution{}, fmt.Errorf("create StageExecution: encode StageContext: %w", err)
+	}
+	result, err := scanStageExecution(s.db.QueryRow(ctx, createStageExecutionSQL,
+		params.StageExecutionID, params.RunID, params.StageName, params.Attempt,
+		params.PreviousExecutionID, params.ExecutionConfigVariant, params.EscalationOrdinal,
+		params.ResumeSourceExecutionID,
+		params.StageSpecSchemaVersion, []byte(params.StageSpecSnapshot),
+		params.StageContextSchemaVersion, encodedContext, string(params.LaneClass), resumedBy,
+	))
+	if err != nil {
+		failure := persistencepostgres.Classify(err)
+		if failure == persistencepostgres.ClassDuplicate {
+			return StageExecution{}, fmt.Errorf("create StageExecution %q: %w", params.StageExecutionID, ErrConflict)
+		}
+		if failure == persistencepostgres.ClassReferenceViolation {
+			return StageExecution{}, fmt.Errorf("create StageExecution %q: %w", params.StageExecutionID, ErrNotFound)
+		}
+		return StageExecution{}, fmt.Errorf("create StageExecution %q: %w", params.StageExecutionID, err)
+	}
+	return result, nil
+}
+
+func (s *PostgresStore) GetStageExecution(ctx context.Context, stageExecutionID string) (StageExecution, error) {
+	if err := validateOpaque("stageExecutionID", stageExecutionID); err != nil {
+		return StageExecution{}, err
+	}
+	result, err := scanStageExecution(s.db.QueryRow(ctx, getStageExecutionSQL, stageExecutionID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return StageExecution{}, fmt.Errorf("get StageExecution %q: %w", stageExecutionID, ErrNotFound)
+	}
+	if err != nil {
+		return StageExecution{}, fmt.Errorf("get StageExecution %q: %w", stageExecutionID, err)
+	}
+	return result, nil
+}
+
+// ListTerminalStageExecutionsWithAllocations returns a bounded, fair batch of
+// terminal executions whose allocation cleanup is incomplete. Durable release
+// timestamps preserve immutable allocation provenance without rescanning the
+// complete execution history on every Scheduler poll.
+func (s *PostgresStore) ListTerminalStageExecutionsWithAllocations(
+	ctx context.Context, excludedStageIDs []string,
+) ([]StageExecution, error) {
+	rows, err := s.db.Query(ctx, listTerminalStageExecutionsWithAllocationsSQL+prefixedStageExecutionColumns("execution")+`
+FROM pending
+JOIN stage_executions AS execution
+  ON execution.stage_execution_id = pending.stage_execution_id
+ORDER BY pending.next_attempt_at, execution.stage_execution_id`,
+		terminalReleaseCandidateBatchLimit, excludedStageIDs, terminalReleaseRecoveryBatchLimit)
+	if err != nil {
+		return nil, fmt.Errorf("list terminal StageExecutions with allocations: %w", err)
+	}
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (StageExecution, error) {
+		return scanStageExecution(row)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("iterate terminal StageExecutions with allocations: %w", err)
+	}
+	return result, nil
+}
+
+// GetActiveStageExecution returns the StageExecution of Run runID that is
+// preparing, running, finalizing or aborting, read through
+// stage_executions_run_active_idx instead of the Run's Stage history. A Run
+// has at most one (SCH-R114), so the read stops at a second: it returns
+// ErrNotFound when the Run has none and ErrMultipleActiveStages when it has
+// more than one.
+func (s *PostgresStore) GetActiveStageExecution(ctx context.Context, runID string) (StageExecution, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return StageExecution{}, err
+	}
+	rows, err := s.db.Query(ctx, getActiveStageExecutionSQL, runID)
+	if err != nil {
+		return StageExecution{}, fmt.Errorf("get active StageExecution of WorkflowRun %q: %w", runID, err)
+	}
+	active, err := pgx.AppendRows([]StageExecution(nil), rows, func(row pgx.CollectableRow) (StageExecution, error) {
+		return scanStageExecution(row)
+	})
+	if err != nil {
+		return StageExecution{}, fmt.Errorf("iterate active StageExecutions of WorkflowRun %q: %w", runID, err)
+	}
+	switch len(active) {
+	case 0:
+		return StageExecution{}, fmt.Errorf("get active StageExecution of WorkflowRun %q: %w", runID, ErrNotFound)
+	case 1:
+		return active[0], nil
+	default:
+		return StageExecution{}, fmt.Errorf("WorkflowRun %q: %w", runID, ErrMultipleActiveStages)
+	}
+}
+
+// ListStageExecutionsWithUnreleasedAllocations returns the StageExecutions of
+// Run runID that still have an allocation whose release has not completed,
+// oldest first, without reading the executions whose release is complete.
+func (s *PostgresStore) ListStageExecutionsWithUnreleasedAllocations(
+	ctx context.Context, runID string,
+) ([]StageExecution, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query(ctx, listStageExecutionsWithUnreleasedAllocationsSQL, runID)
+	if err != nil {
+		return nil, fmt.Errorf("list StageExecutions with unreleased allocations for WorkflowRun %q: %w", runID, err)
+	}
+	result, err := pgx.AppendRows([]StageExecution(nil), rows, func(row pgx.CollectableRow) (StageExecution, error) {
+		return scanStageExecution(row)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("iterate StageExecutions with unreleased allocations for WorkflowRun %q: %w", runID, err)
+	}
+	return result, nil
+}
+
+// HasStageExecutions reports whether Run runID has any StageExecution. It
+// reads one boolean, not the Stage history (SCH-R164).
+func (s *PostgresStore) HasStageExecutions(ctx context.Context, runID string) (bool, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return false, err
+	}
+	var exists bool
+	if err := s.db.QueryRow(ctx, hasStageExecutionsSQL, runID).Scan(&exists); err != nil {
+		return false, fmt.Errorf("probe StageExecutions of WorkflowRun %q: %w", runID, err)
+	}
+	return exists, nil
+}
+
+// ListStageLineage returns the lineage of every StageExecution of Stage
+// stageName in Run runID, oldest first, in one statement that selects no
+// snapshot column (SCH-R164). A Run has at most LIM-RUN-2 attempts.
+func (s *PostgresStore) ListStageLineage(ctx context.Context, runID, stageName string) ([]StageLineage, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return nil, err
+	}
+	if err := validateOpaque("stageName", stageName); err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query(ctx, listStageLineageSQL, runID, stageName)
+	if err != nil {
+		return nil, fmt.Errorf("list Stage %q lineage of WorkflowRun %q: %w", stageName, runID, err)
+	}
+	defer rows.Close()
+	var result []StageLineage
+	for rows.Next() {
+		var lineage StageLineage
+		var state string
+		if err := rows.Scan(
+			&lineage.StageExecutionID, &lineage.RunID, &lineage.StageName, &lineage.Attempt, &state,
+			&lineage.ExecutionConfigVariant, &lineage.EscalationOrdinal,
+			&lineage.PreviousExecutionID, &lineage.ResumeSourceExecutionID,
+			&lineage.PlannerSessionID, &lineage.PlannerInvocationID,
+		); err != nil {
+			return nil, fmt.Errorf("scan Stage %q lineage of WorkflowRun %q: %w", stageName, runID, err)
+		}
+		lineage.State = StageExecutionState(state)
+		result = append(result, lineage)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate Stage %q lineage of WorkflowRun %q: %w", stageName, runID, err)
+	}
+	return result, nil
+}
+
+func (s *PostgresStore) ListStageExecutions(ctx context.Context, runID string) ([]StageExecution, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query(ctx, listStageExecutionsSQL, runID)
+	if err != nil {
+		return nil, fmt.Errorf("list StageExecutions for WorkflowRun %q: %w", runID, err)
+	}
+	result, err := pgx.AppendRows([]StageExecution(nil), rows, func(row pgx.CollectableRow) (StageExecution, error) {
+		return scanStageExecution(row)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("iterate StageExecutions for WorkflowRun %q: %w", runID, err)
+	}
+	return result, nil
+}
+
+func (s *PostgresStore) StartPlanner(ctx context.Context, params StartPlannerParams) error {
+	for field, value := range map[string]string{
+		"stageExecutionID": params.StageExecutionID, "sessionID": params.SessionID,
+		"invocationID": params.InvocationID, "stateSchemaVersion": params.StateSchemaVersion,
+	} {
+		if err := validateOpaque(field, value); err != nil {
+			return err
+		}
+	}
+	if err := validateJSONObject("initial Planner state", params.InitialState); err != nil {
+		return err
+	}
+	if err := validateReason(params.Reason); err != nil {
+		return err
+	}
+	if err := validateRunEventAppend(params.RunEvent); err != nil {
+		return err
+	}
+	if params.RunEvent.EventSchemaVersion != contracts.APIVersion ||
+		params.RunEvent.Kind != RunEventPlannerStarted {
+		return invalidf("initial Planner event schema or kind is invalid")
+	}
+	if len(params.InitialState) > maxRunEventDataBytes {
+		return invalidf("initial Planner state exceeds its bounded contract")
+	}
+	if err := validatePlannerRunEventIdentity(
+		params.RunEvent, params.StageExecutionID, params.SessionID, params.InvocationID,
+	); err != nil {
+		return err
+	}
+	// The Stage CAS locks the Stage and the event allocation its Run, so the
+	// Run is locked first (RUN-R29). On a pool the start is its own
+	// replay-safe transaction; in a caller's transaction it runs once.
+	err := persistencepostgres.Within(ctx, s.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		var runID string
+		err := tx.QueryRow(ctx, lockStartPlannerRunSQL, params.StageExecutionID).Scan(&runID)
+		if err == nil {
+			var sessionID string
+			err = tx.QueryRow(ctx, startPlannerSQL,
+				params.StageExecutionID, params.SessionID, params.InvocationID,
+				params.StateSchemaVersion, []byte(params.InitialState), params.Reason.Code, params.Reason.Message,
+				params.RunEvent.EventID, params.RunEvent.EventSchemaVersion,
+				params.RunEvent.Kind, []byte(params.RunEvent.Data), runID,
+			).Scan(&sessionID)
+		}
+		if errors.Is(err, pgx.ErrNoRows) {
+			return &StateConflictError{Resource: "StageExecution", ID: params.StageExecutionID, Expected: string(StagePreparing)}
+		}
+		return err
+	})
+	var notPreparing *StateConflictError
+	switch {
+	case err == nil, errors.As(err, &notPreparing):
+		return err
+	case persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate:
+		return fmt.Errorf("start Planner for StageExecution %q: %w", params.StageExecutionID, ErrConflict)
+	case plannerWriteRejected(err):
+		// A stored bound, such as planner_session_state_size, measures the
+		// jsonb text, which can exceed the submitted JSON the pre-check
+		// measured; it is the same deterministic rejection (PER-R13).
+		return fmt.Errorf("start Planner for StageExecution %q: %w: %w", params.StageExecutionID, ErrInvalid, err)
+	default:
+		return fmt.Errorf("start Planner for StageExecution %q: %w", params.StageExecutionID, err)
+	}
+}
+
+func (s *PostgresStore) EnterFinalizing(ctx context.Context, params EnterFinalizingParams) error {
+	for field, value := range map[string]string{
+		"stageExecutionID":    params.StageExecutionID,
+		"resultSchemaVersion": params.ResultSchemaVersion,
+		"finalizationID":      params.FinalizationID,
+	} {
+		if err := validateOpaque(field, value); err != nil {
+			return err
+		}
+	}
+	if err := params.Candidate.Validate(); err != nil {
+		return fmt.Errorf("%w: candidate StageResult: %v", ErrInvalid, err)
+	}
+	if params.Deadline.IsZero() {
+		return invalidf("finalization deadline is required")
+	}
+	if err := validateReason(params.Reason); err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(params.Candidate)
+	if err != nil {
+		return fmt.Errorf("enter finalizing: encode candidate StageResult: %w", err)
+	}
+	tag, err := s.db.Exec(ctx, enterFinalizingSQL,
+		params.StageExecutionID, params.ResultSchemaVersion, encoded,
+		params.FinalizationID, params.Deadline, params.Reason.Code, params.Reason.Message,
+	)
+	return transitionResult("enter finalizing", params.StageExecutionID, StageRunning, tag.RowsAffected(), err)
+}
+
+func (s *PostgresStore) CompleteStageResult(
+	ctx context.Context,
+	stageExecutionID string,
+	resultSchemaVersion string,
+	result stageresult.StageContentResult,
+) error {
+	if err := validateOpaque("stageExecutionID", stageExecutionID); err != nil {
+		return err
+	}
+	if err := validateOpaque("resultSchemaVersion", resultSchemaVersion); err != nil {
+		return err
+	}
+	if err := result.Validate(); err != nil {
+		return fmt.Errorf("%w: accepted StageResult: %v", ErrInvalid, err)
+	}
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("complete StageResult: encode result: %w", err)
+	}
+	tag, err := s.db.Exec(ctx, completeStageResultSQL,
+		stageExecutionID, resultSchemaVersion, encoded, result.Outcome,
+	)
+	return transitionResult("complete StageResult", stageExecutionID, StageFinalizing, tag.RowsAffected(), err)
+}
+
+func (s *PostgresStore) EnterAborting(ctx context.Context, params EnterAbortingParams) error {
+	for field, value := range map[string]string{
+		"stageExecutionID":         params.StageExecutionID,
+		"terminationSchemaVersion": params.TerminationSchemaVersion,
+		"abortID":                  params.AbortID,
+	} {
+		if err := validateOpaque(field, value); err != nil {
+			return err
+		}
+	}
+	if params.ExpectedState != StagePreparing && params.ExpectedState != StageRunning {
+		return invalidf("aborting requires expected state preparing or running")
+	}
+	expectedPhase := TerminationPhase(params.ExpectedState)
+	if params.Termination.Phase != expectedPhase {
+		return invalidf("StageTermination phase %q does not match expected state %q", params.Termination.Phase, params.ExpectedState)
+	}
+	if err := params.Termination.Validate(); err != nil {
+		return err
+	}
+	if params.Deadline.IsZero() {
+		return invalidf("abort deadline is required")
+	}
+	if err := validateReason(params.Reason); err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(params.Termination)
+	if err != nil {
+		return fmt.Errorf("enter aborting: encode StageTermination: %w", err)
+	}
+	tag, err := s.db.Exec(ctx, enterAbortingSQL,
+		params.StageExecutionID, params.ExpectedState, params.TerminationSchemaVersion,
+		encoded, params.AbortID, params.Deadline, params.Reason.Code, params.Reason.Message,
+	)
+	return transitionResult("enter aborting", params.StageExecutionID, params.ExpectedState, tag.RowsAffected(), err)
+}
+
+func (s *PostgresStore) CompleteStageTermination(ctx context.Context, stageExecutionID string) error {
+	if err := validateOpaque("stageExecutionID", stageExecutionID); err != nil {
+		return err
+	}
+	tag, err := s.db.Exec(ctx, `
+UPDATE stage_executions
+SET state = stage_termination->>'outcome',
+    state_reason_code = 'termination_committed',
+    state_reason_message = '',
+    terminal_at = clock_timestamp(),
+    updated_at = clock_timestamp()
+WHERE stage_execution_id = $1 AND state = 'aborting'`, stageExecutionID)
+	return transitionResult("complete StageTermination", stageExecutionID, StageAborting, tag.RowsAffected(), err)
+}
+
+func transitionResult(operation, id string, expected StageExecutionState, rows int64, err error) error {
+	if err != nil {
+		return fmt.Errorf("%s for StageExecution %q: %w", operation, id, err)
+	}
+	if rows != 1 {
+		return &StateConflictError{Resource: "StageExecution", ID: id, Expected: string(expected)}
+	}
+	return nil
+}
+
+func validateCreateStageExecution(params CreateStageExecutionParams) error {
+	if !params.LaneClass.Valid() {
+		return invalidf("laneClass is invalid")
+	}
+	for field, value := range map[string]string{
+		"stageExecutionID": params.StageExecutionID, "runID": params.RunID,
+	} {
+		if err := validateResourceID(field, value); err != nil {
+			return err
+		}
+	}
+	if err := validateName("stageName", params.StageName); err != nil {
+		return err
+	}
+	for field, value := range map[string]string{
+		"stageSpecSchemaVersion":    params.StageSpecSchemaVersion,
+		"stageContextSchemaVersion": params.StageContextSchemaVersion,
+	} {
+		if err := validateOpaque(field, value); err != nil {
+			return err
+		}
+	}
+	if params.Attempt <= 0 {
+		return invalidf("attempt must be positive")
+	}
+	if params.Attempt == 1 && params.PreviousExecutionID != nil || params.Attempt > 1 && params.PreviousExecutionID == nil {
+		return invalidf("attempt and previousExecutionID have inconsistent lineage")
+	}
+	if params.PreviousExecutionID != nil {
+		if err := validateResourceID("previousExecutionID", *params.PreviousExecutionID); err != nil {
+			return err
+		}
+	}
+	if params.ResumeSourceExecutionID != nil && (params.PreviousExecutionID == nil ||
+		*params.ResumeSourceExecutionID != *params.PreviousExecutionID) {
+		return invalidf("manual continuation must identify the previous execution")
+	}
+	variant := params.ExecutionConfigVariant
+	if variant == "" {
+		variant = StageExecutionConfigBase
+	}
+	switch variant {
+	case StageExecutionConfigBase:
+		if params.EscalationOrdinal != nil {
+			return invalidf("base executionConfig variant must not have an escalation ordinal")
+		}
+	case StageExecutionConfigFailedEscalation, StageExecutionConfigInterruptedEscalation:
+		if params.EscalationOrdinal == nil || *params.EscalationOrdinal <= 0 {
+			return invalidf("escalation executionConfig variant requires a positive ordinal")
+		}
+	case StageExecutionConfigSummaryEscalation:
+		if params.EscalationOrdinal == nil || *params.EscalationOrdinal != 1 || params.StageContext.Continuation == nil {
+			return invalidf("summary escalation requires ordinal one and saved continuation")
+		}
+	default:
+		return invalidf("unknown executionConfig variant %q", variant)
+	}
+	if variant != StageExecutionConfigSummaryEscalation && params.StageContext.Continuation != nil {
+		return invalidf("saved continuation requires the summary escalation variant")
+	}
+	if err := validateJSONObject("stageSpecSnapshot", params.StageSpecSnapshot); err != nil {
+		return err
+	}
+	return params.StageContext.Validate()
+}
+
+func validateNamespace(value string) error {
+	if err := validateOpaque("namespace", value); err != nil {
+		return err
+	}
+	if strings.Contains(value, "/") {
+		return invalidf("namespace must not contain slash")
+	}
+	return nil
+}

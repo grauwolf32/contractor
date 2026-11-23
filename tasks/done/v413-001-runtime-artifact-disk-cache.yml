@@ -1,0 +1,428 @@
+schema_version: '1.0'
+id: V413-001
+title: Reuse authorized immutable archives in a bounded Runtime disk cache
+milestone: runtime-artifact-cache-2026-10
+epic: projects-artifacts
+kind: feature
+priority: P2
+status: completed
+implementation_commit: 0dac8542e79dadc8b4ecec6182935b11c214ee2a
+depends_on: []
+languages: [go, python, json, markdown]
+goal: >-
+  Avoid downloading the same immutable source archive or selected Skill package
+  for successive allocations on one local-storage Runtime, while preserving
+  current Server authorization, exact provenance and fresh workspace extraction.
+context:
+  authority: >-
+    On 2026-10-24 the user approved a filesystem cache up to 1 GiB per Runtime,
+    only when the existing startup workspace storage setting selects local.
+    The user explicitly assigned implementation on 2026-10-25.
+  proposal: docs/proposals/0042-live-project-sitemap.md#supporting-runtime-artifact-cache
+  specification:
+    - docs/spec/artifacts/artifact-store.md#ART-R9
+    - docs/spec/artifacts/artifact-store.md#ART-R40
+    - docs/spec/artifacts/artifact-store.md#ART-R116
+    - docs/spec/artifacts/artifact-store.md#ART-R117
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R51
+    - docs/spec/execution/runtime-agent.md#RTA-R19
+    - docs/spec/execution/runtime-agent.md#RTA-R36
+    - docs/spec/execution/runtime-agent.md#RTA-R37
+    - docs/spec/execution/runtime-agent.md#RTA-R119
+    - docs/spec/execution/runtime-agent.md#RTA-R120
+    - docs/spec/execution/runtime-agent.md#RTA-R121
+    - docs/spec/execution/runtime-agent.md#RTA-R122
+    - docs/spec/execution/runtime-agent.md#RTA-R123
+    - docs/spec/execution/runtime-agent.md#RTA-R124
+    - docs/spec/tools/workspace.md#WSP-R71
+    - docs/spec/tools/skills.md#SKL-R101
+    - docs/spec/tools/skills.md#SKL-R103
+    - docs/spec/platform/limits.md
+    - docs/spec/platform/failure-model.md
+    - api/v1alpha1/README.md
+  current_behavior: >-
+    artifact_read_cache.py retains one allocation-local payload, while workspace
+    hydration and selected Skill loading independently download exact archives.
+    ArtifactReadResult has no immutable-content identity. ArtifactStore forks
+    share version_id but receive distinct binding revisions. The existing
+    hold_work_roots lock already owns the local workspace root for one process.
+  code:
+    - runtime/src/contractor_runtime/cli.py
+    - runtime/src/contractor_runtime/work_root_lock.py
+    - runtime/src/contractor_runtime/artifacts.py
+    - runtime/src/contractor_runtime/contracts/artifacts.py
+    - runtime/src/contractor_runtime/projectfs/hydrate.py
+    - runtime/src/contractor_runtime/projectfs/provider.py
+    - runtime/src/contractor_runtime/agent_skills/runtime.py
+    - internal/artifacts
+    - internal/contracts
+    - internal/httpapi/privateartifacts
+    - api/testdata
+scope:
+  in:
+    - >-
+      Add a process-owned immutable encoded-byte cache and wire actual production
+      callers into source/workspace ZIP hydration and selected Skill package
+      loading in this same change. Both still extract into fresh allocation-owned
+      directories and perform their existing package/archive validation.
+    - >-
+      Extend only private allocation metadata with a strict opaque contentCacheKey
+      for the resolved immutable version, and update Go/Python contracts, shared
+      fixtures, provenance handling and the owning normative specifications.
+    - >-
+      Integrate local startup gating, private root ownership, atomic files,
+      bounded reservation/eviction, integrity validation, cancellation, expiry
+      and shutdown/restart cleanup, with real filesystem and process coverage.
+  out:
+    - >-
+      General ArtifactClient interception; cookies, HTTP sessions, Interactsh
+      events, credentials, private pentest evidence, arbitrary Worker artifacts,
+      mutable workspace state and model/conversation data are not cache callers.
+    - >-
+      Cross-process/distributed caches, scheduler placement affinity, additional
+      startup toggles, configurable limits, offline artifact authority, new leases,
+      receipt tables or server-side retention pins.
+    - >-
+      Parsed/decoded text caching owned by independent V407-035; no dependency
+      on that task or on pending sitemap tools. A future safe sitemap projection
+      needs an explicit eligibility contract before using this cache.
+    - >-
+      Server history eviction and admission policy (V410-010), delta storage, streaming
+      ArtifactClient redesign or reuse of extracted mutable workspaces. This cache
+      reduces downloads, not Server write amplification, stored history or the
+      current whole-payload memory cost of a read.
+requirements:
+  - id: R1
+    text: >-
+      Enable the cache only when existing startup --workspace-storage local is
+      selected, using --workspace-work-root; memory and disabled workspace modes
+      create no cache directory or file. Use a dedicated private immediate child
+      outside allocation/session directory prefixes, cleanup walkers and all
+      Worker/sandbox mounts. Reuse hold_work_roots ownership; do not introduce
+      another process lock, lease or shared-root mode. Existing unsafe/held root
+      startup failures retain their current outcomes.
+  - id: R2
+    text: >-
+      Resolve every cache lookup through the current allocation's authenticated
+      private metadata API, including exact refs and Skill packages. Versionless
+      refs first resolve current metadata, then select the returned exact ref for
+      any download. Cache hits record the consuming allocation's exact binding ref
+      through existing content-observation/provenance hooks; metadata alone is not
+      a content observation. Scope/grant denial, deleted refs, unavailable Server
+      and invalid metadata never permit an offline cache hit or raw-fetch bypass.
+  - id: R3
+    text: >-
+      Introduce a separate private metadata response DTO with required
+      contentCacheKey, an opaque case-sensitive ASCII token matching
+      [A-Za-z0-9_-]{1,128}, stable for one immutable version and identical across
+      its frozen fork bindings. Reuse existing version identity without a new
+      identity table, receipt or hashing protocol. Different independent versions
+      may miss even if bytes match. Keep ArtifactRef and public/shared read/write
+      DTOs unchanged; no token, blob SHA or internal location reaches public APIs,
+      model tool results, telemetry content or exports. Update ART-R9 and ART-R116
+      with this narrow private exception, both language readers and a shared
+      api/testdata fixture; missing/unknown/duplicate fields fail strictly, with
+      no legacy response fallback.
+  - id: R4
+    text: >-
+      Key stored bytes by Server trust-domain plus contentCacheKey, using bounded
+      filesystem-safe derived names. Bind the trust-domain to the configured
+      private Server endpoint and TLS trust configuration; never share across
+      origins/trust domains. Keep scoped ref aliases and authorization observations
+      allocation-owned, separate from reusable bytes. A cache key is not a grant.
+      Source cache hits still validate current media type and size; Skill hits
+      additionally verify the exact trusted selected-package digest and manifest
+      identity under SKL-R101. Update that rule only as needed to describe the
+      shared private-content identity and mandatory trusted package verification.
+  - id: R5
+    text: >-
+      Hard-bound charged logical file bytes to 1 GiB per Runtime: completed data
+      and metadata plus full in-flight file reservations share that budget. Bound
+      completed entries plus reserved entry slots to 1,024 and retained metadata
+      to 4 MiB, with at most 4 KiB per entry. Preserve the existing 64-MiB maximum
+      encoded artifact size. Reserve before writing; atomically convert the same
+      reservation on promotion, never double-count a renamed file or allow parallel
+      fills to oversubscribe. These are logical byte/accounting limits, not an
+      exact claim about filesystem block allocation, journaling or free disk space.
+  - id: R6
+    text: >-
+      Allow at most four simultaneous distinct-key cache fills with same-key
+      coalescing and bounded waiters; do not create an unbounded work queue.
+      Evict least-recently-used completed entries only while no reader/fill owns
+      them. If budget, entry slots, concurrency or local storage cannot accommodate
+      caching, use the ordinary authorized exact fetch without cache population.
+      Cache write/read failure must not fail an otherwise valid download. Corrupt
+      or inconsistent entries are removed when unused and fetched again through
+      the authorized path; never return bytes that failed integrity validation.
+  - id: R7
+    text: >-
+      Write private staging files atomically, validate exact ref/ETag, media type
+      and length against authenticated metadata, compute/store a local integrity
+      digest and verify cached bytes before use. Skill verification remains tied
+      to its trusted selected digest, not only the local checksum. Accept only
+      owned regular files; reject symlink/hardlink/path traversal and never follow
+      an untrusted cache entry during cleanup. Network I/O and hashing/file I/O
+      run outside cache bookkeeping locks; blocking local work uses
+      threads.to_thread_until_done and cancellation joins it before release.
+  - id: R8
+    text: >-
+      Reuse entries only during one Runtime process lifetime, with a 24-hour TTL
+      from successful download, not sliding last use. Expired entries cannot
+      satisfy new reads; active readers may finish under their existing operation
+      deadline before deletion. Run bounded expiry maintenance at least once per
+      minute while the Runtime runs, at most 64 entries per pass, and join it at
+      shutdown. Under the existing root lock remove only marker-owned cache state
+      at startup before serving allocations; never reopen prior-process entries.
+      If optional cache cleanup cannot be proved safe, disable caching and preserve
+      the ordinary fetch path without deleting unrelated files. Do not promise
+      remote erasure while offline/stopped; residual disk bytes require next owned
+      startup cleanup or operator cleanup, and never authorize a read.
+  - id: R9
+    text: >-
+      Allocation release discards aliases and joins its readers/fills before
+      removing extracted workspaces and Skill state; shared complete immutable
+      bytes may remain until eviction/TTL/process shutdown. Cache references are
+      not ArtifactStore pins and do not block Run/Project deletion or history
+      eviction. A subsequent lookup of a purged/revoked exact ref fails through
+      Server authorization even when its bytes remain locally. Direct workspace
+      reads still take fresh disk snapshots under WSP-R71; local edits never
+      populate or invalidate the immutable archive cache.
+  - id: R10
+    text: >-
+      Record cache bounds, eligibility, private identity and lifecycle in their
+      owning specs and shared limit registry. Expose only bounded aggregate
+      hit/miss/bypass/corruption and charged-byte counters for verification and
+      operations; do not retain an unbounded access log or label metrics with
+      Artifact refs, content keys, paths or owner identities. This is an optional
+      optimization, not a new advertised Runtime execution capability.
+failure_outcomes:
+  - operation: Authenticated metadata resolution and exact payload download
+    permanent: >-
+      Preserve owner-safe 404 artifact_not_found and 403 artifact_access_denied,
+      invalid_request 400 and existing allocation/grant errors. Invalid private
+      DTO/key/ref/size is ArtifactTransportError; do not reinterpret it as a miss
+      or expose cached bytes. No automatic retry of permanent failures.
+    retryable: >-
+      Preserve classified storage_transaction_conflict 503 and existing bounded
+      transport retry policy within the caller's preparation/operation deadline;
+      the cache adds no independent retry loop or deadline extension.
+    ambiguous: >-
+      GET creates no append receipt. A lost metadata response authorizes no hit;
+      a partial/lost payload is never promoted. Any allowed GET retry targets the
+      same resolved exact ref and remains inside the original deadline.
+    cancelled: >-
+      The allocation owner cancels and joins metadata, fetch, hashing and disk
+      work before release; shared coalesced work stops once no eligible waiter
+      owns it. No fill continues on a released allocation's grant.
+    timeout: >-
+      Use the existing workspace preparation/operation or Skill preparation
+      deadline for network and cache work together; no separate unbounded wait.
+  - operation: Optional cache reservation, local read/write, eviction and cleanup
+    permanent: >-
+      Admission/full/unsafe-entry failures are internal cache bypass outcomes,
+      not public API errors. After successful metadata authorization use the
+      ordinary fetch. Corrupt bytes are never returned; unsafe root ownership
+      retains the existing startup failure rather than bypassing root protection.
+    retryable: >-
+      No automatic cache I/O retry loop. ENOSPC, permission and ordinary I/O
+      failure bypass caching for this read; disable the cache when state cannot
+      be accounted for safely. Existing deadlines still bound the fetch.
+    ambiguous: >-
+      Atomic rename plus the in-memory reservation owns publication. Incomplete
+      files never count as reusable entries; unknown/orphan state is removed only
+      through owned cleanup or keeps the cache disabled. Do not create a durable
+      receipt or repair journal for disposable bytes.
+    cancelled: >-
+      Join local worker threads, release waiter/refcounts and reservations exactly
+      once, and unlink owned staging files before allocation release. Failed
+      cleanup retains its byte charge and disables further population as needed.
+    timeout: >-
+      Cache work shares the caller's remaining deadline; periodic expiry has one
+      bounded pass and never delays an authorized read indefinitely. Runtime
+      shutdown joins cache maintenance through the existing shutdown deadline.
+cardinality:
+  - collection: Cache data and metadata for one Runtime process
+    expected: 1-64 immutable source archives or selected Skill packages
+    maximum: 1 GiB charged logical bytes, 1,024 entries/reserved slots and 4 MiB metadata
+    bound: >-
+      At most 64 MiB per payload, 4 KiB metadata per entry and four concurrent
+      distinct-key fills. Use a bounded in-memory LRU/index; each maintenance
+      pass examines/removes at most 64 entries, without whole-cache rescans per hit.
+  - collection: Scoped aliases, active users and coalesced fill waiters
+    expected: One allocation and a few preparation readers on the single-slot Runtime
+    maximum: 1,024 allocation-local aliases and 64 waiters across four fills
+    bound: >-
+      Store no durable authority. Overflow bypasses the cache without increasing
+      its queue; active counts and full byte reservations prevent eviction or
+      oversubscription until the owning work has joined.
+lifecycle:
+  - entity: Runtime-local immutable archive cache
+    delete: >-
+      Runtime may evict only unused entries; TTL and owned shutdown/startup cleanup
+      remove disposable files. No user deletion operation or server-side pin exists.
+    cascade: >-
+      Run/Project deletion removes authority on the next Server metadata check;
+      allocation release removes aliases, readers and staging ownership, while
+      ordinary workspace/Skill extraction cleanup remains allocation-owned.
+    retention: >-
+      Process-lifetime reuse only, 24-hour non-sliding eligibility TTL. No offline
+      availability guarantee or promise of immediate erasure from a stopped host.
+acceptance_criteria:
+  - id: A1
+    given: Existing local, memory and disabled workspace startup configurations
+    when: Actual source hydration and selected Skill preparation run and release
+    then: >-
+      Only local mode creates the private cache under its exclusively locked
+      workspace root. It is absent from sandbox mounts and allocation cleanup,
+      memory/disabled modes create no cache files, and mutable workspaces are
+      freshly extracted with current disk-snapshot behavior unchanged.
+  - id: A2
+    given: One immutable source/Skill version forked into two different Runs on the same Runtime
+    when: Successive allocations read their own exact refs through production callers
+    then: >-
+      Each allocation obtains authorized metadata and its own exact provenance;
+      one payload download serves the shared version. Independent versions or
+      Server trust domains do not alias. Public DTOs/tools disclose no key, and
+      both strict private readers reject missing, duplicate and unknown fields.
+  - id: A3
+    given: Cached bytes with current-binding advancement, a purged exact ref or revoked allocation grant
+    when: A new cache lookup occurs, including Server timeout or lost metadata response
+    then: >-
+      Latest resolves to the new exact ref; denied, removed or unconfirmed refs
+      never return cached bytes or bypass metadata through a raw fetch. A real
+      PostgreSQL fork/purge test proves shared-content identity and deletion behavior.
+  - id: A4
+    given: Deterministic concurrent reservations near byte, entry and waiter ceilings
+    when: Fills, reads and LRU eviction race, including all entries being in use
+    then: >-
+      Completed plus reserved logical bytes never exceed 1 GiB; finite metadata,
+      entry and fill/waiter limits hold. Only unused entries are evicted and full
+      cache bypass still fetches authorized content. Small real-filesystem fixtures
+      with injected limits plus reservation-only tests at the actual 1-GiB boundary
+      prove accounting without allocating a gigabyte per test or using wall-clock assertions.
+  - id: A5
+    given: Corrupt/truncated files, symlink/hardlink entries, ENOSPC and cancellation during promotion
+    when: Production cache readers and fill cleanup execute against a real temporary filesystem
+    then: >-
+      Invalid bytes are never returned, no path escapes the private root, no
+      unauthorized payload is fetched, joined work releases or conservatively
+      retains every reservation, and valid ordinary reads survive optional cache
+      failures. Skill digest/manifest mismatch still fails existing validation.
+  - id: A6
+    given: Active readers, an injected clock crossing the 24-hour TTL and owned leftover files
+    when: Allocation release, bounded maintenance, Runtime shutdown and restart occur
+    then: >-
+      Expired bytes serve no new read, active work joins before cleanup, no
+      previous-process entry is reused, unowned files survive, and cache cleanup
+      does not remove current allocation trees. Whole-package and production
+      Server/Runtime tests exercise both cache callers without reading live configs.
+tests:
+  - command: go test -tags=integration -count=1 ./internal/artifacts/... ./internal/contracts/... ./internal/httpapi/privateartifacts/... ./internal/httpapi/public/...
+    covers: [A2, A3, A5]
+  - command: make test-runtime
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make test-wire-cross-language
+    covers: [A2, A3]
+  - command: make test-project-workspaces-e2e test-agent-skills-mvp
+    covers: [A1, A2, A3, A6]
+  - command: make verify-public-api
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5, A6]
+test_prerequisites:
+  - >-
+    Use a disposable PostgreSQL database via CONTRACTOR_TEST_DATABASE_URL with
+    schema create/drop authority. Database unavailability after configuration is
+    a failure, not a skip; named make gates enforce required prerequisites.
+  - >-
+    Existing process targets above must be extended to cover successive
+    allocations with one Runtime and both real cache callers; no newly named
+    test is assumed to exist. Require a nonzero test selection and include any
+    added process test in the release graph.
+  - >-
+    Use temporary real filesystem roots, deterministic clocks, counters and
+    synchronization. Do not require a live Gateway, read live configs, introduce
+    timing assertions or claim sparse-file allocated blocks equal logical bytes.
+  - >-
+    Run the complete suites of every additionally touched Go/Python package;
+    shared-fixture readers must include both Go and Python and prove that the
+    private-only field does not alter public read/write contracts.
+implementation_notes:
+  - >-
+    ImmutableArchiveCache owns only bounded hashed byte identities, integrity
+    metadata and reservation/LRU state. Scoped aliases, binding timestamps and
+    grants are never retained. ArchiveValue reconstructs the consuming exact
+    binding from authenticated metadata; timestamp-bearing ArtifactValue and
+    public/shared read/write DTOs remain unchanged. Different binding timestamps
+    are the reason not to reuse an ArtifactValue across fork bindings.
+  - >-
+    Reuse version_id directly as the private opaque token, without a migration,
+    new identity store, receipt, lease or public API change. The effective TLS
+    CA/verification fingerprint and configured Artifact endpoint isolate trust
+    domains. Both production callers opt in explicitly; the general Artifact
+    client and allocation-local decoded-text cache retain their own behavior.
+  - >-
+    Same-key followers authorize independently and coalesce successful fills.
+    A cancelled/failed leader publishes no error or payload to another grant;
+    followers may use their own ordinary exact fetch, within their original
+    deadline. This deliberately permits duplicate fallback downloads and adds
+    neither an independent retry loop nor a background fill.
+  - >-
+    Logical accounting includes the owner marker and full 4-KiB metadata
+    reservations. Failed cleanup retains its entire charge and disables new
+    population. A single idempotent close finalizer joins maintenance and all
+    readers even when its caller is cancelled, before the root owner can exit.
+  - >-
+    The existing workspace process gate checks source-cache hits independently
+    on each specialist Runtime; the Skill process gate checks selected-package
+    hits across allocations on one local-storage Runtime. Its source ZIP is
+    consumed by Artifact tools, so it correctly remains outside cache eligibility.
+    Both gates assert owned cache cleanup and fixed scalar shutdown counters.
+  - >-
+    The actual private metadata HTTP reader uses decode_private, including
+    nested duplicate rejection, and the new DTO admits only camelCase wire
+    aliases. Safe protocol errors suppress response input and the opaque token;
+    actual-client regression tests verify duplicate, nested duplicate, missing,
+    unknown and snake-case responses without a raw fetch or identity in errors.
+verification:
+  date: '2026-10-26'
+  environment: >-
+    macOS arm64 with Go 1.26.9, Node 24.20.0, Python 3.13.16 and PostgreSQL
+    17.11; dedicated disposable contractor_test_v413 database with schema
+    create/drop authority. Full Runtime verification uses an isolated Debian
+    Linux arm64 container, Python 3.13.16, Go 1.26.9 and Node 24.20.0, running
+    as UID 1000 to preserve the non-root PodmanEngine contract. No live Gateway
+    is used. Tests use temporary real filesystems and fixture packages.
+  commands:
+    - >-
+      go test -tags=integration -count=1 ./internal/artifacts/...
+      ./internal/contracts/... ./internal/httpapi/privateartifacts/...
+      ./internal/httpapi/public/... passed with the database URL configured;
+      the new real-store fork/purge test also passed independently.
+    - >-
+      make test-runtime passed in Linux: 5083 passed, 55 skipped, 436.91s;
+      release_test_reports.py verify-runtime accepted its JUnit. Skips are
+      explicitly separate real-rootless/process gates, optional scanner or
+      validator executables, upstream Interactsh and live-model environments;
+      no cache test or required database check is skipped. Native macOS full
+      Runtime pass is not claimed. The touched cache/CLI/log modules passed
+      natively (47 tests); cache/artifact/contracts, including the actual strict
+      HTTP-reader regressions, passed natively (342 tests).
+    - >-
+      make test-project-workspaces-e2e test-agent-skills-mvp passed on the final
+      implementation: TestProjectWorkspaceLifecycleAcrossProductionProcesses
+      (163.824s), all four Python workspace process tests and
+      TestAgentSkillsMVPProcesses (164.374s). The real Runtime counters prove
+      source and Skill reuse through their owning callers, and both process
+      suites prove owned shutdown cleanup.
+    - >-
+      make test-wire-cross-language passed: 279 fixtures, 326 Go and 224 Python
+      shared tests; the complete Runtime contracts selection passed 323 tests.
+    - make verify-public-api passed; no public DTO or generated client change.
+    - >-
+      make lint passed, including generated dependency graph, public client,
+      staticcheck/testonlyexports, SQL ownership, release graph, spec/task
+      consistency, Ruff and all four Runtime import contracts.
+  artifacts: >-
+    Ignored reports/v413-linux-runtime.xml, reports/v413-linux-runtime.log and
+    reports/v413-required-gates.log retain the final complete verification.

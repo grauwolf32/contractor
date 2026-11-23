@@ -1,0 +1,260 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: likec4-from-workspace
+  version: '1'
+
+spec:
+  parameters:
+    objective:
+      required: false
+
+  inputs:
+    source:
+      required: true
+      mediaTypes: [application/zip]
+    existing_likec4:
+      required: false
+      mediaTypes: [text/vnd.likec4, text/plain]
+
+  outputs:
+    likec4:
+      required: true
+      primary: true
+      mediaTypes: [text/vnd.likec4]
+    likec4_validation_report:
+      required: true
+      mediaTypes: [text/markdown]
+
+  executionConfig:
+    workers:
+      modelPolicy: worker@1
+      llmGateway: local-litellm@1
+      credential: development-worker
+
+    stages:
+      dependency_discovery:
+        agents:
+          analyst:
+            summarizerModelPolicy: summarizer@1
+      project_discovery:
+        agents:
+          analyst:
+            summarizerModelPolicy: summarizer@1
+      likec4_build:
+        agents:
+          builder:
+            summarizerModelPolicy: summarizer@1
+      likec4_validate:
+        agents:
+          validator:
+            summarizerModelPolicy: summarizer@1
+  entryStage: dependency_discovery
+  stages:
+    dependency_discovery:
+      objective: Inventory runtime dependencies from the hydrated project workspace
+      instructions:
+        ref: instructions/dependency-discovery-planner.md
+      planner: passthrough@1
+      agents:
+        analyst:
+          template: workspace_source_graph_analyst@1
+          namespace: analysis
+      context:
+        artifacts:
+          source: &source_artifact
+            namespace: inputs
+            name: source
+            required: true
+        workspace:
+          mode: overlay
+          sources:
+            - artifact: source
+              target: ""
+          export:
+            state: workspace_state
+            diff: workspace_diff
+      result:
+        artifacts:
+          dependency_report:
+            required: true
+            mediaTypes: [text/markdown]
+            from: {namespace: analysis, name: dependencies}
+          workspace_state: &workspace_state_output
+            required: true
+            mediaTypes: [application/vnd.contractor.workspace-overlay+json]
+          workspace_diff: &workspace_diff_output
+            required: true
+            mediaTypes: [text/x-diff]
+      on:
+        succeeded:
+          next: project_discovery
+        failed: &retry_policy
+          retry:
+            maxAttempts: 2
+            then:
+              fail: {}
+        interrupted: *retry_policy
+        summarized:
+          escalate: &planner_continuation
+            maxAttempts: 1
+            planner: streamline@1
+            plannerContextManagement:
+              strategy: compact@1
+              instructions:
+                ref: instructions/planner-compaction.md
+            deadlineSeconds: 1800
+            executionConfig:
+              planner:
+                modelPolicy: planner@1
+                compactorModelPolicy: compactor@1
+                llmGateway: local-litellm@1
+                credential: development-planner
+
+    project_discovery:
+      objective: Map project structure, architecture, security controls, and runtime integrations
+      instructions:
+        ref: instructions/project-discovery-planner.md
+      planner: passthrough@1
+      agents:
+        analyst:
+          template: workspace_source_graph_analyst@1
+          namespace: analysis
+      context:
+        artifacts:
+          source: *source_artifact
+          dependency_report:
+            namespace: analysis
+            name: dependencies
+            required: true
+          prior_workspace_state:
+            namespace: analysis
+            name: workspace_state
+            required: true
+        workspace: &workspace_overlay
+          mode: overlay
+          sources:
+            - artifact: source
+              target: ""
+          state:
+            artifact: prior_workspace_state
+          export:
+            state: workspace_state
+            diff: workspace_diff
+      result:
+        artifacts:
+          project_report:
+            required: true
+            mediaTypes: [text/markdown]
+            from: {namespace: analysis, name: project}
+          workspace_state: *workspace_state_output
+          workspace_diff: *workspace_diff_output
+      on:
+        succeeded:
+          next: likec4_build
+        failed: *retry_policy
+        interrupted: *retry_policy
+        summarized:
+          escalate: *planner_continuation
+
+    likec4_build:
+      objective: Build an evidence-linked single-file LikeC4 architecture model for the project
+      instructions:
+        ref: instructions/likec4-build-planner.md
+      planner: passthrough@1
+      agents:
+        builder:
+          template: workspace_likec4_builder@1
+          namespace: likec4
+      context:
+        artifacts:
+          source: *source_artifact
+          dependency_report:
+            namespace: analysis
+            name: dependencies
+            required: true
+          project_report:
+            namespace: analysis
+            name: project
+            required: true
+          existing_likec4:
+            namespace: inputs
+            name: existing_likec4
+            required: false
+          prior_workspace_state:
+            namespace: analysis
+            name: workspace_state
+            required: true
+        workspace: *workspace_overlay
+      result:
+        artifacts:
+          architecture:
+            required: true
+            mediaTypes: [text/vnd.likec4]
+            from: {namespace: likec4, name: architecture}
+          workspace_state: *workspace_state_output
+          workspace_diff: *workspace_diff_output
+      on:
+        succeeded:
+          next: likec4_validate
+        failed: &retry_policy_2
+          retry:
+            maxAttempts: 6
+            then:
+              fail: {}
+        interrupted: *retry_policy_2
+        summarized:
+          escalate: *planner_continuation
+
+    likec4_validate:
+      objective: Validate and minimally repair the candidate LikeC4 model against source evidence
+      instructions:
+        ref: instructions/likec4-validate-planner.md
+      planner: passthrough@1
+      agents:
+        validator:
+          template: workspace_likec4_validator@1
+          namespace: likec4
+      context:
+        artifacts:
+          source: *source_artifact
+          dependency_report:
+            namespace: analysis
+            name: dependencies
+            required: true
+          project_report:
+            namespace: analysis
+            name: project
+            required: true
+          architecture_candidate:
+            namespace: likec4
+            name: architecture
+            required: true
+          prior_workspace_state:
+            namespace: likec4
+            name: workspace_state
+            required: true
+        workspace: *workspace_overlay
+      result:
+        artifacts:
+          architecture:
+            required: true
+            mediaTypes: [text/vnd.likec4]
+            from: {namespace: likec4, name: architecture}
+          validation_report:
+            required: true
+            mediaTypes: [text/markdown]
+            from: {namespace: likec4, name: validation-report}
+          workspace_state: *workspace_state_output
+          workspace_diff: *workspace_diff_output
+      workflowOutputs:
+        likec4: architecture
+        likec4_validation_report: validation_report
+      on:
+        succeeded:
+          succeed: {}
+        failed: *retry_policy
+        interrupted: *retry_policy
+        summarized:
+          escalate: *planner_continuation

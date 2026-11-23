@@ -1,0 +1,16 @@
+{
+  "repository": "playground-v2",
+  "commit": "d97ddc553497ff2673976bc8f4a143ca133621d9",
+  "files": {
+    "assessment-v1.schema.json": "5e5174e0ba6ee9e5d27ab2e56586af15b0115e311577b2a8fcfb8dd9b325abc2",
+    "binding-v1.schema.json": "a73fa50414a94b27d7b609682f47acac0c7dd80bb844b32e9bb1517c74fb20fd",
+    "case-v2.schema.json": "5644b5c0aec201edbb331083ae65303cbcb7f828917179e5572f46ccdb49e881",
+    "common.schema.json": "714bdd9b050a5db7d601ba16d0e70c47477f7da3792ccaad57278192718ff51b",
+    "comparison-v1.schema.json": "7fc6ddbe4e47d4177486227ea0b562ff1955f5b087c30907858371c4268e9a4b",
+    "experiment-v1.schema.json": "9f8a53e13b62ad1372fd764961e56702ec17057256d876a05b38b60dc41b93ab",
+    "plan-v1.schema.json": "89bf2a916f85720838af2a6cde76ad4195fcdde6ef15a2508ea1c2cab22a3c23",
+    "result-v2.schema.json": "5b0f6520a07da05baed6d8fe165a152ee9c1b1452ed1f8abad30fd6c222c6eb1",
+    "submission-v1.schema.json": "956eba2c6ee81d52db48a8234e2d2d23ecaeddd15db9a8f3f2dd5401109f1590",
+    "suite-v2.schema.json": "76eecb70c234d9fd28ff45cf267d146a36d6f49422acd2579d2614d32e225da2"
+  }
+}

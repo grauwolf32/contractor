@@ -1,0 +1,27 @@
+---
+- name: Build the Runtime environment privately
+  block:
+    - name: Require a mapping of private uv environment overrides
+      ansible.builtin.assert:
+        that: contractor_runtime_uv_environment is mapping
+        fail_msg: uv_environment/type requires a mapping.
+        quiet: true
+
+    - name: Build the locked Runtime environment
+      ansible.builtin.command:
+        argv: ["{{ ansible_facts.python.executable }}", -I, "{{ contractor_runtime_prefix }}/tools/private_command.py"]
+        stdin: >-
+          {{ {'argv': [contractor_runtime_prefix ~ '/tools/uv-' ~ __contractor_runtime_tools.uv.version ~ '/' ~ __contractor_runtime_tools.uv.path,
+                       'sync', '--locked', '--no-dev', '--python', contractor_runtime_python_version,
+                       '--project', __contractor_runtime_release_dir ~ '/runtime'],
+              'environment': {'UV_PYTHON_INSTALL_DIR': contractor_runtime_prefix ~ '/python',
+                              'UV_PYTHON_PREFERENCE': 'only-managed', 'UV_CACHE_DIR': contractor_runtime_prefix ~ '/cache/uv',
+                              'UV_COMPILE_BYTECODE': '1', 'UV_NO_PROGRESS': '1'} | combine(contractor_runtime_uv_environment)} | to_json }}
+      changed_when: true
+      no_log: true
+  rescue:
+    - name: Report the Runtime environment build failure safely
+      ansible.builtin.fail:
+        msg: >-
+          Runtime release environment/uv_sync failed; check uv configuration, package source
+          availability and environment overrides. Raw command output is withheld.

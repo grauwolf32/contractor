@@ -1,0 +1,786 @@
+package findingintake
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"slices"
+	"strconv"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
+)
+
+type querier interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+}
+
+const receiptProjection = `
+receipt.receipt_id, receipt.proposal_id, receipt.request_digest,
+receipt.client_key,
+receipt.run_id, receipt.stage_execution_id, coalesce(receipt.allocation_id,''),
+coalesce(receipt.logical_agent_name,''), receipt.invocation_id,
+receipt.workflow_name, receipt.workflow_version, receipt.workflow_schema_version,
+receipt.workflow_configuration_ref, receipt.workflow_closure_digest,
+receipt.audit_id, receipt.audit_execution_id, receipt.audit_task_id,receipt.audit_hypothesis,receipt.audit_hypothesis_snapshot,
+receipt.proposal_ref, receipt.proposal_digest, receipt.proposal_media_type,
+receipt.proposal_size_bytes, receipt.evidence,
+receipt.retention_state, receipt.source_run_deleted_at, receipt.created_at, receipt.fingerprint_projection, receipt.anchor_projection,
+receipt.publication_requested, receipt.publication_error, receipt.project_proposal, receipt.project_evidence,
+(SELECT source.finding_id FROM project_finding_sources AS source WHERE source.receipt_id=receipt.receipt_id),receipt.project_id,receipt.operation_ref,receipt.scan_origin`
+
+func readReceiptBySubmission(
+	ctx context.Context,
+	db querier,
+	allocationID, invocationID, submissionID string,
+) (Receipt, error) {
+	return scanReceipt(ctx, db, db.QueryRow(ctx, readReceiptBySubmissionSQL, allocationID, invocationID, submissionID))
+}
+
+func scanReceipt(ctx context.Context, db querier, row pgx.Row) (Receipt, error) {
+	result, err := scanReceiptRow(row)
+	if err != nil {
+		return Receipt{}, err
+	}
+	holds, err := readAuditHolds(ctx, db, result.ReceiptID)
+	if err != nil {
+		return Receipt{}, err
+	}
+	result.AuditHolds = holds
+	return result, nil
+}
+
+func scanReceiptRow(row pgx.Row) (Receipt, error) {
+	var result Receipt
+	var configurationRef, proposalRef, evidenceJSON, fingerprintJSON, anchorJSON []byte
+	var projectProposalJSON, projectEvidenceJSON, scanOrigin []byte
+	var auditID, auditExecutionID, auditTaskID *string
+	var hypothesis, hypothesisSnapshot []byte
+	var sourceDeletedAt *time.Time
+	err := row.Scan(
+		&result.ReceiptID, &result.ProposalID, &result.RequestDigest,
+		&result.ClientKey,
+		&result.Origin.RunID, &result.Origin.StageExecutionID, &result.Origin.AllocationID,
+		&result.Origin.LogicalAgentName, &result.Origin.InvocationID,
+		&result.Origin.Workflow.Name, &result.Origin.Workflow.Version,
+		&result.Origin.Workflow.SchemaVersion, &configurationRef,
+		&result.Origin.Workflow.ClosureDigest,
+		&auditID, &auditExecutionID, &auditTaskID, &hypothesis, &hypothesisSnapshot,
+		&proposalRef, &result.Proposal.Digest, &result.Proposal.MediaType,
+		&result.Proposal.SizeBytes, &evidenceJSON,
+		&result.Retention, &sourceDeletedAt, &result.CreatedAt, &fingerprintJSON, &anchorJSON,
+		&result.PublicationRequested, &result.PublicationError, &projectProposalJSON, &projectEvidenceJSON, &result.FindingID,
+		&result.ProjectID, &result.Origin.Operation, &scanOrigin,
+	)
+	if err != nil {
+		return Receipt{}, err
+	}
+	if scanOrigin != nil {
+		var origin artifacts.ExecutionOrigin
+		if strictjson.Decode(scanOrigin, &origin) != nil {
+			return Receipt{}, blob.ErrIntegrity
+		}
+		result.Origin.Scan = &origin
+	}
+	if projectProposalJSON != nil {
+		var retained ExactArtifact
+		if err := strictjson.Decode(projectProposalJSON, &retained); err != nil || retained.Validate() != nil || !retained.HasMetadata() {
+			return Receipt{}, blob.ErrIntegrity
+		}
+		if err := strictjson.Decode(projectEvidenceJSON, &result.ProjectEvidence); err != nil {
+			return Receipt{}, blob.ErrIntegrity
+		}
+		result.ProjectProposal = &retained
+	}
+	if err := json.Unmarshal(configurationRef, &result.Origin.Workflow.ConfigurationRef); err != nil ||
+		json.Unmarshal(proposalRef, &result.Proposal.Ref) != nil ||
+		json.Unmarshal(evidenceJSON, &result.Evidence) != nil {
+		return Receipt{}, errors.New("decode stored finding proposal receipt")
+	}
+	if !validIdentity(result.ClientKey) || result.Proposal.Ref.ValidateExact() != nil ||
+		result.Proposal.MediaType != proposalMediaType ||
+		result.Proposal.Digest == "" || result.Proposal.SizeBytes < 0 || !result.Retention.valid() {
+		return Receipt{}, errors.New("validate stored finding proposal receipt")
+	}
+	result.Fingerprint, err = auditdomain.DecodeFindingFingerprint(fingerprintJSON)
+	if err != nil {
+		return Receipt{}, fmt.Errorf("decode stored finding fingerprint: %w", err)
+	}
+	result.Anchors, err = auditdomain.DecodeFindingAnchors(anchorJSON)
+	if err != nil {
+		return Receipt{}, fmt.Errorf("decode stored finding anchors: %w", err)
+	}
+	result.Origin.RunDeleted = sourceDeletedAt != nil
+	if auditID != nil {
+		if auditExecutionID == nil || (auditTaskID == nil && len(hypothesis) != 0) {
+			return Receipt{}, errors.New("validate stored finding Audit origin")
+		}
+		result.Origin.Audit = &AuditOrigin{
+			AuditID: *auditID, ExecutionID: *auditExecutionID,
+		}
+		if auditTaskID != nil {
+			result.Origin.Audit.TaskID = *auditTaskID
+		}
+		if len(hypothesis) != 0 {
+			var ref auditcontract.HypothesisRef
+			if strictjson.Decode(hypothesis, &ref) != nil || !contracts.ValidResourceID(ref.ID) || ref.Revision == 0 || ref.Revision > contracts.MaxExactInteger {
+				return Receipt{}, ErrInvalid
+			}
+			result.Origin.Audit.Hypothesis = &ref
+			if hypothesisSnapshot != nil {
+				var exact ExactArtifact
+				if strictjson.Decode(hypothesisSnapshot, &exact) != nil || exact.Validate() != nil || !exact.HasMetadata() {
+					return Receipt{}, ErrInvalid
+				}
+				result.Origin.Audit.HypothesisSnapshot = &exact
+			}
+		}
+
+	}
+	return result, nil
+}
+
+func readAuditHolds(ctx context.Context, db querier, receiptID string) ([]AuditHold, error) {
+	rows, err := db.Query(ctx, `
+SELECT audit_id, project_id, proposal_ref, evidence, created_at
+  FROM finding_proposal_audit_holds
+ WHERE receipt_id = $1
+ ORDER BY created_at, audit_id`, receiptID)
+	if err != nil {
+		return nil, fmt.Errorf("list finding proposal Audit holds: %w", err)
+	}
+	defer rows.Close()
+	result := make([]AuditHold, 0)
+	for rows.Next() {
+		var hold AuditHold
+		var proposal, evidence []byte
+		if err := rows.Scan(&hold.AuditID, &hold.ProjectID, &proposal, &evidence, &hold.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan finding proposal Audit hold: %w", err)
+		}
+		if json.Unmarshal(proposal, &hold.Proposal) != nil || json.Unmarshal(evidence, &hold.Evidence) != nil {
+			return nil, errors.New("decode finding proposal Audit hold")
+		}
+		result = append(result, hold)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate finding proposal Audit holds: %w", err)
+	}
+	return result, nil
+}
+
+func (s *Service) ListRun(
+	ctx context.Context,
+	ownerID, runID string,
+	query ListQuery,
+) ([]Receipt, error) {
+	result, err := s.listRunReceiptRows(ctx, ownerID, runID, query)
+	if err != nil || len(result) == 0 {
+		return result, err
+	}
+	ids := make([]string, len(result))
+	for index := range result {
+		ids[index] = result[index].ReceiptID
+	}
+	holds, err := readRunAuditHoldsBatch(ctx, s.pool, ids)
+	if err != nil {
+		return nil, err
+	}
+	for index := range result {
+		result[index].AuditHolds = holds[result[index].ReceiptID]
+		if result[index].AuditHolds == nil {
+			result[index].AuditHolds = []AuditHold{}
+		}
+	}
+	return s.hydrateAuditReceiptBatch(ctx, result)
+}
+
+func (s *Service) listRunReceiptRows(
+	ctx context.Context, ownerID, runID string, query ListQuery,
+) ([]Receipt, error) {
+	if ownerID == "" || runID == "" || !validListQuery(query) {
+		return nil, ErrInvalid
+	}
+	rows, err := s.pool.Query(ctx, listRunReceiptRowsSQL, ownerID, runID, query.AfterCreatedAt, query.AfterReceiptID, query.Limit)
+	if err != nil {
+		return nil, fmt.Errorf("list Run finding proposals: %w", err)
+	}
+	result, err := scanReceiptRows(rows)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// ListAuditInbox lists the Audit's native child receipts and the receipts it
+// holds, each with only this Audit's hold. After the source Run is deleted a
+// proposal is readable only from this Audit's retained copy, so a native
+// receipt the Audit never retained, such as one collection rejected, leaves
+// the inbox instead of failing the page.
+func (s *Service) ListAuditInbox(
+	ctx context.Context,
+	ownerID, auditID string,
+	query ListQuery,
+) ([]Receipt, error) {
+	return s.listAuditInbox(ctx, ownerID, auditID, query, listAuditInboxSQL)
+}
+
+// listAuditInbox filters in the statement, so a page is never short because a
+// row was dropped after LIMIT, and hydrates through the same Audit-scoped
+// hold path as GetAuditReceipts.
+func (s *Service) listAuditInbox(
+	ctx context.Context,
+	ownerID, auditID string,
+	query ListQuery,
+	statement string,
+) ([]Receipt, error) {
+	if ownerID == "" || auditID == "" || !validListQuery(query) {
+		return nil, ErrInvalid
+	}
+	rows, err := s.pool.Query(ctx, statement,
+		ownerID, auditID, query.AfterCreatedAt, query.AfterReceiptID, query.Limit)
+	if err != nil {
+		return nil, fmt.Errorf("list Audit finding receipts: %w", err)
+	}
+	receipts, err := scanReceiptRows(rows)
+	if err != nil {
+		return nil, err
+	}
+	keys := make([]AuditReceiptKey, len(receipts))
+	for index, receipt := range receipts {
+		keys[index] = AuditReceiptKey{AuditID: auditID, ReceiptID: receipt.ReceiptID}
+	}
+	return s.hydrateAuditReceipts(ctx, ownerID, keys, receipts)
+}
+
+func validListQuery(query ListQuery) bool {
+	if !pagelimit.ValidFetch(query.Limit) {
+		return false
+	}
+	return (query.AfterCreatedAt == nil) == (query.AfterReceiptID == "")
+}
+
+// Owner imports target only an Audit that still accepts new work. Collection
+// of an Audit child Run is also admitted while the Audit finalizes or cancels:
+// a proposal found by a child Run is never dropped because its Audit began to
+// close, and the settlement barrier waits for that collection before the
+// report is built or the Audit becomes Cancelled.
+var (
+	ownerImportAuditStates         = []string{"draft", "active", "paused"}
+	collectionRetentionAuditStates = []string{
+		"draft", "active", "paused", "finalizing", "cancelling",
+	}
+)
+
+// ImportIntoAudit retains one exact ordinary-Run proposal in an owner's Audit,
+// or returns the hold that an earlier import committed, in one transaction
+// (importTransaction).
+func (s *Service) ImportIntoAudit(
+	ctx context.Context,
+	request ImportRequest,
+) (AuditHold, bool, error) {
+	if !validImportRequest(request) {
+		return AuditHold{}, false, ErrInvalid
+	}
+	var hold AuditHold
+	var replayed bool
+	err := s.importTransaction(ctx, func(tx pgx.Tx) error {
+		hold, replayed = AuditHold{}, false
+		if err := lockFindingImportAuthority(ctx, tx, request, false, s.storage); err != nil {
+			return err
+		}
+		var err error
+		hold, replayed, err = s.importIntoAuditWithTx(ctx, tx, request, false)
+		return err
+	})
+	if err != nil {
+		return AuditHold{}, false, err
+	}
+	return hold, replayed, nil
+}
+
+// importTransaction runs one owner-import or collection-prefix transaction.
+// Only a definite transaction conflict, which is what contention on the early
+// Project correlation fence becomes (FND-R177), replays it in a fresh
+// transaction, at most InTxWithRetry's finite attempts within ctx and its
+// operation budget. A replay is safe because every effect of fn is a
+// statement of its own transaction: the source-Run, Audit and Project locks,
+// the exact artifact forks and frozen direct-verification writes, the hold
+// and the finding, revision and event rows its triggers append, so an abort
+// discards them all; a filesystem candidate blob of an aborted attempt is an
+// ordinary orphan for offline cleanup. A collection's direct-verification
+// cache keeps immutable terminal Run output, or the error of its non-locking
+// reads, which is never a transaction conflict; its evidence-budget mark
+// names the aborted transaction, so the replay checks the budget again.
+// fn must reset what it captures on entry. Validation, authority,
+// deleting-Project, cancellation, timeout and uncertain commit failures
+// return unchanged: the caller reconciles an uncertain commit through the
+// receipt's natural key before another mutation.
+func (s *Service) importTransaction(ctx context.Context, fn func(pgx.Tx) error) error {
+	return persistencepostgres.InTxWithRetry(ctx, s.pool, pgx.TxOptions{}, fn)
+}
+
+// RetainAuditCollectionBatch transfers a bounded page of an Audit child Run's
+// proposals into its owning Audit during collection. Unlike ImportIntoAudit
+// it admits a finalizing or cancelling Audit, and a terminal (or deleting)
+// Audit returns ErrAuditClosed instead of ErrNotFound: its report is sealed or
+// its data is being purged, so the proposals stay held by their source Run and
+// the caller must not retry.
+//
+// The page commits in transactions bounded by
+// auditdomain.MaximumCollectionTransactionWork (LIM-AUX-7). A transaction
+// always retains at least one proposal, so even one with the maximum evidence
+// commits alone, and a collection attempt that outlives one bounded
+// transaction commits progress instead of rolling back a whole page. Each
+// holds the source-Run and destination-Audit locks until it commits, and
+// each receipt uses the same exact artifact and direct-verification checks as
+// an owner import. A definite transaction conflict replays only the failed
+// transaction. A failed transaction leaves earlier ones committed; a retry
+// skips them. A proposal whose own exact data can never be retained is
+// rejected as RejectAuditCollection does, in the transaction that commits the
+// proposals before it, so it cannot block the rest of the page.
+func (s *Service) RetainAuditCollectionBatch(ctx context.Context, requests []ImportRequest) error {
+	// One bounded page shares immutable Run/output verification, including
+	// retries of its transactions; the next page starts with a fresh cache.
+	ctx = context.WithValue(ctx, directVerificationCacheKey{}, &directVerificationCache{})
+	if len(requests) == 0 || len(requests) > MaxAuditReceiptBatchSize {
+		return ErrInvalid
+	}
+	first := requests[0]
+	for _, request := range requests {
+		if !validImportRequest(request) || request.OwnerID != first.OwnerID ||
+			request.AuditID != first.AuditID || request.RunID != first.RunID {
+			return ErrInvalid
+		}
+	}
+	var rejection *unretainableProposal
+	for len(requests) != 0 {
+		committed, err := s.retainAuditCollectionPrefix(ctx, requests, rejection)
+		var unretainable *unretainableProposal
+		if rejection == nil && errors.As(err, &unretainable) {
+			// The transaction rolled back. Commit the proposals before the
+			// unretainable one again, together with its rejection.
+			rejection = unretainable
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		requests, rejection = requests[committed:], nil
+	}
+	return nil
+}
+
+// retainAuditCollectionPrefix retains requests in order in one transaction
+// until their work reaches auditdomain.MaximumCollectionTransactionWork, at
+// least one, and returns how many it committed. With rejection set, it rejects the request at
+// rejection.index once it reaches it and commits through that request. A
+// transaction conflict replays only this transaction (importTransaction), so
+// its prefix and work are counted again from requests[0] and never include a
+// transaction that already committed.
+func (s *Service) retainAuditCollectionPrefix(
+	ctx context.Context, requests []ImportRequest, rejection *unretainableProposal,
+) (int, error) {
+	committed := 0
+	err := s.importTransaction(ctx, func(tx pgx.Tx) error {
+		committed = 0
+		if err := lockFindingImportAuthority(ctx, tx, requests[0], true, s.storage); err != nil {
+			return err
+		}
+		work := 0
+		for index, request := range requests {
+			if work >= auditdomain.MaximumCollectionTransactionWork {
+				break
+			}
+			if rejection != nil && index == rejection.index {
+				committed = index + 1
+				return rejectAuditCollectionWithTx(ctx, tx, request, rejection.reason, s.storage)
+			}
+			hold, replayed, err := s.importIntoAuditWithTx(ctx, tx, request, true)
+			var unretainable *unretainableProposal
+			if errors.As(err, &unretainable) {
+				unretainable.index = index
+			}
+			if err != nil {
+				return err
+			}
+			committed = index + 1
+			work += collectionWork(hold, replayed)
+		}
+		return nil
+	})
+	return committed, err
+}
+
+// collectionWork weighs one retained receipt for
+// auditdomain.MaximumCollectionTransactionWork: once for its receipt, hold and
+// direct-verification work plus once for each proposal or evidence revision it
+// imports, and once in all when an earlier transaction retained it.
+func collectionWork(hold AuditHold, replayed bool) int {
+	if replayed {
+		return 1
+	}
+	return 2 + len(hold.Evidence)
+}
+
+// unretainableProposal is a deterministic failure of one proposal's own exact
+// data: a pinned proposal or evidence revision is missing or no longer matches
+// its receipt, or the receipt conflicts with the request. No retry can retain
+// the proposal, so collection rejects it with reason and keeps the others.
+type unretainableProposal struct {
+	reason string
+	err    error
+	// index is the failed request's position in its collection batch.
+	index int
+}
+
+func (e *unretainableProposal) Error() string { return e.reason + ": " + e.err.Error() }
+func (e *unretainableProposal) Unwrap() error { return e.err }
+
+// classifyProposalData marks a failure of one proposal's own data as
+// unretainable and returns any other error unchanged. Callers apply it only to
+// checks of that data, never to storage or shared Run output failures.
+func classifyProposalData(err error) error {
+	switch {
+	case errors.Is(err, artifacts.ErrArtifactNotFound), errors.Is(err, artifacts.ErrExactRevisionRequired),
+		errors.Is(err, artifacts.ErrInvalidName):
+		return &unretainableProposal{reason: "finding-proposal-artifact-missing", err: err}
+	case errors.Is(err, blob.ErrIntegrity):
+		return &unretainableProposal{reason: "finding-proposal-artifact-invalid", err: err}
+	case errors.Is(err, ErrConflict):
+		return &unretainableProposal{reason: "finding-proposal-receipt-conflict", err: err}
+	default:
+		return err
+	}
+}
+
+func validImportRequest(request ImportRequest) bool {
+	return request.OwnerID != "" && request.AuditID != "" && request.RunID != "" &&
+		request.Proposal.ValidateExact() == nil
+}
+
+// lockFindingImportAuthority takes the source-Run and destination-Audit locks
+// that every hold creation in tx relies on, in the order Run deletion and
+// Audit purge use, and then the Project's finding correlation fence.
+func lockFindingImportAuthority(
+	ctx context.Context, tx pgx.Tx, request ImportRequest, collection bool,
+	storage *artifactpostgres.Storage,
+) error {
+	var sourceProjectID string
+	err := tx.QueryRow(ctx, `
+SELECT project_id FROM workflow_runs
+ WHERE run_id = $1 AND owner_id = $2 AND project_id IS NOT NULL
+ FOR KEY SHARE`, request.RunID, request.OwnerID).Scan(&sourceProjectID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("lock source Run for Audit finding import: %w", err)
+	}
+	auditState, err := lockFindingAudit(ctx, tx, request.OwnerID, request.AuditID, sourceProjectID, storage)
+	if err != nil {
+		return err
+	}
+	if collection && !slices.Contains(collectionRetentionAuditStates, auditState) {
+		return ErrAuditClosed
+	}
+	// Keep Run -> Audit authority unchanged. Project artifact admission takes
+	// the Project row FOR SHARE and waits for a Project deleter that holds it,
+	// so take the fence, which shares the Project row without waiting, before
+	// any retained artifact write; otherwise a Project deleter can wait on our
+	// Audit while its parent lock blocks that artifact admission.
+	if err := hookstore.NewFindingEventsTx(tx, storage).LockFindingCorrelationFence(ctx, sourceProjectID); err != nil {
+		return fmt.Errorf("lock Project correlation before finding retention: %w", err)
+	}
+	return nil
+}
+
+// lockFindingAudit takes the destination-Audit lock of finding intake through
+// auditstore, which owns the Audit row, and returns the Audit's state. An
+// empty projectID admits an Audit of any Project.
+func lockFindingAudit(ctx context.Context, tx pgx.Tx, ownerID, auditID, projectID string, storage *artifactpostgres.Storage) (string, error) {
+	state, err := hookstore.NewFindingEventsTx(tx, storage).LockFindingIntakeAudit(ctx, ownerID, auditID, projectID)
+	if errors.Is(err, auditstore.ErrNotFound) {
+		return "", ErrNotFound
+	}
+	return string(state), err
+}
+
+// importIntoAuditWithTx creates or replays one Audit hold in tx, which already
+// holds lockFindingImportAuthority's locks for request.
+func (s *Service) importIntoAuditWithTx(
+	ctx context.Context, tx pgx.Tx, request ImportRequest, collection bool,
+) (AuditHold, bool, error) {
+	admittedStates := ownerImportAuditStates
+	if collection {
+		admittedStates = collectionRetentionAuditStates
+	}
+	var result AuditHold
+	var receiptID, projectID, invocationID, clientKey, workflowClosureDigest string
+	var proposalDigest, proposalMediaType string
+	var proposalSizeBytes int64
+	var proposalRefJSON, evidenceJSON []byte
+	var projectProposalJSON, projectEvidenceJSON []byte
+	requestedProposal, _ := json.Marshal(request.Proposal)
+	err := tx.QueryRow(ctx, importIntoAuditWithTxSQL,
+		request.OwnerID, request.AuditID, request.RunID, requestedProposal, admittedStates,
+	).Scan(
+		&receiptID, &projectID, &proposalRefJSON, &evidenceJSON,
+		&invocationID, &clientKey, &workflowClosureDigest,
+		&proposalDigest, &proposalMediaType, &proposalSizeBytes,
+		&projectProposalJSON, &projectEvidenceJSON,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return AuditHold{}, false, ErrNotFound
+	}
+	if err != nil {
+		return AuditHold{}, false, fmt.Errorf("lock finding proposal for Audit import: %w", err)
+	}
+	var sourceProposal contracts.ArtifactRef
+	var evidence []ExactArtifact
+	if json.Unmarshal(proposalRefJSON, &sourceProposal) != nil ||
+		json.Unmarshal(evidenceJSON, &evidence) != nil || !sourceProposal.SameExact(request.Proposal) {
+		return AuditHold{}, false, classifyProposalData(ErrConflict)
+	}
+	proposalSource := ExactArtifact{
+		Ref: sourceProposal, Digest: proposalDigest,
+		MediaType: proposalMediaType, SizeBytes: proposalSizeBytes,
+	}
+	artifactService := artifacts.NewService(s.storage.Repository(tx))
+	var heldProposalJSON, heldEvidenceJSON []byte
+	var createdAt time.Time
+	replayed := false
+	err = tx.QueryRow(ctx, `
+SELECT proposal_ref, evidence, created_at
+  FROM finding_proposal_audit_holds
+ WHERE receipt_id = $1 AND audit_id = $2`, receiptID, request.AuditID).Scan(
+		&heldProposalJSON, &heldEvidenceJSON, &createdAt,
+	)
+	if err == nil {
+		if json.Unmarshal(heldProposalJSON, &result.Proposal) != nil ||
+			json.Unmarshal(heldEvidenceJSON, &result.Evidence) != nil {
+			return AuditHold{}, false, errors.New("decode replayed finding proposal Audit hold")
+		}
+		result.AuditID, result.ProjectID, result.CreatedAt = request.AuditID, projectID, createdAt
+		replayed = true
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return AuditHold{}, false, err
+	} else {
+		if projectProposalJSON != nil {
+			if strictjson.Decode(projectProposalJSON, &result.Proposal) != nil ||
+				strictjson.Decode(projectEvidenceJSON, &result.Evidence) != nil {
+				return AuditHold{}, false, blob.ErrIntegrity
+			}
+		} else {
+			namespace := artifactpolicy.FindingMaterialsNamespace
+			verifiedProposal, verifyErr := exactArtifactFromRun(
+				ctx, artifactService, request.RunID, sourceProposal,
+			)
+			if verifyErr != nil {
+				return AuditHold{}, false, classifyProposalData(verifyErr)
+			}
+			if verifiedProposal.Digest != proposalSource.Digest ||
+				verifiedProposal.MediaType != proposalSource.MediaType ||
+				verifiedProposal.SizeBytes != proposalSource.SizeBytes {
+				return AuditHold{}, false, classifyProposalData(blob.ErrIntegrity)
+			}
+			result.Proposal, err = retainFindingArtifact(
+				ctx, artifactService, request.RunID, projectID, namespace,
+				deterministicID("finding-proposal", receiptID), proposalSource,
+			)
+			if err != nil {
+				return AuditHold{}, false, err
+			}
+			result.Evidence = make([]ExactArtifact, 0, len(evidence))
+			for index, source := range evidence {
+				verified, err := exactArtifactFromRun(ctx, artifactService, request.RunID, source.Ref)
+				if err != nil {
+					return AuditHold{}, false, classifyProposalData(err)
+				}
+				if verified.Digest != source.Digest || verified.MediaType != source.MediaType ||
+					verified.SizeBytes != source.SizeBytes {
+					return AuditHold{}, false, classifyProposalData(blob.ErrIntegrity)
+				}
+				retained, err := retainFindingArtifact(
+					ctx, artifactService, request.RunID, projectID, namespace,
+					deterministicID("finding-evidence", receiptID, strconv.Itoa(index+1)), verified,
+				)
+				if err != nil {
+					return AuditHold{}, false, err
+				}
+				result.Evidence = append(result.Evidence, retained)
+			}
+			projectProposalJSON, _ = json.Marshal(result.Proposal)
+			projectEvidenceJSON, _ = json.Marshal(result.Evidence)
+			if _, err := tx.Exec(ctx, retainProjectReceiptSQL, receiptID, projectProposalJSON, projectEvidenceJSON); err != nil {
+				return AuditHold{}, false, err
+			}
+		}
+		result.AuditID, result.ProjectID = request.AuditID, projectID
+		proposalJSON, _ := json.Marshal(result.Proposal)
+		retainedEvidenceJSON, _ := json.Marshal(result.Evidence)
+		err = tx.QueryRow(ctx, `
+INSERT INTO finding_proposal_audit_holds (
+    receipt_id, audit_id, project_id, proposal_ref, evidence
+) VALUES ($1, $2, $3, $4, $5)
+RETURNING created_at`, receiptID, request.AuditID, projectID, proposalJSON, retainedEvidenceJSON).Scan(
+			&result.CreatedAt,
+		)
+		if err != nil {
+			return AuditHold{}, false, err
+		}
+		scope, scopeErr := artifacts.ProjectScope(projectID)
+		if scopeErr != nil {
+			return AuditHold{}, false, scopeErr
+		}
+		history, historyErr := json.Marshal(map[string]any{
+			"schema": auditdomain.FindingSourceHistorySchema, "receiptId": receiptID, "kind": "audit-import",
+			"original":  map[string]any{"auditId": request.AuditID, "runId": request.RunID},
+			"materials": map[string]any{"proposal": result.Proposal, "evidence": result.Evidence},
+		})
+		if historyErr != nil {
+			return AuditHold{}, false, historyErr
+		}
+		if _, err := artifactService.CreateFrozen(ctx, scope, contracts.ArtifactRef{Namespace: artifactpolicy.FindingHistoryNamespace,
+			Name: auditdomain.FindingSourceHistoryName(receiptID, "audit-import", request.AuditID)},
+			artifacts.Payload{MediaType: "application/json", Data: history}); err != nil {
+			return AuditHold{}, false, err
+		}
+		if err := hookstore.NewFindingEventsTx(tx, s.storage).RecordFindingSourceAdded(ctx, request.AuditID, receiptID, request.RunID); err != nil {
+			return AuditHold{}, false, err
+		}
+	}
+	if err := tryAcceptDirectVerification(ctx, tx, artifactService, directVerificationInput{
+		AuditID: request.AuditID, ProjectID: projectID,
+		ReceiptID: receiptID, RunID: request.RunID,
+		InvocationID: invocationID, ClientKey: clientKey,
+		WorkflowClosureDigest: workflowClosureDigest,
+		Proposal:              proposalSource,
+	}, s.storage); err != nil {
+		return AuditHold{}, false, err
+	}
+	return result, replayed, nil
+}
+
+// RejectAuditCollection records that collection refused one invalid proposal
+// of an Audit child Run, so only that proposal is left out of the Audit. The
+// receipt stays held by its source Run. The finding.proposal_rejected event is
+// written once per receipt; a replay is a no-op. A terminal or deleting Audit
+// returns ErrAuditClosed, as RetainAuditCollectionBatch does.
+func (s *Service) RejectAuditCollection(
+	ctx context.Context,
+	request ImportRequest,
+	reason string,
+) error {
+	if !validImportRequest(request) || !validIdentity(reason) {
+		return ErrInvalid
+	}
+	return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		auditState, err := lockFindingAudit(ctx, tx, request.OwnerID, request.AuditID, "", s.storage)
+		if err != nil {
+			return err
+		}
+		if !slices.Contains(collectionRetentionAuditStates, auditState) {
+			return ErrAuditClosed
+		}
+		return rejectAuditCollectionWithTx(ctx, tx, request, reason, s.storage)
+	})
+}
+
+// rejectAuditCollectionWithTx records one rejection in tx, which holds the
+// destination Audit lock for a state that admits collection.
+func rejectAuditCollectionWithTx(ctx context.Context, tx pgx.Tx, request ImportRequest, reason string, storage *artifactpostgres.Storage) error {
+	requestedProposal, _ := json.Marshal(request.Proposal)
+	var receiptID string
+	var recorded bool
+	err := tx.QueryRow(ctx, `
+SELECT receipt.receipt_id, EXISTS (
+       SELECT 1 FROM audit_events AS event
+        WHERE event.audit_id = receipt.audit_id
+          AND event.kind = 'finding.proposal_rejected'
+          AND event.entity_id = receipt.receipt_id
+   )
+  FROM finding_proposal_receipts AS receipt
+ WHERE receipt.owner_id = $1 AND receipt.audit_id = $2 AND receipt.run_id = $3
+   AND receipt.proposal_ref = $4::jsonb`,
+		request.OwnerID, request.AuditID, request.RunID, requestedProposal,
+	).Scan(&receiptID, &recorded)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil || recorded {
+		return err
+	}
+	return hookstore.NewFindingEvents(tx, storage).RecordRejectedFindingProposal(ctx,
+		auditstore.RejectedFindingProposalParams{
+			AuditID: request.AuditID, ReceiptID: receiptID,
+			RunID: request.RunID, Reason: reason,
+		})
+}
+
+func exactArtifactFromRun(
+	ctx context.Context,
+	service *artifacts.Service,
+	runID string,
+	ref contracts.ArtifactRef,
+) (ExactArtifact, error) {
+	store, err := service.Run(runID)
+	if err != nil {
+		return ExactArtifact{}, err
+	}
+	metadata, err := store.Metadata(ctx, ref)
+	if err != nil {
+		return ExactArtifact{}, err
+	}
+	return ExactArtifact{
+		Ref: metadata.Ref, Digest: metadata.Digest, MediaType: metadata.MediaType,
+		SizeBytes: metadata.Size,
+	}, nil
+}
+
+// retainFindingArtifact retains the exact revision source of runID as the
+// create-only, frozen Audit-managed binding namespace/name of projectID, with
+// audit_import lineage and without copying bytes. Authorization and the receipt
+// that names the retained copy belong to the finding service.
+func retainFindingArtifact(
+	ctx context.Context,
+	service *artifacts.Service,
+	runID, projectID, namespace, name string,
+	source ExactArtifact,
+) (ExactArtifact, error) {
+	run, err := artifacts.RunScope(runID)
+	if err != nil {
+		return ExactArtifact{}, err
+	}
+	project, err := artifacts.ProjectScope(projectID)
+	if err != nil {
+		return ExactArtifact{}, err
+	}
+	if source.Ref.Revision == nil {
+		return ExactArtifact{}, artifacts.ErrExactRevisionRequired
+	}
+	result, err := service.Fork(ctx, artifacts.Fork{
+		Kind: artifacts.LineageAuditImport, Source: run, SourceRef: source.Ref,
+		Target: project, TargetRef: contracts.ArtifactRef{Namespace: namespace, Name: name}, Frozen: true, Replay: true,
+	})
+	if err != nil {
+		return ExactArtifact{}, err
+	}
+	return ExactArtifact{
+		Ref: result.TargetRef, Digest: source.Digest,
+		MediaType: result.MediaType, SizeBytes: result.Size,
+	}, nil
+}

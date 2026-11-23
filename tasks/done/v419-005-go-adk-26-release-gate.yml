@@ -1,0 +1,178 @@
+schema_version: '1.0'
+id: V419-005
+title: Accept Go ADK v2.6 through targeted owner and process verification
+milestone: go-adk-26-upgrade-2026-10
+epic: quality
+kind: chore
+priority: P1
+status: completed
+depends_on:
+- V419-003
+- V419-004
+languages:
+- go
+- markdown
+goal: Accept the exact Go ADK v2.6 dependency closure with targeted real-store and process evidence under
+  the user-requested verification scope before Planner compaction work starts.
+context:
+  verification_authority: 'User direction on 2026-10-25: do not run a full verification after this upgrade.
+    Use the affected-owner Go suites, real PostgreSQL/race checks, shared wire fixtures and the five selected
+    process parents below. Do not run global test-go, release-verify, make lint, UI, full Runtime or all
+    E2E tests. Record this as targeted verification, not a fresh full release pass.'
+  authority: User authorized implementing Runtime first then Server. Runtime acceptance is complete; Go
+    tasks start only after their declared prerequisites complete. The later explicit no-full-rerun instruction
+    controls the final verification scope.
+  review: tasks/evidence/v419-go-adk-26-review.json
+  specification:
+  - docs/spec/execution/planners.md#PLN-R1
+  - docs/spec/execution/planners.md#PLN-R81
+  - docs/spec/execution/planners.md#PLN-R94
+  - docs/spec/execution/planners.md#PLN-R106
+  - docs/spec/execution/planners.md#PLN-R107
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/platform/failure-model.md
+  - docs/spec/execution/scheduler.md
+  - docs/testing/README.md
+  implementation_boundary: Update owning numbered specifications, limits/errors/failure/lifecycle registries
+    and every affected reader/writer with implementation. A planned extension is not current shipped behavior.
+    No legacy readers, v1/v2 production branches, native SDK resume, new receipt store or model substitution.
+    Scheduler retains claims, queues, Stage identities, transitions, retries and completed recovery; only
+    configuration plumbing, mechanical imports and regression fixtures may change there.
+  reuse: The exact five-parent command already passed once as004A2 atcommittedb46. All production/module/Runtime/process
+    inputs are unchanged;005attributes that actual passing record and does not rerun it. Only tracker/evidence
+    and three new unrelated owner-package test files differ.
+  evidence: tasks/evidence/v419-go-adk-26-final-acceptance.json
+scope:
+  in:
+  - Targeted affected-owner, real-store, wire and selected process verification evidence for supported
+    Go ADK v2.6.
+  out:
+  - Enabling compaction, live-model benefit claims, deployment, schema resets or broad Scheduler refactoring.
+acceptance_criteria:
+- id: A1
+  given: Fresh committed v2.6 dependency closure
+  when: Build, module verification and the declared targeted checks run
+  then: Every mandatory targeted selection actually executes and passes with exact version/revision evidence;
+    no new full-release pass is claimed.
+- id: A2
+  given: Real Server/Runtime/PostgreSQL and existing workflow scenarios
+  when: Process/recovery/continuation cases run
+  then: External results, identities and Scheduler behavior remain unchanged and required process cases
+    are registered.
+- id: A3
+  given: All migration findings and dependencies
+  when: Milestone disposition is reviewed
+  then: Every finding is covered, remaining limitations are explicit and Planner compaction can begin
+    independently.
+tests:
+- command: go mod verify
+  covers:
+  - A1
+- command: go mod tidy -diff
+  covers:
+  - A1
+- command: go test -tags=e2e -p=1 -json -count=1 -timeout=20m ./tests/e2e -run '^(TestRoutingAndEscalationProductionBoundaries|TestWorkerSessionModesAcrossProductionProcesses|TestWorkerSummarizerProductionBoundaries|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses)$'
+  covers:
+  - A1
+  - A2
+  - A3
+- command: go vet -p=1 ./internal/planner/session ./internal/planner/streamline ./internal/telemetry
+  covers:
+  - A1
+  - A3
+- command: runtime/.venv/bin/python scripts/check_spec.py && runtime/.venv/bin/python scripts/check_tasks.py
+  covers:
+  - A3
+requirements:
+- id: R1
+  text: Verify a clean isolated checkout using committed go.mod/go.sum, go mod verify and a stable tidy
+    result. Record the tested revision, Go toolchain, full selected dependency graph and checksums; exploratory
+    overlays are not release inputs.
+- id: R2
+  text: Reconcile every V419 case with an executed passing regression or a documented evidence-backed
+    non-applicability. No suppressed failures, permanent xfails, empty selections, required skips or test-name
+    drift; inspect selected Go JSON reports for actual execution.
+- id: R3
+  text: Run only the five declared whole process parents with real PostgreSQL, Server and supported Runtime.
+    Require all five parents and their current 27 test records, with no required skip or missing case.
+    They cover routing, passthrough/Streamline/Router, session reuse, summary continuation, Gateway recovery/cancellation
+    and stable Stage outcomes. Completed-session recovery and unfinished-session no-resume use the affected-owner
+    real-PostgreSQL suites; do not claim a dedicated process-restart recovery proof. Historical Runtime
+    native-fault evidence used Go ADK v1.6 and is not a fresh v2.6 native-fault pass. No global release
+    or all-E2E run is authorized here.
+- id: R4
+  text: Register any missing required process scenarios in the existing release graph with test-local
+    fixtures and fail-fast prerequisites. A fake WorkerInvoker integration suite alone is not process
+    acceptance.
+- id: R5
+  text: Keep compaction disabled and confirm no new Scheduler engine, queue, lease, transition or SDK
+    persisted resume. This exit independently unblocks V420-001; Python V418 and Worker V417 are neither
+    blockers nor claimed delivered features.
+- id: R6
+  text: Update current-version documentation and safe evidence, record final task commits and whether
+    the branch is merged. Do not deploy or migrate demo data as part of this gate.
+failure_outcomes:
+- operation: Verification, model/tool execution and existing session mutations covered by this task
+  permanent: Invalid input and deterministic store rejection keep their existing safe nonretryable class.
+    A required verification failure blocks completion; do not relax assertions or add permanent xfails.
+  retryable: Use only the existing bounded transport/recovery policy within the original deadline; no
+    migration-specific retry or rerun-until-green.
+  ambiguous: Reconcile through the existing receipt/session sequence and same operation identity. A lost
+    reply does not prove nonexecution; never blindly repeat a Worker call or append.
+  cancelled: Invocation/test owner cancels and joins local work before teardown; already-dispatched remote
+    effects follow existing reconciliation.
+  timeout: Keep invocation, transport, completion-write, cleanup and test-harness deadlines distinct;
+    expiration admits no new semantic attempt.
+cardinality:
+- collection: Planner calls, plan, event history and their containing serialized requests/session state
+  expected: Default 32 model calls and 32 subtasks, one active dispatch and one executed tool per model
+    turn.
+  maximum: 'Existing ceilings: 1000 model calls, 1000 subtasks, 10000 Worker calls, 256-KiB initial input,
+    4-MiB Gateway request, 2-MiB session JSON and 256 recorded fact digests; inventory the current constants
+    before writing scale fixtures.'
+  bound: Respect both item and containing byte/work limits. Independent maxima need not fit simultaneously;
+    a containing limit must reject honestly before side effects. No unbounded callback scans or copies.
+lifecycle:
+- entity: Invocation-local SDK sessions, tools, clients, test fixtures and safe verification evidence
+  delete: Existing invocation owner or isolated test harness tears down only its own resources.
+  cascade: Join all goroutines/iterators before erasing context and releasing Worker handles; retain existing
+    durable result/receipt ownership.
+  retention: No new durable entity or raw transcript. Safe evidence records versions, cases and outcomes
+    without credentials, raw prompts or temporary-path prerequisites.
+test_prerequisites:
+- Commands are future implementation acceptance, not checks completed by this planning change. Record
+  exact revision, Go/ADK versions, module graph/checksums, commands, executed case counts, skips and outcomes.
+  Required cases cannot be skipped or match zero tests.
+- Use disposable real PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set for persistence acceptance; an
+  unreachable configured database fails. Canonicalize TMPDIR as Makefile does. Full package suites accompany
+  focused regressions. make test-streamline does not cover Router, so run all internal/planner packages
+  too.
+- Use actual pinned ADK Runner/tool dispatch and controlled Gateway responses. tests/integration/streamline
+  uses a fake WorkerInvoker and does not prove a real Server/Runtime process. Register new process cases
+  in the release graph and provide their fixtures/prerequisites.
+- Use testdata and test-only pseudo-Skills rather than reading live configs. Use injected clocks, synchronization
+  barriers and work/byte/row counters, not wall-clock assertions. Live Gateway benchmarks are outside
+  deterministic acceptance; keep configured models unchanged.
+- No dependency on Python V418 or Worker compaction V417 is implied. Cross-language regression uses the
+  currently supported Runtime lock. New shared grammar or wire changes, if actually needed, must update
+  all implementations and shared fixtures in the owning task.
+- Targeted verification uses GOMAXPROCS=2, Go package parallelism=1, canonical TMPDIR and an agent-owned
+  disposable PostgreSQL database. Validate nonzero executed case inventories from Go JSON reports; a command
+  exit alone is not proof. The only ordinary optional skips are the two named live-Gateway tests and the
+  explicitly optional real-Collector test. Do not retry failed gates until green without a diagnosed change.
+verification:
+  acceptance: All declared targeted gates PASS. Actual5wholeprocessparents/27records/22leaves0fail/skip
+    runonce under004A2 onclean committedb46 withfreshGo2.6Server+patchedRuntime lock; exactRootproduction/module/Runtime/process
+    inputequivalence recorded, no repeat.
+  owners: 002fullaffectedowner574top/1354records;003PG/race100/100required;004adjacentrace264leaves plus
+    changedtelemetry109leaves andsharedwire271fixtures allPASS. Commands/counts/exacthashes/optional skips
+    inlinkedrecords.
+  final: go mod verify, stabletidy-diff, scopedvetnewtestowners, spec47docs/tracker1270records/generateddependencygraph
+    checksPASS. No globalsuites.
+  disposition: All migration findings resolved or explicitly inactivependingV420; compactionoff, Consultproposal,
+    Schedulerproductionunchanged. Metadata-cap exception and historical Runtime oldlock/fullrecords remain
+    explicit.
+  delivery: Localcodex/adk-runtime-213 branch; allimplementation/evidencecommitted, notmergedtomain, notpushedordeployed.
+    No fullfinalreleaseclaim.
+implementation_commit: b8b87b0f80ef9f7362110df23ec489a1dfd96bc2

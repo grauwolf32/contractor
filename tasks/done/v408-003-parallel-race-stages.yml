@@ -1,0 +1,80 @@
+schema_version: "1.0"
+id: V408-003
+title: "Run race stages with bounded package parallelism"
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+introduced_by: V340-001
+priority: P2
+status: completed
+implementation_commit: 70d9cb11ddcfb56ae380cac6db13d29e07b48453
+depends_on: []
+languages: [make, python]
+goal: "The three race stages use the runner's cores instead of one package at a time, without two packages sharing a schema or exceeding the database connection limit."
+context:
+  review: "docs/research/2026-10-23-test-gate-cost-review.md, finding T2"
+  finding: >-
+    make/release.mk test-release-go-race, test-release-go-race-discovered and
+    test-release-integration run go test -p 1 -race. V340-001 recorded 204 s
+    for the discovered packages at -p 2; the stages' CI timeouts are 45-50
+    minutes. Existing PostgreSQL helpers already create isolated schemas.
+    Package parallelism therefore does not require V408-002. Parallel tests
+    inside a package would conflict with V408-002's proposed shared schema
+    and per-test TRUNCATE, so they are excluded from this first step.
+decision:
+  date: "2026-10-23"
+  authority: "User requested the relatively simple changes with a potentially noticeable gain."
+  guarantee: >-
+    Run at most two package binaries at once by default, retaining the race
+    detector, package inventory, timeouts and existing in-package scheduling.
+    RACE_PACKAGE_PARALLELISM=1 restores serial package execution.
+  alternatives: >-
+    Do not add t.Parallel to PostgreSQL tests or redesign test isolation here.
+    Those require a separate isolation decision with V408-002. Do not promise
+    a 40 percent reduction before representative stage measurements exist.
+  reversal_condition: >-
+    Return to one package if repeated runs show connection exhaustion,
+    resource contention or regressions in elapsed time. Increase the default
+    only after measuring peak connections, memory and time on the CI runner.
+plan:
+  - "Use RACE_PACKAGE_PARALLELISM (default 2) in all three race commands; retain an explicit serial override."
+  - "Run all three targets against a dedicated disposable PostgreSQL cluster, record elapsed time and peak connections, and compare serial and parallel runs."
+  - "Keep the release graph and package coverage guards passing; document the setting and retain the three consecutive Linux CI race runs explicitly in V408-007."
+scope:
+  in:
+    - "Package parallelism in the three race stages, local verification and measurement, operator documentation."
+  out:
+    - "Changing which packages are raced or how tests inside a package are scheduled."
+    - "Changing schema helpers, PostgreSQL configuration or the production code."
+    - "V408-001's full baseline and V408-007's final CI measurements and timeout adjustment."
+acceptance_criteria:
+  - id: A1
+    text: "All three race stages use two packages by default and support RACE_PACKAGE_PARALLELISM=1 without changing their package lists or other test flags."
+  - id: A2
+    text: "All three race targets pass against real disposable PostgreSQL, and make lint including release graph and package coverage guards passes."
+  - id: A3
+    text: "The review records local serial/parallel measurements, peak connections, limitations and the CI follow-up; no unmeasured speedup is claimed."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-release-go-race"
+    covers: [A1, A2, A3]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-release-go-race-discovered"
+    covers: [A1, A2, A3]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-release-integration"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2]
+verification:
+  - "All three race targets passed individually against dedicated PostgreSQL 17.11 UTF-8 at the default -p 2 and again with RACE_PACKAGE_PARALLELISM=1; -race, -count=1, timeouts and selections were identical."
+  - "Serial/parallel times: race 617.238/308.274 s, discovered 607.476/351.881 s, integration 269.357/160.388 s; sum 1494.071/820.543 s (45.1 percent lower). One exploratory local pair, not a CI guarantee."
+  - "Sampled peak connections: parallel 6/4/7, serial 6/9/5 with max_connections=100; no connection exhaustion. Process-tree RSS peak 1584.4 MiB, excluding PostgreSQL."
+  - "Full make lint passed; 120 script unit tests passed in the Runtime environment; release graph passed with default and serial override, retaining 98 race packages and 106 integration tests."
+  - "Original three consecutive Linux CI race runs remain explicit acceptance in V408-007. CI was not run for this local change."
+  - "Raw logs and measurement summaries remain outside git under /private/tmp/contractor-v408-*. An initial SQL_ASCII setup was discarded; a redundant third sweep was stopped after all six successful target runs."
+followup_disposition:
+  date: "2026-10-24"
+  authority: "User explicitly requested archiving all remaining V408 work and declined further measurement."
+  result: >-
+    V408-001, V408-002, V408-006 and V408-007 are archived. The three-run Linux
+    CI follow-up described above is no longer scheduled and was not performed.
+    Keep the implemented default and serial override; the existing requirement
+    for evidence before increasing parallelism remains in force.

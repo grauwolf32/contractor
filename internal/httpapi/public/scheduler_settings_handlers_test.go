@@ -1,0 +1,262 @@
+package public
+
+import (
+	"bytes"
+	"encoding/json"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/auth"
+	"github.com/grauwolf32/contractor/internal/controlplane"
+)
+
+func TestSchedulerSettingsGetReplaceAndNoOp(t *testing.T) {
+	var logs bytes.Buffer
+	fixture := newHandlerFixtureWithAuth(
+		t,
+		"../../config/testdata/valid",
+		newTestAuthentication(t),
+		mustTestOrigins(t),
+		false,
+		slog.New(slog.NewJSONHandler(&logs, nil)),
+	)
+
+	get := authenticatedRequest(http.MethodGet, "/v1/operations/settings/scheduler", bytes.NewReader(nil))
+	got := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(got, get)
+	if got.Code != http.StatusOK || got.Header().Get("ETag") != `"1"` ||
+		got.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("GET Scheduler settings = %d headers=%v body=%s", got.Code, got.Header(), got.Body.String())
+	}
+	var initial schedulerSettingsResponse
+	if err := json.Unmarshal(got.Body.Bytes(), &initial); err != nil ||
+		initial.MaxConcurrentRuns != 1 || initial.MaxConcurrentToolRuns != 2 || initial.Revision != "1" ||
+		initial.UpdatedAt.IsZero() {
+		t.Fatalf("initial Scheduler settings = (%+v, %v)", initial, err)
+	}
+
+	replace := schedulerSettingsRequest(http.MethodPut, `{"maxConcurrentRuns":4}`, `"1"`)
+	replaced := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(replaced, replace)
+	if replaced.Code != http.StatusOK || replaced.Header().Get("ETag") != `"2"` ||
+		replaced.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("PUT Scheduler settings = %d headers=%v body=%s", replaced.Code, replaced.Header(), replaced.Body.String())
+	}
+	var changed schedulerSettingsResponse
+	if err := json.Unmarshal(replaced.Body.Bytes(), &changed); err != nil ||
+		changed.MaxConcurrentRuns != 4 || changed.Revision != "2" ||
+		!changed.UpdatedAt.After(initial.UpdatedAt) {
+		t.Fatalf("changed Scheduler settings = (%+v, %v)", changed, err)
+	}
+	if fixture.notifier.calls != 1 || fixture.settings.updates != 1 {
+		t.Fatalf("changed side effects = wake:%d updates:%d", fixture.notifier.calls, fixture.settings.updates)
+	}
+	if len(fixture.operations.changes) != 1 ||
+		fixture.operations.changes[0].Resource != controlplane.OperationsSchedulerSettings ||
+		fixture.operations.changes[0].ResourceID != "" {
+		t.Fatalf("Scheduler settings invalidations = %+v", fixture.operations.changes)
+	}
+	logAfterChange := logs.String()
+	for _, expected := range []string{
+		`"audit_action":"scheduler_settings.replace"`,
+		`"actor_id":"user-1"`,
+		`"max_concurrent_runs":4`,
+		`"revision":2`,
+	} {
+		if !strings.Contains(logAfterChange, expected) {
+			t.Fatalf("Scheduler settings audit log %q lacks %q", logAfterChange, expected)
+		}
+	}
+	if strings.Contains(logAfterChange, "maxConcurrentRuns") {
+		t.Fatalf("Scheduler settings audit copied request JSON: %q", logAfterChange)
+	}
+
+	noOp := schedulerSettingsRequest(http.MethodPut, `{"maxConcurrentRuns":4}`, `"2"`)
+	unchanged := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(unchanged, noOp)
+	if unchanged.Code != http.StatusOK || unchanged.Header().Get("ETag") != `"2"` ||
+		unchanged.Body.String() != replaced.Body.String() || fixture.notifier.calls != 1 ||
+		fixture.settings.updates != 1 || len(fixture.operations.changes) != 1 ||
+		logs.String() != logAfterChange {
+		t.Fatalf(
+			"no-op replacement = status:%d headers:%v body:%s wake:%d updates:%d invalidations:%d logs:%q",
+			unchanged.Code, unchanged.Header(), unchanged.Body.String(), fixture.notifier.calls,
+			fixture.settings.updates, len(fixture.operations.changes), logs.String(),
+		)
+	}
+
+	readBack := authenticatedRequest(http.MethodGet, "/v1/operations/settings/scheduler", bytes.NewReader(nil))
+	readBackResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(readBackResponse, readBack)
+	if readBackResponse.Code != http.StatusOK || readBackResponse.Body.String() != replaced.Body.String() {
+		t.Fatalf("read-back Scheduler settings = %d %s", readBackResponse.Code, readBackResponse.Body.String())
+	}
+}
+
+// A replacement that omits maxConcurrentToolRuns keeps the stored value; one
+// that sends it changes it, and changing only it is a new revision (LIM-OPS-34).
+func TestSchedulerSettingsReplaceKeepsOrChangesToolLanes(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	put := func(body, ifMatch string) schedulerSettingsResponse {
+		t.Helper()
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, schedulerSettingsRequest(http.MethodPut, body, ifMatch))
+		if response.Code != http.StatusOK {
+			t.Fatalf("PUT %s = %d %s", body, response.Code, response.Body.String())
+		}
+		var decoded schedulerSettingsResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &decoded); err != nil {
+			t.Fatal(err)
+		}
+		return decoded
+	}
+	kept := put(`{"maxConcurrentRuns":3}`, `"1"`)
+	if kept.MaxConcurrentRuns != 3 || kept.MaxConcurrentToolRuns != 2 || kept.Revision != "2" {
+		t.Fatalf("omitted tool lanes = %+v, want 3/2 at revision 2", kept)
+	}
+	changed := put(`{"maxConcurrentRuns":3,"maxConcurrentToolRuns":5}`, `"2"`)
+	if changed.MaxConcurrentRuns != 3 || changed.MaxConcurrentToolRuns != 5 || changed.Revision != "3" {
+		t.Fatalf("changed tool lanes = %+v, want 3/5 at revision 3", changed)
+	}
+	unchanged := put(`{"maxConcurrentRuns":3,"maxConcurrentToolRuns":5}`, `"3"`)
+	if unchanged != changed || fixture.settings.updates != 2 || fixture.notifier.calls != 2 {
+		t.Fatalf("repeated replacement = %+v, updates %d, wakes %d", unchanged, fixture.settings.updates, fixture.notifier.calls)
+	}
+}
+
+func TestSchedulerSettingsReplaceRejectsInvalidRequestsWithoutMutation(t *testing.T) {
+	tests := []struct {
+		name        string
+		body        string
+		contentType string
+		ifMatch     []string
+		target      string
+		wantStatus  int
+	}{
+		{name: "missing content type", body: `{"maxConcurrentRuns":2}`, ifMatch: []string{`"1"`}, wantStatus: http.StatusUnsupportedMediaType},
+		{name: "wrong content type", body: `{"maxConcurrentRuns":2}`, contentType: "text/plain", ifMatch: []string{`"1"`}, wantStatus: http.StatusUnsupportedMediaType},
+		{name: "content type parameters", body: `{"maxConcurrentRuns":2}`, contentType: "application/json; charset=utf-8", ifMatch: []string{`"1"`}, wantStatus: http.StatusUnsupportedMediaType},
+		{name: "missing precondition", body: `{"maxConcurrentRuns":2}`, contentType: "application/json", wantStatus: http.StatusBadRequest},
+		{name: "repeated precondition", body: `{"maxConcurrentRuns":2}`, contentType: "application/json", ifMatch: []string{`"1"`, `"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "weak precondition", body: `{"maxConcurrentRuns":2}`, contentType: "application/json", ifMatch: []string{`W/"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "comma precondition", body: `{"maxConcurrentRuns":2}`, contentType: "application/json", ifMatch: []string{`"1","2"`}, wantStatus: http.StatusBadRequest},
+		{name: "unquoted precondition", body: `{"maxConcurrentRuns":2}`, contentType: "application/json", ifMatch: []string{"1"}, wantStatus: http.StatusBadRequest},
+		{name: "zero-leading precondition", body: `{"maxConcurrentRuns":2}`, contentType: "application/json", ifMatch: []string{`"01"`}, wantStatus: http.StatusBadRequest},
+		{name: "stale precondition", body: `{"maxConcurrentRuns":2}`, contentType: "application/json", ifMatch: []string{`"2"`}, wantStatus: http.StatusPreconditionFailed},
+		{name: "unknown field", body: `{"maxConcurrentRuns":2,"extra":true}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "case alias", body: `{"MaxConcurrentRuns":2}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "duplicate key", body: `{"maxConcurrentRuns":2,"maxConcurrentRuns":3}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "fraction", body: `{"maxConcurrentRuns":2.5}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "null", body: `{"maxConcurrentRuns":null}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "too small", body: `{"maxConcurrentRuns":0}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "too large", body: `{"maxConcurrentRuns":33}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "tool lanes only", body: `{"maxConcurrentToolRuns":2}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "tool lanes null", body: `{"maxConcurrentRuns":2,"maxConcurrentToolRuns":null}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "tool lanes fraction", body: `{"maxConcurrentRuns":2,"maxConcurrentToolRuns":1.5}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "tool lanes too small", body: `{"maxConcurrentRuns":2,"maxConcurrentToolRuns":0}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "tool lanes too large", body: `{"maxConcurrentRuns":2,"maxConcurrentToolRuns":33}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "tool lanes case alias", body: `{"maxConcurrentRuns":2,"MaxConcurrentToolRuns":3}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "unexpected query", body: `{"maxConcurrentRuns":2}`, contentType: "application/json", ifMatch: []string{`"1"`}, target: "?force=true", wantStatus: http.StatusBadRequest},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newHandlerFixture(t)
+			request := authenticatedRequest(
+				http.MethodPut, "/v1/operations/settings/scheduler"+test.target,
+				bytes.NewReader([]byte(test.body)),
+			)
+			if test.contentType == "" {
+				request.Header.Del("Content-Type")
+			} else {
+				request.Header.Set("Content-Type", test.contentType)
+			}
+			for _, value := range test.ifMatch {
+				request.Header.Add("If-Match", value)
+			}
+			response := httptest.NewRecorder()
+			fixture.handler.ServeHTTP(response, request)
+			if response.Code != test.wantStatus || fixture.settings.updates != 0 ||
+				fixture.notifier.calls != 0 || len(fixture.operations.changes) != 0 {
+				t.Fatalf(
+					"invalid replacement = status:%d want:%d body:%s updates:%d wakes:%d changes:%d",
+					response.Code, test.wantStatus, response.Body.String(), fixture.settings.updates,
+					fixture.notifier.calls, len(fixture.operations.changes),
+				)
+			}
+		})
+	}
+}
+
+// The Scheduler settings and performance handlers rely on the one
+// Operations authorization in front of their registered routes.
+func TestSchedulerSettingsRequireOperationsCapability(t *testing.T) {
+	settings := newFakeSchedulerSettings()
+	mux := http.NewServeMux()
+	register(mux, contextHandlers{operations: &operationsHandlers{
+		OperationsDependencies: OperationsDependencies{SchedulerSettings: settings},
+	}}.routes())
+	protected := requireOperationsRoutes(mux)
+	tests := []struct {
+		name       string
+		principal  *auth.Principal
+		wantStatus int
+	}{
+		{name: "unauthenticated", wantStatus: http.StatusUnauthorized},
+		{name: "user only", principal: &auth.Principal{UserID: "user", Username: "user", Capabilities: []string{auth.CapabilityUser}}, wantStatus: http.StatusForbidden},
+	}
+	for _, route := range []struct{ method, path string }{
+		{http.MethodGet, "/v1/operations/settings/scheduler"},
+		{http.MethodPut, "/v1/operations/settings/scheduler"},
+		{http.MethodGet, "/v1/operations/performance"},
+		{http.MethodGet, "/v1/operations/performance/history"},
+		{http.MethodGet, "/v1/operations/allocation-history"},
+	} {
+		for _, test := range tests {
+			t.Run(route.method+" "+route.path+" "+test.name, func(t *testing.T) {
+				request := httptest.NewRequest(route.method, route.path, strings.NewReader(`{"maxConcurrentRuns":2}`))
+				if test.principal != nil {
+					request = request.WithContext(auth.WithPrincipal(request.Context(), *test.principal))
+				}
+				response := httptest.NewRecorder()
+				protected.ServeHTTP(response, request)
+				if response.Code != test.wantStatus || settings.updates != 0 {
+					t.Fatalf("capability response = %d (updates %d), want %d: %s",
+						response.Code, settings.updates, test.wantStatus, response.Body.String())
+				}
+			})
+		}
+	}
+}
+
+func TestSchedulerSettingsBrowserReplaceRequiresCSRF(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	login := loginBrowser(t, fixture.handler, "admin", testAuthPassword, testBrowserOrigin)
+	if login.response.Code != http.StatusOK {
+		t.Fatal(login.response.Body.String())
+	}
+	request := browserRequest(
+		http.MethodPut, "/v1/operations/settings/scheduler", []byte(`{"maxConcurrentRuns":2}`),
+		login.cookie, testBrowserOrigin, "",
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("If-Match", `"1"`)
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden || fixture.settings.updates != 0 ||
+		fixture.notifier.calls != 0 || len(fixture.operations.changes) != 0 {
+		t.Fatalf("missing-CSRF replacement = %d body:%s", response.Code, response.Body.String())
+	}
+}
+
+func schedulerSettingsRequest(method, body, etag string) *http.Request {
+	request := authenticatedRequest(
+		method, "/v1/operations/settings/scheduler", bytes.NewReader([]byte(body)),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("If-Match", etag)
+	return request
+}

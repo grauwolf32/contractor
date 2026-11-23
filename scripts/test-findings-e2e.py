@@ -1,0 +1,215 @@
+#!/usr/bin/env python3
+"""Run the offline findings gate and reject absent, skipped or incomplete test sets."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+import release_test_reports as reports
+
+PACKAGE = "github.com/grauwolf32/contractor/tests/e2e"
+PROCESS_TESTS = (
+    "TestProjectFindingsReaderAcrossProcesses",
+    "TestFindingsProducerAndReaderAcrossProcesses",
+    "TestFindingsCollectionsRetainOrdinaryAndAuditReceipts",
+    "TestFindingsReaderBoundariesAcrossProcesses",
+    "TestFindingLocationsAcrossProcesses",
+    "TestTraceFindingCoordinatesAcrossProcesses",
+    "TestProjectFactsAcrossProcesses",
+    "TestDiscoveryFactsAcrossProcesses",
+    "TestMemorySnapshotAcrossProcesses",
+    "TestFactExtractionAcrossProcesses",
+    "TestFactExtractionAuditEvalAcrossProcesses",
+    "TestEvalFindingProjectNavigationAcrossProcesses",
+    "TestProjectDocumentResponseRecoveryAcrossProcesses",
+    "TestProjectDocumentOutputLimitRecoveryAcrossProcesses",
+    "TestIndependentFindingsServersAcrossProcesses",
+    "TestProcessDatabaseIsolation",
+)
+REQUIRED_TESTS = frozenset(
+    (
+        *PROCESS_TESTS,
+        *(
+            PROCESS_TESTS[2] + "/" + name
+            for name in (
+                "shared-function-preserves-operations",
+                "ordinary-source-receipt",
+                "snapshot-survives-source-deletion",
+                "changed-selection-conflicts",
+                "pagination-and-exact-evidence",
+            )
+        ),
+        *(
+            PROCESS_TESTS[3] + "/" + name
+            for name in (
+                "inaccessible-input",
+                "empty-is-explicit-success",
+                "interrupted-preparation-reuses-exact-ref",
+                "conflicting-document-fails",
+                "invalid-zip-fails",
+            )
+        ),
+    )
+)
+# Minimum counts also protect parametrized writer/reader modes and malformed inputs.
+PYTHON_FILES = (
+    "tests/test_security_findings_toolset.py",
+    "tests/test_findings_reader_toolset.py",
+    "tests/test_finding_facades.py",
+    "tests/test_trace_findings.py",
+    "tests/test_shared_finding_facades.py",
+    "tests/test_numbered_file_reads.py",
+    "tests/test_project_facts.py",
+)
+PYTHON_CASES = {
+    "test_record_fact_is_separately_selected_and_retains_optional_association": 1,
+    "test_shared_fact_payload_and_severity_contract": 1,
+    "test_shared_project_finding_collection_source_kinds": 1,
+    "test_project_finding_tools_use_exact_selection_and_transport_replay": 1,
+    "test_shared_project_finding_selection_requests": 1,
+    "test_shared_exact_hypothesis_context_reaches_reader_and_rejects_wrong_revision": 1,
+    "test_shared_locations_match_go_contract": 32,
+    "test_actual_provider_schema": 3,
+    "test_code_call_normalizes_coordinates_and_keeps_retry_identity": 1,
+    "test_http_evidence_captures_actual_request_and_survives_history_eviction": 1,
+    "test_numbered_reads_preserve_windows_newlines_and_byte_limits": 2,
+    "test_finding_uses_runtime_identity_and_exact_evidence": 1,
+    "test_finding_rejects_non_exact_and_duplicate_evidence": 1,
+    "test_finding_transport_loss_retries_byte_identical_submission": 1,
+    "test_shared_go_python_fixture_and_exact_consumer_reads": 1,
+    "test_selected_tools_and_adk_descriptions": 3,
+    "test_reader_filters_cursors_previews_and_defensive_copies": 1,
+    "test_empty_collection_is_success": 1,
+    "test_replay_loss_interruption_conflict_and_access_errors": 1,
+    "test_invalid_collection_fails_before_any_materialization": 20,
+    "test_archive_boundaries": 10,
+    "test_byte_bounded_pagination_never_drops_items": 1,
+    "test_page_item_bound_and_cursor_can_change_limit": 1,
+    "test_collection_supports_audit_holds_and_noncanonical_proposals": 1,
+    "test_artifact_client_enforces_reader_byte_limit_even_with_unbounded_transport": 1,
+    "test_reader_preparation_distinguishes_byte_limit_from_missing_input": 1,
+    "test_reader_errors_keep_distinct_codes_in_model_visible_envelope": 1,
+}
+
+
+GateError = reports.GateError
+
+
+def verify_go_report(path: Path) -> None:
+    reports.verify_go_report(path, {PACKAGE: REQUIRED_TESTS}, root_pattern=".*")
+
+
+def verify_python_report(path: Path) -> None:
+    try:
+        root = ET.parse(path).getroot()
+    except (ET.ParseError, OSError) as error:
+        raise GateError("pytest did not produce a valid JUnit report") from error
+    counts: dict[str, int] = {}
+    for case in root.iter("testcase"):
+        name = case.get("name", "").split("[", 1)[0]
+        if any(case.find(tag) is not None for tag in ("skipped", "failure", "error")):
+            raise GateError("Python findings test did not pass: " + name)
+        counts[name] = counts.get(name, 0) + 1
+    missing = [name for name, minimum in PYTHON_CASES.items() if counts.get(name, 0) < minimum]
+    if missing:
+        raise GateError(
+            "mandatory Python findings cases did not execute and pass: "
+            + ", ".join(sorted(missing))
+        )
+
+
+def run(root: Path) -> None:
+    if not os.environ.get("CONTRACTOR_TEST_DATABASE_URL", "").strip():
+        raise GateError("CONTRACTOR_TEST_DATABASE_URL is required; use disposable PostgreSQL")
+    python = root / "runtime/.venv/bin/python"
+    if not python.is_file() or shutil.which("go") is None:
+        raise GateError("Go and the prepared runtime/.venv/bin/python are required")
+    with tempfile.TemporaryDirectory(prefix="contractor-findings-gate-") as temporary:
+        directory = Path(temporary)
+        junit = directory / "runtime.xml"
+        result = subprocess.run(
+            [
+                str(python),
+                "-m",
+                "pytest",
+                *PYTHON_FILES,
+                "--junitxml",
+                str(junit),
+            ],
+            cwd=root / "runtime",
+            check=False,
+        )
+        if result.returncode != 0:
+            raise GateError("Runtime findings tests failed")
+        verify_python_report(junit)
+        report = directory / "process.jsonl"
+        pattern = reports.pattern(PROCESS_TESTS)
+        with report.open("w") as output:
+            process = subprocess.Popen(
+                [
+                    "go",
+                    "test",
+                    "-json",
+                    "-tags=e2e",
+                    "-count=1",
+                    "-timeout=15m",
+                    "./tests/e2e",
+                    "-run",
+                    pattern,
+                ],
+                cwd=root,
+                stdout=subprocess.PIPE,
+                text=True,
+            )
+            assert process.stdout is not None
+            for line in process.stdout:
+                output.write(line)
+                output.flush()
+                try:
+                    event = json.loads(line)
+                except ValueError:
+                    print(line, end="", flush=True)
+                    continue
+                if event.get("Action") == "output":
+                    print(event.get("Output", ""), end="", flush=True)
+            status = process.wait()
+        verify_go_report(report)
+        if status != 0:
+            raise GateError("Go findings processes failed")
+    print(
+        f"Findings gate passed: {len(REQUIRED_TESTS)} required process cases and Runtime contracts."
+    )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--verify-go-report", type=Path, help="check a saved Go JSON stream offline"
+    )
+    parser.add_argument(
+        "--verify-python-report", type=Path, help="check a saved pytest JUnit report"
+    )
+    args = parser.parse_args()
+    try:
+        if args.verify_go_report is not None:
+            verify_go_report(args.verify_go_report)
+        elif args.verify_python_report is not None:
+            verify_python_report(args.verify_python_report)
+        else:
+            run(Path(__file__).resolve().parents[1])
+    except (GateError, OSError) as error:
+        print(f"Findings gate failed: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

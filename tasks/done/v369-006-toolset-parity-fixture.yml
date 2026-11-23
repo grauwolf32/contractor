@@ -1,0 +1,71 @@
+schema_version: "1.0"
+id: V369-006
+title: "Extend the toolset parity fixture to the whole descriptor"
+milestone: hub-audit-guards-2026-10
+epic: workflows
+kind: chore
+priority: P2
+status: completed
+implementation_commit: "35f59294382e3bce315467bb5c56728654c10785"
+depends_on: []
+languages: [go, python]
+goal: "Adding a tool on one side only fails the parity tests."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), config D 3.1, F4; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    api/descriptor-parity checks only infrastructure channels; tool names,
+    active-check and finding classification, required inputs and
+    requires_workspace are pinned separately in Go (config_test.go:78-442,
+    about 220 lines) and Python factories. ActiveCheckTools exists only in
+    Go although it drives activeChecks: prohibited.
+  specification:
+    - docs/spec/tools/toolsets.md#TLS-R38
+    - docs/spec/tools/workspace.md#WSP-R10
+  siblings: >-
+    The eleven Go descriptor pins are removed. The Server had no workspace
+    flag: validateStageWorkspace hard-coded five workspace Toolsets while
+    WSP-R10 named three; the descriptor now carries RequiresWorkspace, the
+    validation reads it and WSP-R10 names all six (code-execution@1 already
+    needed context.workspace through podman@1, so no Workflow changes
+    validity). The HTTP/Caido hardening matrix pointed at a removed pin; it
+    now names TestRequiredRuntimeAdaptersFollowToolChannels, which checks
+    every HTTP and Caido tool. Ruled out: the Runtime's workspace_access
+    (read or write) has no Server reader, and the streamline Planner's
+    selectedWorkspaceObservation classifies operations that observe
+    workspace state, a different rule than a Toolset's workspace need.
+  decision: >-
+    Guarantee: api/testdata/toolset-descriptors.json carries every
+    built-in Toolset's tools, channels per tool, workspace need and required
+    SandboxProfile, which both sides declare and both parity tests check
+    (TestSharedToolsetDescriptorParity, test_shared_toolset_descriptor_parity,
+    in make test-wire-cross-language), plus activeCheckTools,
+    findingProposalTools and requiredWorkflowInputs, which only the Server
+    reads (Audit compatibility for activeChecks: prohibited, finding intake,
+    Workflow inputs) and so only the Go test checks. The Runtime enforces
+    none of them, so it gets no copy of them. The Python test checks the
+    code-execution@1 factory class directly because built_in_factories
+    installs it only with an execution lifecycle. Alternatives rejected:
+    generating descriptors or factories from the fixture (descriptors stay
+    registered code metadata of the exact Toolset version, TLS-R23, and a
+    test catches drift without a build step) and keeping the YAML file
+    (JSON matches the other shared fixtures and the strict Go decoder).
+    Reversal: when a descriptor property gains a reader on the other side,
+    for example the Runtime enforcing an active-check classification, add
+    it to that side's parity test.
+scope:
+  in:
+    - "The fixture carries the full descriptor; Go descriptors and Python factories are checked against it; the Go pins are removed."
+  out:
+    - "Descriptor contents."
+acceptance_criteria:
+  - id: A1
+    text: "Adding a tool on one side only fails the parity tests."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/config"
+    covers: [A1]
+  - command: "cd runtime && uv run pytest tests/test_capabilities.py"
+    covers: [A1]
+  - command: "make test-wire-cross-language"
+    covers: [A1]

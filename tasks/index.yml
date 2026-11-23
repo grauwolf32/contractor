@@ -1,0 +1,1460 @@
+schema_version: "1.0"
+
+project:
+  name: contractor-v2
+  objective: >-
+    Deliver a single-VM workflow runtime whose Control Plane and public server
+    are implemented in Go and whose single-slot Runtime Agent is implemented in
+    Python.
+
+execution_policy:
+  current_delivery_focus: >-
+    User request 2026-11-16 completes V466-022: local main contains
+    codex/v417-release-quality through two-parent merge
+    017b8b289e6da12e68d13d28a592bc7fb66c43ba. All six primary working files
+    and their modes/staged delta are preserved. Audit/Eval/PostgreSQL, public
+    API, wire, offline controls and lint pass; the owned database is removed.
+    V417-010 remains paused until an explicit continue command; shared
+    V417-004 remains reserved and last. No live calls, deployment or finish_with.
+    User decision 2026-11-16 pauses V417-010 until an explicit continue command.
+    Its in_progress status reserves the lane; dispatch and new work are stopped.
+    R3 verifies native source/task pins before dispatch, retaining3 failed/
+    scored and117 unrun members of120,123541 known tokens and USD0.0239856091
+    reported. No current Run was cancelled. Own key revoked, processes joined,
+    private exports/archive retained and owned database dropped. V466-021 is
+    completed; V417-004 remains reserved and executes LAST. Earlier history:
+    User network-configuration follow-up2026-11-16 is fulfilled: dedicated
+    Gateway peer on the existing VPN server, preserved mesh/identity/model,
+    DNS/readiness/provider HTTPS and native fail-closed checks pass.
+    V417-009 remains completed with full release evidence. V417-010 returns
+    pending: external source/task pins are unobserved, so every native pair is
+    pins-unverified. The assigned consumer now blocks that before dispatch.
+    Attempt1 retains1 succeeded/unscored and119 unrun; attempt2 retains36
+    completed,1 cancelled and83 unrun, with every expected member and known
+    cost retained. Known R2 usage is1377320 tokens and USD0.1930442420 reported;
+    cancelled-member complete usage/price are unavailable. No quality acceptance
+    or recommendation. User decision 2026-11-16 approves V466-021 as a separate
+    common Eval prerequisite. V466-021 is completed at
+    57992a95412aea210a7d1936eba23b2953aa6f5f: verified local source/task pins
+    share the native definition; real PostgreSQL comparison, API, wire and lint
+    pass. V417-010 resumes in_progress on new frozen R3 identities without
+    rewriting old plans, configured models, held-out inputs, scorers or gates.
+    V417-004 stays reserved in_progress and executes LAST after V417-010.
+    This branch is not merged or deployed. Earlier accepted evidence follows.
+    User request 2026-11-14 delivered on 2026-11-15 integrates the reviewed
+    V417 branch into main through no-fast-forward merge
+    5ca0aa20cf69d78ae06841d839e4a3968463d194 (V466-016). All 25 independent main
+    paths and six primary user files remain intact; the staged delta is unchanged.
+    V466-017 repairs one malformed test-only Audit Workflow substitution at
+    1b8e8f11c3117e25c203481d2f9544e0b81d39f0. Full make verify, API, 239 mocked
+    browser cases, all 52 deterministic process roots and five report verifiers
+    pass. Runtime has 6268 passes and 135 declared skips; optional heavy I/O and
+    platform/live skips are not passing coverage. Both owned test databases are
+    removed. Evidence is tasks/evidence/v466-016-main-integration-20261115.json.
+    This integration does not close V417-009/V417-010 or claim live quality,
+    deployment or complete release verification; V417-004 retains its reservation
+    and executes last.
+    User review-fix request 2026-11-14 completes V466-015 on
+    codex/v417-policy-diagnostics-eval (0111d8f851c8c017971f3ae797bfef5b1b9a8f00):
+    the external compaction Eval selects exact scored records, observes current
+    comparisons, verifies effective model routes and validates complete OpenAPI
+    artifacts with the pinned existing validator. Offline, HTTP/PostgreSQL,
+    touched Go, wire and lint checks pass. The owned test database is removed;
+    this correction does not run live experiments or merge the branch into main.
+    User batch and simplification review 2026-11-14 accepts V417-006,
+    V417-007 and V417-008 with separate implementation/acceptance commits:
+    006 e638133e3e09237e71970d3ab90fb67b2990f1ef,
+    007 f6dbdf8402717b24c9d4d48eb0c17169611dc566,
+    008 d39ad87e4584a737bdd0be01bcfb8cd9a2bc0958.
+    State/report diagnostics have one progress owner and canonical model phases;
+    the Eval harness consumes existing membership, cumulative usage and server
+    comparisons. V466-009 through V466-012 repair verification fixtures.
+    User-approved V466-013 includes terminal summarizer usage once; V466-014
+    pins that behavior as contractor-output@4. Full Runtime, Go/PostgreSQL,
+    wire/API, UI/browser, three process scenarios, offline Eval and lint pass.
+    The owned test database is removed. This batch remains on
+    codex/v417-policy-diagnostics-eval and is not merged into main; the prior
+    isolated baseline remains f9eabdec2a37f87c56cc17792907dbc79f828a45.
+    V417-009 is the next deterministic exit; V417-010 live measurements wait
+    for it. No live Gateway experiment, deployment or complete release gate is
+    claimed. Shared V417-004 stays in_progress and executes LAST after 009/010.
+    User continuation 2026-11-11 completes assigned V417-005 isolated Audit
+    compaction after accepting V417-001/V417-003 and their verification repairs.
+    Existing trusted collection, Task/Run/Finding provenance and publication
+    receipts survive checkpoints. Full Runtime, Audit family, touched Go,
+    PostgreSQL, wire, UI consumer, lint and all 52 process roots with five report
+    verifiers pass. Owned test databases and the temporary idle-sleep assertion
+    are removed; six primary user files and the staged index are preserved.
+    This branch is not merged into main; no live quality result or complete
+    release gate is claimed. V417-004 remains reserved in_progress and executes
+    last; its dependencies and shared rejection are unchanged.
+    User decision 2026-11-10 narrows assigned V417-005 to Audit compaction in
+    isolated sessions. A later instruction explicitly returns V417-004 from
+    deferred to in_progress and orders its implementation last in the V417
+    series, after V417-009 and V417-010 and their dependencies. The requested
+    status reserves the task; implementation waits for those dependencies.
+    V417-005 and V417-009 remain independent of shared support, without a cycle.
+    The deterministic milestone covers isolated ordinary
+    and Audit Workers and rejects shared compact policies. V417-003 acceptance
+    remains a prerequisite; this scope update claims no implementation or test pass.
+    User request 2026-11-07 integrated the verified release baseline and fixture
+    repairs (V456-001/V456-002) into main through no-fast-forward merge
+    b66620730735f68c4da878ffc12686125d451be7 (V456-003). The single baseline retains its
+    verified checksum and preserves later Planner, Runtime trace and material-preview
+    changes. Combined PostgreSQL persistence/Planner/restore, wire and lint gates
+    passed; optional heavy I/O stayed disabled. Six unrelated primary files and
+    the staged index retained exact hashes and modes; the owned test database
+    was dropped. Deployment and the complete release gate were not run.
+    User assignment 2026-11-07 completes V420-002 acceptance on the integrated
+    ADK compactor revision. A1-A6 and every required gate passed; acceptance
+    fixes release invocation-local compaction context before Run returns and
+    enforce the 1 MiB tail ceiling on every post-checkpoint projection. Evidence
+    records real PostgreSQL/race cases, strict HTTP replies, configuration,
+    API and UI verification and declared optional skips; the owned database
+    was dropped. V420-003/004/005/006 and Worker work remain unassigned.
+    User request 2026-11-07 integrated the paired private HTTP fixtures into main
+    through no-fast-forward merge 15da83e0c (V411-019). The separate playground
+    main merge is 00d3be4311, pinned with exact file digests. Playground expansion
+    is V455-002 after resolving its collision with the existing V455-001 RunStore
+    task. All sixteen fixture checks, fourteen standalone tests and lint pass on
+    the combined tree; target controls remain network-isolated and owned fixture
+    containers/volumes were removed. V411-015 and other dependent production
+    features and demo deployment remain unassigned.
+    User decision 2026-11-07 delivered V420-007: make the Planner compactor a
+    separate tool-free ADK LlmAgent with OutputSchema, a private temporary
+    session and one provider call, and forward strict JSON Schema through the
+    Gateway adapter. Full Streamline/Router PostgreSQL race suites and make
+    lint passed; the owned test database was dropped. This narrow correction does not complete V420-002 or
+    assign its dependent gates. Native history compaction remains disabled.
+    User request 2026-11-07 reconciles V417/V420 with main 1142c2681 before
+    further implementation. Four merged slices remain in_progress for acceptance:
+    V417-001/003 and V420-002/006; cleared V425-020/021 and platform blockers
+    are not new feature work. Recommended order from this review: finish their
+    acceptance, then V420-003/004/005;
+    V417-004/005 deliver shared/Audit Worker support through current common
+    Task/JSON completion. V417-006 now moves the Worker compactor model solely
+    into Workflow executionConfig by explicit user choice, removing the binding
+    model field without restoring Run/Eval overrides or deployment roles.
+    Diagnostics preserve current State/stop ownership; quality remains V417-008/010.
+    No compaction task is wholly obsolete: retain statuses and dependencies,
+    except adding V420-002/V425-042 as V420-006 acceptance prerequisites.
+    This task review authorizes planning only and records no new feature test pass.
+    User request 2026-11-06 integrated process-local Gateway recovery into main
+    through merge 2baba6bd660df15003d9782fbcaae683befaa472 (V451-003). Recovery is V451-002 after
+    resolving its task-ID collision with the existing V451-001 UI archive. Migration
+    000014 removes five recovery tables. Nine Go/PostgreSQL race suites, both real
+    recovery process scenarios, API/architecture and lint passed on the combined
+    tree; unrelated primary edits were preserved and the owned database was dropped.
+    User request 2026-11-06 merged completed V411-007 standalone selected HTTP
+    evidence into main through no-fast-forward merge f73627944 (V453-001),
+    preserving the current Runtime stop/State fixes and external UI archive.
+    The active Material reader example now follows the strict standalone format.
+    Combined Go/PostgreSQL, complete Runtime, wire/API, UI, 28 browser checks and
+    lint passed. User working-tree content was preserved and the owned test
+    database was dropped. Optional disk-heavy and declared platform/live skips
+    are not passing coverage; dependent features and demo deployment remain unassigned.
+    User request 2026-11-06 integrated V64-008 and V449-004 into main through
+    merge ae839bbf0 (V450-002), preserving V64-010 pipeline retirement, V64-037
+    Task progress and mixed-iteration Eval labels, and independent UI designs.
+    Material pagination is migration 000013. Combined Go/PostgreSQL, API, UI,
+    seven focused browser tests and lint passed; the owned test database was dropped.
+    The full mocked browser gate was not rerun; V450-001 retains the known
+    activity-retention gap and fixture follow-ups without assigning implementation.
+    Dependent tasks and demo deployment remain unassigned.
+    User request 2026-11-05 delivered on 2026-11-06: V449-003 integrates ordinary
+    Run engagement (V449-001) and permanent missing-credential preparation failure
+    (V449-002) into main through a no-fast-forward merge. Exact policy inputs use
+    shared Artifact preparation alongside material sets; local real-store, wire,
+    API and process verification passed. Optional disk-heavy fixtures stayed disabled.
+    User request 2026-11-05 authorizes --no-ff integration of the completed
+    hypothesis implementation branch into main. This merge records that delivery;
+    deployment and dependent implementation remain unassigned. Compatibility
+    checks on the reconciled branch passed; optional disk-heavy fixtures stayed
+    disabled and their skips are not passing coverage.
+    User decision 2026-11-05 completed V64-036 after V64-035 on the same
+    implementation branch. Shared Artifact-owned checking, prepared exact
+    handoff and persisted input/source verification replace duplicate consumer
+    reconstruction, preserving fences, receipts, limits and regressions.
+    Required gates passed; the completed implementation is integrated into main.
+    User assignment 2026-11-05 completed V64-033/V64-034 and the V64-035
+    accepted material-set correction on codex/audit-hypothesis-generation after
+    integrating proposal 0054 and current main. Common materials replace
+    numbered context slots; ordinary execution, receipts and lifecycle remain.
+    V443-004 separately repaired the complete Runtime verification gate.
+    Deployment is not assigned.
+    User direction 2026-11-05 makes hypothesis generation an ordinary Workflow
+    capability over configured inputs/readers and selected exact artifacts.
+    Proposal 0054 and its implementation plan govern the correction of V64-013:
+    V64-033 first delivers common bounded material sets with a real initial
+    generator caller; V64-034 admits exact grounds and in-Run selections and
+    replaces numbered source slots/continuation assumptions. The dated assignment starts V64-033/034 only;
+    dependent V64-008/010/011 gates and demo deployment remain unassigned.
+    Preserve V64-013 completion history; it does not prove the new contract.
+    User decision 2026-11-05 authorizes V449-001: ordinary Runs select engagement
+    through an explicitly typed Workflow input, reusing exact input forks and
+    allocation preparation with credential authorization and lifecycle accounting.
+    User decision 2026-11-04 authorizes V444-001/002/003 after landing their tasks
+    on main: engagement owns only egress, traffic limits and identities. Remove
+    blackbox/source-assisted modes and nested materials/Audit budgets, preserve no
+    backward compatibility, derive execution capabilities from Workflows and keep
+    sandbox egress implementation and independent Run setup separate. This
+    assignment authorizes these three tasks, without assigning their other pending
+    HTTP/browser/sandbox/API/UI consumers.
+    User request 2026-11-03 closes V64-014 after reconciling its required passing verification and
+    restoring the immutable Eval archive bytes through V64-030. V64-002 and its common Task
+    integration are already completed and merged. These status updates do not assign pending
+    dependent implementation; the dated decisions below retain their original authority and scope.
+    User decision 2026-11-02 resolves OpenAPI operation granularity during V64-002 investigation:
+    V64-026 is the narrow prerequisite for an ordinary Server-operation preparation Workflow and a
+    bounded exact work-list/admission-validation contract. Existing domain builders own interpretation;
+    Audit service accepts separate operation tasks through the common path, and the coordinator uses
+    RunService. No new inventory engine, DSL, collector, receipt/lease store or generator loop is added.
+    Web-scan remains one task per target. V64-002 keeps its implementation assignment and the explicit
+    permission to start from merged V64-014 code while that task remains in_progress, and resumes its
+    dependent implementation after completed V64-026 (6e75823c634f71471fd916e52b175ab35a9c478f).
+    V64-026 demonstrates passive preparation and strict catalog validation; live task intake remains V64-002.
+    User decision 2026-11-02 splits the actual shipped Audit YAML rewrite between the tasks delivering
+    its behavior: V64-002 owns six observation/tracing/scan programs and V64-012 owns eight checklist/standard
+    assertion programs, including required Workflow/template/instruction bindings and real callers.
+    Rewrite ordinary pre-release catalog content directly; add no legacy reader/executor or unsupported-profile
+    compatibility mode. V64-010 verifies the integrated catalog and removes remaining obsolete callers,
+    rather than postponing these YAML rewrites. Dependencies and pending implementation gates are unchanged.
+    User decision 2026-11-01 rejects codex/project-problem-findings: its unmerged head is archived as
+    archive/v64-014-project-problem-findings-2026-11-01. V64-014 is in progress and must move the existing
+    Finding model to Project scope with one current state and command owner. Sources/results/history
+    are not mutable Audit Findings or another lifecycle. V64-014 migrates current reads/edits and removes
+    Finding-specific reviews; V411-010 removes remaining item/report approvals using those same commands.
+    User review 2026-11-01 clarifies V64-014 admission: explicit problem publication requires selected
+    exact evidence, while evidence-optional proposals remain ordinary retained results/receipts without
+    automatic confirmation. Old Audit facts and snapshots survive only as opaque immutable Artifacts; the operational Finding/intake
+    model starts empty. Current Project assessment is unset until an explicit Project edit; V64-014 owns those direct Finding commands.
+    V64-014 acceptance includes real concurrent equal-key admission and bounded large-history traversal.
+    User clarification 2026-11-01 keeps V64-014 to Project finding ownership and retained contributions
+    using existing deduplication, intake receipts, correlation fence and Run-to-Project Artifact forks.
+    The existing Run-to-Project path removes the technical prerequisite on V64-004: V64-014 depends
+    only on completed V64-001; V64-002 still integrates both. Semantic comparison, new matching rules
+    and a second deduplication engine are outside V64-014. Implementation was assigned on 2026-11-01. Later user decisions discard old operational Findings/intake, archive old Audit facts and snapshots as opaque immutable Project Artifacts, and remove execution compatibility.
+    User clarification 2026-11-01 keeps V64-004 to the existing role-output collection and dependent
+    RunService input path, using real Audit Artifact scope and per-artifact exact forks/publication.
+    Multiple explicit Workflow inputs remain supported. Automatic report-link/dependency collection
+    is not a current priority; no universal composite format, resolver or new coordinator belongs in
+    V64-004. The existing V410-025 owns its concrete sitemap snapshot/original-input composition after
+    the basic primitives. New workspace-specific mandatory cases extend the existing composition gate.
+    User request 2026-11-01 authorized implementing the three review defects from completed V64-001:
+    V64-020/021/022 (completed, P1, introduced_by V64-001). V64-020 accepts an explicitly empty
+    proposal from an optional generator; it does not require generation or allow blank hypothesis text.
+    V64-021 validates effective initial-task input requiredness; V64-022 bounds initial/generated seed
+    content. Their respective consumers V64-013, V64-002 and V64-012 depend on the fixes, bringing
+    them into the existing V64-011 base gate. These local validator fixes do not authorize dependent implementation.
+    Audit task-formation request 2026-10-31: after accepting the common execution skeleton the user
+    requested concrete tasks. Sixteen existing pending tasks form the base package (12 core, 3 HTTP,
+    one report-bound regression); their scope/acceptance reflects the accepted result/finding distinction.
+    Implementation is a subsequent step. Replanned Audit-dependent tasks carry this explicit implementation
+    gate; dependency completion alone does not authorize their execution. V64-001 finalizes the remaining
+    explicitly labelled contract proposals; accepted structural decisions are not reopened. User clarification
+    2026-10-31 removes the old approvals mechanism rather than introducing an approval migration or compatibility
+    protocol. V64-001 is delegated to a separate implementation agent; this clarification does not start dependent
+    tasks. User decision 2026-10-31
+    separates a parallel sitemap lane: V410-006 ships standalone discovery/reconciliation Runs and
+    V410-007 gates their independent scale/lifecycle slice. Their completed prerequisites and ordinary
+    task policy control selection; the Audit review gate does not apply to V410-006/007 or their
+    optional V410-008/009 follow-ups. New V410-025 owns the later Audit task/workspace/profile
+    integration after V410-007 and V64-002; V411-014/020 depend on it. This planning change starts no
+    implementation. User clarification accepted on 2026-10-31: investigation, checking and generation
+    use the same accepted-task/ordinary-Run/result path. No mandatory discovery-finding-generator
+    sequence exists; initial work may check authored hypotheses or generate from selected materials,
+    and an Audit can complete without findings or generation. Use one Audit task/Run
+    coordination path, exact Audit/Project Artifact handoff/publication, Project findings with
+    deduplication and immutable source contributions, and Audit-owned hypotheses with stable owner-
+    independent IDs/revisions. User clarification accepted on 2026-10-31: ordinary check outputs
+    retain supported/refuted/inconclusive results with tested conditions; AppSec findings record
+    evidenced problems and remain optional. Negative results feed history and later generation,
+    without a separate assessment ledger. Trusted task/Run context derives hypothesis links automatically;
+    exploration can have no hypothesis. Remove formal approval requests/report acceptance and
+    replace them with pinned operation policy and optional direct annotations. Basic task owners are
+    V64-001/004/014/002/012/013/008/009/010/011 plus V411-010/011; HTTP evidence/fixture/demo remain
+    V411-007/019/015 and the report bound remains V425-017. V64-003, V64-006 and V64-007 are
+    archived as merged into V64-002/012/013, not implemented. V64-005/015/016/017/018 stay optional
+    pending extensions outside V64-011. Deferred V61/V62-008 and in-progress unrelated work are
+    unchanged. User decision 2026-10-31: Sweep is not a product entity. Concrete target scans belong
+    to ordinary Project Audits and selected Workflows. V425-033 removes the independent local and
+    durable sweeps, their API/CLI and persistence through the existing web-scan Audit path. This
+    supersedes preservation of cross-Project sweeps in V406-018. Implementation was authorized on
+    2026-10-31; V425-035 separately repairs the existing custom-rule Audit input read bound required
+    by the replacement demonstration. Pentest delivery revised by the user on 2026-10-30: V422-002
+    and V422-003 are completed on main; preserve their recorded implementation and verification. The
+    early HTTP demonstration V411-015 now follows the lean Audit coordinator V64-002, actual capture
+    V411-007 and private fixture V411-019. Keep the base HTTP path independent of browser, callback,
+    scanners and V64. V411-020 accepts the composed slice after its revised prerequisites, and
+    V411-021 separately evaluates live quality. V411-006/008/009/012 and V412-002 are archived
+    historical designs and cannot be prerequisites of active delivery. V422-003 delivered Nuclei
+    integration with local HTTP authority; V412-005 is the remaining ffuf integration. No action
+    journal, global HTTP quota, automatic login, separate preflight API or proof/recipe framework is
+    scheduled by the remaining tasks. This replaces the 2026-10-24 pentest execution order, without
+    starting implementation in this planning change. Unrelated delivery directions retained from
+    2026-10-24: the sitemap lane proceeds through V410-006/007 and optional V410-008 after its
+    completed foundations. The V414 follow-ups run in groups that share code (secrets and telemetry;
+    Evals; Planner session and store error classes; SQL read bounds; OpenAPI rules and byte bounds;
+    Audit read model; Server lifecycle; Runtime; finding fence) and close through V414-027. This is
+    delivery order, not an additional technical dependency. The 2026-10-24 research-only task graph
+    is superseded by the reviewed planning package; completed V62 history stays intact. The new
+    review gate controls Audit-dependent replanned work; the independent sitemap exception above
+    supersedes the earlier blanket gate. Optional model-ranking evidence belongs to V64-016, not
+    the deterministic core exit. V61 and V62-008 remain deferred. The earlier evening resumption
+    covered tasks not blocked by V62; the newly pending shared tasks can now enter execution once
+    their prerequisites complete. Each lane works on its branch claude/<lane> and merges each closed
+    task into main; the coordinator assigns migration numbers before lanes merge. Synchronised on
+    2026-10-25 after every lane closed its task: next, before other V410-V414 work, the follow-ups
+    the lanes found (V414-034 to V414-039), then the remaining queues with five or six lanes, not
+    ten, because ten parallel Go and PostgreSQL suites overloaded the machine and made real-deadline
+    tests fail.
+  task_files_are_self_contained: true
+  task_statuses:
+    pending: Not yet taken into development.
+    in_progress: Taken into development; implementation or verification is ongoing.
+    deferred: Explicitly on hold after review; must not be selected until the user reactivates it.
+    completed: Finished under completion_rule and implementation_commit_rule.
+    archived: Deferred out of the active backlog; retained evidence does not imply completion.
+  task_status_rule: >-
+    Set status to in_progress in the task file before beginning implementation.
+    Keep it in_progress while implementation or required verification remains;
+    an intermediate commit does not complete the task. Set status to completed
+    only after completion_rule is satisfied, and record implementation_commit.
+    Only completed tasks satisfy dependencies; pending and in_progress are
+    unfinished. Do not independently take an in_progress
+    task already being worked on unless explicitly assigned to continue it.
+    Exclude deferred tasks from eligible work even when dependencies are complete.
+    They do not satisfy dependencies. Preserve their scope and record the date,
+    previous status, reason and reactivation condition in deferral. Dependency
+    completion alone never reactivates a deferred task; explicit user direction
+    and a reviewed scope are required before changing it back to pending.
+    Exclude archived tasks from active work and backlog counts; they do not
+    satisfy dependencies. Retain their original scope and evidence together
+    with the archive date, previous status and reason in the task file.
+  task_location_rule: >-
+    Task files are the index. Open tasks (pending, in_progress, deferred) live
+    in tasks/; finished tasks (completed, archived) live in tasks/done/. The
+    commit that sets a terminal status moves the file with git mv and repoints
+    links to it. scripts/check_tasks.py (make lint) enforces location, declared
+    statuses, priorities, epics and kinds, unique IDs matching file names,
+    full implementation commits, known dependencies and introduced_by
+    references, and milestone exit tasks. tasks/BACKLOG.md is generated from
+    the files by make tasks-backlog, and make lint rejects a stale copy.
+  task_classification_rule: >-
+    Every task names its epic, one of the stable areas declared in
+    tasks/epics.yml, and its kind: feature (adds or extends a capability),
+    defect (corrects behaviour that was wrong) or chore (no intended behaviour
+    change: tests, CI, dead code, refactoring, documentation, schema
+    consolidation). A defect or chore that repairs earlier work names that
+    task in introduced_by whenever it can be identified. Milestones remain
+    delivery slices; group defects by epic instead of declaring a milestone
+    per defect.
+  dependency_rule: >-
+    A task may start only after every ID in depends_on is complete. The worker
+    may inspect code produced by those dependencies. Each task states its scope,
+    authority, dependencies and acceptance locally. Normative documents explicitly
+    named in context.specification, context.design, context.format or
+    context.proposal are required contract inputs; unlisted design documents and
+    earlier conversation are not prerequisites. A normative format must be
+    resolved before its dependent implementation is marked ready.
+  change_rule: >-
+    Keep each implementation task in its own commit unless two tasks must be
+    landed atomically to keep the repository buildable.
+  completion_rule: >-
+    A task is complete only when every acceptance criterion passes and all
+    commands listed under tests succeed.
+  implementation_commit_rule: >-
+    Every completed task file records implementation_commit as the full hash of
+    the last commit whose primary purpose completed that task. Later metadata or
+    unrelated maintenance commits do not replace it.
+  priorities:
+    P0: Required for the first runnable MVP.
+    P1: Required to harden the MVP into the specified first slice.
+    P2: Planned follow-up that is intentionally outside the first releasable slice.
+    P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
+
+milestones:
+  - id: audit-evidence-results-2026-11
+    exit_task: V478-005
+    outcome: >-
+      General Worker instructions encourage systematic investigation of relevant known surface.
+      Explicit evidence/finding/fact source selection and thin per-item results retain acknowledged
+      material through interruption. Existing readers distinguish accepted judgments, system stop
+      records and unresolved work without inferred semantic coverage or a new planning mechanism.
+      Implementation is user-assigned; deployment and live-model quality measurements are outside this milestone.
+  - id: runtime-owned-tool-versions-2026-11
+    exit_task: V479-007
+    outcome: >-
+      LLM tools accept no expected_revision or revision preconditions/selectors,
+      including nested model references, while results retain actual revisions.
+      Runtime and deterministic Planner adapters own exact selections, CAS and
+      recovery; sequential Audit corrections replace by item key. Compaction
+      preserves selected versions and V476 keeps its bounded consecutive-read
+      semantics. Stage one (V479-001/002/003) precedes all read-side changes;
+      focused real-component acceptance does not claim live-model quality.
+  - id: model-runtime-guidance-2026-11
+    exit_task: V476-005
+    outcome: >-
+      Models receive bounded current Planner/Worker call facts and effective HTTP limits;
+      a separate ADK plugin enforces tool-owned consecutive-repeat rules for exact artifact
+      reads while preserving checkpoint rereading, accounting and completion. Tools explicitly
+      select common JSON-container and argument-diagnostic helpers; structured HTTP JSON is
+      encoded once and exact UTF-8 payloads remain available through text mode. Focused
+      deterministic acceptance does not claim live-model quality improvement.
+  - id: adk-python215-go28-2026-11
+    exit_task: V475-001
+    outcome: Python ADK 2.15.0 and Go ADK 2.8.0 execute the merged tools with preserved Worker and Planner contracts, consistent dependency metadata, real-store and process verification.
+  - id: model-tool-interfaces-2026-11
+    exit_task: V474-010
+    outcome: >-
+      Workers use closed argument contracts, bounded text/native image reads, file-reference
+      publication, keyed Audit submissions and automatic evidence from local HTTP request IDs,
+      verified together through ordinary production component boundaries.
+  - id: model-response-recovery-2026-11
+    exit_task: V473-003
+    outcome: >-
+      A document review Worker can finish after one unusable model reply within its original
+      budget. Exact sources and committed submissions survive terminal failure. Operators
+      can distinguish empty and length-limited replies and see the cost of recovery.
+  - id: project-facts-2026-11
+    exit_task: V471-006
+    outcome: Optional passthrough@1 extraction creates source-grounded Project Findings through one Runtime Worker, with severity-filtered views, basic evidence-content equality on existing correlation, receipt/source history and optional Task/hypothesis origin. Equal complete evidence sets share one informational Finding regardless of title. Semantic/title matching, material grouping and possible-duplicate states stay outside this slice. Explicit hypothesis grounds and retained Project materials follow their owner lifecycles through verified process and UI paths.
+  - id: opencode-audit-environments-2026-11
+    exit_task: V469-005
+    outcome: Two ordinary Audit Runs use one retained OpenCode container with fixed ports, package installation, exact artifacts, pause/resume and verified cleanup through the existing A2A and Podman owners.
+  - id: llm-cost-reporting-2026-11
+    exit_task: V458-003
+    outcome: Run, Audit and Project show durable attributed LLM costs from recorded provider or Gateway observations, including honest coverage and the approved responsive UI.
+  - id: audit-scanners-engagement-2026-11
+    exit_task: V461-003
+    outcome: All four shipped scan Audits use engagement credentials and HTTP authority without settings artifacts, with aligned native scanner traffic and preserved Project Findings and evidence.
+  - id: standalone-run-engagement
+    exit_task: V449-001
+    outcome: Ordinary projectless and Project Runs apply a pinned typed engagement input with validated credentials and controlled allocation-local HTTP execution, verified through real PostgreSQL and Server/Runtime traffic.
+  - id: contracts-review-2026-11
+    exit_task: V447-004
+    outcome: Private contracts reject malformed endpoint ports, explicit zero limits and alternate wire names consistently; large Audit contexts share the same structural budget, with lean shared decoders and domain ownership.
+  - id: httpapi-review-cleanup-2026-11
+    exit_task: V440-006
+    outcome: Finding HTTP transfers have bounded socket and storage work; lean adapters call existing domain owners and page cached immutable catalog projections with verified public contracts.
+  - id: controlplane-review-2026-11
+    exit_task: V439-006
+    outcome: Combined adapter requirements place correctly, Registry snapshots are detached, a composed engagement adapter separates Audit preparation from the Runtime protocol, and cohesive files expose placement and protocol stages with verified lifecycle and capability matching.
+  - id: artifact-release-cleanup-2026-11
+    exit_task: V437-004
+    outcome: Exact Artifact replays converge under concurrency, timestamps remain authoritative, and acyclic storage packages separate the PostgreSQL registry from verified payload preparation and physical backends.
+  - id: runtime-resource-bounds-2026-11
+    exit_task: V433-005
+    outcome: Runtime shutdown has one cleanup deadline; Gateway and OTLP response reads bound allocation before decoding, and findings preparation keeps CPU work off the event loop with joined cancellation and verified existing contracts.
+  - id: runtime-ownership-2026-11
+    exit_task: V432-008
+    outcome: Runtime shares owned-task joining, typed allocation resources, exact Artifact CAS and HTTP rules; focused Worker and allocation orchestrators preserve existing authority and lifecycle contracts with integrated deterministic verification.
+  - id: runtime-shared-config-2026-10
+    exit_task: V427-003
+    outcome: Runtime and UI load immutable non-secret shared policy at startup; Server-owned Artifact, pagination, Worker result/State, HTTP evidence and Git/metadata input ceilings drive consumers, generated schemas and persistence checks.
+  - id: data-model-consumers-2026-10
+    exit_task: V421-010
+    outcome: Accepted data-model review changes connect trusted Audit evidence and finding conditions to reports, expose bounded owner-authorized Runtime and tool-call diagnostics, remove unsupported Eval and private-wire fields end to end, and retain Artifact storage timestamps with accurate API/UI semantics, verified on an integrated deterministic release gate.
+  - id: audit-iterative-simplification-2026-10
+    exit_task: V62-021
+    outcome: Five sequential simplifications remove duplicate Audit report machinery, stored and transported plan copies, authored phase and admission page chains while preserving authority, exact evidence, bounded recovery and ordinary consumers.
+  - id: go-adk-26-upgrade-2026-10
+    exit_task: V419-005
+    outcome: The exact Go ADK v2.6.0 dependency closure preserves Planner tools, history, persistence, Gateway, A2A and telemetry through targeted owner-package, real-store, shared-wire and five selected real-process scenarios, under the user no-full-rerun instruction. No full final release run or compaction implementation is claimed.
+  - id: planner-context-compaction-2026-10
+    exit_task: V420-005
+    outcome: Explicit Workflow-selected compaction in shipped Streamline and Router Planners, including summary continuations, preserves one bounded invocation, exact evidence, cumulative budgets, fail-closed persistence and independent Worker terminal behavior; models come solely from executionConfig.
+  - id: adk-213-upgrade-2026-10
+    exit_task: V418-007
+    outcome: ADK 2.13.0 preserves logical Worker execution, strict tools, lifecycle and telemetry through recorded broad migration evidence and user-authorized targeted checks of the final patched dependency closure. Per the explicit final no-full-rerun instruction, no complete full-release run is claimed for that last lock; compaction and consultation remain independent.
+  - id: terminal-summarizer-reasoning-2026-10
+    exit_task: V417-001
+    outcome: The existing terminal summarizer accepts an explicitly pinned includeReasoning option with bounded redacted input and unchanged terminal behavior, independently of compaction implementation or quality experiments.
+  - id: worker-context-compaction-2026-10
+    exit_task: V417-009
+    outcome: Workflow-selected compact@1 continues ordinary and Audit Workers in isolated sessions with bounded history recovery, preserved budgets and completion authority, truthful metadata and passing real-process deterministic release evidence. Shared compact policies remain rejected at this exit; reactivated shared-session compaction executes last, after this gate and the independent quality work.
+  - id: worker-context-compaction-quality-2026-10
+    exit_task: V417-010
+    outcome: Frozen repeated experiments compare terminal reasoning, compaction reasoning, configured handoff and experimental masking under equal total budgets, producing measured consumer-specific recommendations without blocking deterministic delivery.
+  - id: main-review-2026-10-25
+    exit_task: V416-011
+    outcome: Confirmed defects and scoped simplifications from the October 25 two-day main and expanded current-system review are resolved with real-path regressions, explicit dispositions and a verified integrated release gate.
+  - id: review-v407-v409-followups-2026-10
+    exit_task: V414-027
+    outcome: Defects and gaps found while implementing and reviewing V407/V409 are fixed with real-path regressions or closed by recorded decisions.
+  - id: runtime-artifact-cache-2026-10
+    exit_task: V413-001
+    outcome: Local-storage Runtimes reuse authorized immutable source archives and Skill packages across allocations with a bounded 1-GiB private disk cache, preserving exact provenance, access checks and memory-only operation.
+  - id: project-sitemap-2026-10
+    exit_task: V410-007
+    outcome: Standalone Project Runs deliver discovery, exact snapshot handoff and deterministic OpenAPI reconciliation independently of Audit redesign. The bounded shared sitemap supports concurrent edits, HTTP observations and structured imports through shared ArtifactStore admission and per-artifact history retention, without a sitemap-specific cumulative Run budget; current revisions and exact holds have real-store/scale evidence. V410-025 separately owns later Audit integration under the composed HTTP milestone.
+  - id: sitemap-caido-history-2026-10
+    exit_task: V410-008
+    outcome: Optional incremental Caido history collection preserves pinned continuation, safe observations and bounded restart behavior independently of browser support.
+  - id: sitemap-browser-collection-2026-10
+    exit_task: V410-009
+    outcome: Managed browser observations update the shared Project sitemap through the same safe reducer and allocation-bound context.
+  - id: autonomous-http-pentest-2026-10
+    exit_task: V411-020
+    outcome: >-
+      An early ordinary HTTP Workflow executes on the lean Audit task/Run path with supplied
+      credentials and actual selected evidence. The composed HTTP extension adds
+      sitemap/sandbox/context/API/UI and truthful gaps after the common base; no HTTP-specific
+      admission, collector, recipe/proof or mandatory generation/ranking is introduced.
+  - id: autonomous-pentest-quality-2026-10
+    exit_task: V411-021
+    outcome: A frozen repeated-sample experiment records independent pentest quality results against equal-input baselines without conflating protocol conformance with model quality.
+  - id: autonomous-pentest-browser-2026-10
+    exit_task: V412-003
+    outcome: Optional browser investigation uses isolated supplied-credential contexts, demonstrated allocation-local network enforcement, shared sitemap observations and ordinary retained results; absent, busy and failed capability remain distinct through an independent real-browser gate.
+  - id: autonomous-pentest-callback-2026-10
+    exit_task: V412-004
+    outcome: Optional Interactsh investigation reuses the existing adapter, allocation lifecycle and Artifact publisher, retaining callback observations and destructive-poll gaps without a target-action journal or automatic SSRF proof; Worker/sandbox spoofability and late arrivals remain explicit limitations.
+  - id: controlled-pentest-scanners-2026-10
+    exit_task: V412-005
+    outcome: Nuclei first uses the exact allocation-local HTTP authority under V422-003; the later pinned ffuf integration reuses that concrete mechanism where compatible. Actual-engine gates prove scope, explicit credentials, optional local limits and cleanup; unsupported paths are rejected without Server request permits.
+  - id: sql-review-2026-10
+    exit_task: V409-013
+    outcome: Retained SQL-review defects are fixed with real-store regressions, behavior-preserving improvements are verified, and unsupported or declined claims have evidence-backed decisions that preserve the owning contracts.
+  - id: test-gate-cost-2026-10
+    exit_task: V408-007
+    outcome: The release gate and the local test targets check the same things in a fraction of the time, with per-package test schemas, parallel race passes, one build per process suite, no repeated family runs, and recorded before and after durations.
+  - id: server-runtime-review-2026-10
+    exit_task: V407-039
+    outcome: Every original finding has a verified disposition; retained defects and behavior-preserving improvements are completed with their required evidence, design proposals remain separate from implementation, and declined work is reconciled with exit dependencies.
+  - id: runtime-placement-labels-2026-10
+    exit_task: V405-005
+    outcome: Startup-owned cloud and local labels dynamically constrain WorkflowRun and Audit Worker placement through UI selections, with immutable launch requirements and retained allocation provenance.
+  - id: web-nuclei-rule-sweeps-2026-10
+    exit_task: V425-033
+    outcome: Target Nuclei checks use ordinary Project Audits and their selected Workflows with pinned target/settings/rules, real child Runs and normal evidence/results. Independent local and durable Sweep orchestration, API/CLI, tables and primary standalone launch paths are removed; installed/custom rule and lifecycle behavior is proved through the existing Audit flow. This replaces the earlier cross-Project batch outcome by user decision on 2026-10-31.
+  - id: runtime-host-provisioning-2026-10
+    exit_task: V402-001
+    outcome: One Ansible run provisions a Linux host with the Runtime Agents and the capability prerequisites chosen per host or per process, and fails unless each process registered and probed what it was configured for.
+  - id: model-free-stage-lanes-2026-10
+    exit_task: V400-004
+    outcome: Model-free Stages run in their own lane pool sized by maxConcurrentToolRuns and editable on the Operations page, conflicts on shared Runtime Agents resolve in favour of model Stages, and Audits pace scan and model roles by their own limits.
+  - id: finding-sarif-export-2026-10
+    exit_task: V397-009
+    outcome: Exact-evidence analysis and frozen selections produce validated generic SARIF downloads through API CLI and UI while retaining all selected findings and independent Audit results without changing Worker tools.
+  - id: finding-correlation-2026-10
+    exit_task: V397-005
+    outcome: Deterministic producer keys and structural anchors automatically mark repeated observations without LLM or required confirmation, preserving every finding and independent Audit result for bounded comparison across Audits in one Project.
+  - id: ui-consolidation-2026-10
+    exit_task: V385-001
+    outcome: Every UI rule, vocabulary, building block and style value has one definition, Server responses are checked by generated validators, and gates stop new copies and dead code.
+  - id: workflow-planner-subtask-budgets-2026-10
+    exit_task: V384-001
+    outcome: Each Workflow pins its modeled Planner subtask limit, defaulting to 32, through immutable execution and validated public plan projections.
+  - id: interactsh-worker-tools-2026-10
+    exit_task: V382-001
+    outcome: Explicit Worker tools register and poll bounded Interactsh callback evidence through operator-configured infrastructure, credentials and Runtime labels.
+  - id: networked-podman-sandbox-2026-10
+    exit_task: V381-001
+    outcome: An explicitly selected and operator-enabled Podman profile provides networked execution with the existing allocation isolation and cleanup guarantees.
+  - id: project-active-check-policy-2026-10
+    exit_task: V380-001
+    outcome: Projects default to automatic active Audit checks and pin their owner-selected execution policy at Audit start.
+  - id: planner-summary-continuation-2026-10
+    exit_task: V378-001
+    outcome: Summarized passthrough work continues through one Scheduler-owned escalation to Streamline with the original task, saved summary and the same recorded artifacts and Memory Namespace.
+  - id: http-session-continuation-2026-10
+    exit_task: V377-001
+    outcome: Target cookies survive allocation replacement within the same Run and Agent Namespace as an ordinary artifact, preserving login state without retaining all HTTP traffic.
+  - id: http-finding-evidence-2026-10
+    exit_task: V376-003
+    outcome: Only HTTP exchanges selected as finding evidence become ordinary artifacts, and their requests and available responses can be previewed and downloaded in the UI.
+  - id: hub-audit-defects-2026-10
+    exit_task: V368-035
+    outcome: Every defect the 2026-10-11 hub audit and its fix batch found is fixed with a regression test or closed by a recorded decision.
+  - id: hub-audit-guards-2026-10
+    exit_task: V369-007
+    outcome: Gates and fitness tests stop the hub audit's defect classes from coming back (table ownership, shared fixtures, release gate coverage, route and operation coverage).
+  - id: hub-audit-structure-2026-10
+    exit_task: V370-030
+    outcome: The hub audit's structural, simplification and scaling recommendations are done or explicitly declined.
+  - id: hub-audit-2026-10
+    exit_task: V367-013
+    outcome: Accepted findings of the 2026-10-11 hub audit are resolved with regression tests or recorded decisions.
+  - id: architecture-layers-2026-10
+    exit_task: V366-006
+    outcome: Dependencies follow the layer stack in the Go server and the Runtime, enforced in CI, with no known exceptions.
+  - id: schema-reduction-2026-10
+    exit_task: V365-022
+    outcome: The schema drops from 91 to 70 tables without behaviour changes, and SQL statements of 10 or more lines live in commented *_sql.go files.
+  - id: review-process-2026-10-04
+    exit_task: V348-001
+    outcome: CI reports a verdict for every main push, gates are complete and the task index is consistent.
+  - id: review-followups-2026-10-04
+    exit_task: V363-001
+    outcome: Follow-up cleanups from the 2026-10-04 review are complete.
+  - id: review-defects-2026-10-04
+    exit_task: V333-001
+    outcome: Every defect recorded by the 2026-10-04 review is fixed with a regression test.
+  - id: code-reuse-2026-10
+    exit_task: V277-001
+    outcome: Keep Audit HTTP request handling, response contracts, and read models independently navigable.
+  - id: runtime-projectfs-reliability-2026-10
+    exit_task: V269-001
+    outcome: Keep local-direct edits close to stat-scan cost while enforcing exact text and expanded-byte limits.
+  - id: release-gate-2026-10
+    exit_task: V268-001
+    outcome: Finish the remaining help-path failure and verify the earlier CLI and deployment corrections.
+  - id: git-import-memory-2026-10
+    exit_task: V264-001
+    outcome: Decode bounded Git packs directly from the transport while preserving content and transport error classification.
+  - id: principal-inventory-2026-10
+    exit_task: V263-001
+    outcome: Bound Runtime Agent principal list reads regardless of the number of principals and labels.
+  - id: operations-live-2026-10
+    exit_task: V262-001
+    outcome: Keep Operations views current under frequent Runtime Agent heartbeats without starving reads or churning subscriptions.
+  - id: operations-pagination-2026-10
+    exit_task: V260-001
+    outcome: Make configuration pickers and Runtime credentials usable beyond their first 50 results.
+  - id: eval-coordinator-throughput-2026-10
+    exit_task: V259-001
+    outcome: Fill native Eval execution capacity without one-member-per-poll pacing.
+  - id: runtime-work-root-isolation-2026-10
+    exit_task: V258-001
+    outcome: Prevent one Runtime process from deleting another process's live scratch or project workspace.
+  - id: local-pki-renewal-2026-10
+    exit_task: V257-001
+    outcome: Renew expiring deployment leaves using their existing keys and warn before expiry.
+  - id: database-schema-verification-2026-10
+    exit_task: V256-001
+    outcome: Refuse to serve traffic when the PostgreSQL migration ledger does not match this binary.
+  - id: cli-reliability-2026-10
+    exit_task: V255-001
+    outcome: Retry only replay-safe public calls and preserve the request key needed after uncertain create outcomes.
+  - id: eval-controller-efficiency-2026-10
+    exit_task: V254-001
+    outcome: Keep idle paused Evals out of coordinator polls and avoid scanning retained terminal experiments.
+  - id: release-gate-test-dedup-2026-10
+    exit_task: V253-001
+    outcome: Make retained process e2e assertions reflect current catalog ordering and single-active server behavior.
+  - id: memory-query-efficiency-2026-10
+    exit_task: V252-001
+    outcome: Read a full Planner Memory notebook in one bounded Store call and avoid row locks on read-only paths.
+  - id: placement-query-cost-2026-10
+    exit_task: V251-001
+    outcome: Keep optimistic placement query cost bounded by distinct pins, labels, and credentials instead of candidate count.
+  - id: runtime-dependency-hygiene-2026-10
+    exit_task: V250-001
+    outcome: Keep the shipped Runtime dependency lock free of known vulnerabilities.
+  - id: release-gate-integration-coverage-2026-10
+    exit_task: V249-001
+    outcome: Ensure every integration-tagged regression has a reachable release-gate owner or an explicit tool-dependent exception.
+  - id: runtime-projectfs-2026-10
+    exit_task: V247-001
+    outcome: Keep local direct mutations bounded by metadata and changed paths when workspace limits permit.
+  - id: go-maintenance-2026-10
+    exit_task: V246-001
+    outcome: Keep published code and regression tests focused on behavior the server actually uses.
+  - id: eval-maintenance-2026-10
+    exit_task: V245-001
+    outcome: Keep managed Eval lifecycle, persistence, API, UI, and specification aligned with states the coordinator can actually enter.
+  - id: runtime-maintenance-2026-10
+    exit_task: V244-001
+    outcome: Keep Eval tests on the SQL paging and lifecycle paths used by the public API.
+  - id: security-maintenance-2026-10
+    exit_task: V216-001
+    outcome: Keep security-sensitive exported APIs limited to production behavior while preserving role-check tests.
+  - id: audit-maintenance-2026-10
+    exit_task: V215-001
+    outcome: Remove Audit Controller paths that have no production callers while preserving periodic reconciliation.
+  - id: configuration-maintenance-2026-10
+    exit_task: V214-001
+    outcome: Remove unused exported configuration accessors while retaining typed loader coverage.
+  - id: server-maintenance-2026-10
+    exit_task: V213-001
+    outcome: Make server tests exercise production composition and remove misleading unused helpers.
+  - id: openapi-reliability-2026-10
+    exit_task: V211-001
+    outcome: Preserve valid OpenAPI 3.0 reference objects while checking source provenance where the format permits it.
+  - id: configuration-reliability-2026-10
+    exit_task: V210-001
+    outcome: Make config validate reject configuration trees that the Server cannot start from.
+  - id: audit-round-reliability-2026-10
+    exit_task: V209-001
+    outcome: Prevent later Audit Rounds from admitting tasks that their Workflow executor cannot run.
+  - id: run-creation-reliability-2026-10
+    exit_task: V207-001
+    outcome: Let public Run creation recover from definite serialization and deadlock aborts with fresh pins.
+  - id: queue-control-consistency-2026-10
+    exit_task: V206-001
+    outcome: Keep scheduler Stage admission from changing the owner's public Queue pause control.
+  - id: audit-review-lifecycle-2026-10
+    exit_task: V205-001
+    outcome: Prevent item and report review requests from remaining pending after their Audit work closes.
+  - id: audit-provenance-truth-2026-10
+    exit_task: V204-001
+    outcome: Show every attempt of a proposal-derived verification item even when no result was accepted.
+  - id: audit-coverage-truth-2026-10
+    exit_task: V203-001
+    outcome: Keep the last collected attempt's coverage when an Audit settles an undispatched retry.
+  - id: artifact-transfer-reliability-2026-10
+    exit_task: V202-001
+    outcome: Prevent Planner Memory and finding proposal writes from losing transfer capacity after filesystem bytes are staged.
+  - id: runtime-telemetry-2026-10
+    exit_task: V201-001
+    outcome: Make model and tool count attributes on each A2A task span describe that task only.
+  - id: run-recovery-ui-2026-10
+    exit_task: V200-001
+    outcome: Keep the Run detail query refreshing until automatic recovery ends even if its status remains unchanged.
+  - id: sourcebundle-validation-2026-10
+    exit_task: V199-001
+    outcome: Treat duplicate Git index stages as one working-tree path while retaining Unicode collision detection.
+  - id: allocation-release-recovery-2026-10
+    exit_task: V197-001
+    outcome: Let terminal Stage release converge when the owning Runtime lease has expired and its HTTP release can never succeed.
+  - id: controlplane-registry-cleanup-2026-10
+    exit_task: V196-001
+    outcome: Match allocation loss reasons and tests to the current lease-expiry admission policy.
+  - id: audit-dispatch-correctness-2026-10
+    exit_task: V195-001
+    outcome: Avoid repeated submission work under a full Run window and remove definitely unpublished blob candidates.
+  - id: code-analysis-identity-2026-10
+    exit_task: V194-001
+    outcome: Prevent temporary mirror names from changing root-package symbol identities and projections.
+  - id: audit-collection-correctness-2026-10
+    exit_task: V193-001
+    outcome: Keep valid high-ordinal Audit checks collectable and resumable when more than 200 items remain unsettled.
+  - id: persistence-api-cleanup-2026-10
+    exit_task: V192-001
+    outcome: Make store API declarations and transaction ownership match production behavior.
+  - id: eval-admission-recovery-2026-10
+    exit_task: V191-001
+    outcome: Let Eval experiments drain when a configuration dependency disappears after preparation.
+  - id: audit-finding-retention-2026-10
+    exit_task: V190-001
+    outcome: Preserve every allowed child-Run finding proposal before a contract-invalid collection receipt permits Run deletion.
+  - id: planner-dispatch-cleanup-2026-10
+    exit_task: V189-001
+    outcome: Keep the Planner controller API aligned with the claim-first dispatch contract.
+  - id: planner-session-state-cleanup-2026-10
+    exit_task: V188-001
+    outcome: Stop persisting unused cumulative token counts without losing old Planner sessions.
+  - id: a2a-mtls-cleanup-2026-10
+    exit_task: V187-001
+    outcome: Ensure the production A2A invoker constructs only principal-bound transports.
+  - id: gateway-signature-parity-2026-10
+    exit_task: V186-001
+    outcome: Reject Gateway signatures at publish time whenever Runtime would reject them.
+  - id: telemetry-json-size-parity-2026-10
+    exit_task: V185-001
+    outcome: Accept Runtime reports whose compact UTF-8 JSON fits the published limits.
+  - id: code-analysis-tool-guidance-2026-10
+    exit_task: V184-001
+    outcome: Tell Workers that find_symbol resolves names rather than opaque symbol IDs.
+  - id: projectfs-dead-state-2026-10
+    exit_task: V183-001
+    outcome: Make the project workspace storage paths reflect active behavior.
+  - id: runtime-test-parity-2026-10
+    exit_task: V182-001
+    outcome: Keep security and concurrency tests aligned with the current Runtime interfaces.
+  - id: finding-collection-preparation-2026-10
+    exit_task: V181-001
+    outcome: Use authoritative create receipts and reconcile only ambiguous document writes.
+  - id: cwe-catalog-deprecation-2026-10
+    exit_task: V180-001
+    outcome: Reject retired CWE classifications before a finding proposal is stored.
+  - id: taint-symbol-resolution-2026-10
+    exit_task: V178-001
+    outcome: Give the Worker accurate structural symbol guidance and deterministic miss errors.
+  - id: git-host-key-trust-2026-10
+    exit_task: V177-001
+    outcome: Import from multi-key SSH servers when a genuine single-type host key is pinned.
+  - id: sandbox-contract-cleanup-2026-10
+    exit_task: V176-001
+    outcome: Make sandbox contracts and docs describe the wired lifecycle and reachable errors.
+  - id: runtime-server-timing-2026-10
+    exit_task: V175-001
+    outcome: Make registration response the Runtime Agent authority for heartbeat and confirmed-lease timing.
+  - id: runtime-label-errors-2026-10
+    exit_task: V174-001
+    outcome: Return HTTP errors for the resource actually missing in Runtime label mutations.
+  - id: code-analysis-headers-2026-10
+    exit_task: V173-001
+    outcome: Preserve C and C++ header symbols and graph calls with truthful coverage.
+  - id: worker-output-limit-2026-10
+    exit_task: V172-001
+    outcome: Report output-token limits consistently and never accept truncated terminal summaries.
+  - id: worker-budget-instrumentation-2026-10
+    exit_task: V171-001
+    outcome: Make Worker model error spans reflect errors those hooks can actually receive.
+  - id: audit-results-cleanup-2026-10
+    exit_task: V170-001
+    outcome: Keep only the authoritative Audit results value contracts and package builder behavior.
+  - id: planner-artifact-metadata-2026-10
+    exit_task: V169-001
+    outcome: Keep Planner artifact validation independent of blob transfer slots and full-content reads.
+  - id: review-defects-2026-10
+    exit_task: V168-001
+    outcome: Let a standby Server take over within about half a minute when the active Server host disappears without closing its lease session.
+  - id: code-analysis-symbol-names-2026-10
+    exit_task: V161-001
+    outcome: Keep anonymous arrow callbacks out of definition search and resolve initialized C/C++ declarations by identifier.
+  - id: gateway-error-body-parity-2026-10
+    exit_task: V160-001
+    outcome: Make Planner Gateway failure classification match Runtime for common OpenAI-compatible error bodies.
+  - id: worker-handle-secret-collisions-2026-10
+    exit_task: V159-001
+    outcome: Let short valid telemetry and basic-auth values coexist with fixed Agent Card strings while retaining checks for actual leaks.
+  - id: replayed-prepare-lease-2026-10
+    exit_task: V158-001
+    outcome: Let a Stage resume preparation after its original confirmed lease expires while refusing allocations whose owning Agent actually lost its lease.
+  - id: bundled-catalog-missing-blob-recovery-2026-10
+    exit_task: V103-001
+    outcome: >-
+      Missing filesystem blob bytes for existing bundled Skills and Audit
+      standards leave the Server ready while reads still report missing content.
+  - id: runtime-credential-lookup-error-classification-2026-10
+    exit_task: V102-001
+    outcome: >-
+      Missing or incompatible credentials remain configuration errors, while
+      lookup outages and recovery conditions retain retryable responses.
+  - id: private-agent-label-registration-error-2026-10
+    exit_task: V101-001
+    outcome: >-
+      Agent registration rejects labels without Worker settings as a
+      non-retryable client input error.
+  - id: openapi-yaml-and-finding-input-repair-2026-10
+    exit_task: V100-002
+    outcome: >-
+      Date-style OpenAPI YAML scalars remain strings across parsers, and
+      malformed finding references return safe, repairable input errors.
+  - id: operations-in-use-error-details-2026-10
+    exit_task: V99-001
+    outcome: >-
+      Delete conflicts show every safe Server-reported Run, Audit, Project,
+      binding, allocation and Runtime Agent reference to operators.
+  - id: ui-navigation-and-run-disclosure-reliability-2026-10
+    exit_task: V98-002
+    outcome: >-
+      Failed lazy route chunks offer an in-shell reload path and Run attempt
+      disclosure choices survive live snapshot refreshes.
+  - id: api-url-boundary-clarity-2026-10
+    exit_task: V97-002
+    outcome: >-
+      Project target URL validation stays compatible with the UI and legacy
+      invalid targets remain editable, while proxy HTTP errors retain status.
+  - id: operations-detail-fact-clarity-2026-10
+    exit_task: V96-002
+    outcome: >-
+      RuntimeConfig nested settings render with meaningful labels and offline
+      Runtime Agent timestamps describe identity changes instead of false sightings.
+  - id: sourcebundle-symlink-boundary-2026-10
+    exit_task: V95-001
+    outcome: >-
+      Source bundles reject symlinked path components and keep file reads
+      confined to the selected source root even if directories change.
+  - id: local-secret-log-and-process-boundaries-2026-10
+    exit_task: V94-002
+    outcome: >-
+      Git import logs omit private repository paths on transport failures and
+      LiteLLM launch arguments never contain master, salt or upstream token values.
+  - id: ui-outcome-corrections-2026-10
+    exit_task: V93-002
+    outcome: >-
+      Diff previews count only hunk changes and Run cancellation errors never
+      falsely claim that a still-active Run has reached a final state.
+  - id: artifact-feedback-corrections-2026-10
+    exit_task: V92-003
+    outcome: >-
+      Artifact previews summarize Katana discovery, detail headers reflect the
+      loaded revision, and uploads preserve contextual return navigation.
+  - id: confirm-destructive-setup-actions-2026-10
+    exit_task: V91-001
+    outcome: >-
+      Runtime credential, Runtime label binding and Git SSH key removal require
+      an explicit confirmation before any DELETE request is sent.
+  - id: project-section-dead-modes-2026-10
+    exit_task: V90-001
+    outcome: >-
+      Project section components expose only their routed behavior and remove
+      dead single-page layout modes, navigation and presentation fields.
+  - id: settled-eval-polling-2026-10
+    exit_task: V89-001
+    outcome: >-
+      Settled Eval detail and list views back off polling while active or
+      stale views keep prompt refresh and review invalidations still update.
+  - id: runtime-agent-page-completeness-2026-10
+    exit_task: V88-001
+    outcome: >-
+      Runtime Agent identities and label bindings load every page, so later
+      identities remain visible and their labels can be edited.
+  - id: browser-event-resync-2026-10
+    exit_task: V87-001
+    outcome: >-
+      Protocol errors close event sockets with browser-accepted codes and
+      always move subscriptions to resyncing, even if close throws.
+  - id: workflow-inventory-key-2026-10
+    exit_task: V86-001
+    outcome: >-
+      Workflow inventory uses its declared query key, completing the UI dead
+      surface cleanup from issues 264, 303 and 308.
+  - id: eval-key-value-editor-correctness-2026-10
+    exit_task: V85-001
+    outcome: >-
+      Eval parameter editors keep draft keys in stable rows, preserve existing
+      values on Add, and block saving duplicate or empty names.
+  - id: ui-api-dead-surface-2026-10
+    exit_task: V84-002
+    outcome: >-
+      Remove unused UI API/query-key exports and align event subscription
+      tests with the production unsubscribe/resubscribe ownership contract.
+  - id: shared-session-tool-call-recovery-2026-10
+    exit_task: V83-001
+    outcome: >-
+      Send well-formed OpenAI-compatible history after shared Worker invocations
+      stop with unanswered tool calls, without executing those tools.
+  - id: ui-session-recovery-2026-10
+    exit_task: V82-001
+    outcome: >-
+      Recover the UI from transient session-bootstrap failures and report
+      unversioned proxy errors without claiming API incompatibility.
+  - id: local-direct-noop-failures-2026-10
+    exit_task: V81-001
+    outcome: >-
+      Preserve local-direct workspace and Podman execution after confirmed
+      no-op filesystem failures while fencing partial or uncertain mutation.
+  - id: podman-create-failure-cleanup-2026-10
+    exit_task: V80-001
+    outcome: >-
+      Release local Podman ownership after a completed failed create and verified
+      absence, while retaining fences for ambiguous outcomes and late containers.
+  - id: audit-stage-deadline-2026-10
+    exit_task: V79-001
+    outcome: >-
+      Bound Audit completion by the Planner's Stage deadline while preserving
+      independent per-request model, tool and publication budgets.
+  - id: audit-proposal-link-validation-2026-10
+    exit_task: V78-001
+    outcome: >-
+      Reject invalid Audit finding proposal links while the Worker can repair
+      them, keeping accepted result packages importable.
+  - id: audit-assessment-mode-parity-2026-10
+    exit_task: V77-001
+    outcome: >-
+      Give Runtime trusted Audit profile mode so locally recorded assessments
+      cannot be rejected by the importer solely for a mode mismatch.
+  - id: llm-credential-reference-safety-2026-10
+    exit_task: V76-001
+    outcome: >-
+      Validate LLM credential references before RuntimeConfig publication and
+      label binding, and prevent deletion while active labels reference them.
+  - id: release-and-ui-guardrails-2026-10
+    exit_task: V75-003
+    outcome: >-
+      Require PostgreSQL for database-backed hardening gates, enforce the Eval
+      document size before saving, and remove a stale Audit stop label.
+  - id: runtime-contract-parity-2026-10
+    exit_task: V74-003
+    outcome: >-
+      Align Server and Runtime CA validation, preserve successful Worker results
+      for deep read paths, and keep Gateway failure codes stable.
+  - id: scheduler-result-and-report-correctness-2026-10
+    exit_task: V73-003
+    outcome: >-
+      Keep Planner usage on interrupted Runs and classify candidate artifact
+      failures before Stage finalization can strand or falsely fail a Run.
+  - id: eval-revision-race-recovery-2026-10
+    exit_task: V72-002
+    outcome: >-
+      Stop commands and human assessment selection use current Eval revisions
+      while retaining reviewed intent and typed decisions across conflicts.
+  - id: audit-ui-refresh-correctness-2026-10
+    exit_task: V71-003
+    outcome: >-
+      Keep pinned Coverage stable, refresh paused Audits while Runs drain, and
+      retain loaded Coverage and Run rows through background read failures.
+  - id: github-issue-remediation-2026-10-v70
+    exit_task: V70-003
+    outcome: >-
+      Drain expired telemetry, preserve artifact media types on version updates,
+      and recover stale browser CSRF tokens after another tab signs in.
+  - id: audit-findings-ui-correctness
+    exit_task: V69-001
+    outcome: >-
+      Project finding review status stays accurate with bounded per-Audit reads,
+      exact current-revision selection and safe continuation after refresh.
+  - id: github-issue-remediation-2026-10-next
+    exit_task: V68-003
+    outcome: >-
+      Keep Run deletion responsive as planner events grow, retain CWE-classified
+      Audit findings, and enforce the shared Runtime target policy in Caido tools.
+  - id: github-issue-remediation-2026-10
+    exit_task: V67-006
+    outcome: >-
+      Address the highest-impact actionable findings from the 2026-10-02 GitHub
+      issue review: scanner destination checks, source and build-context exposure,
+      the independent UI image build, and the blocked release gate.
+  - id: ui-design-review-2
+    exit_task: V66-011
+    outcome: >-
+      Plain-language copy, compact headers, demoted refresh controls, merged
+      audit coverage, one configuration hub, named Runtime Agents, bounded audit
+      collections and one create-flow pattern, verified and released to the
+      demo stand.
+  - id: run-admission-gateway-recovery
+    exit_task: V65-003
+    outcome: >-
+      Runs wait for resource admission and recover from transient model outages
+      within their existing invocations, with shared route coordination,
+      cancellation, manual retry and visible pending/waiting states.
+  - id: audit-check-prioritization
+    exit_task: V64-011
+    outcome: >-
+      The lean Audit base supports ordinary exploratory work, deterministic checklist/manual
+      hypotheses, ordinary generation from exact materials, findings and selected check results
+      including refutations/gaps, automatic per-item source links, ordinary result history separate
+      from retained Project problem findings/deduplication, Artifact publication and
+      truthful pause/recovery through real API/UI/Runtime/PostgreSQL. Replaced
+      approval/ZIP/admission machinery is removed and complexity evidence is recorded. The user
+      reviews this plan before implementation; ranking/frontier/attack-tree extensions are not base
+      conditions.
+  - id: audit-iterative-composition-2026-10
+    exit_task: V62-013
+    outcome: >-
+      Ordinary later-Round checks consume exact settled results and retained
+      dependencies through profile-owned typed routing, with real-process
+      recovery, deletion and direct-path evidence independent of V64 and pentest.
+  - id: audit-research-ranking-quality-2026-10
+    exit_task: V64-016
+    outcome: >-
+      Optional bounded model evaluation of experiment shortlists is measured
+      against deterministic selection on repeated equal-budget samples; failures,
+      overhead and no-improvement outcomes remain visible and do not block the core.
+  - id: audit-research-attack-tree-2026-10
+    exit_task: V64-017
+    outcome: >-
+      A bounded optional attack-tree reader evaluates declared AND/OR predicates
+      over compatible exact evidence, preserving unknowns and keeping analytical
+      relationships separate from execution authority and causal lineage.
+  - id: audit-research-pentest-2026-10
+    exit_task: V64-018
+    outcome: >-
+      Optional research expansion composes common hypothesis verification with
+      ordinary HTTP checks, retained evidence and reports under proposal 0050.
+      Baseline HTTP assertion checks need no dynamic generation, model ranking
+      or archived proof subsystem; both base capabilities remain independently usable.
+  - id: findings-benchmark-contracts
+    exit_task: V63-001
+    outcome: >-
+      Findings retain explicit optional file, line, line-range and web URL/method
+      locations through tools, collections, API, reports and UI; source readers can show
+      absolute line numbers on request without changing their default output.
+  - id: audit-workflow-composition
+    exit_task: V62-012
+    outcome: >-
+      First prove SQLMap request checks and Nuclei checks of pinned OpenAPI URLs
+      with truthful Audit results, then add opt-in preparation before the initial
+      worklist with existing OpenAPI Workflows and public lifecycle/provenance.
+      Iterative snapshots and routing are pending in their separate milestone;
+      standalone analysis V62-008 remains deferred.
+  - id: toolset-runtime-configuration
+    exit_task: V61-009
+    outcome: >-
+      Users select reusable typed toolset settings through existing RuntimeConfig
+      labels at Run launch. Exact shared Run configuration reaches only selected
+      allocations; MCP Streamable HTTP tools have isolated sessions, strict
+      selection, bounded lifecycle and verified UI/process integration.
+  - id: scan-tools-first-slice
+    exit_task: V55-006
+    outcome: >-
+      Optional scanner capabilities and model-free tool Workers execute simple
+      nuclei, naabu, sqlmap and ffuf Workflows with validated inputs and artifact
+      reports through the existing Server/Runtime and user upload journey.
+  - id: scan-tools-followups
+    exit_task: V55-009
+    outcome: >-
+      OpenAPI preparation supplies deterministic bounded scan plans with optional
+      LLM candidate ranking; a separate Katana adapter extends discovery.
+  - id: mvp
+    exit_task: MVP-015
+    outcome: >-
+      A local user uploads one artifact, starts one exact Workflow version, and
+      receives one frozen output after a Go Scheduler invokes one Python ADK
+      Worker over A2A. All private traffic uses mTLS.
+  - id: first-slice-hardening
+    exit_task: V1-006
+    outcome: >-
+      Cancellation, lease fencing, retry, metrics, race safety, and the first
+      model-backed Streamline Planner satisfy the v2 first-slice contracts.
+  - id: project-workflows-mvp
+    exit_task: V2-007
+    outcome: >-
+      A user can upload a bounded ZIP source tree and run the four-Stage
+      OpenAPI or LikeC4 workflow through the real Go Server and Python Runtime
+      Agent, receiving validated frozen documents and validation reports.
+  - id: project-workflows-quality
+    exit_task: V2-009
+    outcome: >-
+      The port has an opt-in live-model quality gate and explicit workflow
+      variants that reuse caller-supplied discovery reports without adding
+      implicit cross-Run cache semantics to Scheduler.
+  - id: project-workflows-operations
+    exit_task: V2-010
+    outcome: >-
+      Every Worker tool loop has explicit cumulative model, tool, and token
+      budgets and terminates with complete safe metrics before Stage retry.
+  - id: planner-routing-and-escalation
+    exit_task: V3-010
+    outcome: >-
+      Streamline and Router execute a durable bounded subtask plan through
+      deterministic Worker adapters, while Scheduler owns retry and pinned
+      execution-configuration escalation.
+  - id: server-ui-and-operations
+    exit_task: V4-011
+    outcome: >-
+      A separately deployed React UI uses the committed public API, local
+      browser sessions and a resumable WebSocket to operate Runs, inspect live
+      Planner progress and manage active LLM configuration and credentials.
+  - id: live-model-reliability
+    exit_task: V5-003
+    outcome: >-
+      Historical V5 behavior let tool-complete Workers recover from malformed
+      output, added explicit project-scale LikeC4 budgets and exposed safe
+      attempt errors. Its semantic repair-style finalizer was superseded by V13;
+      V21 later introduces a mandatory exact-copy serializer without restoring
+      model-authored recovery semantics.
+  - id: lifecycle-review-hardening
+    exit_task: V6-003
+    outcome: >-
+      Artifact revocation and concurrent writes are linearizable, terminal
+      allocation cleanup is bounded and cannot block unrelated Runs, exact Run
+      replay survives mutable dependency deletion, and volatile registry
+      history remains bounded and operationally current.
+  - id: runtime-capability-placement
+    exit_task: V7-004
+    outcome: >-
+      Runtime Agents probe and freeze environment-specific capabilities before
+      registration, Control Plane finds complete compatible Stage assignments,
+      Operations explains each positive snapshot, and a real heterogeneous
+      process test proves capacity waiting plus later execution.
+  - id: label-driven-runtime-configuration
+    exit_task: V8-016
+    outcome: >-
+      Control Plane resolves pinned default/Run labels plus durable Agent labels
+      into exact allocation-scoped LLM, OTLP and HTTP-proxy settings; complete
+      capability placement, APIs/UI, Planner telemetry, mTLS principal binding
+      and deterministic failure-path gates preserve secrets and slot reuse.
+  - id: shared-memory-tools
+    exit_task: V9-007
+    outcome: >-
+      Streamline and Router Planners coordinate with their corresponding
+      logical Workers through explicitly selected bounded Run-scoped notes over
+      the existing ArtifactStore, with hidden revisions, safe response-loss
+      reconciliation, exact routing schemas and content-free telemetry.
+  - id: runtime-otlp-delivery
+    exit_task: V51-001
+    outcome: >-
+      Runtime OTLP retries classify failures, respect Retry-After and shared
+      deadlines, and report bounded counters for discarded spans.
+  - id: unified-private-contracts
+    exit_task: V50-001
+    outcome: >-
+      Server and Runtime use one strict contractor/v1alpha1 private contract
+      with current fields, original type names and a shared schema/fixture catalog.
+  - id: operational-timeout-configuration
+    exit_task: V49-001
+    outcome: >-
+      Explicit transport, operation and lifecycle settings reach Server/Runtime
+      consumers independently and preserve enclosing and saved deadlines.
+  - id: shared-memory-production-correctness
+    exit_task: V48-004
+    outcome: >-
+      Ambiguous Artifact HTTP writes reconcile without duplicate append,
+      ordinary artifact count cannot disable Memory, empty-tag projections
+      agree across languages, and working AgentTemplates explicitly enable
+      Memory with resolved instructions and active Workflow/Profile references.
+  - id: agent-skills-mvp
+    exit_task: V10-007
+    outcome: >-
+      Bundled and owner-updated LikeC4 Skill artifacts are validated, pinned per
+      Run and loaded through native ADK progressive disclosure using only the
+      existing Artifact APIs and persistence.
+  - id: agent-skills-port-and-hardening
+    exit_task: V10-010
+    outcome: >-
+      All nine contractor-old packages are migrated with explicit compatibility
+      boundaries, and adversarial races/isolation/redaction prove that no script
+      or Skill-specific transport/persistence authority was introduced.
+  - id: run-workspaces-mvp
+    exit_task: V11-011
+    outcome: >-
+      Exact Run ZIP/state artifacts hydrate isolated local/memory workspaces;
+      selected read/Edit/change tools work in direct/overlay mode and graceful
+      overlay results export cumulative state/diff before terminal A2A.
+  - id: run-workspaces-hardening
+    exit_task: V11-012
+    outcome: >-
+      Legacy parity plus adversarial archives, paths, races, cancellation,
+      exact limits and retained-surface scans prove confinement, isolation,
+      cleanup and content-free metrics.
+  - id: http-caido-tools-mvp
+    exit_task: V12-007
+    outcome: >-
+      Bounded generic HTTP and static Caido tools execute through direct/proxied
+      and typed label-configured clients with complete placement, artifact body
+      handling, release and heterogeneous real-process coverage.
+  - id: http-caido-tools-hardening
+    exit_task: V12-008
+    outcome: >-
+      Injection, proxy-bypass, response-bomb, GraphQL, concurrency, cancellation
+      and secret-retention gates close the migrated HTTP/Caido surface.
+  - id: worker-model-boundary
+    exit_task: V13-001
+    outcome: >-
+      Worker models receive only AgentTemplate behavior and Planner task data;
+      Runtime privately and deterministically projects strict A2A results from
+      invocation-local trusted artifact observations.
+  - id: runtime-lifecycle-hardening
+    exit_task: V14-003
+    outcome: >-
+      Multi-Runtime terminal control cannot strand healthy Workers, volatile
+      process-instance retention cannot exhaust admission, and allocation
+      filesystem teardown remains deadline-bounded without blocking asyncio.
+  - id: workspace-code-analysis-mvp
+    exit_task: V15-004
+    outcome: >-
+      Local and memory Runtime Agents expose bounded Tree-sitter symbol tools,
+      while a successfully probed local Runtime additionally serves core
+      Trailmark summary/symbol/caller navigation from a killable child over the
+      exact effective workspace snapshot.
+  - id: workspace-code-analysis-port
+    exit_task: V15-008
+    outcome: >-
+      All retained read-only contractor-old code-analysis tools have bounded
+      deterministic implementations, explicit shallow/graph Workflow variants
+      and heterogeneous production-process placement, invalidation, cleanup and
+      retained-data proof.
+  - id: workspace-taint-annotations-mvp
+    exit_task: V16-002
+    outcome: >-
+      Local and memory Runtime Agents expose exact Tree-sitter-resolved
+      trace/validation/sink annotation operations with syntax-safe atomic edits,
+      explicit ambiguity and idempotent replay.
+  - id: workspace-taint-annotations-port
+    exit_task: V16-005
+    outcome: >-
+      The bundled trace Skill and a graph-aware overlay Workflow use structured
+      annotations through production process boundaries with bounded lifecycle,
+      redaction, exported artifacts and clean slot reuse.
+  - id: worker-results-and-live-state
+    exit_task: V17-007
+    outcome: >-
+      Every Worker returns a strict semantic result correlated to its subtask;
+      Runtime attaches deterministic observations and exact artifacts, while
+      explicit Planner tools inspect only safe live State projections through
+      the private Runtime endpoint.
+  - id: terminal-worker-summarization
+    exit_task: V18-003
+    outcome: >-
+      An AgentTemplate may opt into one bounded tool-free terminal summarizer at
+      a deterministic soft-token boundary without changing disabled behavior,
+      trusted observations/artifacts, lifecycle ownership or slot cleanup.
+  - id: worker-session-modes
+    exit_task: V19-001
+    outcome: >-
+      Every Stage pins isolated-by-default or explicit shared Worker-session
+      semantics into its allocations, with conversation isolation, bounded
+      allocation-local State handoff and cancellation-safe cleanup.
+  - id: run-metadata-labels
+    exit_task: V20-006
+    outcome: >-
+      Every WorkflowRun may carry immutable queryable metadata labels that
+      correlate eval groups and A/B legs across public API, UI and
+      Planner/Worker traces without affecting execution or RuntimeConfig
+      selection.
+  - id: adk-worker-result-finalizer
+    exit_task: V21-001
+    outcome: >-
+      Every ordinary adk@1 Worker separates tool execution from one exact-copy
+      tool-free structured-output call, eliminating backend-dependent
+      tools-plus-schema grammar failures without changing result ownership.
+  - id: workflow-catalog-consolidation
+    exit_task: V22-003
+    outcome: >-
+      OpenAPI domain tools validate the same project workspace exposed to the
+      Worker, LikeC4 retains a workspace-backed Streamline option, and the
+      default catalog contains current user workflows rather than historical
+      implementation versions or process-only fixtures.
+  - id: openapi-workflow-variants
+    exit_task: V44-002
+    outcome: >-
+      The OpenAPI catalog exposes an explicitly limited graph comparison profile
+      and a workspace-backed Streamline variant, preserving existing finding
+      production, source/evidence contracts and the separate quality-eval boundary.
+  - id: project-workspaces-mvp
+    exit_task: V23-007
+    outcome: >-
+      A user creates a Project, uploads arbitrary reusable artifacts, receives
+      deterministic compatible-Workflow recommendations and launches an
+      ordinary exact-input WorkflowRun whose successful outputs return to the
+      Project without silent overwrite.
+  - id: project-workspaces-operations
+    exit_task: V23-011
+    outcome: >-
+      Global Queue, separate Evals and Skills views, allocation-only Project
+      target credentials and production-process recovery/security tests make
+      Project organization releasable without changing standalone execution.
+  - id: workspace-lifecycle-controls
+    exit_task: V24-006
+    outcome: >-
+      One Runs surface provides Queue/Completed views and durable owner pause,
+      terminal Runs can be safely hard-deleted, Projects can be durably
+      cancelled and purged, and the general Artifact library excludes Skills
+      while reusing the Project file-drop interaction.
+  - id: local-direct-disk-authority
+    exit_task: V30-004
+    outcome: >-
+      Local direct workspaces use disk as the source of truth, expose completed
+      external changes through filesystem and analysis tools, and preserve
+      bounded rooted access and operation ownership through cancellation.
+      Memory and overlay behavior remains unchanged.
+  - id: podman-allocation-execution
+    exit_task: V31-008
+    outcome: >-
+      An opt-in local Runtime owns one verified rootless Podman container per
+      allocation with a shared local direct workspace, explicit bounded command
+      tools, independent liveness enforcement and container-before-files cleanup.
+      Real process/resource/crash gates precede feature completion.
+  - id: postgres-reliability-and-query-efficiency
+    exit_task: V29-007
+    outcome: >-
+      Transaction-bound credential reads, shared configuration pinning,
+      concurrent Artifact collection, selective SQL access, batched Run detail,
+      typed transaction recovery and bounded waits address the PostgreSQL
+      findings verified on the demo instance.
+  - id: implementation-maintainability
+    exit_task: V28-004
+    outcome: >-
+      Scheduler execution preparation, Worker invocation ownership and Project
+      UI operations have focused implementation boundaries; safe public error
+      diagnostics preserve existing contracts and make failures diagnosable.
+  - id: workflow-scheduler-concurrency
+    exit_task: V27-005
+    outcome: >-
+      Operations owns one durable global WorkflowRun concurrency limit;
+      Scheduler dynamically drains/resizes bounded lanes across every ordinary
+      Run source while Runtime capacity, owner Queue Pause and safety cleanup
+      retain their separate authority.
+  - id: audits-mvp
+    exit_task: V25-009
+    outcome: >-
+      A Project owner selects exact baseline artifacts, starts a deterministic
+      checklist or OpenAPI Audit, observes bounded ordinary child Runs and
+      receives retained truthful coverage/report data through the independent UI.
+  - id: audits-iterative
+    exit_task: V25-011
+    outcome: >-
+      Explicit Workers can durably propose findings while authenticated exact
+      review and immutable bounded rounds turn accepted hypotheses into later
+      checks without granting models scheduling or approval authority.
+  - id: audits-hardening
+    exit_task: V25-012
+    outcome: >-
+      PostgreSQL/mTLS/browser fault gates prove idempotent multi-Controller
+      recovery, isolation, retention, lifecycle cleanup and non-certifying
+      security reporting without regressing ordinary execution.
+  - id: audit-program-library
+    exit_task: V26-005
+    outcome: >-
+      Exact license-aware standard packages and curated Top 10 2025/ASVS 5.0
+      programs provide reproducible mappings, evidence contracts, denominators
+      and non-certifying reports through production Audit paths.
+  - id: audit-batch-efficiency
+    exit_task: V26-006
+    outcome: >-
+      Small compatible Audit item sets may share one ordinary Run while each
+      logical item retains independent identity, attempts, evidence, authority,
+      coverage and whole-batch recovery semantics.
+
+  - id: operations-performance-and-profiling
+    exit_task: V32-008
+    outcome: >-
+      Operations shows bounded Server/PostgreSQL performance history and final
+      allocation resource summaries, with startup opt-out, independent loopback
+      Go profiling and measured enabled/disabled overhead.
+
+  - id: catalog-and-agent-prompts
+    exit_task: V33-001
+    outcome: >-
+      Catalog groups Workflows, Agents and Skills, with exact-version base
+      instruction viewing, safe Markdown/source/copy and compatible legacy links.
+
+  - id: artifact-blob-backends
+    exit_task: V34-005
+    outcome: >-
+      Server startup selects PostgreSQL or filesystem payloads while exact Artifact
+      metadata stays in PostgreSQL. Kubernetes without PVC is supported; ephemeral
+      filesystem loss and offline orphan cleanup are explicit. S3 remains deferred.
+
+  - id: git-artifact-import
+    exit_task: V35-005
+    outcome: >-
+      An owner configures one encrypted SSH key and imports a bounded repository
+      snapshot into an ordinary User/Project Artifact. Workflow inputs pin exact
+      revisions with immutable commit provenance; Server import needs no PVC.
+
+  - id: ui-journey-usability
+    exit_task: V37-012
+    outcome: >-
+      Users can retain Run drafts, review input suggestions, find exact Catalog
+      definitions, open primary outputs, prepare repeats and act on Audit or
+      Operations context through accessible desktop and mobile flows.
+
+  - id: evals-experience-design
+    exit_task: V38-001
+    outcome: >-
+      Experiment setup and bounded, truthful comparison have an explicit product
+      and API contract with implementation tasks; this milestone delivers the
+      design and decomposition, not the Evals implementation.
+
+  - id: managed-evals-ui
+    exit_task: V38-010
+    outcome: >-
+      Native browser setup, launch, review and paired comparison work without
+      Playground. Independent producers use the same public dataset, submission
+      and assessment API with explicit dispatch ownership and attributed results.
+
+  - id: audit-worker-completion
+    exit_task: V39-007
+    outcome: >-
+      Explicitly opted-in Audit check Workers submit results incrementally;
+      one common completion boundary enforces complete validated collection and
+      publishes a deterministic ZIP without an LLM serializer. Ordinary and
+      legacy workflows remain unchanged, and real importer/fault tests verify
+      authority, bounded continuation, publication and cancellation.
+
+  - id: agent-instruction-evaluation
+    exit_task: V40-003
+    outcome: >-
+      Grounded positive/negative fixtures, isolated paired instruction variants,
+      and bounded live evidence support per-family quality/cost decisions before
+      any default-catalog rollout. Compatibility alone is not a quality gate.
+
+  - id: portable-eval-format
+    exit_task: V41-008
+    outcome: >-
+      Versioned portable playground documents, v1 compatibility, provider adapters,
+      frozen experiment recovery, scoring/comparison and safe server publication
+      pass offline conformance before any instruction quality evaluation starts.
+
+  - id: findings-tools
+    exit_task: V43-005
+    outcome: >-
+      Independently selected finding/list_findings tools connect producers and
+      reusable analysts through exact collections from existing Run/Audit records.
+      Offline integration verifies provenance, bounded reading and review semantics
+      without mandatory annotations, OpenAPI subjects or hypothesis verification.
+
+  - id: model-policy-runtime-correctness
+    exit_task: V47-006
+    outcome: >-
+      Planner requests honor pinned temperature, Worker completion preserves
+      gateway retryability, and terminal summaries use configurable bounded
+      instructions. Implicit byte-based context admission is removed; future
+      compactification must be a separate explicit strategy.

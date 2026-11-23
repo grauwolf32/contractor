@@ -1,0 +1,132 @@
+schema_version: "1.0"
+id: V61-009
+title: Verify configured toolsets and MCP across Run, Runtime and browser boundaries
+milestone: toolset-runtime-configuration
+epic: runtime-config
+kind: feature
+priority: P1
+status: deferred
+deferral:
+  date: "2026-10-11"
+  previous_status: pending
+  reason: >-
+    Implemented and verified on 2026-09-20 on branch
+    feat/v61-toolset-runtime-configuration but never merged; main has since
+    moved about 1,700 commits (contract package split, credential table
+    folds, V3B UI, layer checks). V62 and V64 do not depend on it, so the
+    port is postponed instead of resolving 35 conflicts now.
+  reactivate_when: >-
+    Explicit user decision that external MCP tools are needed (for example
+    for autonomous pentest Audits, proposal 0033); then port the branch onto main
+    rather than reimplementing, renumber its migration and rerun the V61-009
+    release gate.
+  branch_commit: "caaca07543d3ef15db679a44ad250069f2815acf"
+implementation_commit: null
+depends_on: [V61-006, V61-008]
+languages: [go, python, typescript, yaml, markdown]
+goal: >-
+  Prove the complete reusable-connection journey and failure matrix through
+  production boundaries with isolated infrastructure and no paid model service.
+context:
+  authority: User requested a complete task specification for the agreed Run-scoped toolset/MCP feature, including verification.
+  design: docs/plans/2026-09-19-toolset-runtime-configuration.md
+  specification:
+    - docs/spec/configuration/agent-templates.md
+    - docs/spec/execution/control-plane.md
+    - docs/spec/configuration/runtime-config.md
+    - docs/spec/audits/audits.md
+    - docs/spec/ui/journeys.md
+  acceptance: >-
+    Use real Server/PostgreSQL/Scheduler/private allocation/Runtime/ADK boundaries,
+    a controlled local Streamable HTTP server and scripted model responses.
+    Browser creation/selection must call production APIs. No external MCP,
+    live-provider benchmark, production Run or deployment is authorized by this task.
+  revalidated: >-
+    2026-10-24 on b523ae77: still deferred, not superseded; main has no MCP or generic
+    worker.toolsets code or specification. The work remains on the unmerged branch
+    origin/feat/v61-toolset-runtime-configuration (head f6dfd6ed16240574ed3565bc6460f737fd072b49,
+    merge base c41a5989, 18 commits). Main is now 2,850 commits past that merge base and git
+    merge-tree reports 75 conflicting paths (35 at deferral), including modify/delete conflicts on
+    files main removed: docs/spec/01-agent-template.md, 02-runtime-and-a2a.md,
+    06-server-ui-and-operations.md, 07-runtime-labels-and-infrastructure-config.md, 19-audits.md,
+    29-tool-workers.md and ui-user-stories.md (retired for the domain documents by af85cc54),
+    internal/config/descriptors.go (now internal/config/resolved/descriptors.go, c8cbf2e1),
+    internal/contracts/agent.go (now internal/contracts/control/agent.go, ToolsetCapability at line
+    26, 6d277c5c), internal/runtimeconfig/principal.go (Agent principal labels now in
+    internal/agentprincipal, 3ecd3f2f) and
+    api/descriptor-parity/toolset-infrastructure-channels.yaml (replaced by
+    api/testdata/toolset-descriptors.json under TLS-R38, 35f59294). The example in reactivate_when
+    no longer applies: proposal 0033 section 14 says V61 MCP configuration is not a prerequisite of
+    the V411 HTTP/API pentest delivery, its section 4.3 keeps MCP tools out of the controlled-proof
+    path without their own gate, and V411-001 explicitly excludes V61 reactivation, so reactivation
+    needs a user decision that names a concrete MCP consumer. Task-specific: the Makefile was split
+    into make/*.mk (the root Makefile is now 55 lines), so the branch's release target must move
+    into the matching make/*.mk file; scripts/check_release_verify_graph.py requires every e2e test
+    to run in release-verify or carry an allowlist reason; tests/e2e/e2e_test.go conflicts; the
+    branch's tasks/evidence/v61-009.json describes its 2026-09-20 revision only and is not evidence
+    for main.
+scope:
+  in:
+    - Add isolated catalogs and fixtures for two agents sharing mcp@1 config with different tools plus a native-only consumer.
+    - Exercise actual publish/bind/Run-create, placement, session initialization, calls, completion, report/provenance and confirmed release.
+    - Verify changed default/binding behavior for late stages, replacement allocations, exact request replay and reviewed Repeat with a new Run.
+    - Exercise mandatory protocol/lifecycle/credential/reference faults and native/model-free/Audit-admission regressions across component boundaries.
+    - Add real-browser connection creation/selection, mixed-profile/conflict display, partial-publication recovery and changed-binding review.
+    - Document usage, supported auth/schema/content/transport boundaries, capability diagnostics and server-first rollout/rollback constraints.
+    - Provide one release target that checks prerequisites and mandatory-case execution with durable truthful verification evidence.
+  out:
+    - Deploy services, mutate existing immutable published configurations, run user Audits or treat fixture results as live-model quality evidence.
+deliverables:
+  - path: Makefile
+    description: New test-toolset-runtime-configuration-release target covering required persistence/process/browser cases and regressions.
+  - path: scripts/test-toolset-runtime-configuration-release.py
+    description: New bounded release orchestrator that fails on absent prerequisites, missing selected cases or skipped mandatory cases.
+  - path: tests/e2e/toolset_runtime_configuration_test.go
+    description: New real process/DB/Scheduler/MCP integration scenarios and injected failures.
+  - path: tests/e2e/testdata
+    description: Isolated versioned MCP/native workflow catalog and scripted-model/local-server fixtures.
+  - path: ui
+    description: Browser journey fixtures using real public endpoints and exact mutation recovery checks.
+  - path: docs/guides
+    description: User connection/configuration launch guide with validated short YAML examples.
+  - path: docs/operations
+    description: Capability, credentials, connection errors, lifecycle and mixed-fleet rollout/rollback reference.
+  - path: tasks/evidence/v61-009.json
+    description: Create only during implementation verification; record actual commands/cases, prerequisites and residual limits.
+requirements:
+  - id: R1
+    text: Prove common non-secret Run settings and separate session IDs for two allocations, exact per-agent allowlists and absence of MCP settings/secrets on the native-only allocation.
+  - id: R2
+    text: A changed binding cannot alter existing Run late-stage/replacement settings; replay returns its original Run and Repeat reviews and pins a newly selected current version.
+  - id: R3
+    text: Mandatory faults include missing config, equal/conflicting profiles, wrong credential kind, missing capability/tool, pagination, bad/oversized schema/content, auth/proxy/TLS failure and accepted-call response loss.
+  - id: R4
+    text: Preparation/call cancellation, lease loss, failed prepare, concurrent close and cleanup deadline expiry assert actual owner/task/socket accounting and truthful release/fencing.
+  - id: R5
+    text: Credential deletion/rebind races, Run/Audit holds, public/log/metrics redaction, native/tool@1 compatibility and unknown-effect Audit rejection execute as mandatory cases.
+  - id: R6
+    text: Release target fails if database, runtime dependencies, local MCP fixture or browser are absent, or a mandatory case is not selected/skips; ordinary unit success is insufficient.
+acceptance_criteria:
+  - id: A1
+    text: Real ordinary Runs execute the shared-config/two-session/three-consumer fixture, expose only selected tools and end with confirmed cleanup and valid existing completion semantics.
+  - id: A2
+    text: Persistence/restart/binding/replay/Repeat tests prove immutable Run configuration and credential references across late stages and allocation replacement.
+  - id: A3
+    text: Every required protocol/lifecycle fault produces bounded truthful errors with no automatic duplicate operation, leaked local resources, plaintext exposure or false cleanup success.
+  - id: A4
+    text: A browser user creates and reuses a connection, resolves a conflict, recovers partial publication and reviews changed Repeat bindings against real APIs.
+  - id: A5
+    text: Native/model-free/static-fleet/Audit regressions and generated wire/public contracts pass; the release gate proves mandatory cases ran and records honest evidence plus supported limits.
+tests:
+  - command: make test-toolset-runtime-configuration-release
+    covers: [A1, A2, A3, A4, A5]
+  - command: make test-wire-cross-language verify-public-api test-config
+    covers: [A1, A5]
+  - command: make ui-generate-check ui-typecheck ui-test ui-build
+    covers: [A4, A5]
+test_prerequisites:
+  - Disposable isolated PostgreSQL via CONTRACTOR_TEST_DATABASE_URL, compatible locked Runtime dependencies and controlled localhost MCP fixture.
+  - Local browser/runtime/server build prerequisites, mTLS fixture identities and scripted model; no external service credential is required.
+verification_requirements:
+  - Record executed mandatory case counts and zero mandatory skips, real component boundaries, browser evidence, exact SDK version and cleanup/secret assertions.
+  - Keep status pending/in_progress until all criteria and commands pass; do not fill implementation_commit or verification evidence with planning-only work.

@@ -1,0 +1,75 @@
+schema_version: "1.0"
+id: V367-008
+title: "Check StageResult bounds once in StageContentResult.Validate"
+milestone: hub-audit-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V60-026
+priority: P2
+status: completed
+implementation_commit: fb78a67348bafbcf05c6836d80512f68551b777a
+depends_on: []
+languages: [go]
+goal: "A StageResult the Planner accepts is never rejected by the Scheduler for its size, because both use one size rule."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq), contracts G2 / F1"
+  specification:
+    - docs/spec/execution/planners.md
+    - docs/spec/platform/limits.md
+  finding: >-
+    planner/result.go:24-26 measures with contracts.ResultJSONSize (no HTML
+    escaping); scheduler/stage_finalization.go:84-86 measures with
+    json.Marshal, where < > & take 6 bytes. A summary of 65,536 '<' passes the
+    Planner (65,622 bytes) and fails the Scheduler (393,302 > 262,144), which
+    aborts the Stage with result_contract_violation, Retryable:false, after
+    the Worker spent its budget. StageContentResult.Validate
+    (contracts/stage_content.go:83-114) checks neither size nor nil
+    artifacts, so runstore/stage_store.go:365-370 normalizeStageResult
+    patches nil. V60-026 scoped "mapped StageResult boundaries" and missed
+    this path.
+  siblings: >-
+    Every Go comparison of a contract byte limit with an encoded length was
+    checked. Fixed: StageContentRequest had the same split (json.Marshal in
+    planner/passthrough.go:318 and planner/streamline/tools.go:423,
+    canonical JSON in planner/scan/run.go:245), so its 256 KiB bound moved
+    into StageContentRequest.Validate, measured like the Runtime
+    (model_dump_json, compact UTF-8); planner/stateview/service.go:562
+    compared json.Marshal with MaxAgentStateSnapshotBytes and now relies on
+    AgentStateSnapshot.Validate inside DecodeStrict. Already consistent:
+    WorkerCompletion.Validate and streamline validateWorkerResult use
+    ResultJSONSize; the Planner session store bounds its own 2 MiB document
+    with one internal encoder on write and read. Not on the wire: Python
+    StageContentResult has no producer and no size checks; the public
+    OpenAPI bounds summary in characters and artifacts by count, which every
+    candidate the Go bytes rule accepts satisfies.
+  decision: >-
+    Scope widened in two places, both forced by the second scope item. The
+    check that forbids comparing json.Marshal output with a contracts
+    Max*Bytes constant also flagged the StageContentRequest and Worker State
+    clone comparisons, so they were fixed instead of allowlisted, and WRK-R37
+    and LIM-WRK-9 now name StageContentRequest. The check is a Go source
+    test (internal/contracts/result_limits_rule_test.go, following
+    internal/persistence/sql_placement_test.go) rather than a make lint
+    script: it parses every production file under cmd, internal and tools,
+    runs in the listed go test command and make test-go, and has a
+    synthetic case proving it reports violations. No migration was needed:
+    contractor_valid_stage_result already requires an artifacts object. Open
+    and outside this class: reporting.marshalAgentStateJSON disables HTML
+    escaping but still counts U+2028/U+2029 as six bytes while the Runtime
+    counts three, so Worker State bounds can still differ at the margin.
+scope:
+  in:
+    - "StageContentResult.Validate checks nil artifacts, summary bytes, artifact count and ResultJSONSize; planner and scheduler call it and their own size checks are removed; normalizeStageResult is removed."
+    - "A lint or test that forbids comparing json.Marshal output with contracts.Max*Bytes."
+  out:
+    - "The limits themselves."
+acceptance_criteria:
+  - id: A1
+    text: "A StageResult with a 65,536-character '<' summary gets the same verdict from planner and scheduler paths."
+  - id: A2
+    text: "A StageResult without artifacts is rejected by Validate rather than patched by runstore."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/contracts ./internal/planner/... ./internal/scheduler ./internal/runstore"
+    covers: [A1, A2]

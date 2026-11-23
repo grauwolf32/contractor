@@ -1,0 +1,19 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: sitemap-reader, version: "1"}
+spec:
+  description: Verify authorized sitemap operations through production processes.
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  sitemap:
+    version: sitemap-access@1
+    collectObservations: false
+  toolsets:
+    - ref: sitemap@1
+      tools: [list_sitemap_entries]
+  execution:
+    tool: list_sitemap_entries
+    arguments:
+      limit: {source: literal, value: 100}
+    resultArtifact: report
+    timeoutSeconds: 30

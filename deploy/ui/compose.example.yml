@@ -1,0 +1,25 @@
+services:
+  contractor-ui:
+    build:
+      context: ../..
+      dockerfile: deploy/ui/Containerfile
+    environment:
+      CONTRACTOR_UI_API_BASE_URL: ${CONTRACTOR_UI_API_BASE_URL:?set an absolute Server origin}
+    ports:
+      - "127.0.0.1:4173:4173"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:4173/healthz').then(r=>{if(!r.ok)throw Error(r.status)})
+      interval: 10s
+      timeout: 3s
+      retries: 3

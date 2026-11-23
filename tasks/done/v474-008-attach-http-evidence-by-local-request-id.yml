@@ -1,0 +1,82 @@
+schema_version: '1.0'
+id: V474-008
+title: Attach stored HTTP exchanges by their local request identifier
+milestone: http-finding-evidence-2026-10
+epic: findings
+kind: feature
+priority: P1
+status: completed
+depends_on: []
+languages: [python, yaml, markdown]
+goal: A Worker passes a local request_id to finding or record_fact and Runtime attaches the actual stored request and available response.
+demonstration: >-
+  Obtain a local ID from an authorized history response without invoking a detail tool.
+  Submit one fact with that ID. Inspect the immutable evidence artifact and the provider call log.
+  Verify that Runtime read the selected stored exchange and sent no request to the target.
+context:
+  authority: >-
+    User clarification and review 2026-11-21 identify request_id as Contractor-local and question
+    requiring model inspection before evidence selection. The subsequent implementation request
+    includes this reviewed simplification. Runtime owns byte retrieval and attachment.
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R72
+  - docs/spec/tools/http-caido.md#HTP-R73
+  - docs/spec/tools/http-caido.md#HTP-R89
+  - docs/spec/findings/findings.md#FND-R43
+  - docs/spec/findings/findings.md#FND-R46
+  boundary: >-
+    The allocation capture owner resolves IDs. Its existing provider adapter alone reads a stored
+    exchange when only a history locator is retained. The shared Finding publisher selects the
+    resolved capture. Server retains its normalized validation, atomic publication and receipts.
+    A local ID grants only the access already available to the allocation.
+scope:
+  in:
+  - Resolve retained captures directly and authorized history locators through the existing read adapter.
+  - Remove the separate model inspection precondition from finding and record_fact descriptions, owning specs and current instructions. Publish new instruction/template identities where content changes.
+  - Cover both general and HTTP finding facades and record_fact through the shared publisher.
+  out:
+  - Changes to Audit observation eligibility, HTTP body readers, target requests, replay or provider mutation operations.
+requirements:
+- id: R1
+  text: The model supplies only the existing local request_id for attachment. Provider IDs and translation stay private. Reuse exact buffered bytes whenever available.
+- id: R2
+  text: >-
+    A stored read respects allocation access, existing read deadlines and capture bounds. Missing or
+    incomplete responses retain their explicit outcome. Preserve original observation/provenance data.
+    Unknown, expired, unauthorized and unresolved IDs fail explicitly before Finding submission.
+failure_outcomes:
+- operation: Resolve and attach one stored exchange
+  permanent: Invalid or unavailable source is a bounded model-visible source error before Finding publication. A stored read never falls back to sending the target request.
+  retryable: Existing provider read and Artifact publication classifications and budgets apply.
+  ambiguous: Reuse existing Finding receipt reconciliation and selected immutable evidence.
+  cancelled: Join provider read/capture work before allocation disposal and publish no late result.
+  timeout: Existing invocation and adapter read deadlines own the respective operations.
+cardinality:
+- collection: One selected exchange in the allocation capture buffer
+  bound: Preserve the existing 128 locators, 128 captures, 64 MiB capture budget and bounded provider Blob reads. Fetch one selected ID.
+lifecycle:
+- entity: Selected HTTP evidence
+  retention: Ordinary immutable Artifact retention and Finding receipt lifecycle. Unselected captures remain allocation-owned.
+acceptance_criteria:
+- id: A1
+  text: A buffered ID attaches its exact request and response without a provider read. A history-only ID attaches after one authorized stored read without a model detail call or target traffic.
+- id: A2
+  text: Unknown, evicted, unauthorized and unavailable IDs create no Finding. Missing or incomplete responses save truthful outcomes. Provider identity never becomes a model argument.
+- id: A3
+  text: Cover both finding facades, record_fact, cancellation, receipt replay, bounded capture eviction and unchanged Audit/body-read eligibility through their real entry points.
+tests:
+- command: make test-runtime
+  covers: [A1, A2, A3]
+- command: make test-config
+  covers: [A1, A3]
+- command: make lint
+  covers: [A3]
+- command: go test -tags=e2e -count=1 -timeout=10m ./tests/e2e -run '^(TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses)$'
+  covers: [A1, A2, A3]
+implementation_commit: db90dcfedeb568e4b80ac6834b45af60c18ce8f2
+verification: >-
+  Full make test-runtime passes with 6399 tests and 135 declared skips; both report verifiers pass.
+  make test-config and make lint pass. Both named HTTP/Caido process scenarios pass against the owned
+  PostgreSQL database. The scripted model selects an ID directly from history. The stored Artifact
+  preserves exact request bytes and response_unavailable, provider logs show one stored read, and the
+  target/proxy call counts remain unchanged. Audit ownership, failure and cancellation regressions pass.

@@ -1,0 +1,43 @@
+schema_version: "1.0"
+id: V372-002
+title: "Send a valid private list query in the foreign Runtime Agent process test"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: defect
+introduced_by: V367-010
+priority: P1
+status: completed
+implementation_commit: "ff86e570f157dd6472c2994b8fd31d8826341172"
+depends_on: []
+languages: [go]
+goal: "The foreign Runtime Agent check sends a request the private Artifact API accepts, so the 404 it requires comes from the allocation identity check."
+context:
+  review: "CI run 38177979932 of PR grauwolf32/contractor#544 (head 81cacf9), job release-verify-process-b"
+  severity: medium
+  finding: >-
+    tests/e2e/runtime_labels_test.go:532 (assertForeignAgentCannotBorrowAllocation)
+    lists /private/v1/allocations/{id}/artifacts without a query string under
+    another Runtime Agent's mTLS identity and requires 404. V367-010 (9cd58b8,
+    already on main) made `limit` required on every private list
+    (ART-R47, LIM-ART-3), and internal/httpapi/privateartifacts/artifact_handlers.go:27
+    validates the query before it resolves the allocation, so the request is
+    rejected as 400 invalid_request before the identity check the test is
+    about. Only release-verify-process-b runs this test, so the change did not
+    notice it. Answering a malformed query with 400 before the lookup
+    discloses nothing about the allocation, so the handler stays as it is.
+  siblings: >-
+    No other process or browser test calls the private list: the other list
+    calls in tests/e2e and tests/ui-stack use the public /v1 Artifact routes.
+scope:
+  in:
+    - "Send limit=1 in the foreign Runtime Agent request so the identity check decides it."
+  out:
+    - "The order of query validation and allocation lookup in the private handler."
+acceptance_criteria:
+  - id: A1
+    text: "Given an active allocation, when another Runtime Agent lists its Artifacts with a valid query, then the private API answers the non-disclosing 404 and the process test passes."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=e2e -count=1 ./tests/e2e -run '^TestLabelDrivenRuntimeConfigurationAcrossProcesses$'"
+    covers: [A1]
+  - command: make lint
+    covers: [A1]

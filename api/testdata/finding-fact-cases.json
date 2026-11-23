@@ -1,0 +1,221 @@
+{
+  "maxEvidence": 4,
+  "maxAuthoredBytes": 32768,
+  "severities": [
+    "informational",
+    "low",
+    "medium",
+    "high",
+    "critical"
+  ],
+  "views": [
+    {
+      "name": "None--None",
+      "state": null,
+      "analystVerdict": null,
+      "analystSeverity": null,
+      "severitySuggestion": "",
+      "severity": "",
+      "needsReview": true
+    },
+    {
+      "name": "None-informational-None",
+      "state": null,
+      "analystVerdict": null,
+      "analystSeverity": null,
+      "severitySuggestion": "informational",
+      "severity": "informational",
+      "needsReview": false
+    },
+    {
+      "name": "None-low-None",
+      "state": null,
+      "analystVerdict": null,
+      "analystSeverity": null,
+      "severitySuggestion": "low",
+      "severity": "low",
+      "needsReview": true
+    },
+    {
+      "name": "proposed--None",
+      "state": "proposed",
+      "analystVerdict": "reopen",
+      "analystSeverity": null,
+      "severitySuggestion": "",
+      "severity": "",
+      "needsReview": true
+    },
+    {
+      "name": "proposed-informational-None",
+      "state": "proposed",
+      "analystVerdict": "reopen",
+      "analystSeverity": null,
+      "severitySuggestion": "informational",
+      "severity": "informational",
+      "needsReview": false
+    },
+    {
+      "name": "proposed-low-None",
+      "state": "proposed",
+      "analystVerdict": "reopen",
+      "analystSeverity": null,
+      "severitySuggestion": "low",
+      "severity": "low",
+      "needsReview": true
+    },
+    {
+      "name": "confirmed--None",
+      "state": "confirmed",
+      "analystVerdict": "true_positive",
+      "analystSeverity": null,
+      "severitySuggestion": "",
+      "severity": "",
+      "needsReview": false
+    },
+    {
+      "name": "confirmed--informational",
+      "state": "confirmed",
+      "analystVerdict": "true_positive",
+      "analystSeverity": "informational",
+      "severitySuggestion": "",
+      "severity": "informational",
+      "needsReview": false
+    },
+    {
+      "name": "confirmed--high",
+      "state": "confirmed",
+      "analystVerdict": "true_positive",
+      "analystSeverity": "high",
+      "severitySuggestion": "",
+      "severity": "high",
+      "needsReview": false
+    },
+    {
+      "name": "confirmed-informational-None",
+      "state": "confirmed",
+      "analystVerdict": "true_positive",
+      "analystSeverity": null,
+      "severitySuggestion": "informational",
+      "severity": "informational",
+      "needsReview": false
+    },
+    {
+      "name": "confirmed-informational-informational",
+      "state": "confirmed",
+      "analystVerdict": "true_positive",
+      "analystSeverity": "informational",
+      "severitySuggestion": "informational",
+      "severity": "informational",
+      "needsReview": false
+    },
+    {
+      "name": "confirmed-informational-high",
+      "state": "confirmed",
+      "analystVerdict": "true_positive",
+      "analystSeverity": "high",
+      "severitySuggestion": "informational",
+      "severity": "high",
+      "needsReview": false
+    },
+    {
+      "name": "confirmed-low-None",
+      "state": "confirmed",
+      "analystVerdict": "true_positive",
+      "analystSeverity": null,
+      "severitySuggestion": "low",
+      "severity": "low",
+      "needsReview": false
+    },
+    {
+      "name": "confirmed-low-informational",
+      "state": "confirmed",
+      "analystVerdict": "true_positive",
+      "analystSeverity": "informational",
+      "severitySuggestion": "low",
+      "severity": "informational",
+      "needsReview": false
+    },
+    {
+      "name": "confirmed-low-high",
+      "state": "confirmed",
+      "analystVerdict": "true_positive",
+      "analystSeverity": "high",
+      "severitySuggestion": "low",
+      "severity": "high",
+      "needsReview": false
+    },
+    {
+      "name": "rejected--None",
+      "state": "rejected",
+      "analystVerdict": "false_positive",
+      "analystSeverity": null,
+      "severitySuggestion": "",
+      "severity": "",
+      "needsReview": false
+    },
+    {
+      "name": "rejected-informational-None",
+      "state": "rejected",
+      "analystVerdict": "false_positive",
+      "analystSeverity": null,
+      "severitySuggestion": "informational",
+      "severity": "informational",
+      "needsReview": false
+    },
+    {
+      "name": "rejected-low-None",
+      "state": "rejected",
+      "analystVerdict": "false_positive",
+      "analystSeverity": null,
+      "severitySuggestion": "low",
+      "severity": "low",
+      "needsReview": false
+    }
+  ],
+  "payloads": [
+    {
+      "name": "empty",
+      "sources": 0,
+      "textBytes": 12,
+      "valid": false
+    },
+    {
+      "name": "one",
+      "sources": 1,
+      "textBytes": 12,
+      "valid": true
+    },
+    {
+      "name": "four",
+      "sources": 4,
+      "textBytes": 12,
+      "valid": true
+    },
+    {
+      "name": "five",
+      "sources": 5,
+      "textBytes": 12,
+      "valid": false
+    },
+    {
+      "name": "large",
+      "sources": 1,
+      "textBytes": 32768,
+      "valid": false
+    },
+    {
+      "name": "authored-at-bound",
+      "sources": 1,
+      "textBytes": 1,
+      "authoredBytes": 32768,
+      "valid": true
+    },
+    {
+      "name": "authored-over-bound",
+      "sources": 1,
+      "textBytes": 1,
+      "authoredBytes": 32769,
+      "valid": false
+    }
+  ]
+}

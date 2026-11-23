@@ -1,0 +1,1711 @@
+import { act, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import type {
+  RuntimeAgentPrincipal,
+  RuntimeConfigAuthorDocument,
+  RuntimeConfigResource,
+} from "../../api/operations";
+import { createApplicationQueryClient } from "../../app/query-client";
+import { FakeEventSocket, renderApplication } from "../../test/application";
+import { operationsSnapshot as snapshot } from "../../test/builders-execution";
+import { deferred } from "../../test/deferred";
+import type { Fallback } from "../../test/fake-server";
+import {
+  failure,
+  json,
+  noContent,
+  preconditionFailed,
+} from "../../test/responses";
+import { CSRF_TOKEN } from "../../test/render";
+
+const digest = `sha256:${"1".repeat(64)}`;
+const secondDigest = `sha256:${"2".repeat(64)}`;
+
+interface ClientFrame {
+  type: string;
+  subscriptionId: string;
+  after?: { generation: string; sequence: string };
+}
+
+function sentFrames(
+  socket: FakeEventSocket | undefined,
+  type: string,
+): ClientFrame[] {
+  return (socket?.sent ?? [])
+    .map((frame) => JSON.parse(frame) as ClientFrame)
+    .filter((frame) => frame.type === type);
+}
+
+function subscribedFrame(frame: ClientFrame | undefined) {
+  return {
+    version: "contractor.events.v1",
+    type: "subscribed",
+    subscriptionId: frame?.subscriptionId,
+    stream: { kind: "operations" },
+    cursor: frame?.after,
+  };
+}
+
+function cursorUnavailableFrame(frame: ClientFrame | undefined) {
+  return {
+    version: "contractor.events.v1",
+    type: "resync_required",
+    subscriptionId: frame?.subscriptionId,
+    stream: { kind: "operations" },
+    reason: "cursor_unavailable",
+  };
+}
+
+afterEach(() => vi.useRealTimers());
+
+describe("Operations routes", () => {
+  it("lists the readiness shortcuts as separate links", async () => {
+    const api: Fallback = async (request) => {
+      if (new URL(request.url).pathname === "/v1/operations/snapshot") {
+        return json(snapshot());
+      }
+      return undefined;
+    };
+    renderApplication("/operations", { server: api });
+    const shortcuts = await screen.findByRole("list", {
+      name: "Readiness shortcuts",
+    });
+    const links = within(shortcuts).getAllByRole("link");
+    expect(links.map((link) => link.textContent?.trim())).toEqual([
+      "Runtime configuration →",
+      "Inspect Run wait reasons →",
+      "Performance →",
+    ]);
+    expect(shortcuts.querySelectorAll("li")).toHaveLength(3);
+    expect(shortcuts.classList.contains("form-actions")).toBe(false);
+  });
+
+  it("keeps fenced Runtime observation separate from the authoritative lease", async () => {
+    let snapshotReads = 0;
+    const api: Fallback = async (request) => {
+      if (new URL(request.url).pathname === "/v1/operations/snapshot") {
+        snapshotReads += 1;
+        return json({
+          ...snapshot(snapshotReads === 1 ? "7" : "8"),
+          runtimeAgents: [
+            {
+              instanceId: "runtime-vm-1",
+              softwareVersion: "0.1.0",
+              supportedRuntimes: ["python@1", "adk@1"],
+              supportedToolsets: [
+                {
+                  ref: "likec4@1",
+                  tools: ["validate_likec4", "read_likec4"],
+                },
+              ],
+              supportedSandboxProfiles: ["local-workdir@1"],
+              supportedRuntimeAdapters: [],
+              observedState: "fenced",
+              slotState: "fenced",
+              lastAcceptedHeartbeat: "2026-08-31T12:00:00Z",
+              confirmedLeaseUntil: "2026-08-31T12:01:00Z",
+              currentAllocationId: "allocation-observed",
+              authoritativeAllocationId: "allocation-authoritative",
+              reconciliationReason: {
+                code: "lease_confirmation_lost",
+                retryable: true,
+              },
+            },
+            {
+              instanceId: "runtime-vm-minimal",
+              softwareVersion: "0.1.0",
+              supportedRuntimes: ["adk@1"],
+              supportedToolsets: [],
+              supportedSandboxProfiles: ["local-workdir@1"],
+              supportedRuntimeAdapters: [],
+              observedState: "idle",
+              slotState: "idle",
+            },
+          ],
+        });
+      }
+      return undefined;
+    };
+    renderApplication("/operations/runtime-agents", { server: api });
+    expect(
+      await screen.findByRole("heading", { name: "Runtime Agents" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("fenced")).toHaveLength(2);
+    expect(screen.getByText("reconciliation pending")).toBeInTheDocument();
+    await userEvent
+      .setup()
+      .click(screen.getByText("Process inventory and lease diagnostics"));
+    // The binding opens its exact entry on the allocations page.
+    expect(
+      screen.getByRole("link", { name: "allocation-authoritative" }),
+    ).toHaveAttribute(
+      "href",
+      "/operations/allocations#allocation-authoritative",
+    );
+    expect(screen.getByText("validate_likec4")).toBeInTheDocument();
+    expect(screen.getByText("No usable Toolsets reported")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/LOCAL_PROBE_SECRET_CANARY|private\/path/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Self-termination remains the recovery boundary/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /force|idle|reassign/i }),
+    ).not.toBeInTheDocument();
+
+    await waitFor(() => expect(FakeEventSocket.instances).toHaveLength(1));
+    const socket = FakeEventSocket.instances[0];
+    act(() => socket?.open());
+    const subscription = JSON.parse(socket?.sent[0] ?? "{}");
+    expect(subscription).toMatchObject({
+      stream: { kind: "operations" },
+      after: { generation: "operations-generation-1", sequence: "7" },
+    });
+    act(() =>
+      socket?.message({
+        version: "contractor.events.v1",
+        type: "subscribed",
+        subscriptionId: subscription.subscriptionId,
+        stream: { kind: "operations" },
+        cursor: subscription.after,
+      }),
+    );
+    act(() =>
+      socket?.message({
+        version: "contractor.events.v1",
+        type: "event",
+        subscriptionId: subscription.subscriptionId,
+        stream: { kind: "operations" },
+        cursor: {
+          generation: "operations-generation-1",
+          sequence: "8",
+        },
+        kind: "operations.changed",
+        occurredAt: "2026-08-31T12:00:10Z",
+        data: {
+          resource: "runtimeAgent",
+          resourceId: "runtime-vm-1",
+          revision: "8",
+        },
+      }),
+    );
+    await waitFor(() => expect(snapshotReads).toBe(2), { timeout: 2_500 });
+    expect(
+      socket?.sent
+        .map((frame) => JSON.parse(frame) as { type: string })
+        .filter((frame) => frame.type === "subscribe"),
+    ).toHaveLength(1);
+    expect(
+      socket?.sent
+        .map((frame) => JSON.parse(frame) as { type: string })
+        .filter((frame) => frame.type === "unsubscribe"),
+    ).toHaveLength(0);
+  });
+
+  it("opens and marks only the allocation named by the URL hash", async () => {
+    const allocation = (allocationId: string, logicalWorker: string) => ({
+      allocationId,
+      runId: `run-${allocationId}`,
+      stageExecutionId: `stage-${allocationId}`,
+      runtimeAgentInstanceId: "runtime-vm-1",
+      logicalWorker,
+      agentTemplate: { templateId: "evidence-analyst", version: "1", digest },
+      executionConfig: {},
+      authoritativePhase: "active",
+      observedPhase: "prepared",
+      metrics: {
+        reportsComplete: true,
+        modelCalls: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        toolCalls: 0,
+        toolFailures: 0,
+        errorCount: 0,
+        truncated: false,
+      },
+    });
+    const api: Fallback = async (request) => {
+      if (new URL(request.url).pathname === "/v1/operations/snapshot") {
+        return json({
+          ...snapshot(),
+          allocations: [
+            allocation("alloc-a", "researcher"),
+            allocation("alloc-b", "reviewer"),
+          ],
+        });
+      }
+      return undefined;
+    };
+    renderApplication("/operations/allocations#alloc-b", { server: api });
+    const target = (
+      await screen.findByText("alloc-b", { selector: "small" })
+    ).closest("details");
+    const other = screen
+      .getByText("alloc-a", { selector: "small" })
+      .closest("details");
+    expect(target).toHaveAttribute("id", "alloc-b");
+    expect(target).toHaveAttribute("open");
+    expect(target).toHaveAttribute("data-targeted");
+    expect(other).toHaveAttribute("id", "alloc-a");
+    expect(other).not.toHaveAttribute("open");
+    expect(other).not.toHaveAttribute("data-targeted");
+  });
+
+  it("backs off failed resync baselines instead of resuming the cached cursor", async () => {
+    let snapshotReads = 0;
+    let snapshotAvailable = true;
+    const api: Fallback = async (request) => {
+      if (new URL(request.url).pathname === "/v1/operations/snapshot") {
+        snapshotReads += 1;
+        if (!snapshotAvailable) {
+          return failure(
+            503,
+            "storage_transaction_conflict",
+            "Operations snapshot is unavailable",
+          );
+        }
+        return json(snapshot(snapshotReads === 1 ? "7" : "12"));
+      }
+      return undefined;
+    };
+    renderApplication("/operations", { server: api });
+    await waitFor(() => expect(FakeEventSocket.instances).toHaveLength(1));
+    const socket = FakeEventSocket.instances[0];
+    if (socket === undefined) throw new Error("Operations socket is missing");
+    act(() => socket.open());
+    act(() =>
+      socket.message(subscribedFrame(sentFrames(socket, "subscribe")[0])),
+    );
+    expect(
+      await screen.findByText(/Operations events: live/),
+    ).toBeInTheDocument();
+
+    vi.useFakeTimers();
+    // The Server no longer retains revision 7 and answers every subscription
+    // from it with another resync request, as the real event hub does.
+    socket.send = (value: string) => {
+      FakeEventSocket.prototype.send.call(socket, value);
+      const frame = JSON.parse(value) as ClientFrame;
+      if (frame.type !== "subscribe") return;
+      setTimeout(
+        () =>
+          socket.message(
+            frame.after?.sequence === "7"
+              ? cursorUnavailableFrame(frame)
+              : subscribedFrame(frame),
+          ),
+        1,
+      );
+    };
+    snapshotAvailable = false;
+    await act(async () => {
+      socket.message(
+        cursorUnavailableFrame(sentFrames(socket, "subscribe")[0]),
+      );
+      await vi.advanceTimersByTimeAsync(499);
+    });
+    // One immediate baseline attempt; the failed read keeps the resync
+    // pending instead of resuming from the cached revision 7.
+    expect(snapshotReads).toBe(2);
+    expect(sentFrames(socket, "subscribe")).toHaveLength(1);
+    // Jittered backoff: the next attempt follows after 0.5-1 s, the one
+    // after it 1-2 s later.
+    await act(() => vi.advanceTimersByTimeAsync(501));
+    expect(snapshotReads).toBe(3);
+    await act(() => vi.advanceTimersByTimeAsync(499));
+    expect(snapshotReads).toBe(3);
+    await act(() => vi.advanceTimersByTimeAsync(1_501));
+    expect(snapshotReads).toBe(4);
+    await act(() => vi.advanceTimersByTimeAsync(60_000));
+    expect(snapshotReads).toBeLessThanOrEqual(10);
+    expect(sentFrames(socket, "subscribe")).toHaveLength(1);
+
+    snapshotAvailable = true;
+    const failedReads = snapshotReads;
+    await act(() => vi.advanceTimersByTimeAsync(30_000));
+    expect(snapshotReads).toBe(failedReads + 1);
+    expect(
+      sentFrames(socket, "subscribe").map((frame) => frame.after?.sequence),
+    ).toEqual(["7", "12"]);
+    expect(screen.getByText(/Operations events: live/)).toBeInTheDocument();
+  });
+
+  it("recreates a subscription the Server closed with 1008 on Refresh", async () => {
+    let snapshotReads = 0;
+    const api: Fallback = async (request) => {
+      if (new URL(request.url).pathname === "/v1/operations/snapshot") {
+        snapshotReads += 1;
+        return json(snapshot(snapshotReads === 1 ? "7" : "9"));
+      }
+      return undefined;
+    };
+    const user = userEvent.setup();
+    renderApplication("/operations", { server: api });
+    await waitFor(() => expect(FakeEventSocket.instances).toHaveLength(1));
+    const refused = FakeEventSocket.instances[0];
+    act(() => refused?.open());
+    act(() =>
+      refused?.message(subscribedFrame(sentFrames(refused, "subscribe")[0])),
+    );
+    act(() => refused?.serverClose(1008));
+    expect(
+      await screen.findByText("Live event session is no longer authorized"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(FakeEventSocket.instances).toHaveLength(2));
+    const recreated = FakeEventSocket.instances[1];
+    act(() => recreated?.open());
+    const subscriptions = sentFrames(recreated, "subscribe");
+    expect(subscriptions.map((frame) => frame.after)).toEqual([
+      { generation: "operations-generation-1", sequence: "9" },
+    ]);
+    act(() => recreated?.message(subscribedFrame(subscriptions[0])));
+    expect(
+      await screen.findByText(/Operations events: live/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Live event session is no longer authorized"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("clones and publishes a new exact ModelPolicy", async () => {
+    const publishedBodies: unknown[] = [];
+    const original = {
+      ref: {
+        kind: "model-policies" as const,
+        name: "worker",
+        version: "1",
+        digest,
+      },
+      body: {
+        model: "qwen-worker",
+        maxOutputTokens: 4096,
+        maxModelCalls: 8,
+        maxToolCalls: 16,
+        maxTotalTokens: 32768,
+      },
+      source: "operator" as const,
+    };
+    const api: Fallback = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return json(snapshot());
+      if (path === "/v1/configurations/model-policies/worker/versions/1") {
+        return json(original);
+      }
+      if (
+        path === "/v1/configurations/model-policies" &&
+        request.method === "POST"
+      ) {
+        publishedBodies.push(await request.clone().json());
+        return json(
+          {
+            ref: {
+              kind: "model-policies",
+              name: "worker",
+              version: "2",
+              digest: secondDigest,
+            },
+            body: {
+              model: "qwen-worker",
+              maxOutputTokens: 4096,
+              maxModelCalls: 8,
+              maxToolCalls: 16,
+              maxTotalTokens: 32768,
+            },
+            source: "managed",
+          },
+          201,
+        );
+      }
+      return undefined;
+    };
+    renderApplication("/operations/configurations/model-policies/worker/1", {
+      server: api,
+    });
+    expect(
+      await screen.findByRole("heading", { name: "Published values" }),
+    ).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole("button", { name: "Clone to new version" }),
+    );
+    await user.type(screen.getByLabelText("New version"), "2");
+    await user.click(screen.getByRole("button", { name: "Publish version" }));
+    expect(await screen.findByText("Published worker@2")).toBeInTheDocument();
+    expect(screen.getByText("worker@1")).toBeInTheDocument();
+    expect(publishedBodies).toEqual([
+      {
+        name: "worker",
+        version: "2",
+        modelPolicy: {
+          model: "qwen-worker",
+          maxOutputTokens: 4096,
+          maxModelCalls: 8,
+          maxToolCalls: 16,
+          maxTotalTokens: 32768,
+        },
+      },
+    ]);
+  });
+
+  it("creates a typed LiteLLM credential without accepting a secret", async () => {
+    const createdBodies: unknown[] = [];
+    const gateway = {
+      ref: {
+        kind: "llm-gateways" as const,
+        name: "local-litellm",
+        version: "1",
+        digest,
+      },
+      body: {
+        protocol: "openai-compatible@1" as const,
+        url: "http://127.0.0.1:4000/v1",
+        credentialManager: {
+          implementation: "litellm-virtual-keys@1" as const,
+          managementUrl: "http://127.0.0.1:4000",
+        },
+      },
+      source: "operator" as const,
+    };
+    const policy = {
+      ref: {
+        kind: "model-policies" as const,
+        name: "worker",
+        version: "1",
+        digest,
+      },
+      body: { model: "qwen-worker" },
+      source: "operator" as const,
+    };
+    const credential = {
+      credentialId: "worker-budget",
+      llmGateway: { gatewayId: "local-litellm", version: "1", digest },
+      label: "Worker budget",
+      createdAt: "2026-08-31T12:00:00Z",
+      effectivePolicy: {
+        modelPolicies: [{ policyId: "worker", version: "1", digest }],
+        models: ["qwen-worker"],
+        maxBudget: 10,
+        budgetDuration: "1d",
+      },
+    };
+    const api: Fallback = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return json(snapshot());
+      if (path === "/v1/configurations/llm-gateways") {
+        return json({ items: [gateway], page: { hasMore: false } });
+      }
+      if (path === "/v1/configurations/model-policies") {
+        return json({ items: [policy], page: { hasMore: false } });
+      }
+      if (path === "/v1/operations/credentials") {
+        if (request.method === "POST") {
+          createdBodies.push(await request.clone().json());
+          return json(credential, 201);
+        }
+        return json({ items: [], page: { hasMore: false } });
+      }
+      if (path === "/v1/operations/credentials/worker-budget") {
+        return json(credential);
+      }
+      return undefined;
+    };
+    renderApplication("/operations/credentials", { server: api });
+    expect(
+      await screen.findByRole("button", {
+        name: "Create LLM credential",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(/token|secret|key value/i),
+    ).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole("button", {
+        name: "Create LLM credential",
+      }),
+    );
+    await user.type(screen.getByLabelText("Credential ID"), "worker-budget");
+    await user.click(screen.getByText("Optional settings"));
+    await user.type(
+      screen.getByLabelText("Safe label (optional)"),
+      "Worker budget",
+    );
+    await user.selectOptions(
+      screen.getByLabelText("Managed LLM Gateway"),
+      screen.getByRole("option", { name: /local-litellm@1/ }),
+    );
+    await user.click(screen.getByLabelText(/worker@1/));
+    await user.type(
+      screen.getByLabelText("Maximum spend · Gateway-enforced (LiteLLM)"),
+      "10",
+    );
+    await user.type(
+      screen.getByLabelText("Budget reset · Gateway-enforced (LiteLLM)"),
+      "1d",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Create active credential" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "LiteLLM-enforced limits" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "worker-budget" }),
+    ).toBeInTheDocument();
+    expect(JSON.stringify(createdBodies)).not.toMatch(/token|secret/i);
+    expect(createdBodies).toEqual([
+      {
+        credentialId: "worker-budget",
+        llmGateway: {
+          gatewayId: "local-litellm",
+          version: "1",
+          digest,
+        },
+        label: "Worker budget",
+        gatewayPolicy: {
+          modelPolicies: [{ policyId: "worker", version: "1", digest }],
+          maxBudget: 10,
+          budgetDuration: "1d",
+        },
+      },
+    ]);
+  });
+
+  // AGENTS.md 3.8, V385-001 A7: a late answer never moves a user who left.
+  it("leaves a user who moved on where they are when a credential deletion answers late", async () => {
+    const credential = {
+      credentialId: "worker-budget",
+      llmGateway: { gatewayId: "local-litellm", version: "1", digest },
+      createdAt: "2026-08-31T12:00:00Z",
+      effectivePolicy: {
+        modelPolicies: [{ policyId: "worker", version: "1", digest }],
+        models: ["qwen-worker"],
+      },
+    };
+    const deletion = deferred();
+    const api: Fallback = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return json(snapshot());
+      if (path === "/v1/operations/credentials/worker-budget") {
+        if (request.method === "DELETE") {
+          await deletion.promise;
+          return noContent();
+        }
+        return json(credential);
+      }
+      if (path === "/v1/operations/credentials")
+        return json({ items: [], page: { hasMore: false } });
+      return undefined;
+    };
+    const queryClient = createApplicationQueryClient();
+    const view = renderApplication("/operations/credentials/worker-budget", {
+      server: api,
+      queryClient,
+    });
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByLabelText(/I understand that the LiteLLM key/),
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Delete from LiteLLM and Contractor",
+      }),
+    );
+    await act(() => view.router.navigate("/settings"));
+    expect(queryClient.isMutating()).toBe(1);
+    deletion.resolve();
+    await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+    await act(async () => undefined);
+    expect(
+      queryClient
+        .getMutationCache()
+        .getAll()
+        .map((m) => m.state.status),
+    ).toEqual(["success"]);
+    expect(view.router.state.navigation.state).toBe("idle");
+    expect(view.router.state.location.pathname).toBe("/settings");
+  });
+
+  it("leaves a user who moved on where they are when a credential creation answers late", async () => {
+    const gateway = {
+      ref: {
+        kind: "llm-gateways" as const,
+        name: "local-litellm",
+        version: "1",
+        digest,
+      },
+      body: {
+        protocol: "openai-compatible@1" as const,
+        url: "http://127.0.0.1:4000/v1",
+        credentialManager: {
+          implementation: "litellm-virtual-keys@1" as const,
+          managementUrl: "http://127.0.0.1:4000",
+        },
+      },
+      source: "operator" as const,
+    };
+    const policy = {
+      ref: {
+        kind: "model-policies" as const,
+        name: "worker",
+        version: "1",
+        digest,
+      },
+      body: { model: "qwen-worker" },
+      source: "operator" as const,
+    };
+    const credential = {
+      credentialId: "worker-budget",
+      llmGateway: { gatewayId: "local-litellm", version: "1", digest },
+      createdAt: "2026-08-31T12:00:00Z",
+      effectivePolicy: {
+        modelPolicies: [{ policyId: "worker", version: "1", digest }],
+        models: ["qwen-worker"],
+      },
+    };
+    const creation = deferred();
+    const api: Fallback = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return json(snapshot());
+      if (path === "/v1/configurations/llm-gateways")
+        return json({ items: [gateway], page: { hasMore: false } });
+      if (path === "/v1/configurations/model-policies")
+        return json({ items: [policy], page: { hasMore: false } });
+      if (path === "/v1/operations/credentials") {
+        if (request.method === "POST") {
+          await creation.promise;
+          return json(credential, 201);
+        }
+        return json({ items: [], page: { hasMore: false } });
+      }
+      return undefined;
+    };
+    const queryClient = createApplicationQueryClient();
+    const view = renderApplication("/operations/credentials", {
+      server: api,
+      queryClient,
+    });
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Create LLM credential",
+      }),
+    );
+    await user.type(screen.getByLabelText("Credential ID"), "worker-budget");
+    await user.selectOptions(
+      screen.getByLabelText("Managed LLM Gateway"),
+      screen.getByRole("option", { name: /local-litellm@1/ }),
+    );
+    await user.click(screen.getByLabelText(/worker@1/));
+    await user.click(
+      screen.getByRole("button", { name: "Create active credential" }),
+    );
+    await act(() => view.router.navigate("/settings"));
+    expect(queryClient.isMutating()).toBe(1);
+    creation.resolve();
+    await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+    await act(async () => undefined);
+    expect(
+      queryClient
+        .getMutationCache()
+        .getAll()
+        .map((m) => m.state.status),
+    ).toEqual(["success"]);
+    expect(view.router.state.navigation.state).toBe("idle");
+    expect(view.router.state.location.pathname).toBe("/settings");
+  });
+
+  it("shows Run, Audit and RuntimeConfig label holds on a credential", async () => {
+    const credential = {
+      credentialId: "worker-budget",
+      llmGateway: { gatewayId: "local-litellm", version: "1", digest },
+      createdAt: "2026-08-31T12:00:00Z",
+      effectivePolicy: {
+        modelPolicies: [{ policyId: "worker", version: "1", digest }],
+        models: ["qwen-worker"],
+      },
+    };
+    const api: Fallback = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return json(snapshot());
+      if (path === "/v1/operations/credentials/worker-budget") {
+        if (request.method === "DELETE") {
+          return json(
+            {
+              code: "credential_in_use",
+              message: "Credential is pinned by non-terminal Runs",
+              retryable: false,
+              requestId: "request-delete-1",
+              details: {
+                kind: "credential_in_use",
+                runIds: ["run-openapi", "run-likec4"],
+                auditIds: ["audit-held"],
+                bindingLabels: ["default", "debug"],
+              },
+            },
+            409,
+          );
+        }
+        return json(credential);
+      }
+      return undefined;
+    };
+    renderApplication("/operations/credentials/worker-budget", { server: api });
+    expect(
+      await screen.findByText("active", { selector: ".ops-state-word" }),
+    ).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByLabelText(/I understand that the LiteLLM key/),
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Delete from LiteLLM and Contractor",
+      }),
+    );
+    expect(
+      await screen.findByRole("link", { name: "run-openapi" }),
+    ).toHaveAttribute("href", "/runs/run-openapi");
+    expect(
+      screen.getByRole("link", { name: "run-likec4" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "debug" })).toHaveAttribute(
+      "href",
+      "/operations/configuration",
+    );
+    expect(screen.getByText("audit-held")).toBeVisible();
+    expect(screen.queryByRole("link", { name: "audit-held" })).toBeNull();
+    expect(screen.getByText(/Audit dispatch hold/)).toBeVisible();
+    expect(
+      screen.getByText("active", { selector: ".ops-state-word" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an Audit-only hold when no Run holds the credential", async () => {
+    const credential = {
+      credentialId: "worker-budget",
+      llmGateway: { gatewayId: "local-litellm", version: "1", digest },
+      createdAt: "2026-08-31T12:00:00Z",
+      effectivePolicy: {
+        modelPolicies: [{ policyId: "worker", version: "1", digest }],
+        models: ["qwen-worker"],
+      },
+    };
+    const api: Fallback = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return json(snapshot());
+      if (path === "/v1/operations/credentials/worker-budget") {
+        return request.method === "DELETE"
+          ? json(
+              {
+                code: "credential_in_use",
+                message: "Credential is held by an Audit",
+                retryable: false,
+                details: {
+                  kind: "credential_in_use",
+                  runIds: [],
+                  auditIds: ["audit-only"],
+                },
+              },
+              409,
+            )
+          : json(credential);
+      }
+      return undefined;
+    };
+    renderApplication("/operations/credentials/worker-budget", { server: api });
+    const user = userEvent.setup();
+    await screen.findByText("active", { selector: ".ops-state-word" });
+    await user.click(
+      screen.getByLabelText(/I understand that the LiteLLM key/),
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Delete from LiteLLM and Contractor",
+      }),
+    );
+    expect(await screen.findByText("audit-only")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Audits" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Runs" })).toBeNull();
+  });
+
+  it("publishes typed Runtime configuration, erases secrets, and exposes stale binding CAS", async () => {
+    const secret = "Bearer runtime-secret-canary";
+    const baseResource: RuntimeConfigResource = {
+      ref: { name: "contractor-empty", version: "1", digest },
+      document: {
+        apiVersion: "contractor/v1alpha1",
+        kind: "RuntimeConfig",
+        metadata: { name: "contractor-empty", version: "1" },
+        spec: {},
+      },
+      builtIn: true,
+      createdBy: "system",
+      createdAt: "2026-08-31T12:00:00Z",
+    };
+    const defaultBinding = {
+      label: "default",
+      config: baseResource.ref,
+      revision: "1",
+      createdBy: "system",
+      createdAt: "2026-08-31T12:00:00Z",
+      updatedBy: "system",
+      updatedAt: "2026-08-31T12:00:00Z",
+    };
+    let publishedResource: typeof baseResource | undefined;
+    let debugBinding: typeof defaultBinding | undefined;
+    let runtimeCredentialBody: unknown;
+    let runtimeConfigBody: RuntimeConfigAuthorDocument | undefined;
+    let bindingWrites = 0;
+    const api: Fallback = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return json(snapshot());
+      if (path === "/v1/configurations/llm-gateways") {
+        return json({
+          items: [
+            {
+              ref: {
+                kind: "llm-gateways",
+                name: "local-litellm",
+                version: "1",
+                digest,
+              },
+              body: {
+                protocol: "openai-compatible@1",
+                url: "https://gateway.example/v1",
+              },
+              source: "operator",
+            },
+          ],
+          page: { hasMore: false },
+        });
+      }
+      if (path === "/v1/operations/runtime-configs") {
+        if (request.method === "POST") {
+          const document = (await request
+            .clone()
+            .json()) as RuntimeConfigAuthorDocument;
+          runtimeConfigBody = document;
+          if (document.spec.worker?.llmGateway?.gateway !== "local-litellm@1") {
+            throw new Error(
+              "RuntimeConfig publication requires a gateway selector",
+            );
+          }
+          publishedResource = {
+            ref: {
+              name: document.metadata.name,
+              version: document.metadata.version,
+              digest: secondDigest,
+            },
+            document: {
+              ...document,
+              spec: {
+                ...document.spec,
+                worker: {
+                  ...document.spec.worker,
+                  llmGateway: {
+                    gateway: {
+                      gatewayId: "local-litellm",
+                      version: "1",
+                      digest,
+                    },
+                  },
+                },
+              },
+            },
+            builtIn: false,
+            createdBy: "user_local",
+            createdAt: "2026-08-31T12:01:00Z",
+          };
+          return json(publishedResource, 201);
+        }
+        return json({
+          items: [
+            baseResource,
+            ...(publishedResource === undefined ? [] : [publishedResource]),
+          ],
+          page: { hasMore: false },
+        });
+      }
+      if (path === "/v1/operations/runtime-labels") {
+        return json({
+          items: [
+            defaultBinding,
+            ...(debugBinding === undefined ? [] : [debugBinding]),
+          ],
+          page: { hasMore: false },
+        });
+      }
+      if (path === "/v1/operations/runtime-labels/debug") {
+        bindingWrites += 1;
+        if (bindingWrites > 1) {
+          return preconditionFailed("Runtime label revision changed");
+        }
+        debugBinding = {
+          label: "debug",
+          config: publishedResource!.ref,
+          revision: "1",
+          createdBy: "user_local",
+          createdAt: "2026-08-31T12:02:00Z",
+          updatedBy: "user_local",
+          updatedAt: "2026-08-31T12:02:00Z",
+        };
+        expect(request.headers.get("If-None-Match")).toBe("*");
+        return json(debugBinding, 201, { ETag: '"1"' });
+      }
+      if (path === "/v1/operations/runtime-credentials") {
+        if (request.method === "POST") {
+          runtimeCredentialBody = await request.clone().json();
+          return json(
+            {
+              credentialId: "otel-debug",
+              kind: "otlp-headers@1",
+              createdBy: "user_local",
+              createdAt: "2026-08-31T12:00:30Z",
+            },
+            201,
+          );
+        }
+        return json({ items: [], page: { hasMore: false } });
+      }
+      return undefined;
+    };
+    renderApplication("/operations/configuration", { server: api });
+    expect(
+      await screen.findByRole("heading", { name: "Runtime configuration" }),
+    ).toBeInTheDocument();
+    const user = userEvent.setup();
+
+    expect(screen.queryByLabelText("Runtime credential ID")).toBeNull();
+    expect(screen.queryByLabelText("RuntimeConfig name")).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "Add Runtime credential" }),
+    );
+    const credentialForm = screen.getByRole("dialog", {
+      name: "Create Runtime credential",
+    });
+    await user.type(
+      within(credentialForm).getByLabelText("Runtime credential ID"),
+      "otel-debug",
+    );
+    await user.type(
+      within(credentialForm).getByLabelText(/Header value/),
+      secret,
+    );
+    await user.click(
+      within(credentialForm).getByRole("button", {
+        name: "Create active Runtime credential",
+      }),
+    );
+    expect(
+      await within(credentialForm).findByText(/Created safe metadata/),
+    ).toBeInTheDocument();
+    expect(within(credentialForm).getByLabelText(/Header value/)).toHaveValue(
+      "",
+    );
+    expect(document.body.textContent).not.toContain(secret);
+    expect(runtimeCredentialBody).toEqual({
+      credentialId: "otel-debug",
+      kind: "otlp-headers@1",
+      material: { headers: { Authorization: secret } },
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Close Runtime credential form" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Publish RuntimeConfig" }),
+    );
+    await user.type(screen.getByLabelText("RuntimeConfig name"), "debug");
+    await user.click(screen.getByLabelText("Worker LLM Gateway route"));
+    await user.selectOptions(
+      screen.getByLabelText("LLM Gateway"),
+      screen.getByRole("option", { name: /local-litellm@1/ }),
+    );
+    const telemetryGroup = screen.getByRole("group", {
+      name: /Worker telemetry/,
+    });
+    await user.click(
+      within(telemetryGroup).getByRole("checkbox", {
+        name: /Worker telemetry/,
+      }),
+    );
+    await user.click(screen.getByText("Optional settings"));
+    expect(
+      screen.getByLabelText("Worker telemetry flush timeout (seconds)"),
+    ).toHaveValue(10);
+    const attempts = screen.getByLabelText(
+      "Worker telemetry maximum attempts per batch",
+    );
+    await user.clear(attempts);
+    await user.type(attempts, "3");
+    await user.type(
+      within(telemetryGroup).getByLabelText("OTLP traces endpoint"),
+      "https://otel.example/v1/traces",
+    );
+    await user.type(
+      within(telemetryGroup).getByLabelText("Runtime credential ID (optional)"),
+      "otel-debug",
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Publish RuntimeConfig",
+      }),
+    );
+    expect(await screen.findByText(/Published debug@1/)).toBeInTheDocument();
+    expect(runtimeConfigBody?.spec.worker?.llmGateway?.gateway).toBe(
+      "local-litellm@1",
+    );
+    expect(publishedResource!.document.spec).toMatchObject({
+      worker: {
+        llmGateway: {
+          gateway: { gatewayId: "local-litellm", version: "1", digest },
+        },
+        telemetry: {
+          flushTimeoutSeconds: 10,
+          export: {
+            batchSizeBytes: 8388608,
+            maxAttempts: 3,
+            maxPendingSpans: 2048,
+            maxPendingBytes: 67108864,
+          },
+        },
+      },
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Close RuntimeConfig form" }),
+    );
+    const bindingTrigger = await screen.findByRole("button", {
+      name: "Manage bindings for debug@1",
+    });
+    expect(bindingTrigger).not.toHaveClass("has-bindings");
+    await user.click(bindingTrigger);
+    const labelForm = screen
+      .getByRole("dialog", { name: "Runtime label bindings" })
+      .querySelector("form.runtime-label-create") as HTMLFormElement;
+    await user.type(within(labelForm).getByLabelText("New label"), "debug");
+    await user.selectOptions(
+      within(labelForm).getByLabelText("RuntimeConfig"),
+      `${publishedResource!.ref.name}@${publishedResource!.ref.version}:${publishedResource!.ref.digest}`,
+    );
+    await user.click(
+      within(labelForm).getByRole("button", { name: "Create binding" }),
+    );
+    const debugCard = (
+      await screen.findByText("debug", { selector: "strong" })
+    ).closest("article") as HTMLElement;
+    expect(within(debugCard).getByText(/revision 1/)).toBeInTheDocument();
+    expect(
+      within(debugCard).getByRole("button", {
+        name: "Rebind with current revision",
+      }),
+    ).toBeDisabled();
+    await user.selectOptions(
+      within(debugCard).getByLabelText("RuntimeConfig for debug"),
+      `${baseResource.ref.name}@${baseResource.ref.version}:${baseResource.ref.digest}`,
+    );
+    await user.click(
+      within(debugCard).getByRole("button", {
+        name: "Rebind with current revision",
+      }),
+    );
+    expect(
+      await within(debugCard).findByText("Binding changed in another view."),
+    ).toBeInTheDocument();
+    expect(
+      within(debugCard).getByRole("button", {
+        name: "Reload binding",
+      }),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Close Runtime bindings" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Manage bindings for debug@1" }),
+    ).toHaveClass("has-bindings");
+    // One long journey (publish, credential, binding CAS) that outgrows the
+    // default 5 s budget on a loaded machine.
+  }, 15_000);
+
+  it("shows durable offline and adapter-incompatible principals as separate facts", async () => {
+    const principalBase = {
+      labels: ["debug"],
+      revision: "2",
+      requiredRuntimeAdapters: ["otlp-http@1"],
+      createdBy: "system",
+      createdAt: "2026-08-31T12:00:00Z",
+      updatedBy: "user_local",
+      updatedAt: "2026-08-31T12:01:00Z",
+    };
+    const api: Fallback = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return json(snapshot());
+      if (path === "/v1/operations/runtime-labels") {
+        return json({
+          items: [
+            {
+              label: "debug",
+              config: { name: "debug", version: "1", digest },
+              revision: "1",
+              createdBy: "user_local",
+              createdAt: "2026-08-31T12:00:00Z",
+              updatedBy: "user_local",
+              updatedAt: "2026-08-31T12:00:00Z",
+            },
+          ],
+          page: { hasMore: false },
+        });
+      }
+      if (path === "/v1/operations/runtime-agent-principals") {
+        return json({
+          items: [
+            {
+              ...principalBase,
+              runtimeAgentId: "a".repeat(64),
+              availability: "offline",
+              missingRuntimeAdapters: [],
+            },
+            {
+              ...principalBase,
+              runtimeAgentId: "b".repeat(64),
+              availability: "adapter_capability_mismatch",
+              missingRuntimeAdapters: ["otlp-http@1"],
+              live: {
+                instanceId: "runtime-incompatible",
+                softwareVersion: "0.1.0",
+                supportedRuntimes: ["adk@1"],
+                supportedToolsets: [],
+                supportedSandboxProfiles: ["none@1"],
+                supportedRuntimeAdapters: [],
+                observedState: "idle",
+                slotState: "idle",
+              },
+            },
+          ],
+          page: { hasMore: false },
+        });
+      }
+      return undefined;
+    };
+    renderApplication("/operations/runtime-agents", { server: api });
+    const incompatible = await screen.findByRole("article", { name: "debug" });
+    expect(within(incompatible).getByText("bbbbbbbb…bbbb")).toBeInTheDocument();
+    await userEvent.setup().click(incompatible.querySelector("summary")!);
+    expect(screen.getByText("Missing otlp-http@1")).toBeInTheDocument();
+    expect(screen.getAllByText("runtime-incompatible")[0]!).toBeInTheDocument();
+    expect(within(incompatible).getByText("Missing adapter")).toBeVisible();
+    expect(within(incompatible).getByText(/Online/)).toBeVisible();
+    expect(within(incompatible).queryByText("Available")).toBeNull();
+    expect(within(incompatible).queryByRole("checkbox")).toBeNull();
+    expect(screen.getAllByRole("article")).toHaveLength(1);
+    const offline = screen.getByRole("group", {
+      name: "Offline identities (1)",
+    });
+    offline.querySelectorAll("summary").forEach((summary) => {
+      if (!summary.parentElement!.hasAttribute("open")) summary.click();
+    });
+    expect(offline).toBeInTheDocument();
+    expect(within(offline).getByText("aaaaaaaa…aaaa")).toBeInTheDocument();
+    expect(within(offline).getByText("1 label")).toBeInTheDocument();
+    expect(within(offline).getByText(/Labels updated/)).toBeInTheDocument();
+    expect(
+      within(offline)
+        .getByText(/Labels updated/)
+        .querySelector("time"),
+    ).toHaveAttribute("dateTime", "2026-08-31T12:01:00Z");
+    expect(within(offline).queryByText(/Last seen/)).toBeNull();
+    expect(
+      within(offline).getByRole("button", { name: "Forget debug" }),
+    ).toBeDisabled();
+    expect(
+      within(offline).getByRole("button", { name: "Edit labels for debug" }),
+    ).toBeEnabled();
+    const user = userEvent.setup();
+    const connection = screen.getByRole("group", { name: "Agent connection" });
+    expect(
+      within(connection).getByRole("button", { name: "All 2" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await user.click(
+      within(connection).getByRole("button", { name: "Online 1" }),
+    );
+    expect(
+      within(connection).getByRole("button", { name: "Online 1" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.queryByRole("group", { name: /Offline identities/ }),
+    ).toBeNull();
+    expect(screen.getByRole("article", { name: "debug" })).toBeVisible();
+    await user.click(
+      within(connection).getByRole("button", { name: "Offline 1" }),
+    );
+    expect(screen.queryByRole("article")).toBeNull();
+    expect(
+      screen.getByRole("group", { name: "Offline identities (1)" }),
+    ).toBeVisible();
+  });
+
+  it("names agents by label, then process ID, then short Agent ID and forgets unlabeled offline identities", async () => {
+    const base = {
+      revision: "2",
+      requiredRuntimeAdapters: [],
+      missingRuntimeAdapters: [],
+      createdBy: "system",
+      createdAt: "2026-08-31T12:00:00Z",
+      updatedBy: "user_local",
+      updatedAt: "2026-08-31T12:01:00Z",
+    };
+    const live = {
+      softwareVersion: "0.1.0",
+      supportedRuntimes: ["adk@1"],
+      supportedToolsets: [],
+      supportedSandboxProfiles: ["none@1"],
+      supportedRuntimeAdapters: [],
+      observedState: "idle",
+      slotState: "idle",
+    };
+    let items: unknown[] = [
+      {
+        ...base,
+        runtimeAgentId: "c".repeat(64),
+        labels: [],
+        availability: "available",
+        live: { ...live, instanceId: "runtime-host-c" },
+      },
+      {
+        ...base,
+        runtimeAgentId: "d".repeat(64),
+        labels: [],
+        availability: "offline",
+        updatedAt: base.createdAt,
+      },
+    ];
+    const deletes: Request[] = [];
+    const api: Fallback = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return json(snapshot());
+      if (path === "/v1/operations/runtime-labels")
+        return json({ items: [], page: { hasMore: false } });
+      if (
+        request.method === "DELETE" &&
+        path === `/v1/operations/runtime-agent-principals/${"d".repeat(64)}`
+      ) {
+        deletes.push(request.clone());
+        items = items.slice(0, 1);
+        return noContent();
+      }
+      if (path === "/v1/operations/runtime-agent-principals")
+        return json({ items, page: { hasMore: false } });
+      return undefined;
+    };
+    renderApplication("/operations/runtime-agents", { server: api });
+    const card = await screen.findByRole("article", { name: "runtime-host-c" });
+    await userEvent.setup().click(card.querySelector("summary")!);
+    expect(within(card).getByText("cccccccc…cccc")).toBeVisible();
+    expect(within(card).getByText(/v0\.1\.0/)).toBeVisible();
+    const offline = screen.getByRole("group", {
+      name: "Offline identities (1)",
+    });
+    offline.querySelectorAll("summary").forEach((summary) => {
+      if (!summary.parentElement!.hasAttribute("open")) summary.click();
+    });
+    expect(
+      within(offline).getByText("Agent dddddddd…dddd"),
+    ).toBeInTheDocument();
+    expect(within(offline).getByText("0 labels")).toBeInTheDocument();
+    expect(within(offline).getByText(/Registered/)).toBeInTheDocument();
+    expect(
+      within(offline)
+        .getByText(/Registered/)
+        .querySelector("time"),
+    ).toHaveAttribute("dateTime", "2026-08-31T12:00:00Z");
+    expect(within(offline).queryByText(/Last seen/)).toBeNull();
+    const user = userEvent.setup();
+    await user.click(
+      within(offline).getByRole("button", {
+        name: "Forget Agent dddddddd…dddd",
+      }),
+    );
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Forget Agent dddddddd…dddd?",
+    });
+    expect(
+      within(dialog).getByRole("button", { name: "Cancel" }),
+    ).toHaveFocus();
+    await user.click(
+      within(dialog).getByRole("button", { name: "Forget identity" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(deletes).toHaveLength(1);
+    expect(deletes[0]?.headers.get("If-Match")).toBe('"2"');
+    expect(deletes[0]?.headers.get("Idempotency-Key")).toMatch(
+      /^delete-runtime-principal-ui-/,
+    );
+    expect(deletes[0]?.headers.get("X-CSRF-Token")).toBe(CSRF_TOKEN);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("group", { name: /Offline identities/ }),
+      ).toBeNull(),
+    );
+    expect(
+      screen.getByRole("article", { name: "runtime-host-c" }),
+    ).toBeVisible();
+  });
+});
+
+describe("Runtime Agent cards", () => {
+  const principalBase: RuntimeAgentPrincipal = {
+    runtimeAgentId: "a".repeat(64),
+    labels: ["debug"],
+    revision: "1",
+    availability: "available",
+    requiredRuntimeAdapters: ["otlp-http@1"],
+    missingRuntimeAdapters: [],
+    createdBy: "system",
+    createdAt: "2026-08-31T12:00:00Z",
+    updatedBy: "user_local",
+    updatedAt: "2026-08-31T12:01:00Z",
+    live: {
+      instanceId: "runtime-card",
+      softwareVersion: "0.1.0",
+      supportedRuntimes: ["adk@1"],
+      supportedToolsets: [],
+      supportedSandboxProfiles: ["local-workdir@1"],
+      supportedRuntimeAdapters: ["otlp-http@1", "caido-graphql@1"],
+      observedState: "idle",
+      slotState: "idle",
+    },
+  };
+  const bindings = ["default", "caido", "debug"].map((label) => ({
+    label,
+    config: { name: label, version: "1", digest },
+    revision: "1",
+    createdBy: "user_local",
+    createdAt: "2026-08-31T12:00:00Z",
+    updatedBy: "user_local",
+    updatedAt: "2026-08-31T12:00:00Z",
+  }));
+
+  function readResponse(
+    request: Request,
+    principal: RuntimeAgentPrincipal,
+  ): Response | undefined {
+    const path = new URL(request.url).pathname;
+    if (request.method !== "GET") return undefined;
+    if (path === "/v1/operations/snapshot") return json(snapshot());
+    if (path === "/v1/operations/runtime-labels")
+      return json({ items: bindings, page: { hasMore: false } });
+    if (path === "/v1/operations/runtime-agent-principals")
+      return json({ items: [principal], page: { hasMore: false } });
+    if (
+      path ===
+      `/v1/operations/runtime-agent-principals/${principal.runtimeAgentId}`
+    )
+      return json(principal, 200, { ETag: `"${principal.revision}"` });
+    return undefined;
+  }
+
+  it("loads later principal and label pages so online and offline identities remain editable", async () => {
+    const offlineBase: RuntimeAgentPrincipal = { ...principalBase };
+    delete offlineBase.live;
+    const firstPrincipals: RuntimeAgentPrincipal[] = Array.from(
+      { length: 50 },
+      (_, index) => ({
+        ...offlineBase,
+        runtimeAgentId: (index + 1).toString(16).padStart(64, "0"),
+        labels: [],
+        availability: "offline",
+        requiredRuntimeAdapters: [],
+      }),
+    );
+    const lateOnline: RuntimeAgentPrincipal = {
+      ...principalBase,
+      runtimeAgentId: "e".repeat(64),
+      labels: ["zz-scan"],
+      live: { ...principalBase.live!, instanceId: "runtime-page-two" },
+    };
+    let lateOffline: RuntimeAgentPrincipal = {
+      ...offlineBase,
+      runtimeAgentId: "f".repeat(64),
+      labels: ["zz-scan"],
+      availability: "offline",
+      requiredRuntimeAdapters: [],
+    };
+    let forgotten = false;
+    const firstBindings = Array.from({ length: 50 }, (_, index) => ({
+      ...bindings[0]!,
+      label: `label-${String(index).padStart(2, "0")}`,
+    }));
+    const lateBinding = { ...bindings[0]!, label: "zz-scan" };
+    const cursors: string[] = [];
+    const api: Fallback = async (request) => {
+      const url = new URL(request.url);
+      const cursor = url.searchParams.get("cursor");
+      if (url.pathname === "/v1/operations/snapshot") return json(snapshot());
+      if (url.pathname === "/v1/operations/runtime-labels") {
+        cursors.push(`labels:${cursor ?? "first"}`);
+        return json(
+          cursor === null
+            ? {
+                items: firstBindings,
+                page: { hasMore: true, nextCursor: "labels-next" },
+              }
+            : { items: [lateBinding], page: { hasMore: false } },
+        );
+      }
+      if (url.pathname === "/v1/operations/runtime-agent-principals") {
+        cursors.push(`principals:${cursor ?? "first"}`);
+        return json(
+          cursor === null
+            ? {
+                items: firstPrincipals,
+                page: { hasMore: true, nextCursor: "principals-next" },
+              }
+            : {
+                items: forgotten ? [lateOnline] : [lateOnline, lateOffline],
+                page: { hasMore: false },
+              },
+        );
+      }
+      if (
+        url.pathname ===
+          `/v1/operations/runtime-agent-principals/${lateOffline.runtimeAgentId}/labels` &&
+        request.method === "PUT"
+      ) {
+        const body = (await request.json()) as { labels: string[] };
+        lateOffline = { ...lateOffline, labels: body.labels, revision: "2" };
+        return json(lateOffline, 200, { ETag: '"2"' });
+      }
+      if (
+        url.pathname ===
+          `/v1/operations/runtime-agent-principals/${lateOffline.runtimeAgentId}` &&
+        request.method === "DELETE"
+      ) {
+        forgotten = true;
+        return noContent();
+      }
+      return undefined;
+    };
+    renderApplication("/operations/runtime-agents", { server: api });
+    const online = await screen.findByRole("article", { name: "zz-scan" });
+    expect(within(online).getAllByText("runtime-page-two")).toHaveLength(2);
+    await userEvent.setup().click(online.querySelector("summary")!);
+    expect(
+      within(online).getByRole("button", { name: "Edit labels" }),
+    ).toBeEnabled();
+    expect(cursors).toContain("principals:principals-next");
+    expect(cursors).toContain("labels:labels-next");
+
+    const user = userEvent.setup();
+    const offline = screen.getByRole("group", {
+      name: "Offline identities (51)",
+    });
+    offline.querySelectorAll("summary").forEach((summary) => {
+      if (!summary.parentElement!.hasAttribute("open")) summary.click();
+    });
+    await user.click(
+      within(offline).getByRole("button", { name: "Edit labels for zz-scan" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Edit Agent labels" });
+    const lateCheckbox = within(dialog).getByRole("checkbox", {
+      name: /zz-scan/,
+    });
+    expect(lateCheckbox).toBeChecked();
+    expect(within(dialog).queryByText(/no longer bound/i)).toBeNull();
+    await user.click(lateCheckbox);
+    expect(
+      within(dialog).getByRole("button", { name: "Save labels" }),
+    ).toBeEnabled();
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save labels" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Edit Agent labels" }),
+      ).toBeNull(),
+    );
+    const forget = within(offline).getByRole("button", {
+      name: /Forget Agent ffffffff…ffff/,
+    });
+    await waitFor(() => expect(forget).toBeEnabled());
+    await user.click(forget);
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Forget identity",
+      }),
+    );
+    await waitFor(() => expect(forgotten).toBe(true));
+  });
+
+  it("copies the stable ID and edits labels on demand without saving a dismissed draft", async () => {
+    const user = userEvent.setup();
+    const copy = vi.spyOn(navigator.clipboard, "writeText");
+    const mutations: Request[] = [];
+    const api: Fallback = async (request) => {
+      if (request.method !== "GET") mutations.push(request.clone());
+      return readResponse(request, principalBase) ?? failure(500);
+    };
+    renderApplication("/operations/runtime-agents", { server: api });
+    const card = await screen.findByRole("article", { name: "debug" });
+    expect(within(card).getByText("aaaaaaaa…aaaa")).toBeInTheDocument();
+    expect(within(card).queryByRole("checkbox")).toBeNull();
+    expect(card.querySelector("details")).not.toHaveAttribute("open");
+    await user.click(card.querySelector("summary")!);
+    expect(within(card).getAllByText("Not observed")).toHaveLength(4);
+    await user.click(
+      within(card).getByRole("button", { name: "Copy Agent ID" }),
+    );
+    expect(copy).toHaveBeenCalledWith(principalBase.runtimeAgentId);
+    const trigger = within(card).getByRole("button", { name: "Edit labels" });
+    await user.click(trigger);
+    let dialog = screen.getByRole("dialog", { name: "Edit Agent labels" });
+    expect(
+      within(dialog).getByRole("checkbox", { name: /caido/ }),
+    ).toHaveFocus();
+    expect(
+      within(dialog).queryByRole("checkbox", { name: /default/ }),
+    ).toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "Save labels" }),
+    ).toBeDisabled();
+    await user.click(within(dialog).getByRole("checkbox", { name: /debug/ }));
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(mutations).toHaveLength(0);
+    await user.click(trigger);
+    dialog = screen.getByRole("dialog", { name: "Edit Agent labels" });
+    expect(
+      within(dialog).getByRole("checkbox", { name: /debug/ }),
+    ).toBeChecked();
+  });
+
+  it("requires an explicit reload after a label revision conflict and pins the reviewed revision", async () => {
+    let principal = principalBase;
+    const requests: Request[] = [];
+    const api: Fallback = async (request) => {
+      if (request.method === "PUT") {
+        requests.push(request.clone());
+        if (requests.length === 1) {
+          principal = {
+            ...principal,
+            revision: "2",
+            labels: ["caido", "debug"],
+          };
+          return preconditionFailed("Agent labels changed");
+        }
+        const body = (await request.json()) as { labels: string[] };
+        principal = { ...principal, revision: "3", labels: body.labels };
+        return json(principal, 200, { ETag: '"3"' });
+      }
+      return readResponse(request, principal) ?? failure(500);
+    };
+    renderApplication("/operations/runtime-agents", { server: api });
+    const user = userEvent.setup();
+    await user.click(
+      (await screen.findByRole("article", { name: "debug" })).querySelector(
+        "summary",
+      )!,
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Edit labels" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Edit Agent labels" });
+    await user.click(within(dialog).getByRole("checkbox", { name: /debug/ }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save labels" }),
+    );
+    expect(
+      await within(dialog).findByText("Agent labels changed in another view."),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByRole("checkbox", { name: /debug/ }),
+    ).not.toBeChecked();
+    expect(
+      within(dialog).getByRole("button", { name: "Save labels" }),
+    ).toBeDisabled();
+    expect(requests[0]?.headers.get("If-Match")).toBe('"1"');
+    expect(await requests[0]?.json()).toEqual({ labels: [] });
+    await user.click(
+      within(dialog).getByRole("button", { name: "Reload labels" }),
+    );
+    await waitFor(() => expect(within(dialog).queryByRole("alert")).toBeNull());
+    expect(
+      within(dialog).getByRole("checkbox", { name: /debug/ }),
+    ).toBeChecked();
+    expect(
+      within(dialog).getByRole("checkbox", { name: /caido/ }),
+    ).toBeChecked();
+    await user.click(within(dialog).getByRole("checkbox", { name: /caido/ }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save labels" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(requests).toHaveLength(2);
+    expect(requests[1]?.headers.get("If-Match")).toBe('"2"');
+    expect(requests[1]?.headers.get("X-CSRF-Token")).toBe(CSRF_TOKEN);
+    expect(requests[1]?.headers.get("Idempotency-Key")).not.toBe(
+      requests[0]?.headers.get("Idempotency-Key"),
+    );
+    expect(await requests[1]?.json()).toEqual({ labels: ["debug"] });
+  });
+
+  it("refreshes card availability manually when live events are disconnected", async () => {
+    let principal = principalBase;
+    const api: Fallback = async (request) => {
+      return readResponse(request, principal) ?? failure(500);
+    };
+    renderApplication("/operations/runtime-agents", { server: api });
+    const card = await screen.findByRole("article", { name: "debug" });
+    expect(within(card).getByText("Available")).toBeVisible();
+    principal = {
+      ...principalBase,
+      availability: "busy",
+      live: { ...principalBase.live!, slotState: "reserved" },
+    };
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(await within(card).findByText("Busy")).toBeVisible();
+    await user.click(card.querySelector("summary")!);
+    expect(
+      within(card).getByText("reserved", { selector: "small" }),
+    ).toBeVisible();
+    expect(within(card).queryByText("Available")).toBeNull();
+  });
+
+  it("shows allocation ownership and a reconciliation warning without treating an idle observation as availability", async () => {
+    const principal: RuntimeAgentPrincipal = {
+      ...principalBase,
+      availability: "slot_unavailable",
+      live: {
+        ...principalBase.live!,
+        slotState: "fenced",
+        authoritativeAllocationId: "allocation-current",
+        reconciliationReason: { code: "release_pending", retryable: true },
+      },
+    };
+    const api: Fallback = async (request) => {
+      return readResponse(request, principal) ?? failure(500);
+    };
+    renderApplication("/operations/runtime-agents", { server: api });
+    const card = await screen.findByRole("article", { name: "debug" });
+    expect(within(card).getByText("Slot unavailable")).toBeVisible();
+    await userEvent.setup().click(card.querySelector("summary")!);
+    expect(
+      within(card).getByText("State reconciliation pending"),
+    ).toBeVisible();
+    expect(
+      within(card).getByText("Process: idle. Server slot: fenced."),
+    ).toBeVisible();
+    expect(within(card).queryByText("Available")).toBeNull();
+    expect(
+      within(card).getByRole("link", { name: /Inspect allocation/ }),
+    ).toHaveAttribute("href", "/operations/allocations#allocation-current");
+  });
+});

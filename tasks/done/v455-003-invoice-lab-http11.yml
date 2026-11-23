@@ -1,0 +1,57 @@
+schema_version: '1.0'
+id: V455-003
+title: Serve Invoice Lab responses through the controlled HTTP transport
+milestone: autonomous-http-pentest-2026-10
+epic: evals
+kind: defect
+introduced_by: V455-002
+priority: P1
+status: completed
+depends_on: [V411-019]
+languages: [python, markdown]
+goal: Invoice Lab returns framed HTTP/1.1 responses accepted by the engagement-controlled Runtime transport.
+context:
+  reconciliation_2026_11_22:
+    authority: User requested reviewing and committing the files left uncommitted in Contractor main.
+    implementation_repository: /Users/ruslan/src/contractor-playground
+    implementation_status: The exact implementation_commit exists on codex/v455-003-invoice-http11; it is not merged into the playground main branch. Contractor retains its exact revision and file digests in tests/eval/pentest/playground.lock.json.
+    demo_outcome: The replacement Run later failed with worker_budget_exhausted (tool_calls), with no result or finding retained. The completed HTTP framing fix does not complete V411-015 acceptance.
+    terminal_outcome_source: tasks/done/v455-004-runtime-trace-delivery.yml
+    revalidation: Exact playground revision and all ten file digests match. Fourteen standalone tests and all sixteen private fixture checks pass without skips using podman-machine-default-root; owned fixture containers and volumes are absent. make lint passes with four prerequisite-gated PostgreSQL/Podman script-test skips, which are not passing coverage. Both JSON reports and their cross-references validate. The live demo was not rerun.
+  evidence: tasks/evidence/v455-003-invoice-http11-20261107.json
+  playground_repository: /Users/ruslan/src/contractor-playground
+  playground_branch: codex/v455-003-invoice-http11
+  playground_test_cwd: /Users/ruslan/src/contractor-playground
+  completion: Verification recorded on 2026-11-07 passed all fourteen standalone tests, sixteen private fixture checks and make lint. The deployed production transport received 401/200/200 with isolated anonymous/Alice/Bob identities; business-state hashes were unchanged across restart. Replacement Audit audit_b54394decf54943e4526c572d4ab82d3 and Run run_780569669abd9ff2027fc32bd2337579 pinned invoice-lab-traces with the existing model. Playground code remains on its implementation branch.
+  authority: User request 2026-11-07 fixes and restarts Invoice Lab after the traced V411-015 demonstration failed.
+  finding: >-
+    contractor-playground/invoice_lab.py Handler inherits HTTP/1.0 from
+    BaseHTTPRequestHandler, while the controlled bridge rejects that response
+    version. Run run_e7c83a88520dd043674e62a8e5001f2d sent forty requests but
+    retained only response_invalid captures and no application response.
+  siblings: The same Handler serves vulnerable/fixed variants and the standalone/container entry points; fix it once. Keep the production transport contract unchanged.
+  boundary: Target-owned HTTP framing, explicit connection close on each response, existing Content-Length; no authentication or vulnerability behavior changes.
+scope:
+  in:
+  - HTTP/1.1 responses with explicit connection closure, including early authentication errors with unread request bodies.
+  - Real wire regressions for both variants and refresh of the exact playground gate pin.
+  - Restart the isolated demo target preserving its volume, then make an explicitly user-authorized new Audit with traces.
+  out:
+  - Runtime transport changes, database resets, model changes and full V411-015 deterministic acceptance.
+acceptance_criteria:
+- id: A1
+  text: Both variants send HTTP/1.1 with exact Content-Length; early denial closes the connection without interpreting unread body bytes as another request.
+- id: A2
+  text: All paired standalone and private fixture checks pass; the deployed controlled Runtime receives real anonymous and authenticated responses.
+- id: A3
+  text: The demo restarts with unchanged target-owned business state, and its replacement Audit pins the existing trace configuration.
+tests:
+- command: cd ../contractor-playground && python3 -W error::ResourceWarning -m unittest discover -s tests -v
+  covers: [A1, A2]
+- command: make test-pentest-fixtures
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2]
+verification_requirements:
+- Record real controlled transport smoke and replacement image/Audit/Run/trace identities in the demo evidence; never claim technical Run success as application coverage.
+implementation_commit: 2ae58c7d345834928157fe7fe2061ea7afc8bfd2

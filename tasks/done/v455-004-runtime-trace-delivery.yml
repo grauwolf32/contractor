@@ -1,0 +1,213 @@
+schema_version: '1.0'
+id: V455-004
+title: Preserve bounded Worker trace flush when Runtime cleanup fails
+milestone: runtime-otlp-delivery
+epic: operations
+kind: defect
+introduced_by: V411-003
+priority: P1
+status: completed
+depends_on: []
+languages: [python, markdown]
+goal: >-
+  Runtime cleanup failures cannot bypass a reserved bounded export attempt for
+  completed Worker spans before controlled process exit, without extending the
+  original stop deadline or adding periodic export.
+context:
+  authority: >-
+    User approval 2026-11-07 authorizes the narrowed implementation plan after
+    read-only fault probes: preserve final flush across cleanup failures using
+    existing exporter and bounded lifecycle code, reserve time within the stop
+    deadline, add safe exit diagnostics and real-process regressions. This
+    supersedes the earlier periodic-export proposal and 30-second delay. No
+    timer, new configuration or live Invoice Lab run is assigned. Investigating
+    the historical peer reset is a separate next step.
+  specification:
+    - docs/spec/platform/observability.md#OBS-R52
+    - docs/spec/platform/observability.md#OBS-R67
+    - docs/spec/platform/observability.md#OBS-R73
+    - docs/spec/platform/observability.md#OBS-R87
+    - docs/spec/platform/observability.md#OBS-R89
+    - docs/spec/configuration/runtime-config.md#RCF-R99
+    - docs/spec/configuration/runtime-config.md#RCF-R102
+    - docs/spec/execution/runtime-agent.md#RTA-R58
+    - docs/spec/execution/runtime-agent.md#RTA-R116
+  severity: high
+  source_revision: 8908258ab
+  finding: >-
+    runtime/src/contractor_runtime/allocation/service.py:615-661 HTTP cleanup
+    precedes adapter termination/flush. _close_http_or_exit at :723-733 can
+    call os._exit(70) first, losing the entire in-memory trace queue.
+    runtime/src/contractor_runtime/adapters/host.py:390-440 flushes only when
+    adapter termination is reached. Real-process probes reproduced five queued
+    spans after worker_budget_exhausted: normal finalize delivered five, whereas
+    injected Worker-stop, HTTP-close and Tool-close failures exited 70 and
+    delivered zero to a healthy local collector.
+  incident: >-
+    Invoice Lab Audit audit_b54394decf54943e4526c572d4ab82d3, Run
+    run_780569669abd9ff2027fc32bd2337579, 2026-11-07 14:30:44-14:35:57
+    Europe/Moscow: worker_budget_exhausted(tool_calls), limit 200; 40 physical
+    target requests. Phoenix retained four Planner spans and no Worker/model/tool
+    spans after checking all projects, pages and the time window. Server logged
+    incomplete allocation finalization, then connection refusal to Runtime local-1
+    and eventual lease loss. A prior Runtime log records ConnectionResetError
+    from the target connection handler. No exact forced-exit branch or exit code
+    was recorded; the causal chain from that reset to process exit is unproven.
+  provenance: >-
+    git blame attributes HTTP cleanup's pre-flush force-exit path to V411-003,
+    commit 85892fd1eb8378b34b6073cdb0e984da02c5201d; V422-003 later bounded
+    its deadline. V452-001's shared stop deadline must remain intact.
+  siblings: >-
+    Cover explicit finalize and abort, control-lease expiry/reconciliation,
+    Worker/tool/execution/HTTP cleanup failure and cancellation, process shutdown,
+    and repeated release. Review all AllocationService force-exit sites. Prepare
+    rollback has no active Worker trace and must not gain background exporters.
+    Server Planner export has separate ownership and currently survives this
+    incident; retain its behavior and verify shared configuration changes if any.
+  boundary: >-
+    OTLP adapter owns scheduling, bounded queue, one sender and delivery outcomes.
+    Allocation lifecycle owns rejection of new work, cleanup, deadline reservation
+    and process fencing. Worker/tool callbacks never await collector availability.
+    Reuse existing exporter/report counters; add no parallel lifecycle or receipt
+    store. Export failure must not replace worker_budget_exhausted or permit reuse
+    of a slot whose resources have not been confirmed stopped.
+  design_direction: >-
+    Retain OBS-R73 and all existing size/queue triggers. Reuse the existing
+    queue, sender, flush, retries, counters and bounded cleanup primitives;
+    add no timer, configuration, parallel exporter or lifecycle framework.
+    Reserve final export time within the original stop deadline before cleanup can
+    consume it, and ensure an earlier cleanup error cannot skip that attempt.
+    Do not simply move adapter close before producers stop: remaining callbacks
+    must retain safe ownership and final spans need draining.
+  recovery_limit: >-
+    This task retains OBS-R52's bounded best-effort, memory-only contract. It does
+    not promise delivery after SIGKILL, machine loss or indefinite collector outage,
+    or recovery of the incident's already lost spans. Reopen with a separate design
+    if durable delivery is requested; no disk spool is implicitly authorized.
+scope:
+  in:
+    - Reuse existing bounded final flush and preserve one sender and drop/flush accounting.
+    - Independent bounded terminal export attempts across cleanup failures without extending the stop deadline.
+    - Safe diagnostic reason and cleanup phase before controlled forced exit, without secrets or response bodies.
+    - Real-process local OTLP regression coverage and corresponding specification updates.
+  out:
+    - Periodic or age-triggered export, new batching delay or RuntimeConfig fields.
+    - Diagnosing or repairing the historical peer-reset cause and changing HTTP closure classification.
+    - Durable exporter spool, unbounded retries, mandatory collector availability or guaranteed delivery after SIGKILL.
+    - Model changes, budget increases, automatic replay of target requests and unrelated Invoice Lab workflow fixes.
+    - Changing telemetry content/redaction permissions or treating HTTP credentials and bodies as exportable content.
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Given a healthy collector and a failed Worker invocation with completed
+      spans below every size threshold, normal finalize, abort and lease loss
+      flush those spans using the existing exporter. No periodic timer or new
+      setting is added; disabled telemetry and prepare rollback remain safe.
+  - id: A2
+    text: >-
+      Given queued spans and a classified Worker budget failure followed by HTTP
+      or another producer cleanup failure, the terminal path attempts to drain
+      completed spans to a healthy collector
+      before controlled exit. It records the original failure and cleanup phase;
+      exporter failure cannot mask them. Fault injection proves the emergency
+      path independently of whether the historical reset cause is reproduced.
+  - id: A3
+    text: >-
+      Finalize, abort, lease loss, cancellation, shutdown and repeated release
+      preserve one absolute stop budget and resource fencing. Collector timeout
+      cannot postpone mandatory termination; sender tasks are cancelled and
+      joined before ordinary release erases queue and credentials. No telemetry
+      task or secret survives slot reuse. Rollback and disabled telemetry remain safe.
+  - id: A4
+    text: >-
+      Size-triggered sends, concurrent enqueue, final flush,
+      slow/unavailable collectors, overflow, partial acknowledgements and exhausted
+      retries preserve queue bounds, stable span IDs, accurate drop counters and
+      one sender. Ambiguous delivery retains existing bounded retry semantics;
+      no exactly-once claim or new unbounded queue is introduced.
+  - id: A5
+    text: >-
+      Real Runtime-component subprocesses and a local OTLP receiver demonstrate
+      delivery after worker_budget_exhausted followed by normal finalize and
+      injected Worker-stop, HTTP-close and Tool-close failures, using a
+      deterministic model. New regressions fail on pre-fix code. Deadline tests
+      use an injected clock; process tests use handshakes and bounded waits.
+  - id: A6
+    text: >-
+      Teardown diagrams and affected failure contracts describe the new behavior
+      while OBS-R73 remains unchanged. Content suppression for sensitive HTTP
+      tools and secret canaries still passes. Exit diagnostics include the cleanup
+      phase and bounded safe error classification, never exception messages,
+      credentials, endpoints or response bodies. Wire/settings schemas stay unchanged.
+tests:
+  - command: >-
+      cd runtime && uv run pytest -W error tests/test_adapter_host.py tests/test_otlp_adapter.py
+      tests/test_otlp_streaming.py tests/test_otlp_retries.py tests/test_allocation.py
+      tests/test_allocation_stop.py tests/test_lease_watchdog.py tests/test_cli_shutdown.py
+      tests/test_bridge_lifecycle.py tests/test_http_toolset_lifecycle.py
+      tests/test_telemetry_content.py tests/test_runtime_trace_delivery.py
+      tests/test_runtime_trace_delivery_process.py
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make test-runtime
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5, A6]
+failure_outcomes:
+  success: Collector acknowledgement removes only the sent prefix; later spans remain queued.
+  permanent: Terminal export rejection is counted without changing the execution failure or retrying forever.
+  retryable: Existing finite attempts/backoff apply within the batch and remaining terminal budgets.
+  ambiguous: Preserve span IDs and existing bounded retries after lost acknowledgements; duplicates remain possible.
+  cancelled: Join owned export work within the original stop budget; retain the original cancellation and fence rules.
+  timeout: Account for undelivered spans where possible and record a safe exit reason; never extend mandatory stop.
+cardinality: >-
+  One allocation-local bounded queue and at most one sender per enabled Worker
+  exporter, with no scheduling timer. In-flight data remains charged to the existing
+  byte/span limits; no per-span tasks, persistent payload store or growing retry registry.
+verification_notes: >-
+  The existing mandatory verify-runtime report gate now requires all twenty
+  test_runtime_trace_delivery_process scenarios to execute and pass. Empty,
+  missing, failed or skipped cases are rejected. The full suite retained its
+  declared optional skips; those are not passing coverage.
+verification:
+  date: '2026-11-07'
+  environment: >-
+    macOS arm64, Python 3.13.16, locked offline uv environment, Go 1.26.9 and
+    Node 24.20.0. Local fixture sockets and subprocesses only; no paid live
+    model, deployment, database or heavy-IO opt-in.
+  focused: All 350 cases in the task's focused pytest command passed.
+  full_runtime: >-
+    make test-runtime passed: 5964 passed, 135 declared skips, 422.25 seconds;
+    verify-runtime accepted every mandatory scenario. The two collector
+    rejection cases added after full-suite collection passed in the final
+    focused selection; production code was unchanged during that run.
+  lint: make lint passed, including report-gate negative tests and all four import contracts.
+  negative_control: >-
+    Before implementation, the new HTTP-cleanup/finalize process regression
+    failed because a healthy collector received zero of five completed spans
+    before process exit 70. After implementation, all twenty combinations of
+    finalize, abort, lease expiry and reconciliation with normal, Worker, HTTP,
+    Tool and execution cleanup received all five spans, retaining exit 70 for
+    cleanup failures and worker_budget_exhausted in the exported error span.
+  stop_boundaries: >-
+    Injected-clock tests verify reserved flush time and a hanging collector
+    within the original deadline. Repeated caller cancellation cannot skip the
+    export; collector 400/503 responses do not replace the original cleanup
+    exception or leak exception messages/response canaries.
+  force_exit_audit: >-
+    Active-allocation cleanup exits reuse the bounded flush and log their phase.
+    Prepare rollback has no active Worker trace and remains close-only.
+    Lifecycle-lock deadline exhaustion retains mandatory process exit without
+    extending the expired budget or accessing another lifecycle owner's resources.
+  limits: >-
+    The historical peer-reset cause remains unproven and is not repaired here.
+    Existing memory-only best-effort delivery and queue/retry bounds remain.
+  landing: >-
+    Merged into main through 96d92c5bc3a277bc2b33e845d986a3b4fb50cfad;
+    no deployment was performed.
+  integration:
+    merge_commit: 96d92c5bc3a277bc2b33e845d986a3b4fb50cfad
+    verified_tree: 4ad9c54339220541740e169a1f4310c5d3b84fde
+    tree_equivalence: The merge tree exactly matches the previously verified implementation branch.
+    focused_after_merge: 350 passed in 25.57 seconds on main.
+    metadata_checks: Task, specification, generated dependency graph and whitespace checks passed.
+implementation_commit: c2a17fbc37f4cb510026215c87e1a87049d326a7

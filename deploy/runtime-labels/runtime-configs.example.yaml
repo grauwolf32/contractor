@@ -1,0 +1,70 @@
+# Publish each YAML document through POST /v1/operations/runtime-configs after
+# replacing the deployment-local endpoints and credential IDs. Secret material
+# is intentionally absent from this repository file.
+---
+apiVersion: contractor/v1alpha1
+kind: RuntimeConfig
+metadata:
+  name: debug-run
+  version: "1"
+spec:
+  worker:
+    telemetry:
+      adapter: otlp-http@1
+      endpoint: https://langfuse.example/v1/traces
+      credential: otel-debug
+      flushTimeoutSeconds: 10
+      export:
+        batchSizeBytes: 8388608
+        maxAttempts: 2
+        maxPendingSpans: 2048
+        maxPendingBytes: 67108864
+---
+apiVersion: contractor/v1alpha1
+kind: RuntimeConfig
+metadata:
+  name: debug-agent-local
+  version: "1"
+spec:
+  worker:
+    telemetry:
+      adapter: otlp-http@1
+      endpoint: https://langfuse-local.example/v1/traces
+      credential: otel-agent-local
+      flushTimeoutSeconds: 10
+      export:
+        batchSizeBytes: 8388608
+        maxAttempts: 2
+        maxPendingSpans: 2048
+        maxPendingBytes: 67108864
+---
+apiVersion: contractor/v1alpha1
+kind: RuntimeConfig
+metadata:
+  name: caido-analysis
+  version: "1"
+spec:
+  worker:
+    httpProxy:
+      adapter: http-proxy@1
+      proxyUrl: https://caido-forward.example:8080
+      targets: [tool-http]
+    caido:
+      adapter: caido-graphql@1
+      endpoint: https://caido-control.example:8443
+      credential: caido-api
+      requestTimeoutSeconds: 30
+
+---
+apiVersion: contractor/v1alpha1
+kind: RuntimeConfig
+metadata:
+  name: interactsh-lab
+  version: "1"
+spec:
+  worker:
+    interactsh:
+      adapter: interactsh-http@1
+      endpoint: https://oast.example
+      credential: interactsh-api
+      requestTimeoutSeconds: 30

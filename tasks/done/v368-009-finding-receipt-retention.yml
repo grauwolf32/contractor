@@ -1,0 +1,99 @@
+schema_version: "1.0"
+id: V368-009
+title: "Delete finding proposal receipts with their Project"
+milestone: hub-audit-defects-2026-10
+epic: findings
+kind: defect
+introduced_by: V25-010
+priority: P1
+status: completed
+implementation_commit: aa80d9f2a0215a687d463706ce54d8ca46d82ca3
+depends_on: []
+languages: [go, sql]
+goal: "A purge test of a fully populated Project leaves no receipt row with its project_id."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), persistence G3; file:line as of 02bbdcbf, re-verify on current main"
+  specification:
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R61
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R60
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R54
+  finding: >-
+    finding_proposal_receipts rejects every DELETE by trigger (baseline,
+    from 000093) and has no FK to projects, so after Project purge
+    (projectlifecycle/controller.go:432-480) rows with owner_id, project_id,
+    client_key and evidence references remain forever. LIFE-DEL-6 says
+    retention is not specified.
+  siblings: >-
+    Fixed: receipts of Audit child Runs carry the Audit's project_id and go
+    with the same purge as those of ordinary Project Runs; deleting a receipt
+    probes the RESTRICT references from audit_finding_contributions and
+    audit_findings, which led no index (each probe would scan the table), so
+    000010 adds both indexes and TestLifecycleForeignKeyProbeIndexes now
+    covers finding_proposal_receipts. Ruled out: every other table with a
+    project_id either references projects with RESTRICT or CASCADE (audits,
+    eval experiments, dataset revisions and mutation receipts, artifact
+    scopes, Audit holds, Runs and their output publications) or is purged by
+    the eval purge (eval_collections); Run deletion and Audit purge keep
+    tombstones by design (DEL-R29) and are unchanged; no other code deletes
+    receipts.
+  decision: >-
+    Guarantee: no receipt naming a Project outlives its purge. Project
+    deletion deletes receipts, it does not tombstone them further, because
+    after Run deletion a receipt already is the tombstone and the Project it
+    names is gone. findingintake.PurgeProjectReceipts runs in every Project
+    purge transaction after the eval purge, deletes one batch in receipt order
+    (1,000 receipts and 64 MiB of pg_column_size of report projection and
+    evidence, at least one receipt; LIM-DEL-3) and the ProjectScope purge
+    starts only when none is left, so a transaction carries at most one
+    receipt batch and one Artifact batch. The byte bound exists because a
+    receipt may hold 8 MiB of report projection and 1 MiB of evidence, and
+    1,000 such rows would delete about 9 GiB of TOAST under one statement
+    timeout. The trigger reuses the existing contractor.lifecycle_purge mode
+    ('project') rather than a new setting, and still requires the Project to
+    be deleting. Alternatives: a foreign key from receipts to projects with
+    ON DELETE RESTRICT, like audits and eval rows, was not added: it is
+    defense in depth only (the controller already deletes the Project row
+    only after the receipt purge reports none left) and it would make every
+    fixture that inserts receipts (12 test files) depend on an existing
+    Project of the same owner; an ON DELETE CASCADE foreign key
+    would remove all receipts in the Project row deletion, one unbounded
+    statement. Accepted risk: receipts of standalone Runs name no Project and
+    are retained without a deleter; the trigger enforces that nothing removes
+    them by accident (DEL-R61). Reopen when owner data deletion or a
+    retention period for standalone Run provenance is specified, or when the
+    controller gains a second path that deletes Project rows (then add the
+    RESTRICT foreign key). Databases migrated before this change keep the
+    receipts of Projects already purged; 000010 does not remove them.
+scope:
+  in:
+    - "Decide and specify retention (projects.md, lifecycle.md); delete or tombstone receipts in the Project purge transaction through findingintake; migration for the trigger change."
+  out:
+    - "Receipt immutability while the Project exists."
+acceptance_criteria:
+  - id: A1
+    text: "A purge test of a fully populated Project leaves no receipt row with its project_id."
+    evidence: >-
+      TestProjectDeletionCancelsDrainsPurgesAndRetainsSharedResources (Runs,
+      Audit, artifacts, receipts tombstoned by the real Run purge) and
+      TestProjectDeletionPurgesAuditWithDecidedReviewsAndAssessments (an
+      audit-held receipt with a hold, contribution, finding, assessment,
+      review request and owner decision) leave no receipt with the Project's
+      ID; both failed without the controller change (2 and 1 receipts left).
+      TestProjectDeletionPurgesReceiptsInBoundedTransactions deletes 2,500
+      receipts in three controller steps of at most 1,000, purges no
+      Artifact while a receipt is left (failed without the change), and
+      keeps another Project's receipts and a standalone Run's receipt.
+      TestPostgresProjectReceiptPurgeIsBoundedAndScoped proves the byte
+      bound, the first-receipt rule and that the trigger refuses a receipt of
+      an active Project, of another Project, of a standalone Run and outside
+      the purge mode (failed without the trigger change).
+      TestLifecycleForeignKeyProbeIndexes failed without the two indexes.
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/projectlifecycle ./internal/findingintake"
+    covers: [A1]
+  - command: "go test -tags integration -run '^(TestPostgresProjectReceiptPurgeIsBoundedAndScoped|TestPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion|TestPostgresFindingReceiptReplayRetentionAndRunDeletion)$' ./internal/findingintake"
+    covers: [A1]
+  - command: "go test ./internal/persistence/..."
+    covers: [A1]

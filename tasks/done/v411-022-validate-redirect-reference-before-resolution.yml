@@ -1,0 +1,125 @@
+schema_version: '1.0'
+id: V411-022
+title: Reject invalid redirect references before URL resolution can normalize them
+milestone: autonomous-http-pentest-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V411-003
+priority: P1
+status: completed
+depends_on:
+- V411-003
+languages: [python, json, markdown]
+goal: Apply the existing strict URL/path policy to an untrusted Location reference before resolution
+  can erase prohibited syntax, preserving the exact authorized request target.
+context:
+  authority: Necessary repair discovered while executing the user-authorized V411-004 conformance
+    matrix on 2026-10-29; that task requires a separate tracked repair for production defects.
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R137
+  - docs/spec/tools/http-caido.md#HTP-R139
+  - docs/spec/audits/execution.md#AUX-R106
+  proposal:
+  - docs/proposals/0033-autonomous-pentest-audits.md#41-route-policy
+  finding: >-
+    runtime/src/contractor_runtime/adapters/pentest_target.py:335 calls urljoin before canonical_url.
+    Native Linux TCP observers reproduce a second GET /api/secret for Location /api/a/../secret,
+    and GET /secret for Location ../secret. urljoin removes the prohibited dot segments before
+    the canonical path validator can reject them. The independent V411-004 socket tests fail
+    on main b93e307b7830ea6b55d04dca4169e68179064cb9.
+  siblings: >-
+    Audit engagement seed URLs and Go/Python canonical absolute URLs already reject raw/encoded
+    dot segments. Review every controlled redirect form (absolute, scheme-relative, root-relative,
+    path-relative, query-only and empty), parser control-character stripping, repeated separators,
+    malformed authorities and nested escaping. Ordinary HTTP tools retain their separate contract.
+scope:
+  in:
+  - Reuse the existing canonical URL/path grammar before any redirect resolution can normalize
+    raw dot segments or strip forbidden characters; do not duplicate a second path grammar.
+  - Preserve valid relative redirects, exact semicolon paths, explicit empty-query clearing,
+    Host/SNI, scope admission and redirect digest identity.
+  - Add focused canonical-reference regressions and pass the independent real-socket and
+    Server/Runtime conformance cases without weakening policy or changing their expected denials.
+  out:
+  - No new public API, wire version, migration, identity, proxy mode or ordinary HTTP behavior.
+failure_outcomes:
+- operation: Resolve an untrusted HTTP Location reference
+  permanent: Invalid syntax is a safe blocked policy outcome; the prohibited redirect target
+    receives zero application bytes and does not acquire a replacement request permit.
+  retryable: None for invalid redirect syntax.
+  ambiguous: Existing sent request charge and outcome remain; never resend it to obtain a valid redirect.
+  cancelled: Existing allocation-owned transport cleanup remains authoritative.
+  timeout: Existing original action/transport deadline remains unchanged.
+cardinality:
+- collection: Redirect reference
+  expected: One Location field per response.
+  maximum: 8192 bytes, five redirect hops per seed.
+  bound: Reject before resolution; no new DNS, socket, buffering or retry path is added.
+lifecycle:
+- entity: Redirect continuation
+  delete: Owned by the existing action/attempt and allocation.
+  cascade: Existing cancellation, stop proof and journal purge apply unchanged.
+  retention: Only the already defined canonical target digest may enter the journal.
+acceptance_criteria:
+- id: A1
+  given: Raw or encoded dot segments, parser-stripped controls or ambiguous authority in Location
+  when: Controlled preflight receives the response
+  then: It refuses the redirect before another target-request byte and preserves original accounting.
+- id: A2
+  given: Valid absolute and relative references, semicolon paths and empty query delimiters
+  when: Preflight follows the redirect
+  then: Policy, journal digest and actual transmitted request target agree exactly.
+- id: A3
+  given: The independent V411-004 TCP and production-process observers
+  when: The original defect and repaired implementation are exercised
+  then: Regressions fail before the repair and pass afterward; ordinary HTTP and canonical URL
+    contracts remain unchanged.
+tests:
+- command: make test-wire-cross-language test-runtime test-http-caido-runtime
+  covers: [A1, A2, A3]
+- command: make test-pentest-http-process
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+assignment:
+  branch: codex/v411-004-http-conformance
+  claimed: '2026-10-29'
+
+implementation_commit: 92a7d79d8856c262ba8757e808be883925899b19
+verification:
+  date: '2026-10-29'
+  results:
+  - Native TCP and actual Server/Runtime regressions reproduced raw absolute and relative dot-segment
+    redirects before the fix; forbidden targets received requests. The same cases pass after repair
+    with zero prohibited target writes. Canonical absolute-URL and ordinary HTTP behavior stay unchanged.
+  - make test-wire-cross-language test-runtime test-http-caido-runtime passed on native Linux.
+    Shared fixtures verified 425 cases with 359 Go and 244 Python shared tests. Full Runtime had
+    5590 passed and 55 existing optional integration skips; all mandatory conformance cases ran.
+    Ordinary HTTP/Caido Runtime regressions passed all 208 tests.
+  - make test-pentest-http-process passed on a fresh Linux container with real Server/Runtime,
+    sockets and PostgreSQL; 38 process identities, two accounting cases and 31 Runtime socket cases,
+    zero selected skips. Raw Location forms, canonical targets and original request charges agree.
+  - make lint passed on final code 9cc2645801bfed9527bd0added24d6d6c290b485.
+  source_comparison: Runtime tests ran at 8ece6b535b61a9fb43669c7a05bd29dab8a7022b; all production
+    and Runtime test bytes match the final code. Later changes only fix sibling Go process fixtures
+    and isolate cold-cache dependency setup from JSON reports.
+  reports:
+    before_socket: /private/tmp/v411004-evidence/redirect-socket-before-fix.log
+    before_process: /private/tmp/v411004-evidence/redirect-process-before-fix.log
+    runtime_wire_and_http: /private/tmp/v411004-evidence/runtime-final.log
+    runtime_junit: /private/tmp/v411004-evidence/runtime.xml
+    process_gate: /private/tmp/v411004-evidence/focused-gate-final.log
+    lint: /private/tmp/v411004-evidence/lint-code-final.log
+  integration_recheck:
+    source: bc99bfa8e9f64144a0ab0c41bd0b21904d3e29cf
+    main: 08a6b8310213283269da338536ea49bcf64e6153
+    result: After integrating shared Artifact reads, every required target passed again on the same
+      source. Wire verified 426 fixtures, 360 Go and 246 Python shared readers; full Runtime had
+      5606 passed and the same 55 optional skips; all 208 HTTP/Caido Runtime cases passed.
+      The independent HTTP gate passed 38 process identities, two real-store cases and 31 socket
+      cases with zero selected skips. The original action gate, ordinary HTTP/Caido process gate,
+      public API and full lint passed. The redirect implementation itself is unchanged.
+    reports:
+      runtime_wire_and_http: /private/tmp/v411004-evidence/integrated-runtime.log
+      runtime_junit: /private/tmp/v411004-evidence/integrated-runtime-reports/runtime.xml
+      lint: /private/tmp/v411004-evidence/integrated-lint.log

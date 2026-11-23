@@ -1,0 +1,72 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata:
+  name: audit-prepared-check
+  version: '1'
+spec:
+  parameters: {}
+  inputs:
+    operation:
+      required: true
+      mediaTypes:
+      - application/json
+    openapi:
+      required: true
+      mediaTypes:
+      - application/json
+    request_values:
+      required: false
+      mediaTypes:
+      - application/json
+  outputs:
+    result:
+      required: true
+      primary: true
+      mediaTypes:
+      - application/json
+  executionConfig:
+    workers:
+      modelPolicy: test-worker@1
+      llmGateway: local-litellm@1
+  entryStage: check
+  stages:
+    check:
+      objective: Check the scoped assertion from the trusted context against selected source
+      instructions:
+        ref: instructions/copy-planner.md
+      planner: passthrough@1
+      agents:
+        builder:
+          template: artifact_builder@1
+      context:
+        artifacts:
+          operation:
+            namespace: inputs
+            name: operation
+            required: true
+          openapi:
+            namespace: inputs
+            name: openapi
+            required: true
+          request_values:
+            namespace: inputs
+            name: request_values
+            required: false
+      result:
+        artifacts:
+          conclusions:
+            required: true
+            mediaTypes:
+            - application/json
+            from:
+              namespace: builder
+              name: conclusions
+      workflowOutputs:
+        result: conclusions
+      'on':
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

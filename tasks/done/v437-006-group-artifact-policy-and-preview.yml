@@ -1,0 +1,44 @@
+schema_version: "1.0"
+id: V437-006
+title: "Group shared Artifact policy and previews under artifacts"
+milestone: artifact-release-cleanup-2026-11
+epic: projects-artifacts
+kind: chore
+introduced_by: V9-005
+priority: P3
+status: completed
+depends_on: [V437-004]
+languages: [go]
+goal: "Shared Artifact namespace policy and archive previews live under the ArtifactStore owner with unchanged behavior."
+context:
+  authority: >-
+    User decision 2026-11-02: move internal/artifactpolicy and internal/artifactpreview
+    into internal/artifacts/policy and internal/artifacts/preview; retain the artifacts name.
+  boundary: >-
+    Policy remains a foundation package with no dependency on the root ArtifactStore.
+    Preview remains a platform package; neither package acquires storage or domain authority.
+    The simpler alternative of retaining sibling packages was rejected by the user grouping decision.
+    Revisit only if actual downward imports cannot preserve these existing layers.
+scope:
+  in:
+    - "Move packages and migrate all imports, architecture classification, source guards and executable test selectors."
+  out:
+    - "Namespace rules, archive parsing, limits, APIs and wire contracts."
+acceptance_criteria:
+  - id: A1
+    text: "Production and tests use artifacts/policy and artifacts/preview; old package paths and compatibility aliases are absent."
+  - id: A2
+    text: "Layer checks, both package suites and existing consumers remain valid; renamed test selectors select their actual packages."
+tests:
+  - command: "make lint"
+    covers: [A1, A2]
+  - command: "go test -count=1 -tags integration -p 2 ./internal/... ./cmd/..."
+    covers: [A1, A2]
+implementation_commit: 5ed081dfe74150d3b9ffda2378e53fd93ac7708f
+verification: >-
+  make lint and the complete internal/... and cmd/... Go integration suites
+  passed with a disposable PostgreSQL database. Policy and preview suites and
+  architecture/source guards passed, including the relocated namespace owner.
+  Runtime shared-memory and finding-toolset tests passed (59 tests); the UI
+  Artifact contract suite passed (38 tests). Tagged process consumers compile;
+  generated dependency documentation and executable package selectors are current.

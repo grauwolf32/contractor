@@ -1,0 +1,64 @@
+{
+  "task": "V471-001",
+  "date": "2026-11-21",
+  "implementation_commit": "41fc498a72f6bb8ace9a566a8d012f8b0df42fbc",
+  "result": "Direct finding and record_fact require an active ordinary Project, always admit a common Finding with exact retained sources, and preserve optional trusted Task/hypothesis origin. Informational severity is excluded consistently from needs review.",
+  "checks": [
+    {
+      "command": "make test-project-facts-e2e",
+      "outcome": "passed",
+      "required_process_cases": 17,
+      "runtime_contract_cases": 287
+    },
+    {
+      "command": "go test ./internal/findingintake/... ./internal/auditdomain/... ./internal/auditservice/... ./internal/artifacts/...",
+      "outcome": "passed",
+      "postgresql": "enabled"
+    },
+    {
+      "command": "go test -tags=integration ./internal/findingintake",
+      "outcome": "passed",
+      "postgresql": "enabled"
+    },
+    {
+      "command": "make test-runtime",
+      "outcome": "passed",
+      "passed": 6321,
+      "skipped": 135,
+      "compaction_selected_passed": 577
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "outcome": "passed",
+      "fixtures": 396,
+      "go_shared_tests": 447,
+      "python_shared_tests": 282,
+      "optional_disk_heavy_skips": 1
+    },
+    {
+      "command": "make verify-public-api",
+      "outcome": "passed"
+    },
+    {
+      "command": "make lint",
+      "outcome": "passed"
+    },
+    {
+      "command": "VITEST_MAX_WORKERS=4 make ui-verify",
+      "outcome": "passed",
+      "passed": 2554,
+      "expected_fail": 1
+    },
+    {
+      "command": "make test-config",
+      "outcome": "passed"
+    }
+  ],
+  "additional_touched_packages": "Real-PostgreSQL suites passed for auditstore/pgstore, auditimport, private/public HTTP APIs, configuration and persistence; required Go suite includes the 10000-finding/50000-source regression.",
+  "environment": "Pinned cached Go 1.26.9, Node 24.20.0 and ffuf 2.3.0; one owned disposable PostgreSQL 17 database, reused by this group. The preinstalled ffuf 2.1 was not changed.",
+  "limitations": [
+    "Optional heavy-I/O fixtures were not enabled; their skips are not passing coverage.",
+    "Group 2, live-model calls, deployment and remote publication were not executed.",
+    "The owned database remains available until the whole assigned group finishes, then will be explicitly dropped."
+  ]
+}

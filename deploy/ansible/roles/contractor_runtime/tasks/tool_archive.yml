@@ -1,0 +1,68 @@
+---
+# Installs __contractor_runtime_tool_name from its pinned archive into
+# <prefix>/tools/<name>-<version>. Extraction goes to a .partial directory
+# that is renamed only when complete, so an interrupted run starts over.
+# tools.yml passes __contractor_runtime_tool, __contractor_runtime_asset, __contractor_runtime_dest and __contractor_runtime_archive.
+
+- name: Check the installation of {{ __contractor_runtime_tool_name }}
+  ansible.builtin.stat:
+    path: "{{ __contractor_runtime_dest }}/{{ __contractor_runtime_tool.path }}"
+  register: __contractor_runtime_installed
+
+- name: Install {{ __contractor_runtime_tool_name }}
+  when: not __contractor_runtime_installed.stat.exists
+  block:
+    - name: Download {{ __contractor_runtime_tool_name }}
+      ansible.builtin.get_url:
+        url: "{{ __contractor_runtime_asset.url }}"
+        dest: "{{ __contractor_runtime_archive }}"
+        checksum: sha256:{{ __contractor_runtime_asset.sha256 }}
+        owner: root
+        group: root
+        mode: "0644"
+        timeout: 120
+      register: __contractor_runtime_download
+      retries: 3
+      delay: 5
+      until: __contractor_runtime_download is succeeded
+
+    - name: Clear an interrupted or incomplete installation
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: ["{{ __contractor_runtime_dest }}.partial", "{{ __contractor_runtime_dest }}"]
+
+    - name: Create the extraction directory
+      ansible.builtin.file:
+        path: "{{ __contractor_runtime_dest }}.partial"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Extract {{ __contractor_runtime_tool_name }}
+      ansible.builtin.unarchive:
+        src: "{{ __contractor_runtime_archive }}"
+        dest: "{{ __contractor_runtime_dest }}.partial"
+        remote_src: true
+        owner: root
+        group: root
+        extra_opts: >-
+          {{ ['--strip-components=' ~ __contractor_runtime_tool.strip]
+             if __contractor_runtime_tool.strip | default(0) | int > 0 else [] }}
+
+    - name: Require the expected file in the archive
+      ansible.builtin.stat:
+        path: "{{ __contractor_runtime_dest }}.partial/{{ __contractor_runtime_tool.path }}"
+      register: __contractor_runtime_extracted
+      failed_when: not __contractor_runtime_extracted.stat.exists
+
+    - name: Publish {{ __contractor_runtime_tool_name }}
+      ansible.builtin.command:
+        argv: [mv, -T, "{{ __contractor_runtime_dest }}.partial", "{{ __contractor_runtime_dest }}"]
+        creates: "{{ __contractor_runtime_dest }}"
+
+    - name: Remove the archive
+      ansible.builtin.file:
+        path: "{{ __contractor_runtime_archive }}"
+        state: absent

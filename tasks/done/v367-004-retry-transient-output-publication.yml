@@ -1,0 +1,68 @@
+schema_version: "1.0"
+id: V367-004
+title: "Retry Project output publication after transient database failures"
+milestone: hub-audit-2026-10
+epic: projects-artifacts
+kind: defect
+introduced_by: V23-005
+priority: P1
+status: completed
+implementation_commit: "88fd2697cf82b2634fcf2b0fd0f01cf8dfc73c96"
+depends_on: []
+languages: [go]
+goal: "A deadlock, serialization failure or statement timeout during output publication is retried instead of being recorded as a permanent failed publication of a succeeded Run."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq), persistence G1 / F3"
+  specification:
+    - docs/spec/artifacts/projects.md
+    - docs/spec/platform/failure-model.md
+  finding: >-
+    scheduler/postgres.go:685-739 publishes each Project output in a
+    savepoint; every error except artifacts.ErrArtifactConflict becomes
+    OutputPublicationFailed with code publication_failed
+    (projectOutputPublicationFailure). 40P01, 40001, 55P03 and 57014 inside
+    the savepoint are rolled back and the Run commits as succeeded with a
+    permanent failed receipt (runstore/output_publication_sql.go keeps the
+    first record with ON CONFLICT DO NOTHING), and nothing retries it.
+    artifacts/projects.md:139, 443-447 and failure-model.md:426 require a
+    bounded retry. scheduler/postgres_integration_test.go:395-430 covers
+    only a permanent P0001.
+  decision: >-
+    Transient publication errors (persistencepostgres.IsTransientFailure, plus
+    cancellation) now abort the terminal transaction instead of being recorded;
+    the retry is the existing finalization recovery (SCH-R99): the Stage stays
+    finalizing, the lane releases the claim and the next claim replays the same
+    terminal commit against the same exact source. The spec promised that a
+    failed result is "recorded and retried", but nothing can retry a recorded
+    failure (the receipt keeps its first record), so the spec was corrected
+    instead of adding a failed-receipt retry loop: `failed` now means a definite
+    rejection recorded once (PRJ-R58, FAIL-PRJ-4, the publication results
+    table). No durable attempt counter exists, so the replay has no attempt
+    bound; each replay is bounded by the operation budget and paced by one
+    attempt per Run claim. Accepted risk: a failure that stays transient keeps
+    the Run running with a finalizing Stage; it is detected by the "Workflow
+    Scheduler lane failed" error logged on every replay, and the same already
+    applies to every other statement of the terminal transaction. Reopen if a
+    Run is observed replaying for longer than its claim window repeatedly, by
+    adding a durable attempt bound after which `failed` is recorded. Open
+    sibling (not changed): scheduler/execution_preparation.go
+    transientStorageError classifies SQLSTATE classes 08/40/53/57/58 for
+    credential resolution, a second definition of a transient database error
+    that differs from IsTransientFailure (55P03, 08xxx).
+scope:
+  in:
+    - "Classify publication errors: transaction conflicts and transient failures (persistencepostgres.IsTransactionConflict, IsTransientFailure) abort the enclosing transaction so its existing retry replays the finalization; only definite permanent errors are recorded as failed."
+    - "If the spec's bounded retry needs more than the transaction replay (attempt bound after retries are exhausted), implement it as the spec states or correct the spec in the same change."
+    - "Sibling: any other savepoint in scheduler finalization that records a permanent outcome for a transient error."
+  out:
+    - "Publication semantics for successful, already-present and permanently failed outputs."
+acceptance_criteria:
+  - id: A1
+    text: "A PostgreSQL test injects 40P01 and 57014 into a publication and the Run's outputs end up published after the retry, with no failed receipt."
+  - id: A2
+    text: "A permanent error (missing source, deleting Project) is still recorded as failed exactly once."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/scheduler ./internal/runstore"
+    covers: [A1, A2]

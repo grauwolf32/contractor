@@ -1,0 +1,30 @@
+{
+  "task": "V466-013",
+  "date": "2026-11-14",
+  "implementation_commit": "976f4fb54bd49dfd4e8d12ba4c03a514030741ab",
+  "status": "accepted",
+  "merged_into_main": false,
+  "outcome": "Authoritative Eval cumulative usage and known-token admission bounds include existing separate terminal summarizer overhead exactly once. No evaluator charge ledger or Runtime budget change.",
+  "gates": [
+    {
+      "command": "go test -count=1 ./internal/evalservice ./internal/evalstore ./internal/evaldomain",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/eval-013-full.log",
+      "database": "owned disposable PostgreSQL 17 database; real stores"
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/lint-final2.log"
+    }
+  ],
+  "regressions": [
+    "Known 120 normal + 25 summary tokens = 145, three calls including summary; physical cost groups are not added again.",
+    "Missing summary usage retains 120 known tokens and partial coverage.",
+    "Repeated collection is stable; foreign owner reads zero.",
+    "145 observed tokens against 144 limit stop new native admissions using existing cancellation/draining."
+  ],
+  "exclusions": [
+    "Optional disk-heavy I/O disabled; no live Gateway experiments."
+  ]
+}

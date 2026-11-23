@@ -1,0 +1,106 @@
+schema_version: '1.0'
+id: V29-007
+title: Bound database waits and verify the PostgreSQL hardening milestone
+milestone: postgres-reliability-and-query-efficiency
+epic: persistence
+kind: defect
+priority: P2
+status: completed
+implementation_commit: 4cfd75c87e1c20825fbadba427a7129da26cc95a
+depends_on:
+- V29-001
+- V29-002
+- V29-003
+- V29-004
+- V29-005
+- V29-006
+languages:
+- go
+goal: Give ordinary database work and lifecycle cleanup explicit finite budgets and verify all confirmed review
+  findings together.
+context:
+  verified_evidence: 'PG-07: statement_timeout, lock_timeout and idle_in_transaction_session_timeout are zero
+    on the demo and on connections opened by production OpenPool. ConnectTimeout does not bound query/pool
+    waits. Blocking probes finish only because their caller supplies a deadline. Existing HTTP configuration
+    sets only ReadHeaderTimeout.'
+scope:
+  in:
+  - Define finite database/lock-wait budgets for ordinary requests and separate policy for migrations, cleanup
+    and long-lived LISTEN.
+  - Propagate cancellation and ensure rollback/connection cleanup after timeout without breaking HTTP streaming
+    or WebSockets.
+  - Expose minimal pool saturation/acquire-wait diagnostics through existing infrastructure, excluding SQL
+    payloads and credentials.
+  - Repeat PG-01 through PG-07 with isolated fixtures and record before/after evidence.
+  out:
+  - One global short timeout for all workloads, a new monitoring stack, demo data resets or unfinished Scheduler/Audit
+    features.
+requirements:
+- id: R1
+  text: A stalled statement, row-lock wait or exhausted pool cannot hold an ordinary operation indefinitely.
+- id: R2
+  text: Timeouts release resources and retain safe transaction outcome classification; maintenance has an explicit
+    separate policy.
+acceptance_criteria:
+- id: A1
+  given: An exhausted pool, a locked row and a long-running statement.
+  when: Ordinary operations reach their configured budgets.
+  then: Bounded safe failures leave pool capacity reusable with no abandoned transaction.
+- id: A2
+  given: Migrations, cleanup, LISTEN and shutdown.
+  when: The timeout policy applies.
+  then: Legitimate long-lived work remains supported and cancellation/cleanup stays bounded.
+- id: A3
+  given: All V29 changes are integrated.
+  when: Demo probes and aggregate checks run on disposable data.
+  then: Confirmed failures no longer reproduce, access paths/query counts improve and demo data stays unchanged.
+tests:
+- name: postgres-integration
+  command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race ./internal/persistence/postgres ./internal/app
+    ./internal/runstore ./internal/artifacts ./internal/runtimeconfig ./internal/httpapi/public
+  covers:
+  - A1
+  - A2
+  - A3
+- name: aggregate
+  command: make verify
+  covers:
+  - A3
+notes:
+- >-
+  2026-09-06: Implemented finite pool acquire, client query, server statement,
+  lock and idle-transaction budgets, transaction-local migration/physical
+  cleanup policies, cancellation-safe rollback and rate-limited safe pool
+  pressure diagnostics. Real PostgreSQL 17.11 budget, recovery, maintenance,
+  migration replay and long-lived LISTEN/shutdown tests pass. PG-01 through
+  PG-07 regression fixtures were rerun; production OpenPool is now also used
+  by the constrained transaction-credential and Run creation recovery probes.
+- >-
+  Required PostgreSQL race suite passed. make verify passed formatting, vet
+  and Ruff but failed TestMigratedAnalysisSkillsAreCompleteDeterministicAndClosed
+  because audit_asvs_source_verifier.yaml unexpectedly selects skills/trace.
+  This separate ASVS assertion was not changed. Remaining aggregate targets
+  passed independently: Runtime 835 passed/3 skipped, UI 227 tests plus 6
+  server tests, Go/UI builds. Keep in_progress until make verify passes.
+- >-
+  2026-09-06 follow-up: With explicit user approval, commit
+  57a4b9037cd3f1eecbcd4f11afc4f7dcc8e11c78 registers only the ASVS verifier's
+  expected trace assignment; the closed assignment guard remains intact and
+  the previously failing migration test passes. On that clean detached commit,
+  the PostgreSQL race suite, Go suite, Runtime suite (835 passed/3 skipped),
+  UI lint and typecheck pass. make verify now stops on one unrelated committed
+  Workflow UI test expecting eval.id=eval-ui-01 while the UI renders
+  eval.id:eval-ui-01 (225 UI tests passed). The main worktree already contains
+  the corresponding uncommitted UI assertion correction, which was not staged;
+  its own make verify currently stops on in-development projectfs Ruff errors.
+  Keep in_progress until the integrated aggregate gate passes.
+- >-
+  2026-09-06 closure, superseding the historical blockers above: status updated
+  with explicit user approval after checking the implementation and verification
+  history. The required PostgreSQL race suite passed as recorded above; the ASVS
+  guard was fixed by 57a4b9037cd3f1eecbcd4f11afc4f7dcc8e11c78 and the colon-label
+  UI assertion by 9a61e366. Subsequent successful make verify runs are recorded
+  in V31-001 and V31-002. Focused database-budget and ASVS migration tests were
+  rerun successfully during the status audit. The full PostgreSQL race suite
+  and make verify were not rerun for this metadata-only update. Preserve
+  4cfd75c87e1c20825fbadba427a7129da26cc95a as the implementation commit.

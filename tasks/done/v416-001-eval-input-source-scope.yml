@@ -1,0 +1,192 @@
+schema_version: "1.0"
+id: V416-001
+title: "Honor Workflow input source scopes in Eval submissions and drain definite creation failures"
+milestone: main-review-2026-10-25
+epic: evals
+kind: defect
+introduced_by: V406-003
+priority: P1
+status: completed
+depends_on: []
+languages: [go]
+goal: >-
+  A prepared Eval member using an optional owner-scoped rulepack creates its ordinary Run with
+  the exact pinned input bytes, while a definite input rejection resolves its submission and
+  cannot leave the experiment or its cancellation permanently outstanding.
+context:
+  review: >-
+    Main review on 2026-10-25, verified against f9fda28f1c9ffa4baaf3052c141e652c8593a080
+    with the production Eval and Run services and disposable PostgreSQL.
+  specification:
+    - docs/spec/evals/managed-evals.md#EVM-R70
+    - docs/spec/evals/managed-evals.md#EVM-R109
+    - docs/spec/evals/managed-evals.md#EVM-R111
+    - docs/spec/evals/managed-evals.md#EVM-R115
+    - docs/spec/evals/managed-evals.md#EVM-R123
+    - docs/spec/evals/managed-evals.md#EVM-R126
+    - docs/spec/evals/managed-evals.md#EVM-R129
+    - docs/spec/evals/managed-evals.md#EVM-R131
+    - docs/spec/evals/managed-evals.md#EVM-R223
+    - docs/spec/evals/managed-evals.md#EVM-R243
+    - docs/spec/configuration/workflows.md#WFL-R88
+    - docs/spec/tools/scanners.md#SCN-R238
+    - docs/spec/platform/failure-model.md
+  severity: high
+  finding: >-
+    internal/evalservice/preflight_cases.go:85-119 accepts a Workflow input whose pinned
+    slot declares sourceScope: user. internal/evalservice/workflow_adapter.go:28-57 calls
+    memberResources.inputs, which unconditionally selects service.Project(request.ProjectID)
+    at internal/evalservice/member_resources.go:56-76 and writes every mapped input there.
+    internal/runservice/public.go:190-197 now derives the source from the Workflow slot;
+    inputSourceScope at :394-401 therefore reads this rulepack ref from the authenticated
+    owner's UserScope, where the Eval's ProjectScope copy does not exist. The create
+    transaction returns artifacts.ErrArtifactNotFound and leaves no Run. The permanent
+    rejection is not classified by internal/evalservice/execution_operations.go:75-90,
+    so its persisted run-create intent is retried indefinitely. driver.go:117-152 must
+    reconcile an existing creation intent during cancellation and therefore repeats the
+    same failure. PostgreSQL reproduction used a test-catalog Nuclei Workflow with the
+    optional user-scoped rulepack slot, an owned exact YAML input and valid target: Prepare
+    and Start succeeded; after one admission tick, three execution ticks each returned
+    artifact not found, with zero workflow_runs and one run-create suboperation in intent.
+    After Cancel, three further ticks returned the same error and the experiment remained
+    cancelling with outstanding=1. No target traffic or Runtime process was needed.
+  siblings: >-
+    In scope: Workflow and Audit member input preparation through memberResources.inputs;
+    native and external managed submissions through their common service; absent optional
+    rulepacks, ordinary Project input slots and mixed-source Workflow inputs; the Run/Audit
+    creation rejection classifier; cancellation, restart, lost-response reconciliation and
+    deletion of any member-owned staged resources. Ordinary Run admission already chooses
+    UserScope correctly for the narrow rulepack override and must keep that contract. Audit
+    profile inputs retain ProjectScope semantics, including the new Web Audit rulepack.
+    Rulepack media/byte validation consolidation and early Audit/UI size rejection belong
+    to V416-008 and V416-002; this task does not depend on that independent refactoring.
+  provenance: >-
+    V406-003 implementation 188940fd036dc7c4df92f4e5e2820d1647f54222 introduced the
+    sourceScope selection in internal/runservice/public.go:191 without adapting the Eval
+    caller's ProjectScope staging. The reproduction still fails after V406-018.
+scope:
+  in:
+    - >-
+      Derive each Workflow member input's admission source from the pinned executable slot
+      and authenticated owner. Reuse a retained exact source or stage it in the correct
+      authorized scope, preserving case-to-slot mapping, original exact-source identity and provenance,
+      bytes and digest. Pin the resulting staged revision and preserve normal Run input forks. Do not weaken the Run service's sourceScope contract or use caller-chosen
+      scope IDs. Keep Audit member inputs in their owned execution Project.
+    - >-
+      Keep the input preparation request, replay result and creation intent deterministic
+      under the existing eval_suboperations journal and claim fencing. Decide the ownership,
+      retention and bounded cleanup of any new staged UserScope bindings; do not leak them
+      after rejection, cancellation or Eval/Project purge, or delete the original source.
+    - >-
+      Classify only proven pre-acceptance input/configuration failures as definite, persist
+      their existing stable Eval diagnostic and resolve the creation suboperation so the
+      member settles. Audit sibling Run/Audit errors for the same missing classification.
+      Unknown storage failures, timeouts and lost commit responses remain uncertain and
+      reconcile with the original key before cancellation or deletion can finish.
+    - >-
+      State scope-aware input preparation and permanent versus ambiguous submission outcomes
+      in the owning Eval spec and FAIL-EVM-5; preserve existing Run and scanner contracts.
+    - >-
+      Add real PostgreSQL regressions through Prepare, Start and the production submission
+      services, using testdata catalog fixtures. Cover successful exact forks, permanent
+      rejection, cancellation and cleanup, plus restart and ambiguous acceptance.
+  out:
+    - "Changing scanner execution, rulepack content semantics, size limits or model selection."
+    - "General arbitrary sourceScope support, cross-owner references or a new admission framework."
+    - "New receipt/claim tables, recovery protocols or backward-compatible journal readers."
+    - "Implementing V416-002 or V416-008, or unrelated Eval scheduling and reporting changes."
+failure_outcomes:
+  - operation: "Preparing mapped member inputs and creating its ordinary Run or Audit"
+    success: "One execution is associated durably with the member; its input forks contain the exact frozen bytes."
+    permanent: >-
+      A proven rejected source or input resolves the existing suboperation with a classified
+      diagnostic and settles without execution or unbounded retries; a supplied bad pack is
+      never treated as an absent optional pack.
+    retryable: "Existing retryable storage outcomes retain their intent, key and bounded controller work."
+    ambiguous: "Response loss or an unknown commit outcome retains the intent and reconciles the same execution/key."
+    cancelled: >-
+      Cancel fences new intents, reconciles prior uncertainty, cancels known accepted work
+      and reaches cancelled after drain; a definite rejected create cannot keep outstanding work.
+    timeout: "A timeout is not proof of non-acceptance and must not erase or reject a possibly committed execution."
+cardinality:
+  - collection: "Mapped input slots and staged bindings per member"
+    expected: "One optional rulepack plus the Workflow's ordinary case inputs."
+    maximum: "Existing case-role, artifact-byte and native-member limits; at most one optional user-scoped rulepack per Workflow."
+    bound: >-
+      Work and cleanup address only that member's exact journaled refs. No UserScope-wide or
+      Project-wide scan, whole-experiment input copy, or larger controller/purge budget.
+lifecycle:
+  - entity: "Eval member input sources, staged copies and Run input forks"
+    delete: "Keep caller-owned source artifacts intact; delete only resources owned by the member under existing lifecycle authority."
+    cascade: "Preserve ordinary Run/Audit deletion and Eval deletion fences; uncertain creation blocks purge until reconciled."
+    retention: "Pin exact bytes for replay until the owning execution or member lifecycle releases them; retain no orphan staging bindings."
+acceptance_criteria:
+  - id: A1
+    given: "A prepared native Eval with a test-catalog Workflow declaring optional sourceScope: user rulepack, an exact owned YAML input and valid parameters"
+    when: "Start and coordinator execution run against PostgreSQL"
+    then: >-
+      the member creates exactly one ordinary Run, binds it durably, and its RunScope rulepack
+      contains the pinned bytes and digest; the new test fails against the reviewed revision.
+  - id: A2
+    given: "Absent optional inputs, a mixed-source Workflow and an Audit member with a ProjectScope rulepack, through native and external common submissions"
+    when: "inputs are prepared and the member is submitted or replayed"
+    then: >-
+      absence preserves installed mode, ordinary inputs and Audit inputs keep ProjectScope
+      semantics, source overrides remain owner-authorized, and case mapping and exact bytes
+      agree without broadening public source authority.
+  - id: A3
+    given: "A real Run creation path that definitely rejects an input after its creation intent has been journaled"
+    when: "the coordinator reconciles and Cancel or experiment deletion is requested"
+    then: >-
+      the rejection and safe diagnostic are durable, no Run exists, no creation intent remains
+      unresolved, outstanding becomes zero, cancellation reaches cancelled and bounded purge
+      can finish; no rejection is silently converted to an absent rulepack.
+  - id: A4
+    given: "A committed Run whose response is lost, a coordinator restart, or a timeout/unknown database outcome"
+    when: "creation and cancellation are reconciled"
+    then: >-
+      the original key and frozen inputs are reused, exactly one accepted execution is recovered
+      and drained, and unknown outcomes are never treated as definite rejection; existing lost
+      response and unknown-error PostgreSQL regressions remain passing.
+  - id: A5
+    given: "Successful, rejected and cancelled members with exact source pins and any new staged inputs"
+    when: "the source advances after admission and then Run, Eval or evaluation Project cleanup runs"
+    then: >-
+      admitted Run bytes remain unchanged, original owner sources and unrelated resources are
+      preserved, member-owned staging cannot leak, and cleanup stays within existing budgets.
+  - id: A6
+    text: >-
+      The owning spec records source preparation and permanent/ambiguous failure outcomes;
+      real-store tests use repository fixtures and deterministic coordinator ticks, not live
+      configs, temporary review overlays, sleeps or a fake that bypasses Run input validation.
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=\"${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}\" go test -p 2 -count=1 ./internal/evalservice ./internal/evalstore ./internal/runservice ./internal/auditservice ./internal/artifacts"
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: "make lint"
+    covers: [A2, A5, A6]
+progress:
+  completed_work:
+    - "Workflow preparation reads the pinned slot contract and reuses verified exact owner UserScope refs for user-only inputs. Ordinary Workflow inputs and Audit inputs retain their Project staging."
+    - "Preflight marks a ProjectScope case input mapped to a user-only slot unsupported with an explicit scope diagnostic; no implicit cross-scope conversion or new staging entity was added."
+    - "Definite exact-input and store-validation failures resolve the existing creation journal; unknown failures and lost responses keep the original recovery key."
+    - "Added real-store regressions for native and external Workflow/Audit submission, mapping and fork lineage, absent packs, source advancement, cancellation/purge after definite rejection, restart after lost acceptance, and source preservation after Run deletion."
+    - "Recorded the source and failure contracts in EVM-R249/EVM-R250 and FAIL-EVM-5. DEL-R64 still owns source availability before Run admission; no new retention hold or cleanup protocol exists."
+  remaining_work: []
+verification:
+  date: "2026-10-25"
+  environment: "Isolated codex/v416-eval-inputs worktree, Go 1.26.9, Node 24.20, own locked Python 3.13 Runtime environment, dedicated disposable v416_eval PostgreSQL database; GOMAXPROCS=2 and go -p 2."
+  regression_before_fix: >-
+    TestSharedPostgresEvalUserRulepackCreatesRun failed against the unfixed production code
+    with artifact not found on the coordinator's execution tick after Prepare and Start
+    succeeded. The committed regression uses real production services, PostgreSQL and
+    repository testdata, not the temporary review overlay.
+  decisions:
+    - "A sourceScope:user slot requires a user-scoped case source, checked against the authenticated owner. Project-origin sources are unsupported at preflight rather than copied into a new owner-scoped staging lifecycle."
+    - "The existing inputs journal records the exact reused ref. The original User source is caller-owned, so Eval/Run cleanup never removes it; Run input forks retain normal lineage and history protection."
+  results:
+    - "Required go test -p 2 -count=1 ./internal/evalservice ./internal/evalstore ./internal/runservice ./internal/auditservice ./internal/artifacts passed with PostgreSQL configured; no database skips."
+    - "Focused source-scope regressions passed, including native and external Web Audit ProjectScope rulepacks and exact Workflow fork lineage."
+    - "make lint passed, including Go vet/staticcheck, layer and export checks, all repository validators, UI gates, deployment checks and Runtime lint/import contracts."
+    - "After strengthening exact-source advancement and durable diagnostic assertions, the full evalservice suite passed again (33.567s), followed by targeted Go vet and formatting checks."
+    - "python3 scripts/check_spec.py and git diff --check passed."
+implementation_commit: 05a6298d371bfe9f2a67bbd63b8efc79f3873198

@@ -1,0 +1,62 @@
+schema_version: "1.0"
+id: V425-036
+title: Integrate Sweep removal with the folded baseline and current main
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: audits
+kind: chore
+introduced_by: V425-033
+priority: P1
+status: completed
+implementation_commit: 684eb03e1598f11302a93b4b8e4ccd6b1298a328
+depends_on: [V425-033, V428-001]
+languages: [go, sql, typescript, yaml, markdown]
+goal: Main contains the verified Audit-owned scan implementation, without restoring Sweep or losing newer shared-policy and baseline work.
+context:
+  authority: >-
+    User request 2026-10-31: merge the completed removal branch into main.
+    Main has since folded its migration history and reassigned V425-034 to
+    Allocation rollback. Resolve integration within this task before landing.
+  verification: >-
+    2026-10-31: populated baseline-to-000002 preservation and the complete affected
+    Go/PostgreSQL packages passed. Public API operation coverage and PostgreSQL
+    API checks, ui-verify, deterministic Web scan Audit process gate, shipped
+    catalog validation and make lint passed. Generated clients, dependencies,
+    ERD and tracker were regenerated/checked. Main merge 684eb03e1 uses --no-ff
+    and its tree equals the tested integration tree 7ad31107d; no demo deployment
+    or remote push was performed. Main's existing worktree was clean before and
+    after the merge. The integration task is closed by this metadata commit.
+  boundary: >-
+    Preserve main's folded baseline and its later evolution model. Renumber the
+    Sweep retirement migration as the next migration (000002), and keep its
+    populated-store proof against that baseline. Reuse the production migrator
+    test helpers instead of restoring historical migration fixtures. Preserve
+    main's completed SARIF work and task identities; rename the independent
+    rulepack-read prerequisite to the unused V425-035. Regenerate shared outputs
+    from merged sources. Land with --no-ff after relevant checks.
+scope:
+  in:
+    - Resolve source, contract, generated-output and tracker conflicts against current main.
+    - Adapt the retirement migration and test to the folded baseline.
+    - Verify affected packages, public API, UI, catalog and Audit scan process coverage.
+    - Merge the prepared branch into main with --no-ff and leave a clean checkout.
+  out:
+    - Changing the accepted Audit/Sweep boundary or adding compatibility paths.
+    - Demo deployment, database migration or remote push.
+acceptance_criteria:
+  - id: A1
+    text: The folded baseline followed by migration 000002 removes Sweep state and preserves existing child history and Artifacts in the real-store regression.
+  - id: A2
+    text: Main's shared policies and completed work remain intact, task IDs and generated files are consistent, and named integration checks pass.
+  - id: A3
+    text: Main contains the branch through a no-fast-forward merge, with no unresolved conflicts or uncommitted changes.
+tests:
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence/... ./internal/planner/scan ./internal/runservice ./internal/httpapi/public ./internal/app ./internal/cli ./internal/artifacts
+    covers: [A1, A2]
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make verify-public-api verify-public-api-postgres test-nuclei-web-e2e
+    covers: [A1, A2]
+  - command: make ui-verify
+    covers: [A2]
+  - command: go run ./cmd/contractor server config validate --root ./configs
+    covers: [A2]
+  - command: make lint
+    covers: [A2]

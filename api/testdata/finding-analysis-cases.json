@@ -1,0 +1,64 @@
+{
+  "cases": [
+    {
+      "name": "no-locations",
+      "valid": true,
+      "document": "{\"client_key\":\"candidate\",\"flows\":[],\"http_exchanges\":[],\"locations\":[],\"schema\":\"contractor.finding.analysis.v1\",\"sources\":[]}"
+    },
+    {
+      "name": "rule",
+      "valid": true,
+      "document": "{\"client_key\":\"candidate\",\"flows\":[],\"http_exchanges\":[],\"locations\":[],\"rule\":{\"description\":\"Unicode α😀\",\"id\":\"contractor/test\",\"name\":\"Test\",\"version\":\"1\"},\"schema\":\"contractor.finding.analysis.v1\",\"sources\":[]}"
+    },
+    {
+      "name": "missing-field",
+      "valid": false,
+      "document": "{\"client_key\":\"candidate\",\"flows\":[],\"http_exchanges\":[],\"locations\":[],\"schema\":\"contractor.finding.analysis.v1\"}"
+    },
+    {
+      "name": "null-array",
+      "valid": false,
+      "document": "{\"client_key\":\"candidate\",\"flows\":[],\"http_exchanges\":[],\"locations\":[],\"schema\":\"contractor.finding.analysis.v1\",\"sources\":null}"
+    },
+    {
+      "name": "unknown-field",
+      "valid": false,
+      "document": "{\"client_key\":\"candidate\",\"flows\":[],\"http_exchanges\":[],\"locations\":[],\"schema\":\"contractor.finding.analysis.v1\",\"sources\":[],\"unknown\":\"x\"}"
+    },
+    {
+      "name": "case-variant",
+      "valid": false,
+      "document": "{\"Schema\":\"contractor.finding.analysis.v1\",\"client_key\":\"candidate\",\"flows\":[],\"http_exchanges\":[],\"locations\":[],\"sources\":[]}"
+    },
+    {
+      "name": "null-optional",
+      "valid": false,
+      "document": "{\"client_key\":\"candidate\",\"flows\":[],\"http_exchanges\":[],\"locations\":[],\"rule\":null,\"schema\":\"contractor.finding.analysis.v1\",\"sources\":[]}"
+    },
+    {
+      "name": "unknown-version",
+      "valid": false,
+      "document": "{\"client_key\":\"candidate\",\"flows\":[],\"http_exchanges\":[],\"locations\":[],\"schema\":\"contractor.finding.analysis.v2\",\"sources\":[]}"
+    },
+    {
+      "name": "too-many-sources",
+      "valid": false,
+      "document": "{\"client_key\":\"candidate\",\"flows\":[],\"http_exchanges\":[],\"locations\":[],\"schema\":\"contractor.finding.analysis.v1\",\"sources\":[{\"artifact_ref\":{\"name\":\"f0\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s0\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f1\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s1\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f2\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s2\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f3\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s3\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f4\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s4\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f5\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s5\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f6\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s6\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f7\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s7\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f8\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s8\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f9\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s9\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f10\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s10\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f11\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s11\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f12\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s12\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f13\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s13\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f14\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s14\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f15\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s15\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f16\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s16\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f17\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s17\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f18\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s18\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f19\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s19\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f20\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s20\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f21\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s21\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f22\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s22\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f23\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s23\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f24\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s24\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f25\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s25\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f26\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s26\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f27\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s27\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f28\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s28\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f29\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s29\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f30\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s30\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f31\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s31\",\"kind\":\"file\"},{\"artifact_ref\":{\"name\":\"f32\",\"namespace\":\"source\",\"revision\":\"r1\"},\"id\":\"s32\",\"kind\":\"file\"}]}"
+    },
+    {
+      "name": "duplicate-field",
+      "valid": false,
+      "document": "{\"client_key\":\"candidate\",\"flows\":[],\"http_exchanges\":[],\"locations\":[],\"schema\":\"contractor.finding.analysis.v1\",\"sources\":[],\"sources\":[]}"
+    },
+    {
+      "name": "invalid-unicode",
+      "valid": false,
+      "document": "{\"client_key\":\"\\ud800\",\"flows\":[],\"http_exchanges\":[],\"locations\":[],\"schema\":\"contractor.finding.analysis.v1\",\"sources\":[]}"
+    },
+    {
+      "name": "identifier-final-newline",
+      "valid": false,
+      "document": "{\"client_key\":\"candidate\\n\",\"flows\":[],\"http_exchanges\":[],\"locations\":[],\"schema\":\"contractor.finding.analysis.v1\",\"sources\":[]}"
+    }
+  ]
+}

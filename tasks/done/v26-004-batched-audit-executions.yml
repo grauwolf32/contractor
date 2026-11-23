@@ -1,0 +1,68 @@
+schema_version: "1.0"
+id: V26-004
+title: Execute small compatible Audit item batches in one ordinary Run
+milestone: audit-batch-efficiency
+epic: audits
+kind: feature
+priority: P2
+status: completed
+implementation_commit: 9509666c6c24c9819962f7d1f60641501289d953
+depends_on: [V25-012]
+languages: [go, python, sql, yaml]
+
+goal: >-
+  Reduce repeated workspace preparation and shared analysis cost by processing
+  a bounded ordered item set in one WorkflowRun without merging item identity,
+  permissions, results, attempts or coverage.
+
+context:
+  model: >-
+    V25 already stores AuditExecutionItem and uses batch-shaped execution/result
+    manifests while enforcing batchSize=1. This task enables batchSize greater
+    than one under a finite Server maximum; AuditItem remains the logical check.
+  recovery: >-
+    The first batch implementation accepts one complete frozen CheckResultSet.
+    A Run failure may retry the whole small batch. Intermediate artifact writes
+    are not item completion and no partial durable checkpoint is introduced.
+
+scope:
+  in:
+    - Extend profile compatibility and Controller grouping for bounded batchSize greater than one.
+    - Group only items with identical pinned Workflow/configuration, baseline/workspace and permission/approval envelopes.
+    - Build one immutable ordered execution manifest and require exactly one unique result per member on successful collection.
+    - Preserve independent per-item attempt, disposition, evidence, proposal and coverage records across retry/exhaustion.
+    - Preserve finding backtrace through validated item-to-proposal membership when batches regroup retries; a shared Run cannot attribute a proposal or checklist origin to unrelated batch members.
+    - Enforce the current Scheduler-derived dispatch window plus maxSubmittedRuns, item and package budgets under concurrent Controllers using Run and item counts separately.
+    - Add metrics comparing preparation/model cost and whole-batch retry amplification without claiming guaranteed savings.
+  out:
+    - Shared conversational context across checks, cross-permission grouping, dynamic batch mutation or durable partial item checkpoints inside a running Run.
+
+requirements:
+  - {id: R1, text: Batch grouping cannot give any member data, tools, credentials or active-check authority unavailable to every member.}
+  - {id: R2, text: Run success cannot hide a missing/duplicate/foreign item result; invalid completeness is collected explicitly.}
+  - {id: R3, text: Retrying a batch never creates a new logical AuditItem and every item attempt remains uniquely attributable.}
+  - {id: R4, text: Finding attribution remains item-specific across batching and retry; neither a shared Run nor multiple attempts creates extra discoveries or checklist origins.}
+
+acceptance_criteria:
+  - id: A1
+    given: Compatible items and batchSize greater than one.
+    when: Controller dispatches and collects them.
+    then: Fewer Runs execute while every original item retains one exact result and coverage row.
+  - id: A2
+    given: Incompatible permission/configuration envelopes or an incomplete result set.
+    when: Grouping or collection runs.
+    then: Items are separated or the batch is rejected without cross-item authority or partial acceptance.
+  - id: A3
+    given: A batch Run fails after doing partial model work.
+    when: Retry policy permits another attempt.
+    then: The complete bounded batch may rerun and no intermediate artifact is treated as a completed item.
+  - id: A4
+    given: Two checklist items share a Run, only one emits a finding proposal, and their retry batch membership changes.
+    when: Collection completes and an external script follows finding provenance.
+    then: Only the validated source item and checklist entry are attributed, all relevant attempts remain visible and unique-finding counts stay unchanged.
+
+tests:
+  - {name: controller, command: "go test -race ./internal/auditcontroller ./internal/auditimport -run Batch", covers: [A1, A2, A3, A4]}
+  - {name: runtime, command: "uv run --project runtime pytest -q runtime/tests/test_audit_results_toolset.py", covers: [A1, A2]}
+  - {name: postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test -tags=integration -race ./internal/auditstore ./internal/auditcontroller ./internal/auditimport -run Batch", covers: [A1, A2, A3]}
+  - {name: process, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test -tags=e2e -timeout=15m ./tests/e2e -run '^TestAuditProgramsAcrossProductionProcesses$'", covers: [A1, A2, A4]}

@@ -1,0 +1,43 @@
+schema_version: "1.0"
+milestone: contracts-review-2026-11
+epic: api-contracts
+priority: P2
+status: completed
+implementation_commit: f4bd8f8b39bab7aaefea1f832cbee84507eb1b41
+id: V447-004
+title: Reuse strict JSON decoding and restore contracts domain boundaries
+kind: chore
+introduced_by: V370-005
+languages: [go]
+depends_on: [V447-001, V447-002, V447-003]
+goal: Contracts retain one strict JSON mechanism and readable allocation invariants while Audit check-plan rules live in their existing domain owner.
+context:
+  authority:
+    - date: '2026-11-05'
+      decision: The user authorized the three local simplifications recommended by the contracts review.
+  finding: internal/contracts/scan/http_request_set.go:283 duplicates strictjson through a reflective shape decoder; control/allocation.go:120 mixes invariant groups; check_plans.go contains Audit-only rules.
+  decision: Use required tags and strictjson.DecodeNonNull for HTTPRequestSet, extract named invariant groups without changing evaluation order, and move the existing check-plan vocabulary and method mapping to auditdomain, its sole production consumer. A new domain package or general validator framework has no caller need. Reopen if a lower-layer production consumer of the mapping returns.
+scope:
+  in:
+    - Remove requestSetJSONShape and its reflection traversal; preserve valid canonical bytes and all strict rejections.
+    - Split AllocationSpec validation into named invariant groups while preserving errors, order and lifecycle behavior.
+    - Move Audit-only check-plan types, constants and mapping to auditdomain; update all callers and ownership checks.
+    - Verify all four review tasks, shared-wire conformance and lint on the combined branch.
+  out:
+    - New frameworks, broad Audit codec rewrites, protocol fields or persistence changes.
+acceptance_criteria:
+  - {id: A1, text: HTTPRequestSet uses the shared strict decoder and its structural/schema parity suite passes.}
+  - {id: A2, text: Allocation validation has named invariant groups and all existing valid and invalid fixtures keep their verdicts.}
+  - {id: A3, text: The contracts kernel contains no Audit check-plan mapping or its domain-only vocabulary.}
+  - {id: A4, text: All review defects and simplifications pass their complete affected suites, shared-wire gate and lint.}
+tests:
+  - {command: 'go test ./internal/contracts/... ./internal/auditdomain ./internal/archtest ./internal/controlplane/... ./internal/config/... ./internal/configload/...', covers: [A1, A2, A3, A4]}
+  - {command: make test-wire-cross-language, covers: [A1, A2, A3, A4]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}
+  - {command: make test-runtime, covers: [A4]}
+verification:
+  date: '2026-11-05'
+  result: >-
+    Complete contracts/auditdomain/archtest/controlplane/config/configload Go suites passed with disposable PostgreSQL. make lint passed. The complete shared-wire gate passed with GOFLAGS=-p=4: 372 fixtures, 409 Go and 261 Python shared tests, including 1430 selected Runtime tests. The first concurrent attempt exhausted the disposable PostgreSQL lock table; its eight failed tests passed separately, and the complete rerun passed with max_locks_per_transaction=256. make test-runtime passed with 5835 tests and 135 skips; the first run had one Nuclei large-package failure, which passed separately on main and this branch and in the complete rerun. No unrelated production changes were needed.
+  performance: >-
+    BenchmarkHTTPRequestSetDecode on Apple M5 Max, Go 1.26.9, four samples per variant with -benchtime=250ms -benchmem: median 2MiB decode time decreased from 60.27ms to 25.83ms, allocated bytes from 43.29MB/op to 31.20MB/op, allocations from 19085.5 to 7917/op. Small-document median decreased from 25.60us to 6.48us and from 270 to 62 allocations/op. The same benchmark source ran before the change through a Go overlay and after it as the committed benchmark; these are local workload measurements.

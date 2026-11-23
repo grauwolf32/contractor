@@ -1,0 +1,61 @@
+schema_version: "1.0"
+id: V368-016
+title: "Validate Workflow agent names with the grammar Operations shows"
+milestone: hub-audit-defects-2026-10
+epic: workflows
+kind: defect
+priority: P1
+status: completed
+implementation_commit: "cfd79df4ac2c20e30cc18906bebfb084ee35f2cc"
+depends_on: []
+languages: [go]
+goal: "A Workflow with an invalid agent name fails config validation; Operations lists every accepted name."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), V367-007 follow-up; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Workflow agent names are only checked as non-blank without a slash
+    (config validateMapKey), but Operations shows them as logicalWorker in
+    the ConfigId grammar; a name such as "my worker" breaks the Operations
+    allocation list.
+  decision: >-
+    Reproduced on fc7e526: an agent "a b" with an explicit namespace loaded,
+    placement reserved it and the Operations snapshot rejected the whole
+    allocation list (TestPlacementReservesExactlyTheLogicalWorkersOperationsShows
+    fails without the fix). One rule, WFL-R84 / LIM-WFL-8: Stage names and
+    logical Agent names use contracts.ValidName, the public ConfigId grammar.
+    Stage names are included as a sibling because the public API shows them
+    as ConfigId too (StageAttempt.stage, entryStage,
+    AgentTemplateWorkflowBinding.stage). Fixed paths: the config loader for
+    stages keys, entryStage, next targets, agents keys, Workflow
+    executionConfig Stage and Agent keys, ExecutionConfig and escalation
+    agents keys, scanPlan Worker and AuditProfile workerCompletion; the graph
+    check and both persisted snapshot decoders (read path); Control Plane
+    placement bindings; the private AllocationSpec in Go, the Runtime model
+    and allocation.schema.json, with a shared invalid fixture; the
+    ExecutionConfig manifest and transition schemas, which used the narrower
+    configuration id grammar [a-z][a-z0-9_-]* and so disagreed with Go; the
+    Planner dispatch claim and projection, Planner session facts and the Run
+    event store, which accepted colons and leading punctuation in worker
+    names. Each side reads the shared name cases of
+    runtime-capability-cases.json. Ruled out: the public Run-request
+    executionConfig patch, whose Stage and Agent keys must name an existing
+    Stage or Agent and so are rejected when outside the grammar; the public
+    OpenAPI map keys of WorkflowStageContract and the execution-config read
+    models stay unconstrained (every value position already uses ConfigId,
+    and narrowing them needs the generated clients regenerated), to reopen
+    when a client relies on key validation. The UI Studio editor does not
+    check Stage or Agent name grammar either (UI config grammars are tracked
+    separately).
+scope:
+  in:
+    - "Agent names use contracts.ValidName at catalog load and in the schemas."
+  out:
+    - "Existing shipped names (all valid)."
+acceptance_criteria:
+  - id: A1
+    text: "A Workflow with an invalid agent name fails config validation; Operations lists every accepted name."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/config ./internal/controlplane"
+    covers: [A1]

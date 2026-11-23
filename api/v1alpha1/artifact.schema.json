@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/artifact.schema.json",
+  "oneOf": [
+    {"$ref": "common.schema.json#/$defs/artifactRef"},
+    {
+      "title": "ArtifactReadOrWriteResult",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "artifact", "mediaType", "size"],
+      "properties": {
+        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
+        "artifact": {"$ref": "common.schema.json#/$defs/exactArtifactRef"},
+        "mediaType": {"$ref": "common.schema.json#/$defs/mediaType"},
+        "size": {"type": "integer", "minimum": 0}
+      }
+    },
+    {
+      "title": "ArtifactListResult",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "artifacts"],
+      "properties": {
+        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              {"$ref": "common.schema.json#/$defs/artifactRef"},
+              {"not": {"required": ["revision"]}}
+            ]
+          }
+        },
+        "nextCursor": {
+          "description": "Opaque position of the next page of a paged listing (LIM-ART-5); absent on the last page and from a namePrefix listing.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "dependentSchemas": {
+        "nextCursor": {"properties": {"artifacts": {"minItems": 1}}}
+      }
+    }
+  ]
+}

@@ -1,0 +1,174 @@
+schema_version: '1.0'
+id: V407-037
+title: Parse .hh headers as C++ and distinguish parser implementation failures from source parse errors
+milestone: server-runtime-review-2026-10
+epic: code-analysis
+kind: defect
+introduced_by: V314-001
+priority: P2
+status: completed
+depends_on: []
+languages:
+- python
+goal: Include .hh in shallow C++ analysis and report unexpected parser-path defects through the tool-error
+  boundary without changing intended unsupported-language coverage or graph ownership.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/tools/code-analysis.md
+  severity: low
+  finding: runtime/src/contractor_runtime/toolsets/code_analysis/languages.py:51-86 omits .hh although
+    CPP_SOURCE_EXTENSIONS:92 and the graph table:116 include it. The derived graph-only set at :153 makes
+    shallow list_symbols/search_def count it as unsupported. tests/test_code_analysis_shallow.py:347 tests
+    its header-majority vote only. tools.py:1006-1025 catches every exception during parser acquisition/extraction
+    and converts it into a source parse_error result; unexpected TypeError/AttributeError therefore becomes
+    incomplete coverage rather than a tool failure. tools.py:467-473 duplicates _symbol_id at :1573-1581.
+    The session lock covers bounded analysis/build work and close waits for ownership; that fact alone
+    does not establish a missing cancellation or unbounded-close defect.
+  siblings: Shallow list_symbols/search_def, C/C++ header inference, parser factory and extraction errors,
+    and shared language consumers such as taint_annotations. Keep deliberately graph-only language extensions
+    distinct; do not require every graph extension to have a shallow grammar.
+  validation: 'Confirmed on dc7012e8: list_symbols over a.hh and b.hpp returned only the .hpp symbol;
+    an injected parser-factory TypeError became parseErrors=1/incomplete=true. The incomplete flag is
+    visible, but the code bug is misclassified. A shutdown hang beyond configured build bounds was not
+    reproduced.'
+plan:
+- Add .hh to the shallow C++ extension mapping. Test .hh, .hpp and .hxx definitions and the .h majority
+  decision, and assert consistency only for extensions claimed by the supported shallow C/C++ source sets.
+- Remove broad conversion of unexpected parser-path exceptions to source coverage. Retain only explicitly
+  documented/observed malformed-source or decoding outcomes as parse_errors; malformed syntax normally
+  comes from parser results. Keep supported dependency-unavailable failures classified explicitly rather
+  than inventing a generic tree-sitter exception family.
+- Inject TypeError at parser creation and extraction through the real tool boundary and verify the existing
+  bounded non-retryable callback failure; use actual malformed-source fixtures to preserve parseErrors/incomplete
+  reporting and continue supported-language coverage tests.
+- Reuse _symbol_id for identical validation without changing accepted IDs or codes. Preserve existing
+  session lock/build ownership and cancellation joins; document their bounded serialization and the condition
+  to revisit it if a reproducible lifecycle failure appears, rather than redesigning concurrency in this
+  task.
+- Run every affected shallow, fault, graph and taint consumer suite; use deterministic failure injection
+  and synchronization rather than wall-clock lock/heartbeat assertions.
+scope:
+  in:
+  - .hh shallow mapping and regression coverage; parser exception classification; identical symbol-ID
+    validation deduplication; documented existing bounded analysis ownership.
+  out:
+  - New shallow support for intentionally graph-only languages, graph semantics or symbol format changes.
+  - Concurrent graph builds/reads, new close cancellation machinery, new timeouts or claims of an unbounded
+    shutdown defect.
+acceptance_criteria:
+- id: A1
+  text: A real shallow list_symbols/search_def fixture containing a.hh, b.hpp and c.hxx returns their
+    C++ definitions; C/C++ extension consistency and .h inference tests pass. The .hh regression fails
+    before the mapping change.
+- id: A2
+  text: Injected unexpected exceptions from parser acquisition and extraction reach the existing tool-error
+    callback and become bounded non-retryable failures instead of parseErrors coverage. Real syntax errors
+    retain the existing parseErrors/incomplete signal.
+- id: A3
+  text: Existing supported-language boundaries, graph build/session ownership and cancellation cleanup
+    remain unchanged; the specification records the serialization reason, existing bounds/detection and
+    evidence required to reopen it without claiming a new lifecycle failure.
+- id: A4
+  text: Symbol-ID validation has one implementation with the same accepted values/error codes, and the
+    full shallow/fault/graph/shared-consumer tests pass. Added regression assertions do not depend on
+    elapsed time.
+decisions:
+- 'Re-verified on ac982d28 before the change: EXTENSION_LANGUAGES (languages.py:51-86) lacked .hh while
+  CPP_SOURCE_EXTENSIONS (:92) and the graph table (:116) had it, so GRAPH_ONLY_SOURCE_EXTENSIONS (:153)
+  counted .hh as unsupported; tools.py:1006-1025 turned every exception into a cached parse_error; tools.py:467-473
+  repeated _symbol_id (:1573-1581), and ids.py decode_symbol_id (:41-48) held a third copy of the same
+  shape check.'
+- 'C/C++ voting sets: C_SOURCE_EXTENSIONS and CPP_SOURCE_EXTENSIONS are now derived from EXTENSION_LANGUAGES
+  instead of being a second hand-written list, so an extension that votes for the .h grammar is always
+  parsed with that grammar (CAN-R49). Graph-only extensions (.m, .mm, .sol, ...) stay outside the shallow
+  mapping; graph admission is unchanged because .hh was already a graph C++ source.'
+- 'Parser-path exceptions: no exception is retained as parse_errors. Malformed syntax is reported by the
+  parse result (root.has_error), and no malformed-source or decoding exception was observed: managed text
+  is strict UTF-8 (projectfs storage encodes it strictly when building a snapshot) and a fuzz probe of
+  22,800 random multi-byte, syntactically broken sources across all 19 grammars, including the chunked
+  >64 KiB parse path, raised nothing. Dependency availability stays classified explicitly by the startup
+  probe (dependency_versions_match plus probe_all_parsers omit both shallow tools, CAN-R47), and the
+  finding-anchor consumer keeps its own explicit anchor_parser_unavailable outcome (downloaded_languages
+  plus tree_sitter_language_pack.Error, toolsets/common/finding_anchors.py), unchanged. A parser that fails
+  to load after a passing probe is not a source property, so in code analysis it propagates like any
+  other defect. No tree-sitter exception family was introduced. Recorded as CAN-R152; CAN-R135 points
+  to it.'
+- 'Unexpected exceptions now reach the existing Worker tool-error boundary: RecordedToolCall records them
+  once and WorkerInstrumentationPlugin.on_tool_error_callback returns {ok:false, error:{code:tool_call_failed,
+  message:"<tool> failed (<ExceptionClass>)", retryable:false}} without the exception message. Nothing
+  is cached for the file, so the next call parses it again.'
+- 'Symbol-ID validation: one predicate, ids.symbol_id_shape_valid, now serves decode_symbol_id and tools._symbol_id;
+  find_callers/find_callees use _symbol_id and _validate_symbol_id like the path tools. Accepted values
+  (non-empty ASCII str of at most 512 characters) and the code_analysis_symbol_not_found code are unchanged.'
+- 'Session serialization is unchanged. CAN-R31 now records its reason, the bounds of the wait (LIM-CAN-11
+  plus one LIM-CAN-5 parse, LIM-CAN-12/13 with child kill, joined cancellation, WSP-R169/R170 fencing),
+  the detection signal (tool-call duration and graph build counts, CAN-R141) and the reopen condition
+  (a reproducible wait beyond those bounds, or a workload needing concurrent calls in one allocation).'
+- 'Sibling ruled out: taint-annotations@1 maps an unexpected preparation exception to its closed,
+  retryable taint_annotation_unavailable (ERR-R12, CAN-R140). It produces no coverage, so it is not the
+  parse-coverage misclassification fixed here; changing that closed vocabulary is outside scope. Its
+  shared language table does change: a .hh file is now annotated as C++ (regression added). The Trailmark
+  child reports parse failures through its own exit-code contract (CAN-R83) and graph parseErrors stay
+  0 (CAN-R40). probe_all_parsers keeps its broad catch because a probe failure of any kind omits the
+  capability (FAIL-RTA-1).'
+tests:
+- command: cd runtime && uv run --locked pytest -q tests/test_code_analysis_shallow.py tests/test_code_analysis_faults.py
+    tests/test_code_analysis_graph.py tests/test_taint_annotations.py tests/test_taint_annotations_hardening.py
+    tests/test_taint_annotations_regressions.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A3
+  - A4
+verification:
+  date: '2026-10-23'
+  scope: All acceptance criteria pass; the two failures of the listed pytest command are pre-existing
+    on the base commit and unrelated (see below).
+  environment: Worktree /Users/ruslan/src/contractor-wt/r4, branch claude/rv-r4 from ac982d28; macOS
+    arm64 (Darwin), locked Python 3.13 Runtime (uv sync --locked), Go 1.26.9, Node 24.20. No database
+    tests are involved (database_tests_configured is false).
+  database_tests_configured: false
+  results:
+  - 'cd runtime && uv run --locked pytest -q tests/test_code_analysis_shallow.py tests/test_code_analysis_faults.py
+    tests/test_code_analysis_graph.py tests/test_taint_annotations.py tests/test_taint_annotations_hardening.py
+    tests/test_taint_annotations_regressions.py: 428 passed, 2 failed. Both failures reproduce on an unmodified
+    ac982d28 worktree (3 of 3 runs): test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor
+    builds a 1625-character relative path, above the Darwin PATH_MAX of 1024, so the mirror cannot be written
+    on macOS; test_real_four_mib_parser_keeps_event_loop_gaps_below_100_ms is the known wall-clock gap
+    threshold on the native parser (passed 2 of 3 isolated runs here) and does not reach the changed
+    code.'
+  - 'make test-runtime: 4300 passed, 39 skipped, 106 failed. The failures are the known macOS-only set
+    (96 podman_*, 2 tool_process, 2 trailmark_child address-space, 4 projectfs_local_* / local_direct_faults)
+    plus the two failures above; none is in a code-analysis, taint, instrumentation or ADK runtime suite.'
+  - 'cd runtime && uv run --locked pytest tests/test_code_analysis_concurrency.py tests/test_code_analysis_child_lifecycle.py
+    tests/test_code_analysis_traversal.py tests/test_code_analysis_redaction.py tests/test_local_direct_tool_consumers.py
+    tests/test_filesystem_observations.py tests/test_trailmark_probe.py tests/test_toolset_cursors.py
+    tests/test_instrumentation.py: 80 passed (session ownership, cancellation joins, child lifecycle and
+    the tool-error boundary unchanged, A3).'
+  - 'make lint: passed (spec checker, task checker, ruff, ruff format, import-linter 5 contracts kept,
+    Go vet/staticcheck/testonlyexports, UI gates).'
+  - 'Regressions fail before the fix: with the base languages.py the .hh real-reader tests (local and
+    memory), the malformed .hh coverage test, the C/C++ source-set test, the extension registry test and
+    the taint hh-header-in-c-project case fail; with the base broad except restored (and .hh mapped) both
+    parser-acquisition and extraction cases of test_unexpected_parser_path_failure_is_a_tool_error_not_parse_error_coverage
+    fail because the first call returns parseErrors=1/incomplete=true instead of tool_call_failed.'
+  - 'Decoding evidence for CAN-R152: a scratch fuzz probe parsed 22,800 random multi-byte, syntactically
+    broken sources (4 seeds x 19 grammars x 300, about 5% above 64 KiB to use the chunked parse path)
+    with parse_symbols and raised no exception.'
+  - 'Added assertions use injected failures and deterministic call counts; none measures elapsed time.'
+  - 'Review follow-up (9ab42a92): OBS-R32, the tool_call_failed registry row and FAIL-OBS-3 now own the
+    failed tool result of a raised exception (identifier code or tool_call_failed, retryable only when
+    the exception declares it, message of tool and exception class only), which CAN-R152 cites. New test_instrumentation
+    case pins it for unclassified, retryable code-less, non-identifier-code and classified exceptions;
+    the pending-call close test now keeps its tool contexts alive (id reuse of a freed temporary made it
+    order-dependent). make docs-dependencies and make docs-error-registry produced no change; go test
+    ./internal/apierror passed; affected suites (instrumentation, metrics, adk_runtime, filesystem_observations,
+    telemetry_content and the listed code-analysis/taint suites): 591 passed, 2 failed (the same two pre-existing
+    failures above); make lint passed.'
+implementation_commit: 9ab42a9260faace63c16abdef99c52b70fad8a9c

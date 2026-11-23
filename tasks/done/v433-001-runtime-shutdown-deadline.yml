@@ -1,0 +1,108 @@
+schema_version: "1.0"
+id: V433-001
+title: Bound every Runtime shutdown phase by one cleanup deadline
+milestone: runtime-resource-bounds-2026-11
+epic: execution-core
+kind: defect
+introduced_by: V31-004
+priority: P1
+status: completed
+depends_on: [V432-001, V432-002]
+languages: [python, markdown]
+goal: Graceful Runtime shutdown stops owned work and resources within one process cleanup budget for every sandbox profile.
+context:
+  authority: >-
+    User request 2026-11-02: recheck the seven Runtime findings and create fix
+    tasks. The shutdown requirement explicitly includes one cleanup deadline.
+    User decision 2026-11-02: implement this P1 after merging the planning
+    package into main (9a2d6f9afe228e025c9381dff34233f5b6939083).
+    User follow-up 2026-11-02 requests a behavior explanation and process
+    diagrams before merging the implementation.
+  specification:
+    - docs/spec/execution/runtime-agent.md#RTA-R87
+    - docs/spec/execution/runtime-agent.md#RTA-R88
+    - docs/spec/platform/failure-model.md
+  finding: >-
+    On main 57634940d40862fb638d4beea212e53a5107994a, cli.py:285-319 joins
+    control loops/watchdog without one outer deadline, gives allocation stop
+    the full shutdown_grace_seconds at :306-308, then gives server_task a new
+    full grace at :313. Forced server-task joining and Artifact connection
+    closure at :318-319 have no common budget. asyncio.wait_for also waits for
+    cancellation settlement, so its timeout alone cannot guarantee this bound.
+  disposition: >-
+    The original ordinary-profile omission is already fixed by V432-002
+    (7013acf142878bb52927405877ffb758b3afd1e5). Its real AllocationService/ADK
+    regression passes on current main: invocation ends, Worker rejects work,
+    adapters close and server stops. Do not duplicate that implementation or
+    reopen the completed task. The serial allocation/server grace pattern
+    came from the Podman lifecycle integration; this is the remaining bound.
+  siblings: >-
+    Cover ordinary and Podman profiles, active/idle/partially prepared allocation,
+    registration/startup failure, listener failure, signal shutdown, watchdog
+    lease expiry and repeated caller cancellation. AllocationService already
+    owns stop/fencing; do not introduce a parallel cleanup owner.
+  boundary: >-
+    CLI owns the process shutdown deadline and dependency order. Allocation
+    retains ownership of Worker/tool/container teardown and its existing hard
+    process fence when stopped ownership cannot be proved. Owned tasks must be
+    joined before resources they use are closed; cancelling a waiter is not
+    proof that the work stopped. Extend RTA-R87 with the common process budget.
+  decision: >-
+    Implementation 2026-11-02 keeps one shielded process owner and one
+    independent event-loop process-exit timer, started once at the first
+    cleanup/caller cancellation and retired after all nested owners close.
+    The simpler per-phase wait_for alternative is rejected because each call
+    grants a new grace and wait_for itself can wait indefinitely for child
+    cancellation settlement. This changes no configuration value or wire
+    field. Reopen if process-resource ownership moves to a different owner;
+    no generic deadline framework or external watchdog is introduced here.
+scope:
+  in:
+    - Compute one monotonic deadline on entry to process shutdown and pass only its remaining budget through every phase, including control-loop and connection closure.
+    - Preserve reject/cancel/join/close ordering, repeated-cancellation joining and the existing process-exit fence on unresolved ownership at deadline.
+    - Exercise a real ADK invocation through serve and inject blocked phases, fake time and an observable process-exit seam for deterministic deadline tests.
+    - Update the owning specification with deadline ownership, exhaustion and startup-failure outcomes.
+  out:
+    - New shutdown settings, fresh grace periods per phase, new allocation states or lifecycle framework, deployment and unrelated prepare-rollback changes.
+failure_outcomes:
+  success: All owned work stops before dependency closure; the process reports stopped only after cleanup.
+  permanent: Preserve the original startup/control failure while still entering bounded cleanup; do not hide unresolved ownership as successful shutdown.
+  retryable: No new cleanup retry loop or deadline reset; existing stop reconciliation shares the remaining process budget.
+  ambiguous: If stopped ownership cannot be established, retain fencing and use the existing process-termination outcome rather than closing dependencies beneath live work.
+  cancelled: Repeated cancellation cannot detach cleanup, release ownership early or restart the cleanup budget.
+  timeout: Exhaustion triggers the existing process fence within the same deadline; awaiting cancelled work cannot extend it indefinitely.
+cardinality: One process, one allocation slot, at most one active invocation and the existing fixed set of control/listener tasks; no new fan-out.
+acceptance_criteria:
+  - id: A1
+    given: Allocation cleanup consumes part of the process grace under an injected monotonic clock.
+    when: Server and Artifact connections subsequently close.
+    then: Each receives only the remaining budget, and no phase obtains a fresh shutdown_grace_seconds.
+  - id: A2
+    given: An ordinary or Podman allocation has a real active ADK invocation, or preparation/startup is incomplete.
+    when: serve exits or receives repeated cancellation.
+    then: Admission stops and owned work is joined before dependencies close; a blocked phase reaches the existing process fence without an unbounded await.
+  - id: A3
+    text: Existing lease-expiry, partial-prepare, listener-failure and ordinary-profile shutdown regressions pass; new deterministic tests fail on the current independent-timeout implementation and use no wall-clock performance assertions.
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_cli.py tests/test_cli_shutdown.py tests/test_allocation.py tests/test_podman_allocation.py tests/test_lease_watchdog.py tests/test_threads.py
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification: >-
+  The required Runtime selection (CLI including real mTLS SIGTERM and real
+  ADK Worker, new CLI shutdown tests, allocation, Podman allocation, lease
+  watchdog and threads) passed: 105 passed, 15 Linux/Podman cases skipped
+  on macOS. Thirteen new deterministic cases cover the common deadline
+  across ordinary/Podman resource owners, all eight blocked cleanup phases,
+  repeated caller cancellation with held root locks, and listener-construction
+  failure. The actual pre-fix main CLI fails the budget regression with
+  [10] instead of [8]; only the injectable clock/fence seam was retained for
+  this negative probe. make lint passed with pinned cached/offline toolchains,
+  including all four Runtime import contracts. Ruff, generated dependency
+  graph and git diff --check pass. No live Gateway, deployment or database
+  migration was run. Source log: /tmp/runtime-v433-001-lint.log.
+implementation_commit: 629665e8a8a02921cc727b59b0bdac7372159d1a
+landing: >-
+  Implemented and verified on codex/runtime-shutdown-deadline; the requested
+  behavior explanation and process diagrams were presented before landing.
+  V433-006 records current-main integration, validation and the merge revision.

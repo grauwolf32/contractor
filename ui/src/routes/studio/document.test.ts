@@ -1,0 +1,305 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+import {
+  addBlock,
+  at,
+  patchDraft,
+  readDraft,
+  removeBlock,
+  renameBlock,
+  sourceDiff,
+  starter,
+} from "./document";
+import { buildGraph } from "./graph";
+import { validateDraft } from "./validation";
+
+// Fixture copies of authored definitions; the shipped catalog itself is
+// checked by e2e/studio-catalog.spec.ts in tests/ui-stack.
+const fixture = (file: string) =>
+  readFileSync(`src/routes/studio/testdata/${file}`, "utf8");
+describe("authored YAML studio", () => {
+  it("preserves comments, multiline instructions and opaque fields through graph edits", () => {
+    const source = `# Bundle note\napiVersion: contractor/v1alpha1\nkind: Workflow\nmetadata:\n  name: sample # retain me\n  version: "1"\nspec:\n  x-future: {opaque: [one, two]}\n  entryStage: start\n  stages:\n    start:\n      objective: |\n        Keep this multiline objective.\n        Keep the second line.\n      planner: passthrough@1 # planner note\n      agents: {worker: {template: worker@1}}\n      on:\n        succeeded: {succeed: {}}\n        failed: {retry: {maxAttempts: 2, then: {fail: {}}}}\n        interrupted: {fail: {}}\n`;
+    let draft = readDraft(source);
+    draft = patchDraft(
+      draft,
+      ["spec", "stages", "start", "planner"],
+      "router@1",
+    );
+    const added = addBlock(draft, "stage");
+    draft = patchDraft(
+      added.draft,
+      ["spec", "stages", "start", "on", "succeeded"],
+      { next: added.path[2] },
+    );
+    draft = removeBlock(draft, added.path);
+    expect(draft.source).toContain("# Bundle note");
+    expect(draft.source).toContain("# retain me");
+    expect(draft.source).toContain("# planner note");
+    expect(draft.source).toContain("objective: |");
+    expect(at(draft.value, ["spec", "x-future"])).toEqual({
+      opaque: ["one", "two"],
+    });
+    expect(
+      at(draft.value, ["spec", "stages", "start", "on", "failed"]),
+    ).toEqual({ retry: { maxAttempts: 2, then: { fail: {} } } });
+    expect(
+      validateDraft(draft).some((problem) =>
+        problem.message.includes("does not exist"),
+      ),
+    ).toBe(true);
+  });
+  it("rejects malformed, duplicate, multiple, aliased and oversized documents", () => {
+    for (const source of [
+      "[",
+      "kind: Workflow\nkind: AgentTemplate",
+      "kind: Workflow\n---\nkind: Workflow",
+      "kind: Workflow\nx: &shared {a: 1}\ny: *shared",
+      `kind: Workflow\nx: ${"a".repeat(1024 * 1024)}`,
+    ])
+      expect(() => readDraft(source)).toThrow();
+  });
+  it("keeps layout outside authored definitions and shows a bounded diff", () => {
+    const draft = starter("Workflow"),
+      graph = buildGraph(draft);
+    expect(graph.nodes.some((node) => node.type === "stage")).toBe(true);
+    expect(draft.source).not.toContain("position");
+    expect(sourceDiff("one\nsame\nlast", "one\nchanged\nlast")).toEqual([
+      { kind: "same", line: "one" },
+      { kind: "remove", line: "same" },
+      { kind: "add", line: "changed" },
+      { kind: "same", line: "last" },
+    ]);
+  });
+  for (const [file, kind] of [
+    ["openapi_from_workspace_v7_memory.yaml", "Workflow"],
+    ["openapi_operation_trace.yaml", "AuditProfile"],
+    ["audit_sqlmap_scan.yaml", "AgentTemplate"],
+    ["workspace_openapi_builder_v3_memory.yaml", "AgentTemplate"],
+  ] as const) {
+    it(`loads the authored ${file} without inventing local errors`, () => {
+      const source = fixture(file);
+      const draft = readDraft(source);
+      expect(draft.kind).toBe(kind);
+      expect(draft.source).toBe(source);
+      expect(
+        validateDraft(draft).filter((problem) => problem.severity === "error"),
+      ).toEqual([]);
+      expect(buildGraph(draft).nodes.length).toBeGreaterThan(0);
+    });
+  }
+});
+
+describe("workflow graph rules", () => {
+  it("renames stage keys and explicit continuation references without dropping node comments", () => {
+    let draft = starter("Workflow");
+    const added = addBlock(draft, "stage");
+    draft = patchDraft(
+      added.draft,
+      ["spec", "stages", "start", "on", "failed"],
+      { retry: { maxAttempts: 2, then: { next: added.path[2] } } },
+    );
+    draft = renameBlock(draft, added.path, "finish");
+    expect(
+      at(draft.value, [
+        "spec",
+        "stages",
+        "start",
+        "on",
+        "failed",
+        "retry",
+        "then",
+        "next",
+      ]),
+    ).toBe("finish");
+    expect(at(draft.value, added.path)).toBeUndefined();
+    expect(validateDraft(draft)).toEqual([]);
+    expect(() =>
+      renameBlock(draft, ["spec", "stages", "finish"], "start"),
+    ).toThrow("already exists");
+    draft = renameBlock(draft, ["spec", "stages", "start"], "entry");
+    expect(at(draft.value, ["spec", "entryStage"])).toBe("entry");
+  });
+  it("renames common workflow and material references together", () => {
+    let draft = patchDraft(
+      starter("AuditProfile"),
+      ["spec", "initial_work", 0, "inputs"],
+      { source: "source" },
+    );
+    draft = patchDraft(draft, ["spec", "continuation"], { workflow: "check" });
+    draft = renameBlock(draft, ["spec", "workflows", "check"], "trace");
+    expect(at(draft.value, ["spec", "initial_work", 0, "workflow"])).toBe(
+      "trace",
+    );
+    expect(at(draft.value, ["spec", "continuation", "workflow"])).toBe("trace");
+    draft = renameBlock(draft, ["spec", "inputs", "source"], "definition");
+    expect(
+      at(draft.value, ["spec", "initial_work", 0, "inputs", "source"]),
+    ).toBe("definition");
+    expect(
+      at(draft.value, [
+        "spec",
+        "workflows",
+        "trace",
+        "inputs",
+        "source",
+        "name",
+      ]),
+    ).toBe("definition");
+    expect(validateDraft(draft)).toEqual([]);
+  });
+  it("uses the common program contract and rejects retired inputs and authorities", () => {
+    const draft = starter("AuditProfile");
+    expect(validateDraft(draft)).toEqual([]);
+    for (const source of [
+      "item-package",
+      "round-results",
+      "prepare-output",
+      "retained-dependency",
+    ])
+      expect(
+        validateDraft(
+          patchDraft(
+            draft,
+            ["spec", "workflows", "check", "inputs", "source"],
+            { source },
+          ),
+        ).length,
+      ).toBeGreaterThan(0);
+    for (const field of [
+      "mode",
+      "inventory",
+      "methods",
+      "execution",
+      "interaction",
+    ])
+      expect(
+        validateDraft(patchDraft(draft, ["spec", field], {})).length,
+      ).toBeGreaterThan(0);
+    expect(
+      validateDraft(patchDraft(draft, ["spec", "limits", "max_tasks"], 100001))
+        .length,
+    ).toBeGreaterThan(0);
+    const added = addBlock(draft, "input");
+    expect(at(added.draft.value, [...added.path, "media_types"])).toEqual([
+      "application/yaml",
+    ]);
+    expect(validateDraft(added.draft)).toEqual([]);
+  });
+  it("distinguishes attempt retry from next cycles and unreachable drafts", () => {
+    let draft = starter("Workflow");
+    draft = patchDraft(draft, ["spec", "stages", "start", "on", "failed"], {
+      retry: { maxAttempts: 2, then: { fail: {} } },
+    });
+    expect(validateDraft(draft)).toEqual([]);
+    const added = addBlock(draft, "stage");
+    expect(
+      validateDraft(added.draft).some((problem) =>
+        problem.message.includes("unreachable"),
+      ),
+    ).toBe(true);
+    draft = patchDraft(
+      added.draft,
+      ["spec", "stages", "start", "on", "failed", "retry", "then"],
+      { next: added.path[2] },
+    );
+    expect(validateDraft(draft)).toEqual([]);
+    draft = patchDraft(draft, [...added.path, "on", "succeeded"], {
+      next: "start",
+    });
+    expect(
+      validateDraft(draft).some((problem) => problem.message.includes("cycle")),
+    ).toBe(true);
+  });
+  it("requires result files on every success path, including failed branches at joins", () => {
+    let draft = starter("Workflow");
+    draft = patchDraft(draft, ["spec", "outputs", "report"], {
+      required: true,
+      mediaTypes: ["text/markdown"],
+    });
+    expect(
+      validateDraft(draft).some((problem) =>
+        problem.message.includes("without required output report"),
+      ),
+    ).toBe(true);
+    draft = patchDraft(
+      draft,
+      ["spec", "stages", "start", "result", "artifacts", "report"],
+      {
+        required: true,
+        mediaTypes: ["text/markdown"],
+        from: { namespace: "work", name: "report" },
+      },
+    );
+    draft = patchDraft(draft, ["spec", "stages", "start", "workflowOutputs"], {
+      report: "report",
+    });
+    expect(validateDraft(draft)).toEqual([]);
+    const added = addBlock(draft, "stage");
+    draft = patchDraft(
+      added.draft,
+      ["spec", "stages", "start", "on", "succeeded"],
+      { next: added.path[2] },
+    );
+    expect(validateDraft(draft)).toEqual([]);
+    draft = patchDraft(draft, ["spec", "stages", "start", "on", "failed"], {
+      next: added.path[2],
+    });
+    expect(
+      validateDraft(draft).some((problem) =>
+        problem.message.includes("without required output report"),
+      ),
+    ).toBe(true);
+  });
+  it("warns on a declared artifact read before its producer while allowing external project context", () => {
+    let draft = starter("Workflow");
+    const added = addBlock(draft, "stage");
+    draft = patchDraft(
+      added.draft,
+      ["spec", "stages", "start", "on", "succeeded"],
+      { next: added.path[2] },
+    );
+    draft = patchDraft(
+      draft,
+      [...added.path, "result", "artifacts", "report"],
+      {
+        required: true,
+        mediaTypes: ["text/markdown"],
+        from: { namespace: "work", name: "report" },
+      },
+    );
+    draft = patchDraft(
+      draft,
+      ["spec", "stages", "start", "context", "artifacts"],
+      {
+        future: { namespace: "work", name: "report", required: true },
+        external: { namespace: "project", name: "external", required: true },
+      },
+    );
+    expect(
+      validateDraft(draft).filter((problem) => problem.severity === "warning"),
+    ).toHaveLength(1);
+  });
+  it("reports malformed media types instead of crashing validation", () => {
+    let draft = starter("Workflow");
+    draft = patchDraft(draft, ["spec", "outputs"], {
+      report: { required: true, mediaTypes: {} },
+    });
+    draft = patchDraft(
+      draft,
+      ["spec", "stages", "start", "result", "artifacts"],
+      {
+        report: {
+          required: true,
+          mediaTypes: ["text/markdown"],
+          from: { namespace: "work", name: "report" },
+        },
+      },
+    );
+    draft = patchDraft(draft, ["spec", "stages", "start", "workflowOutputs"], {
+      report: "report",
+    });
+    expect(() => validateDraft(draft)).not.toThrow();
+    expect(validateDraft(draft).length).toBeGreaterThan(0);
+  });
+});

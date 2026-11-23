@@ -1,0 +1,259 @@
+schema_version: '1.0'
+id: V418-002
+title: Upgrade ADK to 2.13 with atomic execution and tool-boundary adaptations
+milestone: adk-213-upgrade-2026-10
+epic: planner-worker
+kind: chore
+priority: P1
+status: completed
+depends_on:
+- V418-001
+languages:
+- python
+- markdown
+goal: Ship google-adk 2.13.0 and all required Runtime adaptations together, preserving useful continuation,
+  strict admission, truthful accounting and bounded cancellation on a green full Runtime suite.
+context:
+  authority: 'User request on 2026-10-25: plan the ADK 2.13 upgrade with every identified compatibility
+    change, adjust the existing compaction series, and keep model consultation as a proposal. These pending
+    tasks do not start implementation or change the current delivery focus.'
+  review: tasks/evidence/v418-adk-213-review.json
+  migration_evidence: tasks/evidence/v418-adk-213-migration.json
+  boundary_probes: tasks/evidence/v418-adk-213-boundary-probes.json
+  specification:
+  - docs/spec/execution/worker.md#WRK-R106
+  - docs/spec/execution/worker.md#WRK-R158
+  - docs/spec/execution/worker.md#WRK-R166
+  - docs/spec/execution/worker.md#WRK-R167
+  - docs/spec/execution/worker.md#WRK-R168
+  - docs/spec/audits/worker-completion.md
+  - docs/spec/tools/toolsets.md#TLS-R34
+  - docs/spec/platform/observability.md#OBS-R24
+  - docs/spec/execution/runtime-agent.md#RTA-R116
+  finding: Affected paths include worker/runtime.py _run_adk Runner calls and ContinueCompletion, worker/instrumentation.py
+    before_run/before_model/before_tool/on_tool_error, llm/openai.py _complete_tool_call_messages, FunctionTool
+    raw argument admission and dependency smoke. ADK 2.9 suppresses a second message under a reused SDK
+    invocation ID; 2.9 calls before-tool for unknown placeholders; 2.13 routes CancelledError through
+    on-tool-error. Default numeric coercion and generic empty-content classification also change behavior
+    independently of optional features.
+  implementation_boundary: Preserve the owning Contractor contracts; update numbered specs, limits/error/failure/lifecycle
+    registries and affected implementations together when an explicit clarification is necessary. No ADK-version
+    branches, legacy readers, dual production runtimes, model replacement, silent retries, new receipt
+    store or speculative public API. Read current code and re-establish the dated evidence before implementation.
+  provenance: 'MVP-012/a565c2426b7ca6019de7735f4567ab3b9260c370 introduced the pinned ADK Runtime; V17-002/22b5ebc19df5545b7a28cdc12b5a734777d26f16
+    owns instrumentation assumptions; V39-005 introduced common completion continuation. The current 2.8
+    implementation passed the ten-case control: this is a compatibility migration, not evidence that every
+    path is defective on its supported pin.'
+  execution_authority: 'User authorized implementation on2026-10-25: Runtime V418 first, then Server V419.
+    V418001 baseline characterization and baseline fixes008/009 are complete.'
+scope:
+  in:
+  - One atomic change to runtime/pyproject.toml, generated uv.lock, exact-version smoke, production adapters,
+    owning contract clarifications and regressions.
+  - All ten observed failures and newly characterized strict-type, cancellation-classification and empty-output
+    cases, including every sibling model/tool/continuation path.
+  out:
+  - Enabling native auto compaction, SDK resumability, abort_signal, ToolCallIntegrityPlugin, model fallback,
+    ModelConsultTool, classifiers, native Skill lifecycle or EAGER discovery.
+  - Replacing the custom Gateway adapter, changing configured models, adding legacy ADK support or updating
+    unrelated dependencies without a demonstrated requirement.
+acceptance_criteria:
+- id: A1
+  given: A fresh supported Python installation and committed lock
+  when: uv sync --locked and dependency smoke run
+  then: ADK is exactly 2.13.0, the declared closure installs, the custom Gateway runs without importing/installing
+    openai or litellm, and startup succeeds.
+- id: A2
+  given: Ordinary/Audit continuation in shared and isolated sessions
+  when: Several Runner turns and incomplete-result reminders execute
+  then: Every intended reminder is visible, one logical owner and collector remain, counters are cumulative
+    and external effects are not repeated.
+- id: A3
+  given: Budget exhaustion/cancel/error during parallel calls
+  when: Another model turn or shared invocation follows
+  then: Completed results, proven nonexecution and cancelled/ambiguous dispatched outcomes form truthful
+    well-paired request history; no hidden replay or lost required context occurs, and an uncertain remote
+    effect follows existing receipt reconciliation.
+- id: A4
+  given: Unknown names, callback rejection, domain failures and child cancellation
+  when: The actual ADK callback chain executes
+  then: Known-safe names/codes and exactly one call/error record are retained, cancellation classification
+    is stable and correlation state is cleared.
+- id: A5
+  given: An injected clock crosses the deadline at each admission boundary
+  when: ADK schedules another model/tool/finalizer/summarizer callback
+  then: No new semantic model/tool attempt charge or dispatch starts after expiry; separately authorized
+    bounded terminal cleanup still completes under its owning timeout, and uncertain in-flight remote
+    effects remain subject to reconciliation.
+- id: A6
+  given: Malformed raw arguments through production tool wrappers
+  when: 2.13 attempts scalar/list coercion
+  then: Strict tool admission sees the original values and rejects invalid input before dispatch, while
+    every valid documented declaration remains usable.
+- id: A7
+  given: Empty/thought-only/whitespace/output-limited model responses
+  when: Main, Audit, finalizer and summarizer paths consume them
+  then: They produce the specified finite safe outcome, account known usage, preserve output-limit precedence
+    and never authorize a false result.
+- id: A8
+  given: All changed Runtime modules and original ten failing cases
+  when: Full warning-strict Runtime and cross-language checks run
+  then: Required tests execute and pass on the production lock without xfails, suppressed warnings or
+    compatibility branches.
+tests:
+- command: cd runtime && uv sync --locked
+  covers:
+  - A1
+- command: cd runtime && uv run --locked pytest -W error tests/test_dependency_smoke.py tests/test_adk_runtime.py
+    tests/test_audit_completion_continuation.py tests/test_audit_completion_runtime.py tests/test_instrumentation.py
+    tests/test_openai_gateway_llm.py tests/test_run_artifacts_toolset.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+  - A7
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+  - A7
+  - A8
+- command: make test-wire-cross-language
+  covers:
+  - A8
+- command: make lint
+  covers:
+  - A1
+  - A8
+requirements:
+- id: R1
+  text: Regenerate the lock through uv for google-adk==2.13.0; preserve Python >=3.13,<3.14 and the current
+    A2A pin unless a documented unavoidable conflict requires an explicit contract change. Resolve the
+    mandatory google-genai>=2.30 and authlib>=1.9.1 closure; record every changed direct/transitive dependency.
+    Validate from a fresh uv sync --locked, not a PYTHONPATH overlay.
+- id: R2
+  text: Land the pin, production API adaptations and their tests in one buildable commit. No prerequisite
+    production task requires an unlanded pin, and no separate commit leaves main with 2.13 and known broken
+    Runtime semantics. Other V418 tasks verify and harden this supported version, not waive failures here.
+- id: R3
+  text: Implement the V418-001 logical invocation/ADK turn contract. Every Runtime completion reminder
+    reaches the subsequent real model request exactly once; continuation preserves the original objective,
+    tools, collector, observations, budgets and deadline. Internal turn IDs/objects never become new public
+    invocations or reset counters. Reject foreign/stale turn callbacks.
+- id: R4
+  text: Preserve truthful interrupted-call history across budget exits, errors and cancellation in both
+    session modes. Keep every completed sibling result once. Mark only proven never-dispatched calls as
+    not executed; retain failed/cancelled/ambiguous dispatched outcomes without claiming that no remote
+    effect occurred. Reconcile existing receipts before any retry of an uncertain effect. No invented
+    success, duplicated call/result group, silent erasure of required context or blind repeated external
+    effect. Do not simply remove failing carried-call assertions.
+- id: R5
+  text: Identify the allowed tool set independently of callback order before creating any metric key/span.
+    Hallucinated tool names normalize to unknown_tool before state or telemetry retention. Count them
+    under the selected single attempt rule without letting arbitrary model text create high-cardinality
+    keys.
+- id: R6
+  text: Treat asyncio.CancelledError in the new on-tool-error path as cancellation, preserve the existing
+    classified tool_call_cancelled/retryability contract, re-raise cancellation, release ContextVar tokens
+    and close spans once. Callback rejection, ordinary result, domain error, exception, unknown tool and
+    simultaneous sibling termination are all exactly-once paths.
+- id: R7
+  text: Check the authoritative absolute invocation deadline and cancellation/lease/sandbox state immediately
+    before admitting and charging model/tool work, finalizer and summarizer, including continuation. An
+    expired boundary starts no new callback-accounted attempt or provider request; keep per-request timeout
+    and bounded terminal cleanup distinct. Test callback count, provider count and span outcomes separately.
+    This governs new semantic execution; preserve separately authorized WRK-R168 terminal cleanup, workspace
+    auto-export and State finalization under their own bounded owner/deadline. Cancellation cannot promise
+    rollback of an already-dispatched remote effect.
+- id: R8
+  text: Validate raw arguments before ADK preprocessing can coerce integral floats, list elements or other
+    primitives. Preserve each production tool contract rather than introduce one permissive global caster.
+    Cover read_artifact_chunk offsets/lengths, filesystem/source/code-analysis, HTTP/Caido, findings,
+    Memory, taint and code-execution siblings; reuse raw guards where they exist through the approved
+    common boundary.
+- id: R9
+  text: 'Preserve each owning tool contract for missing/unknown fields and invalid scalar/list/bool/null/enum
+    values, with its stable safe failure and zero effects when rejected. ADK 2.8 already filters unknown
+    arguments on some unguarded tools: characterize this separately from new numeric coercion; a global
+    unknown-field rejection policy requires an explicit owning contract decision, not an incidental migration.
+    Validate through real FunctionTool dispatch; direct calls alone do not prove admission. Bound validation
+    by existing argument/request ceilings and preserve declarations and injected context parameters.'
+- id: R10
+  text: Map MODEL_RETURNED_NO_CONTENT for whitespace/thought-only/empty STOP output explicitly in ordinary
+    and Audit completion paths. Preserve MAX_TOKENS and safety failure precedence, failed-response usage
+    accounting, no execution of truncated tool arguments and no false complete or unbounded recovery loop.
+    Fix the whole class in main, finalizer and summarizer paths.
+- id: R11
+  text: 'Preserve the custom BaseLlm capabilities and role separation: main Worker has tools without output_schema,
+    finalizer is separate tool-free one-shot with its existing structured-result contract. Keep literal
+    instruction providers, redacted Gateway errors and absence of optional openai/litellm SDKs. Update
+    exact-version smoke and normative current-pin statements such as TLS-R34/RTA-R116; preserve historical
+    2.8 review facts.'
+- id: R12
+  text: Keep cache cleanup and strict native Skill capability probes active. If an upstream private name
+    or supported declaration shape changed, adapt it in this atomic migration and prove startup/release
+    guards, never delete guards to make imports pass.
+- id: R13
+  text: The complete locked Runtime suite must pass with warnings treated as errors. All ten old failures
+    need real-path regression coverage under 2.13; observed identity/history changes must be justified
+    by the selected contract, not snapshot refreshes that hide lost reminders or side effects.
+test_prerequisites:
+- Commands below are future implementation acceptance gates, not checks already passed by this planning
+  change. A required command, selected case or dependency setup must not be skipped or match zero tests.
+- Run full suites of every touched package/module, in addition to focused regressions. Use real ADK dispatch
+  and controlled Gateway responses; persistence/process claims require disposable real PostgreSQL and
+  real Server/Runtime processes. Never read live configs from unit tests; use testdata and pseudo-Skills.
+- Use injected clocks, synchronization barriers, work/row/byte counters and bounded fixture sizes. Timing
+  samples are informational, never flaky wall-clock pass thresholds. Keep configured live models unchanged;
+  no live Gateway is part of these deterministic tasks.
+- Use the repository lock for acceptance, except the explicitly isolated candidate characterization in
+  V418-001. Preserve unrelated user changes. Record the tested revision, lock digest, command, executed
+  case count, skips and outcome. The 326-case exploratory run is not a substitute for make test-runtime
+  or a release gate.
+failure_outcomes:
+- operation: Runtime operation at the changed boundary
+  permanent: Strict invalid input or unsupported SDK behavior fails with the owning classified outcome;
+    no permissive fallback or endless retry. A required verification failure blocks completion.
+  retryable: Reuse the existing bounded transport/recovery or cleanup policy only; no SDK upgrade-specific
+    retry loop or rerun-until-green.
+  ambiguous: Reconcile existing receipts, trusted observations and the same operation identity. Test evidence
+    preserves the original uncertain outcome; never repeat an external append or side effect blindly.
+  cancelled: The existing invocation/allocation or fixture owner cancels and joins all work before cleanup;
+    no later dispatch or unowned callback may outlive release.
+  timeout: Execution deadline, per-request timeout, cleanup timeout and harness timeout remain distinct;
+    injected expiration cannot start a new admitted attempt.
+cardinality:
+- collection: Calls, event history, retained State/metrics and fixture cases
+  expected: Several sequential logical invocations, parallel tool batches and multiple internal Runner
+    turns; scale task adds long histories.
+  maximum: Existing owning model/tool/subtask/State/Skill byte and item ceilings; V418-006 must inventory
+    the containing limits before choosing maximum fixtures.
+  bound: Work follows admitted finite inputs and retained history; no unbounded full-catalog scan, private-history
+    copy or unrestricted per-callback rescan. Verify bytes/items/work counters, not only input length.
+lifecycle:
+- entity: Existing allocation-local sessions, clients, tools, callbacks and test evidence
+  delete: Existing invocation/allocation owner or isolated test harness owns teardown; never touch another
+    allocation or user database.
+  cascade: Join generators, tools, clients and serializers before deleting session/workspace state. Preserve
+    required publication receipts through their existing owner.
+  retention: No new durable runtime entity. Keep only bounded safe test evidence and ordinary published
+    results under existing retention policies.
+verification:
+  locked_install: Fresh native Linux Python3.13.5 installation and post-commit fresh Darwin installation
+    both pass uv sync --locked; exact SDK closure and optional-provider absence verified.
+  native_full: make test-runtime and Runtime report verifier pass with 4943 passed, 55 baseline-matching
+    allowed skips, zero failures/errors; test inputs remained frozen.
+  focused: Required warning-strict 7-module command passes312; combined owning regressions306pass;
+    component boundary matrix42pass, including actual production tool families and mutation controls.
+  contracts: make test-wire-cross-language passes271 fixtures,326 Go and224 Python shared tests; full
+    make lint passes. Task/spec/backlog validators rerun for closure.
+  evidence: Exact source/lock/JUnit/log hashes, all 12 dependency changes, initial failed full attempt,
+    skip reasons, owning decisions and reproducible probes are retained in the linked migration evidence.
+implementation_commit: 85bf48cc68752ca2318d3ed13a8da91f9bdeab3e

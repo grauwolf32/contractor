@@ -1,0 +1,104 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata:
+  name: openapi-prepare-work
+  version: '1'
+spec:
+  parameters:
+    checking_workflow:
+      required: true
+    selection:
+      required: true
+    max_items:
+      required: true
+    scanner:
+      required: false
+    server:
+      required: false
+    operations:
+      required: false
+    test_parameters:
+      required: false
+    credential_id:
+      required: false
+  inputs:
+    openapi:
+      required: true
+      mediaTypes:
+      - application/json
+      - application/yaml
+      - application/zip
+    request_values:
+      required: false
+      mediaTypes:
+      - application/json
+  outputs:
+    work:
+      required: true
+      primary: true
+      mediaTypes:
+      - application/json
+  entryStage: prepare
+  stages:
+    prepare:
+      objective: Prepare bounded independently selectable OpenAPI operation work
+      operation:
+        ref: openapi-prepare-work@1
+        arguments:
+          workflow:
+            source: parameter
+            name: checking_workflow
+          selection:
+            source: parameter
+            name: selection
+          max_items:
+            source: parameter
+            name: max_items
+          scanner:
+            source: parameter
+            name: scanner
+            default: ''
+          server:
+            source: parameter
+            name: server
+            default: ''
+          operations:
+            source: parameter
+            name: operations
+            default: ''
+          test_parameters:
+            source: parameter
+            name: test_parameters
+            default: ''
+          credential_id:
+            source: parameter
+            name: credential_id
+            default: ''
+      context:
+        artifacts:
+          openapi:
+            namespace: inputs
+            name: openapi
+            required: true
+          request_values:
+            namespace: inputs
+            name: request_values
+            required: false
+      result:
+        artifacts:
+          work:
+            required: true
+            mediaTypes:
+            - application/json
+            from:
+              namespace: prepared-work
+              name: work
+      workflowOutputs:
+        work: work
+      'on':
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

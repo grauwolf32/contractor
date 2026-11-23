@@ -1,0 +1,658 @@
+//go:build integration
+
+package gitimport
+
+import (
+	"archive/zip"
+	"bytes"
+	"context"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/rsa"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/grauwolf32/contractor/internal/helpers/sourcezip"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
+)
+
+func nativeGit(t *testing.T, repo string, args ...string) []byte {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, "git", append([]string{"-C", repo}, args...)...)
+	command.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=Fixture", "GIT_AUTHOR_EMAIL=fixture@example.test", "GIT_COMMITTER_NAME=Fixture", "GIT_COMMITTER_EMAIL=fixture@example.test")
+	data, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Git fixture %v: %v: %s", args, err, data)
+	}
+	return data
+}
+func realRepository(t *testing.T) (string, string) {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Fatal("integration fixture requires native git")
+	}
+	repo := t.TempDir()
+	nativeGit(t, repo, "init", "--initial-branch=main")
+	if err := os.WriteFile(filepath.Join(repo, "hello.txt"), []byte("original\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// Similar blobs exercise Git's normal OFS delta selection in upload-pack.
+	for i := 0; i < 12; i++ {
+		if err := os.WriteFile(filepath.Join(repo, fmt.Sprintf("file-%02d.txt", i)), []byte(strings.Repeat("shared content\n", 10000)+fmt.Sprint(i)), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	nativeGit(t, repo, "add", ".")
+	nativeGit(t, repo, "commit", "-m", "fixture")
+	nativeGit(t, repo, "tag", "-a", "v1", "-m", "release")
+	return repo, strings.TrimSpace(string(nativeGit(t, repo, "rev-parse", "HEAD")))
+}
+
+func TestRealGitUTF8URLIntakeAndFetch(t *testing.T) {
+	repo, commit := realRepository(t)
+	backend := serveGitHTTP(t, repo, nil)
+	t.Cleanup(backend.Close)
+	for _, character := range []string{"é", "€", "🛑"} {
+		t.Run(character, func(t *testing.T) {
+			paths := make(chan string, 2)
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+				select {
+				case paths <- request.URL.Path:
+				default:
+					t.Error("unexpected extra Git request")
+				}
+				request = request.Clone(request.Context())
+				switch {
+				case strings.HasSuffix(request.URL.Path, "/info/refs"):
+					request.URL.Path = "/repo.git/info/refs"
+				case strings.HasSuffix(request.URL.Path, "/git-upload-pack"):
+					request.URL.Path = "/repo.git/git-upload-pack"
+				default:
+					http.NotFound(w, request)
+					return
+				}
+				request.URL.RawPath = ""
+				backend.Config.Handler.ServeHTTP(w, request)
+			}))
+			t.Cleanup(server.Close)
+			room := MaximumRemoteURLBytes - len(server.URL) - 1
+			path := "/" + strings.Repeat(character, room/len(character)) + strings.Repeat("a", room%len(character))
+			raw := server.URL + path
+			remote, err := ParseRemote(raw)
+			if err != nil {
+				t.Fatalf("valid UTF-8 input rejected: %v", err)
+			}
+			if len(raw) != MaximumRemoteURLBytes || len(remote.URL) <= MaximumRemoteURLBytes {
+				t.Fatal("fixture must fit intake exactly and exceed it after percent encoding")
+			}
+			client, err := NewClient(Config{AllowedRemotes: []string{remote.Address}}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			client.allowLoopback = true
+			client.tlsConfig = server.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
+			snapshot, err := client.Fetch(t.Context(), remote, "", ModeSnapshot, nil)
+			if err != nil {
+				t.Fatalf("accepted Unicode URL failed to fetch: %v", err)
+			}
+			assertSnapshot(t, snapshot, commit)
+			if snapshot.RepositoryURL != remote.URL {
+				t.Fatal("fetch changed canonical provenance")
+			}
+			for _, suffix := range []string{"/info/refs", "/git-upload-pack"} {
+				select {
+				case got := <-paths:
+					if got != path+suffix {
+						t.Fatal("transport changed the Unicode repository path")
+					}
+				default:
+					t.Fatal("Git transport did not issue the expected request")
+				}
+			}
+		})
+	}
+}
+
+func serveGitHTTP(t *testing.T, repo string, beforeFetch func()) *httptest.Server {
+	t.Helper()
+	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		args := []string{"upload-pack", "--stateless-rpc"}
+		switch r.URL.Path {
+		case "/repo.git/info/refs":
+			if r.Method != "GET" || r.URL.RawQuery != "service=git-upload-pack" {
+				w.WriteHeader(400)
+				return
+			}
+			w.Header().Set("Content-Type", "application/x-git-upload-pack-advertisement")
+			_, _ = io.WriteString(w, "001e# service=git-upload-pack\n0000")
+			args = append(args, "--advertise-refs")
+		case "/repo.git/git-upload-pack":
+			if r.Method != "POST" {
+				w.WriteHeader(405)
+				return
+			}
+			w.Header().Set("Content-Type", "application/x-git-upload-pack-result")
+			if beforeFetch != nil {
+				beforeFetch()
+			}
+		default:
+			w.WriteHeader(404)
+			return
+		}
+		command := exec.CommandContext(r.Context(), "git", append(args, repo)...)
+		command.Stdin = r.Body
+		command.Stdout = w
+		if err := command.Run(); err != nil {
+			t.Errorf("upload-pack: %v", err)
+		}
+	}))
+}
+func assertSnapshot(t *testing.T, snapshot Snapshot, commit string) {
+	t.Helper()
+	if snapshot.Commit != commit {
+		t.Fatalf("commit %s != %s", snapshot.Commit, commit)
+	}
+	reader, err := zip.NewReader(bytes.NewReader(snapshot.Data), int64(len(snapshot.Data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, file := range reader.File {
+		if file.Name == "hello.txt" {
+			r, _ := file.Open()
+			data, err := io.ReadAll(r)
+			_ = r.Close()
+			if err != nil || string(data) != "original\n" {
+				t.Fatalf("snapshot moved: %q %v", data, err)
+			}
+			found = true
+		}
+	}
+	if !found || len(reader.File) != 13 {
+		t.Fatalf("incomplete snapshot: %d files", len(reader.File))
+	}
+}
+func TestRealHTTPSPinnedCommitAndTags(t *testing.T) {
+	repo, commit := realRepository(t)
+	var once sync.Once
+	server := serveGitHTTP(t, repo, func() {
+		once.Do(func() {
+			if err := os.WriteFile(filepath.Join(repo, "hello.txt"), []byte("branch advanced\n"), 0600); err != nil {
+				t.Error(err)
+				return
+			}
+			nativeGit(t, repo, "add", ".")
+			nativeGit(t, repo, "commit", "-m", "advance")
+		})
+	})
+	defer server.Close()
+	remote, _ := ParseRemote(server.URL + "/repo.git")
+	client, _ := NewClient(Config{AllowedRemotes: []string{remote.Address}}, nil)
+	client.allowLoopback = true
+	client.tlsConfig = server.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	snapshot, err := client.Fetch(context.Background(), remote, "", ModeSnapshot, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertSnapshot(t, snapshot, commit)
+	runtime.ReadMemStats(&after)
+	t.Logf("real HTTPS fixture: ZIP=%d bytes, allocated=%d bytes, heap=%d bytes", len(snapshot.Data), after.TotalAlloc-before.TotalAlloc, after.HeapAlloc)
+	for _, ref := range []string{"v1", "refs/tags/v1"} {
+		tag, err := client.Fetch(context.Background(), remote, ref, ModeSnapshot, nil)
+		if err != nil {
+			t.Fatalf("tag %s: %v", ref, err)
+		}
+		assertSnapshot(t, tag, commit)
+		if !bytes.Equal(snapshot.Data, tag.Data) {
+			t.Fatal("tag ZIP differs")
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := client.Fetch(ctx, remote, "", ModeSnapshot, nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancel: %v", err)
+	}
+}
+
+func TestRealHTTPSInterruptedPackIsRemote(t *testing.T) {
+	repo, _ := realRepository(t)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		args := []string{"upload-pack", "--stateless-rpc"}
+		switch r.URL.Path {
+		case "/repo.git/info/refs":
+			_, _ = io.WriteString(w, "001e# service=git-upload-pack\n0000")
+			args = append(args, "--advertise-refs")
+		case "/repo.git/git-upload-pack":
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		command := exec.CommandContext(r.Context(), "git", append(args, repo)...)
+		command.Stdin = r.Body
+		var response bytes.Buffer
+		command.Stdout = &response
+		if err := command.Run(); err != nil {
+			t.Errorf("upload-pack: %v", err)
+			return
+		}
+		if r.URL.Path != "/repo.git/git-upload-pack" {
+			_, _ = w.Write(response.Bytes())
+			return
+		}
+		packStart := bytes.Index(response.Bytes(), []byte("PACK"))
+		if packStart < 0 || packStart+32 >= response.Len() {
+			t.Errorf("fixture upload response has no usable pack")
+			return
+		}
+		w.Header().Set("Content-Length", strconv.Itoa(response.Len()))
+		_, _ = w.Write(response.Bytes()[:packStart+32])
+	}))
+	defer server.Close()
+	remote, err := ParseRemote(server.URL + "/repo.git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := NewClient(Config{AllowedRemotes: []string{remote.Address}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.allowLoopback = true
+	client.tlsConfig = server.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
+	if _, err := client.Fetch(t.Context(), remote, "", ModeSnapshot, nil); !errors.Is(err, ErrRemote) {
+		t.Fatalf("interrupted pack = %v, want ErrRemote", err)
+	}
+}
+
+func TestDecodedPackCumulativeBudget(t *testing.T) {
+	// Each object is individually allowed; the fifth must be rejected before
+	// inflation even though the compressed pack is tiny and objects deduplicate.
+	entry := packEntry{kind: plumbing.BlobObject, data: make([]byte, maxObjectBytes)}
+	pack := makePack(entry, entry, entry, entry, entry)
+	if _, err := decodePack(context.Background(), bytes.NewReader(pack), DefaultLimits()); !errors.Is(err, ErrBudget) {
+		t.Fatalf("cumulative decoded bytes: %v", err)
+	}
+}
+
+func newSigner(t *testing.T) ssh.Signer {
+	t.Helper()
+	_, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := ssh.NewSignerFromKey(private)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return signer
+}
+func serveGitSSH(t *testing.T, repo string, owner ssh.Signer, extraHosts ...ssh.Signer) (string, ssh.Signer) {
+	return serveGitSSHRecording(t, repo, owner, nil, extraHosts...)
+}
+
+func serveGitSSHRecording(t *testing.T, repo string, owner ssh.Signer, negotiated chan<- string, extraHosts ...ssh.Signer) (string, ssh.Signer) {
+	t.Helper()
+	host := newSigner(t)
+	config := &ssh.ServerConfig{PublicKeyCallback: func(_ ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+		if !bytes.Equal(key.Marshal(), owner.PublicKey().Marshal()) {
+			return nil, errors.New("unauthorized")
+		}
+		return nil, nil
+	}}
+	config.AddHostKey(host)
+	for _, extra := range extraHosts {
+		config.AddHostKey(extra)
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	t.Cleanup(func() { cancel(); _ = listener.Close(); wg.Wait() })
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				defer conn.Close()
+				stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
+				defer stop()
+				connection, channels, requests, err := ssh.NewServerConn(conn, config)
+				if err != nil {
+					return
+				}
+				defer connection.Close()
+				if negotiated != nil {
+					select {
+					case negotiated <- connection.Conn.(ssh.AlgorithmsConnMetadata).Algorithms().HostKey:
+					default:
+					}
+				}
+				go ssh.DiscardRequests(requests)
+				for incoming := range channels {
+					if incoming.ChannelType() != "session" {
+						_ = incoming.Reject(ssh.UnknownChannelType, "unsupported")
+						continue
+					}
+					channel, requests, err := incoming.Accept()
+					if err != nil {
+						return
+					}
+					for request := range requests {
+						var payload struct{ Command string }
+						if request.Type != "exec" || ssh.Unmarshal(request.Payload, &payload) != nil || (payload.Command != "git-upload-pack '/repo.git'" && payload.Command != "git-upload-pack 'relative/repo.git'") {
+							_ = request.Reply(false, nil)
+							continue
+						}
+						_ = request.Reply(true, nil)
+						command := exec.CommandContext(ctx, "git", "upload-pack", repo)
+						stdin, err := command.StdinPipe()
+						if err != nil {
+							_ = channel.Close()
+							return
+						}
+						go func() { _, _ = io.Copy(stdin, channel); _ = stdin.Close() }()
+						command.Stdout = channel
+						command.Stderr = channel.Stderr()
+						code := uint32(0)
+						if command.Run() != nil {
+							code = 1
+						}
+						_, _ = channel.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{code}))
+						_ = channel.Close()
+						break
+					}
+				}
+			}()
+		}
+	}()
+	return listener.Addr().String(), host
+}
+func TestRealSSHOwnerKeyAndStrictHostTrust(t *testing.T) {
+	repo, commit := realRepository(t)
+	owner := newSigner(t)
+	address, host := serveGitSSH(t, repo, owner)
+	known := filepath.Join(t.TempDir(), "known_hosts")
+	if err := os.WriteFile(known, []byte(knownhosts.Line([]string{address}, host.PublicKey())+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	remote, _ := ParseRemote("ssh://git@" + address + "/repo.git")
+	client, _ := NewClient(Config{AllowedRemotes: []string{address}, KnownHostsFile: known}, nil)
+	client.allowLoopback = true
+	snapshot, err := client.Fetch(context.Background(), remote, "main", ModeSnapshot, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertSnapshot(t, snapshot, commit)
+	relative, err := ParseRemote("ssh://git@" + address + "/~/relative/repo.git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	relativeSnapshot, err := client.Fetch(context.Background(), relative, "main", ModeSnapshot, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertSnapshot(t, relativeSnapshot, commit)
+	if _, err := client.Fetch(context.Background(), remote, "main", ModeSnapshot, newSigner(t)); !errors.Is(err, ErrRemote) {
+		t.Fatalf("wrong owner: %v", err)
+	}
+	if err := os.WriteFile(known, []byte(knownhosts.Line([]string{address}, newSigner(t).PublicKey())+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Fetch(context.Background(), remote, "main", ModeSnapshot, owner); !errors.Is(err, ErrTrust) {
+		t.Fatalf("changed host: %v", err)
+	}
+}
+
+func TestRealSSHSingleTypePinsOnMultiKeyHost(t *testing.T) {
+	repo, commit := realRepository(t)
+	owner := newSigner(t)
+	ecdsaKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ecdsaHost, err := ssh.NewSignerFromKey(ecdsaKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rsaHost, err := ssh.NewSignerFromKey(rsaKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The server offers P-256, so a P-384 pin leaves no common host key type.
+	unofferedKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unofferedHost, err := ssh.NewSignerFromKey(unofferedKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	negotiated := make(chan string, 2)
+	address, ed25519Host := serveGitSSHRecording(t, repo, owner, negotiated, ecdsaHost, rsaHost)
+	known := filepath.Join(t.TempDir(), "known_hosts")
+	remote, err := ParseRemote("ssh://git@" + address + "/repo.git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := NewClient(Config{AllowedRemotes: []string{address}, KnownHostsFile: known}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.allowLoopback = true
+	for _, test := range []struct {
+		name, host, algorithm string
+		key                   ssh.PublicKey
+		wantTrust             bool
+	}{
+		{"ed25519 pin", address, ssh.KeyAlgoED25519, ed25519Host.PublicKey(), false},
+		{"rsa pin", address, "rsa-sha2-", rsaHost.PublicKey(), false},
+		{"wrong ed25519 material", address, "", newSigner(t).PublicKey(), true},
+		{"pinned type not offered", address, "", unofferedHost.PublicKey(), true},
+		{"unknown host", "other.example:22", "", ed25519Host.PublicKey(), true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if err := os.WriteFile(known, []byte(knownhosts.Line([]string{test.host}, test.key)+"\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			snapshot, err := client.Fetch(context.Background(), remote, "main", ModeSnapshot, owner)
+			if test.wantTrust {
+				if !errors.Is(err, ErrTrust) {
+					t.Fatalf("untrusted host error = %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertSnapshot(t, snapshot, commit)
+			select {
+			case algorithm := <-negotiated:
+				if !strings.HasPrefix(algorithm, test.algorithm) {
+					t.Fatalf("negotiated host key algorithm = %q, want %q", algorithm, test.algorithm)
+				}
+			default:
+				t.Fatal("server did not record host key algorithm")
+			}
+		})
+	}
+}
+
+func TestRealHTTPSConfiguredSourceBudgets(t *testing.T) {
+	repo, _ := realRepository(t)
+	content := bytes.Repeat([]byte("source line\n"), (5<<20)/len("source line\n")+1)
+	for index := range 14 {
+		if err := os.WriteFile(filepath.Join(repo, fmt.Sprintf("large-%02d.txt", index)), content, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	nativeGit(t, repo, "add", ".")
+	nativeGit(t, repo, "commit", "-m", "larger source fixture")
+	commit := strings.TrimSpace(string(nativeGit(t, repo, "rev-parse", "HEAD")))
+	server := serveGitHTTP(t, repo, nil)
+	defer server.Close()
+	remote, err := ParseRemote(server.URL + "/repo.git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name     string
+		limits   Limits
+		accepted bool
+	}{
+		{"default", DefaultLimits(), false},
+		{"configured", Limits{Timeout: Deadline, MaxReceivedBytes: MaxReceivedBytes, MaxDecodedBytes: MaxDecodedBytes, Source: sourcezip.Limits{MaxExpandedBytes: 128 << 20, MaxFileBytes: 16 << 20, MaxEntries: 10000}}, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			client, err := NewClient(Config{AllowedRemotes: []string{remote.Address}, Limits: &test.limits}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			client.allowLoopback = true
+			client.tlsConfig = server.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
+			snapshot, err := client.Fetch(t.Context(), remote, "main", ModeSnapshot, nil)
+			if !test.accepted {
+				if !errors.Is(err, ErrBudget) {
+					t.Fatalf("expected budget rejection: %v", err)
+				}
+				return
+			}
+			if err != nil || snapshot.Commit != commit {
+				t.Fatalf("configured fetch=%+v, %v", snapshot, err)
+			}
+			archive, err := zip.NewReader(bytes.NewReader(snapshot.Data), int64(len(snapshot.Data)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(archive.File) != 27 {
+				t.Fatalf("source ZIP files=%d", len(archive.File))
+			}
+		})
+	}
+}
+
+func TestRealGitAnalysisSourcesOverHTTPSAndSSH(t *testing.T) {
+	repo, _ := realRepository(t)
+	if err := os.Mkdir(filepath.Join(repo, "dist"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	for name, data := range map[string][]byte{
+		"dist/generated.py": []byte("generated source\n"), "image.png": []byte("binary by extension"),
+		"invalid.py": {0xff}, "large.bin": []byte("version https://git-lfs.github.com/spec/v1\noid sha256:x\n"),
+	} {
+		if err := os.WriteFile(filepath.Join(repo, name), data, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink("/must-not-follow", filepath.Join(repo, "link")); err != nil {
+		t.Fatal(err)
+	}
+	nativeGit(t, repo, "add", "--all")
+	previous := strings.TrimSpace(string(nativeGit(t, repo, "rev-parse", "HEAD")))
+	nativeGit(t, repo, "update-index", "--add", "--cacheinfo", "160000,"+previous+",module")
+	nativeGit(t, repo, "commit", "-m", "mixed source fixture")
+	commit := strings.TrimSpace(string(nativeGit(t, repo, "rev-parse", "HEAD")))
+	https := serveGitHTTP(t, repo, nil)
+	defer https.Close()
+	httpRemote, _ := ParseRemote(https.URL + "/repo.git")
+	httpClient, _ := NewClient(Config{AllowedRemotes: []string{httpRemote.Address}}, nil)
+	httpClient.allowLoopback = true
+	httpClient.tlsConfig = https.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
+	owner := newSigner(t)
+	address, host := serveGitSSH(t, repo, owner)
+	known := filepath.Join(t.TempDir(), "known_hosts")
+	if err := os.WriteFile(known, []byte(knownhosts.Line([]string{address}, host.PublicKey())+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	sshClient, err := NewClient(Config{AllowedRemotes: []string{address}, KnownHostsFile: known}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sshClient.allowLoopback = true
+	sshRemote, err := ParseRemote("ssh://git@" + address + "/repo.git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var previousZIP []byte
+	for _, test := range []struct {
+		name   string
+		client *Client
+		remote Remote
+		signer ssh.Signer
+	}{
+		{"https", httpClient, httpRemote, nil}, {"ssh", sshClient, sshRemote, owner},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := test.client.Fetch(t.Context(), test.remote, "main", ModeSnapshot, test.signer); !errors.Is(err, ErrContent) {
+				t.Fatalf("strict snapshot: %v", err)
+			}
+			result, err := test.client.Fetch(t.Context(), test.remote, "main", ModeAnalysis, test.signer)
+			if err != nil || result.Commit != commit || result.Analysis == nil {
+				t.Fatalf("analysis: %+v %v", result.Analysis, err)
+			}
+			if result.Analysis.IncludedFiles != 13 || result.Analysis.ExcludedEntries != 6 {
+				t.Fatalf("summary: %+v", result.Analysis)
+			}
+			z, err := zip.NewReader(bytes.NewReader(result.Data), int64(len(result.Data)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(z.File) != 14 {
+				t.Fatalf("ZIP files: %d", len(z.File))
+			}
+			var report analysisReport
+			for _, f := range z.File {
+				if f.Name == result.Analysis.ReportPath {
+					r, err := f.Open()
+					if err != nil {
+						t.Fatal(err)
+					}
+					err = json.NewDecoder(r).Decode(&report)
+					r.Close()
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if len(report.Excluded) != 6 || report.ResolvedCommit != commit {
+				t.Fatalf("report: %+v", report)
+			}
+			if previousZIP != nil && !bytes.Equal(previousZIP, result.Data) {
+				t.Fatal("transport changed source ZIP")
+			}
+			previousZIP = result.Data
+		})
+	}
+}

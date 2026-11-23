@@ -1,0 +1,36 @@
+schema_version: '1.0'
+id: V363-001
+title: Use exact configuration-name patterns in UI route pre-checks
+milestone: review-followups-2026-10-04
+epic: api-contracts
+kind: defect
+introduced_by: V323-001
+priority: P2
+status: completed
+implementation_commit: 305bd4567083952e5a2f0a6df9d699007561eb3a
+depends_on: [V323-001]
+languages: [typescript]
+goal: Make UI routes reject configuration names exactly like the API modules.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "Found while fixing V323-001: route pre-checks in workflows/detail, catalog/agent-detail, catalog/audit-preset-detail, llm-configurations/detail, projects/workflow-run and runs/output-model still use the looser CONFIG_ID_PATTERN; the API modules enforce the exact name grammar only before sending a request."
+scope:
+  in:
+    - Use CONFIG_NAME_PATTERN in route pre-checks.
+  out:
+    - Unrelated refactors.
+acceptance_criteria:
+  - {id: A1, text: "Invalid configuration names are rejected at route level."}
+tests:
+  - {command: "cd ui && corepack pnpm exec vitest run", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: Six UI route pre-checks still use CONFIG_ID_PATTERN for configuration names.
+
+verification:
+  date: "2026-10-09"
+  checks: Full UI Vitest suite passed, 1757 cases in 163 files, including Operations live-event failure recovery. UI typecheck and lint also passed.

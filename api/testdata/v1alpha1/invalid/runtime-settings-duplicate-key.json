@@ -1,0 +1,1 @@
+{"artifactApiUrl":"https://127.0.0.1:8443/private/v1","llmGatewayUrl":"http://127.0.0.1:4000/v1","llmGatewayUrl":"https://secret.invalid/v1","requestTimeoutSeconds":30}

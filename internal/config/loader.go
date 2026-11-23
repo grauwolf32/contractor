@@ -1,0 +1,488 @@
+package config
+
+import (
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/securefile"
+	"go.yaml.in/yaml/v4"
+)
+
+// maximumCatalogFileBytes bounds the read of one YAML manifest or instruction
+// resource (LIM-CAT-5, CAT-R77).
+const maximumCatalogFileBytes = 4 << 20
+
+type loader struct {
+	roots                       []configurationRoot
+	allowMissingManagedSubtrees bool
+	instructions                map[string]contracts.ResolvedInstructions
+	policies                    map[string]contracts.ResolvedModelPolicy
+	gateways                    map[string]llmgateway.ResolvedLLMGatewayConfig
+	templates                   map[string]contracts.ResolvedAgentTemplate
+	workflows                   map[string]resolved.ResolvedWorkflow
+	auditProfiles               map[string]auditprofile.PinnedProgram
+	sources                     map[string]ConfigurationSource
+}
+
+type configurationRoot struct {
+	path   string
+	source ConfigurationSource
+}
+
+type manifestFile struct {
+	root     string
+	relative string
+	source   ConfigurationSource
+}
+
+// OperatorRootCheck validates operator-owned content that lives beside the
+// catalog subtrees but is not a catalog manifest, such as bundled skill or
+// Audit standard packages. A load runs every check against each resolved
+// operator root after the root itself is accepted and before any manifest is
+// read; the first failure rejects the complete load as "<Subject>: <error>".
+// The owners of that content supply the checks through internal/configload, so
+// this package never learns their formats. Production loads go through
+// configload; calling the loaders here directly skips those checks.
+type OperatorRootCheck struct {
+	AfterLoad func(*Snapshot) error
+	Subject   string
+	Check     func(operatorRoot string) error
+}
+
+// loadOptions selects how strictly one load treats the filesystem.
+type loadOptions struct {
+	extendCatalogLock bool
+	// allowMissingManagedSubtrees treats an absent managed subtree as empty.
+	// Only offline validation sets it: the Server creates every managed
+	// subtree at startup, so a later absence must fail the load.
+	allowMissingManagedSubtrees bool
+	operatorRootChecks          []OperatorRootCheck
+}
+
+// LoadUnion validates operator and managed roots as one namespace. Duplicate
+// manifest identities, logical paths, and any symlink below a fixed subtree
+// reject the complete snapshot; neither root has precedence. Every managed
+// subtree must exist, so a reload after one is removed or unmounted fails and
+// the caller keeps its current snapshot.
+func LoadUnion(operatorRoot, managedRoot string, checks ...OperatorRootCheck) (*Snapshot, error) {
+	return loadConfigurationRoots([]configurationRoot{
+		{path: operatorRoot, source: ConfigurationSourceOperator},
+		{path: managedRoot, source: ConfigurationSourceManaged},
+	}, loadOptions{operatorRootChecks: checks})
+}
+
+func loadConfigurationRoots(roots []configurationRoot, options loadOptions) (*Snapshot, error) {
+	resolvedRoots := make([]configurationRoot, 0, len(roots))
+	for _, root := range roots {
+		absolute, absoluteErr := filepath.Abs(root.path)
+		if absoluteErr != nil {
+			return nil, fmt.Errorf("%s root: %w", root.source, absoluteErr)
+		}
+		info, statErr := os.Lstat(absolute)
+		if statErr != nil {
+			return nil, fmt.Errorf("%s root: %w", root.source, statErr)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("%s root is a symlink", root.source)
+		}
+		rootPath, resolveErr := resolveRoot(root.path)
+		if resolveErr != nil {
+			return nil, fmt.Errorf("%s root: %w", root.source, resolveErr)
+		}
+		resolvedRoots = append(resolvedRoots, configurationRoot{path: rootPath, source: root.source})
+	}
+	for _, root := range resolvedRoots {
+		if root.source != ConfigurationSourceOperator {
+			continue
+		}
+		for _, check := range options.operatorRootChecks {
+			if err := check.Check(root.path); err != nil {
+				return nil, fmt.Errorf("%s: %w", check.Subject, err)
+			}
+		}
+	}
+
+	current := &loader{
+		roots:                       resolvedRoots,
+		allowMissingManagedSubtrees: options.allowMissingManagedSubtrees,
+		instructions:                make(map[string]contracts.ResolvedInstructions),
+		policies:                    make(map[string]contracts.ResolvedModelPolicy),
+		gateways:                    make(map[string]llmgateway.ResolvedLLMGatewayConfig),
+		templates:                   make(map[string]contracts.ResolvedAgentTemplate),
+		workflows:                   make(map[string]resolved.ResolvedWorkflow),
+		auditProfiles:               make(map[string]auditprofile.PinnedProgram),
+		sources:                     make(map[string]ConfigurationSource),
+	}
+	if err := current.loadInstructionResources(); err != nil {
+		return nil, err
+	}
+	if err := current.loadLLMGatewayConfigs(); err != nil {
+		return nil, err
+	}
+	if err := current.loadModelPolicies(); err != nil {
+		return nil, err
+	}
+	if err := current.loadAgentTemplates(); err != nil {
+		return nil, err
+	}
+	if err := current.loadWorkflows(); err != nil {
+		return nil, err
+	}
+	if err := current.loadAuditProfiles(); err != nil {
+		return nil, err
+	}
+	snapshot := newSnapshot(
+		current.workflows, current.templates, current.policies, current.gateways,
+		current.auditProfiles, current.instructions, current.sources,
+	)
+	for _, root := range resolvedRoots {
+		if root.source == ConfigurationSourceOperator {
+			if _, err := checkCatalogLock(root.path, snapshot, false, options.extendCatalogLock); err != nil {
+				return nil, fmt.Errorf("operator catalog lock: %w", err)
+			}
+		}
+	}
+	for _, check := range options.operatorRootChecks {
+		if check.AfterLoad != nil {
+			if err := check.AfterLoad(snapshot); err != nil {
+				return nil, fmt.Errorf("%s: %w", check.Subject, err)
+			}
+		}
+	}
+	return snapshot, nil
+}
+
+func resolveRoot(root string) (string, error) {
+	if strings.TrimSpace(root) == "" {
+		return "", fmt.Errorf("configuration root is required")
+	}
+	absolute, err := filepath.Abs(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve configuration root %q: %w", root, err)
+	}
+	resolvedPath, err := filepath.EvalSymlinks(absolute)
+	if err != nil {
+		return "", fmt.Errorf("resolve configuration root %q: %w", root, err)
+	}
+	info, err := os.Stat(resolvedPath)
+	if err != nil {
+		return "", fmt.Errorf("stat configuration root %q: %w", root, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("configuration root %q is not a directory", root)
+	}
+	return resolvedPath, nil
+}
+
+func (l *loader) discover(subtree string) ([]manifestFile, error) {
+	var result []manifestFile
+	seen := make(map[string]ConfigurationSource)
+	for _, root := range l.roots {
+		base := filepath.Join(root.path, subtree)
+		if err := validateSubtree(base, subtree); err != nil {
+			if l.allowMissingManagedSubtrees && root.source == ConfigurationSourceManaged && errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return nil, err
+		}
+		err := filepath.WalkDir(base, func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.Type()&os.ModeSymlink != 0 {
+				return fmt.Errorf("configuration path %q is a symlink", path)
+			}
+			if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
+				return nil
+			}
+			if !entry.Type().IsRegular() {
+				return fmt.Errorf("configuration manifest %q is not a regular file", path)
+			}
+			relative, relErr := filepath.Rel(root.path, path)
+			if relErr != nil {
+				return relErr
+			}
+			relative = filepath.ToSlash(relative)
+			if previous, exists := seen[relative]; exists {
+				return fmt.Errorf(
+					"duplicate configuration path %q across %s and %s roots",
+					relative, previous, root.source,
+				)
+			}
+			seen[relative] = root.source
+			result = append(result, manifestFile{
+				root: root.path, relative: relative, source: root.source,
+			})
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("discover %s manifests in %s root: %w", subtree, root.source, err)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].relative < result[j].relative })
+	return result, nil
+}
+
+func validateSubtree(base, subtree string) error {
+	info, err := os.Lstat(base)
+	if err != nil {
+		return fmt.Errorf("configuration subtree %s: %w", subtree, err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("configuration subtree %s is a symlink", subtree)
+	}
+	info, err = os.Stat(base)
+	if err != nil {
+		return fmt.Errorf("configuration subtree %s: %w", subtree, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("configuration subtree %s is not a directory", subtree)
+	}
+	return nil
+}
+
+func (l *loader) loadInstructionResources() error {
+	seen := make(map[string]ConfigurationSource)
+	for _, root := range l.roots {
+		base := filepath.Join(root.path, "instructions")
+		if err := validateSubtree(base, "instructions"); err != nil {
+			if l.allowMissingManagedSubtrees && root.source == ConfigurationSourceManaged && errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return err
+		}
+		err := filepath.WalkDir(base, func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.Type()&os.ModeSymlink != 0 {
+				return fmt.Errorf("instruction path %q is a symlink", path)
+			}
+			if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+				return nil
+			}
+			if !entry.Type().IsRegular() {
+				return fmt.Errorf("instruction path %q is not a regular file", path)
+			}
+			relative, relErr := filepath.Rel(root.path, path)
+			if relErr != nil {
+				return relErr
+			}
+			relative = filepath.ToSlash(relative)
+			if _, err := validateInstructionRef(relative); err != nil {
+				return err
+			}
+			if previous, exists := seen[relative]; exists {
+				return fmt.Errorf(
+					"duplicate instruction path %q across %s and %s roots",
+					relative, previous, root.source,
+				)
+			}
+			data, readErr := readCatalogFile(root.path, relative)
+			if readErr != nil {
+				return fmt.Errorf("read instruction %q: %w", relative, readErr)
+			}
+			if !utf8.Valid(data) || strings.TrimSpace(string(data)) == "" {
+				return fmt.Errorf("instruction ref %q is empty or not strict UTF-8", relative)
+			}
+			seen[relative] = root.source
+			l.instructions[relative] = contracts.ResolvedInstructions{
+				Ref: relative, Digest: contentdigest.Bytes(data), Text: string(data),
+			}
+			l.sources[configurationSourceKey(ConfigurationKind("instructions"), relative)] = root.source
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("discover instructions in %s root: %w", root.source, err)
+		}
+	}
+	return nil
+}
+
+// readCatalogFile reads one discovered manifest or instruction resource again
+// without following a symlink at any component below its root, so a link
+// swapped in after discovery is refused, and within maximumCatalogFileBytes.
+func readCatalogFile(root, relative string) ([]byte, error) {
+	data, err := securefile.ReadBeneath(root, relative, maximumCatalogFileBytes)
+	if errors.Is(err, securefile.ErrTooLarge) {
+		return nil, fmt.Errorf("%w: at most %d bytes", err, maximumCatalogFileBytes)
+	}
+	return data, err
+}
+
+func decodeOne[T any](file manifestFile) (T, error) {
+	var zero T
+	data, err := readCatalogFile(file.root, file.relative)
+	if err != nil {
+		return zero, fmt.Errorf("%s: read manifest: %w", file.relative, err)
+	}
+	var documents []T
+	if err := yaml.Load(
+		data,
+		&documents,
+		yaml.WithAllDocuments(),
+		yaml.WithKnownFields(),
+		yaml.WithUniqueKeys(),
+	); err != nil {
+		return zero, fmt.Errorf("%s: decode strict YAML: %w", file.relative, err)
+	}
+	if len(documents) != 1 {
+		return zero, fmt.Errorf("%s: expected exactly one non-empty YAML document, got %d", file.relative, len(documents))
+	}
+	return documents[0], nil
+}
+
+func (l *loader) loadModelPolicies() error {
+	files, err := l.discover("model-policies")
+	if err != nil {
+		return err
+	}
+	for _, file := range files {
+		document, decodeErr := decodeOne[modelPolicyDocument](file)
+		if decodeErr != nil {
+			return decodeErr
+		}
+		selector, resolveErr := validateEnvelope(document.APIVersion, document.Kind, modelPolicyKind, document.Metadata)
+		if resolveErr != nil {
+			return fmt.Errorf("%s: %w", file.relative, resolveErr)
+		}
+		if _, exists := l.policies[selector.String()]; exists {
+			return fmt.Errorf("%s: duplicate ModelPolicy identity %s", file.relative, selector)
+		}
+		if resolveErr := validateModelPolicySpec(document.Spec); resolveErr != nil {
+			return fmt.Errorf("%s: %w", file.relative, resolveErr)
+		}
+		policy := contracts.ResolvedModelPolicy{
+			Ref:   contracts.ModelPolicyRef{PolicyID: selector.ID, Version: selector.Version},
+			Model: document.Spec.Model, ContextWindowTokens: optionalIntValue(document.Spec.ContextWindowTokens), MaxOutputTokens: optionalIntValue(document.Spec.MaxOutputTokens),
+			MaxModelCalls: optionalIntValue(document.Spec.MaxModelCalls), MaxToolCalls: optionalIntValue(document.Spec.MaxToolCalls),
+			MaxWorkerCalls: optionalIntValue(document.Spec.MaxWorkerCalls), MaxTotalTokens: optionalIntValue(document.Spec.MaxTotalTokens),
+			Temperature:    clone.Pointer(document.Spec.Temperature),
+			SupportsImages: clone.Pointer(document.Spec.SupportsImages),
+		}
+		digest, digestErr := modelPolicyDigest(selector, policy)
+		if digestErr != nil {
+			return fmt.Errorf("%s: compute ModelPolicy digest: %w", file.relative, digestErr)
+		}
+		policy.Ref.Digest = digest
+		l.policies[selector.String()] = policy
+		l.sources[configurationSourceKey(ConfigurationModelPolicies, selector.String())] = file.source
+	}
+	return nil
+}
+
+func optionalIntValue(value *int) int {
+	if value == nil {
+		return 0
+	}
+	return *value
+}
+
+func (l *loader) loadLLMGatewayConfigs() error {
+	files, err := l.discover("llm-gateways")
+	if err != nil {
+		return err
+	}
+	for _, file := range files {
+		document, decodeErr := decodeOne[llmGatewayConfigDocument](file)
+		if decodeErr != nil {
+			return decodeErr
+		}
+		selector, resolveErr := validateEnvelope(
+			document.APIVersion, document.Kind, llmGatewayConfigKind, document.Metadata,
+		)
+		if resolveErr != nil {
+			return fmt.Errorf("%s: %w", file.relative, resolveErr)
+		}
+		if _, exists := l.gateways[selector.String()]; exists {
+			return fmt.Errorf("%s: duplicate LLMGatewayConfig identity %s", file.relative, selector)
+		}
+		gateway, resolveErr := resolveLLMGatewayConfig(selector, document.Spec)
+		if resolveErr != nil {
+			return fmt.Errorf("%s: %w", file.relative, resolveErr)
+		}
+		l.gateways[selector.String()] = gateway
+		l.sources[configurationSourceKey(ConfigurationLLMGateways, selector.String())] = file.source
+	}
+	return nil
+}
+
+func (l *loader) loadAgentTemplates() error {
+	files, err := l.discover("agent-templates")
+	if err != nil {
+		return err
+	}
+	for _, file := range files {
+		document, decodeErr := decodeOne[agentTemplateDocument](file)
+		if decodeErr != nil {
+			return decodeErr
+		}
+		selector, resolveErr := validateEnvelope(document.APIVersion, document.Kind, agentTemplateKind, document.Metadata)
+		if resolveErr != nil {
+			return fmt.Errorf("%s: %w", file.relative, resolveErr)
+		}
+		if _, exists := l.templates[selector.String()]; exists {
+			return fmt.Errorf("%s: duplicate AgentTemplate identity %s", file.relative, selector)
+		}
+		template, resolveErr := l.resolveAgentTemplate(selector, document.Spec)
+		if resolveErr != nil {
+			return fmt.Errorf("%s: %w", file.relative, resolveErr)
+		}
+		l.templates[selector.String()] = template
+		l.sources[configurationSourceKey(ConfigurationAgentTemplates, selector.String())] = file.source
+	}
+	return nil
+}
+
+func (l *loader) loadWorkflows() error {
+	files, err := l.discover("workflows")
+	if err != nil {
+		return err
+	}
+	for _, file := range files {
+		document, decodeErr := decodeOne[workflowDocument](file)
+		if decodeErr != nil {
+			return decodeErr
+		}
+		selector, resolveErr := validateEnvelope(document.APIVersion, document.Kind, workflowKind, document.Metadata)
+		if resolveErr != nil {
+			return fmt.Errorf("%s: %w", file.relative, resolveErr)
+		}
+		if _, exists := l.workflows[selector.String()]; exists {
+			return fmt.Errorf("%s: duplicate Workflow identity %s", file.relative, selector)
+		}
+		workflow, resolveErr := l.resolveWorkflow(selector, document.Spec)
+		if resolveErr != nil {
+			return fmt.Errorf("%s: %w", file.relative, resolveErr)
+		}
+		l.workflows[selector.String()] = workflow
+		l.sources[configurationSourceKey(ConfigurationKind("workflows"), selector.String())] = file.source
+	}
+	return nil
+}
+
+func (l *loader) resolveInstructions(source *instructionsRefSource) (contracts.ResolvedInstructions, error) {
+	if source == nil {
+		return contracts.ResolvedInstructions{}, fmt.Errorf("instructions are required")
+	}
+	normalized, err := validateInstructionRef(source.Ref)
+	if err != nil {
+		return contracts.ResolvedInstructions{}, err
+	}
+	if existing, ok := l.instructions[normalized]; ok {
+		return existing, nil
+	}
+	return contracts.ResolvedInstructions{}, fmt.Errorf("unknown instruction ref %q", normalized)
+}

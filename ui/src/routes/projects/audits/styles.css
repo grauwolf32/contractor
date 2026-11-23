@@ -1,0 +1,14 @@
+.audit-load-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.audit-load-more p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: var(--text-md);
+}

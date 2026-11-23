@@ -1,0 +1,172 @@
+schema_version: '1.0'
+id: V406-004
+title: Coordinate durable bounded Nuclei sweeps over Project scopes
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: scan-tools
+kind: feature
+priority: P2
+status: completed
+implementation_commit: 248e91a408c4b27fec7809919b6bd4d1957c1175
+depends_on:
+- V406-002
+- V406-003
+languages:
+- go
+- sql
+- yaml
+goal: Create one durable owner-authorized sweep, pin its concrete Projects, targets, Workflow and rule
+  content, and recover bounded child Run admission without rescanning already admitted members.
+context:
+  proposal: docs/proposals/0041-web-nuclei-scanning-and-rule-sweeps.md
+  specification:
+  - docs/spec/artifacts/projects.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/execution/scheduler.md
+  - docs/spec/platform/persistence.md#PER-R24
+  - docs/spec/platform/persistence.md#PER-R25
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/lifecycle.md
+  - docs/spec/api/public-api.md
+  - docs/spec/tools/scanners.md#SCN-R244
+  - docs/spec/tools/scanners.md#SCN-R251
+scope:
+  in:
+  - Implement the sweep resource, schema/migrations, owner-bound create/read/list/cancel/purge API and
+    bounded controller in one production path.
+  - Retain authorized exact input snapshots before dispatch; capture concrete Project IDs, httpTarget.url,
+    resolved Workflow/template pins, projected params, source digests and canonical child requests/keys.
+  - Reuse KeyedMutation and ControllerClaims plus ordinary Project Run creation/replay; preserve completed/unknown
+    member facts and source snapshots across restarts.
+  - Implement per-member pending/admitted/skipped/failed states, paginated read views, cancellation, Project
+    deletion races and populated purge.
+  - Update owning specs/OpenAPI, error/limit/failure/lifecycle registries, generated client, architecture/table
+    ownership/ERD and real-store/process tests.
+  out:
+  - New Scheduler lane paths, receipt/lease mechanisms, model decisions or per-host pacing.
+  - Ordinary Run endpoint implicit target defaulting and arbitrary cross-scope request authority.
+  - 'UI/CLI sweep surfaces: V406-006.'
+requirements:
+- id: R1
+  text: At most 1000 unique Projects and 8 MiB in canonical closure and child request payloads; child request bytes are at
+    most 16 KiB. Scope membership/targets/inputs are fixed at admission, not re-read on recovery.
+- id: R2
+  text: Each tick processes at most 25 members and 4 MiB of serialized child requests; result lists use
+    existing API page limits and keyset pagination.
+- id: R3
+  text: Missing/deleting/targetless Projects settle with explicit reasons without blocking eligible members.
+    Before any remote child create, persist its canonical request and key.
+- id: R4
+  text: Resume replays identical child keys/bodies; changed inputs conflict and explicitly new sweeps
+    receive new identities. Retained source forks survive original UserScope binding deletion.
+- id: R5
+  text: Cancellation stops new admissions and requests cancellation of already admitted Runs, exposing
+    actual states. Purge joins controller work and removes only sweep-owned snapshots/metadata.
+- id: R6
+  text: Every SQL statement of 10 or more lines lives in the owning *_sql.go; table, migration and claim
+    ownership have production readers/callers in this change.
+failure_outcomes:
+- operation: Sweep create, input snapshotting, controller claim, child Run creation and cancellation/purge
+  permanent: Owner/missing/invalid/conflict API errors are nonretryable; deterministic member errors settle
+    only that member; every storage-reaching handler documents storage_transaction_conflict.
+  retryable: Existing bounded controller backoff/claim deadlines and retryable storage classification.
+  ambiguous: Keyed sweep creation and captured per-member Run keys reconcile lost responses; never blindly
+    repeat scans or allocate a new key.
+  cancelled: Join controller work and mark unsent members cancelled; ordinary Run cancellation/release
+    owns admitted children.
+  timeout: Separate sweep admission, controller-operation and child API deadlines; existing Run/Stage
+    deadlines own actual scanning.
+cardinality:
+- collection: Projects/members in one sweep
+  expected: '7'
+  maximum: 1000 Projects; 8 MiB snapshot
+  bound: 25 members/4 MiB per tick; keyset-paged result reads; no whole-sweep rescan on polling.
+- collection: Retained sweep source inputs
+  expected: 0 or 1 rulepack and one installed-package pin
+  maximum: The selected exact source bytes within V406-001/V406-003 limits, retained once per sweep
+  bound: Share immutable blob content through ordinary forks; no per-Project copies or new scope kind.
+lifecycle:
+- entity: Sweep, members, existing mutation receipts/controller claims and input snapshots
+  delete: Owner may cancel; purge requires joined controller work and terminal or transferred child admissions.
+  cascade: Sweep-owned members/snapshots cascade; Project Runs and owner sources retain independent lifecycle.
+  retention: Keep snapshots through recovery and pending admission, then ordinary sweep retention; define
+    retention numerically in lifecycle registry before implementation.
+acceptance_criteria:
+- id: A1
+  given: 7 and 1000 Projects including targetless/deleting Projects and one shared source pack
+  when: sweep admission and bounded controller ticks run
+  then: eligible members create one ordinary Project Run each, skips are explicit and work/read limits
+    hold on PostgreSQL
+- id: A2
+  given: lost child/sweep acknowledgements, competing controllers, restart and changed Project/source
+    bindings
+  when: reconciliation resumes
+  then: one create key resolves to one Run; retained inputs/pins stay unchanged; no completed/unknown
+    scan is silently restarted
+- id: A3
+  given: source deletion and unavailable content, retries, deadlines and per-member permanent errors
+  when: pending members dispatch
+  then: retained bytes are used, failures are bounded/classified and unaffected members continue
+- id: A4
+  given: a fully populated active/terminal sweep with admitted Runs and retained source artifacts
+  when: cancel and purge run
+  then: new admissions stop, actual child states are shown, controller work is joined and only sweep-owned
+    state is removed
+tests:
+- command: go test ./internal/scancontroller/... ./internal/scanstore/... ./internal/scanservice/... ./internal/app/... ./internal/runservice/... ./internal/artifacts/... ./internal/archtest/... ./internal/httpapi/public/...
+    ./internal/persistence/postgres/...
+  covers: &id001
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-postgres
+  covers: *id001
+- command: make verify-public-api
+  covers: *id001
+- command: make verify-public-api-postgres
+  covers: *id001
+- command: make test-nuclei-web-e2e
+  covers: *id001
+- command: make docs-erd
+  covers: *id001
+- command: make verify-architecture
+  covers: *id001
+- command: make ui-verify
+  covers: *id001
+- command: make lint
+  covers: *id001
+progress:
+  completed_work:
+  - Implemented owner-bound create/read/list/member/cancel/purge API and regenerated SDKs from OpenAPI.
+  - Captured exact Projects, target URLs, resolved Workflow/template and Runtime pins, defaulted arguments,
+    original and retained source provenance, canonical child requests and opaque keys in one keyed mutation.
+  - Retain one frozen same-owner UserScope fork and share its immutable bytes with ordinary Project Runs;
+    original source deletion and advancement do not change pending members.
+  - Use existing ControllerClaims on the parent row; process at most 25 members and 4 MiB per tick;
+    maintained counters and indexed unsettled work avoid whole-sweep reads on polling.
+  - Bind ordinary Run creation and admitted member facts in the same credential-aware Run transaction,
+    fenced against cancellation and purge. In-process drain joins work and claim release before cleanup.
+  - PostgreSQL coverage passes for 7/1000 members, source deletion, replay, lost child acknowledgements,
+    competing claim ownership, restart, cancellation races, populated purge, admission deadline and
+    30-day retention with 25-row cleanup batches.
+  - Admission Project selection uses an indexed 1001-row prefix or bounded PK lookups; a 10000-Project
+    containing portfolio regression verifies both paths.
+  - Owner library pages skip reserved source snapshots through a partial index; a real-store 6000-snapshot
+    regression verifies bounded rows read for visible entries.
+  - Updated owning specs, failure/lifecycle/limit registries, table ownership and architecture; ERD
+    regenerated from a scratch PostgreSQL database at migration 31. Architecture validation passed.
+  remaining_work: []
+verification:
+  date: '2026-10-23'
+  outcome: All A1-A4 acceptance criteria and listed gates passed.
+  evidence:
+  - Full touched Go package suites passed with disposable PostgreSQL, including the exact task command.
+  - make test-postgres, verify-public-api and verify-public-api-postgres passed.
+  - Extended make test-nuclei-web-e2e passed in 173.919s with real Server/Scheduler/Runtime processes
+    and the deterministic scanner fixture, including the durable server sweep, custom retained input,
+    replay and independent child report after purge.
+  - make ui-verify passed 191 test files and 2352 tests with one expected failure; production build passed.
+  - make lint, docs-erd and verify-architecture passed; ERD reflects migration 31 and 72 tables.
+  - PostgreSQL proofs cover 1000 members, a 10000-Project containing portfolio and 6000 hidden retained
+    snapshots without whole-collection page scans.
+  - release-verify and broad make verify were not run for this task.

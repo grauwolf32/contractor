@@ -1,0 +1,19 @@
+{
+  "description": "LIM-OBS-6 bounds execution error messages by UTF-8 text bytes, independently of JSON escaping. Build each message as unit repeated count times followed by suffix. Both final-report and live-State errors, including per-tool errors, use these cases. argumentCases wrap the same repeated value as a path member and count compact UTF-8 JSON bytes.",
+  "cases": [
+    {"name":"ASCII boundary","unit":"a","count":4096,"suffix":"","bytes":4096,"valid":true},
+    {"name":"ASCII overflow","unit":"a","count":4097,"suffix":"","bytes":4097,"valid":false},
+    {"name":"two-byte boundary","unit":"ж","count":2048,"suffix":"","bytes":4096,"valid":true},
+    {"name":"two-byte overflow","unit":"ж","count":2048,"suffix":"a","bytes":4097,"valid":false},
+    {"name":"three-byte boundary","unit":"界","count":1365,"suffix":"a","bytes":4096,"valid":true},
+    {"name":"three-byte overflow","unit":"界","count":1365,"suffix":"ab","bytes":4097,"valid":false},
+    {"name":"old character bound admits 6000 bytes","unit":"界","count":2000,"suffix":"","bytes":6000,"valid":false},
+    {"name":"astral boundary","unit":"😀","count":1024,"suffix":"","bytes":4096,"valid":true},
+    {"name":"astral overflow","unit":"😀","count":1024,"suffix":"a","bytes":4097,"valid":false},
+    {"name":"JSON escaping does not consume the text budget","unit":"\n","count":4095,"suffix":"a","bytes":4096,"valid":true}
+  ],
+  "argumentCases": [
+    {"name":"compact JSON boundary","unit":" ","count":1361,"suffix":"aa","bytes":4096,"valid":true},
+    {"name":"compact JSON overflow","unit":" ","count":1361,"suffix":"aaa","bytes":4097,"valid":false}
+  ]
+}

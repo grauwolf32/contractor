@@ -1,0 +1,98 @@
+schema_version: "1.0"
+id: V430-005
+title: Reuse validated performance record encodings
+milestone: operations-performance-and-profiling
+epic: operations
+kind: chore
+introduced_by: V32-003
+priority: P3
+status: completed
+implementation_commit: e0f436af5bfe917c223ab337a6bed9d5b700e87e
+depends_on: [V430-003]
+languages: [go]
+goal: Collect and persist the same bounded performance measurements with less duplicate serialization and one record-encoding rule.
+context:
+  authority: >-
+    User request 2026-11-01: merge helpers and continue independent
+    simplification. Selecting this local performance cleanup is the agent's
+    implementation choice within that request; Audit, configuration and Eval
+    redesign remain outside it. Work starts from the updated main after V430-003.
+  specification:
+    - docs/spec/operations/operations.md#OPS-R95
+    - docs/spec/operations/operations.md#OPS-R96
+    - docs/spec/operations/operations.md#OPS-R150
+    - docs/spec/operations/operations.md#OPS-R153
+  finding: >-
+    Before this refactor, Sample.Validate (validation.go:74), Minute.Validate (history.go:47) and
+    aggregate-point validation repeat marshal/size/decode/numeric checks.
+    Collector.collect, Diagnostics.Observe and DatabaseStore.Flush subsequently
+    marshal the validated object again. V32-001 introduced the Sample record
+    rule in 0b6d4f1df; V32-003 introduced the diagnostics/history duplication
+    in 3b6ffc6dc37bab72b4fd84248d1a623eed25f007.
+  boundary: >-
+    Keep record numeric/byte rules inside performance, with private encoders
+    that return the bytes they validated. Existing Validate APIs discard the
+    bytes; production writers and the retained-frame copy reuse them. Keep
+    type-specific semantic checks, including Minute's nested Sample check,
+    unchanged. This is smaller than replacing JSON detachment with a new
+    handwritten deep-copy system; repeating the old checks would retain the
+    duplication. Revisit the shared encoder only if a real record kind gains
+    different numeric/byte rules. No new exports or durable representation.
+  preservation: >-
+    Preserve errInvalidRecord, freshness/generation rules, missing-versus-zero
+    values, 32-KiB encoded bounds, exact integer and finite nonnegative numeric
+    checks, independent group rejection, validation before expiry filtering,
+    idempotent bounded writes, cancellation and existing snapshot ownership.
+    The current 240-frame live ring, ten-minute write queue and 1,000 history
+    point bounds and their transaction/read budgets do not change.
+scope:
+  in:
+    - One private bounded JSON record encoder shared by existing Sample, Minute and HistoryPoint checks.
+    - Reuse encoded validated bytes in Collector, Diagnostics.Observe and DatabaseStore.Flush.
+    - Run existing complete owner-package tests with PostgreSQL and repository lint; record production line reduction.
+  out:
+    - Removing required validation or JSON detachment, changing APIs/schema/limits or moving performance rules into helpers.
+    - Collector scheduling, locks, aggregation mathematics, storage budgets, lifecycle or other modules' behavior.
+acceptance_criteria:
+  - id: A1
+    text: The three validate-then-marshal pairs reuse the validated encoding, and record byte/numeric checking has one implementation with actual production callers.
+  - id: A2
+    text: Existing validation, error, bounded persistence and reader behavior is preserved, including nested Sample checks, NaN/infinite/unsafe integers, byte overflow and independent group rejection.
+  - id: A3
+    text: Snapshot, History and Observe ownership tests pass unchanged; current/minute data remain detached from caller mutations and writes remain idempotent on real PostgreSQL.
+  - id: A4
+    text: Production Go shrinks without a new exported API or abstraction package; complete owner-package tests with PostgreSQL and make lint pass with optional skips explicit.
+tests:
+  - command: go test -json -count=1 ./internal/performance
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+implementation_notes:
+  - >-
+    Private Sample.encode and Minute.encode return the bytes accepted by one
+    encodeRecord byte/numeric checker. Existing Validate methods retain their
+    signatures and errors. Collector.collect, Diagnostics.Observe and
+    DatabaseStore.Flush each reuse the validated bytes instead of marshaling
+    again. Aggregate history points use the same checker.
+  - >-
+    Type-specific checks and Minute's nested Sample validation remain intact.
+    JSON detachment in Observe, Snapshot, History and aggregation remains at
+    the existing ownership boundaries. No SQL, public fields, fixtures,
+    schedules, states, limits or exported APIs changed. Existing tests are
+    unchanged. Production Go shrank by seven physical lines (50 added,
+    57 removed); no wall-time or allocation benchmark claim is made.
+verification: >-
+  2026-11-01: go test -json -count=1 ./internal/performance passed against
+  the dedicated contractor_performance_encoding_20261101 PostgreSQL
+  database over TCP: 88 tests/subtests passed; the one optional local
+  NVIDIA GPU smoke test skipped. No database tests skipped. Complete
+  make lint passed, including tagged Go checks, export checks, task/spec/
+  shared-fixture/ERD guards, UI gates, deployment-script checks and all four
+  Runtime import contracts. Existing tests were unchanged and exercised
+  invalid/nonfinite/unsafe numeric values, minute persistence/idempotency,
+  history windows, independent group rejection and detached ownership.
+  The preceding full Go/PostgreSQL integration run belongs to V430-003;
+  no new full release or live-model run is claimed for this local refactor.
+  User requested landing on 2026-11-01. Merged codex/performance-record-encoding
+  into main with --no-ff; main had not advanced beyond the verified base.
+  Production sources match the tested branch; only this delivery note changed.

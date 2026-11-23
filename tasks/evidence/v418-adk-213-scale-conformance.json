@@ -1,0 +1,528 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-25",
+  "task": "V418-006",
+  "status": "V418-006 acceptance complete: all thirteen new cases, exact owner modules, full locked Linux Runtime, integrated make lint and all twenty-four repeated informational samples pass.",
+  "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+  "frozen_fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+  "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568",
+  "boundary_inventory": [
+    {
+      "name": "Long shared/isolated sessions",
+      "boundary": "Real native ADK Runner and custom OpenAI-compatible adapter over no-network MockTransport",
+      "cases": 4,
+      "main_turns_per_logical_invocation": [
+        50,
+        150
+      ],
+      "sequential_subtasks": 3,
+      "tools_per_nonterminal_turn": 2,
+      "guarantees": "Exact effects and logical IDs; shared one session versus isolated fresh sessions; nested State carries independently while temp state is discarded; scoped state erased on close. Full scans/copies are bounded by admitted events and model turns."
+    },
+    {
+      "name": "Parallel width comparison",
+      "boundary": "Same real Runner/custom adapter workload, 50main turns and3subtasks",
+      "widths": [
+        2,
+        8
+      ],
+      "guarantees": "Four times as many effects leave whole-history scans/visits/index visits/public-read copies unchanged; retained detail rolls at1000 while aggregates remain exact."
+    },
+    {
+      "name": "Repeated allocations",
+      "boundary": "Actual AllocationService prepare, native Runner declaration/invoke/finalizer, finalize/release and confirm-release",
+      "cycles": 1025,
+      "weakref_check_batch": 32,
+      "guarantees": "Unique hashable closures capture original allocation tools/clients/metrics; all three SDK caches populated during invocation and empty immediately after every production release. No test cache clearing or RSS/wall-clock threshold."
+    },
+    {
+      "name": "Tool ceiling",
+      "boundary": "Real native Runner and deterministic BaseLlm response batch",
+      "admitted": 10000,
+      "oversized_proposed": 10001,
+      "guarantees": "10000 distinct effects complete exactly once, three model calls including finalizer, rolling1000 detail with exact counters. An oversized containing batch is refused by the10000-observed-identity history ledger before any tool runs; existing nonretryable worker_session_lifecycle_failed fences subsequent work."
+    },
+    {
+      "name": "Token ceiling",
+      "boundary": "Real native Runner/main/finalizer with known deterministic usage",
+      "maximum": 100000000,
+      "overflow": 100000001,
+      "guarantees": "Exact limit succeeds; known one-token overspend preserves usage and owning total_tokens budget failure with no recovery dispatch."
+    },
+    {
+      "name": "Carried State ceiling",
+      "boundary": "Real InMemorySessionService and production WorkerSessionLifecycle directly, not a full Runner test",
+      "bytes": 4194304,
+      "overflow_bytes": 4194305,
+      "guarantees": "Inclusive compact JSON limit carries into a fresh isolated session with independent snapshots; overflow deletes the session and fences lifecycle; final close erases scoped state."
+    },
+    {
+      "name": "Tool-name metric detail",
+      "boundary": "Production InvocationMetricsReducer and WorkerStateStore directly, not a full Runner test",
+      "observed_names": 257,
+      "retained_names": 256,
+      "guarantees": "Exact257aggregate and129failures; first256names retained with truncated flag; published nested snapshots cannot mutate stored counters."
+    },
+    {
+      "name": "State/report/error containing bounds",
+      "boundary": "Existing complete owner modules rerun alongside the new real paths",
+      "tests": [
+        "test_worker_state::test_state_admission_bounds_full_envelope_without_losing_aggregates",
+        "test_worker_state::test_overflow_admission_keeps_the_oldest_prefix_of_unchanged_projections",
+        "test_worker_state::test_state_publication_serializes_each_retained_record_once",
+        "test_metrics::test_shared_report_keeps_exact_aggregates_while_dropping_oldest_bounded_detail"
+      ],
+      "guarantees": "4MiB full response envelope and1MiB report containing limits; aggregate accuracy after1000tool-record and100error retention; maximal admitted State prefix rejects one extra record; each projection serialized once."
+    }
+  ],
+  "containing_bounds": {
+    "model_calls": 1000,
+    "tool_calls": 10000,
+    "tokens": 100000000,
+    "retained_tool_records": 1000,
+    "retained_errors": 100,
+    "invocation_tool_names": 256,
+    "carried_state_bytes": 4194304,
+    "agent_state_response_bytes": 4194304,
+    "report_bytes": 1048576,
+    "history_observed_tool_ids": 10000,
+    "unresolved_history_metadata_and_results_bytes": 33554432,
+    "sdk_turn_ids": 1001,
+    "history_read_events": "at most2*unresolved+3",
+    "observed_history_scan_bound": "at most3*main_turns*subtasks+subtasks full passes on the accepted SDK",
+    "session_public_read_bound": "at most4 per subtask; copied entries bounded by admitted events"
+  },
+  "host_owner_modules": {
+    "command": "cd runtime && uv run --locked pytest -W error tests/test_adk_runtime.py tests/test_session_lifecycle.py tests/test_worker_state.py tests/test_allocation.py tests/test_adk_runtime_scale.py tests/test_adk_allocation_scale.py tests/test_adk_runtime_ceilings.py tests/test_metrics.py",
+    "passed": 268,
+    "failed": 0,
+    "skipped": 0,
+    "junit_sha256": "adb2a236511dfe072f0e801b4dbd5925b96a5dd2e19e44f447c90dfa428f35c5",
+    "note": "Executed before the independent V418-011 production patch was applied; final combined Linux source is separately required."
+  },
+  "required_new_case_ids": [
+    "tests.test_adk_runtime_scale::test_long_real_gateway_session_preserves_results_and_bounds_work[shared-50]",
+    "tests.test_adk_runtime_scale::test_long_real_gateway_session_preserves_results_and_bounds_work[shared-150]",
+    "tests.test_adk_runtime_scale::test_long_real_gateway_session_preserves_results_and_bounds_work[isolated-50]",
+    "tests.test_adk_runtime_scale::test_long_real_gateway_session_preserves_results_and_bounds_work[isolated-150]",
+    "tests.test_adk_runtime_scale::test_more_parallel_tools_do_not_multiply_whole_history_passes",
+    "tests.test_adk_allocation_scale::test_1025_real_allocations_release_every_declared_closure_graph",
+    "tests.test_adk_runtime_ceilings::test_registered_tool_ceiling_keeps_exact_effects_and_bounded_detail[10000]",
+    "tests.test_adk_runtime_ceilings::test_registered_tool_ceiling_keeps_exact_effects_and_bounded_detail[10001]",
+    "tests.test_adk_runtime_ceilings::test_registered_token_ceiling_keeps_known_usage_and_no_recovery_dispatch[False]",
+    "tests.test_adk_runtime_ceilings::test_registered_token_ceiling_keeps_known_usage_and_no_recovery_dispatch[True]",
+    "tests.test_adk_runtime_ceilings::test_registered_carried_state_byte_ceiling_and_deletion[False]",
+    "tests.test_adk_runtime_ceilings::test_registered_carried_state_byte_ceiling_and_deletion[True]",
+    "tests.test_adk_runtime_ceilings::test_registered_tool_name_ceiling_keeps_all_aggregates_when_detail_is_full"
+  ],
+  "width_control_probe_counters": [
+    {
+      "event_scans": 453,
+      "event_visits": 68253,
+      "event_index_visits": 24171,
+      "max_event_scan": 301,
+      "session_reads": 11,
+      "read_event_copies": 1815,
+      "max_read_events": 303,
+      "request_bytes": 4754664,
+      "max_request_bytes": 62517,
+      "model_calls": 150,
+      "finalizer_calls": 3,
+      "callback_calls": {
+        "before_run_callback": 3,
+        "before_model_callback": 150,
+        "after_model_callback": 150,
+        "before_tool_callback": 294,
+        "after_tool_callback": 294
+      },
+      "width": 2,
+      "effects": 294,
+      "snapshots": [
+        11431,
+        21823,
+        32212
+      ],
+      "request_peak": 62517,
+      "report_bytes": 47208,
+      "created_sessions": 1
+    },
+    {
+      "event_scans": 453,
+      "event_visits": 68253,
+      "event_index_visits": 24171,
+      "max_event_scan": 301,
+      "session_reads": 11,
+      "read_event_copies": 1815,
+      "max_read_events": 303,
+      "request_bytes": 16883532,
+      "max_request_bytes": 224469,
+      "model_calls": 150,
+      "finalizer_calls": 3,
+      "callback_calls": {
+        "before_run_callback": 3,
+        "before_model_callback": 150,
+        "after_model_callback": 150,
+        "before_tool_callback": 1176,
+        "after_tool_callback": 1176
+      },
+      "width": 8,
+      "effects": 1176,
+      "snapshots": [
+        42601,
+        84254,
+        107544
+      ],
+      "request_peak": 224469,
+      "report_bytes": 159955,
+      "created_sessions": 1
+    }
+  ],
+  "model_ceiling_owner": "V418-011 is completed; its full implementation hash is recorded in tasks/done/v418-011-own-adk-run-call-limits.yml. Exact999main+1finalizer and1001refusal pass under the same combined locked Runtime source.",
+  "measurement_owner": "tasks/evidence/v418-adk-213-framework-measurements.json",
+  "interpretation": "Elapsed minus MockTransport handler time includes deterministic probe work, nested-State/effect checks and copies, Runtime and adapter work. It is not pure SDK CPU. Baseline and candidate differ in production fixes and dependency closure; timing changes cannot all be attributed to the upstream SDK. Parallel callback aggregate durations overlap and are not additive wall-time partitions.",
+  "independent_review": "Read-only review found no blocking test/spec defect; no flaky elapsed/RSS assertions or test-side cache clearing. WRK-R161 clarifies existing OBS-R41 rolling metric retention without changing semantic first-observation rules.",
+  "native_linux_verification": {
+    "base_revision": "300502c25c4cecf6dc3154fde5464dc96f787d8d",
+    "scope": "Combined V418-006/V418-011 immutable Git snapshot; final measured production is separately committed before candidate timing samples. No V418-005 process extension is claimed by this full Runtime result.",
+    "source_file_count": 6024,
+    "source_manifest_sha256": "104a5f9e83540df076e395acc00272695a63f2d61c9c49f1df86f3c4b702685e",
+    "source_files_sha256": {
+      "runtime/tests/fakes/adk_scale.py": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "runtime/tests/test_adk_runtime_scale.py": "6d55be4bd5d8adf72062e73eb1265d2e1baea4f2f08beb8e76d4f92a3a254a23",
+      "runtime/tests/test_adk_allocation_scale.py": "7f557d43e6ecb7192250b2185bce8d058f353a839f5504172bdab778dfbb852f",
+      "runtime/tests/test_adk_runtime_ceilings.py": "2968e318067b6383101bd655ff76724e38396a61f94cd542b87b4a32572a2b4e",
+      "runtime/tests/testdata/adk213-scale-workloads.json": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568",
+      "docs/spec/execution/worker.md": "7af8745b46a64e4a62979057eae4e38a61ab1d906bdfc28a685301526d2f32f0",
+      "docs/spec/audit-workflow-dependencies.html": "3f5860cb97c542917914732637012b235220dddc8dc0c4001693c6c93dde525d"
+    },
+    "source_verified_before_run": true,
+    "source_verified_after_run": true,
+    "runtime": {
+      "executable": "/verify-v418006011/runtime/.venv/bin/python",
+      "python": "3.13.5",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.9.1",
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0"
+      }
+    },
+    "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+    "fresh_default_venv": true,
+    "runtime_result": {
+      "errors": 0,
+      "failures": 0,
+      "passed": 5031,
+      "skip_policy_matches_baseline": true,
+      "skip_reasons": {
+        "Vacuum executable is unavailable": 2,
+        "explicit real Podman release gate": 5,
+        "explicit real gate: make test-podman-supervisor": 11,
+        "explicit real-rootless command execution gate": 12,
+        "explicit real-rootless deployment/workflow gate": 1,
+        "explicit real-rootless owner-process gate": 3,
+        "explicit real-rootless startup capability gate": 2,
+        "launched by make test-audit-completion-e2e with a real Go Artifact API": 1,
+        "live LLM Gateway environment is not configured": 3,
+        "optional Katana binary is absent": 5,
+        "optional ffuf binary is absent": 3,
+        "optional nuclei binary is absent": 3,
+        "optional sqlmap binary is absent": 3,
+        "run make test-interactsh-protocol for the pinned upstream server": 1
+      },
+      "skipped": 55,
+      "tests": 5086
+    },
+    "case_delta_from010": {
+      "added": [
+        [
+          "tests.test_adk_allocation_scale",
+          "test_1025_real_allocations_release_every_declared_closure_graph"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_ambient_sdk_limit_cannot_replace_the_pinned_worker_budget[0]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_ambient_sdk_limit_cannot_replace_the_pinned_worker_budget[1000000]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_ambient_sdk_limit_cannot_replace_the_pinned_worker_budget[1]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_ambient_sdk_limit_cannot_replace_the_pinned_worker_budget[not-an-integer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_contractor_refuses_call_1001_before_dispatch_or_charge"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-0-finalizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-0-summarizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-1-finalizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-1-summarizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-1000000-finalizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-1000000-summarizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-not-an-integer-finalizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-not-an-integer-summarizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-0-finalizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-0-summarizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-1-finalizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-1-summarizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-1000000-finalizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-1000000-summarizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-not-an-integer-finalizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-not-an-integer-summarizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_supported_model_ceiling_includes_999_main_calls_and_finalizer"
+        ],
+        [
+          "tests.test_adk_runtime_ceilings",
+          "test_registered_carried_state_byte_ceiling_and_deletion[False]"
+        ],
+        [
+          "tests.test_adk_runtime_ceilings",
+          "test_registered_carried_state_byte_ceiling_and_deletion[True]"
+        ],
+        [
+          "tests.test_adk_runtime_ceilings",
+          "test_registered_token_ceiling_keeps_known_usage_and_no_recovery_dispatch[False]"
+        ],
+        [
+          "tests.test_adk_runtime_ceilings",
+          "test_registered_token_ceiling_keeps_known_usage_and_no_recovery_dispatch[True]"
+        ],
+        [
+          "tests.test_adk_runtime_ceilings",
+          "test_registered_tool_ceiling_keeps_exact_effects_and_bounded_detail[10000]"
+        ],
+        [
+          "tests.test_adk_runtime_ceilings",
+          "test_registered_tool_ceiling_keeps_exact_effects_and_bounded_detail[10001]"
+        ],
+        [
+          "tests.test_adk_runtime_ceilings",
+          "test_registered_tool_name_ceiling_keeps_all_aggregates_when_detail_is_full"
+        ],
+        [
+          "tests.test_adk_runtime_scale",
+          "test_long_real_gateway_session_preserves_results_and_bounds_work[isolated-150]"
+        ],
+        [
+          "tests.test_adk_runtime_scale",
+          "test_long_real_gateway_session_preserves_results_and_bounds_work[isolated-50]"
+        ],
+        [
+          "tests.test_adk_runtime_scale",
+          "test_long_real_gateway_session_preserves_results_and_bounds_work[shared-150]"
+        ],
+        [
+          "tests.test_adk_runtime_scale",
+          "test_long_real_gateway_session_preserves_results_and_bounds_work[shared-50]"
+        ],
+        [
+          "tests.test_adk_runtime_scale",
+          "test_more_parallel_tools_do_not_multiply_whole_history_passes"
+        ]
+      ],
+      "removed": []
+    },
+    "commands": [
+      {
+        "command": [
+          "uv",
+          "sync",
+          "--locked"
+        ],
+        "exit_code": 0,
+        "label": "sync",
+        "log_sha256": "13e773b872d34a5ee01af36a59bf71ec3c45d3eea3193a215255d1efe3578f9e"
+      },
+      {
+        "command": [
+          "make",
+          "test-runtime",
+          "RELEASE_REPORTS=/tmp/v418006011-gate/reports"
+        ],
+        "exit_code": 0,
+        "label": "runtime",
+        "log_sha256": "c7ca1bd24bb9c5fc1e7ce7c714acc0be217295a560ba0ecd3f7388464fb69ed0"
+      },
+      {
+        "command": [
+          "python3",
+          "scripts/release_test_reports.py",
+          "verify-runtime",
+          "--report",
+          "/tmp/v418006011-gate/reports/runtime.xml"
+        ],
+        "exit_code": 0,
+        "label": "verify-runtime",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "pytest",
+          "-W",
+          "error",
+          "tests/test_adk_runtime.py",
+          "tests/test_session_lifecycle.py",
+          "tests/test_worker_state.py",
+          "tests/test_allocation.py",
+          "tests/test_adk_runtime_scale.py",
+          "tests/test_adk_allocation_scale.py",
+          "tests/test_adk_runtime_ceilings.py",
+          "tests/test_metrics.py",
+          "--junitxml=/tmp/v418006011-gate/reports/006-owner-modules.xml"
+        ],
+        "exit_code": 0,
+        "label": "006-owner-modules",
+        "log_sha256": "cf45d33422a78400132bcd9463a401bb590227fb9ab3ecd401e5aaac5608b6d6"
+      },
+      {
+        "command": [
+          "make",
+          "lint"
+        ],
+        "exit_code": 0,
+        "label": "lint",
+        "log_sha256": "9a8afb3040cae670b876cee1aa8f9cd22161174c2f482ec5fe6c1f7361d3297a"
+      }
+    ],
+    "focused_results": [
+      {
+        "errors": 0,
+        "exit_code": 0,
+        "failures": 0,
+        "junit_sha256": "b6f6982e0b78622c4e76f85885750b08c3e7235de35479e1dcd3276c51d28ca3",
+        "label": "011-call-limits",
+        "skipped": 0,
+        "tests": 22
+      },
+      {
+        "errors": 0,
+        "exit_code": 0,
+        "failures": 0,
+        "junit_sha256": "00e48c24d98163760425568f218eabb6e4d578bd26f5be1440df1ef58ce4180b",
+        "label": "011-owner-modules",
+        "skipped": 0,
+        "tests": 228
+      },
+      {
+        "errors": 0,
+        "exit_code": 0,
+        "failures": 0,
+        "junit_sha256": "e308973708e070d30d9652a9ce1bc518f2bcdbca9c59380ffafc46d2a4626de2",
+        "label": "006-owner-modules",
+        "skipped": 0,
+        "tests": 268
+      }
+    ],
+    "artifact_hashes": {
+      "006-owner-modules.log": "cf45d33422a78400132bcd9463a401bb590227fb9ab3ecd401e5aaac5608b6d6",
+      "011-call-limits.log": "2f59dce4cdee2572950f2b4c633b2d2ef545887f5756366c2617f93d4cc1b54e",
+      "011-owner-modules.log": "d80e154568fac7332d66c14e1248efbcc2266f3ca08f48d3d4d3f604d13b6223",
+      "lint.log": "9a8afb3040cae670b876cee1aa8f9cd22161174c2f482ec5fe6c1f7361d3297a",
+      "reports/runtime.xml": "c991a0fee02ed843b1f6b443ed583225a8a2aa381c34f42578fcfffb444d6f02",
+      "reports/shared-fixture-reads.log": "65af927d5ce03fed0cf546697b178363980d41c7a62c430c7d7b27e28c85d6fc",
+      "runtime.log": "c7ca1bd24bb9c5fc1e7ce7c714acc0be217295a560ba0ecd3f7388464fb69ed0",
+      "ui-install.log": "b6d3f6a638df12568bf6089787cfae9226f5b8dc54efd011740ccc7a421faafd",
+      "verify-runtime.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "provenance_sha256": "a3dcd35585842216678df5a9977bfa736f60a1bb7ef391c29fd26c7e1673f372"
+  },
+  "measurement_verification": {
+    "evidence": "tasks/evidence/v418-adk-213-framework-measurements.json",
+    "sha256": "b1fe60e8b27d5ad0481accf6698806668c527f9c38180e9a8ac4e55dbc13a15e",
+    "inventory": {
+      "calls_per_tool_turn": 2,
+      "completed_samples": 24,
+      "expected_samples": 24,
+      "main_turns": [
+        50,
+        150
+      ],
+      "modes": [
+        "shared",
+        "isolated"
+      ],
+      "samples_per_sdk_mode_turn_selection": 3,
+      "sequential_subtasks": 3
+    },
+    "validation": {
+      "all_samples_have_clean_sources_and_identical_python_fixture_driver_workloads": true,
+      "every_sdk_mode_turn_selection_has_three_valid_samples": true,
+      "full_scripts_unit_command": "python -m unittest discover -s scripts -p 'test_*.py'",
+      "full_scripts_unit_log_sha256": "8b897ac394040fe708f7c4d0a0a811b543330fd05fcd448514ca173f9bc10fd6",
+      "full_scripts_unit_tests": 142,
+      "full_scripts_unit_tests_outcome": "passed",
+      "no_speedup_claim": true,
+      "no_wall_clock_threshold": true,
+      "owner_unit_tests": 7,
+      "owner_unit_tests_outcome": "passed",
+      "ruff_check_and_format": "passed"
+    },
+    "comparison_scope": "Historical supported Runtime code/lock versus migrated Runtime code/lock; this does not isolate an SDK-only causal effect",
+    "applicability": "The custom BaseLlm workload does not use the advertised string-model construction path. In these controlled samples the migrated Runtime has lower measured public SessionService read time but higher median total workload time. Runtime fixes and dependency closure also differ, so neither overall difference is an isolated causal effect of the SDK. No overall speedup, model-quality claim or wall-clock acceptance threshold is made."
+  },
+  "integrated_host_lint": {
+    "command": "make lint",
+    "exit_code": 0,
+    "log_sha256": "eb8b7a2465ba81abafe395c392173cae9952bb9cdb51e48976bbaf57fb385fcf",
+    "includes": "All142 scripts unit tests, including the seven new sampler guards, plus full standard lint checks on integrated005/006/011 source."
+  }
+}

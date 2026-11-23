@@ -1,0 +1,62 @@
+schema_version: '1.0'
+id: V478-018
+title: Align browser and offline Workflow fixtures with current tool contracts
+milestone: audit-evidence-results-2026-11
+epic: audits
+kind: defect
+introduced_by: V478-003
+priority: P1
+status: completed
+implementation_commit: 269c18a9da714c760919fdb548ea67494cd032c3
+depends_on: [V478-002, V478-003, V479-002]
+languages: [go, python, typescript, markdown]
+goal: Existing browser and offline model-selection scenarios reach their intended assertions with the shipped catalog and explicit evidence followed by thin judgments.
+context:
+  authority: 'User assignment 2026-11-22: implement the reviewed package and resolve the process Server lease timeout while continuing V478.'
+  finding: >-
+    tests/ui-stack/evals_gateway_test.go:54 still calls submit_check_results with
+    removed evidence handles; finding_duplicates_test.go:101 supplies evidence_refs.
+    These callers were missed by V478-002/003. model_selection_test.go:59 and
+    live_test.go:233 select retired openapi/likec4 @8 after V479-002 published @9;
+    full offline package fails before its actual Gateway route assertion.
+    The UI streamline finish fixture also forwards a Worker revision after
+    V479-006 removed model finish revisions, preventing the browser journey from completing.
+  siblings: >-
+    Update UI-stack argument assertions and closure pins, project Workflow E2E/live/offline
+    consumers, and current operator guide examples. Historical immutable snapshots,
+    completed tasks and archived reports are not current callers and stay exact.
+  boundary: Fixture models use the actual common sources/evidence/thin judgment sequence. Preserve production validation, exact retained source assertions and independent fixture truth; do not call a live model or relax catalog identity.
+scope:
+  in:
+  - Use current exact catalog selectors in active consumer fixtures and operator guides.
+  - Select and acknowledge evidence per assigned item before thin batch results in managed Eval fixtures.
+  - Use common sources for the incidental duplicate Finding fixture and revision-free selectors for ordinary tools.
+  - Run offline model routing and browser/process scenarios through their real components.
+  out:
+  - Live-model quality, model selection changes, compatibility aliases, deployment and new product behavior.
+acceptance_criteria:
+- id: A1
+  text: Offline model selection resolves both four-Stage Workflows, verifies eight effective Worker routes without fallback, and preserves catalog bytes outside its temporary override.
+- id: A2
+  text: Full UI-stack scenarios retain native/external Eval assertions, incidental Finding sources and exact Audit results using the current public tool contract.
+- id: A3
+  text: Active project Workflow process callers and guide examples name the shipped exact versions; historical pins are not rewritten.
+tests:
+- command: go test -count=1 ./tests/eval/project_workflows
+  covers: [A1, A3]
+- command: make test-ui-stack
+  covers: [A2, A3]
+- command: go test -tags=e2e -count=1 -run '^TestProjectWorkspaceLifecycleAcrossProductionProcesses$' -timeout=10m ./tests/e2e
+  covers: [A3]
+- command: make lint
+  covers: [A1, A2, A3]
+verification_results: >-
+  Full make test-ui-stack passes (829.225s), including operations (153s), native
+  managed Evals (347.94s), external managed Evals and every catalog/argument/byte
+  control. The external producer checks selected annotations, exact retained ZIP
+  bytes and original source metadata; all 24 invalid-evidence controls still fail
+  closed. Full offline project Workflow package passes; actual two-Workflow
+  project lifecycle process passes (164.705s). Full make lint passes. Earlier
+  failures identified retired selectors, revision-bearing finish arguments and
+  canned copy bytes, all corrected without a production compatibility path or
+  a live model call.

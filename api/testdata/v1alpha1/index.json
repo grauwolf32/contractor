@@ -1,0 +1,803 @@
+{
+  "description": "Every private wire fixture: the message type both languages decode it as, the JSON Schema that must accept or reject it, and for invalid fixtures whether the strict decoder rejects it and the private codec error class.",
+  "valid": {
+    "allocation-spec-engagement-metadata.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-spec-summary-model-selection.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "abort-allocation.json": {
+      "type": "AbortAllocationRequest",
+      "schema": "allocation.schema.json"
+    },
+    "agent-heartbeat.json": {
+      "type": "AgentHeartbeat",
+      "schema": "agent-heartbeat.schema.json"
+    },
+    "agent-registration-response.json": {
+      "type": "AgentRegistrationResponse",
+      "schema": "agent-registration-response.schema.json"
+    },
+    "agent-registration.json": {
+      "type": "AgentRegistration",
+      "schema": "agent-registration.schema.json"
+    },
+    "agent-state-snapshot.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json"
+    },
+    "allocation-final-response.json": {
+      "type": "AllocationFinalResponse",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-final-response-argument-number-edges.json": {
+      "type": "AllocationFinalResponse",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-final-response-metric-integer-bound.json": {
+      "type": "AllocationFinalResponse",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-spec-skills.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-spec-summarizer-instructions.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-spec-summarizer.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-spec-tool.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-spec.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-workspace-overlay.json": {
+      "type": "AllocationWorkspaceSpec",
+      "schema": "allocation.schema.json#/$defs/AllocationWorkspaceSpec"
+    },
+    "artifact-list-page.json": {
+      "type": "ArtifactListResult",
+      "schema": "artifact.schema.json"
+    },
+    "artifact-list-result.json": {
+      "type": "ArtifactListResult",
+      "schema": "artifact.schema.json"
+    },
+    "artifact-metadata-result-boundary.json": {
+      "type": "ArtifactMetadataResult",
+      "schema": "artifact-metadata.schema.json"
+    },
+    "artifact-metadata-result.json": {
+      "type": "ArtifactMetadataResult",
+      "schema": "artifact-metadata.schema.json"
+    },
+    "artifact-read-result.json": {
+      "type": "ArtifactReadResult",
+      "schema": "artifact.schema.json"
+    },
+    "finalize-allocation.json": {
+      "type": "FinalizeAllocationRequest",
+      "schema": "allocation.schema.json"
+    },
+    "heartbeat-response.json": {
+      "type": "HeartbeatResponse",
+      "schema": "agent-heartbeat.schema.json"
+    },
+    "llm-gateway-config-signatures.json": {
+      "type": "ResolvedLLMGatewayConfig",
+      "schema": "llm-gateway-config.schema.json"
+    },
+    "llm-gateway-config.json": {
+      "type": "ResolvedLLMGatewayConfig",
+      "schema": "llm-gateway-config.schema.json"
+    },
+    "release-allocation.json": {
+      "type": "ReleaseAllocationRequest",
+      "schema": "allocation.schema.json"
+    },
+    "runtime-provenance-empty.json": {
+      "type": "ResolvedRuntimeConfigProvenance",
+      "schema": "allocation.schema.json#/$defs/ResolvedRuntimeConfigProvenance"
+    },
+    "runtime-provenance.json": {
+      "type": "ResolvedRuntimeConfigProvenance",
+      "schema": "allocation.schema.json#/$defs/ResolvedRuntimeConfigProvenance"
+    },
+    "runtime-report.json": {
+      "type": "RuntimeReport",
+      "schema": "runtime-report.schema.json"
+    },
+    "runtime-settings-ca-bundle-crlf.json": {
+      "type": "RuntimeSettings",
+      "schema": "allocation.schema.json#/$defs/RuntimeSettings"
+    },
+    "runtime-settings-ca-bundle.json": {
+      "type": "RuntimeSettings",
+      "schema": "allocation.schema.json#/$defs/RuntimeSettings"
+    },
+    "runtime-settings-combined.json": {
+      "type": "RuntimeSettings",
+      "schema": "allocation.schema.json#/$defs/RuntimeSettings"
+    },
+    "runtime-settings-empty.json": {
+      "type": "RuntimeSettings",
+      "schema": "allocation.schema.json#/$defs/RuntimeSettings"
+    },
+    "runtime-settings-proxy.json": {
+      "type": "RuntimeSettings",
+      "schema": "allocation.schema.json#/$defs/RuntimeSettings"
+    },
+    "runtime-settings-telemetry-export.json": {
+      "type": "RuntimeSettings",
+      "schema": "allocation.schema.json#/$defs/RuntimeSettings"
+    },
+    "runtime-settings-telemetry.json": {
+      "type": "RuntimeSettings",
+      "schema": "allocation.schema.json#/$defs/RuntimeSettings"
+    },
+    "stage-content-request.json": {
+      "type": "StageContentRequest",
+      "schema": "stage-content.schema.json"
+    },
+    "worker-completion-empty-observations.json": {
+      "type": "WorkerCompletion",
+      "schema": "worker-completion.schema.json"
+    },
+    "worker-completion-failure.json": {
+      "type": "WorkerCompletion",
+      "schema": "worker-completion.schema.json"
+    },
+    "worker-completion-success.json": {
+      "type": "WorkerCompletion",
+      "schema": "worker-completion.schema.json"
+    },
+    "workspace-capabilities.json": {
+      "type": "WorkspaceCapabilities",
+      "schema": "agent-registration.schema.json#/$defs/WorkspaceCapabilities"
+    },
+    "engagement-allocation-preflight.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "agent-registration-engagement.json": {
+      "type": "AgentRegistration",
+      "schema": "agent-registration.schema.json"
+    },
+    "engagement-allocation-basic.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "engagement-allocation-cookies.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-spec-compact.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "shared-config.json": {
+      "type": "SharedConfig",
+      "schema": "shared-config.schema.json"
+    },
+    "engagement-allocation-api-keys.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "agent-state-compacted-tool-budget.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json"
+    },
+    "agent-state-compaction-idle.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json"
+    },
+    "agent-state-compaction-requested.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json"
+    },
+    "agent-state-compaction-running.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json"
+    },
+    "agent-state-compaction-applied.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json"
+    },
+    "allocation-final-response-compaction.json": {
+      "type": "AllocationFinalResponse",
+      "schema": "allocation.schema.json"
+    },
+    "agent-state-compaction-failed.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json"
+    },
+    "allocation-spec-project.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-spec-project-boundary.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    }
+  },
+  "invalid": {
+    "allocation-spec-engagement-alias.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-engagement-unknown-field.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-engagement-execution-capability.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-engagement-assigned-route.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-engagement-null.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "registration-response-removed-runtimeAgentId.json": {
+      "type": "AgentRegistrationResponse",
+      "schema": "agent-registration-response.schema.json",
+      "strict": true
+    },
+    "registration-response-removed-labels.json": {
+      "type": "AgentRegistrationResponse",
+      "schema": "agent-registration-response.schema.json",
+      "strict": true
+    },
+    "registration-response-removed-labelRevision.json": {
+      "type": "AgentRegistrationResponse",
+      "schema": "agent-registration-response.schema.json",
+      "strict": true
+    },
+    "agent-state-removed-currentInvocation-latestPromptTokens.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "agent-state-removed-currentInvocation-workspaceDigest.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "agent-state-removed-lastCompletedInvocation-latestPromptTokens.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "agent-state-removed-lastCompletedInvocation-workspaceDigest.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "artifact-metadata-snake-key.json": {
+      "type": "ArtifactMetadataResult",
+      "schema": "artifact-metadata.schema.json",
+      "strict": true
+    },
+    "artifact-read-result-content-key.json": {
+      "type": "ArtifactReadResult",
+      "schema": "artifact.schema.json",
+      "strict": true
+    },
+    "artifact-metadata-key-newline.json": {
+      "type": "ArtifactMetadataResult",
+      "schema": "artifact-metadata.schema.json",
+      "strict": true
+    },
+    "artifact-metadata-key-non-ascii.json": {
+      "type": "ArtifactMetadataResult",
+      "schema": "artifact-metadata.schema.json",
+      "strict": true
+    },
+    "artifact-metadata-key-path.json": {
+      "type": "ArtifactMetadataResult",
+      "schema": "artifact-metadata.schema.json",
+      "strict": true
+    },
+    "artifact-metadata-key-empty.json": {
+      "type": "ArtifactMetadataResult",
+      "schema": "artifact-metadata.schema.json",
+      "strict": true
+    },
+    "allocation-final-response-argument-float-overflow.json": {
+      "type": "AllocationFinalResponse",
+      "reason": "invariant",
+      "strict": true
+    },
+    "allocation-final-response-argument-integer-above-range.json": {
+      "type": "AllocationFinalResponse",
+      "reason": "invariant",
+      "strict": true
+    },
+    "allocation-final-response-argument-number-above-range.json": {
+      "type": "AllocationFinalResponse",
+      "reason": "invariant",
+      "strict": true
+    },
+    "allocation-final-response-argument-number-below-range.json": {
+      "type": "AllocationFinalResponse",
+      "reason": "invariant",
+      "strict": true
+    },
+    "allocation-spec-summary-selection-no-summary.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-summary-selection-two-calls.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-summary-selection-null.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "agent-heartbeat-missing-allocation.json": {
+      "type": "AgentHeartbeat",
+      "schema": "agent-heartbeat.schema.json",
+      "strict": true
+    },
+    "agent-registration-idle-with-allocation.json": {
+      "type": "AgentRegistration",
+      "schema": "agent-registration.schema.json",
+      "strict": true
+    },
+    "agent-registration-oversized-software-version.json": {
+      "type": "AgentRegistration",
+      "schema": "agent-registration.schema.json",
+      "strict": true
+    },
+    "agent-state-echoed-allocation.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "agent-state-zero-revision.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "allocation-spec-adk-no-model.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-bad-api-version.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-invalid-logical-agent-name.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-missing-provenance.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-resolved-skill-versionless.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-tool-model.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-workspace-versionless-source.json": {
+      "type": "AllocationWorkspaceSpec",
+      "reason": "invariant"
+    },
+    "artifact-list-result-empty-cursor.json": {
+      "type": "ArtifactListResult",
+      "schema": "artifact.schema.json",
+      "strict": true
+    },
+    "artifact-list-result-empty-page-cursor.json": {
+      "type": "ArtifactListResult",
+      "schema": "artifact.schema.json",
+      "strict": true
+    },
+    "artifact-list-result-oversized-cursor.json": {
+      "type": "ArtifactListResult",
+      "schema": "artifact.schema.json",
+      "strict": true
+    },
+    "artifact-list-result-padded-cursor.json": {
+      "type": "ArtifactListResult",
+      "schema": "artifact.schema.json",
+      "strict": true
+    },
+    "artifact-read-result-unversioned.json": {
+      "type": "ArtifactReadResult",
+      "schema": "artifact.schema.json",
+      "strict": true
+    },
+    "heartbeat-response-unknown-action.json": {
+      "type": "HeartbeatResponse",
+      "schema": "agent-heartbeat.schema.json",
+      "strict": true
+    },
+    "llm-gateway-config-permanent-code-newline.json": {
+      "type": "ResolvedLLMGatewayConfig",
+      "schema": "llm-gateway-config.schema.json",
+      "strict": true
+    },
+    "llm-gateway-config-secret-field.json": {
+      "type": "ResolvedLLMGatewayConfig",
+      "schema": "llm-gateway-config.schema.json",
+      "strict": true
+    },
+    "llm-gateway-config-signature-format-char.json": {
+      "type": "ResolvedLLMGatewayConfig",
+      "reason": "invariant",
+      "strict": true
+    },
+    "llm-gateway-config-signature-private-use.json": {
+      "type": "ResolvedLLMGatewayConfig",
+      "reason": "invariant",
+      "strict": true
+    },
+    "llm-gateway-config-signature-retryable-status.json": {
+      "type": "ResolvedLLMGatewayConfig",
+      "schema": "llm-gateway-config.schema.json",
+      "strict": true
+    },
+    "llm-gateway-config-signature-two-matchers.json": {
+      "type": "ResolvedLLMGatewayConfig",
+      "schema": "llm-gateway-config.schema.json",
+      "strict": true
+    },
+    "registration-bad-api-version.json": {
+      "type": "AgentRegistration",
+      "schema": "agent-registration.schema.json",
+      "reason": "version"
+    },
+    "registration-missing-adapters.json": {
+      "type": "AgentRegistration",
+      "schema": "agent-registration.schema.json",
+      "strict": true
+    },
+    "registration-missing-api-version.json": {
+      "type": "AgentRegistration",
+      "schema": "agent-registration.schema.json",
+      "reason": "version"
+    },
+    "registration-removed-initial-labels.json": {
+      "type": "AgentRegistration",
+      "schema": "agent-registration.schema.json",
+      "strict": true,
+      "reason": "schema"
+    },
+    "registration-unsorted-adapters.json": {
+      "type": "AgentRegistration",
+      "reason": "invariant"
+    },
+    "runtime-provenance-secret-field.json": {
+      "type": "ResolvedRuntimeConfigProvenance",
+      "schema": "allocation.schema.json#/$defs/ResolvedRuntimeConfigProvenance",
+      "reason": "schema"
+    },
+    "runtime-settings-ca-between.json": {
+      "type": "RuntimeSettings",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "runtime-settings-ca-end-comment.json": {
+      "type": "RuntimeSettings",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "runtime-settings-ca-end-unterminated.json": {
+      "type": "RuntimeSettings",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "runtime-settings-ca-header.json": {
+      "type": "RuntimeSettings",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "runtime-settings-ca-joined.json": {
+      "type": "RuntimeSettings",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "runtime-settings-ca-key-comment.json": {
+      "type": "RuntimeSettings",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "runtime-settings-ca-preamble.json": {
+      "type": "RuntimeSettings",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "runtime-settings-ca-truncated-block.json": {
+      "type": "RuntimeSettings",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "runtime-settings-ca-unicode-space.json": {
+      "type": "RuntimeSettings",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "runtime-settings-caido-secret-error.json": {
+      "type": "RuntimeSettings",
+      "reason": "invariant"
+    },
+    "runtime-settings-duplicate-key.json": {
+      "type": "RuntimeSettings",
+      "reason": "duplicate_key"
+    },
+    "runtime-settings-secret-error.json": {
+      "type": "RuntimeSettings",
+      "reason": "invariant"
+    },
+    "runtime-settings-two-proxy-auth.json": {
+      "type": "RuntimeSettings",
+      "reason": "invariant"
+    },
+    "runtime-settings-unknown-adapter.json": {
+      "type": "RuntimeSettings",
+      "reason": "invariant"
+    },
+    "stage-content-request-naive-deadline.json": {
+      "type": "StageContentRequest",
+      "schema": "stage-content.schema.json",
+      "strict": true
+    },
+    "stage-content-request-unknown-field.json": {
+      "type": "StageContentRequest",
+      "schema": "stage-content.schema.json",
+      "strict": true
+    },
+    "stage-content-request-versioned-result-binding.json": {
+      "type": "StageContentRequest",
+      "schema": "stage-content.schema.json",
+      "strict": true
+    },
+    "worker-completion-both-variants.json": {
+      "type": "WorkerCompletion",
+      "schema": "worker-completion.schema.json",
+      "strict": true
+    },
+    "worker-completion-no-variant.json": {
+      "type": "WorkerCompletion",
+      "schema": "worker-completion.schema.json",
+      "strict": true
+    },
+    "worker-completion-state-revision-above-exact.json": {
+      "type": "WorkerCompletion",
+      "schema": "worker-completion.schema.json",
+      "strict": true
+    },
+    "worker-completion-tool-calls-above-exact.json": {
+      "type": "WorkerCompletion",
+      "schema": "worker-completion.schema.json",
+      "strict": true
+    },
+    "worker-completion-workspace-count-above-exact.json": {
+      "type": "WorkerCompletion",
+      "schema": "worker-completion.schema.json",
+      "strict": true
+    },
+    "workspace-capabilities-unsorted-modes.json": {
+      "type": "WorkspaceCapabilities",
+      "reason": "invariant"
+    },
+    "engagement-assignment-invalid-adapter.json": {
+      "type": "AllocationSpec",
+      "strict": true,
+      "schema": "allocation.schema.json"
+    },
+    "engagement-assignment-invalid-protectedDestinations.json": {
+      "type": "AllocationSpec",
+      "strict": true,
+      "schema": "allocation.schema.json"
+    },
+    "engagement-assignment-invalid-identity.json": {
+      "type": "AllocationSpec",
+      "strict": true,
+      "schema": "allocation.schema.json"
+    },
+    "engagement-assignment-unknown-optional.json": {
+      "type": "AllocationSpec",
+      "strict": true,
+      "schema": "allocation.schema.json"
+    },
+    "engagement-assignment-duplicate-credential.json": {
+      "type": "AllocationSpec",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "allocation-spec-compact-summarizer-selection.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-compact-shared.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-compact-two-calls.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-compact-no-context-window.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-compact-ratio.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-compact-missing-reasoning.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-context-extra-member.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-terminal-without-summarizer.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-none-with-summarizer.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-template-model-policy-null.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true,
+      "reason": "schema"
+    },
+    "allocation-spec-template-model-policy-object.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true,
+      "reason": "schema"
+    },
+    "allocation-spec-template-summary-policy-null.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-template-summary-policy-object.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-terminal-without-summary-policy.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "allocation-spec-engagement-removed-policy.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-engagement-removed-policyDigest.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-engagement-removed-auditId.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "engagement-api-keys-empty-value.json": {
+      "type": "AllocationSpec",
+      "strict": true,
+      "schema": "allocation.schema.json"
+    },
+    "engagement-api-keys-bad-location.json": {
+      "type": "AllocationSpec",
+      "strict": true,
+      "schema": "allocation.schema.json"
+    },
+    "agent-state-compaction-phase.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "agent-state-compaction-negative.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true,
+      "reason": "schema"
+    },
+    "agent-state-compaction-overflow.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "agent-state-compaction-content.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true,
+      "reason": "schema"
+    },
+    "agent-state-compaction-null.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "agent-state-compaction-cause.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "allocation-project-null.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-project-empty.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-project-blank.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-project-malformed.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-project-oversized.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-project-number.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    }
+  }
+}

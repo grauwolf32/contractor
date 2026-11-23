@@ -1,0 +1,17 @@
+{
+  "cases": [
+    {"path": "SKILL.md", "valid": true},
+    {"path": "references/01-intro.md", "valid": true},
+    {"path": "references/2fa.md", "valid": true},
+    {"path": "references/2fa/guide.md", "valid": true},
+    {"path": "assets/9", "valid": true},
+    {"path": "references/a1.md", "valid": true},
+    {"path": "references/.hidden", "valid": false},
+    {"path": "references/_hidden", "valid": false},
+    {"path": "references/-hidden", "valid": false},
+    {"path": "references/Upper.md", "valid": false},
+    {"path": "references/é.md", "valid": false},
+    {"path": "references/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "valid": true},
+    {"path": "references/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "valid": false}
+  ]
+}

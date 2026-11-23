@@ -1,0 +1,80 @@
+schema_version: "1.0"
+id: V370-029
+title: "Batch the finding collection publication reads"
+milestone: hub-audit-structure-2026-10
+epic: findings
+kind: defect
+introduced_by: V43-002
+priority: P3
+status: completed
+implementation_commit: 9b574cd01f5052f650ca1af4110e6aa2fb71e014
+depends_on: []
+languages: [go]
+goal: "Query count per publication is constant in the number of entries."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), persistence I4; file:line as of 02bbdcbf, re-verify on current main"
+  specification:
+    - docs/spec/findings/findings.md#FND-R159
+    - docs/spec/findings/findings.md#FND-R110
+  finding: >-
+    Collection publication runs 5-8 queries per entry (up to 256) inside one
+    REPEATABLE READ transaction under an advisory lock
+    (collection_publication.go:181-260, 309-324; postgres.go:49-64,
+    222-224).
+  siblings: >-
+    Fixed in the same path: the per-source authorization, the per-hold
+    ownership check and the per-entry Run check, and the per-document
+    metadata and payload reads, which the finding counted in its 5-8
+    statements, now go through exact-read batches. Ruled out: the Audit
+    receipt pages (GetAuditReceipts, ListRun) already read receipts, holds
+    and proposals in batches; SelectCollectionFindings and
+    ReadCollectionReviews belong to the Audit store, run once per Audit
+    source and once per publication, and were not per entry; the replay path
+    reads two fixed artifacts.
+  decision: >-
+    Guarantee: a publication's statements grow only with its sources (at most
+    64, one receipt authorization each, plus the Audit store's finding
+    selection for an Audit source with findings) and with its documents (one
+    exact-read batch per 32), never per entry; 256 entries with 512 documents
+    ran 32 statements against 17 for two entries, where the old code ran
+    2,315. The checks keep their order: sources and their receipts are still
+    checked source by source, so the first failing source or receipt decides
+    the error as before, and an entry's proposal is still verified against
+    its receipt, now after all documents are read. Alternatives: one
+    authorization statement for the receipts of all sources was rejected
+    because the receipts an Audit source contributes come from the Audit
+    store per source, and checking them all first would change which error a
+    request with several faults gets; keeping the per-document metadata read
+    before the payload read was rejected because the exact-read batch already
+    bounds a batch's bytes and the planned documents fit the 16 MiB archive
+    bound, so an oversized batch can only mean stored sizes that disagree
+    with the receipts, which publication reports as an integrity failure.
+    Reopen if a collection may hold more documents than LIM-FND-16 or exact
+    reads stop being batched.
+scope:
+  in:
+    - "Batched ANY($1) reads for authorization, receipts and holds."
+  out:
+    - "Results."
+acceptance_criteria:
+  - id: A1
+    text: "Query count per publication is constant in the number of entries."
+    evidence: >-
+      TestPostgresCollectionPublicationReadsDoNotGrowPerEntry publishes two
+      and then 256 held receipts, each with its own evidence, through a
+      traced single-connection pool: 17 and 32 statements, within the allowed
+      15 more exact-read batches, and the published entries keep their hold,
+      evidence and retention; without the change it ran 29 and 2,315
+      statements and failed. The existing publication tests in
+      findingintake, auditservice and httpapi/public pass unchanged.
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/findingintake"
+    covers: [A1]
+  - command: "go test -tags integration -run '^(TestPostgresCollectionPublicationReadsDoNotGrowPerEntry|TestPostgresCollectionPublicationReadsRequestingAuditHoldAfterRunDeletion|TestFindingCollectionPublicationRequestIdentity|TestFindingCollectionPublicationRequestRejectsAmbiguousSelections)$' ./internal/findingintake"
+    covers: [A1]
+  - command: "go test -tags integration -run '^(TestFindingCollectionPublicationRunRetentionAndReplay|TestFindingCollectionPublicationRejectsPartialForeignAndInterruptedWrites|TestFindingCollectionAuditContributionsAndPinnedReview)$' ./internal/auditservice"
+    covers: [A1]
+  - command: "go test -tags integration -run '^TestFindingCollectionHTTPPublicationAndOrdinaryRunInput$' ./internal/httpapi/public"
+    covers: [A1]

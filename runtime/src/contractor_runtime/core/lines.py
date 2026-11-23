@@ -1,0 +1,76 @@
+"""Line splitting shared by tools that address files by line number."""
+
+from __future__ import annotations
+
+import re
+from collections.abc import Iterator
+
+_LINE_BREAK_PATTERN = r"\r\n|\r|\n"
+_LINE_BREAK = re.compile(_LINE_BREAK_PATTERN)
+# The same boundaries in UTF-8 bytes: these bytes never occur inside a
+# multi-byte character, so byte and character line numbers agree.
+LINE_BREAK_BYTES = re.compile(_LINE_BREAK_PATTERN.encode("ascii"))
+
+
+def line_spans(text: str) -> Iterator[tuple[int, int]]:
+    """Yield line boundaries, including their ends, without copying the lines."""
+
+    start = 0
+    for match in _LINE_BREAK.finditer(text):
+        yield start, match.end()
+        start = match.end()
+    if start < len(text):
+        yield start, len(text)
+
+
+def split_lines(text: str, keepends: bool = False) -> list[str]:
+    """Split like ``str.splitlines`` but only on ``\\r\\n``, ``\\r`` and ``\\n``.
+
+    These are the line boundaries read_file numbers, so line numbers taken from
+    a read stay valid for edits, grep results and annotations. Other Unicode
+    separators such as form feed or U+2028 remain part of their line.
+    """
+
+    lines: list[str] = []
+    start = 0
+    for match in _LINE_BREAK.finditer(text):
+        lines.append(text[start : match.end() if keepends else match.start()])
+        start = match.end()
+    if start < len(text):
+        lines.append(text[start:])
+    return lines
+
+
+def split_patch_lines(text: str) -> list[str]:
+    """Split into unified-diff lines, keeping ends, the way ``git`` does.
+
+    Like ``split_lines`` no Unicode separator ends a line and ``\\r\\n`` stays
+    one line. Unlike it, a lone ``\\r`` is content too: a patch can only break
+    lines at ``\\n``, so splitting there would produce a patch that does not
+    apply. A last line without ``\\n`` is returned without an end.
+    """
+
+    lines = text.split("\n")
+    last = lines.pop()
+    return [f"{line}\n" for line in lines] + ([last] if last else [])
+
+
+def newline_style(text: str) -> str:
+    """Return the first line break in ``text``, defaulting to ``\\n``."""
+
+    for index, character in enumerate(text):
+        if character == "\n":
+            return "\n"
+        if character == "\r":
+            return "\r\n" if index + 1 < len(text) and text[index + 1] == "\n" else "\r"
+    return "\n"
+
+
+def line_byte_starts(source: bytes) -> list[int]:
+    """Byte offsets for the shared CRLF, CR and LF source coordinate scheme."""
+    starts = [0]
+    offset = 0
+    for line in split_lines(source.decode("utf-8", errors="strict"), keepends=True):
+        offset += len(line.encode("utf-8"))
+        starts.append(offset)
+    return starts

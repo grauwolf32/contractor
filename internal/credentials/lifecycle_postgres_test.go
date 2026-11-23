@@ -1,0 +1,897 @@
+package credentials
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"sort"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func TestCredentialLifecycleCreatesAndReplaysWithoutExposingToken(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	manager := newFakeGatewayManager()
+	fixture := newLifecycleFixture(t, pool, manager, ServiceOptions{})
+	guardCalled := false
+	if err := fixture.service.WithRunCreation(ctx, func() error { guardCalled = true; return nil }); !errors.Is(err, ErrRecoveryRequired) || guardCalled {
+		t.Fatalf("unrecovered Run guard = (called=%v, err=%v)", guardCalled, err)
+	}
+	if _, err := fixture.service.ListCredentials(ctx, "", 1); !errors.Is(err, ErrRecoveryRequired) {
+		t.Fatalf("unrecovered credential list error = %v", err)
+	}
+	if err := fixture.service.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	request := fixture.createRequest("managed-worker", "create-01")
+	created, err := fixture.service.Create(ctx, request)
+	if err != nil || created.Replayed {
+		t.Fatalf("create result = (%+v, %v)", created, err)
+	}
+	if manager.createCalls() != 1 || manager.remoteCount() != 1 {
+		t.Fatalf("manager after create: calls=%d remote=%d", manager.createCalls(), manager.remoteCount())
+	}
+	encoded, err := json.Marshal(created.Credential)
+	if err != nil || bytes.Contains(encoded, []byte(manager.secretFor(request.CredentialID))) ||
+		bytes.Contains(encoded, []byte("ciphertext")) || bytes.Contains(encoded, []byte("remoteKey")) {
+		t.Fatalf("unsafe credential response = (%s, %v)", encoded, err)
+	}
+	replayed, err := fixture.service.Create(ctx, request)
+	if err != nil || !replayed.Replayed || replayed.Credential.CredentialID != request.CredentialID ||
+		manager.createCalls() != 1 {
+		t.Fatalf("replayed create = (%+v, %v), calls=%d", replayed, err, manager.createCalls())
+	}
+	replayedJSON, replayedJSONErr := json.Marshal(replayed.Credential)
+	if replayedJSONErr != nil || !bytes.Equal(encoded, replayedJSON) {
+		t.Fatalf("replayed credential changed response: first=%s replay=%s error=%v", encoded, replayedJSON, replayedJSONErr)
+	}
+	conflicting := request
+	conflicting.Label = "different"
+	if _, err := fixture.service.Create(ctx, conflicting); !errors.Is(err, contracts.ErrIdempotencyConflict) ||
+		errors.Is(err, ErrConflict) {
+		t.Fatalf("idempotency conflict error = %v", err)
+	}
+
+	provider, _ := NewEncryptedProvider(NewRepository(pool), fixture.cipher)
+	plaintext, err := provider.ResolveLLMCredential(
+		ctx, llmgateway.LLMCredentialRef{CredentialID: request.CredentialID}, fixture.gateway.Ref,
+	)
+	if err != nil || plaintext.Reveal() != manager.secretFor(request.CredentialID) {
+		t.Fatalf("resolved created token = (%s, %v)", plaintext, err)
+	}
+	var ciphertext []byte
+	if err := pool.QueryRow(ctx, `SELECT ciphertext FROM llm_credentials WHERE credential_id = $1`, request.CredentialID).Scan(&ciphertext); err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(ciphertext, []byte(manager.secretFor(request.CredentialID))) {
+		t.Fatal("database ciphertext contains plaintext token")
+	}
+	assertCredentialOperationPhase(t, ctx, pool, OperationCreate, request.IdempotencyKey, OperationCompleted)
+}
+
+func TestCredentialLifecycleRecoversCreateCrashWindow(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	manager := newFakeGatewayManager()
+	var hookCalls atomic.Int32
+	crash := errors.New("simulated process loss after remote create")
+	fixture := newLifecycleFixture(t, pool, manager, ServiceOptions{
+		AfterManagerCreate: func() error {
+			if hookCalls.Add(1) == 1 {
+				return crash
+			}
+			return nil
+		},
+	})
+	if err := fixture.service.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	request := fixture.createRequest("managed-recovery", "create-crash")
+	if _, err := fixture.service.Create(ctx, request); !errors.Is(err, crash) {
+		t.Fatalf("crash-window create error = %v", err)
+	}
+	if _, err := fixture.service.GetCredential(ctx, request.CredentialID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("partial create became active: %v", err)
+	}
+	assertCredentialOperationPhase(t, ctx, pool, OperationCreate, request.IdempotencyKey, OperationPrepared)
+	if manager.remoteCount() != 1 {
+		t.Fatalf("remote keys after crash = %d", manager.remoteCount())
+	}
+	emptyRegistry, _ := NewManagerRegistry()
+	blockedService, err := NewService(ServiceOptions{
+		Pool: pool, Lease: leasetest.Hold(t, pool).Lease,
+		Gateways: staticGatewayLookup{gateway: fixture.gateway}, Managers: emptyRegistry,
+		Runs: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Cipher: fixture.cipher,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := blockedService.Recover(ctx); !errors.Is(err, ErrManagerUnavailable) {
+		t.Fatalf("startup recovery without manager error = %v", err)
+	}
+	called := false
+	if err := blockedService.WithRunCreation(ctx, func() error { called = true; return nil }); !errors.Is(err, ErrRecoveryRequired) || called {
+		t.Fatalf("failed startup recovery allowed Run creation: called=%v err=%v", called, err)
+	}
+
+	restarted := newLifecycleFixtureWithCipher(t, pool, manager, fixture.cipher, ServiceOptions{})
+	if err := restarted.service.Recover(ctx); err != nil {
+		t.Fatalf("recover create: %v", err)
+	}
+	if manager.recoverCalls() != 1 || manager.createCalls() != 2 || manager.remoteCount() != 1 {
+		t.Fatalf("manager recovery calls: recover=%d create=%d remote=%d",
+			manager.recoverCalls(), manager.createCalls(), manager.remoteCount())
+	}
+	if _, err := restarted.service.GetCredential(ctx, request.CredentialID); err != nil {
+		t.Fatalf("recovered credential is not active: %v", err)
+	}
+	assertCredentialOperationPhase(t, ctx, pool, OperationCreate, request.IdempotencyKey, OperationCompleted)
+}
+
+func TestCredentialLifecycleAbandonsCreateWhoseReplayIsDeterministicallyInvalid(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	manager := newFakeGatewayManager()
+	crash := errors.New("simulated process loss after remote create")
+	fixture := newLifecycleFixture(t, pool, manager, ServiceOptions{
+		AfterManagerCreate: func() error { return crash },
+	})
+	if err := fixture.service.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	request := fixture.createRequest("managed-abandoned", "create-abandoned")
+	if _, err := fixture.service.Create(ctx, request); !errors.Is(err, crash) {
+		t.Fatalf("crash-window create error = %v", err)
+	}
+	assertCredentialOperationPhase(t, ctx, pool, OperationCreate, request.IdempotencyKey, OperationPrepared)
+
+	// The exact ModelPolicy disappeared while the operation was prepared, but
+	// the Gateway is unreachable: remote state is ambiguous, so recovery must
+	// still fail closed and keep the prepared intent.
+	manager.validateErr = fmt.Errorf("%w: exact ModelPolicy is unavailable", ErrInvalid)
+	manager.recoverErr = errors.New("gateway unreachable")
+	ambiguous := newLifecycleFixtureWithCipher(t, pool, manager, fixture.cipher, ServiceOptions{})
+	if err := ambiguous.service.Recover(ctx); !errors.Is(err, ErrGatewayUnavailable) {
+		t.Fatalf("ambiguous recovery error = %v", err)
+	}
+	assertCredentialOperationPhase(t, ctx, pool, OperationCreate, request.IdempotencyKey, OperationPrepared)
+
+	manager.recoverErr = nil
+	restarted := newLifecycleFixtureWithCipher(t, pool, manager, fixture.cipher, ServiceOptions{})
+	if err := restarted.service.Recover(ctx); err != nil {
+		t.Fatalf("recovery with abandoned create: %v", err)
+	}
+	assertCredentialOperationPhase(t, ctx, pool, OperationCreate, request.IdempotencyKey, OperationAbandoned)
+	if manager.remoteCount() != 0 || manager.createCalls() != 1 {
+		t.Fatalf("abandoned create manager state: remote=%d creates=%d", manager.remoteCount(), manager.createCalls())
+	}
+	if _, err := restarted.service.GetCredential(ctx, request.CredentialID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("abandoned credential lookup error = %v", err)
+	}
+	_, err := restarted.service.Create(ctx, request)
+	if !errors.Is(err, ErrCreateAbandoned) || !errors.Is(err, ErrConflict) {
+		t.Fatalf("retry of abandoned create error = %v", err)
+	}
+	if manager.createCalls() != 1 {
+		t.Fatalf("retry of abandoned create reached Gateway: creates=%d", manager.createCalls())
+	}
+	// Recovery is idempotent once the operation is terminal.
+	if err := restarted.service.Recover(ctx); err != nil {
+		t.Fatalf("second recovery: %v", err)
+	}
+}
+
+func TestCredentialLifecycleAbandonsPreparedCreateOnIdempotentRetry(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	manager := newFakeGatewayManager()
+	manager.createErr = errors.New("gateway create failed")
+	fixture := newLifecycleFixture(t, pool, manager, ServiceOptions{})
+	if err := fixture.service.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	request := fixture.createRequest("managed-abandoned-retry", "create-abandoned-retry")
+	if _, err := fixture.service.Create(ctx, request); !errors.Is(err, ErrGatewayUnavailable) {
+		t.Fatalf("failed create error = %v", err)
+	}
+	manager.validateErr = fmt.Errorf("%w: exact ModelPolicy is unavailable", ErrInvalid)
+	if _, err := fixture.service.Create(ctx, request); !errors.Is(err, ErrCreateAbandoned) {
+		t.Fatalf("retry after policy removal error = %v", err)
+	}
+	assertCredentialOperationPhase(t, ctx, pool, OperationCreate, request.IdempotencyKey, OperationAbandoned)
+	if _, err := fixture.service.Create(ctx, request); !errors.Is(err, ErrCreateAbandoned) {
+		t.Fatalf("second retry error = %v", err)
+	}
+	// Other operations are no longer blocked by the terminal failure.
+	other := fixture.createRequest("managed-after-abandon", "create-after-abandon")
+	manager.validateErr, manager.createErr = nil, nil
+	if _, err := fixture.service.Create(ctx, other); err != nil {
+		t.Fatalf("create after abandonment: %v", err)
+	}
+}
+
+func TestCredentialDeletionRejectsPinnedRunThenDeletesAndReplays(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	manager := newFakeGatewayManager()
+	fixture := newLifecycleFixture(t, pool, manager, ServiceOptions{})
+	if err := fixture.service.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	create := fixture.createRequest("managed-delete", "create-delete")
+	if _, err := fixture.service.Create(ctx, create); err != nil {
+		t.Fatal(err)
+	}
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	createPinnedRun(t, ctx, runs, "run-pinned", create.CredentialID)
+	createPinnedRun(t, ctx, runs, "run-similar", create.CredentialID+"-extra")
+	deletion := DeleteRequest{
+		CredentialID: create.CredentialID, IdempotencyKey: "delete-01", ActorID: "user-1",
+	}
+	if _, err := fixture.service.Delete(ctx, deletion); err == nil {
+		t.Fatal("deletion pinned by a Run succeeded")
+	} else {
+		var inUse *CredentialInUseError
+		if !errors.As(err, &inUse) || len(inUse.RunIDs) != 1 || inUse.RunIDs[0] != "run-pinned" {
+			t.Fatalf("pinned deletion error = %#v", err)
+		}
+	}
+	if manager.deleteCalls() != 0 || countOperations(t, ctx, pool, OperationDelete) != 0 {
+		t.Fatalf("pinned deletion had side effects: manager=%d operations=%d",
+			manager.deleteCalls(), countOperations(t, ctx, pool, OperationDelete))
+	}
+	if _, err := runs.TransitionRun(
+		ctx, "run-pinned", runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "started"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.TransitionRun(
+		ctx, "run-pinned", runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.TransitionRun(ctx, "run-pinned", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "finished"}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := fixture.service.Delete(ctx, deletion)
+	if err != nil || result.Replayed {
+		t.Fatalf("delete result = (%+v, %v)", result, err)
+	}
+	if _, err := fixture.service.GetCredential(ctx, create.CredentialID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("deleted credential remains active: %v", err)
+	}
+	var tombstones int
+	if err := pool.QueryRow(ctx, `
+SELECT count(*) FROM credential_operations
+WHERE credential_id = $1 AND operation_kind = 'delete' AND phase = 'completed'`, create.CredentialID).Scan(&tombstones); err != nil || tombstones != 1 {
+		t.Fatalf("delete tombstones = (%d, %v)", tombstones, err)
+	}
+	replayed, err := fixture.service.Delete(ctx, deletion)
+	if err != nil || !replayed.Replayed || manager.deleteCalls() != 1 {
+		t.Fatalf("delete replay = (%+v, %v), calls=%d", replayed, err, manager.deleteCalls())
+	}
+	reused := deletion
+	reused.CredentialID = "managed-other"
+	if _, err := fixture.service.Delete(ctx, reused); !errors.Is(err, contracts.ErrIdempotencyConflict) ||
+		errors.Is(err, ErrConflict) || manager.deleteCalls() != 1 {
+		t.Fatalf("delete key reused for another credential = %v, calls=%d", err, manager.deleteCalls())
+	}
+}
+
+func TestCredentialDeletionRejectsAuditDispatchHold(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	manager := newFakeGatewayManager()
+	holds := staticAuditDispatchHolds{auditIDs: []string{"audit-z", "audit-a"}}
+	fixture := newLifecycleFixture(t, pool, manager, ServiceOptions{Audits: holds})
+	if err := fixture.service.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	create := fixture.createRequest("managed-audit-hold", "create-audit-hold")
+	if _, err := fixture.service.Create(ctx, create); err != nil {
+		t.Fatal(err)
+	}
+	_, err := fixture.service.Delete(ctx, DeleteRequest{
+		CredentialID: create.CredentialID, IdempotencyKey: "delete-audit-hold", ActorID: "user-1",
+	})
+	var inUse *CredentialInUseError
+	if !errors.As(err, &inUse) || len(inUse.RunIDs) != 0 ||
+		len(inUse.AuditIDs) != 2 || inUse.AuditIDs[0] != "audit-a" || inUse.AuditIDs[1] != "audit-z" {
+		t.Fatalf("Audit-held deletion error = %#v", err)
+	}
+	if manager.deleteCalls() != 0 || countOperations(t, ctx, pool, OperationDelete) != 0 {
+		t.Fatalf("Audit-held deletion had side effects: manager=%d operations=%d",
+			manager.deleteCalls(), countOperations(t, ctx, pool, OperationDelete))
+	}
+}
+
+func TestCredentialLifecycleRecoversDeleteCrashAndBlocksRunCreation(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	manager := newFakeGatewayManager()
+	crash := errors.New("simulated process loss after remote delete")
+	var hookCalls atomic.Int32
+	fixture := newLifecycleFixture(t, pool, manager, ServiceOptions{
+		AfterManagerDelete: func() error {
+			if hookCalls.Add(1) == 1 {
+				return crash
+			}
+			return nil
+		},
+	})
+	if err := fixture.service.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	create := fixture.createRequest("managed-delete-recovery", "create-before-delete-crash")
+	if _, err := fixture.service.Create(ctx, create); err != nil {
+		t.Fatal(err)
+	}
+	deletion := DeleteRequest{
+		CredentialID: create.CredentialID, IdempotencyKey: "delete-crash", ActorID: "user-1",
+	}
+	if _, err := fixture.service.Delete(ctx, deletion); !errors.Is(err, crash) {
+		t.Fatalf("delete crash-window error = %v", err)
+	}
+	if _, err := fixture.service.GetCredential(ctx, create.CredentialID); err != nil {
+		t.Fatalf("database record was removed before atomic delete commit: %v", err)
+	}
+	called := false
+	if err := fixture.service.WithRunCreation(ctx, func() error {
+		called = true
+		return lookupManagedCredential(ctx, pool, create.CredentialID)
+	}); !errors.Is(err, ErrRecoveryRequired) || !called {
+		t.Fatalf("Run creation during ambiguous delete = (called=%v, err=%v)", called, err)
+	}
+	called = false
+	assertCredentialOperationPhase(t, ctx, pool, OperationDelete, deletion.IdempotencyKey, OperationPrepared)
+
+	restarted := newLifecycleFixtureWithCipher(t, pool, manager, fixture.cipher, ServiceOptions{})
+	if err := restarted.service.Recover(ctx); err != nil {
+		t.Fatalf("recover delete: %v", err)
+	}
+	if manager.deleteCalls() != 2 || manager.remoteCount() != 0 {
+		t.Fatalf("manager after delete recovery: calls=%d remote=%d", manager.deleteCalls(), manager.remoteCount())
+	}
+	if err := restarted.service.WithRunCreation(ctx, func() error { called = true; return nil }); err != nil || !called {
+		t.Fatalf("Run guard after recovery = (called=%v, err=%v)", called, err)
+	}
+	assertCredentialOperationPhase(t, ctx, pool, OperationDelete, deletion.IdempotencyKey, OperationCompleted)
+}
+
+func TestCredentialFailedDeleteFencesOnlyItsOwnCredential(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	manager := newFakeGatewayManager()
+	fixture := newLifecycleFixture(t, pool, manager, ServiceOptions{})
+	if err := fixture.service.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	deleting := fixture.createRequest("managed-deleting", "create-deleting")
+	unrelated := fixture.createRequest("managed-unrelated", "create-unrelated")
+	for _, request := range []CreateRequest{deleting, unrelated} {
+		if _, err := fixture.service.Create(ctx, request); err != nil {
+			t.Fatal(err)
+		}
+	}
+	manager.deleteErr = errors.New("gateway delete failed")
+	deletion := DeleteRequest{
+		CredentialID: deleting.CredentialID, IdempotencyKey: "delete-scoped", ActorID: "user-1",
+	}
+	if _, err := fixture.service.Delete(ctx, deletion); !errors.Is(err, ErrGatewayUnavailable) {
+		t.Fatalf("failed delete error = %v", err)
+	}
+	assertCredentialOperationPhase(t, ctx, pool, OperationDelete, deletion.IdempotencyKey, OperationPrepared)
+
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	if err := fixture.service.WithRunCreation(ctx, func() error {
+		if err := lookupManagedCredential(ctx, pool, unrelated.CredentialID); err != nil {
+			return err
+		}
+		_, err := runstoretest.CreateRun(ctx, runs, pinnedRunParams("run-unrelated", unrelated.CredentialID))
+		return err
+	}); err != nil {
+		t.Fatalf("Run pinning an unrelated credential was fenced: %v", err)
+	}
+	if err := fixture.service.WithAllocationReferences(ctx, func() error {
+		return lookupManagedCredential(ctx, pool, unrelated.CredentialID)
+	}); err != nil {
+		t.Fatalf("allocation referencing an unrelated credential was fenced: %v", err)
+	}
+	if err := fixture.service.WithRunCreation(ctx, func() error {
+		return lookupManagedCredential(ctx, pool, deleting.CredentialID)
+	}); !errors.Is(err, ErrRecoveryRequired) {
+		t.Fatalf("Run pinning a credential with a prepared delete error = %v", err)
+	}
+
+	manager.deleteErr = nil
+	if _, err := fixture.service.Delete(ctx, deletion); err != nil {
+		t.Fatalf("retried delete: %v", err)
+	}
+	if err := lookupManagedCredential(ctx, pool, deleting.CredentialID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("deleted credential lookup error = %v", err)
+	}
+}
+
+func TestCredentialRetryThatCompletesAPreparedOperationIsNotReplayed(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	manager := newFakeGatewayManager()
+	fixture := newLifecycleFixture(t, pool, manager, ServiceOptions{})
+	if err := fixture.service.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	request := fixture.createRequest("managed-retry", "create-retry")
+	manager.createErr = errors.New("gateway create failed")
+	if _, err := fixture.service.Create(ctx, request); !errors.Is(err, ErrGatewayUnavailable) {
+		t.Fatalf("failed create error = %v", err)
+	}
+	manager.createErr = nil
+	completed, err := fixture.service.Create(ctx, request)
+	if err != nil || completed.Replayed || completed.Credential.CredentialID != request.CredentialID {
+		t.Fatalf("retry completing a prepared create = (%+v, %v)", completed, err)
+	}
+	if replayed, err := fixture.service.Create(ctx, request); err != nil || !replayed.Replayed {
+		t.Fatalf("replay of completed create = (%+v, %v)", replayed, err)
+	}
+
+	deletion := DeleteRequest{
+		CredentialID: request.CredentialID, IdempotencyKey: "delete-retry", ActorID: "user-1",
+	}
+	manager.deleteErr = errors.New("gateway delete failed")
+	if _, err := fixture.service.Delete(ctx, deletion); !errors.Is(err, ErrGatewayUnavailable) {
+		t.Fatalf("failed delete error = %v", err)
+	}
+	manager.deleteErr = nil
+	if result, err := fixture.service.Delete(ctx, deletion); err != nil || result.Replayed {
+		t.Fatalf("retry completing a prepared delete = (%+v, %v)", result, err)
+	}
+	if result, err := fixture.service.Delete(ctx, deletion); err != nil || !result.Replayed {
+		t.Fatalf("replay of completed delete = (%+v, %v)", result, err)
+	}
+}
+
+func TestCredentialDeleteSerializesAgainstRunSnapshotCommit(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	manager := newFakeGatewayManager()
+	fixture := newLifecycleFixture(t, pool, manager, ServiceOptions{})
+	if err := fixture.service.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	create := fixture.createRequest("managed-race", "create-race")
+	if _, err := fixture.service.Create(ctx, create); err != nil {
+		t.Fatal(err)
+	}
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	runResult := make(chan error, 1)
+	go func() {
+		runResult <- fixture.service.WithRunCreation(ctx, func() error {
+			close(entered)
+			<-release
+			_, err := runstoretest.CreateRun(ctx, runs, pinnedRunParams("run-race", create.CredentialID))
+			return err
+		})
+	}()
+	<-entered
+	deleteResult := make(chan error, 1)
+	go func() {
+		_, err := fixture.service.Delete(ctx, DeleteRequest{
+			CredentialID: create.CredentialID, IdempotencyKey: "delete-race", ActorID: "user-1",
+		})
+		deleteResult <- err
+	}()
+	select {
+	case err := <-deleteResult:
+		t.Fatalf("delete crossed an in-flight Run commit: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(release)
+	if err := <-runResult; err != nil {
+		t.Fatalf("commit pinned Run: %v", err)
+	}
+	var inUse *CredentialInUseError
+	if err := <-deleteResult; !errors.As(err, &inUse) || len(inUse.RunIDs) != 1 || inUse.RunIDs[0] != "run-race" {
+		t.Fatalf("serialized delete error = %#v", err)
+	}
+	if manager.deleteCalls() != 0 {
+		t.Fatalf("serialized delete reached Gateway %d times", manager.deleteCalls())
+	}
+}
+
+func TestCredentialRunReferenceQueryRejectsUnsafePublicRunIDs(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	// The store refuses an unsafe Run ID on write (API-R70), so the row that
+	// the read path must still refuse is copied in below the store.
+	if _, err := runstoretest.CreateRun(ctx, runs, pinnedRunParams("unsafe run id", "managed-worker")); !errors.Is(err, runstore.ErrInvalid) {
+		t.Fatalf("unsafe Run ID write error = %v, want ErrInvalid", err)
+	}
+	createPinnedRun(t, ctx, runs, "run-unsafe-source", "managed-worker")
+	copyRunWithID(t, ctx, pool, "run-unsafe-source", "unsafe run id")
+	if _, err := runs.ListNonTerminalRunIDsByCredential(ctx, "managed-worker", 128); err == nil {
+		t.Fatal("unsafe Run ID was returned as public credential-in-use detail")
+	}
+	if _, err := runs.ListNonTerminalRunIDsByCredential(ctx, "managed-worker", 129); !errors.Is(err, runstore.ErrInvalid) {
+		t.Fatalf("unbounded Run-reference query error = %v", err)
+	}
+}
+
+func TestCredentialManagerFailuresAreRedactedAndLeavePreparedIntent(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	manager := newFakeGatewayManager()
+	manager.createErr = errors.New("provider body contained sk-highly-sensitive")
+	fixture := newLifecycleFixture(t, pool, manager, ServiceOptions{})
+	if err := fixture.service.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	request := fixture.createRequest("managed-failure", "create-failure")
+	_, err := fixture.service.Create(ctx, request)
+	if !errors.Is(err, ErrGatewayUnavailable) || strings.Contains(err.Error(), "sensitive") {
+		t.Fatalf("unsafe manager failure = %v", err)
+	}
+	assertCredentialOperationPhase(t, ctx, pool, OperationCreate, request.IdempotencyKey, OperationPrepared)
+}
+
+func TestCredentialManagerValidationRunsBeforeDurableIntent(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	manager := newFakeGatewayManager()
+	manager.validateErr = fmt.Errorf("%w: unknown exact ModelPolicy", ErrInvalid)
+	fixture := newLifecycleFixture(t, pool, manager, ServiceOptions{})
+	if err := fixture.service.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	request := fixture.createRequest("managed-invalid-policy", "invalid-policy")
+	if _, err := fixture.service.Create(ctx, request); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("manager validation error = %v", err)
+	}
+	if manager.validationCalls() != 1 || manager.createCalls() != 0 ||
+		countOperations(t, ctx, pool, OperationCreate) != 0 {
+		t.Fatalf("invalid request side effects: validations=%d creates=%d operations=%d",
+			manager.validationCalls(), manager.createCalls(), countOperations(t, ctx, pool, OperationCreate))
+	}
+}
+
+type lifecycleFixture struct {
+	service *Service
+	cipher  *TokenCipher
+	gateway llmgateway.ResolvedLLMGatewayConfig
+}
+
+func newLifecycleFixture(
+	t *testing.T, pool *pgxpool.Pool, manager *fakeGatewayManager, overrides ServiceOptions,
+) lifecycleFixture {
+	t.Helper()
+	cipher, err := NewTokenCipher(bytes.Repeat([]byte{0x55}, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return newLifecycleFixtureWithCipher(t, pool, manager, cipher, overrides)
+}
+
+func newLifecycleFixtureWithCipher(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	manager *fakeGatewayManager,
+	cipher *TokenCipher,
+	overrides ServiceOptions,
+) lifecycleFixture {
+	t.Helper()
+	gateway := llmgateway.ResolvedLLMGatewayConfig{
+		Ref:      testPinnedGatewayRef("1", strings.Repeat("1", 64)),
+		Protocol: llmgateway.OpenAICompatibleProtocol, URL: "http://127.0.0.1:4000/v1",
+		CredentialManager: &llmgateway.LLMGatewayCredentialManager{
+			Implementation: llmgateway.LiteLLMVirtualKeysManager,
+			ManagementURL:  "http://127.0.0.1:4000",
+		},
+	}
+	registry, err := NewManagerRegistry(ManagerRegistration{
+		Implementation: llmgateway.LiteLLMVirtualKeysManager, Manager: manager,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids atomic.Int32
+	lease := overrides.Lease
+	if !lease.Valid() {
+		lease = leasetest.Hold(t, pool).Lease
+	}
+	options := ServiceOptions{
+		Pool: pool, Lease: lease, Gateways: staticGatewayLookup{gateway: gateway}, Managers: registry,
+		Runs: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Audits: overrides.Audits,
+		Cipher: cipher, Barrier: overrides.Barrier,
+		Now: time.Now,
+		NewID: func(prefix string) (string, error) {
+			return fmt.Sprintf("%s%d", prefix, ids.Add(1)), nil
+		},
+		AfterManagerCreate: overrides.AfterManagerCreate,
+		AfterManagerDelete: overrides.AfterManagerDelete,
+	}
+	service, err := NewService(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return lifecycleFixture{service: service, cipher: cipher, gateway: gateway}
+}
+
+// staticAuditDispatchHolds is an Audit dispatch-hold lookup whose Audits hold
+// every credential.
+type staticAuditDispatchHolds struct{ auditIDs []string }
+
+func (h staticAuditDispatchHolds) ListHeldAuditIDsByLLMCredential(
+	context.Context, string, int,
+) ([]string, error) {
+	return append([]string(nil), h.auditIDs...), nil
+}
+
+func (h staticAuditDispatchHolds) ListHeldAuditIDsByRuntimeCredential(
+	context.Context, string, int,
+) ([]string, error) {
+	return append([]string(nil), h.auditIDs...), nil
+}
+
+func (f lifecycleFixture) createRequest(credentialID, key string) CreateRequest {
+	return CreateRequest{
+		CredentialID: credentialID, LLMGateway: f.gateway.Ref, Label: "Managed credential",
+		GatewayPolicy: GatewayPolicy{ModelPolicies: []contracts.ModelPolicyRef{{
+			PolicyID: "worker", Version: "1", Digest: "sha256:" + strings.Repeat("2", 64),
+		}}},
+		IdempotencyKey: key, ActorID: "user-1",
+	}
+}
+
+type staticGatewayLookup struct {
+	gateway llmgateway.ResolvedLLMGatewayConfig
+}
+
+func (l staticGatewayLookup) LLMGateway(selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
+	if selector != l.gateway.Ref.GatewayID+"@"+l.gateway.Ref.Version {
+		return llmgateway.ResolvedLLMGatewayConfig{}, errors.New("not found")
+	}
+	return l.gateway, nil
+}
+
+type fakeGatewayManager struct {
+	mu          sync.Mutex
+	active      map[string]string
+	creates     int
+	deletes     int
+	recoveries  int
+	validations int
+	validateErr error
+	createErr   error
+	deleteErr   error
+	recoverErr  error
+	// deleteGate, when set, runs before each remote delete without the
+	// manager's lock, so a test can hold a delete in flight.
+	deleteGate func()
+}
+
+func newFakeGatewayManager() *fakeGatewayManager {
+	return &fakeGatewayManager{active: make(map[string]string)}
+}
+
+func (m *fakeGatewayManager) ValidateCreate(_ context.Context, request ManagerCreateRequest) (EffectiveGatewayPolicy, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.validations++
+	return EffectiveGatewayPolicy{ModelPolicies: request.Policy.ModelPolicies, Models: []string{"qwen/test-model"}, MaxBudget: request.Policy.MaxBudget, BudgetDuration: request.Policy.BudgetDuration, TPMLimit: request.Policy.TPMLimit, RPMLimit: request.Policy.RPMLimit, MaxParallelRequests: request.Policy.MaxParallelRequests}, m.validateErr
+}
+
+func (m *fakeGatewayManager) Create(_ context.Context, request ManagerCreateRequest) (GeneratedCredential, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.creates++
+	if m.createErr != nil {
+		return GeneratedCredential{}, m.createErr
+	}
+	if _, exists := m.active[request.CredentialID]; exists {
+		return GeneratedCredential{}, errors.New("duplicate deterministic alias")
+	}
+	secret := m.secretFor(request.CredentialID)
+	token, _ := NewToken(secret)
+	remoteID := "remote-" + request.CredentialID
+	m.active[request.CredentialID] = remoteID
+	refs := append([]contracts.ModelPolicyRef(nil), request.Policy.ModelPolicies...)
+	sort.Slice(refs, func(i, j int) bool { return modelPolicyRefKey(refs[i]) < modelPolicyRefKey(refs[j]) })
+	return GeneratedCredential{
+		Token: token, RemoteKeyID: remoteID,
+		EffectivePolicy: EffectiveGatewayPolicy{
+			ModelPolicies: refs, Models: []string{"qwen/test-model"},
+			MaxBudget: request.Policy.MaxBudget, BudgetDuration: request.Policy.BudgetDuration,
+			TPMLimit: request.Policy.TPMLimit, RPMLimit: request.Policy.RPMLimit,
+			MaxParallelRequests: request.Policy.MaxParallelRequests,
+		},
+	}, nil
+}
+
+func (m *fakeGatewayManager) Delete(_ context.Context, request ManagerDeleteRequest) error {
+	m.mu.Lock()
+	gate := m.deleteGate
+	m.mu.Unlock()
+	if gate != nil {
+		gate()
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.deletes++
+	if m.deleteErr != nil {
+		return m.deleteErr
+	}
+	if remote, exists := m.active[request.CredentialID]; exists && remote != request.RemoteKeyID {
+		return errors.New("remote key mismatch")
+	}
+	delete(m.active, request.CredentialID)
+	return nil
+}
+
+func (m *fakeGatewayManager) RecoverCreate(_ context.Context, request ManagerCreateRequest) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.recoveries++
+	if m.recoverErr != nil {
+		return m.recoverErr
+	}
+	delete(m.active, request.CredentialID)
+	return nil
+}
+
+func (m *fakeGatewayManager) secretFor(credentialID string) string {
+	return "sk-secret-for-" + credentialID
+}
+
+func (m *fakeGatewayManager) createCalls() int { m.mu.Lock(); defer m.mu.Unlock(); return m.creates }
+func (m *fakeGatewayManager) deleteCalls() int { m.mu.Lock(); defer m.mu.Unlock(); return m.deletes }
+func (m *fakeGatewayManager) recoverCalls() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.recoveries
+}
+func (m *fakeGatewayManager) validationCalls() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.validations
+}
+func (m *fakeGatewayManager) remoteCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.active)
+}
+
+func lifecycleTestPool(t *testing.T) (*pgxpool.Pool, context.Context) {
+	t.Helper()
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	t.Cleanup(cancel)
+	return isolatedCredentialPool(t, ctx, databaseURL), ctx
+}
+
+func pinnedRunParams(runID, credentialID string) runstore.CreateRunParams {
+	return runstore.CreateRunParams{
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "user-1", WorkflowName: "workflow", WorkflowVersion: "1",
+		WorkflowSchemaVersion: contracts.APIVersion,
+		WorkflowSnapshot: json.RawMessage(fmt.Sprintf(
+			`{"stages":{"build":{"executionConfig":{"agents":{"worker":{"credential":{"credentialId":%q}}}}}}}`,
+			credentialID,
+		)),
+		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
+		Parameters:    map[string]string{},
+	}
+}
+
+// lookupManagedCredential resolves metadata through both production lookup
+// paths: the pooled composite provider and the transaction-bound factory.
+func lookupManagedCredential(ctx context.Context, pool *pgxpool.Pool, credentialID string) error {
+	development, err := NewStaticProvider(nil)
+	if err != nil {
+		return err
+	}
+	managed, err := NewEncryptedProvider(NewRepository(pool), nil)
+	if err != nil {
+		return err
+	}
+	composite, err := NewCompositeProvider(development, managed)
+	if err != nil {
+		return err
+	}
+	if _, err := composite.LookupLLMCredential(ctx, credentialID); err != nil {
+		return err
+	}
+	factory, err := NewTransactionLookupFactory(development)
+	if err != nil {
+		return err
+	}
+	return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		lookup, err := factory.ForTransaction(tx)
+		if err != nil {
+			return err
+		}
+		_, err = lookup.LookupLLMCredential(ctx, credentialID)
+		return err
+	})
+}
+
+// copyRunWithID inserts a copy of a stored Run under another run_id without
+// the store's write validation, for tests of what the read paths refuse.
+func copyRunWithID(t *testing.T, ctx context.Context, pool *pgxpool.Pool, sourceRunID, runID string) {
+	t.Helper()
+	rows, err := pool.Query(ctx, `
+SELECT column_name FROM information_schema.columns
+WHERE table_schema = current_schema() AND table_name = 'workflow_runs'
+  AND is_generated = 'NEVER' AND is_identity = 'NO'
+ORDER BY ordinal_position`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	columns, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := make([]string, len(columns))
+	for i, column := range columns {
+		selected[i] = pgx.Identifier{column}.Sanitize()
+		switch column {
+		case "run_id":
+			selected[i] = "$1"
+		case "request_idempotency_key":
+			// The copy is another create-Run request of the same owner.
+			selected[i] = "$3"
+		}
+		columns[i] = pgx.Identifier{column}.Sanitize()
+	}
+	statement := "INSERT INTO workflow_runs (" + strings.Join(columns, ", ") + ") SELECT " +
+		strings.Join(selected, ", ") + " FROM workflow_runs WHERE run_id = $2"
+	copyKey := "copy-" + strings.TrimPrefix(contentdigest.Bytes([]byte(runID)), "sha256:")
+	if _, err := pool.Exec(ctx, statement, runID, sourceRunID, copyKey); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func createPinnedRun(
+	t *testing.T, ctx context.Context, store *runstore.PostgresStore, runID, credentialID string,
+) {
+	t.Helper()
+	if _, err := runstoretest.CreateRun(ctx, store, pinnedRunParams(runID, credentialID)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertCredentialOperationPhase(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	kind OperationKind,
+	key string,
+	want OperationPhase,
+) {
+	t.Helper()
+	operation, err := NewRepository(pool).GetOperationByIdempotency(ctx, kind, key)
+	if err != nil || operation.Phase != want {
+		t.Fatalf("operation phase = (%q, %v), want %q", operation.Phase, err, want)
+	}
+}
+
+func countOperations(t *testing.T, ctx context.Context, pool *pgxpool.Pool, kind OperationKind) int {
+	t.Helper()
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM credential_operations WHERE operation_kind = $1`, kind).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	return count
+}

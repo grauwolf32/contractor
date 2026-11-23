@@ -1,0 +1,1396 @@
+from __future__ import annotations
+
+import ast
+import asyncio
+import base64
+import hashlib
+import io
+import json
+import re
+import stat
+import sys
+import zipfile
+from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
+
+import jcs
+import pytest
+from fakes import finding_collection
+from fakes.worker_state import WorkerState
+from google.adk.tools import FunctionTool
+
+from contractor_runtime.artifacts import (
+    ArtifactClient,
+    ArtifactHTTPResponse,
+    ArtifactTransportError,
+)
+from contractor_runtime.contracts import API_VERSION, ArtifactRef, RuntimeSettings
+from contractor_runtime.factories import built_in_factories
+from contractor_runtime.toolsets.run_artifacts.tools import ReadArtifactTool
+from contractor_runtime.toolsets.security_findings.collection import (
+    COLLECTION_MEDIA_TYPE,
+    MAX_ARCHIVE_BYTES,
+    FindingsError,
+    decode_collection,
+)
+from contractor_runtime.toolsets.security_findings.facades import (
+    GeneralFindingsToolsetFactory,
+    GeneralFindingTool,
+)
+from contractor_runtime.toolsets.security_findings.reader import ListFindingsTool
+from contractor_runtime.worker.instrumentation import _safe_tool_response
+from contractor_runtime.workspace import AllocationWorkspace
+
+FIXTURE = Path(__file__).parents[2] / "api/testdata/findings/finding-collection-v2.fixture.json"
+TIMESTAMPS = {
+    "x-contractor-binding-created-at": "2026-09-06T09:00:00Z",
+    "x-contractor-revision-created-at": "2026-09-06T09:00:00Z",
+}
+
+
+def _json(value):
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+
+
+def _digest(data):
+    return "sha256:" + hashlib.sha256(data).hexdigest()
+
+
+def _fixture():
+    return finding_collection.collection()
+
+
+def _zip(members, *, compression=zipfile.ZIP_STORED, mode=stat.S_IFREG | 0o644):
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w") as archive:
+        for path, body in members:
+            info = zipfile.ZipInfo(path, (1980, 1, 1, 0, 0, 0))
+            info.create_system = 3
+            info.create_version = 20
+            info.extract_version = 20
+            info.external_attr = mode << 16
+            info.compress_type = compression
+            archive.writestr(info, body)
+    return output.getvalue()
+
+
+def _package(collection, contents, *, metadata=None):
+    body = _json(collection) if metadata is None else metadata
+    docs = [("collection", "collection.json", "application/json", body)]
+    for document in collection["documents"]:
+        docs.append(
+            (
+                document["id"],
+                "documents/" + document["id"],
+                document["media_type"],
+                contents[document["id"]],
+            )
+        )
+    docs.sort(key=lambda item: item[1])
+    manifest = {
+        "schema": "contractor.audit.package.v1",
+        "kind": "finding-collection",
+        "package_id": "collection-" + _digest(body)[7:],
+        "members": [
+            {
+                "id": id_,
+                "path": path,
+                "media_type": mime,
+                "size": len(data),
+                "digest": _digest(data),
+            }
+            for id_, path, mime, data in docs
+        ],
+    }
+    return _zip([("manifest.json", _json(manifest)), *[(path, data) for _, path, _, data in docs]])
+
+
+def _replace_proposal(collection, contents, index, transform):
+    entry = collection["entries"][index]
+    old_id = entry["proposal_document_id"]
+    body = transform(contents.pop(old_id))
+    document = next(doc for doc in collection["documents"] if doc["id"] == old_id)
+    document["digest"], document["size_bytes"] = _digest(body), len(body)
+    scope, ref = document["scope"], document["ref"]
+    id_ = (
+        "doc-"
+        + _digest(
+            _json(
+                [
+                    scope["kind"],
+                    scope["id"],
+                    ref["namespace"],
+                    ref["name"],
+                    ref["revision"],
+                    document["digest"],
+                    document["media_type"],
+                    len(body),
+                ]
+            )
+        )[7:]
+    )
+    document["id"] = entry["proposal_document_id"] = id_
+    contents[id_] = body
+    collection["documents"].sort(key=lambda doc: doc["id"])
+
+
+class Transport:
+    """Real ArtifactClient wire behavior in one allocation, with injected faults."""
+
+    def __init__(self, payload):
+        self.requests = []
+        self.bindings = {("inputs", "findings"): ("input-revision", COLLECTION_MEDIA_TYPE, payload)}
+        self.versions = {
+            ("inputs", "findings", "input-revision"): (
+                "input-revision",
+                COLLECTION_MEDIA_TYPE,
+                payload,
+            )
+        }
+        self.puts = 0
+        self.lose_response = False
+        self.lost_uncommitted_writes = 0
+        self.fail_at = None
+        self.deny_get = False
+        self.wrong_etag = False
+
+    async def request(self, method, path, *, headers, body, max_response_bytes):
+        self.requests.append((method, path, dict(headers), max_response_bytes))
+        parsed = urlsplit(path)
+        assert parsed.path.startswith("/allocations/consumer-allocation/artifacts/")
+        resource = parsed.path.removesuffix("/metadata")
+        metadata = resource != parsed.path
+        namespace, name = resource.split("/")[-2:]
+        target = (namespace, name)
+        if method == "GET":
+            if self.deny_get:
+                return ArtifactHTTPResponse(403, {}, b"")
+            revision = parse_qs(parsed.query).get("revision", [None])[0]
+            record = (
+                self.bindings.get(target)
+                if revision is None
+                else self.versions.get((*target, revision))
+            )
+            if record is None:
+                return ArtifactHTTPResponse(
+                    404,
+                    {"content-type": "application/json"},
+                    _json(
+                        {
+                            "code": "artifact_not_found",
+                            "message": "artifact unavailable",
+                            "retryable": False,
+                            "requestId": "reader-test-1",
+                        }
+                    ),
+                )
+            revision, media_type, data = record
+            if metadata:
+                # The metadata route answers the exact revision, media type
+                # and size without the payload (ART-R116).
+                return ArtifactHTTPResponse(
+                    200,
+                    {"content-type": "application/json"},
+                    _json(
+                        {
+                            "apiVersion": API_VERSION,
+                            "artifact": {
+                                "namespace": namespace,
+                                "name": name,
+                                "revision": revision,
+                            },
+                            "mediaType": media_type,
+                            "size": len(data),
+                            "contentCacheKey": "test_metadata_version",
+                        }
+                    ),
+                )
+            if self.wrong_etag and namespace != "inputs":
+                revision = "wrong-exact-revision"
+            return ArtifactHTTPResponse(
+                200,
+                {
+                    "content-type": media_type,
+                    "etag": '"' + revision + '"',
+                    **TIMESTAMPS,
+                },
+                data,
+            )
+        assert method == "PUT" and namespace.startswith("findings-")
+        assert headers["If-None-Match"] == "*" and "If-Match" not in headers
+        assert not parsed.query
+        self.puts += 1
+        if self.lost_uncommitted_writes:
+            self.lost_uncommitted_writes -= 1
+            raise ArtifactTransportError("response lost before commit")
+        if self.puts == self.fail_at:
+            return ArtifactHTTPResponse(503, {}, b"")
+        if target in self.bindings:
+            return ArtifactHTTPResponse(412, {}, b"")
+        revision = "consumer-revision-" + str(self.puts)
+        record = (revision, headers["Content-Type"], body)
+        self.bindings[target] = record
+        self.versions[(*target, revision)] = record
+        if self.lose_response:
+            self.lose_response = False
+            raise ArtifactTransportError("response lost")
+        return ArtifactHTTPResponse(
+            201,
+            {
+                "content-type": "application/json",
+                "etag": '"' + revision + '"',
+                **TIMESTAMPS,
+            },
+            _json(
+                {
+                    "apiVersion": "contractor/v1alpha1",
+                    "artifact": {
+                        "namespace": namespace,
+                        "name": name,
+                        "revision": revision,
+                    },
+                    "mediaType": headers["Content-Type"],
+                    "size": len(body),
+                }
+            ),
+        )
+
+
+async def _tools(transport, selected=("list_findings",)):
+    state = WorkerState()
+    client = ArtifactClient("consumer-allocation", transport)
+    factory = GeneralFindingsToolsetFactory(lambda _allocation, _settings: client)
+    tools = await factory.create_selected(
+        selected=selected,
+        allocation_id="consumer-allocation",
+        run_id="consumer-run",
+        namespace="reader",
+        runtime_settings=RuntimeSettings(
+            llmGatewayUrl="https://llm.example/v1",
+            llmGatewayToken="secret",
+            artifactApiUrl="https://cp.example/private/v1",
+            requestTimeoutSeconds=5,
+        ),
+        workspace=AllocationWorkspace(root=Path("/tmp/findings"), path=Path("/tmp/findings/a")),
+        resources=state.resources,
+    )
+    return tools, client, state
+
+
+def test_shared_go_python_fixture_and_exact_consumer_reads():
+    async def scenario():
+        collection, contents = _fixture()
+        payload = _package(collection, contents)
+        frozen = json.loads(FIXTURE.read_bytes())
+        assert _digest(payload) == frozen["package_digest"]
+        assert "collection-" + _digest(_json(collection))[7:] == frozen["package_id"]
+        decoded = decode_collection(payload)
+        assert decoded.metadata == collection and decoded.contents == contents
+        transport = Transport(payload)
+        tools, client, state = await _tools(transport)
+        preparation = transport.requests[:]
+        assert len(preparation) == len(collection["documents"]) + 1
+        assert [method for method, *_ in preparation].count("GET") == 1
+        assert [method for method, *_ in preparation].count("PUT") == len(collection["documents"])
+        result = await tools["list_findings"]()
+        assert len(result["items"]) == 2 and result["next_cursor"] is None
+        reader = ReadArtifactTool(client, state.metrics, ())
+        for index, item in enumerate(result["items"]):
+            entry = collection["entries"][index]
+            assert item["receipt_id"] == entry["receipt_id"]
+            assert item.get("finding") == entry.get("finding")
+            assert item["selected_sources"] == entry["selected_sources"]
+            assert item["has_hypothesis"] == (index == 1)
+            for document in [item["proposal"], *item["evidence"]]:
+                ref = document["ref"]
+                expected = frozen["consumer_targets"][ref["name"]]
+                assert {key: ref[key] for key in ("namespace", "name")} == expected
+                assert ref["revision"].startswith("consumer-revision-")
+                assert document["source"]["ref"]["revision"] == "rev-1"
+                assert document["source"]["scope"]["kind"] == "run"
+                read = await reader(cursor=reader._cursors.issue(ArtifactRef.model_validate(ref)))
+                assert read["text"].encode() == contents[ref["name"]]
+        first, second = result["items"]
+        assert first["evidence"][0]["digest"] == second["evidence"][0]["digest"]
+        assert first["evidence"][0]["ref"] != second["evidence"][0]["ref"]
+        assert "generic finding" not in repr(state.metrics.tool_calls)
+        assert all(
+            "run-a" not in request[1] and "run-b" not in request[1]
+            for request in transport.requests
+        )
+
+        # A different frozen snapshot must materialize into different bindings,
+        # even though all source documents are unchanged.
+        collection["snapshot_at"] = "2026-09-06T09:00:01Z"
+        changed_tools, _, _ = await _tools(Transport(_package(collection, contents)))
+        changed = await changed_tools["list_findings"]()
+        for item in changed["items"]:
+            for document in [item["proposal"], *item["evidence"]]:
+                ref = document["ref"]
+                assert ref["namespace"] != frozen["consumer_targets"][ref["name"]]["namespace"]
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "selected", [("finding",), ("list_findings",), ("finding", "list_findings")]
+)
+def test_selected_tools_and_adk_descriptions(selected, tmp_path):
+    async def scenario():
+        transport = Transport(_package(*_fixture()))
+        tools, _, _ = await _tools(transport, selected)
+        assert set(tools) == set(selected)
+        if "list_findings" not in selected:
+            assert transport.requests == []
+        for name, tool in tools.items():
+            declaration = (
+                FunctionTool(tool)._get_declaration().model_dump(mode="json", by_alias=True)
+            )
+            assert declaration["name"] == name
+            assert declaration["description"]
+            parameters = declaration["parametersJsonSchema"]["properties"]
+            assert "tool_context" not in parameters
+            if name == "list_findings":
+                assert set(parameters) == {"subject_kind", "subject_key", "limit", "cursor"}
+            else:
+                assert type(tool) is GeneralFindingTool
+        registry = built_in_factories(tmp_path)
+        assert await registry.toolsets["security-findings@1"].probe() == frozenset(
+            {
+                "finding",
+                "fact",
+                "list_findings",
+                "list_project_findings",
+                "read_project_finding",
+                "select_project_findings",
+                "read_finding_selection",
+            }
+        )
+
+    asyncio.run(scenario())
+
+
+def test_reader_filters_cursors_previews_and_defensive_copies():
+    async def scenario():
+        collection, contents = _fixture()
+
+        def change(body):
+            proposal = json.loads(body)
+            proposal["title"] = "界" * 300
+            proposal["description"] = "🦆" * 1000
+            return _json(proposal)
+
+        _replace_proposal(collection, contents, 0, change)
+        transport = Transport(_package(collection, contents))
+        tools, _, _ = await _tools(transport)
+        reader = tools["list_findings"]
+        page = await reader(limit=1)
+        item = page["items"][0]
+        assert item["title_preview"] == {"text": "界" * 170, "truncated": True}
+        assert item["description_preview"] == {"text": "🦆" * 512, "truncated": True}
+        cursor = page["next_cursor"]
+        second = await reader(cursor=cursor, limit=100)
+        assert [item["receipt_id"] for item in second["items"]] == ["receipt-b"]
+        assert second["next_cursor"] is None
+        item["proposal"]["ref"]["revision"] = "corrupted"
+        item["subject"]["key"] = "corrupted"
+        filtered = await reader(subject_kind="function", subject_key="subject-a")
+        assert filtered["items"][0]["subject"]["key"] == "subject-a"
+        assert filtered["items"][0]["proposal"]["ref"]["revision"] != "corrupted"
+        assert await reader(subject_kind="Function") == {"items": [], "next_cursor": None}
+        assert await reader(subject_kind="function", subject_key="absent") == {
+            "items": [],
+            "next_cursor": None,
+        }
+        for arguments in [
+            {"subject_key": "x"},
+            {"subject_kind": ""},
+            {"subject_key": ""},
+            {"limit": True},
+            {"limit": 0},
+            {"limit": 101},
+            {"limit": 1.5},
+        ]:
+            with pytest.raises(FindingsError, match="arguments_invalid"):
+                await reader(**arguments)
+        raw_cursor = json.loads(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)))
+        invalid_cursors = [cursor + "=", "!", "", "a" * 1367]
+        for key, replacement in [
+            ("version", True),
+            ("version", 2),
+            ("collection_digest", "sha256:" + "0" * 64),
+            ("after_receipt_id", "unknown"),
+            ("subject_kind", "configuration"),
+        ]:
+            value = {**raw_cursor, key: replacement}
+            invalid_cursors.append(base64.urlsafe_b64encode(_json(value)).rstrip(b"=").decode())
+        invalid_cursors.append(
+            base64.urlsafe_b64encode(_json(raw_cursor) + b" ").rstrip(b"=").decode()
+        )
+        for invalid in invalid_cursors:
+            with pytest.raises(FindingsError, match="cursor_invalid"):
+                await reader(cursor=invalid)
+        with pytest.raises(FindingsError, match="cursor_invalid"):
+            await reader(cursor=cursor, subject_kind="function")
+        transport.bindings[("inputs", "findings")] = ("changed", COLLECTION_MEDIA_TYPE, b"bad")
+        assert (await reader(limit=1))["next_cursor"] == cursor
+        await reader.close()
+        with pytest.raises(FindingsError, match="reader_unavailable"):
+            await reader()
+
+    asyncio.run(scenario())
+
+
+def test_empty_collection_is_success():
+    async def scenario():
+        collection, _ = _fixture()
+        collection["entries"], collection["documents"] = [], []
+        transport = Transport(_package(collection, {}))
+        tools, _, _ = await _tools(transport)
+        assert await tools["list_findings"]() == {"items": [], "next_cursor": None}
+        assert transport.puts == 0
+
+    asyncio.run(scenario())
+
+
+def test_replay_loss_interruption_conflict_and_access_errors():
+    async def scenario():
+        transport = Transport(_package(*_fixture()))
+        transport.fail_at = 3
+        with pytest.raises(FindingsError, match="document_unavailable"):
+            await _tools(transport, ("finding", "list_findings"))
+        assert len(transport.bindings) == 3  # Input and two retained intermediates.
+        transport.lose_response = True
+        tools, _, _ = await _tools(transport)
+        first = await tools["list_findings"]()
+        again, _, _ = await _tools(transport)
+        assert await again["list_findings"]() == first
+        document = first["items"][0]["proposal"]["ref"]
+        target = document["namespace"], document["name"]
+        transport.bindings[target] = ("changed", "application/json", b"different bytes")
+        with pytest.raises(FindingsError, match="document_conflict"):
+            await _tools(transport)
+        assert transport.bindings[target][2] == b"different bytes"
+        transport.deny_get = True
+        with pytest.raises(FindingsError, match="collection_unavailable"):
+            await _tools(transport)
+        wrong = Transport(_package(*_fixture()))
+        await _tools(wrong)
+        wrong.wrong_etag = True
+        with pytest.raises(FindingsError, match="document_unavailable"):
+            await _tools(wrong)
+        assert "?revision=wrong-exact-revision" in wrong.requests[-1][1]
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mismatch", ["media_type", "size"])
+def test_replay_conflict_rejects_mismatched_document_metadata(mismatch):
+    async def scenario():
+        transport = Transport(_package(*_fixture()))
+        await _tools(transport)
+        target = next(key for key in transport.bindings if key[0] != "inputs")
+        revision, media_type, data = transport.bindings[target]
+        changed = (
+            (revision, "application/x-test-mismatch", data)
+            if mismatch == "media_type"
+            else (revision, media_type, data + b"x")
+        )
+        transport.bindings[target] = changed
+        with pytest.raises(FindingsError, match="document_conflict"):
+            await _tools(transport)
+        assert transport.bindings[target] == changed
+
+    asyncio.run(scenario())
+
+
+def test_lost_uncommitted_document_write_retries_create_once():
+    async def scenario():
+        collection, contents = _fixture()
+        transport = Transport(_package(collection, contents))
+        transport.lost_uncommitted_writes = 1
+        tools, _, _ = await _tools(transport)
+        assert len((await tools["list_findings"]())["items"]) == len(collection["entries"])
+        assert transport.puts == len(collection["documents"]) + 1
+        assert [method for method, *_ in transport.requests].count("GET") == 2
+        assert sorted(
+            record[2] for key, record in transport.bindings.items() if key[0] != "inputs"
+        ) == sorted(contents.values())
+
+    asyncio.run(scenario())
+
+
+def test_second_lost_uncommitted_document_write_fails_without_overwrite():
+    async def scenario():
+        transport = Transport(_package(*_fixture()))
+        transport.lost_uncommitted_writes = 2
+        with pytest.raises(FindingsError, match="document_unavailable"):
+            await _tools(transport)
+        assert transport.puts == 2
+        assert len(transport.bindings) == 1
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        "unknown-field",
+        "wrong-case",
+        "duplicate-key",
+        "null-array",
+        "unsorted",
+        "extra-document",
+        "bad-document-id",
+        "bad-snapshot",
+        "fractional-revision",
+        "empty-holds",
+        "wrong-schema",
+        "invalid-source",
+        "missing-link",
+        "bad-digest",
+        "bad-size",
+        "proposal-unknown",
+        "proposal-evidence",
+        "proposal-duplicate",
+        "proposal-null",
+        "proposal-limit",
+    ],
+)
+def test_invalid_collection_fails_before_any_materialization(damage):
+    async def scenario():
+        collection, contents = _fixture()
+        metadata = None
+        if damage == "unknown-field":
+            collection["unknown"] = True
+        elif damage == "wrong-case":
+            collection["Schema"] = collection.pop("schema")
+        elif damage == "duplicate-key":
+            metadata = _json(collection).replace(b'"entries":', b'"entries":[],"entries":')
+        elif damage == "null-array":
+            collection["entries"][0]["evidence"] = None
+        elif damage == "unsorted":
+            collection["entries"].reverse()
+        elif damage == "extra-document":
+            collection["entries"].pop()
+        elif damage == "bad-document-id":
+            collection["documents"][0]["scope"]["id"] = "different-run"
+        elif damage == "bad-snapshot":
+            collection["snapshot_at"] = "2026-02-30T12:00:00Z"
+        elif damage == "fractional-revision":
+            collection["entries"][1]["finding"]["revision"] = 1.5
+        elif damage == "empty-holds":
+            collection["entries"][0]["audit_holds"] = []
+        elif damage == "wrong-schema":
+            collection["schema"] = "contractor.findings.collection.v1"
+        elif damage == "invalid-source":
+            collection["sources"] = [{"kind": "run", "id": "not-selected"}]
+        elif damage == "missing-link":
+            collection["entries"][0]["evidence"][0]["document_id"] = "doc-missing"
+        elif damage == "bad-digest":
+            contents[collection["documents"][0]["id"]] = b"changed"
+        elif damage == "bad-size":
+            collection["documents"][0]["size_bytes"] = True
+        else:
+
+            def change(body):
+                proposal = json.loads(body)
+                if damage == "proposal-unknown":
+                    proposal["unknown"] = "value"
+                elif damage == "proposal-evidence":
+                    proposal["evidence_ids"] = ["different"]
+                elif damage == "proposal-duplicate":
+                    return body.replace(b'"title":', b'"title":"duplicate","title":')
+                elif damage == "proposal-null":
+                    proposal["preconditions"] = None
+                elif damage == "proposal-limit":
+                    proposal["description"] = "x" * 65537
+                return _json(proposal)
+
+            _replace_proposal(collection, contents, 0, change)
+        transport = Transport(_package(collection, contents, metadata=metadata))
+        with pytest.raises(FindingsError):
+            await _tools(transport, ("finding", "list_findings"))
+        assert transport.puts == 0
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        "traversal",
+        "symlink",
+        "executable",
+        "duplicate",
+        "missing",
+        "unexpected",
+        "compression",
+        "crc",
+        "oversized",
+        "manifest",
+    ],
+)
+def test_archive_boundaries(damage):
+    payload = _package(*_fixture())
+    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+        members = [(info.filename, archive.read(info)) for info in archive.infolist()]
+    if damage == "traversal":
+        members[-1] = ("../escape", members[-1][1])
+    elif damage == "duplicate":
+        members.append(members[-1])
+    elif damage == "missing":
+        members.pop()
+    elif damage == "unexpected":
+        members.append(("extra.txt", b"x"))
+    elif damage == "manifest":
+        members[0] = ("manifest.json", members[0][1] + b" ")
+    mode = stat.S_IFLNK | 0o644 if damage == "symlink" else stat.S_IFREG | 0o644
+    if damage == "executable":
+        mode |= 0o111
+    compression = zipfile.ZIP_BZIP2 if damage == "compression" else zipfile.ZIP_STORED
+    if damage == "duplicate":
+        with pytest.warns(UserWarning, match="Duplicate name"):
+            payload = _zip(members, mode=mode, compression=compression)
+    else:
+        payload = _zip(members, mode=mode, compression=compression)
+    if damage == "crc":
+        payload = payload.replace(b"Observation a", b"Observation z")
+    elif damage == "oversized":
+        payload = b"x" * (MAX_ARCHIVE_BYTES + 1)
+    with pytest.raises(FindingsError):
+        decode_collection(payload)
+
+
+def test_byte_bounded_pagination_never_drops_items(monkeypatch):
+    async def scenario():
+        tools, _, _ = await _tools(Transport(_package(*_fixture())))
+        reader = tools["list_findings"]
+        first = await reader(limit=1)
+        monkeypatch.setattr(
+            "contractor_runtime.toolsets.security_findings.reader.MAX_PAGE_BYTES", len(_json(first))
+        )
+        page = await reader(limit=100)
+        assert page == first
+        second = await reader(cursor=page["next_cursor"])
+        assert second["next_cursor"] is None
+        assert second["items"][0]["receipt_id"] == "receipt-b"
+        monkeypatch.setattr(
+            "contractor_runtime.toolsets.security_findings.reader.MAX_PAGE_BYTES", 100
+        )
+        with pytest.raises(FindingsError, match="limit_exceeded"):
+            await reader()
+
+    asyncio.run(scenario())
+
+
+def test_page_item_bound_and_cursor_can_change_limit():
+    async def scenario():
+        metrics = WorkerState().metrics
+        items = tuple(
+            {"receipt_id": f"receipt-{i:03}", "subject": {"kind": "code", "key": "x"}}
+            for i in range(256)
+        )
+        reader = ListFindingsTool(items, "sha256:" + "a" * 64, metrics, ())
+        cursor, ids, limits = None, [], [20, 100, 37, 100]
+        for limit in limits:
+            page = await reader(cursor=cursor, limit=limit)
+            assert len(page["items"]) <= limit
+            ids.extend(item["receipt_id"] for item in page["items"])
+            cursor = page["next_cursor"]
+        assert cursor is None and ids == [item["receipt_id"] for item in items]
+
+    asyncio.run(scenario())
+
+
+def test_collection_supports_audit_holds_and_noncanonical_proposals():
+    collection, contents = _fixture()
+    collection["sources"] = [{"kind": "audit", "id": "audit-a"}]
+    for entry in collection["entries"]:
+        entry["selected_sources"] = [{"kind": "audit", "id": "audit-a"}]
+    collection["entries"][0]["audit_holds"] = ["audit-a"]
+    _replace_proposal(collection, contents, 0, lambda body: b" \n" + body + b"\n")
+    payload = _package(collection, contents)
+    assert decode_collection(payload).metadata == collection
+    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+        compressed = _zip(
+            [(info.filename, archive.read(info)) for info in archive.infolist()],
+            compression=zipfile.ZIP_DEFLATED,
+        )
+    assert decode_collection(compressed).metadata == collection
+
+
+def test_artifact_client_enforces_reader_byte_limit_even_with_unbounded_transport():
+    async def scenario():
+        transport = Transport(b"too large")
+        client = ArtifactClient("consumer-allocation", transport)
+        ref = ArtifactRef(namespace="inputs", name="findings")
+        with pytest.raises(ArtifactTransportError, match="byte limit"):
+            await client.read_artifact(ref, max_bytes=3)
+        assert transport.requests[-1][3] == 3
+        for bound in (0, True, 64 * 1024 * 1024 + 1):
+            with pytest.raises(ValueError, match="byte limit"):
+                await client.read_artifact(ref, max_bytes=bound)
+
+    asyncio.run(scenario())
+
+
+def test_reader_preparation_distinguishes_byte_limit_from_missing_input():
+    async def scenario():
+        with pytest.raises(FindingsError, match="limit_exceeded"):
+            await _tools(Transport(b"x" * (MAX_ARCHIVE_BYTES + 1)))
+        missing = Transport(b"")
+        missing.bindings.clear()
+        with pytest.raises(FindingsError, match="collection_unavailable"):
+            await _tools(missing)
+
+    asyncio.run(scenario())
+
+
+def test_reader_preparation_errors_keep_their_cause_retryability():
+    class LostReads(Transport):
+        async def request(self, method, path, **kwargs):
+            if method == "GET":
+                raise ArtifactTransportError("connection reset")
+            return await super().request(method, path, **kwargs)
+
+    class BusyWrites(Transport):
+        async def request(self, method, path, **kwargs):
+            if method == "PUT":
+                error = {
+                    "code": "artifact_store_busy",
+                    "message": "artifact store is busy",
+                    "retryable": True,
+                    "requestId": "reader-test-2",
+                }
+                return ArtifactHTTPResponse(503, {"content-type": "application/json"}, _json(error))
+            return await super().request(method, path, **kwargs)
+
+    async def failure(transport):
+        with pytest.raises(FindingsError) as raised:
+            await _tools(transport)
+        return raised.value.code, raised.value.retryable
+
+    async def scenario():
+        payload = _package(*_fixture())
+        assert await failure(LostReads(payload)) == ("findings_collection_unavailable", True)
+        assert await failure(BusyWrites(payload)) == ("findings_document_unavailable", True)
+        denied = Transport(payload)
+        denied.deny_get = True
+        assert await failure(denied) == ("findings_collection_unavailable", False)
+        rejected = Transport(payload)
+        rejected.fail_at = 1  # A bare 503 does not claim to be retryable.
+        assert await failure(rejected) == ("findings_document_unavailable", False)
+        changed = Transport(payload)
+        await _tools(changed)
+        target = next(key for key in changed.bindings if key[0] != "inputs")
+        changed.bindings[target] = ("changed", "application/json", b"different bytes")
+        assert await failure(changed) == ("findings_document_conflict", False)
+
+    asyncio.run(scenario())
+
+
+def test_reader_errors_keep_distinct_codes_in_model_visible_envelope(monkeypatch):
+    async def scenario():
+        tools, _, _ = await _tools(Transport(_package(*_fixture())))
+        reader = tools["list_findings"]
+        for arguments, expected in [
+            ({"subject_key": "subject-a"}, "findings_arguments_invalid"),
+            ({"cursor": "unknown"}, "findings_cursor_invalid"),
+        ]:
+            with pytest.raises(FindingsError) as raised:
+                await reader(**arguments)
+            envelope = _safe_tool_response("list_findings", raised.value)
+            assert envelope["error"]["code"] == expected
+            assert envelope["ok"] is False
+        monkeypatch.setattr(
+            "contractor_runtime.toolsets.security_findings.reader.MAX_PAGE_BYTES", 1
+        )
+        with pytest.raises(FindingsError) as raised:
+            await reader()
+        assert _safe_tool_response("list_findings", raised.value)["error"]["code"] == (
+            "findings_limit_exceeded"
+        )
+
+    asyncio.run(scenario())
+
+
+def _sized_items(count, sizes):
+    """Synthetic prepared items whose canonical sizes vary with ``sizes``."""
+    return tuple(
+        {
+            "receipt_id": f"receipt-{index:03}",
+            # Every seventh item has the null subject of a proposal without one.
+            "subject": None
+            if index % 7 == 6
+            else {"kind": "code" if index % 3 else "route", "key": f"subject-{index % 2}"},
+            "title_preview": {"text": "t" * sizes(index), "truncated": False},
+            "evidence": [],
+            "selected_sources": [],
+        }
+        for index in range(count)
+    )
+
+
+def _legacy_page(tool, subject_kind=None, subject_key=None, limit=None, cursor=None):
+    """The replaced algorithm, which canonicalized the growing page per candidate."""
+    from contractor_runtime.toolsets.security_findings import reader as reader_module
+
+    matching = [
+        item
+        for item in tool._items
+        if (subject_kind is None or (item["subject"] or {}).get("kind") == subject_kind)
+        and (subject_key is None or (item["subject"] or {}).get("key") == subject_key)
+    ]
+    start = 0
+    if cursor is not None:
+        after = tool._decode_cursor(cursor, subject_kind, subject_key)
+        start = [item["receipt_id"] for item in matching].index(after) + 1
+    result = {"items": [], "next_cursor": None}
+    for index in range(start, min(len(matching), start + (20 if limit is None else limit))):
+        item = matching[index]
+        next_cursor = (
+            None
+            if index + 1 == len(matching)
+            else tool._cursor(item["receipt_id"], subject_kind, subject_key)
+        )
+        candidate = {"items": [*result["items"], item], "next_cursor": next_cursor}
+        if len(jcs.canonicalize(candidate)) > reader_module.MAX_PAGE_BYTES:
+            if not result["items"]:
+                raise FindingsError("findings_limit_exceeded")
+            break
+        result = candidate
+    return result
+
+
+def _expected_cursor(digest, after, kind=None, key=None):
+    # FND-R137: unpadded base64url of the canonical five-field object, no signature.
+    value = {
+        "version": 1,
+        "collection_digest": digest,
+        "subject_kind": kind,
+        "subject_key": key,
+        "after_receipt_id": after,
+    }
+    return base64.urlsafe_b64encode(jcs.canonicalize(value)).rstrip(b"=").decode()
+
+
+@pytest.mark.parametrize("subject", [(None, None), ("code", None), ("code", "subject-1")])
+def test_linear_page_assembly_matches_the_replaced_algorithm_byte_for_byte(monkeypatch, subject):
+    async def scenario():
+        from contractor_runtime.toolsets.security_findings import reader as reader_module
+
+        kind, key = subject
+        digest = "sha256:" + "c" * 64
+        tool = ListFindingsTool(
+            _sized_items(48, lambda index: (index * 37) % 400), digest, WorkerState().metrics, ()
+        )
+        matching = [
+            item
+            for item in tool._items
+            if (kind is None or (item["subject"] or {}).get("kind") == kind)
+            and (key is None or (item["subject"] or {}).get("key") == key)
+        ]
+        # Exact sizes of the first pages decide every boundary: one byte below,
+        # at and above the size of a page holding k items and its own cursor.
+        bounds = {reader_module.MAX_PAGE_BYTES}
+        for count in range(1, 5):
+            cursor = (
+                None
+                if count == len(matching)
+                else _expected_cursor(digest, matching[count - 1]["receipt_id"], kind, key)
+            )
+            size = len(jcs.canonicalize({"items": matching[:count], "next_cursor": cursor}))
+            bounds |= {size - 1, size, size + 1}
+        for bound in sorted(bounds):
+            monkeypatch.setattr(reader_module, "MAX_PAGE_BYTES", bound)
+            for limit in (None, 1, 2, 7, 100):
+                cursor, pages = None, 0
+                while True:
+                    try:
+                        expected = _legacy_page(tool, kind, key, limit, cursor)
+                    except FindingsError:
+                        with pytest.raises(FindingsError, match="findings_limit_exceeded"):
+                            await tool(
+                                subject_kind=kind, subject_key=key, limit=limit, cursor=cursor
+                            )
+                        break
+                    page = await tool(
+                        subject_kind=kind, subject_key=key, limit=limit, cursor=cursor
+                    )
+                    assert jcs.canonicalize(page) == jcs.canonicalize(expected)
+                    assert len(jcs.canonicalize(page)) <= bound
+                    pages += 1
+                    cursor = page["next_cursor"]
+                    if cursor is None:
+                        break
+                    assert cursor == _expected_cursor(
+                        digest, page["items"][-1]["receipt_id"], kind, key
+                    )
+                assert pages <= len(matching)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "count,size,limit",
+    [
+        (256, 900, None),  # realistic: the default page of a full collection
+        (256, 900, 100),  # every item fits: the item limit ends the page
+        (256, 3000, 100),  # maximum: the 256 KiB bound ends each page
+    ],
+)
+def test_page_sizing_canonicalizes_each_candidate_item_once(monkeypatch, count, size, limit):
+    async def scenario():
+        from contractor_runtime.toolsets.security_findings import reader as reader_module
+
+        serialized = []
+        real = reader_module.canonical
+
+        def spy(value):
+            # Count every serialization of an item, alone or inside a page.
+            if isinstance(value, dict) and "receipt_id" in value:
+                serialized.append(value["receipt_id"])
+            elif isinstance(value, dict) and "items" in value:
+                serialized.extend(item["receipt_id"] for item in value["items"])
+            return real(value)
+
+        monkeypatch.setattr(reader_module, "canonical", spy)
+        tool = ListFindingsTool(
+            _sized_items(count, lambda _: size), "sha256:" + "d" * 64, WorkerState().metrics, ()
+        )
+        cursor, seen, examined = None, [], 0
+        while True:
+            serialized.clear()
+            page = await tool(limit=limit, cursor=cursor)
+            ids = [item["receipt_id"] for item in page["items"]]
+            seen.extend(ids)
+            full = len(ids) == (20 if limit is None else limit)
+            # Admitted items plus at most the one candidate the byte bound rejected.
+            assert serialized[: len(ids)] == ids
+            assert len(serialized) == len(ids) + (0 if full or page["next_cursor"] is None else 1)
+            assert len(set(serialized)) == len(serialized)
+            assert len(jcs.canonicalize(page)) <= reader_module.MAX_PAGE_BYTES
+            examined += len(serialized)
+            cursor = page["next_cursor"]
+            if cursor is None or limit is None:
+                break
+        if limit is None:
+            assert seen == [f"receipt-{index:03}" for index in range(20)]
+        else:
+            assert seen == [f"receipt-{index:03}" for index in range(count)]
+            # Linear: each item once, plus one rejected candidate per byte-bounded page.
+            assert examined < 2 * count
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("remaining", [True, False])
+def test_exact_256_kib_bound_includes_the_actual_final_cursor(remaining):
+    async def scenario():
+        from contractor_runtime.toolsets.security_findings import reader as reader_module
+
+        digest = "sha256:" + "e" * 64
+
+        def tool_with(filler):
+            sizes = {0: 100, 1: filler, 2: 10}
+            items = _sized_items(3 if remaining else 2, lambda index: sizes[index])
+            return ListFindingsTool(items, digest, WorkerState().metrics, ())
+
+        probe = tool_with(0)
+        cursor = _expected_cursor(digest, "receipt-001") if remaining else None
+        base = len(jcs.canonicalize({"items": list(probe._items[:2]), "next_cursor": cursor}))
+        exact = tool_with(reader_module.MAX_PAGE_BYTES - base)
+        page = await exact(limit=2)
+        assert [item["receipt_id"] for item in page["items"]] == ["receipt-000", "receipt-001"]
+        assert page["next_cursor"] == cursor
+        assert len(jcs.canonicalize(page)) == reader_module.MAX_PAGE_BYTES == 256 * 1024
+        over = tool_with(reader_module.MAX_PAGE_BYTES - base + 1)
+        page = await over(limit=2)
+        assert [item["receipt_id"] for item in page["items"]] == ["receipt-000"]
+        assert page["next_cursor"] == _expected_cursor(digest, "receipt-000")
+        # The item that did not fit is the next page's first item, not dropped.
+        second = await over(cursor=page["next_cursor"], limit=1)
+        assert [item["receipt_id"] for item in second["items"]] == ["receipt-001"]
+        assert second["next_cursor"] == cursor
+
+    asyncio.run(scenario())
+
+
+# ERR-R23: the findings tool vocabulary is closed and registered once in errors.md.
+FINDINGS_PACKAGE = Path(__file__).parents[1] / "src/contractor_runtime/toolsets/security_findings"
+ERRORS_REGISTRY = Path(__file__).parents[2] / "docs/spec/platform/errors.md"
+FINDINGS_CODE = re.compile(r"findings_[a-z_]+")
+
+
+def _emitted_findings_codes() -> dict[str, bool]:
+    """Map each code the findings toolset modules raise to whether a cause sets its retryability.
+
+    A code reaches the model or the allocation error only through FindingsError
+    or require; both must name it with a literal so the registry can hold it.
+    """
+    codes: dict[str, bool] = {}
+
+    def literal(node: ast.expr, where: str) -> str:
+        if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+            raise AssertionError(f"{where}: findings error code must be a string literal")
+        return node.value
+
+    for path in sorted(FINDINGS_PACKAGE.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        named: set[str] = set()
+        # require raises FindingsError with its own parameter; its default is the code.
+        forwarding: set[int] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name == "require":
+                forwarding.update(id(child) for child in ast.walk(node))
+        for node in ast.walk(tree):
+            where = f"{path.name}:{getattr(node, 'lineno', 0)}"
+            if isinstance(node, ast.FunctionDef) and node.name == "require":
+                code = literal(node.args.defaults[-1], where)
+                codes.setdefault(code, False)
+                named.add(code)
+            elif id(node) in forwarding:
+                continue
+            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                if node.func.id == "FindingsError":
+                    code = literal(node.args[0], where)
+                    conditional = any(keyword.arg == "retryable" for keyword in node.keywords)
+                    codes[code] = codes.get(code, False) or conditional
+                    named.add(code)
+                elif node.func.id == "require" and len(node.args) == 2:
+                    code = literal(node.args[1], where)
+                    codes.setdefault(code, False)
+                    named.add(code)
+        # A findings code spelled anywhere else in the toolset is one the scan missed.
+        stray = {
+            node.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and FINDINGS_CODE.fullmatch(node.value)
+        } - named
+        assert not stray, f"{path.name}: findings codes outside FindingsError or require: {stray}"
+    return codes
+
+
+def _registered_findings_codes() -> tuple[dict[str, str], set[str]]:
+    """Return the registry rows' retryability and the ERR-R23 vocabulary of errors.md."""
+    text = ERRORS_REGISTRY.read_text(encoding="utf-8")
+    rows: dict[str, str] = {}
+    for match in re.finditer(r"(?m)^\| `(findings_[a-z_]+)` \|[^|]*\|([^|]*)\|", text):
+        if match.group(1) in rows:
+            raise AssertionError(f"errors.md registers {match.group(1)} twice")
+        rows[match.group(1)] = match.group(2).strip()
+    section = text.split("**ERR-R23.**", 1)[1].split("\n### ", 1)[0]
+    vocabulary = set(re.findall(r"(?m)^- `(findings_[a-z_]+)`[;.]$", section))
+    return rows, vocabulary
+
+
+def test_findings_tool_codes_are_the_registered_vocabulary():
+    emitted = _emitted_findings_codes()
+    rows, vocabulary = _registered_findings_codes()
+    assert emitted, "the registry gate found no findings codes"
+    assert set(emitted) == set(rows) == vocabulary, (
+        "every findings_* code the toolset raises needs one errors.md row and an ERR-R23 entry, "
+        f"and nothing else: unregistered {set(emitted) - set(rows)}, "
+        f"unraised {set(rows) - set(emitted)}, not in ERR-R23 {set(rows) ^ vocabulary}"
+    )
+    for code, conditional in emitted.items():
+        # Only a code whose FindingsError takes retryable from its cause may be retryable.
+        assert rows[code].startswith("yes, only for") == conditional, code
+        assert conditional or rows[code].startswith("no"), code
+
+
+def test_findings_registry_gate_rejects_an_unregistered_code(monkeypatch, tmp_path):
+    package = tmp_path / "security_findings"
+    package.mkdir()
+    for path in FINDINGS_PACKAGE.glob("*.py"):
+        (package / path.name).write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+    probe = package / "reader.py"
+    added = '\n\ndef probe():\n    require(False, "findings_probe")\n'
+    probe.write_text(probe.read_text(encoding="utf-8") + added, encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "FINDINGS_PACKAGE", package)
+    assert "findings_probe" in _emitted_findings_codes()
+    with pytest.raises(AssertionError, match=re.escape("unregistered {'findings_probe'}")):
+        test_findings_tool_codes_are_the_registered_vocabulary()
+
+
+def test_findings_registry_gate_rejects_a_code_no_tool_raises(monkeypatch, tmp_path):
+    text = ERRORS_REGISTRY.read_text(encoding="utf-8")
+    row = "| `findings_reader_unavailable` |"
+    orphan = "| `findings_orphan` | — | no | A probe row. | [FND-R142](../findings/findings.md) |\n"
+    text = text.replace(row, orphan + row, 1)
+    text = text.replace(
+        "- `findings_reader_unavailable`.",
+        "- `findings_orphan`;\n- `findings_reader_unavailable`.",
+        1,
+    )
+    registry = tmp_path / "errors.md"
+    registry.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "ERRORS_REGISTRY", registry)
+    assert "findings_orphan" in _registered_findings_codes()[1]
+    with pytest.raises(AssertionError, match=re.escape("unraised {'findings_orphan'}")):
+        test_findings_tool_codes_are_the_registered_vocabulary()
+
+
+async def _reached(scenario) -> str:
+    with pytest.raises(FindingsError) as raised:
+        await scenario()
+    return raised.value.code
+
+
+def _prepared(transport):
+    async def scenario():
+        await _tools(transport)
+
+    return scenario
+
+
+def _damaged(damage):
+    collection, contents = _fixture()
+    if damage == "digest":
+        contents[collection["documents"][0]["id"]] = b"changed"
+    else:
+
+        def change(body):
+            proposal = json.loads(body)
+            proposal["evidence_ids"] = ["different"]
+            return _json(proposal)
+
+        _replace_proposal(collection, contents, 0, change)
+    return _prepared(Transport(_package(collection, contents)))
+
+
+def _missing_input():
+    transport = Transport(b"")
+    transport.bindings.clear()
+    return _prepared(transport)
+
+
+def _failed_document_write():
+    transport = Transport(_package(*_fixture()))
+    transport.fail_at = 1
+    return _prepared(transport)
+
+
+def _changed_document():
+    transport = Transport(_package(*_fixture()))
+
+    async def scenario():
+        await _tools(transport)
+        target = next(key for key in transport.bindings if key[0] != "inputs")
+        transport.bindings[target] = ("changed", "application/json", b"different bytes")
+        await _tools(transport)
+
+    return scenario
+
+
+def _read(arguments, *, closed=False, page_bytes=None):
+    async def scenario():
+        tools, _, _ = await _tools(Transport(_package(*_fixture())))
+        reader = tools["list_findings"]
+        if closed:
+            await reader.close()
+        if page_bytes is not None:
+            from contractor_runtime.toolsets.security_findings import reader as reader_module
+
+            original = reader_module.MAX_PAGE_BYTES
+            reader_module.MAX_PAGE_BYTES = page_bytes
+            try:
+                await reader(**arguments)
+            finally:
+                reader_module.MAX_PAGE_BYTES = original
+        else:
+            await reader(**arguments)
+
+    return scenario
+
+
+# One real path per registered code: preparation through the toolset factory, reads
+# through the prepared list_findings tool.
+REACHING = {
+    "findings_collection_unavailable": _missing_input,
+    "findings_collection_invalid": lambda: _prepared(Transport(b"not a zip archive")),
+    "findings_digest_mismatch": lambda: _damaged("digest"),
+    "findings_reference_invalid": lambda: _damaged("evidence"),
+    "findings_limit_exceeded": lambda: _prepared(Transport(b"x" * (MAX_ARCHIVE_BYTES + 1))),
+    "findings_document_unavailable": _failed_document_write,
+    "findings_document_conflict": _changed_document,
+    "findings_arguments_invalid": lambda: _read({"subject_key": "subject-a"}),
+    "findings_cursor_invalid": lambda: _read({"cursor": "unknown"}),
+    "findings_reader_unavailable": lambda: _read({}, closed=True),
+}
+
+
+@pytest.mark.parametrize("code", sorted(_registered_findings_codes()[0]))
+def test_every_registered_findings_code_is_reachable(code):
+    if code not in REACHING:
+        pytest.fail(f"no toolset path reaches the registered code {code}")
+    assert asyncio.run(_reached(REACHING[code]())) == code
+
+
+def test_page_limit_reaches_findings_limit_exceeded_in_a_read():
+    assert asyncio.run(_reached(_read({}, page_bytes=1))) == "findings_limit_exceeded"
+
+
+def test_shared_project_finding_collection_source_kinds():
+    fixture = json.loads(FIXTURE.read_text())
+    assert fixture["source_kinds"]
+    for case in fixture["source_kinds"]:
+        collection, contents = _fixture()
+        collection["sources"] = [{"kind": case["kind"], "id": "selected-source"}]
+        for entry in collection["entries"]:
+            entry["selected_sources"] = collection["sources"]
+        if case["valid"]:
+            decode_collection(_package(collection, contents))
+        else:
+            with pytest.raises(FindingsError):
+                decode_collection(_package(collection, contents))
+
+
+def test_project_finding_tools_use_exact_selection_and_transport_replay():
+
+    class ProjectTransport(Transport):
+        def __init__(self, payload):
+            super().__init__(payload)
+            self.selection_requests = []
+            self.bindings[("reader", "chosen")] = (
+                "chosen-revision",
+                COLLECTION_MEDIA_TYPE,
+                payload,
+            )
+            self.versions[("reader", "chosen", "chosen-revision")] = self.bindings[
+                ("reader", "chosen")
+            ]
+            self.payload = payload
+
+        async def request(self, method, path, **kwargs):
+            if path.endswith("/finding-selections"):
+                self.selection_requests.append(kwargs["body"])
+                if len(self.selection_requests) == 1:
+                    raise ArtifactTransportError("response was lost after commit")
+                return ArtifactHTTPResponse(
+                    200,
+                    {"content-type": "application/json"},
+                    _json(
+                        {
+                            "artifact": {
+                                "ref": {
+                                    "namespace": "reader",
+                                    "name": "chosen",
+                                    "revision": "chosen-revision",
+                                },
+                                "digest": _digest(self.payload),
+                                "mediaType": COLLECTION_MEDIA_TYPE,
+                                "sizeBytes": len(self.payload),
+                            },
+                            "snapshotAt": "2026-11-04T00:00:00Z",
+                            "entryCount": 2,
+                            "replayed": True,
+                        }
+                    ),
+                )
+            return await super().request(method, path, **kwargs)
+
+    async def scenario():
+        transport = ProjectTransport(_package(*_fixture()))
+        tools, _, _ = await _tools(
+            transport,
+            (
+                "read_finding_selection",
+                "select_project_findings",
+                "list_project_findings",
+                "read_project_finding",
+            ),
+        )
+        for name, tool in tools.items():
+            declaration = FunctionTool(tool)._get_declaration()
+            assert declaration.name == name
+        selected = await tools["select_project_findings"]("chosen", [])
+        assert selected["replayed"]
+        assert len(transport.selection_requests) == 2
+        assert transport.selection_requests[0] == transport.selection_requests[1]
+        reader = tools["read_finding_selection"]
+        first = await reader(
+            {k: v for k, v in selected["artifact"]["ref"].items() if k != "revision"}, limit=1
+        )
+        assert len(first["items"]) == 1 and first["next_cursor"]
+        second = await reader(
+            {k: v for k, v in selected["artifact"]["ref"].items() if k != "revision"},
+            limit=1,
+            cursor=first["next_cursor"],
+        )
+        assert len(second["items"]) == 1 and second["next_cursor"] is None
+        assert first["items"][0]["proposal"]["ref"]["revision"]
+        invalid = ("invalid-revision", COLLECTION_MEDIA_TYPE, b"invalid package")
+        transport.bindings[("reader", "invalid")] = invalid
+        transport.versions[("reader", "invalid", "invalid-revision")] = invalid
+        with pytest.raises(FindingsError):
+            await reader({"namespace": "reader", "name": "invalid", "revision": "invalid-revision"})
+        restored = await reader(
+            {k: v for k, v in selected["artifact"]["ref"].items() if k != "revision"}, limit=1
+        )
+        assert restored["items"] == first["items"]
+        await reader.close()
+        for name, tool in tools.items():
+            assert tool.name == name
+            await tool.close()
+        with pytest.raises(FindingsError, match="findings_reader_unavailable"):
+            await reader({k: v for k, v in selected["artifact"]["ref"].items() if k != "revision"})
+
+    asyncio.run(scenario())
+
+
+def test_shared_project_finding_selection_requests():
+    from contractor_runtime.toolsets.security_findings.project_reader import _selection_request
+
+    fixture = json.loads(FIXTURE.read_text())
+    assert fixture["allocation_selections"]
+    for case in fixture["allocation_selections"]:
+        value = case["request"]
+
+        if case["valid"]:
+            assert _selection_request(value) == value
+        else:
+            with pytest.raises((FindingsError, ValueError)):
+                _selection_request(value)
+
+
+def test_shared_exact_hypothesis_context_reaches_reader_and_rejects_wrong_revision():
+    from contractor_runtime.toolsets.security_findings.collection import document_id
+
+    fixture = json.loads(FIXTURE.read_text())
+    collection, contents = _fixture()
+    body = fixture["hypothesis_context_body"].encode()
+    document = {
+        "scope": {"kind": "project", "id": "project-context"},
+        "ref": {
+            "namespace": "finding-materials",
+            "name": "hypothesis-context",
+            "revision": "hypothesis-v7",
+        },
+        "digest": _digest(body),
+        "media_type": "application/json",
+        "size_bytes": len(body),
+    }
+    document["id"] = document_id(document)
+    collection["documents"].append(document)
+    collection["documents"].sort(key=lambda item: item["id"])
+    contents[document["id"]] = body
+    origin = collection["entries"][1]["audit_origin"]
+    origin["hypothesis"] = {"id": "selected-hypothesis", "revision": 7}
+    origin["hypothesis_snapshot_document_id"] = document["id"]
+
+    async def scenario():
+        tools, _, _ = await _tools(Transport(_package(collection, contents)))
+        page = await tools["list_findings"]()
+        context = page["items"][1]["audit_origin"]["hypothesis_snapshot"]
+        assert context["ref"]["revision"] and context["source"]["scope"]["kind"] == "project"
+        origin["hypothesis"]["revision"] = 8
+        transport = Transport(_package(collection, contents))
+        with pytest.raises(FindingsError):
+            await _tools(transport)
+        assert transport.puts == 0
+
+    asyncio.run(scenario())

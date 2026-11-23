@@ -1,0 +1,162 @@
+schema_version: '1.0'
+id: V397-005
+title: Show retained duplicates in a finding-owned disclosure across Audits
+milestone: finding-correlation-2026-10
+epic: ui
+kind: feature
+priority: P2
+status: completed
+depends_on:
+- V397-003
+- V397-004
+languages:
+- go
+- typescript
+- css
+- markdown
+goal: Let an owner inspect intersections across Audits from an existing finding using automatically marked exact duplicates, separate possible matches and all retained observations,
+  while preserving independent analyst results and truthful comparison limitations.
+context:
+  request: User requested automatic duplicate labels with retained findings for comparison across different Audits on 2026-10-22.
+  refinement: User clarified on 2026-10-22 that no separate comparison UI is wanted; use a collapsed Duplicates section in the existing finding card, with compact observation cards, direct Evidence links and search controls behind a disclosure.
+  proposal:
+  - docs/proposals/0028-finding-analysis-and-sarif.md#identity-automatic-marks-and-analyst-decisions
+  - docs/proposals/0028-finding-analysis-and-sarif.md#bounded-search-and-comparison-across-audits
+  - docs/proposals/0028-finding-analysis-and-sarif.md#ui-export-and-independent-audit-results
+  - docs/proposals/0028-finding-analysis-and-sarif.md#unchanged-worker-tool-contract
+  specification:
+  - docs/spec/audits/review-and-reports.md#REV-R53
+  - docs/spec/audits/review-and-reports.md#REV-R99
+  - docs/spec/audits/review-and-reports.md#REV-R102
+  - docs/spec/audits/review-and-reports.md#REV-R138
+  - docs/spec/ui/ui.md
+  - docs/spec/ui/journeys.md
+  - docs/spec/api/public-api.md#API-R11
+  design:
+  - docs/design/ui/README.md
+  - ui/src/ui/README.md
+scope:
+  in:
+  - Automatic duplicate and basis display on existing finding/list surfaces, with manual analyst triage/rating shown independently
+    and no required confirmation.
+  - Finding-owned collapsed Duplicates section across the Project, with separate weaker possible matches, baseline/profile/coverage context and independent results.
+  - All-member and candidate pagination, exact evidence/origin navigation, scope-relative matching basis, generated response validators and truthful
+    unavailable/partial/stale states.
+  - UI patch release bump, owning journey/spec wording and unit/mocked/real browser-stack acceptance with inspected 390 px/theme screenshots.
+  out:
+  - New manual approval flows, target-revision review mutation, model ranking, user-authored key/context input and automatic vulnerability confirmation
+    or severity propagation.
+  - Separate two-Audit comparison destination or Audit selection inventory, hiding source observations, cross-Project comparison, claims that unmatched means fixed/new and full SARIF/download redesign.
+requirements:
+- id: R1
+  text: Render the Server's automatic system mark without a confirmation dialog or client-generated equality. Keep it visually distinct from existing
+    manual duplicate/TP/FP triage, independent severity and verification. Every peer uses the same Automatic match label without a visible winning observation; Technical details contains hashes, algorithm/parser versions and complete
+    basis.
+- id: R2
+  text: Open the collapsed Duplicates section from an existing finding, without a separate comparison route or parent inventory download. Show exact related observations and weaker suggestions separately with on-demand baseline/coverage/profile/configuration context.
+- id: R3
+  text: Every retained finding/member and exact evidence/receipt origin remains reachable, including later member pages and multiple observations
+    per Audit. Distinguish repeated import of one receipt from independent discoveries; representative choice conveys no winner or truth and group/raw/confirmed/independent-discovery
+    metrics stay separate.
+- id: R4
+  text: Follow all candidate/member cursors, including empty progress pages, and explain unavailable keys, context ambiguity and truncated
+    reasons. Running totals remain partial until complete traversal; absence of an exact match never becomes a fixed/new/clean-scan claim.
+- id: R5
+  text: Switching findings/source receipts cancels old reads and clears bound cursors; finding_correlation_stale refreshes without mixing old/new
+    rows or auto-retrying an invalid cursor. Existing backoff and safe navigation apply; no GET-side mark/triage mutation or required duplicate
+    confirmation is introduced.
+- id: R6
+  text: Use shared QueryView/building blocks/theme tokens and generated validators, retain independent existing human triage and historical report
+    views, bump ui/package.json and update owning UI/review journeys to the new automatic projection.
+- id: R7
+  text: Keep complete model-visible finding/list_findings declarations and required/optional arguments and response shapes unchanged. Publisher
+    code builds all private matching metadata from existing inputs; the Worker authors no descriptors and duplicate collection entries remain
+    readable.
+failure_outcomes:
+- operation: Load finding marks, source-receipt choices and candidate/member pages
+  permanent: Missing/foreign selections use the existing safe unavailable state; invalid cursors fail explicitly and 409 finding_correlation_stale
+    resets the affected traversal before presenting a new snapshot.
+  retryable: Read failures back off and honor Retry-After while previous data is visibly stale; unavailable keys remain a normal explained outcome
+    rather than an infrastructure retry loop.
+  ambiguous: All new operations are read-only; repeat with the same valid pins or restart after a revision change, without issuing a new receipt,
+    approval or duplicate mutation.
+  cancelled: Navigation/unmount aborts reads and prevents late responses from replacing another finding/source's state.
+  timeout: Existing finite read budgets show a truthful failure/stale state and never fabricate a mark, complete metric or successful decision.
+cardinality:
+- collection: Source-receipt selection and current candidate/member pages
+  expected: One finding, one page of 20 candidates and one expanded member page.
+  maximum: Server max 100 rows and 256 KiB per page with bounded previews; parent Project can have many Audits and 1000000 findings.
+  bound: Page all source-receipt choices/candidates/members, load selected detail/evidence only and never fetch the complete Project to compute equality or totals
+    in the browser.
+lifecycle:
+- entity: Local related-observation state and existing retained findings
+  delete: Server Audit/Project deletion invalidates local selections safely; UI creates no candidate/group lifecycle entity.
+  cascade: Membership/representative changes trigger refetch through current revisions, while navigation clears old cursor/selection state and
+    joins reads.
+  retention: Every persisted observation and independent Audit decision follows Server retention; comparison grants no evidence hold and historical
+    reports remain frozen.
+acceptance_criteria:
+- id: A1
+  given: Equal-key findings across two Audits with different TP/FP/severity, an automatic representative, weak matches, unsupported anchors and
+    multiple members/pages.
+  when: The owner opens the Duplicates disclosure in finding detail without taking any confirmation action.
+  then: Server automatic labels appear directly, analyst results remain independent and every finding/evidence/member is reachable with accurate
+    machine basis and limitations.
+- id: A2
+  given: A real Server/Runtime/PostgreSQL stack with independent repeated observations and one receipt imported into both Audits.
+  when: Deterministic production admission, comparison and member navigation run with no matching LLM call.
+  then: Automatic duplicates, scope-relative representatives and exact overlap are correct, all original IDs/evidence survive and imported participation
+    is distinguished from independent discovery without a manual approval step.
+- id: A3
+  given: Paginated source receipts and related observations, empty progress pages, membership/triage/representative changes, read failures and navigation during requests.
+  when: Related observations are traversed or the finding/source selection is switched.
+  then: No source receipt/candidate/member is hidden by first-page assumptions, stale state is truthful, cursors restart safely and late responses cannot
+    mix findings or source selections or claim fixed/new issues.
+- id: A4
+  given: 390 px and desktop layouts in light/dark/black themes, long labels and keyboard navigation.
+  when: Automatic labels, group expansion, exact evidence links and comparison journeys run.
+  then: Shared controls are accessible, actions/content remain visible and inspected screenshots verify the layout and separate system versus
+    analyst states.
+- id: A5
+  given: All correlation tasks implemented, owning contracts updated and the UI version bumped.
+  when: Full UI/API/findings/browser/lint gates run with a disposable database.
+  then: No-LLM keys/anchors, automatic retained duplicates and cross-Audit comparison work together without skipped store proof, stale generated
+    clients or a hidden manual-confirmation requirement.
+tests:
+- command: make ui-verify ui-browser-mocked
+  covers:
+  - A1
+  - A3
+  - A4
+  - A5
+- command: make test-ui-stack test-findings-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A5
+- command: make verify-public-api
+  covers:
+  - A1
+  - A2
+  - A3
+  - A5
+- command: make lint
+  covers:
+  - A5
+
+verification:
+  date: '2026-10-22'
+  status: passed
+  checks:
+  - "make ui-verify ui-browser-mocked passed on Linux: 189 UI test files, 2251 passing tests plus one declared expected failure, and 65 passing browser cases with no skipped, unexpected or flaky attempts."
+  - "make test-ui-stack test-findings-e2e passed against a separate real PostgreSQL database, including all 87 production browser cases, native/external managed Evals and finding process boundaries."
+  - "The real browser journey retained three distinct Audit finding IDs from two producer receipts, distinguished a repeated import of one receipt, and followed exact Evidence links without a matching LLM call."
+  - "make verify-public-api and full make lint passed. The complete Worker-facing provider fixture remains unchanged."
+  - "Inspected 390 px and 1440 px screenshots in light, dark and black themes; long labels wrap, keyboard disclosures and all continuations remain reachable."
+release_gate_follow_up:
+  date: '2026-10-22'
+  status: failed_fixture_then_locally_verified
+  outcome: >-
+    make -k release-verify on the V397-005 implementation returned exit 2 because TestProductionMemoryTemplatesAcrossProcesses rejected the configured generated Worker model in its test Gateway. The other 18 release process tests passed; the UI, browser, Runtime, Go, PostgreSQL integration, race and build stages passed. V397-016 corrected the isolated fixture and passed its staging regression, both real Memory process modes and lint. The user explicitly declined a full-gate repeat; no complete green rerun is claimed.
+implementation_commit: e76d7162f688fdd9d9b7b257e497ab084be75171

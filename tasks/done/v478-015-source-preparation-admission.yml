@@ -1,0 +1,44 @@
+schema_version: '1.0'
+id: V478-015
+title: Bound prepared source bytes before publication and classify unavailable captures
+milestone: audit-evidence-results-2026-11
+epic: audits
+kind: defect
+introduced_by: V478-002
+priority: P1
+status: completed
+implementation_commit: 0dfe031c3aa8b68edd22011fbc6b6616adffd4e5
+depends_on: [V478-002]
+languages: [python]
+goal: A common source selection fails safely before publishing an oversized prepared prefix or treating an unavailable HTTP selector as a Python bug.
+context:
+  authority: 'User assignment 2026-11-22: implement V478 and its required gates in one continuous pass.'
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/common/sources.py:170 prepares each HTTP
+    capture with a separate 8 MiB allowance and accumulates all prepared code/HTTP
+    bytes before publication. Multiple individually valid captures can exceed the
+    common preparation budget. RecentHTTPCaptures ValueError also escapes the
+    source-argument classification. Retiring the final HTTP inventory in V478-003
+    exposed these sibling paths while moving its socket regressions to evidence.
+  boundary: Runtime owns provider extraction and argument errors; Server still owns actual referenced-source quotas and authority. This bounds temporary prepared bytes, not arbitrary referenced Artifact payloads or semantic coverage.
+scope:
+  in:
+  - Bound aggregate prepared HTTP/code bytes before publishing any prepared artifact.
+  - Classify missing, foreign, evicted and over-budget HTTP captures with a safe source field error.
+  - Keep Finding-specific inline HTTP intake and its existing owner limits unchanged.
+  out:
+  - New storage, changed Server quotas, target replay and automatic source retention.
+acceptance_criteria:
+- id: A1
+  text: Two real-sized captures that individually fit but together exceed 8 MiB cause zero artifact writes; code proofs consume the same preparation allowance.
+- id: A2
+  text: Missing, foreign and evicted local HTTP IDs are safe argument errors without source publication or secret echo.
+- id: A3
+  text: Existing source, capture and Finding suites pass without replay or relaxed source authority.
+tests:
+- command: cd runtime && uv run pytest tests/test_source_preparation_admission.py tests/test_memory_fact_sources.py tests/test_audit_evidence.py tests/test_http_capture.py tests/test_shared_finding_facades.py
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+
+verification_results: "All 78 selected source/capture/Finding regressions pass on the isolated V478-002 plus V478-015 revision (0.91s), including two individually valid real-sized HTTP captures, mixed HTTP/code allowance, unavailable selectors and preserved adapter schema exceptions. Full make lint passes on the isolated revision; Ruff, formatting and dependency fingerprint are current. No database, target replay or new storage is introduced."

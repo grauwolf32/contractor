@@ -1,0 +1,100 @@
+{
+  "task": "V55-006",
+  "action": "demo deployment",
+  "status": "verified",
+  "codeRevision": "7763c0f1bb05f70477330b832d89b6c53c9f02ff",
+  "release": "/home/ruslan/src/contractor/.local/demo/releases/main-7763c0f1-20260920T101412Z",
+  "completedAt": "2026-09-20T10:29:09.957712+00:00",
+  "uiVersion": "0.4.0",
+  "migration": {
+    "from": 55,
+    "to": 61
+  },
+  "services": {
+    "runtime-a": {
+      "ActiveState": "active",
+      "MainPID": "923653",
+      "NRestarts": "0",
+      "WorkingDirectory": "/home/ruslan/src/contractor/.local/demo/releases/main-7763c0f1-20260920T101412Z/source/runtime"
+    },
+    "runtime-b": {
+      "ActiveState": "active",
+      "MainPID": "923654",
+      "NRestarts": "0",
+      "WorkingDirectory": "/home/ruslan/src/contractor/.local/demo/releases/main-7763c0f1-20260920T101412Z/source/runtime"
+    },
+    "server": {
+      "ActiveState": "active",
+      "MainPID": "923568",
+      "NRestarts": "0",
+      "WorkingDirectory": "/home/ruslan/src/contractor/.local/demo/releases/main-7763c0f1-20260920T101412Z/source"
+    },
+    "ui": {
+      "ActiveState": "active",
+      "MainPID": "924163",
+      "NRestarts": "0",
+      "WorkingDirectory": "/home/ruslan/src/contractor/.local/demo/releases/main-7763c0f1-20260920T101412Z/source/ui"
+    }
+  },
+  "scannerVersions": {
+    "nuclei": "3.6.2",
+    "naabu": "2.6.1",
+    "ffuf": "2.3.0",
+    "sqlmap": "1.10.9.18#dev"
+  },
+  "scanSmoke": {
+    "passed": true,
+    "runId": "run_d3d62fa99559e8c0d122417c02018de8",
+    "reportArtifact": {
+      "namespace": "outputs",
+      "name": "report",
+      "revision": "rev_5f60272a2ad1ee3c26322a52a10a3272"
+    },
+    "modelCalls": 0,
+    "uiUrl": "http://192.168.1.217:4173/runs/run_d3d62fa99559e8c0d122417c02018de8"
+  },
+  "browserSmoke": {
+    "passed": true,
+    "checks": 9,
+    "authenticatedBrowserUI": false,
+    "limitation": "A browser login password was not supplied. Bearer API access does not establish a browser session."
+  },
+  "queuePaused": true,
+  "previousRunsPreserved": 147,
+  "previousAuditsPreserved": 6,
+  "backupRestorePreflight": "passed with schema-local validator search_path during restore, then reset; live validators unchanged",
+  "evidence": [
+    {
+      "path": ".local/demo/releases/main-7763c0f1-20260920T101412Z/release.json",
+      "sha256": "5a3eeaf012408017a8f8d98c930e88b19b334dd42c53bd00086f10dc696d014d"
+    },
+    {
+      "path": ".local/demo/releases/main-7763c0f1-20260920T101412Z/evidence/preflight.json",
+      "sha256": "51913271c465ffb084ee90b0e83d4711b0f0e5bd6374b40a21c0a95b5e8ff6f4"
+    },
+    {
+      "path": ".local/demo/releases/main-7763c0f1-20260920T101412Z/evidence/scanner-provisioning.json",
+      "sha256": "c7e52e2d5e4fa8d204f73da5fe993c7e7255339cd7c1c03e99f0e2a00308a3f9"
+    },
+    {
+      "path": ".local/demo/releases/main-7763c0f1-20260920T101412Z/evidence/restore-investigation.json",
+      "sha256": "e74e7d501dc5af3c80053143929035adcc7dbf5daf55c66b7338d0a5b7c53cb6"
+    },
+    {
+      "path": ".local/demo/releases/main-7763c0f1-20260920T101412Z/evidence/scan-smoke.json",
+      "sha256": "375cf9d129cb4da8f3a88813578a5050c3fcdcdb46bdca50c0b5729f1c00d066"
+    },
+    {
+      "path": ".local/demo/releases/main-7763c0f1-20260920T101412Z/evidence/browser-smoke.json",
+      "sha256": "706c9c1c651d3c25756bf24a5f9f20c62f7420c10c86156c5a8522658f047cdb"
+    },
+    {
+      "path": ".local/demo/releases/main-7763c0f1-20260920T101412Z/evidence/login-1440.png",
+      "sha256": "8b06383c24aad7f1dbd3e91604956c793767c67d05613d768eb4a39fd5108fc0"
+    },
+    {
+      "path": ".local/demo/releases/main-7763c0f1-20260920T101412Z/evidence/login-390.png",
+      "sha256": "26ab2acf753be00c5bec2e1db397e0fc8bfb7ba49966fe3c4c596e0b44a30548"
+    }
+  ]
+}

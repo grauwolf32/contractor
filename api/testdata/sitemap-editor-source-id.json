@@ -1,0 +1,22 @@
+[
+  {
+    "namespace": "research",
+    "deployment": "",
+    "sourceId": "b60e0b2651acb9378647853218ec414836bce5240a2db2906d019856a9fa33d9"
+  },
+  {
+    "namespace": "research",
+    "deployment": "deployment-1",
+    "sourceId": "1d2067f4a21fa157ec7fa4c2b148ba926050c7bc9c895e870a8f143af17e0f36"
+  },
+  {
+    "namespace": "checker",
+    "deployment": "deployment-1",
+    "sourceId": "34ec8f09321905481baa0497ec03fb16e3ed4542f4eacfc2517ceb7f2c12c8b7"
+  },
+  {
+    "namespace": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "deployment": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+    "sourceId": "a9ae0a34c8f2dc32c14f2eda7c25fa76372bcce74472c30aff42700b536c0d2e"
+  }
+]

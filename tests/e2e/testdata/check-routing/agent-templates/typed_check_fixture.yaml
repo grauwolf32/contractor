@@ -1,0 +1,15 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: typed_check_fixture, version: "1"}
+spec:
+  description: Records bounded fixture observations and consumes exact accepted follow-up context
+  runtime: adk@1
+  instructions: {ref: instructions/typed-check-fixture.md}
+  toolsets:
+    - ref: audit-results@2
+      tools: [read_audit_task, submit_result, submit_results, evidence]
+    - ref: security-findings@1
+      tools: [finding]
+    - ref: run-artifacts@1
+      tools: [read_artifact]
+  sandboxProfile: local-workdir@1

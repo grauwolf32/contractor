@@ -1,0 +1,135 @@
+schema_version: '1.0'
+id: V418-011
+title: Bind native ADK call ceilings to Contractor invocation budgets
+milestone: adk-213-upgrade-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V2-010
+priority: P1
+status: completed
+depends_on:
+- V418-002
+languages:
+- python
+- markdown
+goal: Honor every valid ModelPolicy model-call ceiling without an ambient SDK limit stopping or changing
+  Contractor-owned outcomes.
+context:
+  severity: medium
+  finding: worker/runtime.py:_adk_turn_events and worker/one_shot.py:OneShotSession.run omit public RunConfig.
+    ADK 2.13 and 2.8 both default max_llm_calls to 500, overridable by ADK_MAX_LLM_CALLS. The frozen real-Gateway
+    scale fixture requested 999 main calls plus one finalizer under maxModelCalls 1000; only 500 HTTP
+    main calls and 500 tools completed, before_model charged 501 and the Worker returned worker_execution_failed
+    instead of finishing within its policy.
+  provenance: V2-010/9426486745fbc3fda74208d11c286585f431f17f introduced max_model_calls <=1000 and cumulative
+    Worker budgets while both main and finalizer Runner calls still omitted RunConfig (adk_runtime.py:381-386,476-481).
+    Current behavior is measured on the production 2.13 lock; the 2.8 default is independently verified
+    in its installed source. No original MVP API execution or 2.8 maximum-workload run is claimed.
+  specification:
+  - docs/spec/execution/worker.md#WRK-R22
+  - docs/spec/execution/worker.md#WRK-R23
+  - docs/spec/execution/worker.md#WRK-R25
+  - docs/spec/execution/worker.md#WRK-R49
+  - docs/spec/configuration/agent-templates.md#TPL-R24
+  - docs/spec/configuration/agent-templates.md#TPL-R25
+  - docs/spec/configuration/agent-templates.md#TPL-R29
+  - docs/spec/configuration/agent-templates.md#TPL-R31
+  siblings: Main Runner and continuation turns, result-finalizer and terminal-summarizer one-shot sessions;
+    exact model/tool/token budget outcomes and ambient SDK environment overrides. Go Planner ADK migration
+    and frozen scale baselines are outside scope.
+scope:
+  in:
+  - Pass explicit public RunConfig at every production Python Runner boundary using finite Contractor-owned
+    limits.
+  - Preserve cumulative invocation budgets across native continuation turns and owned one-shot repair/call-limit
+    classifications.
+  - Add real Runner/HTTP adapter regressions at the supported 1000-call ceiling, refusal before call1001,
+    and ambient SDK override cases.
+  - Record exact measured counts and update the owning Worker contract.
+  out:
+  - SDK-version branches, unbounded max_llm_calls, changing policy maxima, new errors or retries, Scheduler
+    changes and compaction.
+  - Editing frozen adk_scale fixture SHA846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517
+    or rewriting its recorded baseline samples.
+acceptance_criteria:
+- id: A1
+  text: A valid maxModelCalls1000 invocation executes999 main HTTP calls and one result finalizer, returning
+    success with exact counters and usage.
+- id: A2
+  text: An attempted1001st main call is refused by Contractor before another HTTP dispatch or budget charge,
+    returning worker_budget_exhausted with the model_calls dimension and observed1000.
+- id: A3
+  text: Ambient ADK_MAX_LLM_CALLS cannot lower, enlarge or disable the pinned policy or one-shot dispatch
+    bound; all native Runner calls receive explicit finite limits.
+- id: A4
+  text: Result-finalizer and terminal-summarizer preserve existing one-call, malformed-output/call_limit_exceeded,
+    cancellation, deadline and usage outcomes without another provider call.
+- id: A5
+  text: Regression fails against the old production source, all owner-module suites pass, and the frozen
+    scale fixture remains byte-identical.
+tests:
+- command: cd runtime && uv run --locked pytest -W error tests/test_adk_runtime_call_limits.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: cd runtime && uv run --locked pytest -W error tests/test_adk_runtime.py tests/test_adk_runtime_history.py
+    tests/test_result_finalizer.py tests/test_worker_summarizer.py tests/test_adk_migration_contracts.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+failure_outcomes:
+- operation: Native model-call admission
+  permanent: Existing invalid input, history and sandbox failures retain their owner and classification.
+  retryable: Contractor budget exhaustion remains worker_budget_exhausted; SDK defaults cannot invent
+    a different early failure.
+  ambiguous: Existing Gateway transport and business receipts retain reconciliation; no model or tool
+    replay is added.
+  cancelled: Existing CancelTask, deadline and joined cleanup ownership remain unchanged.
+  timeout: Semantic deadline and independent cleanup budget retain their separate bounds.
+cardinality:
+- collection: Model operations per logical Worker invocation
+  expected: Configured finite maxModelCalls including result finalization.
+  maximum: 1000 admitted model calls; no provider dispatch or metric charge for1001.
+  bound: Existing cumulative Contractor budget remains authoritative across SDK turns; explicit SDK limits
+    do not grant extra semantic work.
+- collection: One-shot auxiliary model operations
+  expected: One provider dispatch.
+  maximum: One dispatch; any finite SDK guard headroom only permits the owned wrapper to reject a repair
+    attempt without dispatch.
+  bound: Existing one-shot model guard and independently accounted summarizer/finalizer policies.
+lifecycle:
+- entity: Native per-run configuration
+  delete: Runner invocation and one-shot session owner discard it after joined completion.
+  cascade: No new durable entity, receipt, allocation state or cleanup operation.
+  retention: Existing bounded metrics and Worker State retain outcomes under their current owners.
+verification:
+  focused: Exact required new module22passed; exact five owner modules228passed on the final combined
+    Linux source, all zero skips/failures. Component243 earlier included22newcases and predates the seven
+    V418-010 history regressions; those earlier results remain historical.
+  aggregate: Fresh default locked Linux Runtime5086total:5031passed,55unchanged allowed skips,0fail/error.
+    Explicit report verifier and Linux make lint pass; all6024source files remain unchanged. Host integrated
+    make lint also passes.
+  controls: Original frozen fixture999main+1finalizer succeeds without modification. Two isolated old-source
+    negative cases fail as expected; source-only default500 checks and component independent review are
+    preserved in linked evidence.
+implementation_commit: cc979dd4af2477015b23b9ad9319d09179645d45

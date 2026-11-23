@@ -1,0 +1,239 @@
+schema_version: "1.0"
+id: V414-018
+title: "Read the Audit detail projection in one snapshot instead of answering an undeclared 409"
+milestone: review-v407-v409-followups-2026-10
+epic: audits
+kind: defect
+introduced_by: V62-010
+priority: P2
+status: completed
+depends_on: []
+languages: [go, yaml]
+goal: >-
+  GET /v1/audits/{auditId} and every mutation response built from the same
+  detail read model return one consistent Audit projection while the Audit
+  Controller keeps changing the Audit, and never answer a status the public
+  contract does not declare for the operation.
+context:
+  review: >-
+    tasks/done/v407-004-audit-list-summary-projection.yml (V407-004 moved the
+    lists to one REPEATABLE READ snapshot, ASC-R150, and left the detail read
+    model with its post-hydration revision fence).
+  specification:
+    - docs/spec/audits/scans.md#ASC-R149
+    - docs/spec/audits/scans.md#ASC-R150
+    - docs/spec/audits/scans.md#ASC-R146
+    - docs/spec/api/public-api.md#API-R1
+    - docs/spec/api/public-api.md#API-R3
+  severity: medium
+  finding: >-
+    internal/httpapi/public/audit_preparation.go:13-38 (auditDetailReadModel)
+    hydrates an Audit that pins a prepare role in any phase after not-started
+    with Preparation (auditservice/preparation.go, its own revision check at
+    :55), GeneratedInventory (auditservice/generated_inventory.go:28-78, which
+    re-reads the Audit, the inventory link, the exact snapshot payload and
+    Round 1 and fences the revision at :33 and :74) and then reads the Audit a
+    third time; a different revision returns auditstore.ErrConflict, which
+    handleError writes as 409 conflict (retryable true,
+    internal/apierror/registry.go:101). getAudit
+    (audit_handlers.go:284-301) is the only caller that is a read, and
+    api/openapi/contractor-public-v1.yaml:3930-3949 declares 200, 400, 401,
+    404, 500 and 503 for getAudit but no 409. Collection, Round and
+    lifecycle writes bump audits.revision (pgstore collection_sql.go,
+    round_sql.go, lifecycle_sql.go, finding_intake_sql.go,
+    report_review_sql.go, run_deletion.go), so a running Audit with a
+    prepare role answers 409 whenever a write commits inside the window,
+    which spans an exact Artifact read. Reproduced on 19f7477f with a
+    temporary handler test: a fakeAuditManagement whose second Get returns
+    revision+1, for a preparing Audit of the prepared-openapi-scan@1 fixture
+    profile, served through serveAndValidatePublicContract, answered
+    {"code":"conflict","retryable":true} and kin-openapi rejected the
+    response for getAudit with "status is not supported". The same fence
+    runs after a committed mutation: createAudit (:179), startAudit (:338)
+    and mutateAudit for pause, resume, cancel and delete (:427) build their
+    response through auditDetailReadModel, so a mutation that committed can
+    answer 409 conflict, which those operations declare but which tells the
+    caller the mutation lost a race it actually won (an Idempotency-Key
+    retry replays it). TestPublicOperationsConformToOpenAPI validates one
+    success response per operation, so no gate exercises the 409 path.
+  siblings: >-
+    In scope: getAudit; the response of createAudit, startAudit, pauseAudit,
+    resumeAudit, cancelAudit and deleteAudit (same read model). Checked and
+    not affected: the other Audit GET operations that fence on revision
+    (getAuditArtifact, getAuditReport, listAuditCoverage, listAuditFindings,
+    listAuditReviews, listAuditFindingProvenance,
+    listFindingDuplicateCandidates) declare 409; getAuditFinding,
+    getAuditReview, getAuditWorkspace and listAuditItems do not fence on the
+    Audit revision; listOwnerAudits and listProjectAudits already read one
+    REPEATABLE READ snapshot (ASC-R150, V407-004). Clients: the UI
+    getAudit (ui/src/api/audits.ts:316) is polled every second by the Audit
+    detail page (ui/src/routes/projects/audits/detail.tsx:572-584), which
+    retries any non-404 error twice; studio live.tsx, coverage-data.ts,
+    check-summary.tsx, launch.ts and issue-detail.tsx also call it. The CLI
+    client (internal/publicclient/retry.go:136-160) retries a retryable
+    envelope on a replay-safe GET. listAuditFindingProposals reaches
+    findingintake, not the Audit revision fence; confirm it while adding the
+    status coverage below.
+  provenance: >-
+    git log -S 'latest.Revision != audit.Revision' finds 233b94a5 (feat(audits):
+    expose accepted preparation and scan provenance, "Fence hydrated
+    projections by revision"), the implementation_commit of V62-010, which
+    added the third read and the GeneratedInventory fence to
+    auditDetailReadModel without declaring 409 on getAudit. f9a711f1
+    (V407-004) only moved the lines.
+  decision: >-
+    Choose between (a) reading the Audit, its preparation roles and attempts
+    and the initial-inventory link in one read-only REPEATABLE READ
+    transaction, as ASC-R150 does for the lists, and reading and verifying
+    the content-addressed snapshot payload after commit by its exact ref and
+    digest, so a concurrent write is in neither part and the detail never
+    answers 409 for revision churn; and (b) keeping the fence and declaring
+    409 on getAudit (additive within /v1), documenting that a GET may need a
+    retry. Prefer (a): it also stops committed mutations from answering
+    conflict and matches the lists. Take (b) only if the snapshot cannot be
+    bounded (record why). Record the choice, the evidence and the reversal
+    condition in ASC-R149.
+scope:
+  in:
+    - "The chosen fix for getAudit and the six mutation responses that use auditDetailReadModel, with ASC-R149 (and ASC-R146 if the read order changes) updated to say what a concurrent write does to the detail read."
+    - "Under (b) only: 409 declared on getAudit, make verify-public-api, regenerated clients (make ui-generate, make generate-public-client), and a UI check that a 409 on the detail poll is retried, not shown as a broken Audit."
+    - "A handler contract test that changes the revision between reads and validates the answer against the OpenAPI document, for getAudit and at least one mutation response."
+    - "A PostgreSQL test that commits a revision bump (for example a collection) while the detail read is between its statements, through a test hook in export_test.go, and checks the answer is one consistent revision."
+  out:
+    - "The revision-pinned pagination of coverage, findings, reviews and provenance, which keep their declared 409."
+    - "Changing which writes bump audits.revision."
+    - "A general gate that every status a handler can write is declared; record it as a follow-up if the investigation shows other undeclared statuses."
+failure_outcomes:
+  - operation: "Detail read of one Audit (getAudit and the response read after a committed mutation)"
+    permanent: "Foreign or deleted Audit: the existing 404; a snapshot payload that fails exact verification: the existing integrity failure (500), never a partial projection."
+    retryable: "A definite transaction conflict follows the store's transaction retry and then answers the documented retryable 503 storage_transaction_conflict."
+    ambiguous: "Not applicable to the read. For a mutation response, the mutation has already committed; the response must not report conflict for it, and an Idempotency-Key retry keeps replaying the current Audit."
+    cancelled: "Request cancellation rolls back the read-only transaction and mutates nothing."
+    timeout: "The request's own context and the pool acquire timeout; no transaction stays open while the snapshot payload is read under (a)."
+acceptance_criteria:
+  - id: A1
+    given: "A preparing, inventory or rounds-phase Audit that pins a prepare role"
+    when: "a write that bumps its revision commits between the statements of GET /v1/audits/{auditId}"
+    then: "the answer is either 200 with one revision, ETag and projection from one commit (choice a) or a 409 that the OpenAPI document declares for getAudit (choice b); kin-openapi accepts the response in both cases."
+  - id: A2
+    given: "A pause, resume, cancel, delete, start or create that commits"
+    when: "the Controller commits another revision before the response is built"
+    then: "under (a) the response is 2xx with a consistent projection; under (b) the behaviour is documented in ASC-R149 and the UI shows the mutation as accepted after its refetch."
+  - id: A3
+    given: "The unfixed code at 19f7477f"
+    when: "the new handler contract test and the PostgreSQL test run"
+    then: "they fail (409 that kin-openapi rejects as an unsupported status for getAudit)."
+  - id: A4
+    given: "No concurrent write"
+    when: "getAudit and the mutations are served"
+    then: "the response bodies are byte-for-byte unchanged and the existing Audit, preparation and composition tests pass."
+tests:
+  - command: "go test -count=1 ./internal/httpapi/public ./internal/auditservice"
+    covers: [A1, A2, A3, A4]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 ./internal/httpapi/public ./internal/auditservice ./internal/auditstore/..."
+    covers: [A1, A2, A3, A4]
+  - command: make verify-public-api
+    covers: [A1]
+  - command: make ui-verify
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+implementation_commit: e39b6d72a47d4a80cef3e485fc2cd36b6366bfe2
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9; Node 24 with the frozen pnpm install for
+    make ui-verify and make lint; the locked Runtime venv; local PostgreSQL
+    17.11 (Homebrew) database contractor_test_v414_audit with per-test
+    schemas and all 40 migrations. Rerun after merging main e92c0272.
+  decision: >-
+    Choice (a), recorded in ASC-R149 with its rationale and reversal
+    condition. QueryStore.GetPreparedDetail reads the Audit, its pinned
+    prepare roles with their latest attempts through listPreparationPageSQL
+    (the statement the lists use, ASC-R150), and in the rounds phase while
+    not deleting the initial-inventory link and Round 1, in one read-only
+    REPEATABLE READ transaction; a start response also reads the current
+    Round and its items there (AUD-R226). The exact inventory snapshot is
+    read and verified after the commit. A draft, or an Audit whose profile
+    pins no prepare role, is its own detail without another read, as before.
+    A mutation response is the Audit as of its commit or a later one, which
+    is what an Idempotency-Key replay already answered; an Audit purged in
+    between answers 404 as a later read would. Rejected (b): declaring 409
+    on getAudit keeps every poller retrying and still reports a lost race
+    for a committed mutation. Reopen if the detail must read a part that is
+    unbounded or mutable outside the transaction. The service's Preparation
+    and GeneratedInventory reads and the per-Audit ListPreparationRoles
+    statement lost their only caller and were removed (AGENTS.md 3.7). No UI
+    change was needed: getAudit no longer answers 409, and the UI already
+    checks a start response's Round against currentRoundId and a mutation's
+    ETag against its revision.
+  scope_note: >-
+    The PostgreSQL tests commit the interleaved write from a pgx
+    QueryTracer on the traced pool (as the V407-004 list tests do) instead
+    of a test hook in export_test.go, so the production read needs no seam.
+    listAuditFindingProposals was confirmed: findingintake.ListAuditInbox
+    reads no Audit revision and raises no conflict, so the investigation
+    found no other undeclared status and no follow-up gate task is needed.
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://localhost/contractor_test_v414_audit
+      go test -count=1 ./internal/httpapi/public ./internal/auditservice
+      passed (public 148.1s, auditservice 98.3s).
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=… go test -tags=integration -count=1
+      ./internal/httpapi/public ./internal/auditservice
+      ./internal/auditstore/... ./internal/auditcontroller ./internal/artifacts
+      passed before the merge (public 138.4s, auditservice 261.1s, pgstore
+      145.2s, auditcontroller 104.7s, artifacts 78.2s). After merging main,
+      public, auditservice, auditcontroller and artifacts passed again;
+      pgstore's TestPostgresAuditDeletionProbesReadOnlyTheLiveRuns (from
+      main, V414-029) exceeded its read budget twice while the other
+      packages loaded the same server, a known issue on main, and the
+      pgstore package passed when run alone (294.8s).
+    - >-
+      New tests: TestSharedPublicAuditDetailSnapshotContracts (fake store;
+      getAudit, start, pause, resume, cancel and delete answer the snapshot
+      revision, ETag and preparation through kin-openapi validation, and a
+      serialization failure answers 503 storage_transaction_conflict for
+      GET and pause); TestSharedPostgresAuditDetailReadsOneCommitWhileTheAuditChanges
+      (a prepare attempt is submitted between the detail statements of GET,
+      and accepted between those of a pause response; each answer is one
+      commit's revision, ETag and preparation; the pause replay answers the
+      current Audit); TestPostgresAuditDetailReadsGeneratedInventoryFromOneCommit
+      (an owner pause commits before the initial-inventory link statement;
+      the detail keeps the earlier revision with its inventory, BEGIN
+      REPEATABLE READ READ ONLY to COMMIT is six statements and the exact
+      snapshot is read after COMMIT; a start response read after Round 1
+      began carries that Round and only its items); the pgstore page test
+      counts the detail statements (preparing Audit 2, draft 1), checks
+      not-found for another owner and that a serialization failure stays a
+      transaction conflict, not ErrConflict.
+    - >-
+      Composition matrix integration boundary: the new tests were added to
+      tests/e2e/audit_composition_matrix.yml; go test -json with the matrix
+      pattern over auditcontroller, artifacts and httpapi/public passed and
+      scripts/test-audit-composition-e2e.py --verify-only --boundary
+      integration accepted the report (zero skips). The process and browser
+      boundaries were not run (they need sqlmap, nuclei and Chromium).
+    - >-
+      make verify-public-api passed; TestSharedPublicAuditDetailSnapshotContracts
+      was added to its selection in make/dev.mk.
+    - make ui-verify passed (196 test files, 2387 tests and 1 expected fail; build).
+    - >-
+      make lint passed (staticcheck U1000, testonlyexports, SQL placement,
+      layers, release graph, task and spec checks, ERD).
+  can_fail: >-
+    A3: main 17245309 (a descendant of 19f7477f whose audit_preparation.go,
+    audit_handlers.go, auditservice/preparation.go and
+    generated_inventory.go are unchanged from 19f7477f) was exported and
+    the new public PostgreSQL test run there: getAudit answered 409
+    {"code":"conflict","retryable":true} and kin-openapi rejected it with
+    "status is not supported" for getAudit; without the GET interleave the
+    pause answered 409 conflict for a pause that had committed.
+  byte_for_byte: >-
+    A4: without a concurrent write the detail reads the same Audit row and
+    the same preparation projection the lists already returned through
+    listPreparationPageSQL (V407-004 proved list and detail preparation
+    equal); the generated inventory projection keeps the same validation
+    and fields. The existing preparation, composition and handler tests with
+    fixed expected bodies pass unchanged.

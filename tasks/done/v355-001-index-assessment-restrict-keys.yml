@@ -1,0 +1,37 @@
+schema_version: '1.0'
+id: V355-001
+title: Index the RESTRICT keys of Audit finding assessments
+milestone: review-followups-2026-10-04
+epic: audits
+kind: defect
+introduced_by: V25-011
+priority: P2
+status: completed
+implementation_commit: 6e509ad7a686a56a39d5d2858be32ef3a2f3086c
+depends_on: [V278-001]
+languages: [sql]
+goal: Keep Audit purge from scanning audit_finding_assessments for every RESTRICT check.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "Found while fixing V278-001: audit_finding_assessments has no index on collection_receipt_id or (execution_item_id, item_id), so the RESTRICT checks during purge scan the whole table."
+scope:
+  in:
+    - Add the indexes in a migration.
+    - Plan test.
+  out:
+    - Unrelated refactors.
+acceptance_criteria:
+  - {id: A1, text: "Purge RESTRICT checks use index scans."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditstore ./internal/persistence/postgres", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: Only the Audit lookup index exists for finding assessments; both RESTRICT lookup keys need indexes.
+
+verification:
+  date: "2026-10-09"
+  checks: Full Audit store and PostgreSQL persistence suites passed. Real PostgreSQL EXPLAIN uses both indexes with 5001 assessments; existing purge and migration preservation tests pass.

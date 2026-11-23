@@ -1,0 +1,346 @@
+schema_version: '1.0'
+id: V410-002
+title: Expose authorized live sitemap tools to Project allocations
+milestone: project-sitemap-2026-10
+epic: projects-artifacts
+kind: feature
+priority: P1
+status: completed
+depends_on:
+- V410-001
+languages:
+- go
+- python
+- json
+- yaml
+- markdown
+goal: Let explicitly selected Workers read and edit their owning Project sitemap and retain exact safe context without
+  granting general foreign-scope Artifact authority.
+context:
+  authority: User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
+    this task records planned work, not implementation or verification evidence.
+  proposal: docs/proposals/0042-live-project-sitemap.md
+  proposal_sections: 'Sections 2-4 and 8-11: allocation authority, provenance, exact paging, safe views, snapshots
+    and cleanup.'
+  specification:
+  - docs/spec/artifacts/project-sitemap.md#SMT-R13
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/artifacts/projects.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/execution/control-plane.md
+  - docs/spec/configuration/agent-templates.md
+  - docs/spec/tools/toolsets.md
+  boundary: The live sitemap is shared research context, not current Audit coverage, complete traffic archival or
+    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or V61/V62/V64
+    work.
+  code:
+  - internal/httpapi/privateartifacts
+  - internal/controlplane
+  - internal/contracts
+  - api/v1alpha1
+  - runtime/src/contractor_runtime/toolsets/common
+  - runtime/src/contractor_runtime/toolsets/run_artifacts
+  - runtime/src/contractor_runtime/factories.py
+scope:
+  in:
+  - Add matching Go/Python private wire and capability/tool selection contracts for reader, editor/importer and
+    observation-writer roles.
+  - Register narrow Runtime list/read/upsert/remove/restore/grouping/import-dispatch/snapshot operations backed
+    by the V410-001 service; Project binding comes only from trusted allocation context.
+  - Implement cursors over one fully materialized allocation-owned immutable safe view, bounded snapshot/index
+    caching, source-mode filtered list/read/snapshot paths and authorized evidence materialization. These cursors
+    create no ArtifactStore pins and remain distinct from durable proof/context selections.
+  - Attach trusted source/content-kind context, implement explicit ordinary Run context namespaces, and provide
+    the common allocation collector interface used by later adapters.
+  - Retain safe selected projections with original map revision, projection policy and authorized input refs, without
+    mutating a started Audit baseline.
+  out:
+  - Automatic target traffic collection or scanner/OpenAPI parsers.
+  - General Project Artifact authority, arbitrary foreign-Run reads or source-mode declassification by a model.
+  - A dependency on a pentest engagement implementation; ordinary Project Runs are the first production consumers.
+requirements:
+- id: R1
+  text: Reader selection grants no collection/edit authority; unknown capability/version fails validation, and a
+    Skill/input file is not a grant. Every operation checks allocation ownership/fence and the Project lifecycle.
+- id: R2
+  text: Use the V410-001 domain schemas and V410-010 common ArtifactStore size/admission/CAS/receipt/grant/retention
+    policy for all User/Project/Run bindings through ordinary Artifact APIs, without registration. Do not copy
+    accounting into Runtime/collectors or add a per-Run
+    sitemap publication quota; no independent URL/context grammar or second reduction policy in Python. Preserve
+    bounded coalescing/flush inputs, deadlines and generic backpressure. The existing RunScope artifact_limit_exceeded
+    does not apply to a ProjectScope write merely because a Run produced it.
+- id: R3
+  text: Blackbox views filter contribution content and grouping effects before returning previews or materializing
+    bytes. Source-assisted notes remain restricted unless trusted policy permits them; explicitly authorized OpenAPI
+    stays usable.
+- id: R4
+  text: Never materialize the mixed raw map into a blackbox Run and filter afterward. If an allowed projection cannot
+    be reconstructed safely, return unavailable/gap rather than leaking metadata.
+- id: R5
+  text: List cursors bind the materialized view identity, original exact revision and filters. Keep at most one
+    fully materialized authorized safe view per allocation, at most 32 MiB encoded and 128 MiB total encoded plus
+    parsed/index/metadata state. A bounded encoded-backed representation may satisfy this without object-per-row
+    growth. Replacement/absence or allocation release invalidates the cursor with sitemap_cursor_expired; do not
+    reload an evicted ref, mix in latest or acquire an implicit retention pin. Within the same existing view, later
+    publication/eviction does not change the page sequence. Every page checks current Server Project ownership,
+    allocation grant/fence and source-mode policy; a cached view supplies no offline authority. No separate TTL.
+- id: R6
+  text: Keep parsing/index work off the Runtime event loop using joined threads; release/replacement joins work
+    before freeing the single view and invalidating its cursors. Metadata, pagination and provenance mentions
+    create no holds. Durable selected evidence/context must be forked/materialized by the Server through existing
+    protected binding/exact-reference lifecycles, with atomic retention acquisition against V410-001 eviction.
+    A lost selection race returns explicit exact-source unavailability and requires caller refresh/reselection;
+    neither memory nor optional filesystem cache can recreate a hold, revive a removed ref or substitute latest.
+implementation_notes:
+- Pin source policy in AgentTemplate and derive Project from durable allocation Run; publish no importer capability until a real format adapter is installed.
+- Align the public sibling stale-intent outcome with the private permanent sitemap_conflict classification; verify it on PostgreSQL.
+- Pin authorization to selected original exact Run-creation input forks, never editable current bindings; materialize needed bytes through ordinary frozen forks.
+failure_outcomes:
+- operation: Allocation sitemap read/edit/import-dispatch
+  permanent: Stable invalid-request/access-denied outcomes for unknown tools/versions or missing grants; owner-safe
+    not-found for foreign refs; stale manual/source mutations retain permanent conflict. Replaced/missing view
+    returns sitemap_cursor_expired (409 at the private HTTP boundary); denied/fenced page access returns no bytes.
+    Preserve shared artifact_history_protected 409 without inventing a domain-specific history error.
+  retryable: Retry only classified transport/storage failures and shared artifact_history_maintenance_pending
+    503 with bounded Retry-After within the original deadline; permanent cursor/protection conflicts are never
+    automatically retried. The ArtifactStore policy owns classification and retry bounds, not a collector ledger.
+  ambiguous: Reuse the service receipt/accepted revision; never send an alternate mutation or target request after
+    a lost reply.
+  cancelled: Join read/index/materialization work before allocation release; fenced requests cannot publish.
+  timeout: Caller operation deadline bounds network, decoding and cache work; timeout does not substitute latest
+    for an exact ref.
+- operation: Source-mode view or exact context snapshot/materialization
+  permanent: Unavailable/denied/evicted exact source stays explicit (private artifact_not_found 404 for an absent
+    revision; preserve public not_found mapping where materialization is exposed publicly);
+    unsafe mixed-source projection fails without producing a consumer artifact. A proof-selection race cannot use
+    cached bytes to manufacture a retained source or silently substitute the current revision.
+  retryable: Use existing Artifact transport/transaction retry classification only.
+  ambiguous: Reconcile exact snapshot/fork identity through existing Artifact/keyed mutation handling. Replayed
+    receipts confirm the original commit even if its unprotected source was later evicted; never republish or pin
+    merely to reconstruct the old response.
+  cancelled: No materializer or cache worker outlives allocation cleanup.
+  timeout: Snapshot deadline is independent from any target call or lifecycle finalization deadline.
+cardinality:
+- collection: Model-visible pages and one cached immutable revision
+  expected: 20-100 entry previews within a Project of 100-1000 groups
+  maximum: One view per allocation, at most 32 MiB encoded and 128 MiB total encoded/parsed/index/metadata;
+    each returned page is at most 100 entries and 256 KiB
+  bound: Fully materialize the authorized safe view once, parse/index once and validate current Server authority
+    per page. Replacement atomically invalidates old view cursors; no per-cursor cache multiplication, server hold
+    or whole-map reparse/refetch after underlying history eviction.
+- collection: Context snapshots and evidence selections
+  expected: Only selected entries and exact needed refs
+  maximum: Map, provenance and document limits from the owning shared contract; tighter consumer/Audit limits apply
+  bound: Select bounded members/refs and materialize only authorized exact inputs, never scan all evidence blobs.
+lifecycle:
+- entity: Allocation grants, cached views and import dispatch
+  delete: Finalize/cancel/release joins work and erases cache/grants.
+  cascade: Allocation cleanup removes local transient state; committed Project map remains.
+  retention: One transient safe view lasts only until allocation release or replacement and creates no server
+    pin. Durable selected context follows ordinary atomic Run/Audit exact holds; unretained unavailable source
+    IDs remain provenance only, and a cache cannot create deletion authority or preserve read authorization.
+acceptance_criteria:
+- id: A1
+  given: Reader-only and editor/collector templates on two Projects
+  when: Production Runtime tools call the private service
+  then: Only explicitly selected operations succeed, Project comes from allocation context and foreign Project/ref
+    probes disclose nothing. Automatic per-binding history admission/errors come from the shared ArtifactStore API,
+    with no Runtime/domain publication counter or rate quota.
+- id: A2
+  given: A mixed source-assisted Project map with canaries in paths, notes, parameter names and grouping rules
+  when: A blackbox Worker lists, reads, imports and snapshots selected context
+  then: Only authorized safe content is exposed/materialized; the full mixed artifact never enters its Run and model
+    relabeling cannot change classification.
+- id: A3
+  given: A fully materialized safe view spanning pages while another Run publishes and evicts its unpinned source
+  when: The Worker follows its cursor, refreshes/replaces the view or loses its Server grant
+  then: Authorized continuation uses only the original bounded view with no pin/refetch/latest substitution;
+    replacement returns sitemap_cursor_expired for old cursors and revoked access returns no cached bytes.
+    Maximum-size tests prove one-view 32-MiB encoded/128-MiB total limits and bounded per-page work.
+- id: A4
+  given: Exact source evidence that is present, missing, independently held or racing history eviction
+  when: A Worker selects a durable context/proof projection and requests required bytes
+  then: The Server atomically acquires the existing legitimate protected ref or reports exact-source unavailability;
+    neither memory nor filesystem cache bypasses that result, metadata/provenance creates no arbitrary hold, and
+    permitted caller refresh/reselection never silently changes an exact proof input.
+- id: A5
+  given: Slow parsing/materialization and an in-flight edit
+  when: The allocation is cancelled or fenced and released
+  then: Off-thread work is joined, no late writer survives, committed receipts remain replayable and caches are
+    cleared.
+deliverables:
+- path: runtime/src/contractor_runtime/toolsets/sitemap
+  description: New selected Toolset with production model-visible callers and accurate docstrings.
+- path: api/v1alpha1
+  description: Matching private operation/grant/context schemas with shared Go/Python fixtures.
+- path: make/toolsets.mk
+  description: New test-project-sitemap-tools-e2e target running actual Server/Runtime/PostgreSQL grant, safe-view
+    and lifecycle cases; register in release graph.
+tests:
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-project-sitemap-postgres
+  covers:
+  - A1
+  - A2
+  - A4
+  - A5
+- command: uv run --project runtime pytest runtime/tests/test_sitemap_*.py runtime/tests/test_contracts.py runtime/tests/test_capabilities.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-project-sitemap-tools-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+test_prerequisites:
+- New test_sitemap_*.py suites and test-project-sitemap-tools-e2e are deliverables; the gate requires disposable
+  PostgreSQL and real component processes, fails missing/zero/skipped mandatory cases and uses scripted local fixtures
+  only.
+
+execution:
+  branch: codex/v410-sitemap
+  claimed_on: "2026-10-26"
+  note: >-
+    Taken into work by Codex at the user's explicit request. The seven-task
+    batch is reserved together; implementation proceeds in dependency order,
+    and dependent tasks do not start implementation before their prerequisites
+    complete. Status records assignment, not completed implementation or tests.
+
+implementation_commit: e9465c6cf571648c16d7a1a753b89188ffaae556
+verification:
+  date: '2026-10-26'
+  environment: >-
+    macOS arm64; Go 1.26.9; locked Python 3.13 Runtime; Node 24.20.0 and
+    pnpm 11.24.0; dedicated PostgreSQL 17 contractor_v410_test with isolated
+    per-test schemas and 48 migrations; canonical TMPDIR=/private/tmp.
+  commands:
+  - >-
+    make test-project-sitemap-postgres passed on the final source tree:
+    13 complete owner packages, 14 mandatory domain/private-API/grant cases,
+    zero mandatory skips. The realistic publication regression accepted 257
+    updates and 360501946 encoded bytes from one Run while retaining only two
+    revisions / 2980786 bytes through ordinary ArtifactStore history.
+  - >-
+    make test-project-sitemap-tools-e2e passed: actual Server, Runtime, mTLS,
+    catalog, Scheduler, model-free tool execution and PostgreSQL verified
+    blackbox/source-assisted separation, two-Project scope, a permanent stale
+    edit and grant revocation after release. The manifest rejects missing,
+    unstarted or skipped mandatory process scenarios.
+  - >-
+    uv run --project runtime pytest runtime/tests/test_sitemap_*.py
+    runtime/tests/test_contracts.py runtime/tests/test_capabilities.py passed:
+    320 tests, including 14 sitemap tests. Maximum encoded view was 32 MiB
+    with 10000 groups and 50000 members, below 128 MiB total retained graph;
+    cached page work and page bytes were bounded. Joined cancellation/close,
+    no-refetch cursors, current authority, input canaries and transport-only
+    keyed reconciliation were verified. All seven positively advertised
+    tools also built real ADK FunctionTool declarations in a direct check.
+  - >-
+    make test-wire-cross-language passed: 283 fixtures, 334 Go and 228 Python
+    shared tests. Private command wrappers, policy/digests, generated domain
+    schemas and matching Runtime readers agree.
+  - >-
+    make verify-public-api verify-public-api-postgres and make ui-verify
+    passed, including generated clients, operation coverage, race-enabled
+    owner handlers and permanent sitemap_conflict. The public Gap source ID
+    permits the owning reducer's empty aggregate source and resource IDs.
+  - >-
+    make lint passed on the final implementation, including staticcheck,
+    testonlyexports, spec/task/schema checks, release graph, Ruff and all
+    four Runtime import contracts. Full internal/config/... and
+    internal/contracts/... suites passed with real PostgreSQL enabled.
+  evidence:
+  - >-
+    Source authority resolves only the original Run-creation input_fork at
+    a selected name, with a two-row inconsistency bound, then reads exact
+    metadata. Updating inputs/* cannot declassify another source. Real-store
+    regression verifies both permitted immutable materialization and an
+    unheld working revision being evicted normally.
+  - >-
+    Exact context selection races history eviction atomically: either frozen
+    context plus legitimate lineage commits, or exact-source absence leaves
+    no consumer artifacts. Needed permitted input bytes use ordinary frozen
+    forks; foreign mentions cannot materialize bytes or create arbitrary holds.
+  - >-
+    Intermediate sandboxed config tests were blocked from loopback; the full
+    suites were rerun with test-database access and passed. An isolated repeated
+    domain run was interrupted and replaced with the final complete 13-package
+    gate above; no pass is claimed for that interrupted run.
+  limitations:
+  - >-
+    Automatic HTTP collection, structured format parsers and OpenAPI
+    reconciliation are outside this task and remain pending. Import dispatch
+    is an explicit seam; no import capability is advertised without its adapter.
+  - >-
+    Initial closure was on codex/v410-sitemap before main integration.
+    Subsequent coordinated migration numbers and verified integration are
+    recorded in main_integration below. No full V410 release is claimed.
+  - >-
+    At the user's request, stop after this task. V410-003 through V410-007
+    were not implemented and their reservations were returned to pending in
+    both this branch and main.
+
+main_integration:
+  requested_on: '2026-10-26'
+  base_main: 8309914fbfaf4c8bb59d86188fd7b3cf69e98c45
+  verified_commit: c55a0d0a708433c8cd143088ae2bd119fe947b5b
+  migrations:
+  - 000049_project_sitemap_receipts.sql
+  - 000050_context_projection_lineage.sql
+  evidence:
+  - >-
+    Existing main migrations 000001 through 000048 remain byte-identical.
+    The real PostgreSQL upgrade preserves all 48 existing ledger entries
+    and an existing receipt, applies 000049/000050, permits sitemap receipts
+    and applies nothing on the next startup. A new regression is
+    TestPostgresProjectSitemapMigrationsPreserveMainLedgerAndReceipts.
+  - >-
+    make test-project-sitemap-postgres passed on the combined tree:
+    13 complete packages, 14 mandatory cases, zero mandatory skips.
+  - >-
+    make test-project-sitemap-tools-e2e test-artifact-history-e2e passed
+    through actual Server/Runtime/PostgreSQL processes.
+  - >-
+    make verify-public-api verify-public-api-postgres passed. The API
+    coverage selection preserves the existing Worker session-mode check
+    and adds the sitemap owner operations.
+  - >-
+    GOFLAGS='-p=2' make test-wire-cross-language passed: 285 fixtures,
+    341 Go shared tests, 237 Python shared tests. An earlier unconstrained
+    run failed two unrelated PostgreSQL cases; both passed separately,
+    then the entire bounded gate passed without code or timeout changes.
+  - >-
+    make ui-verify passed: 196 test files, 2433 passed tests and one declared
+    expected failure, plus generated types, lint, static-server checks and build.
+  - >-
+    Runtime sitemap/contracts/capability and affected Audit/OpenAPI/finding
+    suites passed: 599 tests. make lint passed, including generation checks,
+    staticcheck, import ownership, tasks/specs and the release graph.
+  - >-
+    Generated clients, dependency graph, ERD and backlog were regenerated.
+    Main's DEL-R66 remains intact; the unlanded sitemap purge requirement
+    is assigned DEL-R67 to avoid an ID collision.
+  scope: >-
+    User-authorized main delivery covers V410-001 and V410-002 only.
+    V410-003 through V410-007 remain pending and unimplemented.

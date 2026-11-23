@@ -1,0 +1,176 @@
+{
+  "limits": {
+    "maxFindings": 256,
+    "maxContentBytes": 16777216,
+    "maxDiagnosticsBytes": 4194304
+  },
+  "cases": [
+    {
+      "name": "omitted",
+      "request": {
+        "clientKey": "selection",
+        "format": "sarif",
+        "profile": "generic",
+        "findings": [
+          {
+            "findingId": "finding-one",
+            "revision": 1
+          }
+        ]
+      },
+      "valid": true,
+      "includeDuplicates": false
+    },
+    {
+      "name": "false",
+      "request": {
+        "clientKey": "selection",
+        "format": "sarif",
+        "profile": "generic",
+        "findings": [
+          {
+            "findingId": "finding-one",
+            "revision": 1
+          }
+        ],
+        "includeDuplicates": false
+      },
+      "valid": true,
+      "includeDuplicates": false
+    },
+    {
+      "name": "true",
+      "request": {
+        "clientKey": "selection",
+        "format": "sarif",
+        "profile": "generic",
+        "findings": [
+          {
+            "findingId": "finding-one",
+            "revision": 1
+          }
+        ],
+        "includeDuplicates": true
+      },
+      "valid": true,
+      "includeDuplicates": true
+    },
+    {
+      "name": "null",
+      "request": {
+        "clientKey": "selection",
+        "format": "sarif",
+        "profile": "generic",
+        "findings": [
+          {
+            "findingId": "finding-one",
+            "revision": 1
+          }
+        ],
+        "includeDuplicates": null
+      },
+      "valid": false
+    },
+    {
+      "name": "string",
+      "request": {
+        "clientKey": "selection",
+        "format": "sarif",
+        "profile": "generic",
+        "findings": [
+          {
+            "findingId": "finding-one",
+            "revision": 1
+          }
+        ],
+        "includeDuplicates": "false"
+      },
+      "valid": false
+    },
+    {
+      "name": "number",
+      "request": {
+        "clientKey": "selection",
+        "format": "sarif",
+        "profile": "generic",
+        "findings": [
+          {
+            "findingId": "finding-one",
+            "revision": 1
+          }
+        ],
+        "includeDuplicates": 0
+      },
+      "valid": false
+    },
+    {
+      "name": "array",
+      "request": {
+        "clientKey": "selection",
+        "format": "sarif",
+        "profile": "generic",
+        "findings": [
+          {
+            "findingId": "finding-one",
+            "revision": 1
+          }
+        ],
+        "includeDuplicates": []
+      },
+      "valid": false
+    },
+    {
+      "name": "case-alias",
+      "request": {
+        "clientKey": "selection",
+        "format": "sarif",
+        "profile": "generic",
+        "findings": [
+          {
+            "findingId": "finding-one",
+            "revision": 1
+          }
+        ],
+        "IncludeDuplicates": true
+      },
+      "valid": false
+    },
+    {
+      "name": "null-selection",
+      "request": {
+        "clientKey": "selection",
+        "format": "sarif",
+        "profile": "generic",
+        "findings": null
+      },
+      "valid": false
+    },
+    {
+      "name": "empty-is-none",
+      "request": {
+        "clientKey": "selection",
+        "format": "sarif",
+        "profile": "generic",
+        "findings": []
+      },
+      "valid": true,
+      "includeDuplicates": false
+    },
+    {
+      "name": "cross-audit-sources-forbidden",
+      "request": {
+        "clientKey": "selection",
+        "format": "sarif",
+        "profile": "generic",
+        "findings": [
+          {
+            "findingId": "finding-one",
+            "revision": 1
+          }
+        ],
+        "sources": []
+      },
+      "valid": false
+    }
+  ]
+}

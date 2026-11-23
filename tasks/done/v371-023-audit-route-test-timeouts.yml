@@ -1,0 +1,58 @@
+schema_version: "1.0"
+id: V371-023
+title: "Keep the Audit route UI tests within their timeout under load"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: completed
+implementation_commit: "b8f40490a73a6b93c4bfe80593b490ae81938e44"
+depends_on: []
+languages: [typescript]
+goal: "check-page.test.tsx and audits.test.tsx pass reliably when the whole UI suite runs in parallel on a loaded host, without raising the timeout blindly."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (group G4), recorded 2026-10-12; verified on a07f5e9"
+  finding: >-
+    ui/src/routes/projects/audits/check-page.test.tsx (2,574 lines, 33 tests)
+    and audits.test.tsx (1,601 lines, 7 tests) render whole Audit routes and
+    wait with findBy queries under vitest's default 5,000 ms test timeout
+    (ui/vite.config.ts sets none); both hit it under load when they ran
+    together. A raised timeout is a tolerance bump of the kind V341-001
+    investigates, so the slow part has to be found first (AGENTS.md 3.5).
+    Predates the shallow history (boundary 6349621).
+  siblings: >-
+    Other whole-route tests with long waits in the same directory
+    (projection-refresh, event-history, collections and coverage-data), and
+    routes/runs and routes/workflows: measure them the same way and fix any
+    that takes more than half the budget.
+scope:
+  in:
+    - "Measure per-test durations alone and in the full parallel suite; remove the slow part (repeated expensive setup, real timers where fake ones fit, full-route renders a smaller render can replace), and only then give an inherently long test an explicit timeout with its measurement in a comment."
+  out:
+    - "The behaviour the tests check."
+acceptance_criteria:
+  - id: A1
+    given: "The full UI suite run ten times with parallel CPU load"
+    when: "vitest runs it"
+    then: "No Audit route test times out."
+  - id: A2
+    text: "No test or file timeout is raised without a recorded measurement."
+tests:
+  - command: "cd ui && corepack pnpm test --run src/routes/projects/audits"
+    covers: [A1]
+  - command: "make ui-verify"
+    covers: [A1, A2]
+verification:
+  date: "2026-10-23"
+  revision: "4925c9c78b9457bccca516060e789cb4bc939c25"
+  environment: >-
+    Integration branch integration/quick-wins-2026-10-23 on macOS arm64 with
+    Go 1.26.9, Node 24.20.0, pnpm 11.24.0, disposable PostgreSQL 17.11
+    (CONTRACTOR_TEST_DATABASE_URL set) and TMPDIR under /private/tmp.
+  merged_run:
+    - "make -k verify: lint after the dependency graph refresh, ui-verify (2,260 UI tests), test-config and build passed; make lint passed in full on the rerun."
+    - "make test-go: every package passed except internal/app TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder, which fails the same way on main because macOS PostgreSQL does not support tcp_user_timeout."
+    - "make test-runtime: the 102 failures it reports (Podman, Darwin process limits, sandbox) fail identically on main; test_scan_toolset::test_capabilities_check_each_binary_independently[scan_nuclei] is timing-dependent (V371-022 class) and passed on rerun."
+    - "make test-wire-cross-language (243 fixtures, 1,135 tests) and make verify-public-api passed."
+  task_commands:
+    - "Full UI unit suite run ten times while Go checks loaded the host: 10 of 10 passed, 2,260 tests each, no timeout, 22-29 s per run."

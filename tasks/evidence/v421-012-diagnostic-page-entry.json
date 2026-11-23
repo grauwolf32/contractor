@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0",
+  "task": "V421-012",
+  "implementation_commit": "26669965907e57cf9684919ac6285e5d846a9757",
+  "checks": [
+    {
+      "command": "make ui-verify ui-browser-mocked",
+      "exit_code": 0,
+      "log_sha256": "e5d1ef44fcf385df636d8041a62b677918efbd63c3847a477ddca8a7041bfd9a"
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "log_sha256": "0f1e2dc1bcc6f714cfd646d2b121ba2ef4d81531464afafb04f34b32880af11d"
+    },
+    {
+      "command": "cd ui && corepack pnpm exec vitest run src/routes/runs/diagnostics-page-entry.test.tsx src/routes/runs/diagnostics-refresh-scale.test.tsx src/routes/runs/runtime-diagnostics.test.tsx src/routes/runs/tool-diagnostics.test.tsx",
+      "exit_code": 0,
+      "log_sha256": "e7e2af5ec31091df640e8d0254552f1106d67ae6fe9e75f79730b80ae853b6c2"
+    }
+  ],
+  "ui": {
+    "unit_files_passed": 204,
+    "unit_tests_passed": 2501,
+    "expected_failures": 1,
+    "server_tests_passed": 17,
+    "browser_tests_passed": 107,
+    "browser_specs": 23,
+    "focused_tests_passed": 13
+  },
+  "regression_without_fix": {
+    "source_commit": "71f9654e873d21d02c311dec813ee1c033a10da8",
+    "command": "cd ui && corepack pnpm exec vitest run src/routes/runs/diagnostics-page-entry.test.tsx",
+    "exit_code": 1,
+    "failed_cases": 8,
+    "log_sha256": "35f17a556f4de5749a85870895dac9194b2052f878179362799a15d0794c431b"
+  },
+  "regressions": [
+    "Both Runtime and tool-call widgets abort an in-flight terminal-state read on navigation, then refresh old cached facts exactly once on actual RunBody reentry.",
+    "Success updates the displayed facts; permanent and bounded-retry failures preserve prior facts with explicit error/stale notices.",
+    "Cold initial reads remain single requests; same-page LiveAttempts remounts and unrelated runs.all invalidation do not reload diagnostics.",
+    "Closed and inactive participant fact caches are marked stale without reads; another Run, local participant selection and unfetched queries are excluded.",
+    "1000 attempts and 3000 closed widget/selection queries require at most three cache passes, with zero cold-entry invalidations and one warm-entry batch; no wall-clock assertion is used.",
+    "An actual SPA browser journey loads running facts, holds terminal GETs, navigates to Completed and returns to the cached failed Run; Runtime/tool request counts are exactly initial=1, state-change=2, reentry=3."
+  ],
+  "independent_review": {
+    "initial_finding": "Per-attempt entry invalidation caused quadratic QueryCache scans on complete retained histories.",
+    "disposition": "Entry and changed-Stage invalidation are now batched; a real QueryCache scale regression pins bounded passes.",
+    "final_result": "No additional actionable findings in the revised lifecycle, cancellation, cache-family or scale paths."
+  },
+  "intermediate_failures": [
+    "New regression cases first failed against the original hook, demonstrating the stale-page-entry defect.",
+    "The initial implementation was revised after independent review found per-attempt cache scans; no such implementation was marked complete.",
+    "Focused retry assertions initially observed the in-flight stale notice before retries finished; the tests now await the actual read error before asserting the bounded attempt count.",
+    "The first complete lint/UI attempt reported an unused fireEvent import in the new tests; it was removed and both full commands passed on the final implementation."
+  ]
+}

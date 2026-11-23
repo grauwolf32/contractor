@@ -1,0 +1,68 @@
+schema_version: "1.0"
+id: V373-008
+title: "Let the near-limit next-Round tests hold their Controller claim for their whole deadline"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+introduced_by: V361-001
+priority: P3
+status: completed
+implementation_commit: "0b452adb0fe9bc620e6ac81f70017074ad4186d9"
+depends_on: []
+languages: [go]
+goal: "The Audit next-Round budget tests end only by their own deadline, never by a Controller lease shorter than the work they do, so the race release stage passes on any runner."
+context:
+  review: "release-verify-race-discovered of the manual release-gate runs 38294681349 (twice) on grauwolf32/contractor#548, reported on that PR"
+  severity: medium
+  finding: >-
+    internal/auditservice/next_round_budget_postgres_test.go:194
+    TestPostgresNextRoundPreparesNineNearLimitProposals claims the Audit with
+    Lease: time.Minute, seeds nine documents near 8 MiB and prepares the next
+    Round through the 64 MiB read ceiling. Under -race that work takes 66 to
+    72 s, so AcceptNextRound (:218-219) rejects the stale claim ("auditstore
+    Controller claim is stale"). It failed twice in a row in CI and fails the
+    same way locally under -race on main 7c6a46b (68.6 s), on 0a3e09c7
+    (65.9 s) and before the hub audit waves at fc7e5268 (68.8 s). The test's
+    own context allows 180 s (:143). TestPostgresNextRoundSpreadsLargeProposalsAndReportsUnschedulable
+    (:31, :82) holds the same one-minute claim over three Round
+    preparations with 3 MiB and near-limit documents and the same 180 s
+    deadline.
+  siblings: >-
+    Every Audit PostgreSQL test that holds a Controller claim was timed
+    locally on PostgreSQL 17. Under -race (internal/auditservice,
+    internal/auditstore/internal/pgstore): after this change the two tests
+    above take 91.8 s and 52.8 s; the next longest,
+    TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes (44.5 s),
+    already extends its claim to 10 minutes after its copies
+    (internal/auditstore/internal/pgstore/purge_scale_postgres_test.go:129-134);
+    every other one takes at most 9.5 s against a lease of 20 s to 1 min.
+    The integration-tagged internal/auditcontroller tests, whose Controller
+    leases are 5 s with renewal, take at most 3.7 s. The lease is bounded to
+    1 s .. 5 min by persistencepostgres.ValidControllerLease
+    (internal/persistence/postgres/claims.go:23-24), so a lease equal to the
+    180 s test deadline is valid. Production work stays under half the
+    Controller lease: internal/auditcontroller/types.go:201-202 requires
+    ClaimLease >= 2 * OperationTimeout.
+scope:
+  in:
+    - "One budget constant in next_round_budget_postgres_test.go sets both tests' context deadline and their Controller lease."
+  out:
+    - "Production lease bounds, the Controller's lease and renewal, and what the tests assert about proposal inventories."
+acceptance_criteria:
+  - id: A1
+    text: "Both next-Round budget tests pass under -race locally, where the near-limit test failed before, and release-verify-race-discovered passes in a manual release-gate run."
+  - id: A2
+    text: "Each test still fails when the behaviour it checks is broken: the inventory split, the unschedulable closure reason and the single-item Round from nine near-limit proposals keep their assertions unchanged."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -race -count=1 -json ./internal/auditservice"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A2]
+verification:
+  date: 2026-10-14
+  base_commit: cb96001bb27433e58a17c4f23d568c760fedb20f
+  results:
+    - Rebased PR 549 onto the current main; the test file is byte-identical to the originally reviewed implementation.
+    - The complete auditservice package passed under the race detector against dedicated PostgreSQL 17; all 133 tests and subtests passed, with no skips, including both next-Round budget tests.
+    - make lint passed after replaying the implementation on the new main baseline.
+    - The original implementation passed the complete manual release gate, including release-verify-race-discovered, before the rebase (https://github.com/grauwolf32/contractor/actions/runs/38349676394).

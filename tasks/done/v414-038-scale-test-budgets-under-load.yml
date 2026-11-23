@@ -1,0 +1,207 @@
+schema_version: "1.0"
+id: V414-038
+title: "Keep the Audit claim and deletion-probe read budgets exact while other suites share the server"
+milestone: review-v407-v409-followups-2026-10
+epic: quality
+kind: defect
+introduced_by: V414-028
+priority: P1
+status: completed
+implementation_commit: 397a11b11ece27203b341bddea17ef03b1e9f805
+depends_on: []
+languages: [go]
+goal: >-
+  The read-budget tests of the Audit claim and the deletion probes measure
+  the same result whether or not other test packages hold snapshots on the
+  same PostgreSQL server, so a parallel make test-go cannot fail them.
+context:
+  specification:
+    - docs/testing/README.md
+  review: >-
+    Reported by every lane of the 2026-10-24 V410-V414 delivery (V414-008,
+    V414-018, V414-019, V414-030, V410-010, V411-001). The user asked on
+    2026-10-24 to file it and fix it next.
+  severity: low
+  finding: >-
+    TestPostgresAuditClaimReadsOnlyTheReconcilableAudits
+    (internal/auditstore/internal/pgstore/claim_scale_postgres_test.go,
+    V414-028) and TestPostgresAuditDeletionProbesReadOnlyTheLiveRuns
+    (internal/auditstore/internal/pgstore/deletion_probe_postgres_test.go:315,
+    V414-029) read one to four index entries over their budget when other
+    packages run in parallel against the same server, and pass when the
+    package runs alone. While another session holds an old snapshot, VACUUM
+    cannot remove superseded index entries (for example in
+    workflow_runs_pkey and the audit_executions ranges outside the one the
+    deletion test already counts), and the scans read them. It also fails
+    without other lanes: on main e2823c0b, on an otherwise idle machine,
+    go test -tags=integration -count=1 ./cmd/... ./internal/... failed both
+    tests, because go test runs packages in parallel against one server, so
+    make test-go is red until this is fixed. AGENTS.md 3.5:
+    a test must be able to fail only for the property it checks.
+  siblings: >-
+    Every test in the repository that asserts a row or block budget from
+    pg_stat or EXPLAIN (ANALYZE, BUFFERS) on a fixture that updates or
+    deletes rows: the V414-019 held inbox tests (which already budget two
+    versions per receipt), V414-025/026 page tests, the claim scale tests.
+    Each is checked under a concurrent snapshot or ruled out with the
+    reason.
+  decision: >-
+    Choose with evidence between (1) counting the superseded entries of
+    every index the statement probes and adding them to the budget, as the
+    deletion test already does for one range, and (2) building each scale
+    fixture in a scratch database created per test, whose VACUUM no other
+    database's snapshot holds back (needs CREATEDB, as scripts/erd uses).
+    Record the choice and its reversal condition.
+scope:
+  in:
+    - "Make both tests independent of other sessions' snapshots by the chosen approach, without loosening the budget by a fixed slack."
+    - "A test or harness step that holds a concurrent snapshot in another database or session while the scale test runs and shows the budget still holds."
+    - "Check every sibling listed above."
+  out:
+    - "Changing the statements under test."
+acceptance_criteria:
+  - id: A1
+    text: "Both tests pass while another session holds an open snapshot on the same server, in a deterministic harness, and still fail with the pre-fix statements."
+  - id: A2
+    text: "Each sibling is made robust the same way or ruled out with the reason."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 ./internal/auditstore/..."
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+verification:
+  date: '2026-10-25'
+  environment: >-
+    macOS arm64; Go from /private/tmp/contractor-go-darwin; local PostgreSQL 17.11 (Homebrew),
+    shared with four other lanes running their suites at the same time, lane database
+    contractor_test_v414_bud as the superuser role ruslan (CREATEDB); branch claude/v414-bud
+    with claude/v41x-coord (05d81bc0, main plus the landed tasks) merged; TMPDIR=/private/tmp,
+    because the filesystem blob store rejects the /var symlink of the macOS default.
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://localhost/contractor_test_v414_bud go test
+      -tags=integration -count=1 ./internal/auditstore/... ./internal/persistence/explaintest/
+      passed after the merge (pgstore 101s); the same without the tag passed, and so did go
+      test ./internal/persistence/ ./internal/archtest/... (SQL placement and layers).
+    - >-
+      Held-snapshot harness: a psql session in contractor_test_v414_bud ran BEGIN ISOLATION
+      LEVEL REPEATABLE READ; SELECT 1; SELECT pg_sleep(3600) before go test started and was
+      terminated after it. With it, the two tests failed on the pre-fix code every run (claim:
+      371 claims and 415 Audits against 369 and 411; deletion: 3 executions and 4 Runs against
+      3 and 3 live, 6 executions against 3 drained); after the fix they, the finding, item
+      scale, item page and explaintest.Database tests passed, before and after the merge, with
+      the claim and deletion measurements identical to an idle run (claim 369/411 and 425/411,
+      blocks 1581 -> 1950 and 1806 -> 2232; deletion 1 execution and 3 Runs live, 0 and 2
+      drained).
+    - >-
+      Can-fail check: with the pre-fix statements (originalClaimAuditSQL,
+      originalNextLiveRunForDeletionSQL, originalPurgeClaimedAuditSQL) as the measured
+      statements, both tests failed under the held snapshot (claim 64,714 claims against 369;
+      deletion 35,051 executions and 15,053 Runs). Reverted.
+    - >-
+      go test -tags=integration -count=1 ./internal/... (plain, packages in parallel on one
+      database, beside four other lanes), run twice: auditstore/internal/pgstore,
+      explaintest and findingintake passed both times, as did every other package except
+      these, none of which reads a budget. TestRealGitReadOnlyContainer failed both times
+      (needs a podman alpine image this Mac lacks). On the merge commit
+      TestPostgresMaximumCollectionResumesAfterInterruptedRetention failed once because its
+      own 10-second DROP DATABASE cleanup expired under load; it passes alone, nine of its
+      contractor_completion_* databases were left on the server before this task, and the
+      second commit gives explaintest.Database's drop two minutes for the same reason. On
+      397a11b1 TestPostgresDiagnosticsIsolationVisibilityAndOptionalPrivileges failed once
+      (got=24 all=24): it counts the shared database's client backends at two instants, so
+      any package opening a connection in between breaks it; it passed in the first run and
+      under the held snapshot.
+    - make lint passed.
+  database_tests_configured: true
+  evidence:
+    - >-
+      Cause, measured per index with pg_stat_get_xact_tuples_returned around each statement,
+      idle against a held snapshot: the claim pass read 4 more audits_reconcile_idx entries
+      (the collecting Audit's superseded versions) and 2 more audit_controller_claims_pkey
+      entries (its claim's lease and release); the live deletion probe read 2 more
+      audit_executions_audit_run_cleanup_idx entries (counted by the old budget) and 1 more
+      workflow_runs_pkey entry (the child Run's superseded version); the drained purge gate also
+      read 3 audit_executions_reconcile_idx and 3 audit_items_dispatch_idx entries, ranges the
+      old budget did not count, and its audits access moved from 2 heap rows to 10
+      audits_reconcile_idx entries, a different plan.
+    - >-
+      Approach 2 cost: CREATE DATABASE ... TEMPLATE template0 (WAL_LOG) takes about 30 ms and
+      requests no checkpoint; DROP DATABASE takes 10 ms to 1.1 s on this loaded server because
+      it requests an immediate checkpoint (pg_stat_checkpointer.num_requested + 1 per drop).
+      The migrations already ran per test in a schema. Eight tests use it.
+    - >-
+      Exactness after the fix: in their own vacuumed databases the finding scale budgets read
+      exactly their rows (4,001 findings, 4,000 and 201 reviews, 0 executions) and the item
+      review search 12 = 2 x 6 requests, the bound without the second version per request.
+      The reconcile window read 3,125 or 3,127 items between runs: a plan-only EXPLAIN in the
+      same transaction read the 2 extra entries, in custom and generic plans, so they are
+      planning probes that ANALYZE's sample turns on or off, not superseded versions.
+  decisions:
+    - >-
+      Chosen: approach 2, a database of its own per budget fixture (explaintest.Database).
+      PostgreSQL computes an ordinary table's removable horizon from its own database's
+      sessions (ComputeXidHorizons), so the fixture's VACUUM (INDEX_CLEANUP ON) removes every
+      superseded entry and the budgets count live entries, constant across runs. Rejected:
+      approach 1, counting each probed range's superseded entries. It needs a forced-path
+      replica query for at least five index ranges (audits_reconcile_idx, the claim key per
+      candidate, workflow_runs_pkey per probed Run, two audit_executions ranges), the ranges
+      follow the plan the statement happens to choose (the purge gate changed its audits
+      path under the held snapshot), and the one range the deletion test already counted
+      missed the others. Rejected too: a fixed slack, which the task excludes.
+    - >-
+      The helper holds a REPEATABLE READ snapshot in the shared test database from before the
+      fixture until the test ends, so every budget is measured under the condition that broke
+      it; were the fixture's database to share that horizon, the budgets would fail on every
+      run, and TestPostgresDatabaseKeepsBudgetsFromOtherSessionsSnapshots checks both sides
+      (80 live entries in the own database, 160 in a schema of the shared one). It also turns
+      autovacuum off for the migrated tables, because an autovacuum ANALYZE holds a snapshot
+      and resamples statistics between measurements.
+    - >-
+      The deletion test's superseded-entry count is removed, and the finding and item scale
+      fixtures move to their own vacuumed databases: their supersededEntries slack claimed the
+      horizon was cluster-wide, and the item search budgeted a second version per review
+      request. The constant is now planningEntries (8), the planner's endpoint probes measured
+      above, which explaintest's documentation already allows for.
+    - >-
+      Reversal condition: if the test role cannot have CREATEDB on a target server, or a
+      replication slot or hot_standby_feedback makes the server's horizons cluster-wide
+      (TestPostgresDatabaseKeepsBudgetsFromOtherSessionsSnapshots then reads 160 entries in
+      its own database), fall back to approach 1 for the affected tests. docs/testing/README.md
+      states the CREATEDB requirement and the rule for budget fixtures.
+  siblings:
+    - >-
+      Moved to their own database with the same helper: TestPostgresAuditReadsAtFindingScale,
+      TestPostgresControllerReadsAtItemScale and TestPostgresItemPagesBoundCandidatesPerRound
+      (newItemScaleFixture), and TestPostgresAuditDeletionProbeTraversesRunsInOriginalOrder
+      (shares the deletion fixture; no budget).
+    - >-
+      Ruled out, budget already counts every version its fixture writes:
+      TestPostgresAuditHeldInboxPageReadsOnlyThePage, TestPostgresNextRoundHeldInboxPassReadsGrowWithPages
+      and TestPostgresAuditInboxRowBudgetIgnoresUnrelatedReceipts (V414-019, V409-002) allow two
+      versions per held receipt; under the held snapshot they read at most 733 of 1,208, 20,180
+      of 40,412 and 114 of 710 receipt rows. Tightening them is not a superseded-version
+      question: in an own database the combined page of 200 still read 633 receipt rows against
+      the one-version bound of 608, so the factor also covers the native branch.
+    - >-
+      Ruled out, the measured table is insert-only or its only dead versions come from
+      rolled-back writes, which VACUUM and the next index scan remove whatever other snapshots
+      exist: evalstore comparison, summary and inventory page tests (V414-026), scanstore
+      TestPostgresSweepClaimReadsOnlyActiveSweeps, explaintest
+      TestPostgresExplainPreparedCountsTheRowsOfEachPlan, projectstore deletion claim order and
+      runstore index consolidation (their allowances cover rolled-back measurements),
+      item pages (insert-only, moved anyway), artifacts listing tests and scanservice
+      TestPostgresSweepProjectCaptureBoundsContainingPortfolio.
+    - >-
+      Ruled out, the metric counts visible rows only (EXPLAIN Actual Rows, Rows Removed,
+      Examined, idx_tup_fetch) or is relative: artifacts run revision purge, auditservice
+      finding comparison and correlation scale tests, pgstore held credentials plan,
+      projectlifecycle drain plan and the purge scale block ratio.
+    - >-
+      Not implemented yet: V414-025's allocation-history page tests (pending); a fixture there
+      that updates rows follows the docs/testing/README.md rule.
+    - >-
+      Every package with such a test passed under the held snapshot before the fix, apart from
+      the two tests this task fixes: artifacts, auditstore, evalstore, findingintake, persistence,
+      projectlifecycle, projectstore, runstore, scanstore, credentials, auditservice,
+      gatewayrecovery, performance and runservice.

@@ -1,0 +1,319 @@
+package scheduler
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"reflect"
+	"slices"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+)
+
+func (s *Scheduler) liveOrNewReservations(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+	execution runstore.StageExecution,
+) ([]controlplane.Reservation, bool, error) {
+	requirements, err := auditBindingRequirements(run, workflow, execution.StageContext)
+	if err != nil {
+		return nil, false, err
+	}
+	recorded, err := s.store.ListStageAllocations(ctx, execution.StageExecutionID)
+	if err != nil {
+		return nil, false, err
+	}
+	// A discard may remove the live batch before its SQL COMMIT rolls back
+	// or loses its response. No prepare can have run before admission: finish
+	// that same discard before placing again, including while the queue is paused.
+	if len(recorded) > 0 && execution.State == runstore.StagePreparing && execution.AdmittedAt == nil && run.State == runstore.RunPending {
+		allGone := true
+		for _, allocation := range recorded {
+			_, err := s.allocator.GetGrant(allocation.AllocationID)
+			if errors.Is(err, controlplane.ErrAllocationNotFound) {
+				continue
+			}
+			if err != nil {
+				return nil, false, err
+			}
+			allGone = false
+			break
+		}
+		if allGone {
+			if err := s.discardUnadmittedPlacement(ctx, run.RunID, execution.StageExecutionID); err != nil {
+				return nil, false, err
+			}
+			recorded = nil
+		}
+	}
+	if execution.State == runstore.StageRunning && len(recorded) == 0 {
+		return nil, false, errControlPlaneStateLost
+	}
+	if len(recorded) > 0 {
+		lost := false
+		var lossReason controlplane.AllocationLossReason
+		for _, allocation := range recorded {
+			grant, grantErr := s.allocator.GetGrant(allocation.AllocationID)
+			if grantErr != nil || grant.StageExecutionID != execution.StageExecutionID {
+				return nil, false, errControlPlaneStateLost
+			}
+			if grant.Lost {
+				lost = true
+				if grant.LossReason != "" {
+					lossReason = grant.LossReason
+				}
+			}
+		}
+		if lost {
+			reservations, reserveErr := s.reserveStage(
+				ctx, stagePlacementRequest(run, workflow, execution, requirements),
+			)
+			if reserveErr != nil {
+				return nil, false, &allocationLostError{reason: lossReason}
+			}
+			return reservations, false, &allocationLostError{reason: lossReason}
+		}
+	}
+	if len(recorded) == 0 && execution.AdmittedAt == nil && run.State == runstore.RunPending {
+		// AdmitStage rechecks the pause atomically, but only after placement
+		// is durable. Probe first so a paused owner pins no Runtime slot.
+		if err := s.requireOwnerQueueRunning(ctx, run.OwnerID); err != nil {
+			return nil, false, err
+		}
+	}
+	request := stagePlacementRequest(run, workflow, execution, requirements)
+	// Gateway admission runs before placement is durable: a denial must not
+	// leave pinned allocation rows without live grants behind.
+	request.Admit = func(ctx context.Context, candidates []controlplane.Reservation) error {
+		allowed, err := s.admitModelRoutes(ctx, run, workflow.stage, execution.StageExecutionID, candidates)
+		if err == nil && !allowed {
+			err = ErrDeferred
+		}
+		return err
+	}
+	reservations, err := s.reserveStage(ctx, request)
+	if err != nil {
+		return nil, false, err
+	}
+	if err := verifyReservations(run, workflow, execution, requirements, recorded, reservations); err != nil {
+		return nil, false, err
+	}
+	for _, reservation := range reservations {
+		if reservation.Grant.Lost {
+			return reservations, false, &allocationLostError{reason: reservation.Grant.LossReason}
+		}
+	}
+	return reservations, len(recorded) == 0, nil
+}
+
+// stagePlacementRequest is the placement request of execution. Every request
+// of a Stage carries its lane class (SCH-R175), so a model-free Stage never
+// holds Runtime Agents for itself through a replay path (CTL-R155).
+func stagePlacementRequest(
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+	execution runstore.StageExecution,
+	requirements []controlplane.BindingRequirement,
+) controlplane.ReservationRequest {
+	projectID := ""
+	if run.ProjectID != nil {
+		projectID = *run.ProjectID
+	}
+	return controlplane.ReservationRequest{
+		RequiredPlacementLabels: append([]string{}, run.RequiredPlacementLabels...),
+		RunID:                   run.RunID, StageExecutionID: execution.StageExecutionID,
+		RunMetadataLabels: run.MetadataLabels.Clone(),
+		ProjectID:         projectID,
+		Bindings:          requirements, RuntimeConfig: &run.RuntimeConfig,
+		ModelFree: resolved.StageLaneClass(workflow.stage) == resolved.LaneClassTool,
+	}
+}
+
+// allocationLossFailure maps a lost-allocation error to a Stage termination
+// code and message, preferring the specific loss reason over the generic
+// control-lease code.
+func allocationLossFailure(err error) (string, string) {
+	code := string(controlplane.LossControlLeaseExpired)
+	var lost *allocationLostError
+	if errors.As(err, &lost) && lost.reason != "" {
+		code = string(lost.reason)
+	}
+	message := "Runtime Agent allocation control lease was lost"
+	if code == string(controlplane.LossRuntimeMismatch) {
+		message = "Runtime Agent reported state inconsistent with its allocation"
+	}
+	return code, message
+}
+
+func (s *Scheduler) requireOwnerQueueRunning(ctx context.Context, ownerID string) error {
+	probeContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+	control, err := s.store.GetOwnerQueueControl(probeContext, ownerID)
+	cancel()
+	if err != nil {
+		return err
+	}
+	if control.Paused {
+		return runstore.ErrQueuePaused
+	}
+	return nil
+}
+
+func verifyReservations(
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+	execution runstore.StageExecution,
+	expectedBindings []controlplane.BindingRequirement,
+	recorded []runstore.StageAllocation,
+	reservations []controlplane.Reservation,
+) error {
+	expectedContracts := make(map[string]*contracts.WorkerCompletionContract, len(expectedBindings))
+	for _, binding := range expectedBindings {
+		expectedContracts[binding.LogicalAgentName] = binding.CompletionContract
+	}
+	var expectedWorkspace *contracts.AllocationWorkspaceSpec
+	if len(expectedBindings) > 0 {
+		expectedWorkspace = expectedBindings[0].Workspace
+	}
+	if len(reservations) != len(workflow.stage.Agents) {
+		return fmt.Errorf("Control Plane returned an incomplete allocation set")
+	}
+	recordedByName := make(map[string]runstore.StageAllocation, len(recorded))
+	for _, allocation := range recorded {
+		recordedByName[allocation.LogicalAgentName] = allocation
+	}
+	seen := make(map[string]struct{}, len(reservations))
+	for _, reservation := range reservations {
+		grant := reservation.Grant
+		binding, ok := workflow.stage.Agents[grant.LogicalAgentName]
+		if !ok || grant.RunID != run.RunID || grant.StageExecutionID != execution.StageExecutionID ||
+			grant.Namespace != binding.Namespace || reservation.AgentTemplate.Ref != binding.Template.Ref ||
+			reservation.WorkerSessionMode != workflow.stage.Session ||
+			!reflect.DeepEqual(reservation.ContextManagement, contracts.EffectiveContextManagement(binding.ContextManagement, binding.Template)) ||
+			reservation.AgentTemplate.Runtime != binding.Template.Runtime || reservation.LeaseExpiresAt.IsZero() ||
+			!reflect.DeepEqual(reservation.Workspace, expectedWorkspace) ||
+			!equalRunMetadataLabels(reservation.RunMetadataLabels, run.MetadataLabels) ||
+			!reflect.DeepEqual(reservation.CompletionContract, expectedContracts[grant.LogicalAgentName]) {
+			return fmt.Errorf("Control Plane returned an allocation for different resolved inputs")
+		}
+		runtimeConfig := reservation.ResolvedRuntimeConfig
+		selection := workflow.stage.ExecutionConfig.Agents[grant.LogicalAgentName]
+		if runtimeConfig == nil || runtimeConfig.Validate() != nil || runtimeConfig.ModelFree != binding.Template.IsToolWorker() || runtimeConfig.ModelPolicy.Ref != selection.ModelPolicy.Ref ||
+			!contracts.PlacementLabelsMatch(run.RequiredPlacementLabels, reservation.PlacementLabels) ||
+			reservation.RuntimeAgentLabelRevision == 0 || grant.RuntimeAgentID == "" ||
+			reservation.PerformanceCollectionPolicy.ValidatePinned() != nil ||
+			(reservation.PerformanceCollectionPolicy == reporting.PerformanceCollectionRequested) !=
+				(reservation.PerformanceMetrics != nil) ||
+			(reservation.PerformanceMetrics != nil && reservation.PerformanceMetrics.Validate() != nil) ||
+			!sameAllocationExecutionConfig(reservation.ExecutionConfig, controlplane.AllocationExecutionConfig{
+				ModelPolicy: runtimeConfig.ModelPolicy.Ref, LLMGateway: runtimeConfig.LLMGateway.Ref,
+				Credential: runtimeConfig.LLMCredential,
+			}) {
+			return fmt.Errorf("Control Plane returned invalid candidate Runtime provenance")
+		}
+		if _, duplicate := seen[grant.LogicalAgentName]; duplicate {
+			return fmt.Errorf("Control Plane returned duplicate logical Agent allocations")
+		}
+		seen[grant.LogicalAgentName] = struct{}{}
+		if persisted, exists := recordedByName[grant.LogicalAgentName]; exists &&
+			(!reflect.DeepEqual(persisted.CompletionContract, reservation.CompletionContract) || persisted.AllocationID != grant.AllocationID ||
+				persisted.RuntimeAgentInstanceID != grant.RuntimeInstanceID ||
+				persisted.Namespace != grant.Namespace || persisted.AgentTemplateRef != binding.Template.Ref ||
+				persisted.WorkerRuntimeRef != binding.Template.Runtime ||
+				persisted.RuntimeAgentID != grant.RuntimeAgentID ||
+				persisted.RuntimeAgentLabelRevision != reservation.RuntimeAgentLabelRevision ||
+				!slices.Equal(persisted.RuntimePlacementLabels, reservation.PlacementLabels) ||
+				persisted.PerformanceCollectionPolicy != reservation.PerformanceCollectionPolicy ||
+				persisted.RuntimeConfigurationSchemaVersion != runstore.AllocationRuntimeConfigurationSchemaVersion ||
+				!samePersistedRuntimeConfiguration(persisted.RuntimeConfiguration, reservation.ResolvedRuntimeConfig)) {
+			return fmt.Errorf("live Control Plane allocation differs from durable provenance")
+		}
+	}
+	if len(recorded) > 0 && len(recordedByName) != len(seen) {
+		return fmt.Errorf("durable allocation set is incomplete")
+	}
+	return nil
+}
+
+func equalRunMetadataLabels(left, right map[string]string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for key, value := range left {
+		other, present := right[key]
+		if !present || other != value {
+			return false
+		}
+	}
+	return true
+}
+
+func samePersistedRuntimeConfiguration(
+	persisted *runstore.AllocationRuntimeConfiguration,
+	runtimeConfig *runtimeconfig.ResolvedRuntimeConfig,
+) bool {
+	if persisted == nil || runtimeConfig == nil {
+		return false
+	}
+	want := runstore.AllocationRuntimeConfiguration{
+		ModelPolicy: runtimeConfig.ModelPolicy.Ref, Origins: runtimeConfig.Origins, Provenance: runtimeConfig.Provenance,
+	}
+	left, leftErr := json.Marshal(persisted)
+	right, rightErr := json.Marshal(want)
+	return leftErr == nil && rightErr == nil && string(left) == string(right)
+}
+
+func (s *Scheduler) existingLiveReservations(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+	execution runstore.StageExecution,
+) []controlplane.Reservation {
+	requirements, err := auditBindingRequirements(run, workflow, execution.StageContext)
+	if err != nil {
+		return nil
+	}
+	recorded, err := s.store.ListStageAllocations(ctx, execution.StageExecutionID)
+	if err != nil {
+		return nil
+	}
+	return s.liveReservationsFor(ctx, run, workflow, execution, requirements, recorded)
+}
+
+// liveReservationsFor returns the live reservations of execution when every
+// recorded allocation still has its grant and the Control Plane returns the
+// same verified set; otherwise it returns none.
+func (s *Scheduler) liveReservationsFor(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+	execution runstore.StageExecution,
+	requirements []controlplane.BindingRequirement,
+	recorded []runstore.StageAllocation,
+) []controlplane.Reservation {
+	if len(recorded) == 0 {
+		return nil
+	}
+	for _, allocation := range recorded {
+		if _, err := s.allocator.GetGrant(allocation.AllocationID); err != nil {
+			return nil
+		}
+	}
+	reservations, err := s.reserveStage(ctx, stagePlacementRequest(run, workflow, execution, requirements))
+	if err != nil || verifyReservations(run, workflow, execution, requirements, recorded, reservations) != nil {
+		return nil
+	}
+	return reservations
+}
+
+func (s *Scheduler) reserveStage(ctx context.Context, request controlplane.ReservationRequest) ([]controlplane.Reservation, error) {
+	ctx, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+	defer cancel()
+	return s.allocator.ReserveAllContext(ctx, request)
+}

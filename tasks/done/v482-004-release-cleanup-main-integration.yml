@@ -1,0 +1,50 @@
+schema_version: '1.0'
+id: V482-004
+title: Integrate the verified release cleanup into current main
+milestone: hub-audit-structure-2026-10
+epic: quality
+kind: chore
+priority: P2
+status: completed
+depends_on: [V482-001, V482-002, V482-003]
+languages: [go, python, typescript, markdown]
+goal: Main contains the verified sitemap gate, Runtime diagnostic backoff and single-read Audit evidence collection together with the latest UI and baseline reset.
+context:
+  authority: User request 2026-11-24 explicitly authorizes merging codex/release-cleanup into main. The earlier decision retains the Audit priority library.
+  source: codex/release-cleanup at 250413d5e7b9c0e9dc7da6e6e5f528335979e349
+  target: main at e103de942ce2333fde897e3b56fef973aa50c10b
+  boundary: Prepare a two-parent merge on an isolated integration branch, regenerate the combined backlog and advance the UI patch version to 0.11.45 because both branches published 0.11.44. Validate the combined revision before advancing the clean main worktree. Primary uncommitted files keep their own checkout.
+scope:
+  in:
+    - Integrate the three completed cleanup tasks with current main and reconcile generated tracking metadata.
+    - Verify touched Go packages against owned disposable PostgreSQL, both process boundaries, complete UI and lint.
+    - Land the verified two-parent merge in local main and remove the owned test database.
+  out:
+    - Remote publication, deployment, live model calls and Audit priority changes.
+acceptance_criteria:
+  - id: A1
+    text: Local main contains both pinned parents through a no-fast-forward merge, the combined task backlog is valid and UI version is 0.11.45.
+  - id: A2
+    text: Listed checks pass on the combined tree, with expected or optional skips recorded separately from passing coverage.
+  - id: A3
+    text: Main and the integration worktree are clean and owned database resources have been removed.
+tests:
+  - command: go test -tags=integration -count=1 ./internal/auditimport ./internal/auditservice ./internal/runservice
+    covers: [A2]
+  - command: make test-project-sitemap-tools-e2e
+    covers: [A2]
+  - command: go test -json -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^TestAuditIncrementalEvidenceAcrossProcesses$'
+    covers: [A2]
+  - command: VITEST_MAX_WORKERS=1 make ui-verify
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]
+verification:
+  - Complete auditimport, auditservice and runservice package suites passed against the fresh owned PostgreSQL database.
+  - make test-project-sitemap-tools-e2e passed eight required cases with zero skips.
+  - TestAuditIncrementalEvidenceAcrossProcesses passed and the shared verifier accepted its complete Go event report.
+  - VITEST_MAX_WORKERS=1 make ui-verify passed 229 files, 2586 tests plus one expected failure, 17 static-server tests and the production build.
+  - make lint passed; its script suite ran 231 tests with one opt-in Podman storage case skipped.
+  - The owned database was explicitly dropped, its absence verified and its temporary PostgreSQL cluster stopped and removed.
+  - Local main was advanced to the verified two-parent merge with a clean worktree.
+implementation_commit: d1a62d331cf85f542a12861a852678078921b2e3

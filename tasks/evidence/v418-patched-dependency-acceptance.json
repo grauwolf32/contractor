@@ -1,0 +1,361 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-25",
+  "task": "V418-012",
+  "status": "Targeted acceptance passed on the patched final Runtime lock. No full Runtime/release/global E2E run was performed after this update.",
+  "authority": "User explicitly requested no full rerun after this dependency patch; the same actual targeted command results also satisfy V418-007, without repeating them.",
+  "provenance": {
+    "base_revision": "275a708197626b2b07d122f3a9b5d3d25b37b9c0",
+    "bundle_sha256": "27546c8e0e3cf6f2134cacae576315f11cd376160aa2e726aa485417c79649e3",
+    "deleted_paths": [],
+    "lock_sha256": "feb5a55a9097fc6224384a99b7c506467196ab87435ba3a83ac0a230023bb027",
+    "source_archive_sha256": "3a9f7e592f0f10cf7c2b37c16a2fe083e7f7ebf370f596bb732602f4b8907b0a",
+    "source_file_count": 6035,
+    "source_manifest_sha256": "5d937920ae7d63b36fec41cb55bc609697e6cced57150562ce614d3154c2b9d3",
+    "tracked_patch_sha256": "6d549011479c8eba435c7021da69e77844156642e6ba7da5f327d2c590699709",
+    "verification_scope": "User-authorized targeted012 checks only. No full Runtime, release graph or globalE2E; older full results remain historical."
+  },
+  "verification_provenance_sha256": "fb1b0187556881dd4ecde25d14d495d31637a852c7798e167420e609c784241a",
+  "source_files_sha256": {
+    "docs/spec/audit-workflow-dependencies.html": "b15803c24536ed3f47edd522fc4d4e030cbad2b4276b0905cb2ee4607768e15c",
+    "docs/spec/execution/runtime-agent.md": "74cf710e714fb92f4ca7433b82e1eb7a063793fd09d54b1ccc73225a8b42c552",
+    "runtime/README.md": "7fcd89ae4c3ea3e6740aaa0b063744f1990d0c8fdaf09644dd0fd042c3e081dc",
+    "runtime/pyproject.toml": "7cf2a6b5cc903488c6aea270d778709a41e01922aa356d6970b88965f704a33d",
+    "runtime/tests/test_dependency_smoke.py": "3b7d82c529033b2d57143f18296777a610852053a734a76b17b81896df13359a",
+    "runtime/uv.lock": "feb5a55a9097fc6224384a99b7c506467196ab87435ba3a83ac0a230023bb027",
+    "scripts/pip-audit-requirements.txt": "b7419a84aaf3c68b8c88540ce51bb2da0eeafe448f8f3c9afd9df96e86751307"
+  },
+  "environment": {
+    "platform": "Linux arm64",
+    "python": "3.13.5",
+    "go": "1.26.9",
+    "installation": "Fresh ordinary default runtime/.venv using uv sync --locked; no hidden SDK wheel overlays."
+  },
+  "versions": {
+    "google-adk": "2.13.0",
+    "a2a-sdk": "1.1.2",
+    "google-genai": "2.33.0",
+    "certifi": "2026.10.23",
+    "opentelemetry-api": "1.45.1",
+    "opentelemetry-sdk": "1.45.1",
+    "opentelemetry-semantic-conventions": "0.66b1",
+    "opentelemetry-proto": "1.42.1"
+  },
+  "lock_changes": {
+    "certifi": [
+      "2026.7.22",
+      "2026.10.23"
+    ],
+    "opentelemetry-api": [
+      "1.42.1",
+      "1.45.1"
+    ],
+    "opentelemetry-sdk": [
+      "1.42.1",
+      "1.45.1"
+    ],
+    "opentelemetry-semantic-conventions": [
+      "0.63b1",
+      "0.66b1"
+    ]
+  },
+  "metadata_exception": {
+    "upstream": "google-adk2.13.0 declares API/SDK>=1.39,<=1.44",
+    "exact_uv_overrides": [
+      "opentelemetry-api==1.45.1",
+      "opentelemetry-sdk==1.45.1"
+    ],
+    "verification": "All installed active base dependency requirements are checked; exactly these two known ADK upper-bound conflicts are allowed. No other mismatch, advisory ignore, optional provider SDK or native exporter is allowed. A generic pip resolution does not describe this uv closure.",
+    "reopen": "Remove the narrow overrides when an accepted ADK release permits the patched matched API/SDK cohort."
+  },
+  "checks": [
+    {
+      "command": "cd runtime && uv sync --locked",
+      "result": "pass"
+    },
+    {
+      "command": "cd runtime && uv run --locked pytest -W error tests/test_dependency_smoke.py",
+      "result": "pass",
+      "passed": 5,
+      "skipped": 0
+    },
+    {
+      "command": "cd runtime && uv run --locked pytest -W error tests/test_dependency_smoke.py tests/test_adk_runtime.py tests/test_instrumentation.py tests/test_openai_gateway_llm.py tests/test_telemetry_content.py tests/test_shared_genai_telemetry.py tests/test_adk_gateway_conformance.py tests/test_sensitive_output_tools.py tests/test_result_finalizer.py tests/test_worker_summarizer.py",
+      "result": "pass",
+      "passed": 323,
+      "skipped": 0,
+      "failed": 0
+    },
+    {
+      "command": "make test-control-integration",
+      "result": "pass",
+      "passed_leaves": 11,
+      "passed_records": 13,
+      "skipped": 0,
+      "boundary": "Real native ADK/Runtime/A2A/mTLS processes with controlled Gateway responses; not the global Server E2E suite."
+    },
+    {
+      "command": "go test -count=1 ./internal/telemetry/...",
+      "result": "pass",
+      "passed_records": 121,
+      "optional_skipped": 1,
+      "skip_reason": "Explicit external Collector prerequisite absent; ordinary HTTP exporter/shared GenAI tests executed."
+    },
+    {
+      "command": "runtime/.venv/bin/python -m unittest discover -s scripts -p 'test_audit_runtime_dependencies.py'",
+      "result": "pass",
+      "passed": 6
+    },
+    {
+      "command": "make test-runtime-dependencies-audit",
+      "result": "pass",
+      "positive_control": "Known vulnerable urllib3 canary detected before accepting the production result",
+      "production_advisories": 0,
+      "ignored_advisories": []
+    },
+    {
+      "command": "cd runtime && uv run --locked ruff check tests/test_dependency_smoke.py && uv run --locked ruff format --check tests/test_dependency_smoke.py",
+      "result": "pass"
+    },
+    {
+      "command": "runtime/.venv/bin/python scripts/check_spec.py",
+      "result": "pass"
+    },
+    {
+      "command": "runtime/.venv/bin/python scripts/check_tasks.py",
+      "result": "pass"
+    }
+  ],
+  "negative_controls": {
+    "exit_code": 1,
+    "cases": [
+      {
+        "id": "test_fixed_certifi_bundle_excludes_compromised_emsign_root",
+        "message": "AssertionError: assert '86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b' not in {'018e13f0772532cf809bd1b17281867283fc48c6e13be9c69812854a490c1b05', '0552e6f83fdf65e8fa9670e666df28a4e21340b510cbe525...6cceb89b1413a5da37b7c862606a955deb07179f4326', '125609aa301da0a249b97a8239cb6a3421"
+      },
+      {
+        "id": "test_fixed_otel_refuses_oversized_tracestate_before_regex_or_raw_logging",
+        "message": "AssertionError: Oversized untrusted header reached the vulnerable parser"
+      }
+    ],
+    "note": "Isolated historical environment only; both failures reach the intended CA fingerprint/parser guard, with no expensive vulnerable regex or unrelated certificate-validation warning.",
+    "junit_sha256": "ea8ed1e8ca7295668e56fea311996d820ac19645d85c0f3851d187d4739a5583"
+  },
+  "regressions": [
+    {
+      "id": "CA-trust",
+      "assertion": "Compromised emSign ECC Root CA-G3 DER SHA25686a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b is absent from the installed certifi bundle.",
+      "old_result": "fails as intended on certifi2026.7.22"
+    },
+    {
+      "id": "bounded-tracestate",
+      "assertion": "Public TraceContextTextMapPropagator.extract refuses oversized malformed tracestate before calling TraceState.from_header or logging raw header; valid traceparent survives. Instrumented parser sentinel avoids exercising quadratic regex or relying on elapsed time.",
+      "old_result": "fails as intended on API1.42.1"
+    }
+  ],
+  "fixture_corrections": "Initial local fixture attempts validated every historical certificate or called the lower-level parser directly; these were corrected to the affected DER fingerprint and actual public propagator boundary. They are not reported as production compatibility failures.",
+  "advisories": [
+    {
+      "id": "PYSEC-2026-4320",
+      "fixed_floor": "2026.10.19",
+      "source": "https://osv.dev/vulnerability/PYSEC-2026-4320"
+    },
+    {
+      "id": "CVE-2026-114603",
+      "fixed": "1.45.1",
+      "source": "https://github.com/open-telemetry/opentelemetry-python/security/advisories/GHSA-xcq7-p3pf-p88h"
+    }
+  ],
+  "historical_broad_results": {
+    "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+    "runtime_passed": 5031,
+    "runtime_allowed_skipped": 55,
+    "process_parents": 26,
+    "note": "These earlier broad results retain their old source/lock. They are not full-suite results on the patched lock."
+  },
+  "not_claimed": [
+    "A complete final Runtime or release run",
+    "A global E2E rerun",
+    "Optional external Collector acceptance",
+    "ADK upstream metadata support for API/SDK1.45.1",
+    "Compaction or Consult delivery",
+    "Deployment or main merge"
+  ],
+  "reports": {
+    "summary_sha256": "4b6db463dfbbd1ca0def1cf1266b4d55c6001ba42635ec1979e8d016b2090d02",
+    "archive_sha256": "f1e2599b4d49cf07350b336fd40e898fc14e746f85762d51cae18ee94a96358a",
+    "commands": [
+      {
+        "command": [
+          "uv",
+          "sync",
+          "--locked"
+        ],
+        "exit_code": 0,
+        "label": "sync",
+        "log_sha256": "998b9b977b2587b2dd550835e0230f50c68ad1cf95c4ca71e467728abdd3294e",
+        "outer_timeout": false
+      },
+      {
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "pytest",
+          "-W",
+          "error",
+          "tests/test_dependency_smoke.py",
+          "--junitxml=/tmp/v418012-gate/smoke.xml"
+        ],
+        "exit_code": 0,
+        "junit": {
+          "errors": 0,
+          "failures": 0,
+          "sha256": "742d1c1f7714c7bdf595fb2f28099b7b930ba227d9810683155e8759aa0b0c34",
+          "skipped": 0,
+          "tests": 5
+        },
+        "label": "smoke",
+        "log_sha256": "0aba8185a4864a16e3ac6dc2fdea2538d0686afbf612d695f2b49bc86cf72fa2",
+        "outer_timeout": false
+      },
+      {
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "pytest",
+          "-W",
+          "error",
+          "tests/test_dependency_smoke.py",
+          "tests/test_adk_runtime.py",
+          "tests/test_instrumentation.py",
+          "tests/test_openai_gateway_llm.py",
+          "tests/test_telemetry_content.py",
+          "tests/test_shared_genai_telemetry.py",
+          "tests/test_adk_gateway_conformance.py",
+          "tests/test_sensitive_output_tools.py",
+          "tests/test_result_finalizer.py",
+          "tests/test_worker_summarizer.py",
+          "--junitxml=/tmp/v418012-gate/targeted-runtime.xml"
+        ],
+        "exit_code": 0,
+        "junit": {
+          "errors": 0,
+          "failures": 0,
+          "sha256": "19d4a3e631d65a33f8cf84871deb3660f625feab5aba16845ff7c10d0ce0e379",
+          "skipped": 0,
+          "tests": 323
+        },
+        "label": "targeted-runtime",
+        "log_sha256": "a4c0c0d4ea5b2b30a91afa2f700d7fd7dc54ce55118da534575a0917826332e3",
+        "outer_timeout": false
+      },
+      {
+        "command": [
+          "make",
+          "test-runtime-dependencies-audit"
+        ],
+        "exit_code": 0,
+        "label": "audit",
+        "log_sha256": "3ba64773f84355c0ed7e0ac6dedee6177ce77974d0f24e6826638c8c93aeba2c",
+        "outer_timeout": false
+      },
+      {
+        "command": [
+          "make",
+          "test-control-integration"
+        ],
+        "exit_code": 0,
+        "label": "native-mtls",
+        "log_sha256": "38402b20dee3859d9b4e7ebe7b3347bbfdf8df1fa2b57488565f53b86917241d",
+        "outer_timeout": false
+      },
+      {
+        "command": [
+          "go",
+          "test",
+          "-count=1",
+          "./internal/telemetry/..."
+        ],
+        "exit_code": 0,
+        "label": "go-telemetry",
+        "log_sha256": "af738e0375e6a7740923ab128633931cf14c9f5176b82b8f1d6e42ff5ded4699",
+        "outer_timeout": false
+      },
+      {
+        "command": [
+          "/target-v418012/runtime/.venv/bin/python",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "scripts",
+          "-p",
+          "test_audit_runtime_dependencies.py"
+        ],
+        "exit_code": 0,
+        "label": "scanner-unit",
+        "log_sha256": "b9ba6442c95876138526fec949f1e813b286c0ffcc021435d55eb5d2b50dd6ed",
+        "outer_timeout": false
+      },
+      {
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "ruff",
+          "check",
+          "tests/test_dependency_smoke.py"
+        ],
+        "exit_code": 0,
+        "label": "ruff",
+        "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+        "outer_timeout": false
+      },
+      {
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "ruff",
+          "format",
+          "--check",
+          "tests/test_dependency_smoke.py"
+        ],
+        "exit_code": 0,
+        "label": "ruff-format",
+        "log_sha256": "fd2299c9f1c6dc869070883e281051bfe93aacf66c1a3b0069f45b4aa410ca50",
+        "outer_timeout": false
+      },
+      {
+        "command": [
+          "/target-v418012/runtime/.venv/bin/python",
+          "scripts/check_spec.py"
+        ],
+        "exit_code": 0,
+        "label": "spec",
+        "log_sha256": "41ebd9c784e5883e970529a94152263d1de1eb51babd5d415e53b3a1d41be449",
+        "outer_timeout": false
+      },
+      {
+        "command": [
+          "/target-v418012/runtime/.venv/bin/python",
+          "scripts/check_tasks.py"
+        ],
+        "exit_code": 0,
+        "label": "tasks",
+        "log_sha256": "63c5561921f69754bf5a59adbfcf0e6d3d4268ae7b288bbde94c2a08afe6df3a",
+        "outer_timeout": false
+      }
+    ]
+  },
+  "runtime_count_note": "Initial smoke5 and combined10-module323 both passed; smoke5 are also included in323, not328unique tests.",
+  "go_telemetry_counts": {
+    "passed_records_including_subtests": 121,
+    "passed_top_level_tests": 49,
+    "skipped_test_cases": [
+      "TestPlannerOTLPCollectorProjection"
+    ]
+  }
+}

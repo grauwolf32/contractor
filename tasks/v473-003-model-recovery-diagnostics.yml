@@ -1,0 +1,119 @@
+schema_version: "1.0"
+id: V473-003
+title: Explain model recovery costs and verify zero and partial fact extraction
+milestone: model-response-recovery-2026-11
+epic: operations
+kind: feature
+priority: P1
+status: pending
+depends_on: [V473-002, V471-003, V472-001]
+languages: [go, python, yaml, markdown]
+goal: >-
+  An operator can tell whether document extraction completed with zero facts,
+  recovered from an unusable reply, or failed after saving some facts, and see
+  what each observed model attempt cost.
+demonstration: >-
+  Run the V471 extractor over exact note material with a scripted Gateway.
+  Compare valid zero, a successful extra call, and a second failure after
+  three admitted facts. Read the Project records, Stage outcome and usage,
+  then replay the Audit trace export with both complete and missing spans.
+context:
+  authority: >-
+    User request 2026-11-20 asks for response protection alongside optional
+    extraction, deduplication and explicit sources. Agent proposal: reuse the
+    V472 export and require a real integration run before closing this milestone.
+    User decision 2026-11-21 selects complete evidence-content equality for Project
+    facts under V471-004. Verify the same correlation in the recovery scenarios.
+  specification:
+    - docs/spec/platform/observability.md#OBS-R127
+    - docs/spec/execution/worker.md#WRK-R16
+    - docs/spec/execution/worker.md#WRK-R172
+    - docs/spec/findings/findings.md
+    - docs/spec/configuration/agent-templates.md#TPL-R36
+  proposal: docs/proposals/0055-project-facts-through-findings.md
+  evidence: >-
+    V472-001 already ships scripts/audit_trace_report.py and offline replay.
+    Retained spans can be incomplete. V471-003 owns the passthrough extractor
+    with ordinary current-Run Artifact reads, a maximum of eight facts and exact
+    citations. V471-004 owns informational Finding correlation by complete evidence contents.
+  decision: >-
+    Use existing Worker/Planner model diagnostics and the existing Audit report
+    as readers. Keep receipt truth in the Finding owner. The first two response
+    tasks can ship on the document review caller independently of V471.
+scope:
+  in:
+    - Connect the V471 document extractor to the same bounded Worker policy, preserving its existing tool authority, exact citations, quotas and model-free Planner.
+    - Extend retained model diagnostics and the existing Audit trace report with small reason, phase, attempt, disposition and known usage fields sufficient to explain both failures.
+    - Add the zero, success, partial, redelivery and new Stage attempt scenarios to the ordinary process gate and register coverage in release verification.
+  out:
+    - A new exporter, Phoenix dependency on the execution path, live-model quality targets and semantic deduplication.
+requirements:
+  - id: R1
+    text: >-
+      Identify initial and recovery calls and their actual disposition, including
+      exhaustion and cancellation. Expose known per-call usage/cost through
+      existing owners and preserve missing measurements. Count a captured model
+      call once even if its span appears on two pages. Additional diagnostic
+      fields carry bounded identifiers or closed numeric values, never response
+      bodies, prompts or private reasoning.
+  - id: R2
+    text: >-
+      Report observed attempts separately from authoritative Stage and Project
+      outcomes. An absent recovery span or absent price remains unknown. Export
+      replay reads the retained observations. Group totals must state their
+      coverage and must not interpret missing spans as zero calls or zero spend.
+  - id: R3
+    text: >-
+      Valid completion with zero facts succeeds without another model call. A
+      blank, thought-only or truncated reply cannot itself complete extraction.
+      Preserve accepted facts after terminal failure and their exact source
+      receipts. Redelivery of one call reconciles its receipt. A new Stage
+      attempt has its own calls and submissions. Within one Project, two facts with
+      equal complete sets of evidence content digests reuse one Finding even if
+      their titles differ. A different set stays separate. Retain each submission's
+      exact evidence references and source descriptions.
+failure_outcomes:
+  - operation: Extract facts and inspect retained outcomes
+    permanent: A rejected source or malformed response uses its owning error. Absent or expired traces give an explicit coverage gap in the report.
+    retryable: The extractor inherits one bounded recovery call. Offline reporting can be rerun under existing export limits.
+    ambiguous: The existing receipt reconciles an admitted write with lost acknowledgement. Duplicate spans are coalesced by the exporter.
+    cancelled: Worker joins active calls. Already committed facts remain queryable. Interrupted exports use the existing incomplete-output outcome.
+    timeout: Stage/provider deadlines and the independent export traversal deadline keep their current owners.
+cardinality:
+  - collection: Calls, admitted facts, exact materials and exported spans
+    expected: Zero or one recovery call, zero to five selected facts per invocation.
+    maximum: One shared recovery call and eight facts per extraction. Existing V472 ceilings apply to the whole export.
+    bound: Reuse paged Finding reads and the existing bounded report pass. No trace traversal at model-call admission.
+lifecycle:
+  - entity: Project facts, retained call diagnostics and offline Audit export
+    delete: Project, trace and local export owners retain their respective deletion rules.
+    cascade: Losing a trace or deleting a local export cannot mutate a Stage or Project record.
+    retention: Preserve ordinary exact material retention and label expired or unavailable telemetry.
+acceptance_criteria:
+  - id: A1
+    given: The real Server/PostgreSQL/Runtime extractor, a pinned note snapshot, a scripted Gateway and a valid zero-fact completion
+    when: The Stage settles and the operator opens its results
+    then: Zero facts are a success with zero semantic retries. A blank-only or length-only sequence exhausts explicitly and cannot report the same success. The passthrough Planner issues zero model calls.
+  - id: A2
+    given: Three admitted facts followed by an empty or length-limited reply, a redelivered submission, and a separate new Stage attempt on the same snapshot
+    when: Recovery succeeds, exhausts or is cancelled in separately scripted runs
+    then: Accepted facts and their exact materials survive. Same-call replay adds no receipt. A new submission has its own receipt. Equal complete evidence contents reuse one Finding even across titles. Changed evidence sets stay separate. Usage stays attributable to the producing attempt.
+  - id: A3
+    given: Recorded empty, output-limit, recovered and exhausted calls, duplicated or missing spans and samples with unavailable cost
+    when: The existing CLI exports or replays the observations
+    then: Counts and known measurements agree with the captured calls, gaps remain visible, and the derived report uses only bounded content-free recovery metadata. Execution and receipt results are the same with tracing disabled.
+tests:
+  - command: make test-project-facts-e2e
+    covers: [A1, A2, A3]
+  - command: make test-config
+    covers: [A1]
+  - command: python3 -m unittest discover -s scripts -p 'test_audit_trace_report.py' -v
+    covers: [A3]
+  - command: make test-runtime
+    covers: [A1, A2, A3]
+  - command: make test-e2e
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+test_prerequisites:
+  - The Project facts process target comes from V471. Verify that the scenarios execute and real PostgreSQL receipt and Finding counts and exact evidence references are asserted. Scripted prices prove accounting only.

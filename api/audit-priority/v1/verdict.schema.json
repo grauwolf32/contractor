@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/audit-priority/v1/verdict.schema.json",
+  "title": "Independent Audit checklist priority verdict",
+  "description": "One assigned checklist item. The strict decoder additionally enforces UTF-8 byte limits, raw and canonical response size, unique JSON keys, valid Unicode escapes, exact item assignment and frozen context evidence membership.",
+  "x-maxEncodedBytes": 8192,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "item_key",
+    "priority",
+    "confidence",
+    "rationale",
+    "evidence_ids",
+    "missing_context"
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    }
+  },
+  "properties": {
+    "item_key": {
+      "$ref": "#/$defs/identifier"
+    },
+    "priority": {
+      "enum": [
+        "critical",
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "confidence": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "x-maxUtf8Bytes": 2048,
+      "allOf": [
+        {
+          "pattern": "[^\t-\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]"
+        },
+        {
+          "not": {
+            "pattern": "\u0000"
+          }
+        }
+      ]
+    },
+    "evidence_ids": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/identifier"
+      }
+    },
+    "missing_context": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "x-maxUtf8Bytes": 256,
+        "allOf": [
+          {
+            "pattern": "[^\t-\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]"
+          },
+          {
+            "not": {
+              "pattern": "\u0000"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

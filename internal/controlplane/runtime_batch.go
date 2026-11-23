@@ -1,0 +1,411 @@
+package controlplane
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/helpers/randomid"
+)
+
+type RuntimeLifecycle interface {
+	Prepare(context.Context, Reservation, runtimesettings.WorkerExecutionSettings) (contracts.WorkerHandle, error)
+	Finalize(context.Context, Reservation, string, time.Time) (reporting.AllocationFinalReport, error)
+	Abort(context.Context, Reservation, string, contracts.TerminationError, time.Time) (reporting.AllocationFinalReport, error)
+	Release(context.Context, Reservation) error
+}
+
+type AllocationRegistry interface {
+	PrepareReservation(Reservation) (Reservation, error)
+	SetWriteFence(string) error
+	SetAllocationPhase(string, AllocationAuthoritativePhase, *SafeReason) error
+	RecordAllocationReport(string, reporting.AllocationFinalReport) error
+	Release(string) error
+	ReleaseLost(string) (bool, error)
+}
+
+// RuntimeBatchController coordinates allocation lifecycle calls and Registry
+// observations. Failed Runtime releases retain live grants; expired owners can
+// be retired after their bounded release attempt fails.
+//
+// The controller owns the Runtime batch budgets (OPS-R15): one prepare
+// deadline per PrepareAll batch and one cleanup deadline per release batch or
+// failed-prepare cleanup (SCH-R65). Callers pass only cancellation; a caller's
+// earlier deadline still wins, so a caller must not wrap these batches in an
+// unrelated store-operation budget.
+type RuntimeBatchController struct {
+	runtime        RuntimeLifecycle
+	registry       AllocationRegistry
+	now            func() time.Time
+	nowMu          sync.Mutex
+	newID          func(string) (string, error)
+	idMu           sync.Mutex
+	prepareTimeout time.Duration
+	cleanupTimeout time.Duration
+}
+
+// RuntimeBatchOptions carries the resolved ServerConfig budgets
+// runtimeLifecycle.prepareTimeout and runtimeLifecycle.cleanupTimeout. Both are
+// required: the process configuration owns their defaults.
+type RuntimeBatchOptions struct {
+	Now            func() time.Time
+	NewID          func(string) (string, error)
+	PrepareTimeout time.Duration
+	CleanupTimeout time.Duration
+}
+
+func NewRuntimeBatchController(
+	runtime RuntimeLifecycle,
+	registry AllocationRegistry,
+	options RuntimeBatchOptions,
+) (*RuntimeBatchController, error) {
+	if runtime == nil || registry == nil {
+		return nil, errors.New("Runtime lifecycle and allocation registry are required")
+	}
+	if options.Now == nil {
+		options.Now = time.Now
+	}
+	if options.NewID == nil {
+		options.NewID = randomid.New
+	}
+	if options.PrepareTimeout <= 0 || options.CleanupTimeout <= 0 {
+		return nil, errors.New("Runtime batch prepare and cleanup timeouts must be positive")
+	}
+	return &RuntimeBatchController{
+		runtime: runtime, registry: registry, now: options.Now,
+		newID: options.NewID, prepareTimeout: options.PrepareTimeout,
+		cleanupTimeout: options.CleanupTimeout,
+	}, nil
+}
+
+// PrepareAll prepares a Stage's allocations in order under one prepare
+// deadline. A failure, including that deadline, triggers failed-prepare
+// cleanup under its own cleanup deadline.
+func (c *RuntimeBatchController) PrepareAll(
+	ctx context.Context,
+	reservations []Reservation,
+	settings map[string]runtimesettings.WorkerExecutionSettings,
+) (map[string]contracts.WorkerHandle, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.prepareTimeout)
+	defer cancel()
+	if err := validateReservationBatch(reservations); err != nil {
+		return nil, err
+	}
+	// Validate the whole settings map before any Runtime call; a mismatch
+	// found mid-batch would leave earlier Agents prepared and active.
+	for _, reservation := range reservations {
+		if _, ok := settings[reservation.Grant.LogicalAgentName]; !ok {
+			return nil, fmt.Errorf("missing execution settings for logical Agent %q", reservation.Grant.LogicalAgentName)
+		}
+	}
+	if len(settings) != len(reservations) {
+		return nil, errors.New("Worker execution settings contain an unknown logical Agent")
+	}
+	handles := make(map[string]contracts.WorkerHandle, len(reservations))
+	for index, reservation := range reservations {
+		logicalName := reservation.Grant.LogicalAgentName
+		refreshed, err := c.registry.PrepareReservation(reservation)
+		if err != nil {
+			prepareErr := fmt.Errorf("refresh prepare lease for logical Agent %q: %w", logicalName, err)
+			cleanupErr := c.cleanupFailedPrepare(reservations)
+			return nil, errors.Join(prepareErr, cleanupErr)
+		}
+		reservation = refreshed
+		reservations[index] = refreshed
+		handle, err := c.runtime.Prepare(ctx, reservation, settings[logicalName])
+		if err != nil {
+			prepareErr := fmt.Errorf("prepare logical Agent %q: %w", reservation.Grant.LogicalAgentName, err)
+			cleanupErr := c.cleanupFailedPrepare(reservations)
+			return nil, errors.Join(prepareErr, cleanupErr)
+		}
+		if err := c.registry.SetAllocationPhase(
+			reservation.Grant.AllocationID, AllocationActive, nil,
+		); err != nil {
+			prepareErr := fmt.Errorf("observe prepared logical Agent %q: %w", logicalName, err)
+			cleanupErr := c.cleanupFailedPrepare(reservations)
+			return nil, errors.Join(prepareErr, cleanupErr)
+		}
+		handles[reservation.Grant.LogicalAgentName] = handle
+	}
+	return handles, nil
+}
+
+func (c *RuntimeBatchController) FinalizeAll(
+	ctx context.Context,
+	reservations []Reservation,
+	finalizationID string,
+	deadline time.Time,
+) (map[string]reporting.AllocationFinalReport, error) {
+	return c.terminateAll(ctx, reservations, deadline, AllocationFinalizing, nil,
+		func(ctx context.Context, reservation Reservation) (reporting.AllocationFinalReport, error) {
+			return c.runtime.Finalize(ctx, reservation, finalizationID, deadline)
+		})
+}
+
+func (c *RuntimeBatchController) AbortAll(
+	ctx context.Context,
+	reservations []Reservation,
+	abortID string,
+	reason contracts.TerminationError,
+	deadline time.Time,
+) (map[string]reporting.AllocationFinalReport, error) {
+	safeReason := safeTerminationReason(reason)
+	return c.terminateAll(ctx, reservations, deadline, AllocationAborting, &safeReason,
+		func(ctx context.Context, reservation Reservation) (reporting.AllocationFinalReport, error) {
+			return c.runtime.Abort(ctx, reservation, abortID, reason, deadline)
+		})
+}
+
+// terminateAll fences the entire batch before any outbound call and retains
+// successful sibling reports even when another call or observation fails.
+func (c *RuntimeBatchController) terminateAll(
+	ctx context.Context,
+	reservations []Reservation,
+	deadline time.Time,
+	phase AllocationAuthoritativePhase,
+	reason *SafeReason,
+	invoke func(context.Context, Reservation) (reporting.AllocationFinalReport, error),
+) (map[string]reporting.AllocationFinalReport, error) {
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
+	if err := validateReservationBatch(reservations); err != nil {
+		return nil, err
+	}
+	operation, reportKind := "finalize", "final"
+	if phase == AllocationAborting {
+		operation, reportKind = "abort", "abort"
+	}
+	var failures []error
+	for _, reservation := range reservations {
+		if err := c.registry.SetWriteFence(reservation.Grant.AllocationID); err != nil {
+			failures = append(failures, fmt.Errorf("fence allocation %q: %w", reservation.Grant.AllocationID, err))
+		}
+		if err := c.registry.SetAllocationPhase(reservation.Grant.AllocationID, phase, reason); err != nil {
+			failures = append(failures, fmt.Errorf("observe %s allocation %q: %w", phase, reservation.Grant.AllocationID, err))
+		}
+	}
+	results := fanOutRuntimeCalls(ctx, reservations, func(
+		callContext context.Context, _ int, reservation Reservation,
+	) (reporting.AllocationFinalReport, error) {
+		return invoke(callContext, reservation)
+	})
+	reports := make(map[string]reporting.AllocationFinalReport, len(reservations))
+	for index, reservation := range reservations {
+		result := results[index]
+		if result.err != nil {
+			failures = append(failures, fmt.Errorf("%s allocation %q: %w", operation, reservation.Grant.AllocationID, result.err))
+			continue
+		}
+		if err := c.registry.RecordAllocationReport(reservation.Grant.AllocationID, result.value); err != nil {
+			failures = append(failures, fmt.Errorf("observe %s report for allocation %q: %w", reportKind, reservation.Grant.AllocationID, err))
+		}
+		reports[reservation.Grant.LogicalAgentName] = result.value
+	}
+	return reports, errors.Join(failures...)
+}
+
+// ReleaseAll releases one batch under one cleanup deadline (SCH-R65).
+func (c *RuntimeBatchController) ReleaseAll(ctx context.Context, reservations []Reservation) error {
+	ctx, cancel := context.WithTimeout(ctx, c.cleanupTimeout)
+	defer cancel()
+	if err := validateReservationBatch(reservations); err != nil {
+		return err
+	}
+	var failures []error
+	for _, reservation := range reservations {
+		if err := c.registry.SetAllocationPhase(
+			reservation.Grant.AllocationID, AllocationReleasing, nil,
+		); err != nil {
+			failures = append(failures, fmt.Errorf("observe releasing allocation %q: %w", reservation.Grant.AllocationID, err))
+		}
+	}
+	results := fanOutRuntimeCalls(ctx, reservations, func(
+		callContext context.Context, _ int, reservation Reservation,
+	) (struct{}, error) {
+		return struct{}{}, c.runtime.Release(callContext, reservation)
+	})
+	for index, reservation := range reservations {
+		if results[index].err != nil {
+			if err := c.releaseAfterRuntimeFailure(reservation.Grant.AllocationID, fmt.Errorf(
+				"release Runtime Agent allocation %q: %w",
+				reservation.Grant.AllocationID,
+				results[index].err,
+			)); err != nil {
+				failures = append(failures, err)
+			}
+			continue
+		}
+		if err := c.registry.Release(reservation.Grant.AllocationID); err != nil {
+			failures = append(failures, fmt.Errorf("release registry allocation %q: %w", reservation.Grant.AllocationID, err))
+		}
+	}
+	return errors.Join(failures...)
+}
+
+func (c *RuntimeBatchController) cleanupFailedPrepare(reservations []Reservation) error {
+	deadline := c.currentTime().Add(c.cleanupTimeout)
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+	reason := contracts.TerminationError{
+		Code: "allocation_batch_preparation_failed", Message: "Stage allocation batch preparation failed", Retryable: true,
+	}
+	var failures []error
+	safeReason := safeTerminationReason(reason)
+	for _, reservation := range reservations {
+		allocationID := reservation.Grant.AllocationID
+		if err := c.registry.SetWriteFence(allocationID); err != nil {
+			failures = append(failures, fmt.Errorf("fence failed prepare allocation %q: %w", allocationID, err))
+		}
+		if err := c.registry.SetAllocationPhase(allocationID, AllocationAborting, &safeReason); err != nil {
+			failures = append(failures, fmt.Errorf("observe failed prepare allocation %q: %w", allocationID, err))
+		}
+	}
+	abortIDs := make([]string, len(reservations))
+	abortIDErrors := make([]error, len(reservations))
+	for index := range reservations {
+		abortIDs[index], abortIDErrors[index] = c.nextID("abort_")
+	}
+	type cleanupResult struct {
+		report              reporting.AllocationFinalReport
+		reportAvailable     bool
+		abortErr            error
+		releasingPhaseError error
+		releaseErr          error
+	}
+	results := fanOutRuntimeCalls(ctx, reservations, func(
+		callContext context.Context, index int, reservation Reservation,
+	) (cleanupResult, error) {
+		result := cleanupResult{}
+		if abortIDErrors[index] != nil {
+			result.abortErr = fmt.Errorf("create cleanup abort ID: %w", abortIDErrors[index])
+		} else {
+			result.report, result.abortErr = c.runtime.Abort(
+				callContext, reservation, abortIDs[index], reason, deadline,
+			)
+			result.reportAvailable = result.abortErr == nil
+		}
+		result.releasingPhaseError = c.registry.SetAllocationPhase(
+			reservation.Grant.AllocationID, AllocationReleasing, nil,
+		)
+		result.releaseErr = c.runtime.Release(callContext, reservation)
+		return result, nil
+	})
+	for index, reservation := range reservations {
+		allocationID := reservation.Grant.AllocationID
+		if results[index].err != nil {
+			failures = append(failures, fmt.Errorf("cleanup failed prepare allocation %q: %w", allocationID, results[index].err))
+			continue
+		}
+		result := results[index].value
+		if result.abortErr != nil {
+			failures = append(failures, fmt.Errorf("abort failed prepare allocation %q: %w", allocationID, result.abortErr))
+		}
+		if result.reportAvailable {
+			if err := c.registry.RecordAllocationReport(allocationID, result.report); err != nil {
+				failures = append(failures, fmt.Errorf("observe failed prepare report %q: %w", allocationID, err))
+			}
+		}
+		if result.releasingPhaseError != nil {
+			failures = append(failures, fmt.Errorf("observe failed prepare release %q: %w", allocationID, result.releasingPhaseError))
+		}
+		if result.releaseErr != nil {
+			if err := c.releaseAfterRuntimeFailure(allocationID, fmt.Errorf(
+				"release failed prepare Runtime Agent allocation %q: %w", allocationID, result.releaseErr,
+			)); err != nil {
+				failures = append(failures, err)
+			}
+			continue
+		}
+		if err := c.registry.Release(allocationID); err != nil {
+			failures = append(failures, fmt.Errorf("release failed prepare registry allocation %q: %w", allocationID, err))
+		}
+	}
+	return errors.Join(failures...)
+}
+
+func (c *RuntimeBatchController) releaseAfterRuntimeFailure(allocationID string, runtimeErr error) error {
+	released, err := c.registry.ReleaseLost(allocationID)
+	if released {
+		slog.Warn("released allocation after Runtime lease loss", "allocation_id", allocationID)
+		return nil
+	}
+	if errors.Is(err, ErrAllocationNotFound) {
+		return nil
+	}
+	if err != nil {
+		return errors.Join(runtimeErr, fmt.Errorf("release lost registry allocation %q: %w", allocationID, err))
+	}
+	return runtimeErr
+}
+
+func (c *RuntimeBatchController) nextID(prefix string) (string, error) {
+	c.idMu.Lock()
+	defer c.idMu.Unlock()
+	return c.newID(prefix)
+}
+
+func (c *RuntimeBatchController) currentTime() time.Time {
+	c.nowMu.Lock()
+	defer c.nowMu.Unlock()
+	return c.now()
+}
+
+type runtimeCallResult[T any] struct {
+	value T
+	err   error
+}
+
+func fanOutRuntimeCalls[T any](
+	ctx context.Context,
+	reservations []Reservation,
+	call func(context.Context, int, Reservation) (T, error),
+) []runtimeCallResult[T] {
+	results := make([]runtimeCallResult[T], len(reservations))
+	var group sync.WaitGroup
+	group.Add(len(reservations))
+	for index := range reservations {
+		go func(index int) {
+			defer group.Done()
+			results[index].value, results[index].err = call(ctx, index, reservations[index])
+		}(index)
+	}
+	group.Wait()
+	return results
+}
+
+func safeTerminationReason(source contracts.TerminationError) SafeReason {
+	result := SafeReason{Code: source.Code, Retryable: source.Retryable}
+	if !validSafeReason(result) {
+		result.Code = "allocation_aborted"
+	}
+	return result
+}
+
+func validateReservationBatch(reservations []Reservation) error {
+	if len(reservations) == 0 {
+		return errors.New("allocation reservation batch must not be empty")
+	}
+	allocationIDs := make(map[string]struct{}, len(reservations))
+	logicalNames := make(map[string]struct{}, len(reservations))
+	for _, reservation := range reservations {
+		if strings.TrimSpace(reservation.Grant.AllocationID) == "" || strings.TrimSpace(reservation.Grant.LogicalAgentName) == "" {
+			return errors.New("allocation reservation is incomplete")
+		}
+		if _, duplicate := allocationIDs[reservation.Grant.AllocationID]; duplicate {
+			return errors.New("allocation reservation batch contains duplicate allocation IDs")
+		}
+		if _, duplicate := logicalNames[reservation.Grant.LogicalAgentName]; duplicate {
+			return errors.New("allocation reservation batch contains duplicate logical Agent names")
+		}
+		allocationIDs[reservation.Grant.AllocationID] = struct{}{}
+		logicalNames[reservation.Grant.LogicalAgentName] = struct{}{}
+	}
+	return nil
+}

@@ -1,0 +1,839 @@
+package controlplane
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"path/filepath"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
+	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/credentials"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
+	"github.com/grauwolf32/contractor/internal/runcost"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func TestPlacementPostgresUsesCandidateAdaptersAndPinsBeforeExposure(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlacementPool(t, ctx)
+	fixture := newPlacementFixture(t, ctx, pool, []string{"debug"})
+	withoutAdapter := fixture.registerCandidate(t, ctx, "runtime-a", "1", nil)
+	withAdapter := fixture.registerCandidate(
+		t, ctx, "runtime-b", "2", []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP},
+	)
+
+	reservations, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reservations) != 1 || reservations[0].Grant.RuntimeAgentID != withAdapter ||
+		reservations[0].Grant.RuntimeAgentID == withoutAdapter || reservations[0].ResolvedRuntimeConfig == nil {
+		t.Fatalf("candidate-aware reservations = %+v", reservations)
+	}
+	if got := reservations[0].ResolvedRuntimeConfig.RequiredRuntimeAdapters; len(got) != 1 ||
+		got[0] != runtimesettings.RuntimeAdapterOTLPHTTP {
+		t.Fatalf("required adapters = %v", got)
+	}
+	allocations, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageAllocations(ctx, fixture.stageExecutionID)
+	if err != nil || len(allocations) != 1 || allocations[0].RuntimeConfiguration == nil ||
+		allocations[0].RuntimeAgentID != withAdapter {
+		t.Fatalf("durable allocations = (%+v, %v)", allocations, err)
+	}
+	if allocations[0].RuntimeConfiguration.Provenance.AgentLabels == nil ||
+		allocations[0].RuntimeConfiguration.Provenance.RunLabels[0].Label != "debug" {
+		t.Fatalf("durable provenance = %+v", allocations[0].RuntimeConfiguration)
+	}
+	cost, _, _, err := runstore.NewPostgresStore(pool, nil).ReadLLMCost(ctx, "user-placement", fixture.runID)
+	if err != nil || cost.Reports != "1" || cost.UnknownReports != "1" {
+		t.Fatalf("allocation exposed without expected cost report: %+v %v", cost, err)
+	}
+}
+
+func TestPlacementRollsBackBeforeExposureWhenExpectedReportCannotPersist(t *testing.T) {
+	ctx := t.Context()
+	pool := isolatedPlacementPool(t, ctx)
+	f := newPlacementFixture(t, ctx, pool, nil)
+	f.registerCandidate(t, ctx, "runtime-cost", "1", []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP})
+	if _, err := pool.Exec(ctx, `UPDATE workflow_runs SET llm_cost='{"currency":"EUR"}'::jsonb WHERE run_id=$1`, f.runID); err != nil {
+		t.Fatal(err)
+	}
+	if reservations, err := f.allocator.ReserveAllContext(ctx, f.request()); err == nil || len(reservations) != 0 {
+		t.Fatalf("exposed unaccounted allocation: %+v %v", reservations, err)
+	}
+	allocations, err := runstore.NewPostgresStore(pool, nil).ListStageAllocations(ctx, f.stageExecutionID)
+	if err != nil || len(allocations) != 0 {
+		t.Fatalf("failed placement retained allocation: %+v %v", allocations, err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE workflow_runs SET llm_cost='{}'::jsonb WHERE run_id=$1`, f.runID); err != nil {
+		t.Fatal(err)
+	}
+	if reservations, err := f.allocator.ReserveAllContext(ctx, f.request()); err != nil || len(reservations) != 1 {
+		t.Fatalf("failed placement did not release reservation: %+v %v", reservations, err)
+	}
+}
+
+func TestPlacementOptimisticCatalogReadsDoNotGrowWithSharedCandidates(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlacementPool(t, ctx)
+	fixture := newPlacementFixture(t, ctx, pool, nil)
+	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
+		Pool: pool, RuntimeCredentials: placementRuntimeCatalog{},
+		PlannerTelemetryAdapters: runtimeconfigtest.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	published, err := publisher.Publish(ctx, []byte(`{
+  "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
+  "metadata":{"name":"shared-agent-telemetry","version":"1"},
+  "spec":{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://otel.example/v1/traces","credential":"shared-telemetry"}}}
+}`), "publish-shared-agent-telemetry", "operator")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtimeconfig.NewRepository(pool).CreateBinding(ctx, "shared", published.Version.Ref, "operator", time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	trace := &placementQueryCounter{}
+	configuration := pool.Config().Copy()
+	configuration.ConnConfig.Tracer = trace
+	countedPool, err := pgxpool.NewWithConfig(ctx, configuration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer countedPool.Close()
+	fixture.allocator.pool = countedPool
+	llm := &placementCountingLLMLookup{base: fixture.allocator.llmCredentials}
+	runtime := &placementCountingRuntimeLookup{}
+	fixture.allocator.llmCredentials = llm
+	fixture.allocator.runtimeCredentials = runtime
+	denied := errors.New("stop after optimistic resolution")
+	request := fixture.request()
+	request.Admit = func(_ context.Context, candidates []Reservation) error {
+		if len(candidates) != 1 || candidates[0].ResolvedRuntimeConfig == nil {
+			t.Errorf("optimistic candidates = %+v", candidates)
+		}
+		return denied
+	}
+	register := func(index int) {
+		fixture.registerCandidateWithLabels(t, ctx, fmt.Sprintf("runtime-shared-%d", index), fmt.Sprintf("%x", index),
+			[]runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP}, []string{"shared"})
+	}
+	register(1)
+	if _, err := fixture.allocator.ReserveAllContext(ctx, request); !errors.Is(err, denied) {
+		t.Fatalf("one-candidate placement = %v", err)
+	}
+	oneQueries, oneLLM, oneRuntime := trace.queries.Load(), llm.count, runtime.count
+	if oneQueries == 0 || oneLLM != 1 || oneRuntime != 1 {
+		t.Fatalf("one-candidate catalog reads = SQL %d, LLM %d, Runtime %d", oneQueries, oneLLM, oneRuntime)
+	}
+	for index := 2; index <= 12; index++ {
+		register(index)
+	}
+	trace.queries.Store(0)
+	llm.count, runtime.count = 0, 0
+	if _, err := fixture.allocator.ReserveAllContext(ctx, request); !errors.Is(err, denied) {
+		t.Fatalf("twelve-candidate placement = %v", err)
+	}
+	if trace.queries.Load() != oneQueries || llm.count != oneLLM || runtime.count != oneRuntime {
+		t.Fatalf("shared-candidate catalog reads grew: SQL %d -> %d, LLM %d -> %d, Runtime %d -> %d",
+			oneQueries, trace.queries.Load(), oneLLM, llm.count, oneRuntime, runtime.count)
+	}
+	t.Logf("optimistic reads for 1 and 12 candidates: SQL %d, LLM %d, Runtime %d", oneQueries, oneLLM, oneRuntime)
+}
+
+type placementQueryCounter struct{ queries atomic.Int64 }
+
+func (trace *placementQueryCounter) TraceQueryStart(ctx context.Context, _ *pgx.Conn, _ pgx.TraceQueryStartData) context.Context {
+	trace.queries.Add(1)
+	return ctx
+}
+
+func (*placementQueryCounter) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+
+type placementCountingLLMLookup struct {
+	base  resolved.CredentialLookup
+	count int
+	err   error
+}
+
+func (lookup *placementCountingLLMLookup) LookupLLMCredential(ctx context.Context, id string) (resolved.CredentialMetadata, error) {
+	lookup.count++
+	if lookup.err != nil {
+		return resolved.CredentialMetadata{}, lookup.err
+	}
+	return lookup.base.LookupLLMCredential(ctx, id)
+}
+
+type placementCountingRuntimeLookup struct{ count int }
+
+func (lookup *placementCountingRuntimeLookup) Get(_ context.Context, id string) (credentials.RuntimeCredentialMetadata, error) {
+	lookup.count++
+	return credentials.RuntimeCredentialMetadata{CredentialID: id, Kind: credentials.RuntimeCredentialOTLPHeaders}, nil
+}
+
+func TestPlacementOptimisticCachePreservesCandidateErrorClassification(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlacementPool(t, ctx)
+	fixture := newPlacementFixture(t, ctx, pool, nil)
+	for index := 1; index <= 2; index++ {
+		fixture.registerCandidateWithLabels(t, ctx, fmt.Sprintf("runtime-missing-%d", index), fmt.Sprintf("%x", index),
+			nil, []string{"missing-binding"})
+	}
+	if _, err := fixture.allocator.ReserveAllContext(ctx, fixture.request()); !errors.Is(err, ErrInsufficientCapacity) {
+		t.Fatalf("all candidates with unavailable labels = %v, want capacity", err)
+	}
+	opaque := errors.New("credential repository unavailable")
+	fixture.allocator.llmCredentials = &placementCountingLLMLookup{
+		base: fixture.allocator.llmCredentials, err: opaque,
+	}
+	fixture.registerCandidate(t, ctx, "runtime-opaque-error", "3", nil)
+	if _, err := fixture.allocator.ReserveAllContext(ctx, fixture.request()); !errors.Is(err, opaque) {
+		t.Fatalf("opaque credential error = %v, want original error", err)
+	}
+}
+
+func TestPlacementPostgresRechecksBindingChangedAfterOptimisticPass(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlacementPool(t, ctx)
+	fixture := newPlacementFixture(t, ctx, pool, nil)
+	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
+		Pool: pool, RuntimeCredentials: placementRuntimeCatalog{},
+		PlannerTelemetryAdapters: runtimeconfigtest.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	publish := func(name, endpoint string) runtimeconfig.Ref {
+		t.Helper()
+		document := []byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",` +
+			`"metadata":{"name":"` + name + `","version":"1"},"spec":{"worker":{"telemetry":` +
+			`{"adapter":"otlp-http@1","endpoint":"` + endpoint + `"}}}}`)
+		result, err := publisher.Publish(ctx, document, "publish-"+name, "operator")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result.Version.Ref
+	}
+	oldRef := publish("placement-old", "https://old-otel.example/v1/traces")
+	newRef := publish("placement-new", "https://new-otel.example/v1/traces")
+	binding, err := runtimeconfig.NewRepository(pool).CreateBinding(ctx, "shared", oldRef, "operator", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture.registerCandidateWithLabels(t, ctx, "runtime-rebound", "4",
+		[]runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP}, []string{"shared"})
+	request := fixture.request()
+	request.Admit = func(context.Context, []Reservation) error {
+		_, err := runtimeconfig.NewRepository(pool).Rebind(ctx, "shared", binding.Revision, newRef, "operator", time.Now().UTC())
+		return err
+	}
+	if _, err := fixture.allocator.ReserveAllContext(ctx, request); !errors.Is(err, ErrInsufficientCapacity) {
+		t.Fatalf("changed binding after optimistic resolution = %v, want capacity", err)
+	}
+	allocations, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageAllocations(ctx, fixture.stageExecutionID)
+	if err != nil || len(allocations) != 0 {
+		t.Fatalf("changed binding created durable allocations: (%+v, %v)", allocations, err)
+	}
+}
+
+func TestPlacementPerformanceCollectionPolicyDoesNotFilterCandidates(t *testing.T) {
+	unsupported := control.AgentRegistration{}
+	supported := control.AgentRegistration{
+		SupportedPerformanceMetricsVersions: reporting.PerformanceMetricsVersions{1},
+	}
+	for _, test := range []struct {
+		enabled      bool
+		registration control.AgentRegistration
+		want         reporting.PerformanceCollectionPolicy
+	}{
+		{false, unsupported, reporting.PerformanceCollectionDisabled},
+		{false, supported, reporting.PerformanceCollectionDisabled},
+		{true, unsupported, reporting.PerformanceCollectionUnsupported},
+		{true, supported, reporting.PerformanceCollectionRequested},
+	} {
+		allocator := &PlacementAllocator{performanceMetrics: test.enabled}
+		if got := allocator.collectionPolicy(test.registration); got != test.want {
+			t.Fatalf("collection policy enabled=%v supported=%v = %q, want %q", test.enabled, len(test.registration.SupportedPerformanceMetricsVersions) != 0, got, test.want)
+		}
+	}
+}
+
+func TestPlacementPostgresDiscardsProvisionalBatchOnPrincipalRevisionChange(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlacementPool(t, ctx)
+	fixture := newPlacementFixture(t, ctx, pool, []string{"debug"})
+	runtimeAgentID := fixture.registerCandidateWithLabels(t, ctx, "runtime-racy", "3",
+		[]runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP}, []string{"debug"})
+	changed := false
+	fixture.allocator.credentialGuard = placementGuardFunc(func(ctx context.Context, fn func() error) error {
+		if !changed {
+			_, err := agentprincipal.NewRepository(pool).ReplaceLabels(
+				ctx, runtimeAgentID, 1, []string{}, "operator", time.Now().UTC(),
+			)
+			if err != nil {
+				return err
+			}
+			changed = true
+		}
+		return fn()
+	})
+
+	reservations, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())
+	if err != nil || len(reservations) != 1 || reservations[0].RuntimeAgentLabelRevision != 2 {
+		t.Fatalf("placement did not retry with current principal: %+v, %v", reservations, err)
+	}
+	agent, err := fixture.registry.GetAgent("runtime-racy")
+	if err != nil || agent.AuthoritativeAllocationID == nil || agent.Principal.LabelRevision != 2 {
+		t.Fatalf("refreshed principal or committed slot = (%+v, %v)", agent, err)
+	}
+	allocations, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageAllocations(ctx, fixture.stageExecutionID)
+	if err != nil || len(allocations) != 1 || allocations[0].RuntimeAgentLabelRevision != 2 {
+		t.Fatalf("retry did not pin current principal = (%+v, %v)", allocations, err)
+	}
+}
+
+func TestPlacementPostgresSkipsDeletedCachedPrincipal(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlacementPool(t, ctx)
+	fixture := newPlacementFixture(t, ctx, pool, nil)
+	deletedID := fixture.registerCandidate(t, ctx, "runtime-a-deleted", "4", nil)
+	compatibleID := fixture.registerCandidate(t, ctx, "runtime-b-compatible", "5", nil)
+	if err := agentprincipal.NewRepository(pool).Delete(ctx, deletedID, 1); err != nil {
+		t.Fatal(err)
+	}
+	reservations, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())
+	if err != nil || len(reservations) != 1 || reservations[0].Grant.RuntimeAgentID != compatibleID {
+		t.Fatalf("deleted cached principal blocked compatible candidate: %+v, %v", reservations, err)
+	}
+	for _, candidate := range fixture.registry.PlacementCandidates() {
+		if candidate.Principal.RuntimeAgentID == deletedID {
+			t.Fatal("deleted principal remains placement-eligible")
+		}
+	}
+}
+
+func TestPlacementPostgresRefreshesLabelsThatBecomeCompatible(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlacementPool(t, ctx)
+	fixture := newPlacementFixture(t, ctx, pool, []string{"debug"})
+	id := fixture.registerCandidateWithLabels(t, ctx, "runtime-new-label", "6",
+		[]runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP}, nil)
+	if _, err := agentprincipal.NewRepository(pool).ReplaceLabels(ctx, id, 1,
+		[]string{"debug"}, "operator", time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	reservations, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())
+	if err != nil || len(reservations) != 1 || reservations[0].RuntimeAgentLabelRevision != 2 {
+		t.Fatalf("newly compatible label was not refreshed: %+v, %v", reservations, err)
+	}
+}
+
+func TestPlacementPostgresAdmissionDenialLeavesNoDurableAllocation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlacementPool(t, ctx)
+	fixture := newPlacementFixture(t, ctx, pool, nil)
+	fixture.registerCandidate(t, ctx, "runtime-gated", "4", nil)
+	denied := errors.New("admission deferred")
+	request := fixture.request()
+	request.Admit = func(_ context.Context, candidates []Reservation) error {
+		if len(candidates) != 1 || candidates[0].ResolvedRuntimeConfig == nil {
+			t.Errorf("admission candidates = %+v", candidates)
+		}
+		return denied
+	}
+	if _, err := fixture.allocator.ReserveAllContext(ctx, request); !errors.Is(err, denied) {
+		t.Fatalf("denied placement error = %v", err)
+	}
+	agent, err := fixture.registry.GetAgent("runtime-gated")
+	if err != nil || agent.AuthoritativeAllocationID != nil {
+		t.Fatalf("denied candidate was not discarded: (%+v, %v)", agent, err)
+	}
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	allocations, err := store.ListStageAllocations(ctx, fixture.stageExecutionID)
+	if err != nil || len(allocations) != 0 {
+		t.Fatalf("denied durable allocations = (%+v, %v)", allocations, err)
+	}
+
+	request.Admit = nil
+	reservations, err := fixture.allocator.ReserveAllContext(ctx, request)
+	if err != nil || len(reservations) != 1 {
+		t.Fatalf("admitted placement = (%+v, %v)", reservations, err)
+	}
+	allocations, err = store.ListStageAllocations(ctx, fixture.stageExecutionID)
+	if err != nil || len(allocations) != 1 || allocations[0].AllocationID != reservations[0].Grant.AllocationID {
+		t.Fatalf("admitted durable allocations = (%+v, %v)", allocations, err)
+	}
+}
+
+// A committed reservation no Runtime prepared, as when Queue Pause defers the
+// Stage's admission, is discarded without a released tombstone: once the
+// Scheduler deletes its pinned rows the same StageExecution is placed again.
+// A write-fenced reservation belongs to an ending Stage and is not discarded.
+func TestPlacementPostgresDiscardedUnpreparedReservationIsPlacedAgain(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlacementPool(t, ctx)
+	fixture := newPlacementFixture(t, ctx, pool, nil)
+	fixture.registerCandidate(t, ctx, "runtime-discard", "5", nil)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	first, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())
+	if err != nil || len(first) != 1 {
+		t.Fatalf("first placement = (%+v, %v)", first, err)
+	}
+	if err := fixture.allocator.DiscardUnprepared(fixture.stageExecutionID); err != nil {
+		t.Fatalf("discard unprepared reservation: %v", err)
+	}
+	agent, err := fixture.registry.GetAgent("runtime-discard")
+	if err != nil || agent.AuthoritativeAllocationID != nil {
+		t.Fatalf("discarded reservation still owns the Runtime: (%+v, %v)", agent, err)
+	}
+	if _, err := fixture.allocator.GetGrant(first[0].Grant.AllocationID); !errors.Is(err, ErrAllocationNotFound) {
+		t.Fatalf("discarded grant = %v", err)
+	}
+	if err := fixture.allocator.DiscardUnprepared(fixture.stageExecutionID); err != nil {
+		t.Fatalf("repeated discard: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM stage_allocations WHERE stage_execution_id=$1`, fixture.stageExecutionID); err != nil {
+		t.Fatal(err)
+	}
+
+	second, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())
+	if err != nil || len(second) != 1 || second[0].Grant.AllocationID == first[0].Grant.AllocationID {
+		t.Fatalf("placement after discard = (%+v, %v)", second, err)
+	}
+	allocations, err := store.ListStageAllocations(ctx, fixture.stageExecutionID)
+	if err != nil || len(allocations) != 1 || allocations[0].AllocationID != second[0].Grant.AllocationID {
+		t.Fatalf("pinned rows after discard = (%+v, %v)", allocations, err)
+	}
+	if err := fixture.allocator.SetWriteFence(second[0].Grant.AllocationID); err != nil {
+		t.Fatal(err)
+	}
+	if err := fixture.allocator.DiscardUnprepared(fixture.stageExecutionID); !errors.Is(err, ErrReservationConflict) {
+		t.Fatalf("discard of a fenced reservation = %v", err)
+	}
+	if _, err := fixture.allocator.GetGrant(second[0].Grant.AllocationID); err != nil {
+		t.Fatalf("fenced reservation was discarded: %v", err)
+	}
+}
+
+func TestPlacementPostgresKeepsOldAgentBindingAndNextResolutionUsesRebind(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlacementPool(t, ctx)
+	fixture := newPlacementFixture(t, ctx, pool, nil)
+	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
+		Pool: pool, RuntimeCredentials: placementRuntimeCatalog{},
+		PlannerTelemetryAdapters: runtimeconfigtest.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	publish := func(name, endpoint, key string) runtimeconfig.Ref {
+		t.Helper()
+		document := []byte(`{
+  "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
+  "metadata":{"name":"` + name + `","version":"1"},
+  "spec":{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"` + endpoint + `"}}}
+}`)
+		published, publishErr := publisher.Publish(ctx, document, key, "operator")
+		if publishErr != nil {
+			t.Fatal(publishErr)
+		}
+		return published.Version.Ref
+	}
+	oldRef := publish("site-old", "https://old-otel.example/v1/traces", "publish-site-old")
+	newRef := publish("site-new", "https://new-otel.example/v1/traces", "publish-site-new")
+	binding, err := runtimeconfig.NewRepository(pool).CreateBinding(
+		ctx, "site", oldRef, "operator", time.Now().UTC(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtimeAgentID := fixture.registerCandidateWithLabels(
+		t, ctx, "runtime-labeled", "4",
+		[]runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP}, []string{"site"},
+	)
+
+	reservations, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())
+	if err != nil || len(reservations) != 1 || reservations[0].ResolvedRuntimeConfig == nil ||
+		reservations[0].ResolvedRuntimeConfig.WorkerTelemetry == nil ||
+		reservations[0].ResolvedRuntimeConfig.WorkerTelemetry.Endpoint != "https://old-otel.example/v1/traces" {
+		t.Fatalf("old Agent-label allocation = (%+v, %v)", reservations, err)
+	}
+	if _, err := runtimeconfig.NewRepository(pool).Rebind(
+		ctx, "site", binding.Revision, newRef, "operator", time.Now().UTC().Add(time.Second),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if got := reservations[0].ResolvedRuntimeConfig.WorkerTelemetry.Endpoint; got != "https://old-otel.example/v1/traces" {
+		t.Fatalf("active allocation changed after rebind: %q", got)
+	}
+	request := fixture.request()
+	next, err := fixture.allocator.resolveCandidate(
+		ctx, pool, request, request.Bindings[0], AuthenticatedPrincipal{
+			RuntimeAgentID: runtimeAgentID, Labels: []string{"site"}, LabelRevision: 1,
+		},
+		placementCredentialLookups{llm: fixture.allocator.llmCredentials, runtime: fixture.allocator.runtimeCredentials},
+	)
+	if err != nil || next.WorkerTelemetry == nil ||
+		next.WorkerTelemetry.Endpoint != "https://new-otel.example/v1/traces" {
+		t.Fatalf("next Agent-label resolution = (%+v, %v)", next, err)
+	}
+	allocations, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageAllocations(ctx, fixture.stageExecutionID)
+	if err != nil || len(allocations) != 1 || allocations[0].RuntimeConfiguration == nil ||
+		allocations[0].RuntimeConfiguration.Provenance.AgentLabels[0].Config.Name != oldRef.Name {
+		t.Fatalf("durable old Agent-label provenance = (%+v, %v)", allocations, err)
+	}
+}
+
+type placementFixture struct {
+	requiredPlacementLabels []string
+	ctx                     context.Context
+	pool                    *pgxpool.Pool
+	registry                *InMemoryRegistry
+	allocator               *PlacementAllocator
+	runID                   string
+	stageExecutionID        string
+	runtimeSnapshot         runtimeconfig.RunSnapshot
+	template                contracts.ResolvedAgentTemplate
+	selection               resolved.ResolvedConsumerExecutionConfig
+}
+
+func newPlacementFixture(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	runLabels []string,
+	placement ...[]string,
+) *placementFixture {
+	t.Helper()
+	var required []string
+	metadata := runstore.RunMetadataLabels{}
+	if len(placement) > 0 {
+		required = append([]string{}, placement[0]...)
+		if len(required) > 0 {
+			root, value, _ := strings.Cut(required[len(required)-1], "/")
+			metadata[root] = value
+		}
+	}
+	configuration, _, err := configload.LoadUnionReadOnly("../../testdata/configs", filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := configuration.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages[workflow.EntryStage]
+	binding := stage.Agents["builder"]
+	selection := stage.ExecutionConfig.Agents["builder"]
+	if selection.LLMGateway == nil {
+		t.Fatal("test Worker has no Gateway")
+	}
+	catalog := placementRuntimeCatalog{}
+	if len(runLabels) != 0 {
+		publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
+			Pool: pool, RuntimeCredentials: catalog,
+			PlannerTelemetryAdapters: runtimeconfigtest.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		published, err := publisher.Publish(ctx, []byte(`{
+  "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
+  "metadata":{"name":"debug-telemetry","version":"1"},
+  "spec":{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://otel.example/v1/traces"}}}
+}`), "publish-debug-telemetry", "operator")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := runtimeconfig.NewRepository(pool).CreateBinding(
+			ctx, "debug", published.Version.Ref, "operator", time.Now().UTC(),
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if selection.Credential == nil {
+		t.Fatal("test Worker has no credential")
+	}
+	llmCredentials, err := credentials.NewStaticProvider([]credentials.StaticEntry{{
+		Metadata: resolved.CredentialMetadata{
+			Ref:          *selection.Credential,
+			LLMGateway:   selection.LLMGateway.Ref,
+			Unrestricted: true,
+		},
+		Token: contracts.NewSecretString("placement-test-token"),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	txLookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(
+		tx,
+		runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
+			func(pgx.Tx) (resolved.CredentialLookup, error) { return llmCredentials, nil },
+		),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pinned, err := runtimeconfig.PinRunSnapshot(ctx, tx, runLabels, catalog, txLookup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := runstore.NewPostgresStore(tx, artifactpgtest.NewStorage())
+	runID := "run-placement"
+	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "user-placement", WorkflowName: workflow.Ref.Name,
+		WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
+		WorkflowSnapshot: json.RawMessage(`{}`), Parameters: map[string]string{}, RuntimeConfig: pinned,
+		RequiredPlacementLabels: required,
+		MetadataLabels:          metadata,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, runID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "ready"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	store = runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	stageExecutionID := "stage-placement"
+	if _, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
+		StageExecutionID: stageExecutionID, RunID: runID, StageName: workflow.EntryStage, Attempt: 1,
+		ExecutionConfigVariant: runstore.StageExecutionConfigBase,
+		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{}`),
+		StageContextSchemaVersion: contracts.APIVersion,
+		StageContext: runstore.StageContextSnapshot{
+			Parameters: map[string]string{}, Artifacts: map[string]runstore.PinnedContextArtifact{},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	registry, err := NewRegistry(RegistryOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	allocator, err := NewPlacementAllocator(PlacementAllocatorOptions{Storage: artifactpgtest.NewStorage(),
+		Allocations: runcost.NewParticipants(pool, artifactpgtest.NewStorage()),
+		Pool:        pool, Registry: registry,
+		Gateways:       placementGatewayLookup{gateway: *selection.LLMGateway},
+		LLMCredentials: llmCredentials, RuntimeCredentials: placementRuntimeCredentialLookup{},
+		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
+			func(pgx.Tx) (resolved.CredentialLookup, error) { return llmCredentials, nil },
+		),
+		CredentialGuard: placementGuardFunc(func(_ context.Context, fn func() error) error { return fn() }),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &placementFixture{
+		ctx: ctx, pool: pool, registry: registry, allocator: allocator,
+		runID: runID, stageExecutionID: stageExecutionID, runtimeSnapshot: pinned,
+		template: binding.Template, selection: selection, requiredPlacementLabels: required,
+	}
+}
+
+func (f *placementFixture) registerCandidate(
+	t *testing.T,
+	ctx context.Context,
+	instanceID string,
+	idDigit string,
+	adapters []runtimesettings.RuntimeAdapterRef,
+) string {
+	return f.registerCandidateWithLabels(t, ctx, instanceID, idDigit, adapters, nil)
+}
+
+func (f *placementFixture) registerCandidateWithLabels(
+	t *testing.T,
+	ctx context.Context,
+	instanceID string,
+	idDigit string,
+	adapters []runtimesettings.RuntimeAdapterRef,
+	labels []string,
+) string {
+	t.Helper()
+	return f.registerProcess(t, ctx, instanceID, idDigit, labels, f.candidateRegistration(adapters, labels))
+}
+
+// candidateRegistration advertises exactly the fixture template's
+// capabilities plus adapters.
+func (f *placementFixture) candidateRegistration(
+	adapters []runtimesettings.RuntimeAdapterRef,
+	labels []string,
+) control.AgentRegistration {
+	return control.AgentRegistration{
+		SupportedRuntimes: []string{f.template.Runtime.RuntimeID + "@" + f.template.Runtime.Version},
+		SupportedToolsets: []control.ToolsetCapability{{
+			Ref:   f.template.Toolsets[0].Ref.ToolsetID + "@" + f.template.Toolsets[0].Ref.Version,
+			Tools: append([]string{}, f.template.Toolsets[0].Tools...),
+		}},
+		SupportedSandboxProfiles: []string{
+			f.template.SandboxProfile.SandboxProfileID + "@" + f.template.SandboxProfile.Version,
+		},
+		SupportedRuntimeAdapters: append([]runtimesettings.RuntimeAdapterRef{}, adapters...),
+	}
+}
+
+// registerProcess stores the principal of idDigit and registers one idle
+// process with registration's capabilities and a confirmed control lease.
+func (f *placementFixture) registerProcess(
+	t *testing.T,
+	ctx context.Context,
+	instanceID string,
+	idDigit string,
+	labels []string,
+	registration control.AgentRegistration,
+) string {
+	t.Helper()
+	return f.registerPrincipalProcess(t, ctx, instanceID, strings.Repeat(idDigit, 64), labels, registration)
+}
+
+// registerPrincipalProcess is registerProcess for any 64-digit principal, so
+// one fixture can hold more than sixteen principals.
+func (f *placementFixture) registerPrincipalProcess(
+	t *testing.T,
+	ctx context.Context,
+	instanceID string,
+	runtimeAgentID string,
+	labels []string,
+	registration control.AgentRegistration,
+) string {
+	t.Helper()
+	now := time.Now().UTC()
+	principal := agentprincipal.Principal{
+		RuntimeAgentID: runtimeAgentID, Labels: append([]string{}, labels...), LabelRevision: 1,
+		CreatedBy: "runtime-registration", CreatedAt: now,
+		UpdatedBy: "runtime-registration", UpdatedAt: now,
+	}
+	if _, err := agentprincipal.NewRepository(f.pool).Insert(ctx, principal); err != nil {
+		t.Fatal(err)
+	}
+	registration.APIVersion, registration.InstanceID = contracts.APIVersion, instanceID
+	registration.SoftwareVersion, registration.StartedAt = "1.0.0", now
+	registration.ControlURL, registration.A2AURL = "https://"+instanceID+".test", "https://"+instanceID+".test"
+	registration.ObservedState = control.AgentIdle
+	authenticated := AuthenticatedPrincipal{
+		RuntimeAgentID: runtimeAgentID, Labels: append([]string{}, labels...), LabelRevision: 1,
+	}
+	if _, err := f.registry.RegisterAuthenticated(authenticated, registration); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.registry.HeartbeatAuthenticated(runtimeAgentID, control.AgentHeartbeat{
+		APIVersion: contracts.APIVersion, InstanceID: instanceID,
+		HeartbeatSeq: 1, ObservedState: control.AgentIdle,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.registry.HeartbeatAuthenticated(runtimeAgentID, control.AgentHeartbeat{
+		APIVersion: contracts.APIVersion, InstanceID: instanceID,
+		HeartbeatSeq: 2, EchoedAckSeq: 1, ObservedState: control.AgentIdle,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return runtimeAgentID
+}
+
+func (f *placementFixture) request() ReservationRequest {
+	return ReservationRequest{
+		RequiredPlacementLabels: append([]string{}, f.requiredPlacementLabels...),
+		RunID:                   f.runID, StageExecutionID: f.stageExecutionID, RuntimeConfig: &f.runtimeSnapshot,
+		Bindings: []BindingRequirement{{
+			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: f.template,
+			WorkerSessionMode: contracts.WorkerSessionIsolated, ContextManagement: contracts.WorkerContextManagement{Strategy: contracts.ContextStrategyNone},
+			ExecutionConfig: AllocationExecutionConfig{
+				ModelPolicy: f.selection.ModelPolicy.Ref, LLMGateway: f.selection.LLMGateway.Ref,
+				Credential: f.selection.Credential,
+			},
+			RuntimeSelection: &f.selection,
+		}},
+	}
+}
+
+type placementRuntimeCatalog struct{}
+
+func (placementRuntimeCatalog) ValidateRuntimeCredential(context.Context, string, ...string) error {
+	return nil
+}
+
+func (placementRuntimeCatalog) WithCredentialReferences(_ context.Context, fn func() error) error {
+	return fn()
+}
+
+type placementGatewayLookup struct {
+	gateway llmgateway.ResolvedLLMGatewayConfig
+}
+
+func (l placementGatewayLookup) LLMGateway(raw string) (llmgateway.ResolvedLLMGatewayConfig, error) {
+	if raw != l.gateway.Ref.GatewayID+"@"+l.gateway.Ref.Version {
+		return llmgateway.ResolvedLLMGatewayConfig{}, workflowconfig.ErrConfigurationNotFound
+	}
+	return l.gateway, nil
+}
+
+type placementRuntimeCredentialLookup struct{}
+
+func (placementRuntimeCredentialLookup) Get(
+	context.Context, string,
+) (credentials.RuntimeCredentialMetadata, error) {
+	return credentials.RuntimeCredentialMetadata{}, credentials.ErrRuntimeCredentialNotFound
+}
+
+type placementGuardFunc func(context.Context, func() error) error
+
+func (f placementGuardFunc) WithAllocationReferences(ctx context.Context, fn func() error) error {
+	return f(ctx, fn)
+}
+
+func isolatedPlacementPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
+	t.Helper()
+	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{})
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
+		t.Fatal(err)
+	}
+	return pool
+}

@@ -1,0 +1,243 @@
+schema_version: '1.0'
+id: V417-009
+title: Verify context compaction across real processes and close the deterministic milestone
+milestone: worker-context-compaction-2026-10
+epic: quality
+kind: chore
+priority: P1
+status: completed
+depends_on:
+- V417-003
+- V417-005
+- V417-006
+- V417-007
+- V466-018
+languages:
+- go
+- python
+- typescript
+- markdown
+goal: The shipped compact@1 behavior has an integrated deterministic proof across real Server, Runtime
+  and PostgreSQL, with documented limits and a release gate that does not depend on live-model quality.
+context:
+  authority: 'User decisions on 2026-10-31: Contractor is a research platform. Audit provides durable
+    coordination over ordinary Runs, fixed assertions use common hypotheses, exploratory findings may
+    have no hypothesis, deduplication and exact Audit/Run origin remain, hypothesis associations are automatic
+    and owner-independent, formal approvals are removed almost completely, and complexity must decrease
+    or stay controlled. The user requested task replanning and diagrams for review before implementation.
+    User decision 2026-11-10: deliver ordinary/Audit compaction in isolated sessions; defer shared-session
+    compaction until a concrete consumer requires it. Remove V417-004 from this release gate and retain
+    compact@1/shared rejection as a required control. Later user decision 2026-11-10 reactivates V417-004
+    as in_progress and orders it last, after this isolated gate and V417-010; this gate does not regain
+    a shared-session dependency. User request 2026-11-15 assigns V417-009 followed by V417-010 on integrated
+    main 926395e18e1850ce277b576cd17ae5737818e08f; keep shared V417-004 last. Reuse existing owners, tests,
+    canonical reports and V466-016 integration evidence; actual aggregate release acceptance remains required.'
+  proposal: docs/proposals/0046-workflow-context-compaction.md
+  specification:
+  - docs/spec/execution/worker.md
+  - docs/spec/configuration/workflows.md
+  - docs/spec/audits/worker-completion.md
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/lifecycle.md
+  implementation_boundary: Update numbered owning specifications, limits/errors/failure/lifecycle registries,
+    strict schemas, fixtures and every affected reader/writer together with implemented behavior. Generated
+    clients are regenerated through their tools. No legacy readers, unsupported accepted configuration,
+    speculative exports or new receipt store.
+  adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
+    Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
+    not 2.8 callback/identity assumptions.
+  implementation_gate: This 2026-11-07 backlog edit starts no implementation. The common Audit redesign
+    is already delivered; use current AWC-R127-R129 and complete this gate after its declared compaction
+    dependencies, without reopening proposal 0050 approval.
+  design:
+  - docs/spec/audits/worker-completion.md
+  - docs/spec/audits/execution.md
+  redesign_boundary: Retarget the Audit branch of the real-process compaction gate to common result/context
+    semantics; preserve ordinary Worker, SDK/budget/cancellation and required-case evidence.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: The ordinary isolated Worker process test is already registered in release-verify. Extend
+    that existing coverage for isolated Audit/diagnostic/selection combinations and rejected shared compaction;
+    the remaining gate is not a new Worker engine or a second isolated-only scenario.
+  aggregate_followup: >-
+    The first integrated aggregate attempt on ade6800f0d4968bb9bde1b52bbccc1e2da1d652c
+    exposed the unrelated continuation fixture failure repaired by V466-018.
+    Controller source selection was correct; its bounded Task page was misread
+    by the test. Full owning-package race/integration checks pass after repair.
+    This attempt is not acceptance; run the complete aggregate on the clean
+    integrated repair revision. V466-019 independently prepares the later quality
+    consumer and adds no quality dependency to this isolated deterministic exit.
+  implementation_decision: One fixed required-case matrix is verified by the existing canonical report
+    reader/capture. The focused family runs full owning component packages, Runtime modules and three
+    existing process roots; Router is a fourth subcase of the ordinary root, using its existing harness
+    and a second Runtime. Consolidated release reuses go-unit.jsonl/runtime.xml and scoped process shards
+    instead of executing the family again. No production compaction, state or lifecycle mechanism is added.
+scope:
+  in:
+  - A context-compaction family/process gate, required-case inventory and release-graph integration using
+    tests already added by each implementation task plus missing cross-boundary cases.
+  - Cross-task regression matrix for ordinary/Audit isolated sessions, rejected shared compaction, reasoning
+    true/false, policy overrides, Scheduler behavior, failures and at-ceiling resource use.
+  - Reconcile proposal 0046 status and operator/testing documentation with implemented normative contracts;
+    retain separate measured-quality follow-up.
+  out:
+  - Deferring basic safety or bounds until this exit, adding another compaction engine, silently ignoring
+    failed required cases or switching configured live models.
+  - Live Gateway calls, measured quality/default-selection claims, dependence on V417-008/V417-010 or
+    requiring terminal includeReasoning to implement compact@1.
+  - Shared-session compaction admission or cross-invocation compacted history (V417-004, ordered last).
+acceptance_criteria:
+- id: A1
+  given: Integrated real Server/Runtime/PostgreSQL and a deterministic Gateway
+  when: make test-worker-compaction-e2e runs
+  then: Every required case executes and verifies continuing identities/budgets/results, ordinary/Audit
+    isolated modes, rejection of shared compaction, exact configuration and truthful state without a false
+    handoff.
+- id: A2
+  given: At-ceiling history and injected failure/cancellation matrix
+  when: The family gate and full affected suites run
+  then: Bounds, scoped retrieval, receipts and fences hold and all selected required cases produce passing
+    evidence.
+- id: A3
+  given: Release graph and completed implementation tasks
+  when: make release-verify runs on the integrated revision
+  then: The gate is reached exactly as intended, no live model is contacted, and all required stages pass
+    with recorded commands/case counts. Evidence identifies the exact accepted SDK, lock digest and integrated
+    Runtime revision.
+- id: A4
+  given: Delivered behavior and independent quality work still pending
+  when: Specifications, proposal and documentation are reconciled
+  then: No unsupported configuration or unused API remains; deterministic completion is clearly distinct
+    from quality/default recommendations and does not wait for V417-008/V417-010.
+tests:
+- command: make test-worker-compaction-e2e
+  covers:
+  - A1
+  - A2
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A4
+- command: make verify-public-api
+  covers:
+  - A1
+  - A4
+- command: make test-postgres
+  covers:
+  - A1
+  - A2
+- command: make release-verify
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+requirements:
+- id: R1
+  text: Create make test-worker-compaction-e2e with required database/locked Runtime prerequisites and
+    register it in the release graph without duplicate full-suite execution in consolidated mode. Verify
+    required test names/cases from actual reports; zero matches, skips of required cases or missing evidence
+    fail. Reuse TestWorkerCompactionContinuesIsolatedWorker and existing release-case registration; add
+    only missing composed cases and do not duplicate a suite in both the family target and consolidated
+    release run.
+- id: R2
+  text: Run real Server and Runtime processes with a deterministic fake Gateway and real PostgreSQL. Verify
+    config publication, exact snapshot/read selection, two compactions, useful continuation, one finalizer/trusted
+    result and no false summarized handoff. Do not mock the coordinator, session store or private transport
+    under test. Use the exact 2.13 closure accepted by V418-007 and capture multiple internal SDK turns
+    under one logical owner; record Runtime revision and lock digest.
+- id: R3
+  text: Cover ordinary isolated Workers, mixed-binding isolated Router policies, common Task/JSON Audit
+    incomplete/complete isolated paths, single-source Workflow/inline-escalation compactor selection and
+    lifecycle replacement. Shared compact policies remain rejected across authoring, snapshots and Runtime
+    admission, including escalations; shared-session compaction is not a release prerequisite. Run/Eval
+    overrides and retired Audit ZIP/manifests are rejected controls, not supported modes. Existing terminal
+    summarizer/handoff remains a control without making its independent includeReasoning task a prerequisite.
+- id: R4
+  text: Exercise multiple tool calls/errors, reasoning true/false/no provider text, stale/missing usage,
+    exact task constraints, untrusted summary refs, repeated Skill disclosure, large history pagination
+    and declared ceilings. Measure bounded work through counters/byte admission, not wall-clock assertions.
+    Include equal timestamps at both inclusive range boundaries, retained equal-time neighbors, previous/overlapping
+    summaries, foreign branch/scope events and complete interleaved call/response groups.
+- id: R5
+  text: Inject Gateway permanent/retryable failures, invalid output, general budgets, ineffective reduction
+    before commit and after the next measured main response, ambiguous marker append, publication acknowledgement
+    loss, cancel/deadline/lease loss and cleanup failure. Existing receipts/fences govern uncertainty;
+    reusing an Event.id is not proof of append idempotency. No new semantic dispatch follows cancellation,
+    local work joins before release, and already-sent uncertain effects or authorized WRK-R168 terminal
+    cleanup keep their existing policies. SDK None/skip/exception adds no marker or continuing request
+    for the rejected attempt. Post-commit ineffectiveness retains accepted markers and charges, then stops
+    before the next dispatch/cycle.
+- id: R6
+  text: Every owning spec, limits/errors/failure/lifecycle entry, public/private schema, shared fixture
+    and generated consumer must agree with implemented behavior. Update the proposal with delivered deterministic
+    scope and unresolved measured-quality questions; do not label quality proven by this gate.
+- id: R7
+  text: Complete the required aggregate release gate once on the integrated revision and retain actual
+    commands, case counts and evidence. Task completion means all required checks pass; unrelated failures
+    are reported and resolved through their owners, never waived as a successful run.
+failure_outcomes:
+- operation: Deterministic process gate setup, fault injection and evidence collection
+  permanent: Missing required prerequisites/cases, mismatched schema or invalid evidence fail explicitly;
+    zero tests is never success.
+  retryable: Only bounded fixture startup retries and the production operation policy under test apply;
+    no rerun-until-green hiding of failures.
+  ambiguous: Assert production receipt/marker reconciliation using stable test identities; retain the
+    original failed observation.
+  cancelled: Test harness cancels/joins Server/Runtime/fixture processes and cleans only its disposable
+    schema/workspace.
+  timeout: Harness timeout reports failure separately from injected Worker deadline; no real-time speed
+    assertion.
+cardinality:
+- collection: Gate matrix and maximal context fixtures
+  expected: A finite manifest of ordinary/Audit and session/policy cases
+  maximum: All registered compaction ceilings, including 4096 groups/32 MiB, and explicit one-over cases
+  bound: Bound process concurrency and disposable database resources; use required-case inventories rather
+    than combinatorial unbounded sampling.
+lifecycle:
+- entity: Test processes, disposable database and evidence
+  delete: Test harness owns teardown; only its named schema/workspaces may be removed.
+  cascade: Join child processes before cleanup, preserve failure diagnostics with no raw secrets.
+  retention: Keep safe gate reports and exact revisions through existing test-report convention; no production
+    data mutations.
+test_prerequisites:
+- These are future implementation acceptance commands, not verification performed while creating tasks.
+  Implement every explicitly named new gate in its owning task; zero selected or skipped mandatory cases
+  fail.
+- Use locked Runtime dependencies, testdata catalogs and pseudo-Skills. Unit and integration tests never
+  read the live configs tree; make test-config validates the shipped catalog.
+- Persistence and immutable snapshot reads use disposable real PostgreSQL. Set CONTRACTOR_TEST_DATABASE_URL
+  for required gates; an unreachable configured database or skipped required case is a failure.
+- Run full suites for every touched package in addition to focused gates. Use injected clocks and deterministic
+  work counters for assertions, not wall-clock thresholds.
+- Run integration acceptance on the exact ADK 2.13.0 closure accepted by V418-007; record Runtime revision
+  and lock digest. No separate old-SDK compaction implementation or version-switching production path.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.
+deliverables:
+- path: make/toolsets.mk
+  description: New test-worker-compaction-e2e family target and owned required-case checks, integrated
+    with make/release.mk and release-graph validation.
+- path: docs/testing/README.md
+  description: Actual deterministic gate prerequisites, scope and retained evidence locations; live evaluation
+    remains opt-in.
+dependency_note: No dependency on V417-001, V417-004, V417-008 or V417-010. Terminal reasoning has its
+  own independent exit and measured quality has a separate milestone. The 2026-11-10 decisions narrow
+  this exit to isolated compaction and place reactivated V417-004 after this gate and V417-010. Shared
+  rejection controls describe this isolated delivery; the later shared implementation updates affected
+  controls without rewriting earlier acceptance evidence.
+
+implementation_commit: 7ef5d58deb5ff42cec9175fa4261d169047c1d22
+verification:
+- command: make test-worker-compaction-e2e
+  result: Passed full owning suites and all 57 Go, 561 Runtime and 7 required process case events.
+- command: make test-wire-cross-language verify-public-api test-postgres
+  result: Passed on the integrated repair revision with real PostgreSQL.
+- command: make -k release-verify
+  result: Passed complete aggregate on 7ef5d58deb5ff42cec9175fa4261d169047c1d22; 52 process roots and all required conformance verifiers passed.
+evidence: tasks/evidence/v417-009-acceptance-20261115.json

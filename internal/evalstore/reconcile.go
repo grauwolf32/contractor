@@ -1,0 +1,213 @@
+package evalstore
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/evaldomain"
+	"github.com/jackc/pgx/v5"
+)
+
+type CommandRecord struct {
+	ID, ExperimentID, State string
+	Kind                    evaldomain.CommandKind
+	Revision                int64
+	Diagnostic              json.RawMessage
+	CreatedAt               time.Time
+	FinishedAt              *time.Time
+}
+
+func (s *Store) PendingCommands(ctx context.Context, owner, id string) ([]CommandRecord, error) {
+	rows, err := s.db.Query(ctx, `
+SELECT c.command_id, c.experiment_id, c.kind, c.state, c.accepted_revision, c.diagnostic, c.created_at, c.finished_at
+FROM eval_commands c
+JOIN eval_experiments e USING(experiment_id)
+WHERE e.owner_id=$1
+    AND e.experiment_id=$2
+    AND c.state IN ('accepted', 'running')
+ORDER BY c.created_at, c.command_id LIMIT 100
+`, owner, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []CommandRecord{}
+	for rows.Next() {
+		var c CommandRecord
+		if err = rows.Scan(&c.ID, &c.ExperimentID, &c.Kind, &c.State, &c.Revision, &c.Diagnostic, &c.CreatedAt, &c.FinishedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+const memberColumns = `m.member_id, m.pair_id, m.ordinal, m.suite_id, m.case_id, m.sample, m.variant_id, m.eligibility, m.execution_kind, m.recipe, m.submission_key, m.case_sha256, m.binding_sha256`
+
+func scanMember(row pgx.Row) (Member, error) {
+	var m Member
+	var raw []byte
+	if err := row.Scan(&m.MemberID, &m.PairID, &m.Ordinal, &m.SuiteID, &m.CaseID, &m.Sample, &m.VariantID, &m.Eligibility, &m.ExecutionKind, &raw, &m.SubmissionKey, &m.CaseSHA256, &m.BindingSHA256); err != nil {
+		return m, err
+	}
+	err := json.Unmarshal(raw, &m.Recipe)
+	return m, err
+}
+
+func (s *Store) Member(ctx context.Context, owner, id, member string) (Member, error) {
+	m, err := scanMember(s.db.QueryRow(ctx, `
+SELECT `+memberColumns+`
+FROM eval_members m
+JOIN eval_experiments e USING(experiment_id)
+WHERE e.owner_id=$1
+    AND e.experiment_id=$2
+    AND m.member_id=$3
+`, owner, id, member))
+	return m, normalize(err)
+}
+
+// NextMembers returns the next eligible, unsubmitted members in frozen order.
+// The caller caps the batch by both free capacity and its per-tick work budget.
+func (s *Store) NextMembers(ctx context.Context, owner, id string, limit int) ([]Member, error) {
+	if limit < 1 || limit > evaldomain.MaxPageSize {
+		return nil, evaldomain.Failure("eval_invalid")
+	}
+	rows, err := s.db.Query(ctx, nextMembersSQL, owner, id, limit)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.AppendRows(make([]Member, 0, limit), rows, func(row pgx.CollectableRow) (Member, error) {
+		return scanMember(row)
+	})
+}
+
+// ReconciliationCandidates gives newly admitted intents a bounded lane while
+// independently rotating accepted executions. An experiment with many accepted
+// members therefore starts each new batch by its next tick without starving
+// observation of executions that are already running.
+func (s *Store) ReconciliationCandidates(ctx context.Context, owner, id string, perStateLimit int) ([]string, error) {
+	if perStateLimit < 1 || perStateLimit > evaldomain.MaxPageSize/2 {
+		return nil, evaldomain.Failure("eval_invalid")
+	}
+	rows, err := s.db.Query(ctx, reconciliationCandidatesSQL, owner, id, perStateLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	memberIDs := make([]string, 0, 2*perStateLimit)
+	for rows.Next() {
+		var memberID string
+		if err = rows.Scan(&memberID); err != nil {
+			return nil, err
+		}
+		memberIDs = append(memberIDs, memberID)
+	}
+	return memberIDs, rows.Err()
+}
+
+// LockMember takes the recovery authority with all Project locks before the
+// experiment lock, the evaluation Project's and then the member's execution
+// workspace's, when a composed transaction will also write its Audit
+// workspace artifacts. It must be the transaction's first recovery step.
+func (r *MemberRecovery) LockMember(ctx context.Context) error {
+	s, scope, id, member := r.store, r.scope, r.id, r.member
+	if r.held {
+		return errRecoveryLockOrder
+	}
+	if _, err := s.project(ctx, scope, true); err != nil {
+		return err
+	}
+	var child *string
+	err := s.db.QueryRow(ctx, `SELECT execution_project_id FROM eval_submissions WHERE experiment_id=$1 AND member_id=$2`, id, member).Scan(&child)
+	if err != nil {
+		return normalize(err)
+	}
+	if child != nil {
+		var exists bool
+		err = s.db.QueryRow(ctx, `SELECT true FROM projects WHERE owner_id=$1 AND project_id=$2 FOR SHARE`, scope.OwnerID, *child).Scan(&exists)
+		if err != nil {
+			return normalize(err)
+		}
+	}
+	_, err = r.afterProjectLocks(ctx)
+	return err
+}
+
+// ObserveTokens retains a per-member and experiment high-water mark. Unknown
+// usage is not a public zero; this is only the known lower bound used by the
+// optional observed-token stop policy. Updated timestamps rotate bounded polls.
+// The experiment adds each member's increase saturating at the bigint maximum,
+// which reaches every token limit (EVM-R248); a replayed mark adds nothing.
+func (r *MemberRecovery) ObserveTokens(ctx context.Context, tokens int64) error {
+	s, id, member := r.store, r.id, r.member
+	if tokens < 0 {
+		return evaldomain.Failure("eval_invalid")
+	}
+	if _, err := r.authority(ctx); err != nil {
+		return err
+	}
+	var prior int64
+	if err := s.db.QueryRow(ctx, `SELECT observed_tokens FROM eval_submissions WHERE experiment_id=$1 AND member_id=$2`, id, member).Scan(&prior); err != nil {
+		return normalize(err)
+	}
+	if tokens < prior {
+		tokens = prior
+	}
+	if _, err := s.db.Exec(ctx, `UPDATE eval_submissions SET observed_tokens=$3,updated_at=clock_timestamp() WHERE experiment_id=$1 AND member_id=$2`, id, member, tokens); err != nil {
+		return err
+	}
+	if tokens > prior {
+		_, err := s.db.Exec(ctx, `UPDATE eval_experiments SET observed_tokens=LEAST(observed_tokens::numeric+$2,9223372036854775807)::bigint,`+observe+` WHERE experiment_id=$1`, id, tokens-prior)
+		return err
+	}
+	return nil
+}
+
+func (s *Store) Dependencies(ctx context.Context, owner, id, after string, limit int) ([]string, error) {
+	if limit < 1 || limit > evaldomain.MaxPageSize {
+		return nil, evaldomain.Failure("eval_invalid")
+	}
+	rows, err := s.db.Query(ctx, `
+SELECT s.execution_project_id
+FROM eval_submissions s
+JOIN eval_experiments e USING(experiment_id)
+JOIN projects p ON p.project_id=s.execution_project_id
+WHERE e.owner_id=$1
+    AND s.experiment_id=$2
+    AND s.execution_project_id>$3
+ORDER BY s.execution_project_id LIMIT $4
+`, owner, id, after, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var p string
+		if err = rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) GetClaimed(ctx context.Context, claim Claim) (Experiment, error) {
+	var owner string
+	err := s.db.QueryRow(ctx, `
+SELECT e.owner_id
+FROM eval_experiments e
+JOIN eval_controller_claims c USING(experiment_id)
+WHERE c.experiment_id=$1
+    AND `+evalClaims.LiveCondition("c", "$2", "$3")+`
+`, claim.ExperimentID, claim.HolderID, claim.Epoch).Scan(&owner)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Experiment{}, ErrClaimLost
+	}
+	if err != nil {
+		return Experiment{}, err
+	}
+	return s.Get(ctx, owner, claim.ExperimentID)
+}

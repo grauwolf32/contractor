@@ -1,0 +1,173 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { type FormEvent, useId, useRef, useState } from "react";
+
+import { usePublicAPI } from "../../api/context";
+import { invalidateCrossProject } from "../../api/cross-project";
+import {
+  createProject,
+  MAXIMUM_PROJECT_DESCRIPTION_LENGTH,
+  MAXIMUM_PROJECT_NAME_LENGTH,
+  normalizeProjectRequest,
+  type CreateProjectRequest,
+  type Project,
+  type ProjectKind,
+} from "../../api/projects";
+import { queryKeys } from "../../api/query-keys";
+import { Dialog, DialogHeader } from "../../app/dialog";
+import { ErrorNotice } from "../../app/error-notice";
+import type { NewProjectKeys } from "./new-project-keys";
+import { Button, Field } from "../../ui";
+
+import "./projects.css";
+
+interface NewProjectWording {
+  /** Dialog title, e.g. "New project". */
+  title: string;
+  /** Accessible name of the close button. */
+  closeLabel: string;
+  /** Submit button, e.g. "Create project". */
+  submitLabel: string;
+}
+
+/**
+ * Creates a project or an evaluation workspace: name (≤ 160) and
+ * description (≤ 4096). An identical request reuses its Idempotency-Key,
+ * also after the dialog was closed and opened again (the opening page keeps
+ * `keys`), so a retry after a lost response cannot create a second project.
+ */
+export function NewProjectDialog({
+  kind,
+  keys,
+  wording,
+  createRequest,
+  onClose,
+  onCreated,
+}: {
+  kind: ProjectKind;
+  wording: NewProjectWording;
+  onClose: () => void;
+  onCreated: (project: Project) => void;
+} & (
+  | { keys: NewProjectKeys; createRequest?: never }
+  | {
+      keys?: never;
+      /** Evaluation creation keeps its persisted exact-request recovery. */
+      createRequest: (request: CreateProjectRequest) => Promise<Project>;
+    }
+)) {
+  const api = usePublicAPI();
+  const queryClient = useQueryClient();
+  const heading = useId();
+  const nameField = useRef<HTMLInputElement>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const create = useMutation({
+    mutationFn: (request: CreateProjectRequest) =>
+      createRequest
+        ? createRequest(request)
+        : createProject(api, {
+            request,
+            idempotencyKey: keys.keyFor(request),
+          }),
+    onSuccess: async (project) => {
+      keys?.created();
+      // Lists elsewhere refresh in the background; the dialog waits only for
+      // the list the new project joins.
+      void invalidateCrossProject(queryClient);
+      if (kind === "evaluation")
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.evals.projects,
+        });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.lists(kind),
+      });
+      onCreated(project);
+    },
+  });
+
+  function close(): void {
+    if (create.isPending) return;
+    onClose();
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    setValidationError(null);
+    create.reset();
+    const data = new FormData(event.currentTarget);
+    try {
+      create.mutate(
+        normalizeProjectRequest({
+          kind,
+          name: String(data.get("name") ?? ""),
+          description: String(data.get("description") ?? ""),
+        }),
+      );
+    } catch (error) {
+      setValidationError(
+        error instanceof Error ? error.message : "Project metadata is invalid",
+      );
+    }
+  }
+
+  return (
+    <Dialog
+      className="ui-dialog ui-panel projects-new-dialog"
+      labelledBy={heading}
+      initialFocusRef={nameField}
+      onRequestClose={close}
+    >
+      <DialogHeader
+        id={heading}
+        title={wording.title}
+        close={{
+          label: wording.closeLabel,
+          disabled: create.isPending,
+          onClose: close,
+        }}
+      />
+      <form className="projects-form" onSubmit={submit}>
+        <Field label="Name" className="projects-field">
+          {(control) => (
+            <input
+              {...control}
+              ref={nameField}
+              name="name"
+              required
+              autoComplete="off"
+              maxLength={MAXIMUM_PROJECT_NAME_LENGTH}
+            />
+          )}
+        </Field>
+        <Field label="Description" className="projects-field">
+          {(control) => (
+            <textarea
+              {...control}
+              name="description"
+              maxLength={MAXIMUM_PROJECT_DESCRIPTION_LENGTH}
+              rows={3}
+            />
+          )}
+        </Field>
+        {validationError === null ? null : (
+          <p className="form-error" role="alert">
+            {validationError}
+          </p>
+        )}
+        {create.error === null ? null : <ErrorNotice error={create.error} />}
+        <div className="ui-dialog-actions">
+          <Button disabled={create.isPending} onClick={close}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            pending={create.isPending}
+            pendingLabel="Creating…"
+          >
+            {wording.submitLabel}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}

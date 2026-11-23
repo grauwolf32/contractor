@@ -1,0 +1,26 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: naabu-host, version: "1"}
+spec:
+  parameters:
+    target: {required: true}
+  inputs: {}
+  outputs:
+    report: {required: true, primary: true, mediaTypes: [application/json]}
+  entryStage: scan
+  stages:
+    scan:
+      objective: Scan selected TCP ports on the supplied host
+      instructions: {ref: instructions/scan.md}
+      planner: passthrough@1
+      agents:
+        scanner: {template: naabu-scan@1}
+      context: {artifacts: {}}
+      result:
+        artifacts:
+          report: {required: true, mediaTypes: [application/json], from: {namespace: scanner, name: report}}
+      workflowOutputs: {report: report}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

@@ -1,0 +1,107 @@
+{
+  "task": "V62-009",
+  "verified_on": "2026-09-21",
+  "result": "passed",
+  "implementation_checkpoint": "22fcba08211b83bb109c34c706ce5696602b699d",
+  "environment": {
+    "database": "disposable PostgreSQL 17; isolated test schemas",
+    "targets": "loopback HTTP fixture only",
+    "scanners": "installed real SQLMap and Nuclei; controlled local Nuclei template",
+    "processes": "real Server, Scheduler and Python Runtime over mTLS; public API mutations",
+    "model_execution": false,
+    "scanner_engine_modified": false,
+    "deployment_performed": false
+  },
+  "acceptance": {
+    "A1": "Exact POST/path/query/body/authentication and parameter probing verified at the HTTP target; exact source/settings/operation/preparation provenance, canonical package and receipt verified. Nuclei template ID and separate URL coverage verified.",
+    "A2": "Missing authentication causes no target request; retained unknown/cancelled/failure gaps never become a passing security verdict. Preparation/executor/Runtime tests cover missing path/body, excluded parameters, malformed and truncated output.",
+    "A3": "Pending active-check review prevents Run submission until explicit approval. Ordinary scanner process suite passes including missing binaries, Nuclei, Naabu, SQLMap, ffuf, invalid input, cancellation and publication failure.",
+    "A4": "Lost completed journal acknowledgement causes one dispatched job and one Audit Run. Failed canonical publication and rolled-back collection recover after Server restart without rescanning. Known failures stop at three Audit Runs. Canonical retained packages/report/receipts remain intact after all child Runs are deleted."
+  },
+  "commands": [
+    {
+      "command": "go test -count=1 ./internal/scanplan ./internal/config ./internal/contracts ./internal/auditdomain ./internal/auditscan ./internal/planner/... ./internal/auditservice ./internal/auditimport ./internal/auditcontroller ./internal/runservice ./tests/eval/agent_instructions",
+      "result": "passed"
+    },
+    {
+      "command": "cd runtime && uv run --frozen pytest -W error tests/test_tool_worker.py tests/test_scan_toolset.py tests/test_scan_http_request.py tests/test_audit_completion_contracts.py",
+      "result": "passed",
+      "cases": 201
+    },
+    {
+      "command": "python3 scripts/test-openapi-audit-scan-e2e.py --report <private-report>",
+      "underlying_command": "go test -json -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestOpenAPIAuditScanAcrossProductionProcesses$'",
+      "result": "passed",
+      "mandatory_process_cases": 7
+    },
+    {
+      "command": "go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestScanToolsAcrossProductionProcesses$' -json",
+      "result": "passed"
+    },
+    {
+      "command": "go test -json -count=1 ./internal/auditstore ./internal/auditimport ./internal/auditservice ./internal/auditcontroller ./internal/httpapi/public",
+      "result": "passed",
+      "database": "disposable PostgreSQL"
+    },
+    {
+      "command": "go vet -tags=e2e ./tests/e2e",
+      "result": "passed"
+    },
+    {
+      "command": "runtime/.venv/bin/ruff check scripts/test-openapi-audit-scan-e2e.py && runtime/.venv/bin/ruff format --check scripts/test-openapi-audit-scan-e2e.py",
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "mandatory_gate": "make test-openapi-audit-scan-e2e; empty, missing and skipped process selections are rejected",
+  "process_report": {
+    "sha256": "b28b5196812e858609864a2c896b74e27c226c15bce32fa968fbd049bc569406",
+    "passed_cases_including_subtests": 8,
+    "packages": 1,
+    "skipped": 0,
+    "failed": 0,
+    "cases": [
+      "TestOpenAPIAuditScanAcrossProductionProcesses/sqlmap_exact_request_and_retained_package",
+      "TestOpenAPIAuditScanAcrossProductionProcesses/nuclei_url_coverage_and_pinned_template",
+      "TestOpenAPIAuditScanAcrossProductionProcesses/missing_concrete_input_never_dispatches",
+      "TestOpenAPIAuditScanAcrossProductionProcesses/lost_journal_ack_does_not_repeat_scan",
+      "TestOpenAPIAuditScanAcrossProductionProcesses/publication_and_collection_faults_survive_restart",
+      "TestOpenAPIAuditScanAcrossProductionProcesses/known_failure_has_bounded_cross_run_retries",
+      "TestOpenAPIAuditScanAcrossProductionProcesses/cancelled_scan_is_not_resubmitted",
+      "TestOpenAPIAuditScanAcrossProductionProcesses"
+    ]
+  },
+  "ordinary_scanner_report": {
+    "sha256": "dc999f7c6f818eb2741f1c93d75b5889f12a6a8022d8b7b084b2e4fe2f2846c4",
+    "passed_cases_including_subtests": 9,
+    "packages": 1,
+    "skipped": 0,
+    "failed": 0,
+    "cases": [
+      "TestScanToolsAcrossProductionProcesses/missing_binaries_wait_for_capacity",
+      "TestScanToolsAcrossProductionProcesses/nuclei_local_template",
+      "TestScanToolsAcrossProductionProcesses/naabu_local_connect",
+      "TestScanToolsAcrossProductionProcesses/sqlmap_exact_request",
+      "TestScanToolsAcrossProductionProcesses/ffuf_pins_uploaded_revision",
+      "TestScanToolsAcrossProductionProcesses/invalid_input_is_failure",
+      "TestScanToolsAcrossProductionProcesses/cancel_running_scanner",
+      "TestScanToolsAcrossProductionProcesses/report_publication_failure",
+      "TestScanToolsAcrossProductionProcesses"
+    ]
+  },
+  "postgres_report": {
+    "sha256": "865263e95fd8aa9a33a4ee5c249cc2dafcf80412364de7133c728d2d65dfe454",
+    "passed_cases_including_subtests": 644,
+    "packages": 5,
+    "skipped": 0,
+    "failed": 0
+  },
+  "scope_limit": "Supplied-OpenAPI bounded scanning only. Preparation execution, model-generated API quality and independent PoC verification are not delivered by this task.",
+  "diagnostic_notes": [
+    "The first environment check found an incomplete demo SQLMap installation (missing plugins.dbms.cache). Final gates used the existing complete test installation; no scanner or demo files were changed.",
+    "The seven-case gate needed a 150-second per-condition allowance for six Stage attempts across three bounded Runs. Final complete gate finished in 247 seconds under the original six-minute limit."
+  ]
+}

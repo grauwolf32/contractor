@@ -1,0 +1,192 @@
+schema_version: "1.0"
+id: V421-002
+title: Preserve finding preconditions in the final Audit report
+milestone: data-model-consumers-2026-10
+epic: findings
+kind: feature
+priority: P2
+status: completed
+depends_on: []
+languages: [go, sql, json, yaml]
+goal: >-
+  Carry the preconditions of a finding proposal into its immutable report projection and the
+  final machine-readable Audit report, so a confirmed finding retains the conditions under
+  which it applies when consumed outside the review UI.
+context:
+  specification:
+    - docs/spec/findings/findings.md#FND-R158
+    - docs/spec/audits/review-and-reports.md#REV-R79
+    - docs/spec/audits/review-and-reports.md#REV-R194
+    - docs/spec/audits/review-and-reports.md#REV-R195
+    - docs/spec/audits/review-and-reports.md#REV-R196
+    - docs/spec/audits/review-and-reports.md#REV-R197
+    - docs/spec/platform/limits.md
+    - docs/spec/platform/persistence.md#PER-R43
+  review: User-requested detailed data-model consumer review on 2026-10-27, finding 2.
+  finding: >-
+    FindingProposal.Preconditions is a useful field (internal/auditdomain/types.go:296):
+    ui/src/routes/decisions/finding-summary.tsx:233-236 shows it as It depends on. However,
+    internal/auditdomain/finding_report.go:10-29 omits it from FindingReportProjection and
+    ProjectFindingReport; internal/auditimport/report.go:112-128 and report_build.go:234-243
+    consequently cannot include it in report.json. A condition recorded only in preconditions
+    disappears from the final finding. This matches the current FND-R158 enumeration, so the
+    task extends the owning contract rather than treating current code as spec drift.
+  siblings: >-
+    Inspect proposal validation and intake report-projection writes, strict projection reads,
+    first-receipt selection, PostgreSQL report pages, all finding-state report sections,
+    final report JSON and downloaded report clients. Decision UI already reads the full proposal.
+    Finding collections and SARIF have their own selected-content contracts and must be checked
+    for unintended effects, without expanding this task into a redesign of those outputs.
+  provenance: >-
+    The current bounded projection was introduced by V368-001, commit
+    f6a874b7cfe0a5c122c2646927cac82451436549. It deliberately matches FND-R158, which omits
+    preconditions. This is classified as a feature because the report contract is being extended.
+  overlap: >-
+    V411-016 extends pentest proof reports and V64-018 maps research/pentest reports; preserve
+    their separate authority dimensions. This task only adds the existing proposal conditions
+    to the generic finding report projection and needs neither unfinished feature.
+  revalidated_on_main: >-
+    Still applicable on main 1716e40db. Finding intake report projections and final report still omit preconditions. Preserve discarded-receipt tombstone {} shape and the new sealed single-chain admission. Reserve migration 000055 if an incompatible projection-format preflight is required; preserve immutable report bytes and use no legacy default-empty reader.
+scope:
+  in:
+    - Extend FND-R158 and the report contract to include the original proposal preconditions with their existing validation and bound.
+    - Carry preconditions through canonical immutable intake projections, strict stored reads, recorded report pages and every finding-state section of report.json.
+    - Add projection, real PostgreSQL intake/report, large-page and source-deletion regressions.
+    - Update public/downloaded report schemas and generated consumers only where the report shape is declared or validated.
+  out:
+    - Changing finding identity, triage authority, severity, confirmation, correlation, proposed-check scheduling or model instructions.
+    - Re-reading proposal artifacts during finalization, adding a second per-finding query or introducing legacy projection fallbacks.
+    - Expanding bounded report.md from its current summary/counts contract into a complete finding catalog.
+    - Rewriting previously accepted immutable reports or adding a bulk migration over retained business data.
+requirements:
+  - id: R1
+    text: >-
+      The immutable report projection copies preconditions from the exact proposal admitted by
+      its first receipt, preserving content and order under the existing proposal validation.
+      The report field has one documented spelling and a closed shape across all declared
+      schemas and consumers. Empty preconditions have explicit canonical encoding.
+  - id: R2
+    text: >-
+      report.json includes the field for confirmed, proposed, rejected, duplicate and
+      needs-evidence findings. It does not infer conditions from prose, discard them after a
+      human verdict, or substitute conditions from a later contribution for the first proposal.
+  - id: R3
+    text: >-
+      Keep the bounded report architecture: finalization reads stored projections and existing
+      report pages, never proposal artifacts. Include preconditions in projection/page/report
+      byte accounting and preserve the current revision fence, resume cursor and size failure.
+  - id: R4
+    text: >-
+      Tighten or extend the owning spec and strict projection codec together. Preserve the
+      project's strict-read/no-backward-compatibility policy; any schema/migration decision
+      needed for pre-production stored projections is explicit, and never silently manufactures
+      empty conditions for a shape that violates the new contract.
+  - id: R5
+    text: >-
+      Record the boundary decision: conditions belong in the stored projection because report
+      finalization must remain bounded without artifact hydration. A retained firstProposal ref
+      is attribution, not a substitute for including conditions in the standalone report.
+failure_outcomes:
+  - operation: Admit and store a finding report projection
+    permanent: Invalid conditions or projection bytes fail the existing finding validation before receipt/artifact side effects; deterministic invalid input is not retried.
+    retryable: Existing storage_transaction_conflict handling applies without a new retry mechanism.
+    ambiguous: Replay uses the existing finding receipt/client key and exact digest; it does not append another projection.
+    cancelled: The owning intake transaction rolls back before the write fence is released.
+    timeout: Existing intake/transaction timeout owns storage work; no separate hydration call is added.
+  - operation: Record pages and publish the final report
+    permanent: A projection or complete report beyond existing bounds follows the existing classified finalization failure without silently dropping preconditions.
+    retryable: Existing resumable-page and transaction-conflict behavior applies within the current controller budget.
+    ambiguous: Reuse existing recorded pages and exact report publication/commit identity; never append or publish a second logical report blindly.
+    cancelled: Existing report owner joins work and retains or discards pages according to the current finalization lifecycle.
+    timeout: The current report attempt budget owns page work; later attempts resume from the recorded cursor.
+cardinality:
+  - collection: Preconditions of one FindingProposal and its report projection
+    expected: A small list of applicability conditions.
+    maximum: Existing MaximumCoverageValues and MaximumStringBytes plus MaximumDocumentBytes; do not introduce a second independent condition limit.
+    bound: Validate/copy once at intake; projection remains within the existing proposal-size bound.
+  - collection: Findings and pages of one Audit report
+    expected: Small reports and realistic multi-page reports.
+    maximum: 100000 findings; 64-MiB report.json; existing 200-entry/8-MiB projection page budget, 32 pages per attempt and 4096 recorded pages.
+    bound: Preconditions count in existing bytes; no artifact hydration or per-finding query, and limit failures never drop individual conditions.
+lifecycle:
+  - entity: Preconditions inside existing immutable finding projections and report pages
+    delete: Existing receipt/Audit/Project deletion and purge rules apply.
+    cascade: The field follows its parent projection/page/report; no new table, entity or ownership relation.
+    retention: Accepted report bytes remain immutable; the new projection preserves conditions after source Run deletion under existing retained Audit holds.
+acceptance_criteria:
+  - id: A1
+    given: A proposal whose only applicability restriction is a nonempty Unicode preconditions entry, absent from its description and limitations.
+    when: Intake, human confirmation and final report publication run through PostgreSQL.
+    then: report.json retains the exact condition in the finding, independently of the full proposal artifact and without prose duplication.
+  - id: A2
+    given: Findings in every report section, empty conditions and multiple contributions with different conditions.
+    when: Their immutable report projections are encoded/decoded and final pages assembled.
+    then: Every section has the declared canonical field and uses the first receipt's conditions; strict malformed/unknown/null cases follow the owning contract.
+  - id: A3
+    given: Realistic large findings/pages with conditions near existing byte bounds, a stale Audit revision, restart and a timed-out attempt.
+    when: Report finalization resumes.
+    then: Existing row/byte/work limits and revision invalidation hold; progress resumes without missing/duplicated conditions or proposal artifact reads.
+  - id: A4
+    given: An imported finding whose source Run is later deleted and an already accepted report.
+    when: The retained report is downloaded and ordinary purge/lifecycle tests run.
+    then: The condition remains attributable and readable through existing holds; immutable report bytes and deletion ownership remain intact.
+  - id: A6
+    given: A stopped previous writer and source-held or audit-held receipt projections missing an array preconditions member, together with immutable history and discarded {} tombstones.
+    when: Forward migration 000055 is attempted.
+    then: The upgrade refuses atomically with SQLSTATE 55000, preserves every stored byte and the ledger, and names the explicit operator disposition; current projections and discarded tombstones migrate without rewriting accepted reports.
+  - id: A5
+    given: Updated spec, strict codecs, schemas/fixtures and touched packages.
+    when: The listed checks run with a disposable PostgreSQL database.
+    then: The original omission regression fails before the change, all required suites pass, and no database skip or empty test selection is counted as success.
+implementation_plan:
+  transition: >-
+    Reserved migration 000055 and PER-R43 use a strict retained-projection preflight,
+    excluding intentional discarded {} tombstones. The previous writer must be stopped.
+    No data deletion, backfill, old-format fallback or demo database action is included;
+    the operator preserves the old database and chooses a fresh database or a separately
+    authorized explicit data disposition before upgrading.
+  sibling_tests: >-
+    Current-format SQL receipt fixtures in app, Project lifecycle and Eval purge tests
+    explicitly encode empty conditions. Historical migration fixtures keep their original
+    bytes and stop at the preceding schema rather than bypassing the new precondition.
+tests:
+  - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -race -count=1 ./internal/persistence/postgres ./internal/app ./internal/projectlifecycle ./internal/evalservice'
+    covers: [A4, A5, A6]
+  - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -race -count=1 ./internal/auditdomain ./internal/findingintake ./internal/auditimport ./internal/auditstore/internal/pgstore ./internal/auditservice'
+    covers: [A1, A2, A3, A4, A5]
+  - command: make test-audit-completion-e2e
+    covers: [A1, A2, A3, A4, A5]
+  - command: make test-findings-e2e
+    covers: [A1, A2, A4, A5]
+  - command: make verify-public-api
+    covers: [A2, A5]
+  - command: make lint
+    covers: [A2, A3, A5]
+implementation_commit: afc93839ad938f268af260e26fceea43d4506ac0
+verification:
+  completed_on: '2026-10-27'
+  functional_code_commit: aa19b64cfecb2dd7141ff8329aaed77c8091a35e
+  generated_dependency_commit: afc93839ad938f268af260e26fceea43d4506ac0
+  results:
+    - All nine listed Go owner and sibling packages passed with integration tags, race detector and a separate disposable PostgreSQL database; no database skip was accepted.
+    - make verify-public-api passed on the final functional code.
+    - make test-findings-e2e passed 14 required real-process cases and Runtime contracts on the final functional code.
+    - make lint passed after regenerating the sole stale documentation dependency input hash.
+    - Clean-source make test-audit-completion-e2e passed 257 Go cases and 497 Runtime cases on the final generated-document commit, with no selected skips.
+    - Focused strict-codec, near-document-limit, 11 migration-scenario and real intake/confirmation/source-deletion/report regressions passed.
+  evidence:
+    - /private/tmp/v421-002-verification.json
+    - /private/tmp/v421-002-final-completion.log
+    - /private/tmp/v421-002-final-findings.log
+    - /private/tmp/v421-002-focused-migration.log
+  notes: >-
+    Preconditions preserve the first receipt's exact strings and order across all five
+    report sections. Valid near-8-MiB projections do not guarantee report capacity:
+    actual entry bytes and the final envelope retain existing permanent size failures
+    before page or artifact writes, without trimming conditions. Migration 000055
+    atomically refuses incompatible retained projections and preserves ledger, receipt,
+    projection and immutable artifact bytes; discarded {} tombstones remain valid.
+    No old-format reader, data backfill, deletion, demo migration or accepted-report
+    rewrite was performed. macOS direct Go tests used a symlink-free temporary root
+    as documented in docs/testing/README.md. The parent integration owns landing and
+    the combined release gate; its frozen functional source has already been merged.

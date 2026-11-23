@@ -1,0 +1,39 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: file-publication-fixture, version: "1"}
+spec:
+  parameters: {}
+  inputs:
+    source: {required: true, mediaTypes: [application/zip]}
+  outputs:
+    result: {required: true, mediaTypes: [application/json]}
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+      modelPolicy: worker@1
+  entryStage: publish
+  stages:
+    publish:
+      objective: Publish the existing report.json by local file reference
+      instructions: {ref: instructions/report-planner.md}
+      planner: passthrough@1
+      agents:
+        builder: {template: file_publication_fixture@1}
+      context:
+        artifacts:
+          source: {namespace: inputs, name: source, required: true}
+        workspace:
+          mode: direct
+          sources: [{artifact: source, target: ""}]
+      result:
+        artifacts:
+          report:
+            required: true
+            mediaTypes: [application/json]
+            from: {namespace: builder, name: report}
+      workflowOutputs: {result: report}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

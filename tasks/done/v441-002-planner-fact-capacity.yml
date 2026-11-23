@@ -1,0 +1,73 @@
+schema_version: '1.0'
+milestone: hub-audit-defects-2026-10
+epic: planner-worker
+depends_on: []
+languages:
+- go
+id: V441-002
+title: Derive Planner fact capacity from the pinned subtask limit
+kind: defect
+introduced_by: V384-001
+priority: P2
+status: completed
+goal: A configured plan can execute its selected number of short subtasks without exhausting an unrelated 256-fact
+  ceiling.
+context:
+  authority: 'User request on 2026-11-03: "Давай сделаем упрощения и оптимизации и затем поправим проблемы".'
+  finding: internal/planner/session/service.go:342 rejects the 86th sequential dispatch of a 100-subtask plan
+    after add/current, selection and completion/current facts consume 256 entries.
+  siblings: Streamline and Router share one engine. Passthrough, scan, durable reads, Gateway main/compactor
+    and telemetry consumers are checked where applicable; no Runtime or UI behavior change is introduced.
+  specification:
+  - docs/spec/execution/planners.md#PLN-R27
+  - docs/spec/execution/planners.md#PLN-R106
+  - docs/spec/platform/limits.md#LIM-PLN-19
+  boundary: 'Implementation decision: preserve the existing Planner/domain/Server-operation separation and
+    public fact vocabulary. Keep receipt capacity derived from the pinned plan rather than introduce a new
+    event-batching protocol or receipt owner. Atomic event batching remains a separate option if measured database
+    cost warrants it.'
+  verification:
+    date: '2026-11-03'
+    environment: Go 1.26.9 darwin/arm64; dedicated disposable PostgreSQL; scripted models, local HTTP Gateway
+      and OTLP fixtures.
+    evidence: PostgreSQL accepts 100 sequential add/dispatch/complete cycles and all 301 fact receipts, including
+      finish; its equal-key replay adds no Run event. Write/read bounds cover omitted, 1, 100 and 1000 subtask
+      selections. The same regression fails on the former 256-receipt implementation at dispatch 86.
+    checks:
+    - make lint
+    - go test -p=2 -count=1 ./internal/planner/... ./internal/scheduler ./internal/archtest ./tests/integration/streamline
+      (with PostgreSQL)
+    - go test -race -p=2 -count=1 ./internal/planner/... (with PostgreSQL)
+  integration_identity: Renamed from V439-002 on 2026-11-03 during the user-requested main merge because that
+    ID was independently assigned to Control Plane on main. Original implementation commits and verification
+    are preserved.
+scope:
+  in:
+  - Derive the bounded receipt capacity from the pinned subtask budget and the existing event sequence; keep
+    the 2 MiB state ceiling authoritative.
+  - Apply the same bound during writes and durable reads, preserve receipt replay and permanent overflow rejection.
+  - Add a real PostgreSQL sequential dispatch regression and boundary coverage for the maximum configured plan.
+  out:
+  - Relocating scanplan, adding Server operations, changing Worker/model selection, changing public schemas
+    or replacing the persistence mechanism.
+acceptance_criteria:
+- id: A1
+  text: A real PostgreSQL plan completes 100 sequential add/dispatch/complete cycles and its finish fact; equal-key
+    replays do not append.
+- id: A2
+  text: The derived maximum accounts for each legal fact and cannot grow without bound; over-capacity writes
+    and reads are rejected.
+- id: A3
+  text: Existing completion, invalid-write and plan-limit tests pass.
+tests:
+- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/planner/...
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: 1d272e45643be9a9dafeb39ef3c3f1ed9be52d37

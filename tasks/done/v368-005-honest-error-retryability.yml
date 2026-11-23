@@ -1,0 +1,80 @@
+schema_version: "1.0"
+id: V368-005
+title: "Make Artifact and configuration errors report the right retryability"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+priority: P1
+status: completed
+implementation_commit: 50ed83825c8d5f4b52d18eddf712adf1e7db7062
+depends_on: []
+languages: [go]
+goal: "Handler tests assert code and retryable for frozen writes, transaction conflicts on the private API and operator-root drift."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), artifacts G4; config G5; file:line as of 02bbdcbf, re-verify on current main"
+  specification:
+    - docs/spec/artifacts/artifact-store.md#ART-R59
+    - docs/spec/configuration/catalog.md#CAT-R75
+    - docs/spec/platform/failure-model.md
+    - docs/spec/platform/errors.md
+  decision: >-
+    Frozen gets its own code, artifact_frozen (409, retryable false), on
+    both APIs instead of keeping conflict/artifact_conflict with a different
+    flag: the Runtime keys its re-read-and-retry logic on artifact_conflict
+    (document_write, the workspace exporter, Memory), so one code with two
+    retryabilities would keep frozen writes in those loops. Frozen wins over
+    every precondition, as in PostgresRepository.writeConflict, and the
+    public test fake now enforces it (it stored frozen but never checked it).
+    Through the APIs a frozen binding is reachable only behind reserved
+    namespaces today (Run outputs, Project audit-*), so the handler tests
+    freeze a binding in a writable namespace with SQL against the real
+    store (public and private) and also inject the sentinel. The private
+    API maps persistencepostgres.IsTransactionConflict to 503
+    storage_transaction_conflict exactly like the public mapper.
+    Configuration drift is the permanent 409 configuration_drift, not a
+    503: retrying cannot succeed until an operator acts, and the Go client
+    and intermediaries treat 503 as transient. Recovery without a restart:
+    Manager.reconcile compares the reloaded union with the snapshot plus the
+    manager's own durable but unswapped publications (a failure at or after
+    the link: temporary-name removal, directory flush, the
+    AfterDurablePublish seam) and adopts those exactly as the startup load
+    would, binding their Idempotency-Key; any other difference is drift and
+    publication resumes as soon as the roots match the snapshot again (a
+    restart instead loads them). Alternatives rejected: adopting every
+    managed-root addition (keeps TestManagerFailsClosedOnExternalFilesystemChange
+    failing closed for files the Server did not write) and swapping the
+    snapshot on a failed directory flush (would answer an error after
+    exposing the version). Sibling paths: a reload that no longer loads
+    (invalid or incomplete set, ENOENT/ENOTDIR) is also drift because the
+    same roots loaded at startup; other errno values (EIO, EMFILE, EACCES)
+    stay the unclassified retryable 500, since the Server cannot tell a
+    transient failure from a change; the idempotency-replay check that said
+    "configuration roots changed after the original publication" is folded
+    into reconcile. Ruled out: findingintake.ErrConflict on the public API
+    mixes a transaction conflict (V368-003 owns its 503) with a reused
+    collection client key (permanent; left for V370-010's error kinds);
+    ErrScopeDeleting on the private API is unreachable for a live
+    allocation's RunScope. Reversal: if operators need to add operator-root
+    content without a restart, replace drift with an explicit reload
+    command rather than adopting operator changes during a publication.
+  finding: >-
+    Frozen Artifacts answer retryable:true although frozen is permanent
+    (privateartifacts/errors.go:45, httpapi/public/errors.go:145). The
+    private API answers 500 for 40001/40P01 instead of 503
+    storage_transaction_conflict (errors.go:61). "configuration roots
+    changed outside the publication manager" (config/manager.go:334, 346) is
+    unclassified and answers 500 retryable:true, and blocks every
+    publication until restart.
+scope:
+  in:
+    - "Frozen and other deterministic rejections are retryable:false; the private API maps transaction conflicts like the public API; the operator-root drift error is a classified permanent error with recovery documented in FAIL-CAT-2, and the manager can recover without a restart."
+  out:
+    - "Error codes that are already correct."
+acceptance_criteria:
+  - id: A1
+    text: "Handler tests assert code and retryable for frozen writes, transaction conflicts on the private API and operator-root drift."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/httpapi/privateartifacts ./internal/httpapi/public ./internal/config"
+    covers: [A1]

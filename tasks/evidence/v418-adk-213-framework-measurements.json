@@ -1,0 +1,3383 @@
+{
+  "candidate_setup_provenance": {
+    "bundle_sha256": "ef0a651c09778eb32541f412044ab6f0d90da9e0cb6cbdf00f58550421fd8d16",
+    "commands": [
+      {
+        "command": [
+          "git",
+          "fetch",
+          "/tmp/v418-candidate-a308/source.bundle",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "label": "fetch",
+        "log_sha256": "a4c1fc1e4de23c6054b8775409046353992114dbd077fb2c2171fd5192ed4730"
+      },
+      {
+        "command": [
+          "git",
+          "checkout",
+          "--detach",
+          "a308c695e83d561ae67a303447851c89883ea5c8"
+        ],
+        "exit_code": 0,
+        "label": "checkout",
+        "log_sha256": "3907d5fc599ebefe489b2c25925b568b5468b46d65ccc9a2dbba85d01248cf2a"
+      },
+      {
+        "command": [
+          "uv",
+          "sync",
+          "--locked"
+        ],
+        "exit_code": 0,
+        "label": "sync",
+        "log_sha256": "87ef2e1ceed463e67205c5baf4736139b176e5d12ebea12dfb1d1fd5697e48e8"
+      },
+      {
+        "command": [
+          "python3",
+          "/tmp/v418006-measurements/measure_adk_runtime.py",
+          "--repository",
+          "/release-v418",
+          "--fixture",
+          "/tmp/v418006-measurements/fixture/adk_scale.py",
+          "--workloads",
+          "/tmp/v418006-measurements/fixture/workloads.json",
+          "--turns",
+          "50",
+          "--mode",
+          "shared",
+          "--samples",
+          "3",
+          "--output",
+          "/tmp/v418006-measurements/current-shared-50-3.json"
+        ],
+        "exit_code": 0,
+        "label": "measure-shared-50",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "command": [
+          "python3",
+          "/tmp/v418006-measurements/measure_adk_runtime.py",
+          "--repository",
+          "/release-v418",
+          "--fixture",
+          "/tmp/v418006-measurements/fixture/adk_scale.py",
+          "--workloads",
+          "/tmp/v418006-measurements/fixture/workloads.json",
+          "--turns",
+          "50",
+          "--mode",
+          "isolated",
+          "--samples",
+          "3",
+          "--output",
+          "/tmp/v418006-measurements/current-isolated-50-3.json"
+        ],
+        "exit_code": 0,
+        "label": "measure-isolated-50",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "command": [
+          "python3",
+          "/tmp/v418006-measurements/measure_adk_runtime.py",
+          "--repository",
+          "/release-v418",
+          "--fixture",
+          "/tmp/v418006-measurements/fixture/adk_scale.py",
+          "--workloads",
+          "/tmp/v418006-measurements/fixture/workloads.json",
+          "--turns",
+          "150",
+          "--mode",
+          "shared",
+          "--samples",
+          "3",
+          "--output",
+          "/tmp/v418006-measurements/current-shared-150-3.json"
+        ],
+        "exit_code": 0,
+        "label": "measure-shared-150",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "command": [
+          "python3",
+          "/tmp/v418006-measurements/measure_adk_runtime.py",
+          "--repository",
+          "/release-v418",
+          "--fixture",
+          "/tmp/v418006-measurements/fixture/adk_scale.py",
+          "--workloads",
+          "/tmp/v418006-measurements/fixture/workloads.json",
+          "--turns",
+          "150",
+          "--mode",
+          "isolated",
+          "--samples",
+          "3",
+          "--output",
+          "/tmp/v418006-measurements/current-isolated-150-3.json"
+        ],
+        "exit_code": 0,
+        "label": "measure-isolated-150",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "finished_at_utc": "2026-10-25T15:50:34.712504+00:00",
+    "fresh_default_venv": true,
+    "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+    "previous_revision": "c59a4d2d9e41ae35117311a69216fe733ab79d97",
+    "repository_clean_after": true,
+    "revision": "a308c695e83d561ae67a303447851c89883ea5c8",
+    "runtime": {
+      "python": "3.13.5",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.9.1",
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0"
+      }
+    },
+    "source": "only committed accepted production revision; root006 uncommitted files excluded",
+    "source_files_sha256": {
+      "runtime/src/contractor_runtime/a2a_server.py": "880ead38e52c7937cb3c0bc872d60634a403b99de346d626a2645f8053e30971",
+      "runtime/src/contractor_runtime/worker/one_shot.py": "762bbe295d1145bb349420cc640eed3cb65dad68e0f36604fa72a1941e36e8ef",
+      "runtime/src/contractor_runtime/worker/runtime.py": "b157574720e1fa6fb6c451b3ef8467c24b04c20bc183ab97ab83894375cca6a5",
+      "runtime/uv.lock": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64"
+    },
+    "started_at_utc": "2026-10-25T15:49:48.072389+00:00",
+    "tree": "97c03ffec08552e7dd6d7fa33b68db71c5794c6a"
+  },
+  "candidate_setup_provenance_sha256": "bcf060271c73042215600068f3965a994569af4df89adfcf2f5e8093b6ec90a7",
+  "commands": [
+    {
+      "note": "Use each selected repository locked default runtime/.venv; repeat all two modes and both turn counts. The initial valid baseline/shared/50 sample plus remaining two constitute its three samples.",
+      "template": "python scripts/measure_adk_runtime.py --repository REPOSITORY --fixture FROZEN_FIXTURE --workloads FROZEN_WORKLOADS --turns TURNS --mode MODE --samples 3 --output NEW_REPORT.json"
+    }
+  ],
+  "comparison_scope": "Historical supported Runtime code/lock versus migrated Runtime code/lock; this does not isolate an SDK-only causal effect",
+  "date": "2026-10-25",
+  "execution": {
+    "network": "Internet socket connect/connect_ex and DNS calls denied in every measurement child; fixture uses httpx.MockTransport with trust_env=False",
+    "platform": "Linux aarch64",
+    "production_imports": "Only each selected repository runtime/src plus runtime/tests, verified module files; shared current fixture loaded by file path outside both checkouts",
+    "python": "3.13.5",
+    "separate_fresh_child_per_sample": true,
+    "warning_policy": "Ordinary Python warnings, retained as category/count/message digests; no SDK feature flags or warning filters are disabled"
+  },
+  "fixture": {
+    "path": "runtime/tests/fakes/adk_scale.py",
+    "sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517"
+  },
+  "inventory": {
+    "calls_per_tool_turn": 2,
+    "completed_samples": 24,
+    "expected_samples": 24,
+    "main_turns": [
+      50,
+      150
+    ],
+    "modes": [
+      "shared",
+      "isolated"
+    ],
+    "samples_per_sdk_mode_turn_selection": 3,
+    "sequential_subtasks": 3
+  },
+  "measurement_script": {
+    "path": "scripts/measure_adk_runtime.py",
+    "sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88"
+  },
+  "phase_notes": [
+    "Core import time includes importing the production Runtime/custom Gateway and verifying their source files; fixture import time separately includes the selected historical/current test_adk_runtime helper.",
+    "construction_seconds measures AdkWorkerRuntime/agent construction and start over a custom BaseLlm object, not the string-model optimization path.",
+    "first_request_seconds is preparation from first invoke to first MockTransport handler entry and is nested within workload time.",
+    "session_read_seconds measures public get_session including its copy work; read_event_copies counts returned event entries, not every internal heap copy.",
+    "callback_seconds and their aggregate overlap during parallel work and must not be added or subtracted as disjoint wall time.",
+    "provider_seconds is actual deterministic MockTransport handler/JSON work; no external provider latency or model quality is measured.",
+    "framework_seconds_excluding_mock_handler is elapsed_seconds minus only the measured MockTransport handler time. It includes deterministic fixture probes, growing nested State, effect validation and copy work, the Runtime and its adapter; it is not pure SDK CPU time. The setup/reporting/cleanup residual is separately labelled and is not pure cleanup time.",
+    "All identities and payloads are validated in the child then discarded; exported evidence contains safe counters, sizes, ordinals and digests only.",
+    "The callback aggregate covers before_run, before_model, after_model, before_tool and after_tool hooks; other orchestration/auxiliary-hook work remains in the total framework residual."
+  ],
+  "purpose": "Informational custom-BaseLlm framework measurements for V418-006 R4; no timing or speedup acceptance threshold",
+  "samples": [
+    {
+      "callback_aggregate_seconds_non_disjoint": 0.4536732602282427,
+      "created_sessions": 1,
+      "detail_truncated": false,
+      "effects": 294,
+      "elapsed_seconds": 0.8443747220007936,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 0.822340823156992,
+      "fresh_child_process_wall_seconds": 1.582741468999302,
+      "lock_sha256": "0188d1b5106c7ccf763f4ab3c9639131b172fc6e2bf63ad944a0695bf4d8014e",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "e5caeae2953cf7100226860c704638bce1a948c8c72ad4d6d7972901bf96ff04"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 1,
+      "report_bytes": 47208,
+      "reported_tool_calls": 294,
+      "repository_clean": true,
+      "repository_revision": "7b5a1fd14cd7930b8a99d3d272ac4e09ce0b15bd",
+      "request_count": 153,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        294
+      ],
+      "retained_tool_records": 294,
+      "sample": 1,
+      "sdk_group": "historical_baseline",
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "shared",
+        "subtasks": 3,
+        "turns": 50,
+        "width": 2
+      },
+      "semantic_effects_sha256": "d0c01a7af5797b8366ccb9daafe43f475b83f26a85b5a50c9cd230ffc0c7cf19",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        11431,
+        21823,
+        32212
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "9c1ea59eb6f5a87fb5801fa03226437d72911ce3fe5f5316c8d5b347ba094467"
+      },
+      "timings": {
+        "child_measured_total_seconds": 1.4256105839886004,
+        "core_import_seconds": 0.4791693739971379,
+        "fixture_execution_seconds": 0.905046236992348,
+        "fixture_import_seconds": 0.023525109005277045,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.05501547799212858
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.7.2",
+        "google-adk": "2.8.0",
+        "google-genai": "2.20.0"
+      },
+      "warnings_default_policy": [
+        {
+          "category": "UserWarning",
+          "count": 1,
+          "message_sha256": "a04369aec0575755640c702dc76b72aa2fdf35ff212dbb3727562e2d21718804"
+        }
+      ],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 150,
+          "after_tool_callback": 294,
+          "before_model_callback": 150,
+          "before_run_callback": 3,
+          "before_tool_callback": 294
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.04923127600341104,
+          "after_tool_callback": 0.20759195201389957,
+          "before_model_callback": 0.0496258182101883,
+          "before_run_callback": 0.0010853419953491539,
+          "before_tool_callback": 0.14613887200539466
+        },
+        "construction_seconds": 0.005656036999425851,
+        "event_index_visits": 22652,
+        "event_scans": 462,
+        "event_visits": 69168,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.054813145005027764,
+        "max_event_scan": 301,
+        "max_read_events": 303,
+        "max_request_bytes": 62517,
+        "model_calls": 150,
+        "provider_seconds": 0.02203389884380158,
+        "read_event_copies": 1815,
+        "request_bytes": 4754664,
+        "session_read_seconds": 0.12992616998963058,
+        "session_reads": 11
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 0.44338565386715345,
+      "created_sessions": 1,
+      "detail_truncated": false,
+      "effects": 294,
+      "elapsed_seconds": 0.8080097799975192,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 0.7869107159494888,
+      "fresh_child_process_wall_seconds": 1.5007307339983527,
+      "lock_sha256": "0188d1b5106c7ccf763f4ab3c9639131b172fc6e2bf63ad944a0695bf4d8014e",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "e5caeae2953cf7100226860c704638bce1a948c8c72ad4d6d7972901bf96ff04"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 2,
+      "report_bytes": 47208,
+      "reported_tool_calls": 294,
+      "repository_clean": true,
+      "repository_revision": "7b5a1fd14cd7930b8a99d3d272ac4e09ce0b15bd",
+      "request_count": 153,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        294
+      ],
+      "retained_tool_records": 294,
+      "sample": 1,
+      "sdk_group": "historical_baseline",
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "shared",
+        "subtasks": 3,
+        "turns": 50,
+        "width": 2
+      },
+      "semantic_effects_sha256": "d0c01a7af5797b8366ccb9daafe43f475b83f26a85b5a50c9cd230ffc0c7cf19",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        11431,
+        21823,
+        32212
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "9c1ea59eb6f5a87fb5801fa03226437d72911ce3fe5f5316c8d5b347ba094467"
+      },
+      "timings": {
+        "child_measured_total_seconds": 1.3538969560031546,
+        "core_import_seconds": 0.4523833669954911,
+        "fixture_execution_seconds": 0.8639893070067046,
+        "fixture_import_seconds": 0.022715437997248955,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.05149191500095185
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.7.2",
+        "google-adk": "2.8.0",
+        "google-genai": "2.20.0"
+      },
+      "warnings_default_policy": [
+        {
+          "category": "UserWarning",
+          "count": 1,
+          "message_sha256": "a04369aec0575755640c702dc76b72aa2fdf35ff212dbb3727562e2d21718804"
+        }
+      ],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 150,
+          "after_tool_callback": 294,
+          "before_model_callback": 150,
+          "before_run_callback": 3,
+          "before_tool_callback": 294
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.04845285497140139,
+          "after_tool_callback": 0.20423931299592368,
+          "before_model_callback": 0.04850319393153768,
+          "before_run_callback": 0.0009923400211846456,
+          "before_tool_callback": 0.14119795194710605
+        },
+        "construction_seconds": 0.004487612008233555,
+        "event_index_visits": 22652,
+        "event_scans": 462,
+        "event_visits": 69168,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.05140003899578005,
+        "max_event_scan": 301,
+        "max_read_events": 303,
+        "max_request_bytes": 62517,
+        "model_calls": 150,
+        "provider_seconds": 0.021099064048030414,
+        "read_event_copies": 1815,
+        "request_bytes": 4754664,
+        "session_read_seconds": 0.12190240799100138,
+        "session_reads": 11
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 0.4421425579494098,
+      "created_sessions": 1,
+      "detail_truncated": false,
+      "effects": 294,
+      "elapsed_seconds": 0.8003051049890928,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 0.7797479779401328,
+      "fresh_child_process_wall_seconds": 1.4919921359978616,
+      "lock_sha256": "0188d1b5106c7ccf763f4ab3c9639131b172fc6e2bf63ad944a0695bf4d8014e",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "e5caeae2953cf7100226860c704638bce1a948c8c72ad4d6d7972901bf96ff04"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 3,
+      "report_bytes": 47208,
+      "reported_tool_calls": 294,
+      "repository_clean": true,
+      "repository_revision": "7b5a1fd14cd7930b8a99d3d272ac4e09ce0b15bd",
+      "request_count": 153,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        294
+      ],
+      "retained_tool_records": 294,
+      "sample": 2,
+      "sdk_group": "historical_baseline",
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "shared",
+        "subtasks": 3,
+        "turns": 50,
+        "width": 2
+      },
+      "semantic_effects_sha256": "d0c01a7af5797b8366ccb9daafe43f475b83f26a85b5a50c9cd230ffc0c7cf19",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        11431,
+        21823,
+        32212
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "9c1ea59eb6f5a87fb5801fa03226437d72911ce3fe5f5316c8d5b347ba094467"
+      },
+      "timings": {
+        "child_measured_total_seconds": 1.344517271994846,
+        "core_import_seconds": 0.4525612850120524,
+        "fixture_execution_seconds": 0.8542656189965783,
+        "fixture_import_seconds": 0.02233822700509336,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.04944631800753996
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.7.2",
+        "google-adk": "2.8.0",
+        "google-genai": "2.20.0"
+      },
+      "warnings_default_policy": [
+        {
+          "category": "UserWarning",
+          "count": 1,
+          "message_sha256": "a04369aec0575755640c702dc76b72aa2fdf35ff212dbb3727562e2d21718804"
+        }
+      ],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 150,
+          "after_tool_callback": 294,
+          "before_model_callback": 150,
+          "before_run_callback": 3,
+          "before_tool_callback": 294
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.04801060505269561,
+          "after_tool_callback": 0.20398193204891868,
+          "before_model_callback": 0.04833118988608476,
+          "before_run_callback": 0.0009704639960546046,
+          "before_tool_callback": 0.14084836696565617
+        },
+        "construction_seconds": 0.004514195999945514,
+        "event_index_visits": 22652,
+        "event_scans": 462,
+        "event_visits": 69168,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.05122895499516744,
+        "max_event_scan": 301,
+        "max_read_events": 303,
+        "max_request_bytes": 62517,
+        "model_calls": 150,
+        "provider_seconds": 0.020557127048959956,
+        "read_event_copies": 1815,
+        "request_bytes": 4754664,
+        "session_read_seconds": 0.11983868698007427,
+        "session_reads": 11
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 0.44250874797580764,
+      "created_sessions": 3,
+      "detail_truncated": false,
+      "effects": 294,
+      "elapsed_seconds": 0.5960819589963648,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 0.584319464978762,
+      "fresh_child_process_wall_seconds": 1.2403924760001246,
+      "lock_sha256": "0188d1b5106c7ccf763f4ab3c9639131b172fc6e2bf63ad944a0695bf4d8014e",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "e5caeae2953cf7100226860c704638bce1a948c8c72ad4d6d7972901bf96ff04"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 1,
+      "report_bytes": 47208,
+      "reported_tool_calls": 294,
+      "repository_clean": true,
+      "repository_revision": "7b5a1fd14cd7930b8a99d3d272ac4e09ce0b15bd",
+      "request_count": 153,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        294
+      ],
+      "retained_tool_records": 294,
+      "sample": 1,
+      "sdk_group": "historical_baseline",
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "isolated",
+        "subtasks": 3,
+        "turns": 50,
+        "width": 2
+      },
+      "semantic_effects_sha256": "d0c01a7af5797b8366ccb9daafe43f475b83f26a85b5a50c9cd230ffc0c7cf19",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        11431,
+        21823,
+        32212
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "9c1ea59eb6f5a87fb5801fa03226437d72911ce3fe5f5316c8d5b347ba094467"
+      },
+      "timings": {
+        "child_measured_total_seconds": 1.0899935100023868,
+        "core_import_seconds": 0.4494387659942731,
+        "fixture_execution_seconds": 0.6030825449997792,
+        "fixture_import_seconds": 0.022396393993403763,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.0026313910057069734
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.7.2",
+        "google-adk": "2.8.0",
+        "google-genai": "2.20.0"
+      },
+      "warnings_default_policy": [
+        {
+          "category": "UserWarning",
+          "count": 1,
+          "message_sha256": "a04369aec0575755640c702dc76b72aa2fdf35ff212dbb3727562e2d21718804"
+        }
+      ],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 150,
+          "after_tool_callback": 294,
+          "before_model_callback": 150,
+          "before_run_callback": 3,
+          "before_tool_callback": 294
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.04778726494987495,
+          "after_tool_callback": 0.20487044502806384,
+          "before_model_callback": 0.047029923065565526,
+          "before_run_callback": 0.0009605900122551247,
+          "before_tool_callback": 0.1418605249200482
+        },
+        "construction_seconds": 0.004369194997707382,
+        "event_index_visits": 7500,
+        "event_scans": 462,
+        "event_visits": 22506,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.05153899799915962,
+        "max_event_scan": 99,
+        "max_read_events": 101,
+        "max_request_bytes": 21157,
+        "model_calls": 150,
+        "provider_seconds": 0.011762494017602876,
+        "read_event_copies": 603,
+        "request_bytes": 1652664,
+        "session_read_seconds": 0.03579135402105749,
+        "session_reads": 9
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 0.43957329411932733,
+      "created_sessions": 3,
+      "detail_truncated": false,
+      "effects": 294,
+      "elapsed_seconds": 0.5944371560035506,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 0.582602044873056,
+      "fresh_child_process_wall_seconds": 1.2446668789925752,
+      "lock_sha256": "0188d1b5106c7ccf763f4ab3c9639131b172fc6e2bf63ad944a0695bf4d8014e",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "e5caeae2953cf7100226860c704638bce1a948c8c72ad4d6d7972901bf96ff04"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 2,
+      "report_bytes": 47208,
+      "reported_tool_calls": 294,
+      "repository_clean": true,
+      "repository_revision": "7b5a1fd14cd7930b8a99d3d272ac4e09ce0b15bd",
+      "request_count": 153,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        294
+      ],
+      "retained_tool_records": 294,
+      "sample": 2,
+      "sdk_group": "historical_baseline",
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "isolated",
+        "subtasks": 3,
+        "turns": 50,
+        "width": 2
+      },
+      "semantic_effects_sha256": "d0c01a7af5797b8366ccb9daafe43f475b83f26a85b5a50c9cd230ffc0c7cf19",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        11431,
+        21823,
+        32212
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "9c1ea59eb6f5a87fb5801fa03226437d72911ce3fe5f5316c8d5b347ba094467"
+      },
+      "timings": {
+        "child_measured_total_seconds": 1.0931037800037302,
+        "core_import_seconds": 0.4534057499986375,
+        "fixture_execution_seconds": 0.6013822419918142,
+        "fixture_import_seconds": 0.022573977999854833,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.0025787659833440557
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.7.2",
+        "google-adk": "2.8.0",
+        "google-genai": "2.20.0"
+      },
+      "warnings_default_policy": [
+        {
+          "category": "UserWarning",
+          "count": 1,
+          "message_sha256": "a04369aec0575755640c702dc76b72aa2fdf35ff212dbb3727562e2d21718804"
+        }
+      ],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 150,
+          "after_tool_callback": 294,
+          "before_model_callback": 150,
+          "before_run_callback": 3,
+          "before_tool_callback": 294
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.04750713097746484,
+          "after_tool_callback": 0.20358993999252561,
+          "before_model_callback": 0.04674763912044,
+          "before_run_callback": 0.0009299209923483431,
+          "before_tool_callback": 0.14079866303654853
+        },
+        "construction_seconds": 0.004366320004919544,
+        "event_index_visits": 7500,
+        "event_scans": 462,
+        "event_visits": 22506,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.05143649700039532,
+        "max_event_scan": 99,
+        "max_read_events": 101,
+        "max_request_bytes": 21157,
+        "model_calls": 150,
+        "provider_seconds": 0.011835111130494624,
+        "read_event_copies": 603,
+        "request_bytes": 1652664,
+        "session_read_seconds": 0.03582810502848588,
+        "session_reads": 9
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 0.43884705437812954,
+      "created_sessions": 3,
+      "detail_truncated": false,
+      "effects": 294,
+      "elapsed_seconds": 0.5936136929958593,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 0.5817244440841023,
+      "fresh_child_process_wall_seconds": 1.2413134399976116,
+      "lock_sha256": "0188d1b5106c7ccf763f4ab3c9639131b172fc6e2bf63ad944a0695bf4d8014e",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "e5caeae2953cf7100226860c704638bce1a948c8c72ad4d6d7972901bf96ff04"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 3,
+      "report_bytes": 47208,
+      "reported_tool_calls": 294,
+      "repository_clean": true,
+      "repository_revision": "7b5a1fd14cd7930b8a99d3d272ac4e09ce0b15bd",
+      "request_count": 153,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        294
+      ],
+      "retained_tool_records": 294,
+      "sample": 3,
+      "sdk_group": "historical_baseline",
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "isolated",
+        "subtasks": 3,
+        "turns": 50,
+        "width": 2
+      },
+      "semantic_effects_sha256": "d0c01a7af5797b8366ccb9daafe43f475b83f26a85b5a50c9cd230ffc0c7cf19",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        11431,
+        21823,
+        32212
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "9c1ea59eb6f5a87fb5801fa03226437d72911ce3fe5f5316c8d5b347ba094467"
+      },
+      "timings": {
+        "child_measured_total_seconds": 1.0909557650011266,
+        "core_import_seconds": 0.45136456900218036,
+        "fixture_execution_seconds": 0.6006262790033361,
+        "fixture_import_seconds": 0.022509561997139826,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.002610766008729115
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.7.2",
+        "google-adk": "2.8.0",
+        "google-genai": "2.20.0"
+      },
+      "warnings_default_policy": [
+        {
+          "category": "UserWarning",
+          "count": 1,
+          "message_sha256": "a04369aec0575755640c702dc76b72aa2fdf35ff212dbb3727562e2d21718804"
+        }
+      ],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 150,
+          "after_tool_callback": 294,
+          "before_model_callback": 150,
+          "before_run_callback": 3,
+          "before_tool_callback": 294
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.04765605405555107,
+          "after_tool_callback": 0.20282209203287493,
+          "before_model_callback": 0.046892755111912265,
+          "before_run_callback": 0.000908631001948379,
+          "before_tool_callback": 0.1405675221758429
+        },
+        "construction_seconds": 0.004401819998747669,
+        "event_index_visits": 7500,
+        "event_scans": 462,
+        "event_visits": 22506,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.051367371997912414,
+        "max_event_scan": 99,
+        "max_read_events": 101,
+        "max_request_bytes": 21157,
+        "model_calls": 150,
+        "provider_seconds": 0.011889248911757022,
+        "read_event_copies": 603,
+        "request_bytes": 1652664,
+        "session_read_seconds": 0.0358514799590921,
+        "session_reads": 9
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 3.035856181086274,
+      "created_sessions": 1,
+      "detail_truncated": false,
+      "effects": 894,
+      "elapsed_seconds": 5.656487208994804,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 5.397208847178263,
+      "fresh_child_process_wall_seconds": 6.475235391000751,
+      "lock_sha256": "0188d1b5106c7ccf763f4ab3c9639131b172fc6e2bf63ad944a0695bf4d8014e",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "e5caeae2953cf7100226860c704638bce1a948c8c72ad4d6d7972901bf96ff04"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 1,
+      "report_bytes": 142614,
+      "reported_tool_calls": 894,
+      "repository_clean": true,
+      "repository_revision": "7b5a1fd14cd7930b8a99d3d272ac4e09ce0b15bd",
+      "request_count": 453,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        894
+      ],
+      "retained_tool_records": 894,
+      "sample": 1,
+      "sdk_group": "historical_baseline",
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "shared",
+        "subtasks": 3,
+        "turns": 150,
+        "width": 2
+      },
+      "semantic_effects_sha256": "0c83fd11b328bd352e3a3adba7dea0b02d0bca54cb7c6d045505785aa4768291",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        32646,
+        64235,
+        95824
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "9c1ea59eb6f5a87fb5801fa03226437d72911ce3fe5f5316c8d5b347ba094467"
+      },
+      "timings": {
+        "child_measured_total_seconds": 6.321011606996763,
+        "core_import_seconds": 0.4526553280011285,
+        "fixture_execution_seconds": 5.829906490995199,
+        "fixture_import_seconds": 0.02224247599951923,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.16908838000381365
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.7.2",
+        "google-adk": "2.8.0",
+        "google-genai": "2.20.0"
+      },
+      "warnings_default_policy": [
+        {
+          "category": "UserWarning",
+          "count": 1,
+          "message_sha256": "a04369aec0575755640c702dc76b72aa2fdf35ff212dbb3727562e2d21718804"
+        }
+      ],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 450,
+          "after_tool_callback": 894,
+          "before_model_callback": 450,
+          "before_run_callback": 3,
+          "before_tool_callback": 894
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.3318686770508066,
+          "after_tool_callback": 1.3683634831104428,
+          "before_model_callback": 0.3414676860702457,
+          "before_run_callback": 0.0019477209862088785,
+          "before_tool_callback": 0.99220861386857
+        },
+        "construction_seconds": 0.004330901996581815,
+        "event_index_visits": 202952,
+        "event_scans": 1362,
+        "event_visits": 612468,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.05223700300848577,
+        "max_event_scan": 901,
+        "max_read_events": 903,
+        "max_request_bytes": 188805,
+        "model_calls": 450,
+        "provider_seconds": 0.2592783618165413,
+        "read_event_copies": 5415,
+        "request_bytes": 42610914,
+        "session_read_seconds": 0.6508101429935778,
+        "session_reads": 11
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 3.007396556669846,
+      "created_sessions": 1,
+      "detail_truncated": false,
+      "effects": 894,
+      "elapsed_seconds": 5.603939163003815,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 5.3479046101128915,
+      "fresh_child_process_wall_seconds": 6.419991368005867,
+      "lock_sha256": "0188d1b5106c7ccf763f4ab3c9639131b172fc6e2bf63ad944a0695bf4d8014e",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "e5caeae2953cf7100226860c704638bce1a948c8c72ad4d6d7972901bf96ff04"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 2,
+      "report_bytes": 142614,
+      "reported_tool_calls": 894,
+      "repository_clean": true,
+      "repository_revision": "7b5a1fd14cd7930b8a99d3d272ac4e09ce0b15bd",
+      "request_count": 453,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        894
+      ],
+      "retained_tool_records": 894,
+      "sample": 2,
+      "sdk_group": "historical_baseline",
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "shared",
+        "subtasks": 3,
+        "turns": 150,
+        "width": 2
+      },
+      "semantic_effects_sha256": "0c83fd11b328bd352e3a3adba7dea0b02d0bca54cb7c6d045505785aa4768291",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        32646,
+        64235,
+        95824
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "9c1ea59eb6f5a87fb5801fa03226437d72911ce3fe5f5316c8d5b347ba094467"
+      },
+      "timings": {
+        "child_measured_total_seconds": 6.265810419004993,
+        "core_import_seconds": 0.4508415239979513,
+        "fixture_execution_seconds": 5.776839357989957,
+        "fixture_import_seconds": 0.022371686005499214,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.16852270897652488
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.7.2",
+        "google-adk": "2.8.0",
+        "google-genai": "2.20.0"
+      },
+      "warnings_default_policy": [
+        {
+          "category": "UserWarning",
+          "count": 1,
+          "message_sha256": "a04369aec0575755640c702dc76b72aa2fdf35ff212dbb3727562e2d21718804"
+        }
+      ],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 450,
+          "after_tool_callback": 894,
+          "before_model_callback": 450,
+          "before_run_callback": 3,
+          "before_tool_callback": 894
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.32839624607004225,
+          "after_tool_callback": 1.3547631758265197,
+          "before_model_callback": 0.3376679078064626,
+          "before_run_callback": 0.0019227630109526217,
+          "before_tool_callback": 0.984646463955869
+        },
+        "construction_seconds": 0.004377486009616405,
+        "event_index_visits": 202952,
+        "event_scans": 1362,
+        "event_visits": 612468,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.05172162500093691,
+        "max_event_scan": 901,
+        "max_read_events": 903,
+        "max_request_bytes": 188805,
+        "model_calls": 450,
+        "provider_seconds": 0.2560345528909238,
+        "read_event_copies": 5415,
+        "request_bytes": 42610914,
+        "session_read_seconds": 0.6515156899840804,
+        "session_reads": 11
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 3.0282845885813003,
+      "created_sessions": 1,
+      "detail_truncated": false,
+      "effects": 894,
+      "elapsed_seconds": 5.615517070007627,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 5.357662660841015,
+      "fresh_child_process_wall_seconds": 6.4363630570005625,
+      "lock_sha256": "0188d1b5106c7ccf763f4ab3c9639131b172fc6e2bf63ad944a0695bf4d8014e",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "e5caeae2953cf7100226860c704638bce1a948c8c72ad4d6d7972901bf96ff04"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 3,
+      "report_bytes": 142614,
+      "reported_tool_calls": 894,
+      "repository_clean": true,
+      "repository_revision": "7b5a1fd14cd7930b8a99d3d272ac4e09ce0b15bd",
+      "request_count": 453,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        894
+      ],
+      "retained_tool_records": 894,
+      "sample": 3,
+      "sdk_group": "historical_baseline",
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "shared",
+        "subtasks": 3,
+        "turns": 150,
+        "width": 2
+      },
+      "semantic_effects_sha256": "0c83fd11b328bd352e3a3adba7dea0b02d0bca54cb7c6d045505785aa4768291",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        32646,
+        64235,
+        95824
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "9c1ea59eb6f5a87fb5801fa03226437d72911ce3fe5f5316c8d5b347ba094467"
+      },
+      "timings": {
+        "child_measured_total_seconds": 6.278671126987319,
+        "core_import_seconds": 0.45095044100889936,
+        "fixture_execution_seconds": 5.789829108005506,
+        "fixture_import_seconds": 0.02244289399823174,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.1698865930084139
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.7.2",
+        "google-adk": "2.8.0",
+        "google-genai": "2.20.0"
+      },
+      "warnings_default_policy": [
+        {
+          "category": "UserWarning",
+          "count": 1,
+          "message_sha256": "a04369aec0575755640c702dc76b72aa2fdf35ff212dbb3727562e2d21718804"
+        }
+      ],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 450,
+          "after_tool_callback": 894,
+          "before_model_callback": 450,
+          "before_run_callback": 3,
+          "before_tool_callback": 894
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.3316827991511673,
+          "after_tool_callback": 1.3625339381105732,
+          "before_model_callback": 0.3408374831342371,
+          "before_run_callback": 0.0019357220007805154,
+          "before_tool_callback": 0.9912946461845422
+        },
+        "construction_seconds": 0.004425444989465177,
+        "event_index_visits": 202952,
+        "event_scans": 1362,
+        "event_visits": 612468,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.051408497005468234,
+        "max_event_scan": 901,
+        "max_read_events": 903,
+        "max_request_bytes": 188805,
+        "model_calls": 450,
+        "provider_seconds": 0.25785440916661173,
+        "read_event_copies": 5415,
+        "request_bytes": 42610914,
+        "session_read_seconds": 0.6512237720016856,
+        "session_reads": 11
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 3.077017654912197,
+      "created_sessions": 3,
+      "detail_truncated": false,
+      "effects": 894,
+      "elapsed_seconds": 3.8152307020063745,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 3.6941897971264552,
+      "fresh_child_process_wall_seconds": 4.50557172500703,
+      "lock_sha256": "0188d1b5106c7ccf763f4ab3c9639131b172fc6e2bf63ad944a0695bf4d8014e",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "e5caeae2953cf7100226860c704638bce1a948c8c72ad4d6d7972901bf96ff04"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 1,
+      "report_bytes": 142614,
+      "reported_tool_calls": 894,
+      "repository_clean": true,
+      "repository_revision": "7b5a1fd14cd7930b8a99d3d272ac4e09ce0b15bd",
+      "request_count": 453,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        894
+      ],
+      "retained_tool_records": 894,
+      "sample": 1,
+      "sdk_group": "historical_baseline",
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "isolated",
+        "subtasks": 3,
+        "turns": 150,
+        "width": 2
+      },
+      "semantic_effects_sha256": "0c83fd11b328bd352e3a3adba7dea0b02d0bca54cb7c6d045505785aa4768291",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        32646,
+        64235,
+        95824
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "9c1ea59eb6f5a87fb5801fa03226437d72911ce3fe5f5316c8d5b347ba094467"
+      },
+      "timings": {
+        "child_measured_total_seconds": 4.314210409997031,
+        "core_import_seconds": 0.44988122599897906,
+        "fixture_execution_seconds": 3.82523676600249,
+        "fixture_import_seconds": 0.022320144009427167,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.0057164939935319126
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.7.2",
+        "google-adk": "2.8.0",
+        "google-genai": "2.20.0"
+      },
+      "warnings_default_policy": [
+        {
+          "category": "UserWarning",
+          "count": 1,
+          "message_sha256": "a04369aec0575755640c702dc76b72aa2fdf35ff212dbb3727562e2d21718804"
+        }
+      ],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 450,
+          "after_tool_callback": 894,
+          "before_model_callback": 450,
+          "before_run_callback": 3,
+          "before_tool_callback": 894
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.3364154089358635,
+          "after_tool_callback": 1.3868493190675508,
+          "before_model_callback": 0.3452681380294962,
+          "before_run_callback": 0.0018595120054669678,
+          "before_tool_callback": 1.0066252768738195
+        },
+        "construction_seconds": 0.004289570002583787,
+        "event_index_visits": 67500,
+        "event_scans": 1362,
+        "event_visits": 202506,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.05126449700037483,
+        "max_event_scan": 299,
+        "max_read_events": 301,
+        "max_request_bytes": 63253,
+        "model_calls": 450,
+        "provider_seconds": 0.12104090487991925,
+        "read_event_copies": 1803,
+        "request_bytes": 14361714,
+        "session_read_seconds": 0.28579617297509685,
+        "session_reads": 9
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 2.9963308370497543,
+      "created_sessions": 3,
+      "detail_truncated": false,
+      "effects": 894,
+      "elapsed_seconds": 3.6594601170072565,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 3.5406972700729966,
+      "fresh_child_process_wall_seconds": 4.342776094999863,
+      "lock_sha256": "0188d1b5106c7ccf763f4ab3c9639131b172fc6e2bf63ad944a0695bf4d8014e",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "e5caeae2953cf7100226860c704638bce1a948c8c72ad4d6d7972901bf96ff04"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 2,
+      "report_bytes": 142614,
+      "reported_tool_calls": 894,
+      "repository_clean": true,
+      "repository_revision": "7b5a1fd14cd7930b8a99d3d272ac4e09ce0b15bd",
+      "request_count": 453,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        894
+      ],
+      "retained_tool_records": 894,
+      "sample": 2,
+      "sdk_group": "historical_baseline",
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "isolated",
+        "subtasks": 3,
+        "turns": 150,
+        "width": 2
+      },
+      "semantic_effects_sha256": "0c83fd11b328bd352e3a3adba7dea0b02d0bca54cb7c6d045505785aa4768291",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        32646,
+        64235,
+        95824
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "9c1ea59eb6f5a87fb5801fa03226437d72911ce3fe5f5316c8d5b347ba094467"
+      },
+      "timings": {
+        "child_measured_total_seconds": 4.183469568990404,
+        "core_import_seconds": 0.47263370599830523,
+        "fixture_execution_seconds": 3.6701177680079127,
+        "fixture_import_seconds": 0.024960493989055976,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.005555576994083822
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.7.2",
+        "google-adk": "2.8.0",
+        "google-genai": "2.20.0"
+      },
+      "warnings_default_policy": [
+        {
+          "category": "UserWarning",
+          "count": 1,
+          "message_sha256": "a04369aec0575755640c702dc76b72aa2fdf35ff212dbb3727562e2d21718804"
+        }
+      ],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 450,
+          "after_tool_callback": 894,
+          "before_model_callback": 450,
+          "before_run_callback": 3,
+          "before_tool_callback": 894
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.3259903879079502,
+          "after_tool_callback": 1.3536216740321834,
+          "before_model_callback": 0.3341595521342242,
+          "before_run_callback": 0.0018191780254710466,
+          "before_tool_callback": 0.9807400449499255
+        },
+        "construction_seconds": 0.005102074006572366,
+        "event_index_visits": 67500,
+        "event_scans": 1362,
+        "event_visits": 202506,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.0577019129996188,
+        "max_event_scan": 299,
+        "max_read_events": 301,
+        "max_request_bytes": 63253,
+        "model_calls": 450,
+        "provider_seconds": 0.11876284693425987,
+        "read_event_copies": 1803,
+        "request_bytes": 14361714,
+        "session_read_seconds": 0.2645172009797534,
+        "session_reads": 9
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 3.0011987147154287,
+      "created_sessions": 3,
+      "detail_truncated": false,
+      "effects": 894,
+      "elapsed_seconds": 3.6580861489928793,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 3.5396533438324695,
+      "fresh_child_process_wall_seconds": 4.320265615999233,
+      "lock_sha256": "0188d1b5106c7ccf763f4ab3c9639131b172fc6e2bf63ad944a0695bf4d8014e",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "e5caeae2953cf7100226860c704638bce1a948c8c72ad4d6d7972901bf96ff04"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 3,
+      "report_bytes": 142614,
+      "reported_tool_calls": 894,
+      "repository_clean": true,
+      "repository_revision": "7b5a1fd14cd7930b8a99d3d272ac4e09ce0b15bd",
+      "request_count": 453,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        894
+      ],
+      "retained_tool_records": 894,
+      "sample": 3,
+      "sdk_group": "historical_baseline",
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "isolated",
+        "subtasks": 3,
+        "turns": 150,
+        "width": 2
+      },
+      "semantic_effects_sha256": "0c83fd11b328bd352e3a3adba7dea0b02d0bca54cb7c6d045505785aa4768291",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        32646,
+        64235,
+        95824
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "9c1ea59eb6f5a87fb5801fa03226437d72911ce3fe5f5316c8d5b347ba094467"
+      },
+      "timings": {
+        "child_measured_total_seconds": 4.1570578170067165,
+        "core_import_seconds": 0.4509342329984065,
+        "fixture_execution_seconds": 3.6679512550035724,
+        "fixture_import_seconds": 0.02237701800186187,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.005493245014804415
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.7.2",
+        "google-adk": "2.8.0",
+        "google-genai": "2.20.0"
+      },
+      "warnings_default_policy": [
+        {
+          "category": "UserWarning",
+          "count": 1,
+          "message_sha256": "a04369aec0575755640c702dc76b72aa2fdf35ff212dbb3727562e2d21718804"
+        }
+      ],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 450,
+          "after_tool_callback": 894,
+          "before_model_callback": 450,
+          "before_run_callback": 3,
+          "before_tool_callback": 894
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.3254631340969354,
+          "after_tool_callback": 1.3547862520208582,
+          "before_model_callback": 0.3345392008777708,
+          "before_run_callback": 0.001770760994986631,
+          "before_tool_callback": 0.9846393667248776
+        },
+        "construction_seconds": 0.00437186099588871,
+        "event_index_visits": 67500,
+        "event_scans": 1362,
+        "event_visits": 202506,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.05134178898879327,
+        "max_event_scan": 299,
+        "max_read_events": 301,
+        "max_request_bytes": 63253,
+        "model_calls": 450,
+        "provider_seconds": 0.11843280516040977,
+        "read_event_copies": 1803,
+        "request_bytes": 14361714,
+        "session_read_seconds": 0.2660181290266337,
+        "session_reads": 9
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 3.3047829448769335,
+      "collection_report_sha256": "5ad9890384d3b43acb2bd70d1e87eabdf54779fb4ca82040b241d2e58b6522ab",
+      "created_sessions": 3,
+      "detail_truncated": false,
+      "effects": 894,
+      "elapsed_seconds": 3.89503312400484,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 3.783383095971658,
+      "fresh_child_process_wall_seconds": 4.531072077006684,
+      "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "b157574720e1fa6fb6c451b3ef8467c24b04c20bc183ab97ab83894375cca6a5"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 1,
+      "report_bytes": 142615,
+      "reported_tool_calls": 894,
+      "repository_clean": true,
+      "repository_revision": "a308c695e83d561ae67a303447851c89883ea5c8",
+      "request_count": 453,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        894
+      ],
+      "retained_tool_records": 894,
+      "sample": 1,
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "isolated",
+        "subtasks": 3,
+        "turns": 150,
+        "width": 2
+      },
+      "semantic_effects_sha256": "0c83fd11b328bd352e3a3adba7dea0b02d0bca54cb7c6d045505785aa4768291",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        32646,
+        64236,
+        95825
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "5909f0e352b781cec6ed3dabe6669aa978023e822ee9f1377bc3dbc2c5572469"
+      },
+      "timings": {
+        "child_measured_total_seconds": 4.385758489996078,
+        "core_import_seconds": 0.4397076559980633,
+        "fixture_execution_seconds": 3.907604737993097,
+        "fixture_import_seconds": 0.02286263099813368,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.00535065597796347
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.9.1",
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0"
+      },
+      "warnings_default_policy": [],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 450,
+          "after_tool_callback": 894,
+          "before_model_callback": 450,
+          "before_run_callback": 3,
+          "before_tool_callback": 894
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.32749613592750393,
+          "after_tool_callback": 1.5570279170788126,
+          "before_model_callback": 0.3342275660834275,
+          "before_run_callback": 0.0017686759965727106,
+          "before_tool_callback": 1.0842626497906167
+        },
+        "construction_seconds": 0.007220958010293543,
+        "event_index_visits": 67506,
+        "event_scans": 1353,
+        "event_visits": 202500,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.06567904500116128,
+        "max_event_scan": 299,
+        "max_read_events": 301,
+        "max_request_bytes": 63253,
+        "model_calls": 450,
+        "provider_seconds": 0.11165002803318202,
+        "read_event_copies": 1803,
+        "request_bytes": 14361714,
+        "session_read_seconds": 0.0491127009736374,
+        "session_reads": 9
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 3.306445602356689,
+      "collection_report_sha256": "5ad9890384d3b43acb2bd70d1e87eabdf54779fb4ca82040b241d2e58b6522ab",
+      "created_sessions": 3,
+      "detail_truncated": false,
+      "effects": 894,
+      "elapsed_seconds": 3.890506682000705,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 3.7795824199420167,
+      "fresh_child_process_wall_seconds": 4.524596831004601,
+      "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "b157574720e1fa6fb6c451b3ef8467c24b04c20bc183ab97ab83894375cca6a5"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 2,
+      "report_bytes": 142615,
+      "reported_tool_calls": 894,
+      "repository_clean": true,
+      "repository_revision": "a308c695e83d561ae67a303447851c89883ea5c8",
+      "request_count": 453,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        894
+      ],
+      "retained_tool_records": 894,
+      "sample": 2,
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "isolated",
+        "subtasks": 3,
+        "turns": 150,
+        "width": 2
+      },
+      "semantic_effects_sha256": "0c83fd11b328bd352e3a3adba7dea0b02d0bca54cb7c6d045505785aa4768291",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        32646,
+        64236,
+        95825
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "5909f0e352b781cec6ed3dabe6669aa978023e822ee9f1377bc3dbc2c5572469"
+      },
+      "timings": {
+        "child_measured_total_seconds": 4.3800810819957405,
+        "core_import_seconds": 0.4386659829906421,
+        "fixture_execution_seconds": 3.903087004000554,
+        "fixture_import_seconds": 0.022818131008534692,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.005359863993362524
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.9.1",
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0"
+      },
+      "warnings_default_policy": [],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 450,
+          "after_tool_callback": 894,
+          "before_model_callback": 450,
+          "before_run_callback": 3,
+          "before_tool_callback": 894
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.32828747588791884,
+          "after_tool_callback": 1.5548892780207098,
+          "before_model_callback": 0.3349163508391939,
+          "before_run_callback": 0.0017702599870972335,
+          "before_tool_callback": 1.0865822376217693
+        },
+        "construction_seconds": 0.007220458006486297,
+        "event_index_visits": 67506,
+        "event_scans": 1353,
+        "event_visits": 202500,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.06568983699253295,
+        "max_event_scan": 299,
+        "max_read_events": 301,
+        "max_request_bytes": 63253,
+        "model_calls": 450,
+        "provider_seconds": 0.11092426205868833,
+        "read_event_copies": 1803,
+        "request_bytes": 14361714,
+        "session_read_seconds": 0.04885607198229991,
+        "session_reads": 9
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 3.3085209579439834,
+      "collection_report_sha256": "5ad9890384d3b43acb2bd70d1e87eabdf54779fb4ca82040b241d2e58b6522ab",
+      "created_sessions": 3,
+      "detail_truncated": false,
+      "effects": 894,
+      "elapsed_seconds": 3.8978860570059624,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 3.7885882629052503,
+      "fresh_child_process_wall_seconds": 4.529243940996821,
+      "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "b157574720e1fa6fb6c451b3ef8467c24b04c20bc183ab97ab83894375cca6a5"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 3,
+      "report_bytes": 142615,
+      "reported_tool_calls": 894,
+      "repository_clean": true,
+      "repository_revision": "a308c695e83d561ae67a303447851c89883ea5c8",
+      "request_count": 453,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        894
+      ],
+      "retained_tool_records": 894,
+      "sample": 3,
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "isolated",
+        "subtasks": 3,
+        "turns": 150,
+        "width": 2
+      },
+      "semantic_effects_sha256": "0c83fd11b328bd352e3a3adba7dea0b02d0bca54cb7c6d045505785aa4768291",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        32646,
+        64236,
+        95825
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "5909f0e352b781cec6ed3dabe6669aa978023e822ee9f1377bc3dbc2c5572469"
+      },
+      "timings": {
+        "child_measured_total_seconds": 4.385374863006291,
+        "core_import_seconds": 0.4363840110017918,
+        "fixture_execution_seconds": 3.9104959219985176,
+        "fixture_import_seconds": 0.023037758001009934,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.005465198992169462
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.9.1",
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0"
+      },
+      "warnings_default_policy": [],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 450,
+          "after_tool_callback": 894,
+          "before_model_callback": 450,
+          "before_run_callback": 3,
+          "before_tool_callback": 894
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.32809623808134347,
+          "after_tool_callback": 1.5560142787144287,
+          "before_model_callback": 0.335353696034872,
+          "before_run_callback": 0.001772093994077295,
+          "before_tool_callback": 1.087284651119262
+        },
+        "construction_seconds": 0.007144666000385769,
+        "event_index_visits": 67506,
+        "event_scans": 1353,
+        "event_visits": 202500,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.06565904400486033,
+        "max_event_scan": 299,
+        "max_read_events": 301,
+        "max_request_bytes": 63253,
+        "model_calls": 450,
+        "provider_seconds": 0.10929779410071205,
+        "read_event_copies": 1803,
+        "request_bytes": 14361714,
+        "session_read_seconds": 0.04874636397289578,
+        "session_reads": 9
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 0.5050004861986963,
+      "collection_report_sha256": "2919b6434a296008b1eec1eb03a6baf830f4734b61bfa35c615cbca3e602d86d",
+      "created_sessions": 3,
+      "detail_truncated": false,
+      "effects": 294,
+      "elapsed_seconds": 0.6607704940106487,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 0.648733427078696,
+      "fresh_child_process_wall_seconds": 1.2896830969984876,
+      "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "b157574720e1fa6fb6c451b3ef8467c24b04c20bc183ab97ab83894375cca6a5"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 1,
+      "report_bytes": 47208,
+      "reported_tool_calls": 294,
+      "repository_clean": true,
+      "repository_revision": "a308c695e83d561ae67a303447851c89883ea5c8",
+      "request_count": 153,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        294
+      ],
+      "retained_tool_records": 294,
+      "sample": 1,
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "isolated",
+        "subtasks": 3,
+        "turns": 50,
+        "width": 2
+      },
+      "semantic_effects_sha256": "d0c01a7af5797b8366ccb9daafe43f475b83f26a85b5a50c9cd230ffc0c7cf19",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        11431,
+        21823,
+        32212
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "5909f0e352b781cec6ed3dabe6669aa978023e822ee9f1377bc3dbc2c5572469"
+      },
+      "timings": {
+        "child_measured_total_seconds": 1.145018727009301,
+        "core_import_seconds": 0.43597912300901953,
+        "fixture_execution_seconds": 0.6706225920061115,
+        "fixture_import_seconds": 0.023181090989965014,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.002628556001582183
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.9.1",
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0"
+      },
+      "warnings_default_policy": [],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 150,
+          "after_tool_callback": 294,
+          "before_model_callback": 150,
+          "before_run_callback": 3,
+          "before_tool_callback": 294
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.04858669305394869,
+          "after_tool_callback": 0.2550045101233991,
+          "before_model_callback": 0.0485631959309103,
+          "before_run_callback": 0.0009638400078983977,
+          "before_tool_callback": 0.15188224708253983
+        },
+        "construction_seconds": 0.0072235419938806444,
+        "event_index_visits": 7506,
+        "event_scans": 453,
+        "event_visits": 22500,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.0652147490036441,
+        "max_event_scan": 99,
+        "max_read_events": 101,
+        "max_request_bytes": 21157,
+        "model_calls": 150,
+        "provider_seconds": 0.012037066931952722,
+        "read_event_copies": 603,
+        "request_bytes": 1652664,
+        "session_read_seconds": 0.009623720980016515,
+        "session_reads": 9
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 0.5084242676821304,
+      "collection_report_sha256": "2919b6434a296008b1eec1eb03a6baf830f4734b61bfa35c615cbca3e602d86d",
+      "created_sessions": 3,
+      "detail_truncated": false,
+      "effects": 294,
+      "elapsed_seconds": 0.6675827419967391,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 0.6551396729337284,
+      "fresh_child_process_wall_seconds": 1.2966885550122242,
+      "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "b157574720e1fa6fb6c451b3ef8467c24b04c20bc183ab97ab83894375cca6a5"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 2,
+      "report_bytes": 47208,
+      "reported_tool_calls": 294,
+      "repository_clean": true,
+      "repository_revision": "a308c695e83d561ae67a303447851c89883ea5c8",
+      "request_count": 153,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        294
+      ],
+      "retained_tool_records": 294,
+      "sample": 2,
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "isolated",
+        "subtasks": 3,
+        "turns": 50,
+        "width": 2
+      },
+      "semantic_effects_sha256": "d0c01a7af5797b8366ccb9daafe43f475b83f26a85b5a50c9cd230ffc0c7cf19",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        11431,
+        21823,
+        32212
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "5909f0e352b781cec6ed3dabe6669aa978023e822ee9f1377bc3dbc2c5572469"
+      },
+      "timings": {
+        "child_measured_total_seconds": 1.151401014009025,
+        "core_import_seconds": 0.43620337499305606,
+        "fixture_execution_seconds": 0.6772877140028868,
+        "fixture_import_seconds": 0.022844298000563867,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.002642098013893701
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.9.1",
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0"
+      },
+      "warnings_default_policy": [],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 150,
+          "after_tool_callback": 294,
+          "before_model_callback": 150,
+          "before_run_callback": 3,
+          "before_tool_callback": 294
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.0489766509126639,
+          "after_tool_callback": 0.2562961069197627,
+          "before_model_callback": 0.04861910796898883,
+          "before_run_callback": 0.0009886710031423718,
+          "before_tool_callback": 0.15354373087757267
+        },
+        "construction_seconds": 0.007062873992254026,
+        "event_index_visits": 7506,
+        "event_scans": 453,
+        "event_visits": 22500,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.06492603899096139,
+        "max_event_scan": 99,
+        "max_read_events": 101,
+        "max_request_bytes": 21157,
+        "model_calls": 150,
+        "provider_seconds": 0.012443069063010626,
+        "read_event_copies": 603,
+        "request_bytes": 1652664,
+        "session_read_seconds": 0.009772805991815403,
+        "session_reads": 9
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 0.5053770069935126,
+      "collection_report_sha256": "2919b6434a296008b1eec1eb03a6baf830f4734b61bfa35c615cbca3e602d86d",
+      "created_sessions": 3,
+      "detail_truncated": false,
+      "effects": 294,
+      "elapsed_seconds": 0.6644005560083315,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 0.652152647060575,
+      "fresh_child_process_wall_seconds": 1.2895694299950264,
+      "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "b157574720e1fa6fb6c451b3ef8467c24b04c20bc183ab97ab83894375cca6a5"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 3,
+      "report_bytes": 47208,
+      "reported_tool_calls": 294,
+      "repository_clean": true,
+      "repository_revision": "a308c695e83d561ae67a303447851c89883ea5c8",
+      "request_count": 153,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        294
+      ],
+      "retained_tool_records": 294,
+      "sample": 3,
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "isolated",
+        "subtasks": 3,
+        "turns": 50,
+        "width": 2
+      },
+      "semantic_effects_sha256": "d0c01a7af5797b8366ccb9daafe43f475b83f26a85b5a50c9cd230ffc0c7cf19",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        11431,
+        21823,
+        32212
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "5909f0e352b781cec6ed3dabe6669aa978023e822ee9f1377bc3dbc2c5572469"
+      },
+      "timings": {
+        "child_measured_total_seconds": 1.1448609770013718,
+        "core_import_seconds": 0.4329651059961179,
+        "fixture_execution_seconds": 0.6742340289929416,
+        "fixture_import_seconds": 0.022815756005002186,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.0025952649884857237
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.9.1",
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0"
+      },
+      "warnings_default_policy": [],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 150,
+          "after_tool_callback": 294,
+          "before_model_callback": 150,
+          "before_run_callback": 3,
+          "before_tool_callback": 294
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.048966444926918484,
+          "after_tool_callback": 0.25492845512053464,
+          "before_model_callback": 0.04834319482324645,
+          "before_run_callback": 0.0009177969914162531,
+          "before_tool_callback": 0.1522211151313968
+        },
+        "construction_seconds": 0.007238207996124402,
+        "event_index_visits": 7506,
+        "event_scans": 453,
+        "event_visits": 22500,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.06539304100442678,
+        "max_event_scan": 99,
+        "max_read_events": 101,
+        "max_request_bytes": 21157,
+        "model_calls": 150,
+        "provider_seconds": 0.012247908947756514,
+        "read_event_copies": 603,
+        "request_bytes": 1652664,
+        "session_read_seconds": 0.00951513800828252,
+        "session_reads": 9
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 3.3184265441523166,
+      "collection_report_sha256": "2ebba0bbb7ac0f49cf3615bc74a52bf2f69a4fa723df2ebeb836b9d389a4b062",
+      "created_sessions": 1,
+      "detail_truncated": false,
+      "effects": 894,
+      "elapsed_seconds": 6.450285371000064,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 6.301857523038052,
+      "fresh_child_process_wall_seconds": 7.084390924006584,
+      "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "b157574720e1fa6fb6c451b3ef8467c24b04c20bc183ab97ab83894375cca6a5"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 1,
+      "report_bytes": 142614,
+      "reported_tool_calls": 894,
+      "repository_clean": true,
+      "repository_revision": "a308c695e83d561ae67a303447851c89883ea5c8",
+      "request_count": 453,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        894
+      ],
+      "retained_tool_records": 894,
+      "sample": 1,
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "shared",
+        "subtasks": 3,
+        "turns": 150,
+        "width": 2
+      },
+      "semantic_effects_sha256": "0c83fd11b328bd352e3a3adba7dea0b02d0bca54cb7c6d045505785aa4768291",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        32646,
+        64235,
+        95824
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "5909f0e352b781cec6ed3dabe6669aa978023e822ee9f1377bc3dbc2c5572469"
+      },
+      "timings": {
+        "child_measured_total_seconds": 6.9377934980002465,
+        "core_import_seconds": 0.43523099400044885,
+        "fixture_execution_seconds": 6.464195159001974,
+        "fixture_import_seconds": 0.022837006006739102,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.006803955009672791
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.9.1",
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0"
+      },
+      "warnings_default_policy": [],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 450,
+          "after_tool_callback": 894,
+          "before_model_callback": 450,
+          "before_run_callback": 3,
+          "before_tool_callback": 894
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.33384879896766506,
+          "after_tool_callback": 1.5740217340935487,
+          "before_model_callback": 0.3411140601092484,
+          "before_run_callback": 0.0017971780034713447,
+          "before_tool_callback": 1.0676447729783831
+        },
+        "construction_seconds": 0.007105832992237993,
+        "event_index_visits": 207471,
+        "event_scans": 1353,
+        "event_visits": 609753,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.06531987398921046,
+        "max_event_scan": 901,
+        "max_read_events": 903,
+        "max_request_bytes": 188805,
+        "model_calls": 450,
+        "provider_seconds": 0.14842784796201158,
+        "read_event_copies": 5415,
+        "request_bytes": 42610914,
+        "session_read_seconds": 0.18163558399828617,
+        "session_reads": 11
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 3.3563858702545986,
+      "collection_report_sha256": "2ebba0bbb7ac0f49cf3615bc74a52bf2f69a4fa723df2ebeb836b9d389a4b062",
+      "created_sessions": 1,
+      "detail_truncated": false,
+      "effects": 894,
+      "elapsed_seconds": 6.55058886599727,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 6.400063124106964,
+      "fresh_child_process_wall_seconds": 7.182696086994838,
+      "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "b157574720e1fa6fb6c451b3ef8467c24b04c20bc183ab97ab83894375cca6a5"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 2,
+      "report_bytes": 142614,
+      "reported_tool_calls": 894,
+      "repository_clean": true,
+      "repository_revision": "a308c695e83d561ae67a303447851c89883ea5c8",
+      "request_count": 453,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        894
+      ],
+      "retained_tool_records": 894,
+      "sample": 2,
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "shared",
+        "subtasks": 3,
+        "turns": 150,
+        "width": 2
+      },
+      "semantic_effects_sha256": "0c83fd11b328bd352e3a3adba7dea0b02d0bca54cb7c6d045505785aa4768291",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        32646,
+        64235,
+        95824
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "5909f0e352b781cec6ed3dabe6669aa978023e822ee9f1377bc3dbc2c5572469"
+      },
+      "timings": {
+        "child_measured_total_seconds": 7.036430661988561,
+        "core_import_seconds": 0.4340075809886912,
+        "fixture_execution_seconds": 6.564430569997057,
+        "fixture_import_seconds": 0.022704589006025344,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.006693204995826818
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.9.1",
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0"
+      },
+      "warnings_default_policy": [],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 450,
+          "after_tool_callback": 894,
+          "before_model_callback": 450,
+          "before_run_callback": 3,
+          "before_tool_callback": 894
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.33813960797851905,
+          "after_tool_callback": 1.5891730161383748,
+          "before_model_callback": 0.3461692021082854,
+          "before_run_callback": 0.001780550999683328,
+          "before_tool_callback": 1.081123493029736
+        },
+        "construction_seconds": 0.007148499003960751,
+        "event_index_visits": 207471,
+        "event_scans": 1353,
+        "event_visits": 609753,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.06535779300611466,
+        "max_event_scan": 901,
+        "max_read_events": 903,
+        "max_request_bytes": 188805,
+        "model_calls": 450,
+        "provider_seconds": 0.15052574189030565,
+        "read_event_copies": 5415,
+        "request_bytes": 42610914,
+        "session_read_seconds": 0.18400255902088247,
+        "session_reads": 11
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 3.3539813221723307,
+      "collection_report_sha256": "2ebba0bbb7ac0f49cf3615bc74a52bf2f69a4fa723df2ebeb836b9d389a4b062",
+      "created_sessions": 1,
+      "detail_truncated": false,
+      "effects": 894,
+      "elapsed_seconds": 6.515731623992906,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 6.3658177141915075,
+      "fresh_child_process_wall_seconds": 7.15368142000807,
+      "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "b157574720e1fa6fb6c451b3ef8467c24b04c20bc183ab97ab83894375cca6a5"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 3,
+      "report_bytes": 142614,
+      "reported_tool_calls": 894,
+      "repository_clean": true,
+      "repository_revision": "a308c695e83d561ae67a303447851c89883ea5c8",
+      "request_count": 453,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        894
+      ],
+      "retained_tool_records": 894,
+      "sample": 3,
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "shared",
+        "subtasks": 3,
+        "turns": 150,
+        "width": 2
+      },
+      "semantic_effects_sha256": "0c83fd11b328bd352e3a3adba7dea0b02d0bca54cb7c6d045505785aa4768291",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        32646,
+        64235,
+        95824
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "5909f0e352b781cec6ed3dabe6669aa978023e822ee9f1377bc3dbc2c5572469"
+      },
+      "timings": {
+        "child_measured_total_seconds": 7.008061497996096,
+        "core_import_seconds": 0.4402040340064559,
+        "fixture_execution_seconds": 6.52966995400493,
+        "fixture_import_seconds": 0.022729422998963855,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.006692705006571487
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.9.1",
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0"
+      },
+      "warnings_default_policy": [],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 450,
+          "after_tool_callback": 894,
+          "before_model_callback": 450,
+          "before_run_callback": 3,
+          "before_tool_callback": 894
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.33785431903379504,
+          "after_tool_callback": 1.587622129911324,
+          "before_model_callback": 0.3455425770371221,
+          "before_run_callback": 0.0018437190155964345,
+          "before_tool_callback": 1.0811185771744931
+        },
+        "construction_seconds": 0.007245625005452894,
+        "event_index_visits": 207471,
+        "event_scans": 1353,
+        "event_visits": 609753,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.06616996499360539,
+        "max_event_scan": 901,
+        "max_read_events": 903,
+        "max_request_bytes": 188805,
+        "model_calls": 450,
+        "provider_seconds": 0.1499139098013984,
+        "read_event_copies": 5415,
+        "request_bytes": 42610914,
+        "session_read_seconds": 0.18059520702809095,
+        "session_reads": 11
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 0.514626288015279,
+      "collection_report_sha256": "687fbd09a6bb8dda5a6a3c1f21bff30c1e0cfbbe3bd4d1250bf0d1ef572c511e",
+      "created_sessions": 1,
+      "detail_truncated": false,
+      "effects": 294,
+      "elapsed_seconds": 1.0646884749876335,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 1.0441658529889537,
+      "fresh_child_process_wall_seconds": 2.4007564219937194,
+      "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "b157574720e1fa6fb6c451b3ef8467c24b04c20bc183ab97ab83894375cca6a5"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 1,
+      "report_bytes": 47208,
+      "reported_tool_calls": 294,
+      "repository_clean": true,
+      "repository_revision": "a308c695e83d561ae67a303447851c89883ea5c8",
+      "request_count": 153,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        294
+      ],
+      "retained_tool_records": 294,
+      "sample": 1,
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "shared",
+        "subtasks": 3,
+        "turns": 50,
+        "width": 2
+      },
+      "semantic_effects_sha256": "d0c01a7af5797b8366ccb9daafe43f475b83f26a85b5a50c9cd230ffc0c7cf19",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        11431,
+        21823,
+        32212
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "5909f0e352b781cec6ed3dabe6669aa978023e822ee9f1377bc3dbc2c5572469"
+      },
+      "timings": {
+        "child_measured_total_seconds": 2.2438786060083658,
+        "core_import_seconds": 1.0341095500043593,
+        "fixture_execution_seconds": 1.0893681580055272,
+        "fixture_import_seconds": 0.10172291600611061,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.0029948510200483724
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.9.1",
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0"
+      },
+      "warnings_default_policy": [],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 150,
+          "after_tool_callback": 294,
+          "before_model_callback": 150,
+          "before_run_callback": 3,
+          "before_tool_callback": 294
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.05013136600609869,
+          "after_tool_callback": 0.25966169196181,
+          "before_model_callback": 0.05084563491982408,
+          "before_run_callback": 0.0010296740074409172,
+          "before_tool_callback": 0.1529579211201053
+        },
+        "construction_seconds": 0.021684831997845322,
+        "event_index_visits": 24171,
+        "event_scans": 453,
+        "event_visits": 68253,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.2027834539912874,
+        "max_event_scan": 301,
+        "max_read_events": 303,
+        "max_request_bytes": 62517,
+        "model_calls": 150,
+        "provider_seconds": 0.020522621998679824,
+        "read_event_copies": 1815,
+        "request_bytes": 4754664,
+        "session_read_seconds": 0.05413026896712836,
+        "session_reads": 11
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 0.5040462711767759,
+      "collection_report_sha256": "687fbd09a6bb8dda5a6a3c1f21bff30c1e0cfbbe3bd4d1250bf0d1ef572c511e",
+      "created_sessions": 1,
+      "detail_truncated": false,
+      "effects": 294,
+      "elapsed_seconds": 0.9083874130010372,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 0.8888368740299484,
+      "fresh_child_process_wall_seconds": 1.538022478998755,
+      "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "b157574720e1fa6fb6c451b3ef8467c24b04c20bc183ab97ab83894375cca6a5"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 2,
+      "report_bytes": 47208,
+      "reported_tool_calls": 294,
+      "repository_clean": true,
+      "repository_revision": "a308c695e83d561ae67a303447851c89883ea5c8",
+      "request_count": 153,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        294
+      ],
+      "retained_tool_records": 294,
+      "sample": 2,
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "shared",
+        "subtasks": 3,
+        "turns": 50,
+        "width": 2
+      },
+      "semantic_effects_sha256": "d0c01a7af5797b8366ccb9daafe43f475b83f26a85b5a50c9cd230ffc0c7cf19",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        11431,
+        21823,
+        32212
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "5909f0e352b781cec6ed3dabe6669aa978023e822ee9f1377bc3dbc2c5572469"
+      },
+      "timings": {
+        "child_measured_total_seconds": 1.3933531079965178,
+        "core_import_seconds": 0.43651704299554694,
+        "fixture_execution_seconds": 0.918468137999298,
+        "fixture_import_seconds": 0.02299771500111092,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.0028674329951172695
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.9.1",
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0"
+      },
+      "warnings_default_policy": [],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 150,
+          "after_tool_callback": 294,
+          "before_model_callback": 150,
+          "before_run_callback": 3,
+          "before_tool_callback": 294
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.04900615916994866,
+          "after_tool_callback": 0.2543400809663581,
+          "before_model_callback": 0.049733204126823694,
+          "before_run_callback": 0.0009705899865366518,
+          "before_tool_callback": 0.14999623692710884
+        },
+        "construction_seconds": 0.007213292003143579,
+        "event_index_visits": 24171,
+        "event_scans": 453,
+        "event_visits": 68253,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.06651796399091836,
+        "max_event_scan": 301,
+        "max_read_events": 303,
+        "max_request_bytes": 62517,
+        "model_calls": 150,
+        "provider_seconds": 0.019550538971088827,
+        "read_event_copies": 1815,
+        "request_bytes": 4754664,
+        "session_read_seconds": 0.05207063103443943,
+        "session_reads": 11
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 0.5127624608867336,
+      "collection_report_sha256": "687fbd09a6bb8dda5a6a3c1f21bff30c1e0cfbbe3bd4d1250bf0d1ef572c511e",
+      "created_sessions": 1,
+      "detail_truncated": false,
+      "effects": 294,
+      "elapsed_seconds": 0.925871305007604,
+      "fixture_sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+      "framework_seconds_excluding_mock_handler": 0.9057737710245419,
+      "fresh_child_process_wall_seconds": 1.556502000996261,
+      "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+      "logical_invocations": 3,
+      "measurement_script_sha256": "b4582bfa252cb3159c0b3437ce78d6047c29185bb6a186e7fdf02a113b8e4e88",
+      "network": "Internet sockets and DNS denied; fixture uses MockTransport/trust_env=False",
+      "platform": {
+        "machine": "aarch64",
+        "release": "7.2.5-200.fc44.aarch64",
+        "system": "Linux"
+      },
+      "production_sources": {
+        "contractor_runtime.allocation": {
+          "path": "contractor_runtime/allocation/__init__.py",
+          "sha256": "1afd21dc2ec55b462abdff6cab4d76ea7900f4f0c064a0310fe64eae10f9cb1e"
+        },
+        "contractor_runtime.factories": {
+          "path": "contractor_runtime/factories.py",
+          "sha256": "9c3017c526a651d5191956331248ee2d4075693e216741c042bed5ee70c0c436"
+        },
+        "contractor_runtime.llm.openai": {
+          "path": "contractor_runtime/llm/openai.py",
+          "sha256": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0"
+        },
+        "contractor_runtime.worker.runtime": {
+          "path": "contractor_runtime/worker/runtime.py",
+          "sha256": "b157574720e1fa6fb6c451b3ef8467c24b04c20bc183ab97ab83894375cca6a5"
+        }
+      },
+      "python": "3.13.5",
+      "replicate": 3,
+      "report_bytes": 47208,
+      "reported_tool_calls": 294,
+      "repository_clean": true,
+      "repository_revision": "a308c695e83d561ae67a303447851c89883ea5c8",
+      "request_count": 153,
+      "results_snapshot_independence_and_cleanup_validated_by_fixture": true,
+      "retained_call_ordinals": [
+        1,
+        294
+      ],
+      "retained_tool_records": 294,
+      "sample": 3,
+      "sdk_source": {
+        "path": "lib/python3.13/site-packages/google/adk/__init__.py",
+        "sha256": "e721a801c7509b0be7d95d33edcf49d163b67fe9f5ee37b1faa3dfba8a87e21a"
+      },
+      "selection": {
+        "mode": "shared",
+        "subtasks": 3,
+        "turns": 50,
+        "width": 2
+      },
+      "semantic_effects_sha256": "d0c01a7af5797b8366ccb9daafe43f475b83f26a85b5a50c9cd230ffc0c7cf19",
+      "session_identity_validated": true,
+      "snapshot_bytes": [
+        11431,
+        21823,
+        32212
+      ],
+      "source_roots_verified": true,
+      "status": "measured",
+      "test_helper_source": {
+        "path": "test_adk_runtime.py",
+        "sha256": "5909f0e352b781cec6ed3dabe6669aa978023e822ee9f1377bc3dbc2c5572469"
+      },
+      "timings": {
+        "child_measured_total_seconds": 1.4088498640048783,
+        "core_import_seconds": 0.43447273899801075,
+        "fixture_execution_seconds": 0.9359483629959868,
+        "fixture_import_seconds": 0.02286433900007978,
+        "fixture_setup_reporting_cleanup_residual_seconds": 0.002939016980235465
+      },
+      "tracked_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.9.1",
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0"
+      },
+      "warnings_default_policy": [],
+      "work": {
+        "callback_calls": {
+          "after_model_callback": 150,
+          "after_tool_callback": 294,
+          "before_model_callback": 150,
+          "before_run_callback": 3,
+          "before_tool_callback": 294
+        },
+        "callback_seconds": {
+          "after_model_callback": 0.04985615199257154,
+          "after_tool_callback": 0.25976203281607013,
+          "before_model_callback": 0.05044998992525507,
+          "before_run_callback": 0.0009594629955245182,
+          "before_tool_callback": 0.15173482315731235
+        },
+        "construction_seconds": 0.007138041008147411,
+        "event_index_visits": 24171,
+        "event_scans": 453,
+        "event_visits": 68253,
+        "finalizer_calls": 3,
+        "first_request_seconds": 0.06534337400807999,
+        "max_event_scan": 301,
+        "max_read_events": 303,
+        "max_request_bytes": 62517,
+        "model_calls": 150,
+        "provider_seconds": 0.02009753398306202,
+        "read_event_copies": 1815,
+        "request_bytes": 4754664,
+        "session_read_seconds": 0.052379756001755595,
+        "session_reads": 11
+      },
+      "workloads_sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+    }
+  ],
+  "schema_version": "1.0",
+  "status": "Complete: 12 historical and 12 accepted migrated production samples; informational only",
+  "summary_medians_seconds": [
+    {
+      "callback_aggregate_seconds_non_disjoint": 0.5053770069935126,
+      "child_measured_total_seconds": 1.145018727009301,
+      "construction_seconds": 0.0072235419938806444,
+      "core_import_seconds": 0.43597912300901953,
+      "elapsed_seconds": 0.6644005560083315,
+      "first_request_seconds": 0.0652147490036441,
+      "fixture_execution_seconds": 0.6742340289929416,
+      "fixture_import_seconds": 0.022844298000563867,
+      "framework_seconds_excluding_mock_handler": 0.652152647060575,
+      "fresh_child_process_wall_seconds": 1.2896830969984876,
+      "mode": "isolated",
+      "provider_seconds": 0.012247908947756514,
+      "samples": 3,
+      "sdk": "2.13.0",
+      "session_read_seconds": 0.009623720980016515,
+      "turns": 50
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 3.306445602356689,
+      "child_measured_total_seconds": 4.385374863006291,
+      "construction_seconds": 0.007220458006486297,
+      "core_import_seconds": 0.4386659829906421,
+      "elapsed_seconds": 3.89503312400484,
+      "first_request_seconds": 0.06567904500116128,
+      "fixture_execution_seconds": 3.907604737993097,
+      "fixture_import_seconds": 0.02286263099813368,
+      "framework_seconds_excluding_mock_handler": 3.783383095971658,
+      "fresh_child_process_wall_seconds": 4.529243940996821,
+      "mode": "isolated",
+      "provider_seconds": 0.11092426205868833,
+      "samples": 3,
+      "sdk": "2.13.0",
+      "session_read_seconds": 0.04885607198229991,
+      "turns": 150
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 0.5127624608867336,
+      "child_measured_total_seconds": 1.4088498640048783,
+      "construction_seconds": 0.007213292003143579,
+      "core_import_seconds": 0.43651704299554694,
+      "elapsed_seconds": 0.925871305007604,
+      "first_request_seconds": 0.06651796399091836,
+      "fixture_execution_seconds": 0.9359483629959868,
+      "fixture_import_seconds": 0.02299771500111092,
+      "framework_seconds_excluding_mock_handler": 0.9057737710245419,
+      "fresh_child_process_wall_seconds": 1.556502000996261,
+      "mode": "shared",
+      "provider_seconds": 0.02009753398306202,
+      "samples": 3,
+      "sdk": "2.13.0",
+      "session_read_seconds": 0.052379756001755595,
+      "turns": 50
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 3.3539813221723307,
+      "child_measured_total_seconds": 7.008061497996096,
+      "construction_seconds": 0.007148499003960751,
+      "core_import_seconds": 0.43523099400044885,
+      "elapsed_seconds": 6.515731623992906,
+      "first_request_seconds": 0.06535779300611466,
+      "fixture_execution_seconds": 6.52966995400493,
+      "fixture_import_seconds": 0.022729422998963855,
+      "framework_seconds_excluding_mock_handler": 6.3658177141915075,
+      "fresh_child_process_wall_seconds": 7.15368142000807,
+      "mode": "shared",
+      "provider_seconds": 0.1499139098013984,
+      "samples": 3,
+      "sdk": "2.13.0",
+      "session_read_seconds": 0.18163558399828617,
+      "turns": 150
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 0.43957329411932733,
+      "child_measured_total_seconds": 1.0909557650011266,
+      "construction_seconds": 0.004369194997707382,
+      "core_import_seconds": 0.45136456900218036,
+      "elapsed_seconds": 0.5944371560035506,
+      "first_request_seconds": 0.05143649700039532,
+      "fixture_execution_seconds": 0.6013822419918142,
+      "fixture_import_seconds": 0.022509561997139826,
+      "framework_seconds_excluding_mock_handler": 0.582602044873056,
+      "fresh_child_process_wall_seconds": 1.2413134399976116,
+      "mode": "isolated",
+      "provider_seconds": 0.011835111130494624,
+      "samples": 3,
+      "sdk": "2.8.0",
+      "session_read_seconds": 0.03582810502848588,
+      "turns": 50
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 3.0011987147154287,
+      "child_measured_total_seconds": 4.183469568990404,
+      "construction_seconds": 0.00437186099588871,
+      "core_import_seconds": 0.4509342329984065,
+      "elapsed_seconds": 3.6594601170072565,
+      "first_request_seconds": 0.05134178898879327,
+      "fixture_execution_seconds": 3.6701177680079127,
+      "fixture_import_seconds": 0.02237701800186187,
+      "framework_seconds_excluding_mock_handler": 3.5406972700729966,
+      "fresh_child_process_wall_seconds": 4.342776094999863,
+      "mode": "isolated",
+      "provider_seconds": 0.11876284693425987,
+      "samples": 3,
+      "sdk": "2.8.0",
+      "session_read_seconds": 0.2660181290266337,
+      "turns": 150
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 0.44338565386715345,
+      "child_measured_total_seconds": 1.3538969560031546,
+      "construction_seconds": 0.004514195999945514,
+      "core_import_seconds": 0.4525612850120524,
+      "elapsed_seconds": 0.8080097799975192,
+      "first_request_seconds": 0.05140003899578005,
+      "fixture_execution_seconds": 0.8639893070067046,
+      "fixture_import_seconds": 0.022715437997248955,
+      "framework_seconds_excluding_mock_handler": 0.7869107159494888,
+      "fresh_child_process_wall_seconds": 1.5007307339983527,
+      "mode": "shared",
+      "provider_seconds": 0.021099064048030414,
+      "samples": 3,
+      "sdk": "2.8.0",
+      "session_read_seconds": 0.12190240799100138,
+      "turns": 50
+    },
+    {
+      "callback_aggregate_seconds_non_disjoint": 3.0282845885813003,
+      "child_measured_total_seconds": 6.278671126987319,
+      "construction_seconds": 0.004377486009616405,
+      "core_import_seconds": 0.45095044100889936,
+      "elapsed_seconds": 5.615517070007627,
+      "first_request_seconds": 0.05172162500093691,
+      "fixture_execution_seconds": 5.789829108005506,
+      "fixture_import_seconds": 0.022371686005499214,
+      "framework_seconds_excluding_mock_handler": 5.357662660841015,
+      "fresh_child_process_wall_seconds": 6.4363630570005625,
+      "mode": "shared",
+      "provider_seconds": 0.25785440916661173,
+      "samples": 3,
+      "sdk": "2.8.0",
+      "session_read_seconds": 0.6512237720016856,
+      "turns": 150
+    }
+  ],
+  "unavailable_setup_attempts": [
+    {
+      "measurement_script_sha256": "87bc09689b3fc4b70cc91c0779a0fa80849451e2176d7b37da7703457d76096e",
+      "phase": "During core import, before fixture import or workload execution",
+      "reason": "Initial driver unnecessarily used direct Python -W error; upstream import emitted DeprecationWarning. Driver was corrected to record ordinary Python warnings. No workload sample from that attempt is accepted.",
+      "record_sha256": "64efcd126d6e9fb449d2e098820ff4cbe88c4d7acc82347fbe8d632292dadf22",
+      "sdk": "2.8.0"
+    }
+  ],
+  "validation": {
+    "all_samples_have_clean_sources_and_identical_python_fixture_driver_workloads": true,
+    "every_sdk_mode_turn_selection_has_three_valid_samples": true,
+    "full_scripts_unit_command": "python -m unittest discover -s scripts -p 'test_*.py'",
+    "full_scripts_unit_log_sha256": "8b897ac394040fe708f7c4d0a0a811b543330fd05fcd448514ca173f9bc10fd6",
+    "full_scripts_unit_tests": 142,
+    "full_scripts_unit_tests_outcome": "passed",
+    "no_speedup_claim": true,
+    "no_wall_clock_threshold": true,
+    "owner_unit_tests": 7,
+    "owner_unit_tests_outcome": "passed",
+    "ruff_check_and_format": "passed"
+  },
+  "workloads": {
+    "path": "runtime/tests/testdata/adk213-scale-workloads.json",
+    "sha256": "e9ab8762d9dfd8fabd118bf17ccec7efdb95b9f6441c23cc8dd3ae49112a6568"
+  }
+}

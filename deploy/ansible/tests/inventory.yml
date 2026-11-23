@@ -1,0 +1,19 @@
+---
+# Facts of a Debian x86_64 systemd host, so resolution runs on any
+# controller. Play variables in resolve.yml override them per case.
+all:
+  hosts:
+    localhost:
+  children:
+    peers:
+      hosts:
+        peer-a:
+        peer-b:
+  vars:
+    ansible_connection: local
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+    ansible_system: Linux
+    ansible_service_mgr: systemd
+    ansible_os_family: Debian
+    ansible_architecture: x86_64
+    contractor_runtime_control_plane_url: https://10.0.0.5:8443

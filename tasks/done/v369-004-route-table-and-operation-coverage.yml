@@ -1,0 +1,99 @@
+schema_version: "1.0"
+id: V369-004
+title: "Register routes from one table and validate every operation"
+milestone: hub-audit-guards-2026-10
+epic: api-contracts
+kind: chore
+priority: P2
+status: completed
+implementation_commit: acfa7b5890cf48affa7b6f81cfc76c3c711e6165
+depends_on: []
+languages: [go]
+goal: "Adding an OpenAPI operation without a handler, or a handler without a validated test, fails."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), public API C4, F3, H1; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Routes exist three times: OpenAPI paths, 128 registrations plus 78
+    methodNotAllowed lines in routes_*.go, and 138 wantImplemented lines
+    (openapi_contract_test.go:106-247); x-contractor-implementation marks
+    all 138 operations implemented. 33 non-Eval operations are never schema-
+    validated by any test.
+  siblings: >-
+    Re-verified after V370-009: 110 literal registrations and 77 method-less
+    405 patterns in ten routes_*.go files, plus the Eval route loop and the
+    archive registration helper; every operation carried
+    x-contractor-implementation: implemented. Without PostgreSQL, 41 non-Eval
+    operations had no validated success response (Audits and their findings,
+    reviews, items, coverage, events and workspace, finding proposals and
+    collections, Project deletion, Queue control, Run resume, gateway retry
+    and repeat draft, Agent usage, performance, allocation history, Git key).
+    The ServeMux patterns are now the OpenAPI templates, so the Run routes
+    read runId instead of runID (handlers, ownedRun and four PostgreSQL
+    tests). Ten paths that answered another method with 404 now answer 405
+    like every other path: the Audit pause, resume and cancel paths, the two
+    audit-standards paths, the three Runtime Agent principal paths and the
+    two git-import paths. The archive routes are six handler methods instead
+    of a closure helper, and the Git key routes are three methods sharing
+    acceptGitKeyRequest instead of a method switch. The extension also left
+    scripts/sync-eval-openapi.py, which wrote it into every Eval operation,
+    and api/README.md, which now states the route-table and coverage rules;
+    both generated clients are byte-identical after regeneration. The fake
+    Audit service now returns per-item attempts and a coverage page so the
+    new test validates realistic rows. Found by the new test and left out of
+    this task (routes and responses are out of scope): listAuditItems renders
+    "attempts": null for an item without attempts
+    (internal/httpapi/public/audit_handlers.go:533 reads a missing map entry
+    of ListItemAttempts), which the AuditItem schema forbids; the
+    getPerformanceHistory step parameter is an enum without a type
+    (api/openapi/contractor-public-v1.yaml:6053), so the request validator
+    cannot decode it and the Go client types it interface{}; the new test
+    validates only that response.
+  decision: >-
+    Guarantee: internal/httpapi/public/routes.go lists every public operation
+    once as {method, path, operationId, handler}; register serves each route,
+    answers another method of a route's path with 405 and any other path with
+    404. TestRouteTableMatchesOpenAPI fails when an operation has no route, a
+    route is not an operation, a route carries another operationId, a route
+    or operationId repeats, or a handler is nil.
+    serveAndValidatePublicContract records every validated response, and
+    TestMain fails a passing run of the whole package, or a filtered run that
+    sets CONTRACTOR_REQUIRE_OPERATION_COVERAGE=1, when an operation has no
+    validated 2xx response. Two exceptions need one validated response of any
+    status: connectEventsWebSocket, whose 101 needs a hijackable connection
+    (the event handler tests complete the handshake on a real server), and,
+    while CONTRACTOR_TEST_DATABASE_URL is unset, the 22 Eval operations,
+    whose successes come from the PostgreSQL Eval service; with the database
+    the Eval tests validate their successes. TestPublicOperationsConformToOpenAPI
+    serves the 41 operations above and one error response of each Eval
+    operation, and make verify-public-api runs its selection with the
+    coverage required and the database URL cleared, so its result does not
+    depend on what the caller exported. Evidence: removing the getGitKey row
+    fails TestRouteTableMatchesOpenAPI ("has no route") and the conformance
+    test (405 is not a documented status); the conformance test alone with
+    the coverage required fails listing each operation it does not serve; a
+    filtered run without the variable is not gated. Alternatives rejected: a
+    list of covered operations per test (another copy of the table), a gate
+    inside one test (it cannot see the others), counting routes instead of
+    contract operations (misses an operation without a route), and gating
+    every filtered run (each -run selection would fail). Reversal: an
+    operation that cannot reach a success in a test joins the exceptions
+    with its reason; the gate is never dropped. Verified: go test
+    ./internal/httpapi/public without a database (107 s) and with PostgreSQL
+    and -tags=integration (398 s), make verify-public-api, go vet with
+    -tags=integration, gofmt, staticcheck U1000 on the touched packages, make
+    generate-public-client and openapi-typescript (no diff).
+scope:
+  in:
+    - "One Go table {method, path, operationId, handler} that registers routes and 405s; a test that the table equals the OpenAPI operations; serveAndValidatePublicContract fails if any operation was never validated; remove wantImplemented and x-contractor-implementation."
+  out:
+    - "Routes and responses."
+acceptance_criteria:
+  - id: A1
+    text: "Adding an OpenAPI operation without a handler, or a handler without a validated test, fails."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "make verify-public-api"
+    covers: [A1]
+  - command: "go test ./internal/httpapi/public"
+    covers: [A1]

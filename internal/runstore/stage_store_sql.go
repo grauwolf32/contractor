@@ -1,0 +1,278 @@
+package runstore
+
+// SQL statements for stage_store.go.
+
+// hasSummaryEscalationSQL probes the same predicate as the unique strategy
+// root index. Used by PostgresStore.HasSummaryEscalation.
+var hasSummaryEscalationSQL = `
+SELECT EXISTS (
+    SELECT 1 FROM stage_executions
+    WHERE run_id=$1 AND stage_name=$2
+      AND execution_config_variant='summary_escalation'
+      AND resume_source_execution_id IS NULL
+      AND stage_context_snapshot->'continuation'->>'sourceStageExecutionId'=previous_execution_id
+)`
+
+// createStageExecutionSQL inserts StageExecution $1 of Run $2, attempt $4 of
+// Stage $3 after previous execution $5, with execution configuration variant
+// $6, escalation ordinal $7 and resume source $8, StageSpec $10 of schema
+// version $9 and StageContext $12 of schema version $11, in state preparing
+// with reason created, and returns it. The same statement sets the Run's
+// scheduler_lane_class to $13, the class of the new StageExecution, which is
+// the one the Scheduler progresses next (SCH-R175); a failed insert changes
+// neither row. $14 is the owner recording a manual continuation, or NULL for
+// an ordinary attempt. Used by PostgresStore.createStageExecution.
+var createStageExecutionSQL = `
+WITH inserted AS (
+INSERT INTO stage_executions (
+    stage_execution_id, run_id, stage_name, attempt, previous_execution_id,
+    execution_config_variant, escalation_ordinal, resume_source_execution_id,
+    stage_spec_schema_version, stage_spec_snapshot,
+    stage_context_schema_version, stage_context_snapshot,
+    state, state_reason_code, state_reason_message,
+    resume_requested_by, resume_requested_at, resume_transaction_id
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12::jsonb, 'preparing', 'created', '',
+    $14::text, CASE WHEN $14::text IS NOT NULL THEN clock_timestamp() END,
+    CASE WHEN $14::text IS NOT NULL THEN pg_current_xact_id() END)
+RETURNING *
+), lane AS (
+UPDATE workflow_runs AS run
+   SET scheduler_lane_class = $13
+  FROM inserted
+ WHERE run.run_id = inserted.run_id
+   AND run.scheduler_lane_class IS DISTINCT FROM $13
+)
+SELECT ` + stageExecutionColumns + ` FROM inserted`
+
+// getStageExecutionSQL reads StageExecution $1.
+// Used by PostgresStore.GetStageExecution.
+var getStageExecutionSQL = `SELECT ` + stageExecutionColumns + ` FROM stage_executions WHERE stage_execution_id = $1`
+
+// listTerminalStageExecutionsWithAllocationsSQL walks at most $1 eligible
+// allocations through stage_allocations_pending_release_idx before grouping
+// them into at most $3 terminal Stages. Two probes put never-attempted rows
+// first without sorting the backlog: the index's leading timestamp is NULL
+// on the first probe and non-NULL on the second. Only the bounded window is
+// grouped and sorted. Busy Stages $2 are skipped before taking that window,
+// so one large in-flight release cannot hide later work. Active allocations
+// are skipped by a primary-key Stage probe; completed history is not read.
+// It is a prefix: the caller appends the columns and joins stage_executions.
+// Used by PostgresStore.ListTerminalStageExecutionsWithAllocations.
+var listTerminalStageExecutionsWithAllocationsSQL = `
+WITH unattempted AS MATERIALIZED (
+    SELECT allocation.stage_execution_id, allocation.release_attempted_at
+    FROM stage_allocations AS allocation
+    WHERE allocation.release_completed_at IS NULL
+      AND allocation.release_attempted_at IS NULL
+      AND NOT (allocation.stage_execution_id = ANY(COALESCE($2::text[], '{}')))
+      AND EXISTS (
+          SELECT 1 FROM stage_executions AS candidate
+          WHERE candidate.stage_execution_id = allocation.stage_execution_id
+            AND candidate.state IN ('succeeded', 'failed', 'interrupted', 'cancelled')
+      )
+    ORDER BY allocation.stage_execution_id, allocation.allocation_id
+    LIMIT $1
+), attempted AS (
+    SELECT allocation.stage_execution_id, allocation.release_attempted_at
+    FROM stage_allocations AS allocation
+    WHERE allocation.release_completed_at IS NULL
+      AND allocation.release_attempted_at IS NOT NULL
+      AND NOT (allocation.stage_execution_id = ANY(COALESCE($2::text[], '{}')))
+      AND EXISTS (
+          SELECT 1 FROM stage_executions AS candidate
+          WHERE candidate.stage_execution_id = allocation.stage_execution_id
+            AND candidate.state IN ('succeeded', 'failed', 'interrupted', 'cancelled')
+      )
+    ORDER BY allocation.release_attempted_at, allocation.stage_execution_id, allocation.allocation_id
+    LIMIT ($1 - (SELECT count(*) FROM unattempted))
+), pending AS (
+    SELECT allocation.stage_execution_id,
+           min(COALESCE(allocation.release_attempted_at, '-infinity'::timestamptz)) AS next_attempt_at
+    FROM (SELECT * FROM unattempted UNION ALL SELECT * FROM attempted) AS allocation
+    GROUP BY allocation.stage_execution_id
+    ORDER BY next_attempt_at, allocation.stage_execution_id
+    LIMIT $3
+)
+SELECT `
+
+// getActiveStageExecutionSQL returns, oldest first, up to two StageExecutions
+// of Run $1 that are preparing, running, finalizing or aborting; a second row
+// means the Run has more than the one active Stage it may have.
+// Used by PostgresStore.GetActiveStageExecution.
+var getActiveStageExecutionSQL = `
+SELECT ` + stageExecutionColumns + `
+FROM stage_executions
+WHERE run_id = $1 AND state IN ('preparing', 'running', 'finalizing', 'aborting')
+ORDER BY created_at, stage_execution_id
+LIMIT 2`
+
+// listStageExecutionsWithUnreleasedAllocationsSQL returns, oldest first, the
+// StageExecutions of Run $1 that have an allocation whose release has not
+// completed; an execution whose allocations are all released is not read.
+// Used by PostgresStore.ListStageExecutionsWithUnreleasedAllocations.
+var listStageExecutionsWithUnreleasedAllocationsSQL = `
+SELECT ` + prefixedStageExecutionColumns("execution") + `
+FROM stage_executions AS execution
+WHERE execution.run_id = $1
+  AND EXISTS (
+      SELECT 1 FROM stage_allocations AS allocation
+      WHERE allocation.stage_execution_id = execution.stage_execution_id
+        AND allocation.release_completed_at IS NULL
+  )
+ORDER BY execution.created_at, execution.stage_execution_id`
+
+// hasStageExecutionsSQL probes whether Run $1 has any StageExecution
+// through the run index. Used by PostgresStore.HasStageExecutions.
+var hasStageExecutionsSQL = `SELECT EXISTS (SELECT 1 FROM stage_executions WHERE run_id = $1)`
+
+// listStageLineageSQL returns the identity, state, execution configuration
+// and lineage columns of every StageExecution of Stage $2 in Run $1, oldest
+// first, through the (run_id, stage_name, attempt) identity index; it selects
+// no snapshot column (SCH-R164). Used by PostgresStore.ListStageLineage.
+var listStageLineageSQL = `
+SELECT stage_execution_id, run_id, stage_name, attempt, state,
+       execution_config_variant, escalation_ordinal,
+       previous_execution_id, resume_source_execution_id,
+       planner_session_id, planner_invocation_id
+FROM stage_executions
+WHERE run_id = $1 AND stage_name = $2
+ORDER BY attempt`
+
+// listStageExecutionsSQL returns every StageExecution of Run $1, oldest
+// first. Used by PostgresStore.ListStageExecutions.
+var listStageExecutionsSQL = `
+SELECT ` + stageExecutionColumns + `
+FROM stage_executions
+WHERE run_id = $1
+ORDER BY created_at, stage_execution_id`
+
+// lockStartPlannerRunSQL locks the row of the Run that owns StageExecution $1
+// and returns the Run ID; no row means the Stage does not exist or its Run
+// no longer permits a Planner start. A Stage's
+// Run is immutable, so the scalar subquery reads it exactly without locking
+// the Stage. The lock is the one startPlannerSQL's event allocation takes on
+// that row, taken before its Stage CAS so that Planner start locks the Run
+// before the Stage like every operation that locks both (RUN-R29).
+// Used by PostgresStore.StartPlanner.
+var lockStartPlannerRunSQL = `
+SELECT run.run_id
+FROM workflow_runs AS run
+WHERE run.run_id = (
+    SELECT stage.run_id FROM stage_executions AS stage WHERE stage.stage_execution_id = $1
+)
+  AND run.state IN ('running', 'waiting')
+FOR NO KEY UPDATE OF run`
+
+// startPlannerSQL moves StageExecution $1 of Run $12, whose row the caller
+// has locked, from preparing to running (state CAS) and creates planner
+// session $2. It reserves two Run event sequence numbers and appends a
+// lifecycle.changed event and the planner-started event. Returns the session
+// ID; no row means the Stage was not preparing.
+// Used by PostgresStore.StartPlanner.
+var startPlannerSQL = `
+WITH transitioned AS (
+    UPDATE stage_executions
+    SET state = 'running',
+        state_reason_code = $6,
+        state_reason_message = $7,
+        planner_session_id = $2,
+        planner_invocation_id = $3,
+        planner_started_at = clock_timestamp(),
+        updated_at = clock_timestamp()
+    WHERE stage_execution_id = $1 AND run_id = $12 AND state = 'preparing'
+    RETURNING stage_execution_id, run_id
+), inserted_session AS (
+    INSERT INTO planner_sessions (
+        session_id, stage_execution_id, invocation_id, state_schema_version, state,
+        next_event_sequence
+    )
+    SELECT $2, stage_execution_id, $3, $4, $5::jsonb, 2
+    FROM transitioned
+    RETURNING session_id
+), allocated AS (
+    UPDATE workflow_runs AS run
+    SET next_run_event_sequence = next_run_event_sequence + 2
+    FROM transitioned
+    WHERE run.run_id = transitioned.run_id
+    RETURNING run.run_id,
+              run.next_run_event_sequence - 2 AS lifecycle_sequence,
+              run.next_run_event_sequence - 1 AS planner_sequence
+), inserted_lifecycle_event AS (
+    INSERT INTO workflow_run_events (
+        run_id, sequence_number, event_id, event_schema_version, kind, data
+    )
+    SELECT run_id,
+           lifecycle_sequence,
+           'lifecycle-' || md5(
+               random()::text || clock_timestamp()::text || run_id || lifecycle_sequence::text
+           ),
+           'contractor/v1alpha1',
+           'lifecycle.changed',
+           jsonb_build_object(
+               'runId', run_id,
+               'resource', 'stageExecution',
+               'stageExecutionId', $1::text,
+               'state', 'running'
+           )
+    FROM allocated
+    RETURNING run_id, sequence_number
+), inserted_event AS (
+    INSERT INTO workflow_run_events (
+        run_id, sequence_number, event_id, event_schema_version, kind, data
+    )
+    SELECT run_id, planner_sequence, $8, $9, $10, $11::jsonb
+    FROM allocated
+    RETURNING run_id, sequence_number
+)
+SELECT inserted_session.session_id
+FROM inserted_session CROSS JOIN inserted_lifecycle_event CROSS JOIN inserted_event`
+
+// enterFinalizingSQL moves StageExecution $1 from running to finalizing (state
+// CAS) and stores the candidate StageResult, finalization ID and deadline.
+// The caller requires exactly one affected row.
+// Used by PostgresStore.EnterFinalizing.
+var enterFinalizingSQL = `
+UPDATE stage_executions
+SET state = 'finalizing',
+    state_reason_code = $6,
+    state_reason_message = $7,
+    candidate_result_schema_version = $2,
+    candidate_stage_result = $3::jsonb,
+    finalization_id = $4,
+    finalization_deadline = $5,
+    updated_at = clock_timestamp()
+WHERE stage_execution_id = $1 AND state = 'running'`
+
+// completeStageResultSQL makes a finalizing StageExecution terminal with
+// outcome $4, accepting the result only if it equals the stored candidate
+// (same schema version and JSON). Sets terminal_at; the caller requires
+// exactly one affected row. Used by PostgresStore.CompleteStageResult.
+var completeStageResultSQL = `
+UPDATE stage_executions
+SET state = $4,
+    state_reason_code = 'result_accepted',
+    state_reason_message = '',
+    accepted_result_schema_version = $2,
+    accepted_stage_result = $3::jsonb,
+    terminal_at = clock_timestamp(),
+    updated_at = clock_timestamp()
+WHERE stage_execution_id = $1
+  AND state = 'finalizing'
+  AND candidate_result_schema_version = $2
+  AND candidate_stage_result = $3::jsonb`
+
+// enterAbortingSQL moves StageExecution $1 from expected state $2 (preparing
+// or running) to aborting and stores the StageTermination, abort ID and
+// deadline. The caller requires exactly one affected row.
+// Used by PostgresStore.EnterAborting.
+var enterAbortingSQL = `
+UPDATE stage_executions
+SET state = 'aborting',
+    state_reason_code = $7,
+    state_reason_message = $8,
+    termination_schema_version = $3,
+    stage_termination = $4::jsonb,
+    abort_id = $5,
+    abort_deadline = $6,
+    updated_at = clock_timestamp()
+WHERE stage_execution_id = $1 AND state = $2`

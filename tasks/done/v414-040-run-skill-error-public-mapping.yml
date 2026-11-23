@@ -1,0 +1,195 @@
+schema_version: "1.0"
+id: V414-040
+title: "Answer Run Skill failures with their own public error codes instead of internal_error"
+milestone: review-v407-v409-followups-2026-10
+epic: agent-skills
+kind: defect
+introduced_by: V10-003
+priority: P2
+status: completed
+depends_on: []
+languages: [go]
+implementation_commit: 40357935496e0fd157b1ce26931e44aab6678464
+goal: >-
+  Every agentskills.RunSkillError that reaches a public handler answers its
+  own registered code, status and retryability, so a Skill limit, a missing
+  current Skill or a transient Skill source failure at Run creation or
+  Audit start is never the retryable 500 internal_error.
+context:
+  specification:
+    - docs/spec/tools/skills.md
+    - docs/spec/platform/errors.md
+    - docs/spec/api/public-api.md
+  review: >-
+    Found by the V414-035 lane on 2026-10-25 by code reading
+    (tasks/done/v414-035-run-skill-missing-source-code.yml). The user asked
+    to fix the bugs found during the delivery first.
+  severity: medium
+  finding: >-
+    agentskills.RunSkillError (internal/agentskills/run.go:29-40) has Code
+    and Retryable but no ErrorKind method, so apierror.Of
+    (internal/apierror/kind.go:73) does not classify it and handleError
+    (internal/httpapi/public/errors.go:25-36) answers the retryable 500
+    internal_error. runservice returns it unwrapped from public Run creation;
+    auditservice/start.go:323 builds one for Audit start. A Skill limit
+    (skill_limit_exceeded), a missing current Skill or
+    skill_artifact_not_found therefore reach a client as an internal error
+    that it retries.
+  siblings: >-
+    Every public path that can return a RunSkillError: POST /v1/runs, Audit
+    start, Eval preflight (internal/evalservice/preflight_errors.go already
+    converts it; confirm), and any CLI client mapping in
+    internal/publicclient. Each answers the registered code or is ruled out
+    with the reason.
+scope:
+  in:
+    - "Classify RunSkillError for the public API with one mapping from its Code to a registered apierror Kind (status and retryability from errors.md), adding the rows errors.md lacks."
+    - "Declare the responses in api/openapi/contractor-public-v1.yaml where an operation can return them, regenerate both clients, and run make verify-public-api."
+    - "Handler tests on the real store that drive POST /v1/runs and Audit start into each Skill failure and observe the registered code and status."
+  out:
+    - "Changing when Skill failures happen."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      POST /v1/runs with too many Skill bytes or a transient Skill source read
+      answers the failure's registered code and status, never internal_error.
+      A missing current Skill is accepted as a committed missing-source result
+      that fails the Run's initialization with skill_artifact_not_found
+      (SKL-R69), and no pinned source can be gone at POST /v1/runs, which
+      selects and locks its sources in one snapshot; the code still answers
+      422 skill_artifact_not_found if the lock ever reports one. (Corrected
+      from "a missing current Skill and a removed pinned source answer their
+      codes", which contradicted SKL-R69.)
+  - id: A2
+    text: "Audit start and every other sibling path answer the same codes or are ruled out with the reason."
+  - id: A3
+    text: "The handler tests fail on the unfixed code with 500 internal_error."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 ./internal/httpapi/public/... ./internal/agentskills/... ./internal/runservice/... ./internal/auditservice/..."
+    covers: [A1, A2, A3]
+  - command: make verify-public-api
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2, A3]
+decisions:
+  - >-
+    RunSkillError implements apierror.Classified through one switch from its
+    Code to a Kind (internal/agentskills/run.go). Only the three codes that a
+    public operation can return are public codes: skill_limit_exceeded (422,
+    not retryable), skill_artifact_not_found (422, not retryable) and
+    skill_artifact_unavailable (503, retryable), with the retryability of the
+    errors.md rows they replace. Their rows moved from the assembled table of
+    errors.md into the generated public table (one row per code). 422 matches
+    the existing request-content codes audit_limit_exceeded and
+    eval_limit_exceeded; 503 matches the other retryable store failures.
+    PublicMessage names the logical Skill (skills/<name>), which is the
+    caller's own configuration and never package content.
+  - >-
+    The other RunSkillError codes (skill_media_type_invalid,
+    skill_fork_conflict, skill_fork_failed and the package validator codes)
+    are raised only by Catalog.InitializeRun in the Scheduler's Run Skill
+    initializer, which no public handler calls. Registering them would add
+    public codes that no operation answers (AGENTS.md 3.7), so they map to
+    internal_error: reaching a handler with one would be a Server defect.
+    Reversal condition: a public operation starts to initialize Run Skills
+    synchronously; then register its codes and declare them.
+  - >-
+    A1 contradicted SKL-R69 and was corrected in the implementation commit.
+    POST /v1/runs accepts a missing current Skill as a committed
+    missing-source result (202), and the Run's initialization fails with
+    skill_artifact_not_found (covered since V414-035 by
+    TestPostgresRunSkillInitializerFailsRunWhosePinnedSourceIsGone and
+    TestCatalogRunSelectionPersistsMissingAndFailsDeterministically). No
+    pinned source can be gone at POST /v1/runs: the Run takes no
+    client-pinned Skill sources (ExpectedSkillsSHA256 is set only by the Eval
+    adapters), and SelectRunSources and RequireRunSources share one
+    snapshot. The start-pinned case is the Audit child Run, which has no
+    public handler and ends once as submission-failed (V414-035,
+    FAIL-AUX-1). Audit start does refuse a missing current Skill, because it
+    pins the packages of every later child Run (AUD-R14), and now answers
+    422 skill_artifact_not_found.
+  - >-
+    Sibling found by the real-store test and fixed in the same commit:
+    SelectRunSources called a current package above the stored package
+    bound (LIM-SKL-17, 16 MiB) the transient skill_artifact_unavailable,
+    because RunSkillSnapshot.Validate rejects the size and every Validate
+    failure was mapped to the transient code. Such a package is now the
+    permanent skill_limit_exceeded at Run creation and Audit start
+    (SKL-R117, limits.md LIM-SKL-17 enforcement points).
+  - >-
+    Siblings ruled out or confirmed. Eval preflight
+    (internal/evalservice/preflight_errors.go) already joins a definite
+    RunSkillError after evaldomain eval_not_ready, so the Eval answer stays
+    eval_not_ready even though RunSkillError is now classified (new test
+    TestSkillPreflightFailuresKeepTheEvalAnswer); a transient one passes
+    through and an Eval route now answers it with 503
+    skill_artifact_unavailable instead of 500 internal_error, while the
+    background Prepare still reports eval_preparation_unavailable
+    (EVM-R90). The CLI client (internal/publicclient/retry.go) decides
+    retries by the envelope's retryable flag alone, so it stops retrying
+    the permanent codes without a change. The Audit Controller
+    (permanentSubmissionError) and the Run Skill initializer read
+    RunSkillError.Retryable and are unchanged. The scan sweep controller
+    classifies admission errors with apierror.Of, so a permanent Skill
+    failure now fails the member with its own code instead of retrying
+    until admission_exhausted; shipped scan Workflows select no Skills.
+  - >-
+    Open, not fixed here (each needs a decision outside this task's scope):
+    (1) an empty (0-byte) current Skill package also fails
+    RunSkillSnapshot.Validate and is still reported as the transient
+    skill_artifact_unavailable; SKL-R64 and SKL-R106 suggest committing it
+    and failing initialization with skill_archive_invalid, which the
+    snapshot's 1-byte lower bound prevents. (2) RunSkillError keeps no
+    cause, so a definite transaction conflict inside Skill selection is
+    answered as 503 skill_artifact_unavailable instead of being replayed by
+    the unit of work's bounded transaction retries.
+verification:
+  date: '2026-10-25'
+  environment: >-
+    macOS arm64, Go 1.26.9, PostgreSQL 17.11 (Homebrew) database
+    contractor_test_v414_cls with per-test schemas and all 44 migrations;
+    branch claude/v414-cls on integration branch claude/v41x-coord
+    49a15fda; locked Runtime venv and pnpm UI install.
+  commands:
+    - >-
+      go test -tags=integration -count=1 ./internal/httpapi/public/...
+      ./internal/agentskills/... ./internal/runservice/...
+      ./internal/auditservice/... ./internal/apierror/...
+      ./internal/evalservice/... ./internal/publicclient/...
+      ./internal/auditcontroller/... (after merging claude/v41x-coord
+      a7d3344d): 1813 passing tests, no skips, no failures.
+    - >-
+      go test -tags=integration -count=1 ./internal/app -run
+      'ScanSweep|RunSkill|Sweep': ok, 10 tests (scan sweep admission and
+      the Run Skill initializer).
+    - >-
+      New real-store handler tests, validated against the OpenAPI contract:
+      TestPostgresRunCreationAnswersSkillFailuresWithTheirCodes (POST
+      /v1/runs: missing Skills 202 with missing-source markers; injected
+      Skill source read outage 503 skill_artifact_unavailable retryable,
+      nothing stored, then the same request 202; one package above
+      LIM-SKL-17 and packages over LIM-SKL-22 422 skill_limit_exceeded; the
+      same over-limit request on POST /v1/projects/{projectId}/runs 422;
+      no Run stored) and TestPostgresAuditStartAnswersSkillFailuresWithTheirCodes
+      (missing Skill 422 skill_artifact_not_found; both limits 422
+      skill_limit_exceeded; draft unchanged; then 200 active). Unit tests:
+      TestRunSkillErrorsAnswerTheirRegisteredPublicCode,
+      TestCatalogRunSelectionRejectsAnOversizedCurrentPackage,
+      TestSkillPreflightFailuresKeepTheEvalAnswer; assertRunSkillError now
+      checks that every asserted public code keeps its Kind's retryability.
+    - >-
+      A3: with internal/agentskills/run.go and internal/apierror/registry.go
+      restored from the base, every Skill failure of both handler tests
+      answers "500 internal_error retryable=true" (7 assertions). With only
+      the selection branch removed,
+      TestCatalogRunSelectionRejectsAnOversizedCurrentPackage fails with
+      skill_artifact_unavailable retryable=true. Both files were restored.
+    - "make verify-public-api: ok (apierror, and the contract selection with operation coverage)."
+    - >-
+      make ui-generate and make generate-public-client regenerated
+      ui/src/api/generated and internal/publicclient/generated; make
+      ui-verify: 196 test files, 2394 tests passed (1 expected fail), build
+      ok.
+    - >-
+      make lint: exit 0 after make docs-dependencies and make
+      docs-error-registry.

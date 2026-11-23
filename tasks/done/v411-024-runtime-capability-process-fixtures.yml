@@ -1,0 +1,100 @@
+schema_version: '1.0'
+id: V411-024
+title: Align heterogeneous Runtime process fixtures with the controlled HTTP capability
+milestone: autonomous-http-pentest-2026-10
+epic: runtime-config
+kind: chore
+introduced_by: V411-003
+priority: P2
+status: completed
+depends_on: [V411-003]
+languages: [go]
+goal: Preserve real heterogeneous placement assertions after Runtime gained its built-in controlled
+  HTTP capability, without confusing advertised capabilities with resolved RuntimeConfig adapters.
+context:
+  authority: Repair mandatory HTTP/Caido and related process-gate failures found while verifying
+    the user-authorized V411-004 task on 2026-10-29.
+  specification:
+  - docs/spec/execution/control-plane.md#CTL-R168
+  - docs/spec/execution/control-plane.md#CTL-R73
+  - docs/spec/configuration/runtime-config.md
+  finding: >-
+    tests/e2e/http_caido_test.go:215 compares the entire advertisement with one-element
+    http-proxy@1 or caido-graphql@1 strings. V411-003 added pentest-target-http@1 to the
+    actual Runtime advertisement, so healthy idle Runtimes never satisfy the fixture.
+    Both TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses and the shared sitemap HTTP
+    fixture time out before any target traffic. runtime_labels_test.go:196,757 contains
+    sibling exact-inventory assumptions that need the same review.
+  siblings: >-
+    Review every real-process SupportedRuntimeAdapters comparison and selector, including
+    Runtime label placement and shared HTTP/sitemap fixtures. Keep allocation RuntimeConfig
+    provenance checks exact: the built-in controlled capability is not a configured adapter.
+scope:
+  in:
+  - Update real Runtime advertisement expectations using a shared test helper or exact current
+    sets, preserving checks that HTTP and Caido specializations remain distinct and available.
+  - Preserve required-capability subset selection and unique live-principal lookup without
+    broadening exact RuntimeConfig provenance. Controlled HTTP independently requires its builtin.
+  - Exercise every affected parent process test and the complete canonical process union.
+  out:
+  - No production capability, placement, RuntimeConfig, timeout or compatibility change.
+acceptance_criteria:
+- id: A1
+  text: Healthy HTTP and Caido Runtimes satisfy the fixture when their required specialization
+    is available; unrelated advertised capabilities remain valid under CTL-R73/R74. The real
+    HTTP/Caido and sitemap HTTP scenarios execute.
+- id: A2
+  text: Label-driven fixtures and sibling selectors use the current advertisement while allocation
+    provenance retains only the actually configured adapters.
+- id: A3
+  text: Selectors reject missing requirements and ambiguous matching live principals, preserve
+    exact configured RuntimeConfig provenance, and all affected process owners pass without
+    arbitrary timeout increases or a second inventory-validation rule.
+tests:
+- command: go test -count=1 ./tests/e2e
+  covers: [A1, A2, A3]
+- command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses|TestLabelDrivenRuntimeConfigurationAcrossProcesses)$'
+  covers: [A1, A2, A3]
+- command: make test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+assignment:
+  branch: codex/v411-004-http-conformance
+  claimed: '2026-10-29'
+
+integration_decision:
+  current_main: 08a6b8310213283269da338536ea49bcf64e6153
+  resolved_by: V410-023
+  guarantee: CTL-R73/R74 define selection by required capabilities, allowing additional advertised
+    capabilities without configuring them. CTL-R168 separately requires the controlled HTTP builtin
+    for preflight. RuntimeConfig provenance remains exact.
+  decision: Main independently repaired the same fixtures while this branch was being verified.
+    Reuse its single subset selector and unique-live-principal lookup; remove this branch's duplicate
+    exact-inventory helper. Complete inventory equality was an unnecessary internal assumption in
+    this task, not the protocol contract. No production capability or placement behavior changes.
+  verification: Run all three canonical process shards on the integrated source. Their union includes
+    every deterministic process root, including main's additive-capability regression and our HTTP
+    matrix; no process case is omitted. The earlier unsharded run exhausted its aggregate 50-minute
+    allowance after 33 successful parents and is retained as an incomplete diagnostic, not a pass.
+
+implementation_commit: 9e7c9254af30b56c308f1f309576168354ce4dde
+
+verification:
+  date: '2026-10-29'
+  source: bc99bfa8e9f64144a0ab0c41bd0b21904d3e29cf
+  results:
+  - The final code reuses the V410-023 selector from main. Required capabilities use subset matching
+    under CTL-R73/R74; missing requirements and multiple matching live principals are rejected.
+    Allocation RuntimeConfig provenance remains exact. The duplicate inventory helper is removed.
+  - Full untagged tests/e2e passed, and the complete tagged package compiled. The exact standalone
+    three-parent HTTP/Caido, sitemap HTTP and label-driven selection passed in 256.091s.
+  - All three canonical process shards passed on the same source; their disjoint union executed
+    all 36 required parents and 123 results including subtests with zero skips/failures. The main
+    additive-capability regression and every affected real-process parent are present in that report.
+  - Full integrated lint passed, including the release graph and its exact process ownership checks.
+  reports:
+    focused_regressions: /private/tmp/v411004-evidence/integrated-focused-repairs.log
+    process_union: /private/tmp/v411004-evidence/integrated-process-summary.json
+    untagged: /private/tmp/v411004-evidence/integrated-e2e-unit.log
+    lint: /private/tmp/v411004-evidence/integrated-lint.log

@@ -1,0 +1,105 @@
+schema_version: "1.0"
+id: V429-005
+title: Retain the originating Run list beside Run detail
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: completed
+depends_on: [V429-007]
+languages: [typescript, css]
+goal: A Run opened from an existing list keeps that list beside its detail, without independent Queue/Completed switches.
+demonstration: Open a filtered Run list, select a Run, navigate to another row in the retained list and return to the same source filters/page. Repeat from a Project list and on mobile.
+context:
+  authority: >-
+    On 2026-11-01 the user proposed a left Run list like Projects, then clarified
+    that it should be the list from which the user opened the Run and must have
+    no separate switches. This extends the same requested Run/Project preview.
+  specification: docs/spec/ui/ui.md
+  design: docs/design/ui/README.md
+  decision: >-
+    Carry a bounded source-list descriptor through Run navigation, preserve its
+    filters and cursor, and reuse existing list API/query owners. Do not store
+    business records in browser storage, invent another list, fetch every page
+    or add Server endpoints. Direct/unknown-origin links show ordinary detail.
+    Narrow screens use the shared list/detail navigation and focus behavior.
+scope:
+  in:
+    - Existing global Queue/Completed and Project recent/successful/history Run list origins.
+    - Shared list/detail presentation, selection, exact return context and bounded live list reads.
+    - UI specification, release patch, tests and preview.
+  out:
+    - New Server API, arbitrary source-page embedding, a new global navigation destination or independent view switches.
+    - User data mutation, browser storage snapshots and automatic whole-list traversal.
+requirements:
+  - id: R1
+    text: Source filters/page survive selection and sibling Run navigation; selected Run is highlighted and return context remains exact.
+  - id: R2
+    text: A direct or unsupported origin has no invented list; read failures and selected Runs absent from the source page remain explicit.
+  - id: R3
+    text: The source list stays bounded and uses existing API/query contracts; source changes and live Run state remain truthful.
+  - id: R4
+    text: Shared PaneLayout provides mobile back/focus behavior, global typography and accessible row actions, without separate view switches.
+failure_outcomes:
+  - operation: Existing bounded Run-list reads
+    permanent: Show the existing read error and explicit retry; keep exact detail accessible.
+    retryable: Preserve existing query backoff, with no new mutation or replay.
+    ambiguous: No new mutation is introduced.
+    cancelled: Query/route ownership remains with the current source descriptor.
+    timeout: Existing API deadlines remain authoritative.
+cardinality:
+  - collection: One source list page
+    expected: A few Runs.
+    maximum: The existing Queue/Completed/Project list-page limit or Overview five/three-Run samples.
+    bound: No automatic traversal or per-row detail read; preserve source cursors.
+lifecycle:
+  - entity: Transient source-list navigation context
+    delete: Source deletion or an unavailable Run remains a read outcome; this feature deletes nothing.
+    cascade: No durable entity.
+    retention: In-memory router/query ownership only; no localStorage/sessionStorage business snapshots.
+acceptance_criteria:
+  - id: A1
+    text: Global and Project source list navigation retain filters, page, selected identity and exact return context, with no sidebar switches.
+  - id: A2
+    text: Direct/unknown origins, failed reads and an absent selected Run render truthfully without unbounded work.
+  - id: A3
+    text: Desktop/mobile keyboard, back-to-list and focus behavior work with shared primitives and all themes.
+tests:
+  - command: VITEST_MAX_WORKERS=2 make ui-verify
+    covers: [A1, A2, A3]
+  - command: make ui-gates
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2, A3]
+  - command: node /tmp/contractor-run-source-browser.mjs
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3]
+
+verification:
+  - >-
+    Real Application tests open filtered Completed and Queue pages, retain their
+    state/membership/cursor/exact metadata selectors, select a sibling without
+    growing return state, and return to the exact source page/state. Project
+    recent/successful/history links retain their original 5/3/25-item queries.
+    Direct/invalid origins, failed reads, empty pages and absent selections are
+    explicit; a full 50-Run page performs no per-row detail read or cursor walk.
+  - >-
+    The immutable production-build browser snapshot passed 57 cases across seven
+    navigation, Project, draft, repeat, lifecycle, preset and responsive specs,
+    without skips or retries. Source panes have no view switches, desktop rows
+    retain selection, and mobile back retains filters/cursor at 390/320 px in
+    light, dark and black. Native preview sibling navigation was also verified.
+  - >-
+    VITEST_MAX_WORKERS=2 make ui-verify passed: 218 files, 2681 passing tests and
+    one existing expected failure, 17 static-server tests, generated-client,
+    lint/formatting, both typechecks and production build. The earlier unbounded
+    run hit test timeouts while another checkout compiled and tested; limiting
+    workers reran the complete suite without changing assertions or timeouts.
+    make ui-gates, task/spec checks and diff whitespace checks passed.
+  - >-
+    New comparison evidence is saved in production-contextual-list-20261101
+    beside the preserved original Run prototype. Original OpenDesign projects,
+    conversations, files, versions and the verified recoverable backup remain
+    intact. This branch has not been merged into main.
+implementation_commit: 9a3be29efa5aad66aa9567ba9d9e5909f01dc453

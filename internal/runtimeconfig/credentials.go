@@ -1,0 +1,200 @@
+package runtimeconfig
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/credentialerrors"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
+)
+
+const (
+	CredentialKindOTLPHeaders     = "otlp-headers@1"
+	CredentialKindProxyBasic      = "http-proxy-basic@1"
+	CredentialKindProxyBearer     = "http-proxy-bearer@1"
+	CredentialKindCaidoBearer     = "caido-bearer@1"
+	CredentialKindInteractshToken = "interactsh-token@1"
+)
+
+type RuntimeCredentialValidator interface {
+	ValidateRuntimeCredential(context.Context, string, ...string) error
+}
+
+// TransactionLLMCredentialLookupFactory binds every database-backed metadata
+// lookup to the transaction which will persist the resulting Run snapshot.
+// Implementations may also include process-local providers, but must not
+// acquire another pooled PostgreSQL connection.
+type TransactionLLMCredentialLookupFactory interface {
+	ForTransaction(pgx.Tx) (resolved.CredentialLookup, error)
+}
+
+// TransactionLLMCredentialLookup is deliberately constructible only through
+// BindTransactionLLMCredentialLookup. PinRunSnapshot accepts this concrete
+// wrapper so a caller cannot accidentally pass the process-wide, pool-backed
+// credential provider while already holding a transaction connection.
+type TransactionLLMCredentialLookup struct {
+	lookup resolved.CredentialLookup
+}
+
+func BindTransactionLLMCredentialLookup(
+	tx pgx.Tx,
+	factory TransactionLLMCredentialLookupFactory,
+) (TransactionLLMCredentialLookup, error) {
+	if tx == nil || factory == nil {
+		return TransactionLLMCredentialLookup{}, errors.New("transaction LLM credential lookup is not configured")
+	}
+	lookup, err := factory.ForTransaction(tx)
+	if err != nil {
+		return TransactionLLMCredentialLookup{}, fmt.Errorf("bind transaction LLM credential lookup: %w", err)
+	}
+	if lookup == nil {
+		return TransactionLLMCredentialLookup{}, errors.New("transaction LLM credential lookup factory returned nil")
+	}
+	return TransactionLLMCredentialLookup{lookup: lookup}, nil
+}
+
+func (l TransactionLLMCredentialLookup) LookupLLMCredential(
+	ctx context.Context,
+	credentialID string,
+) (resolved.CredentialMetadata, error) {
+	if l.lookup == nil {
+		return resolved.CredentialMetadata{}, errors.New("transaction LLM credential lookup is not bound")
+	}
+	return l.lookup.LookupLLMCredential(ctx, credentialID)
+}
+
+type CredentialReferenceBarrier interface {
+	WithCredentialReferences(context.Context, func() error) error
+}
+
+// RuntimeCredentialCatalog combines validation and its reference fence so a
+// caller cannot accidentally validate through one service while committing
+// under a different lifecycle barrier.
+type RuntimeCredentialCatalog interface {
+	RuntimeCredentialValidator
+	CredentialReferenceBarrier
+}
+
+// TransactionRuntimeCredentialCatalog retains the same lifecycle fence while
+// binding validation to the transaction which will persist a new reference.
+// The returned validator must not borrow a second pooled connection.
+type TransactionRuntimeCredentialCatalog interface {
+	RuntimeCredentialCatalog
+	ForRuntimeTransaction(pgx.Tx) (RuntimeCredentialValidator, error)
+}
+
+func validateSpecRuntimeCredentials(
+	ctx context.Context, spec Spec, validator RuntimeCredentialValidator,
+) error {
+	type requirement struct {
+		credentialID string
+		allowedKinds []string
+	}
+	requirements := make([]requirement, 0, 3)
+	if spec.Worker.Telemetry.Present && !spec.Worker.Telemetry.Clear && spec.Worker.Telemetry.Value.Credential != "" {
+		requirements = append(requirements, requirement{
+			credentialID: spec.Worker.Telemetry.Value.Credential,
+			allowedKinds: []string{CredentialKindOTLPHeaders},
+		})
+	}
+	if spec.Worker.HTTPProxy.Present && !spec.Worker.HTTPProxy.Clear && spec.Worker.HTTPProxy.Value.Credential != "" {
+		requirements = append(requirements, requirement{
+			credentialID: spec.Worker.HTTPProxy.Value.Credential,
+			allowedKinds: []string{CredentialKindProxyBasic, CredentialKindProxyBearer},
+		})
+	}
+	if spec.Worker.Caido.Present && !spec.Worker.Caido.Clear && spec.Worker.Caido.Value.Credential != "" {
+		requirements = append(requirements, requirement{
+			credentialID: spec.Worker.Caido.Value.Credential,
+			allowedKinds: []string{CredentialKindCaidoBearer},
+		})
+	}
+	if spec.Worker.Interactsh.Present && !spec.Worker.Interactsh.Clear && spec.Worker.Interactsh.Value.Credential != "" {
+		requirements = append(requirements, requirement{
+			credentialID: spec.Worker.Interactsh.Value.Credential,
+			allowedKinds: []string{CredentialKindInteractshToken},
+		})
+	}
+	if spec.Planner.Telemetry.Present && !spec.Planner.Telemetry.Clear && spec.Planner.Telemetry.Value.Credential != "" {
+		requirements = append(requirements, requirement{
+			credentialID: spec.Planner.Telemetry.Value.Credential,
+			allowedKinds: []string{CredentialKindOTLPHeaders},
+		})
+	}
+	if len(requirements) == 0 {
+		return nil
+	}
+	if validator == nil {
+		return invalid("Runtime credential validator is not configured")
+	}
+	for _, requirement := range requirements {
+		if err := validator.ValidateRuntimeCredential(ctx, requirement.credentialID, requirement.allowedKinds...); err != nil {
+			if contextError := ctx.Err(); contextError != nil {
+				return contextError
+			}
+			if errors.Is(err, credentialerrors.RuntimeNotFound) || errors.Is(err, credentialerrors.RuntimeInvalid) {
+				return persistencepostgres.WrapError(
+					"invalid RuntimeConfig: Runtime credential is unavailable or incompatible",
+					errors.Join(ErrInvalid, err),
+				)
+			}
+			return persistencepostgres.WrapError("validate RuntimeConfig credential", err)
+		}
+	}
+	return nil
+}
+
+// llmCredentialReferenceLock is the advisory key that fences a transaction
+// introducing a RuntimeConfig reference to an LLM credential against
+// preparation of the credential's managed delete.
+func llmCredentialReferenceLock(credentialID string) persistencepostgres.AdvisoryKey {
+	return persistencepostgres.NewAdvisoryKey("llm-credential-reference", credentialID)
+}
+
+func LockLLMCredentialDeletion(ctx context.Context, tx pgx.Tx, credentialID string) error {
+	if tx == nil || credentialID == "" {
+		return errors.New("LLM credential deletion lock is not configured")
+	}
+	if err := persistencepostgres.LockAdvisory(ctx, tx, llmCredentialReferenceLock(credentialID)); err != nil {
+		return persistencepostgres.WrapError("lock LLM credential deletion", err)
+	}
+	return nil
+}
+
+// TryLockLLMCredentialDeletion takes the lock of LockLLMCredentialDeletion
+// only when no transaction holds it or a shared reference to the credential,
+// and reports whether it did; it never waits. Holding it proves that every
+// earlier transaction that prepared a deletion of the credential has ended.
+func TryLockLLMCredentialDeletion(ctx context.Context, tx pgx.Tx, credentialID string) (bool, error) {
+	if tx == nil || credentialID == "" {
+		return false, errors.New("LLM credential deletion lock is not configured")
+	}
+	locked, err := persistencepostgres.TryLockAdvisory(ctx, tx, llmCredentialReferenceLock(credentialID))
+	if err != nil {
+		return false, persistencepostgres.WrapError("lock LLM credential deletion", err)
+	}
+	return locked, nil
+}
+
+func validateSpecLLMCredentialInTransaction(
+	ctx context.Context, tx pgx.Tx, spec Spec, factory TransactionLLMCredentialLookupFactory,
+) error {
+	patch := spec.Worker.LLMGateway
+	if !patch.Present || !patch.Credential.Present || patch.Credential.Clear {
+		return nil
+	}
+	if factory == nil {
+		return invalid("RuntimeConfig LLM credential validator is not configured")
+	}
+	if err := persistencepostgres.LockAdvisoryShared(ctx, tx, llmCredentialReferenceLock(patch.Credential.Value)); err != nil {
+		return persistencepostgres.WrapError("lock LLM credential reference", err)
+	}
+	lookup, err := BindTransactionLLMCredentialLookup(tx, factory)
+	if err != nil {
+		return err
+	}
+	return validateRunLLMCredential(ctx, spec, lookup)
+}

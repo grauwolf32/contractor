@@ -1,0 +1,73 @@
+apiVersion: contractor/v1alpha1
+kind: AuditProfile
+metadata:
+  name: web-scan
+  version: '1'
+spec:
+  schema: contractor.audit.program.v1
+  inputs:
+    target:
+      required: true
+      media_types:
+      - application/json
+    rulepack:
+      required: false
+      media_types:
+      - application/yaml
+      - application/vnd.contractor.nuclei-rulepack+zip
+    engagement:
+      required: true
+      media_types:
+      - application/vnd.contractor.engagement+json
+  workflows:
+    scan:
+      ref: audit-web-nuclei-scan@1
+      inputs:
+        engagement:
+          source: audit-input
+          name: engagement
+        target:
+          source: audit-input
+          name: target
+        rulepack:
+          source: audit-input
+          name: rulepack
+      parameters:
+        credential_id: ''
+        template_ids: ''
+        tags: ''
+        severity: ''
+      outputs: {}
+      parameter_inputs:
+        credential_id: credential_id
+        template_ids: template_ids
+        tags: tags
+        severity: severity
+  hypotheses: {}
+  initial_work:
+  - key: scan-target
+    workflow: scan
+    objective: Scan the selected target with the pinned execution parameters and exact optional rulepack
+  limits:
+    max_tasks: 1
+    max_iterations: 1
+    max_tasks_per_iteration: 1
+    batch_size: 1
+    max_submitted_runs: 3
+    max_attempts: 3
+    deadline_seconds: 86400
+    max_evidence_bytes: 67108864
+    max_hypotheses: 1
+    max_hypothesis_revisions: 1
+    max_hypothesis_bytes: 32768
+  policy:
+    active_operations: allowed
+  parameters:
+    credential_id:
+      required: false
+    template_ids:
+      required: false
+    tags:
+      required: false
+    severity:
+      required: false

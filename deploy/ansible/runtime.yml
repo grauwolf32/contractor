@@ -1,0 +1,9 @@
+---
+# Deploys Contractor Runtime Agents to the hosts of the contractor_runtime
+# group. README.md describes the variables; inventory.example.yml shows them.
+- name: Deploy Contractor Runtime Agents
+  hosts: contractor_runtime
+  become: true
+  gather_facts: true
+  roles:
+    - role: contractor_runtime

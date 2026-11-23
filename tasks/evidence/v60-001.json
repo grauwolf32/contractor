@@ -1,0 +1,139 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-001",
+  "reviewed_on": "2026-09-20",
+  "baseline_commit": "3ebe07cb60fa809e1a4e748a90ca5e3c3627195f",
+  "source_inspection_commit": "75e9758c66fa6f5418d1cf647844588f1620a275",
+  "source_equivalence": "The baseline includes V59 merge/completion metadata; inspected runtime/API/gate source is identical.",
+  "scope": "First source/history/negative-probe pass; deeper V60-005–010 reviews remain pending.",
+  "baseline_tasks": {
+    "total": 349,
+    "finished_including_legacy_alias": 337,
+    "pending": 8,
+    "in_progress": 2,
+    "archived": 2
+  },
+  "parallel_worktrees": [
+    {
+      "branch": "feat/v38-managed-evals",
+      "commit": "b0bfb40c6608ceb37d9e96c48f006e56c7d98754",
+      "snapshot": "V38-001–005 completed; V38-006 in_progress; V38-007–010 pending."
+    },
+    {
+      "branch": "feat/v56-toolset-runtime-configuration",
+      "commit": "7dff70fa6fef993188847a30148db797c272acb2",
+      "snapshot": "V56-001–009 pending; separate toolset plan."
+    },
+    {
+      "branch": "feat/agent-instruction-pilot-plan",
+      "commit": "9b1613ab3f6ac4e1d3f50324319f88dc6141378f",
+      "snapshot": "V40-002 in_progress."
+    }
+  ],
+  "plan_checks": {
+    "task_yaml_unique_keys": true,
+    "indexed_tasks": 359,
+    "unique_ids": true,
+    "existing_task_paths": true,
+    "acyclic_dependencies": true,
+    "v60_acceptance_and_inputs": "passed",
+    "local_markdown_links_checked": 23
+  },
+  "checks": [
+    {
+      "command": "go test -count=1 ./internal/scheduler -run '^(TestSchedulerRecoversDurableFinalizingCandidateWithoutPlannerInvocation|TestSchedulerCancelInterruptsPlannerAndIgnoresLateCandidate|TestSchedulerCancelAcceptsAlreadyFinalizingResultForAuditOnly|TestTerminalReleaseRecoveryRetriesOnlyRemainingLiveAllocations|TestSchedulerLeaseLossInterruptsPlannerAndStartsBoundedAbort|TestConfiguredTerminalBudgetsAreSavedAndRecoveryDoesNotRenew|TestClaimCleanupPreservesOwnershipAfterExecutionCancellation)$'",
+      "result": "passed",
+      "seconds": 0.028,
+      "cases": 7,
+      "level": "offline component"
+    },
+    {
+      "command": "go test -count=1 ./internal/planner/a2a -run '^TestInvoker(HandlesImmediateMessageAndTerminalTaskEqually|RejectsInvalidEnvelopeAndFailedTaskSuccessMismatch|RejectsTaskCorrelationChangesWhilePolling|ReturnsValidatedWorkerFailureFromFailedTask)$'",
+      "result": "passed",
+      "seconds": 0.006,
+      "test_groups": 4,
+      "level": "offline transport fixture"
+    },
+    {
+      "command": "PYTHONPATH=<reviewed-worktree>/runtime/src <locked-runtime-python> -m pytest -q -W error tests/test_abort.py tests/test_adk_runtime.py tests/test_session_lifecycle.py -k 'abort_cancels_active_result_finalizer or cancellation_during_session_cleanup_cannot_publish_success or cleanup_failure_does_not_mask_cancelled_invocation or session_cleanup_timeout_is_bounded or abort_is_idempotent or abort_deadline_fences or cancelled_abort_request or cancelled_mutation_fences or isolated_sessions_are_lazy_fresh'",
+      "cwd": "runtime",
+      "result": "passed",
+      "cases": 10,
+      "level": "offline component"
+    },
+    {
+      "command": "PYTHONPATH=<reviewed-worktree>/runtime/src <locked-runtime-python> -m pytest -q -W error runtime/tests/test_worker_completion.py -k 'model_result_decoder or collected_completion or result_assembly or result_policy'",
+      "result": "passed",
+      "cases": 29,
+      "level": "offline decoder/assembly"
+    },
+    {
+      "command": "go test -count=1 ./tests/e2e -run '^(TestAuditCompletionGate|TestFindingsGate)'",
+      "result": "passed",
+      "seconds": 1.816,
+      "level": "offline gate meta-tests"
+    },
+    {
+      "command": "go test -count=1 ./internal/persistence/postgres -run '^(TestEmbeddedMigrations|TestSafeError|TestCommitEffects|TestTransactionRetry)'",
+      "result": "passed",
+      "seconds": 0.075,
+      "level": "offline component; not PostgreSQL upgrade"
+    },
+    {
+      "command": "go test -race -count=1 ./internal/auth -run '^(TestFailureLimiterBoundsInflightAndRollingAttempts|TestConcurrentSessionCreationAndLoginReservationsStayBounded)$'",
+      "result": "passed",
+      "seconds": 1.201,
+      "level": "unit with race detector"
+    }
+  ],
+  "finding_reproductions": [
+    {
+      "id": "PR-01",
+      "task": "V60-002",
+      "level": "production auth and HTTP handler, actual loopback socket",
+      "result_before_fix": "1024-byte passwords all authenticate directly; ASCII body 1058B gives200, backslash/quote2082B and control6178B give400.",
+      "probe": "/tmp/contractor-project-review/auth-overlay.json; TestReviewValidPasswordJSONExpansion",
+      "durable_regression": "V60-002 owns committed HTTP regression and results."
+    },
+    {
+      "id": "PR-02",
+      "task": "V60-003",
+      "level": "production handler with controlled service interleaving",
+      "result_before_fix": "200 with audit/finding revisions9/4 after mutation to10/5 while returning newly current assessment; wanted409.",
+      "probe": "/tmp/contractor-domain-review-ppbyi2y5/overlay.json; TestDomainReviewProvenanceMutationDuringHydrationConflicts",
+      "durable_regression": "V60-003 owns committed revision-interleaving regression and results."
+    },
+    {
+      "id": "PR-03",
+      "task": "V60-003",
+      "level": "real PostgreSQL in unique disposable schema",
+      "result_before_fix": "GetFinding passes at pools1/2; provenance MaxConns2 passes~0.03s, MaxConns1 fails~1.99s on nested receipt acquire; acquiredAfterReturn0.",
+      "probe": "/tmp/contractor-domain-review-ppbyi2y5/overlay.json; TestDomainReviewProvenanceSingleConnection",
+      "durable_regression": "V60-003 owns committed pool-one regression and results."
+    },
+    {
+      "id": "PR-04",
+      "task": "V60-004",
+      "level": "real subprocess-to-gate-verifier composition over synthetic complete required event matrix",
+      "result_before_fix": "All54 mandatory Go cases accepted with long unique password; passwords contractor and pass corrupt framework metadata and are rejected.",
+      "probe": "/tmp/contractor-project-review/audit_gate_redaction_probe.py",
+      "durable_regression": "V60-004 owns committed composition regression and results."
+    }
+  ],
+  "accepted_or_rejected": [
+    "Claim fencing before detection is an explicitly documented limitation (7ca8daa6); not a new bug.",
+    "External allocation deadline governs internal cleanup waits; missing local timeout alone is not a defect.",
+    "Current Project deletion admission triggers protect concurrent Artifact writes; handler-only TOCTOU suspicion rejected.",
+    "ADK finalizer and no A2A transport reuse follow V21/V57 decisions.",
+    "SARIF draft is pending product scope, not delivered regression."
+  ],
+  "unexecuted": [
+    "Full release gate at this first-pass stage",
+    "Previous-release populated-database upgrade and restore",
+    "Real Runtime force-exit resource assurance",
+    "Browser product journeys",
+    "Live-model evaluation and quality comparisons",
+    "Shared Go/Python JSON size-bound equivalence matrix"
+  ],
+  "evidence_provenance": "Focused checks executed by delegated reviewers; their exact results were returned through tool outputs. No raw log files were retained for the seven check groups. Temporary probes are discovery evidence; durable committed regression tests and task-specific verification replace them for completion."
+}

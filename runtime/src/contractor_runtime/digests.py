@@ -1,0 +1,153 @@
+"""sha256 digests and cross-language RFC 8785 verification for resolved templates."""
+
+from __future__ import annotations
+
+import hashlib
+from typing import Any
+
+import jcs
+
+from contractor_runtime.contracts import (
+    API_VERSION,
+    CompactWorkerContextManagement,
+    ResolvedAgentTemplate,
+    ResolvedModelPolicy,
+)
+
+
+class TemplateDigestMismatch(ValueError):
+    """A trusted Control Plane sent an internally inconsistent template body."""
+
+
+def verify_template_digests(template: ResolvedAgentTemplate) -> None:
+    if template.instructions is not None:
+        instruction_digest = sha256_digest(template.instructions.text.encode("utf-8"))
+        if instruction_digest != template.instructions.digest:
+            raise TemplateDigestMismatch("resolved instruction digest does not match its text")
+
+    if template.summarizer is not None:
+        instructions = template.summarizer.instructions
+        if instructions is not None and (
+            sha256_digest(instructions.text.encode("utf-8")) != instructions.digest
+        ):
+            raise TemplateDigestMismatch(
+                "resolved summarizer instruction digest does not match its text"
+            )
+
+    template_digest = _agent_template_digest(template)
+    if template_digest != template.ref.digest:
+        raise TemplateDigestMismatch("resolved AgentTemplate digest does not match its body")
+
+
+def verify_compaction_digests(compaction: CompactWorkerContextManagement) -> None:
+    """Verifies the pinned compaction behavior's instruction text (WFL-R92)."""
+    instructions = compaction.instructions
+    if sha256_digest(instructions.text.encode("utf-8")) != instructions.digest:
+        raise TemplateDigestMismatch(
+            "resolved compaction instruction digest does not match its text"
+        )
+
+
+def verify_model_policy_digest(policy: ResolvedModelPolicy) -> None:
+    if _model_policy_digest(policy) != policy.ref.digest:
+        raise TemplateDigestMismatch("resolved ModelPolicy digest does not match its body")
+
+
+def _model_policy_digest(policy: ResolvedModelPolicy) -> str:
+    spec: dict[str, Any] = {"model": policy.model}
+    if policy.supports_images is not None:
+        spec["supportsImages"] = policy.supports_images
+    _add_policy_limits(spec, policy)
+    if policy.temperature is not None:
+        spec["temperature"] = policy.temperature
+    manifest = {
+        "apiVersion": API_VERSION,
+        "kind": "ModelPolicy",
+        "metadata": {"name": policy.ref.policy_id, "version": policy.ref.version},
+        "spec": spec,
+    }
+    return jcs_digest(manifest)
+
+
+def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
+    toolsets = [
+        {
+            "ref": {
+                "toolsetId": selection.ref.toolset_id,
+                "version": selection.ref.version,
+            },
+            "tools": sorted(selection.tools),
+        }
+        for selection in sorted(
+            template.toolsets,
+            key=lambda item: f"{item.ref.toolset_id}@{item.ref.version}",
+        )
+    ]
+    manifest = {
+        "apiVersion": API_VERSION,
+        "kind": "AgentTemplate",
+        "metadata": {"name": template.ref.template_id, "version": template.ref.version},
+        "spec": {
+            "description": template.description,
+            "runtime": {
+                "runtimeId": template.runtime.runtime_id,
+                "version": template.runtime.version,
+            },
+            "instructions": {
+                "ref": template.instructions.ref if template.instructions else "",
+                "digest": template.instructions.digest if template.instructions else "",
+            },
+            "toolsets": toolsets,
+            "sandboxProfile": {
+                "sandboxProfileId": template.sandbox_profile.sandbox_profile_id,
+                "version": template.sandbox_profile.version,
+            },
+        },
+    }
+    if template.response_recovery is not None:
+        manifest["spec"]["responseRecovery"] = template.response_recovery
+    if template.is_tool_worker:
+        del manifest["spec"]["instructions"]
+        manifest["spec"]["execution"] = template.execution.model_dump(by_alias=True)
+    if template.skills:
+        manifest["spec"]["skills"] = [
+            {"namespace": skill.namespace, "name": skill.name} for skill in template.skills
+        ]
+    if template.sitemap is not None:
+        manifest["spec"]["sitemap"] = template.sitemap.model_dump(by_alias=True)
+    if template.summarizer is not None:
+        summarizer: dict[str, Any] = {}
+        if template.summarizer.cumulative_budget is not None:
+            summarizer["cumulativeBudget"] = template.summarizer.cumulative_budget
+        summarizer["contextWindowRatio"] = template.summarizer.context_window_ratio
+        summarizer["includeReasoning"] = template.summarizer.include_reasoning
+        instructions = template.summarizer.instructions
+        if instructions is not None:
+            summarizer["instructions"] = {
+                "ref": instructions.ref,
+                "digest": instructions.digest,
+            }
+        manifest["spec"]["summarizer"] = summarizer
+    return jcs_digest(manifest)
+
+
+def jcs_digest(value: Any) -> str:
+    canonical = jcs.canonicalize(value)
+    return sha256_digest(canonical)
+
+
+def _add_policy_limits(target: dict[str, Any], policy: ResolvedModelPolicy) -> None:
+    for name, value in (
+        ("contextWindowTokens", policy.context_window_tokens),
+        ("maxOutputTokens", policy.max_output_tokens),
+        ("maxModelCalls", policy.max_model_calls),
+        ("maxToolCalls", policy.max_tool_calls),
+        ("maxWorkerCalls", policy.max_worker_calls),
+        ("maxTotalTokens", policy.max_total_tokens),
+    ):
+        if value is not None:
+            target[name] = value
+
+
+def sha256_digest(value: bytes) -> str:
+    return f"sha256:{hashlib.sha256(value).hexdigest()}"

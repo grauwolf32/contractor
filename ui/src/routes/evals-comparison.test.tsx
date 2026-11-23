@@ -1,0 +1,449 @@
+import { renderApplication } from "../test/application";
+import { storedValues } from "../test/storage";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it } from "vitest";
+import { createEvalFixture } from "../test/evals-fixture";
+import { failure } from "../test/responses";
+import pairs from "../../../api/testdata/evals/valid/pair-page.json";
+import { evalServer, stubEvalBrowser } from "./evals/test-support";
+
+beforeEach(stubEvalBrowser);
+function start(
+  fixture: ReturnType<typeof createEvalFixture>,
+  path = "/evals/experiments/experiment-1/comparison",
+) {
+  return renderApplication(path, { server: evalServer(fixture) });
+}
+
+describe("Managed Eval comparisons", () => {
+  it("uses complete server cohorts for charts and keeps missing usage distinct from zero", async () => {
+    const fixture = createEvalFixture({ prepared: true }),
+      user = userEvent.setup();
+    start(fixture);
+    const heading = await screen.findByRole("heading", {
+      name: "Token distribution",
+    });
+    await waitFor(() =>
+      expect(
+        within(heading.closest("section")!).getByRole("cell", { name: "125" }),
+      ).toBeVisible(),
+    );
+    expect(
+      within(heading.closest("section")!).getByRole("cell", { name: "130" }),
+    ).toBeVisible();
+    await user.click(
+      within(screen.getByRole("group", { name: "Pair filter" })).getByRole(
+        "button",
+        { name: "All pairs" },
+      ),
+    );
+    await screen.findByText(/4 matching pairs/);
+    expect(screen.getAllByText(/Unavailable/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Quality regression/).length).toBeGreaterThan(0);
+    expect(fixture.state.requests.some((r) => r.path === "/v1/runs")).toBe(
+      false,
+    );
+    expect(screen.getByText(/Only complete matching pairs/)).toBeVisible();
+  });
+
+  it("keeps pair pagination/filter context on a round trip through evidence", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    fixture.state.secondPairPage = true;
+    const user = userEvent.setup(),
+      view = start(
+        fixture,
+        "/evals/experiments/experiment-1/comparison?filter=all&metric=duration",
+      );
+    await user.click(await screen.findByRole("button", { name: "Next pairs" }));
+    await waitFor(() =>
+      expect(view.router.state.location.search).toContain("cursor=pair-page-2"),
+    );
+    await user.click(
+      screen.getAllByRole("link", { name: /unsafe-query \/ sample 1/ })[0]!,
+    );
+    await user.click(await screen.findByRole("link", { name: "← Comparison" }));
+    expect(view.router.state.location.search).toContain("cursor=pair-page-2");
+    expect(view.router.state.location.search).toContain("metric=duration");
+    expect(view.router.state.location.search).toContain("filter=all");
+  });
+
+  it("drills down by a signed bin token and shows the same accessible bin counts", async () => {
+    const fixture = createEvalFixture({ prepared: true }),
+      user = userEvent.setup(),
+      view = start(fixture);
+    const bin = (
+      await screen.findAllByRole("button", { name: /Open matching pairs/ })
+    )[0]!;
+    await user.click(bin);
+    await waitFor(() =>
+      expect(view.router.state.location.search).toContain("binFilter="),
+    );
+    expect(view.router.state.location.search).toContain("filter=all");
+    expect(
+      await screen.findByText(/Filtered to the selected distribution bin/),
+    ).toBeVisible();
+    await user.click(screen.getByText("Show bin data table"));
+    expect(screen.getByRole("table", { name: "Shared bins" })).toBeVisible();
+  });
+
+  it("reuses a lost immutable review receipt and then selects with the reviewed CAS", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    fixture.state.lostAssessment = true;
+    const user = userEvent.setup();
+    start(
+      fixture,
+      `/evals/experiments/experiment-1/pairs/${pairs.items[0]!.pairId}`,
+    );
+    await user.click(await screen.findByRole("button", { name: "Review A" }));
+    await screen.findByText("PRIVATE_RUBRIC_SENTINEL");
+    await user.selectOptions(
+      screen.getByLabelText("Decision for evidence-review"),
+      "pass",
+    );
+    await user.type(
+      screen.getByLabelText("Reason for evidence-review"),
+      "Verified retained evidence",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Save and select assessment" }),
+    );
+    await screen.findByText("Public API is unavailable");
+    const retained = storedValues(localStorage);
+    expect(retained).not.toContain("PRIVATE_");
+    expect(retained).not.toContain("Verified retained evidence");
+    await user.click(
+      screen.getByRole("button", { name: "Save and select assessment" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "Review result" }),
+      ).not.toBeInTheDocument(),
+    );
+    const submissions = fixture.state.requests.filter((r) =>
+      r.path.endsWith("/assessments"),
+    );
+    expect(submissions).toHaveLength(2);
+    expect(submissions[1]).toMatchObject({
+      key: submissions[0]!.key,
+      body: submissions[0]!.body,
+    });
+    expect(
+      fixture.state.requests.find((r) => r.path.endsWith("/selections"))?.etag,
+    ).toBe('"1"');
+  });
+
+  it("selects a human assessment after unrelated experiment progress", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    const user = userEvent.setup();
+    start(
+      fixture,
+      `/evals/experiments/experiment-1/pairs/${pairs.items[0]!.pairId}`,
+    );
+    await user.click(await screen.findByRole("button", { name: "Review A" }));
+    await screen.findByText("PRIVATE_RUBRIC_SENTINEL");
+    await user.selectOptions(
+      screen.getByLabelText("Decision for evidence-review"),
+      "pass",
+    );
+    await user.type(
+      screen.getByLabelText("Reason for evidence-review"),
+      "Checked the retained source",
+    );
+    fixture.state.experiment.revision += 3;
+    await user.click(
+      screen.getByRole("button", { name: "Save and select assessment" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "Review result" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      fixture.state.requests.find((request) =>
+        request.path.endsWith("/selections"),
+      )?.etag,
+    ).toBe('"4"');
+    expect(
+      fixture.state.requests.filter((request) =>
+        request.path.endsWith("/assessments"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("reloads a selection conflict while retaining the review and assessment", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    const user = userEvent.setup();
+    start(
+      fixture,
+      `/evals/experiments/experiment-1/pairs/${pairs.items[0]!.pairId}`,
+    );
+    await user.click(await screen.findByRole("button", { name: "Review A" }));
+    await screen.findByText("PRIVATE_RUBRIC_SENTINEL");
+    await user.selectOptions(
+      screen.getByLabelText("Decision for evidence-review"),
+      "fail",
+    );
+    await user.type(
+      screen.getByLabelText("Reason for evidence-review"),
+      "Observed an unsafe path",
+    );
+    await user.click(screen.getByRole("checkbox", { name: "evidence-1" }));
+    fixture.state.staleSelection = true;
+    await user.click(
+      screen.getByRole("button", { name: "Save and select assessment" }),
+    );
+    await screen.findByText("eval_revision_mismatch");
+    fixture.state.staleSelection = false;
+    fixture.state.experiment.revision += 2;
+    await user.click(
+      screen.getByRole("button", { name: "Reload current revision" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByText("eval_revision_mismatch"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByLabelText("Decision for evidence-review")).toHaveValue(
+      "fail",
+    );
+    expect(screen.getByLabelText("Reason for evidence-review")).toHaveValue(
+      "Observed an unsafe path",
+    );
+    expect(screen.getByRole("checkbox", { name: "evidence-1" })).toBeChecked();
+    await user.click(
+      screen.getByRole("button", { name: "Save and select assessment" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "Review result" }),
+      ).not.toBeInTheDocument(),
+    );
+    const assessments = fixture.state.requests.filter((request) =>
+      request.path.endsWith("/assessments"),
+    );
+    expect(assessments).toHaveLength(2);
+    expect(assessments[1]).toMatchObject({
+      key: assessments[0]?.key,
+      body: assessments[0]?.body,
+    });
+    expect(
+      fixture.state.requests
+        .filter((request) => request.path.endsWith("/selections"))
+        .at(-1)?.etag,
+    ).toBe('"3"');
+  });
+
+  it("does not record a review if that member's result changed while it was open", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    const user = userEvent.setup();
+    start(
+      fixture,
+      `/evals/experiments/experiment-1/pairs/${pairs.items[0]!.pairId}`,
+    );
+    await user.click(await screen.findByRole("button", { name: "Review A" }));
+    await screen.findByText("PRIVATE_RUBRIC_SENTINEL");
+    await user.selectOptions(
+      screen.getByLabelText("Decision for evidence-review"),
+      "pass",
+    );
+    await user.type(
+      screen.getByLabelText("Reason for evidence-review"),
+      "Existing decision",
+    );
+    fixture.state.staleReview = true;
+    await user.click(
+      screen.getByRole("button", { name: "Save and select assessment" }),
+    );
+    expect(await screen.findByText(/A newer result is selected/)).toBeVisible();
+    expect(
+      fixture.state.requests.some((request) =>
+        request.path.endsWith("/assessments"),
+      ),
+    ).toBe(false);
+  });
+
+  it("prevents a human verdict from applying to evidence changed since the pair snapshot", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    fixture.state.staleReview = true;
+    const user = userEvent.setup();
+    start(
+      fixture,
+      `/evals/experiments/experiment-1/pairs/${pairs.items[0]!.pairId}`,
+    );
+    await user.click(await screen.findByRole("button", { name: "Review A" }));
+    await screen.findByText(/A newer result is selected/);
+    expect(
+      screen.getByRole("button", { name: "Save and select assessment" }),
+    ).toBeDisabled();
+    expect(
+      fixture.state.requests.some((r) => r.path.endsWith("/assessments")),
+    ).toBe(false);
+  });
+
+  it("focuses an opened review and returns to its button when it closes", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    const user = userEvent.setup();
+    start(
+      fixture,
+      `/evals/experiments/experiment-1/pairs/${pairs.items[0]!.pairId}`,
+    );
+    await user.click(await screen.findByRole("button", { name: "Review A" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { name: "Review result" }),
+      ).toHaveFocus(),
+    );
+    await user.click(screen.getByRole("button", { name: "Close review" }));
+    expect(
+      screen.queryByRole("heading", { name: "Review result" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Review A" })).toHaveFocus();
+  });
+
+  // With a snapshot in the URL the reload swaps the pair query and the arms
+  // re-mount; without one the same arms are refetched in place.
+  it.each(["?viewSnapshot=view-7", ""])(
+    "announces a saved review and focuses the reviewed arm once the pair reloads (search %j)",
+    async (search) => {
+      const fixture = createEvalFixture({ prepared: true });
+      const user = userEvent.setup();
+      const view = start(
+        fixture,
+        `/evals/experiments/experiment-1/pairs/${pairs.items[0]!.pairId}${search}`,
+      );
+      await user.click(await screen.findByRole("button", { name: "Review A" }));
+      await screen.findByText("PRIVATE_RUBRIC_SENTINEL");
+      await user.selectOptions(
+        screen.getByLabelText("Decision for evidence-review"),
+        "pass",
+      );
+      await user.type(
+        screen.getByLabelText("Reason for evidence-review"),
+        "Checked the retained source",
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Save and select assessment" }),
+      );
+      expect(
+        await screen.findByText("Assessment recorded and selected for A."),
+      ).toHaveAttribute("role", "status");
+      // The reload drops any old snapshot; focus waits for the reloaded arm.
+      await waitFor(() =>
+        expect(screen.getByRole("heading", { name: "A · a" })).toHaveFocus(),
+      );
+      expect(view.router.state.location.search).toBe("");
+      expect(
+        screen.queryByRole("heading", { name: "Review result" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("focuses the page title when the reviewed pair cannot be read again", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    const answer = fixture.fetch;
+    let pairFails = false;
+    fixture.fetch = async (request: Request) =>
+      pairFails &&
+      request.method === "GET" &&
+      new URL(request.url).pathname.includes("/pairs/")
+        ? failure(503, "storage_transaction_conflict", "Pair store unavailable")
+        : answer(request);
+    const user = userEvent.setup();
+    start(
+      fixture,
+      `/evals/experiments/experiment-1/pairs/${pairs.items[0]!.pairId}?viewSnapshot=view-7`,
+    );
+    await user.click(await screen.findByRole("button", { name: "Review A" }));
+    await screen.findByText("PRIVATE_RUBRIC_SENTINEL");
+    await user.selectOptions(
+      screen.getByLabelText("Decision for evidence-review"),
+      "pass",
+    );
+    await user.type(
+      screen.getByLabelText("Reason for evidence-review"),
+      "Checked the retained source",
+    );
+    pairFails = true;
+    await user.click(
+      screen.getByRole("button", { name: "Save and select assessment" }),
+    );
+    expect(
+      await screen.findByText("Assessment recorded and selected for A."),
+    ).toHaveAttribute("role", "status");
+    // The reload drops the snapshot and fails, so the arm is gone: the
+    // page title takes focus instead of the page body.
+    const title = await screen.findByRole("heading", {
+      level: 1,
+      name: "Paired evidence",
+    });
+    await waitFor(() => expect(title).toHaveFocus());
+    expect(
+      screen.queryByRole("heading", { name: "A · a" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the pairs page when the selected pair filter is pressed again", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    fixture.state.secondPairPage = true;
+    const user = userEvent.setup(),
+      view = start(
+        fixture,
+        "/evals/experiments/experiment-1/comparison?filter=all",
+      );
+    await user.click(await screen.findByRole("button", { name: "Next pairs" }));
+    await waitFor(() =>
+      expect(view.router.state.location.search).toContain("cursor=pair-page-2"),
+    );
+    const paged = view.router.state.location.search;
+    await user.click(
+      within(screen.getByRole("group", { name: "Pair filter" })).getByRole(
+        "button",
+        { name: "All pairs" },
+      ),
+    );
+    expect(view.router.state.location.search).toBe(paged);
+  });
+
+  it("keeps the attempts page and open evidence when the selected attempt filter is pressed again", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    const user = userEvent.setup(),
+      view = start(
+        fixture,
+        "/evals/experiments/experiment-1/attempts?filter=all&cursor=attempts-2",
+      );
+    const evidence = (
+      await screen.findAllByRole("button", { name: "Execution evidence" })
+    )[0]!;
+    await user.click(evidence);
+    expect(evidence).toHaveAttribute("aria-expanded", "true");
+    await user.click(
+      within(screen.getByRole("group", { name: "Attempt filter" })).getByRole(
+        "button",
+        { name: "All" },
+      ),
+    );
+    expect(view.router.state.location.search).toBe(
+      "?filter=all&cursor=attempts-2",
+    );
+    expect(evidence).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("uses the check's execution workspace for diagnostics without counting child Runs as samples", async () => {
+    const fixture = createEvalFixture({ prepared: true, audit: true });
+    start(
+      fixture,
+      `/evals/experiments/experiment-1/pairs/${pairs.items[0]!.pairId}`,
+    );
+    const links = await screen.findAllByRole("link", { name: "Check audit-1" });
+    expect(links[0]).toHaveAttribute(
+      "href",
+      "/projects/member-project/audits/audit-1",
+    );
+    expect(
+      screen.getAllByText(
+        /child Runs are evidence, not additional evaluation samples/,
+      ),
+    ).toHaveLength(2);
+  });
+});

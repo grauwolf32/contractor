@@ -1,0 +1,74 @@
+schema_version: "1.0"
+id: V421-011
+title: Block Run submission until a replacement input selection resolves
+milestone: data-model-consumers-2026-10
+epic: ui
+kind: defect
+introduced_by: V421-009
+priority: P2
+status: completed
+depends_on: [V421-009]
+languages: [typescript, yaml, markdown]
+goal: Ensure a newly uploaded or imported input cannot silently submit its previous confirmed revision or disappear from an optional slot while metadata is unresolved.
+context:
+  evidence: tasks/evidence/v421-011-input-replacements.json
+  review: Independent combined V421 consumer review on 2026-10-27 before the integrated release gate.
+  specification:
+    - docs/spec/ui/ui.md#UI-R207
+    - docs/spec/configuration/catalog.md#CAT-R76
+  finding: >-
+    ui/src/routes/workflows/run-form-fields.tsx:277-289 awaits authoritative
+    metadata before replacing the prior selection, while upload/import callbacks
+    at 447-448/462-463 close their dialogs immediately. Run submission at
+    ui/src/routes/workflows/run-form.tsx:350-365 and 621-624 observes inventory
+    loading only. Confirm an old input, upload a replacement, delay/fail its
+    metadata response, then Start: the request can bind the old revision.
+  siblings: >-
+    Cover User and Project scope, upload and Git import, required and optional
+    slots, normal and retained/repeat drafts, button/Enter/programmatic submit,
+    failed reads, explicit reselection and superseded responses. Preserve the
+    existing exact metadata read, cancellation and latest-intent guard.
+scope:
+  in:
+    - Revoke the old selection when replacement intent begins and represent the new exact choice while it resolves.
+    - Block every submit path while any replacement is pending or failed until success or an explicit new choice.
+    - Show useful pending/failure guidance and allow an explicit library choice or optional omission to settle the intent.
+    - Add an end-to-end browser regression and focused form tests; keep current input metadata and idempotency authority.
+  out:
+    - API/schema changes, invented timestamps, backend mutations or changes to Artifact retention.
+failure_outcomes:
+  - operation: Resolve metadata for a newly selected stored input
+    permanent: Show the existing classified read error; no Run mutation or implicit restoration/omission of the prior binding.
+    retryable: Use explicit retry/reselection through existing UI; preserve the unresolved selection and submission guard.
+    ambiguous: Metadata GET has no side effect; only the current intent can resolve the slot.
+    cancelled: Abort on supersession or form release; an older completion cannot change the draft or unblock a newer intent.
+    timeout: Same visible failure and explicit choice rule; never continue with the old confirmed material.
+cardinality:
+  - collection: Declared Workflow input slots
+    expected: A few inputs
+    maximum: One entry per declared input in the 2 MiB admitted Workflow snapshot (LIM-CAT-4); no independent input-count limit is assumed
+    bound: One current metadata request and one unresolved marker per declared slot; no new background polling.
+lifecycle:
+  - entity: Local input replacement intent
+    delete: Explicit reselection or successful resolution replaces the intent.
+    cascade: Form release aborts active requests; a retained draft never restores an old confirmed selection implicitly.
+    retention: Existing tab-local draft lifecycle only; no durable state is added.
+acceptance_criteria:
+  - id: A1
+    given: An old confirmed input and a newly uploaded/imported exact revision whose metadata is delayed
+    when: The user clicks Start, presses Enter or submits the form directly
+    then: No Run request is sent until the intended replacement resolves, including for optional inputs.
+  - id: A2
+    given: A failed metadata read, explicit reselection/omission or a newer pending replacement
+    when: The user recovers or an older response arrives
+    then: Failures remain visible, old bindings do not become eligible implicitly and only the latest explicit choice can unblock submission.
+  - id: A3
+    given: User/Project upload and Git siblings plus retained drafts
+    when: Real form/browser regressions and full UI checks run
+    then: The unfixed race is reproducible, the fixed request uses the selected exact revision and existing draft/selection/cancellation behavior passes.
+tests:
+  - command: make ui-verify ui-browser-mocked
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: c86130f3a22766a185360cc77b4b68b89c496fa4

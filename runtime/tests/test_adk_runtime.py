@@ -1,0 +1,4322 @@
+from __future__ import annotations
+
+import asyncio
+import copy
+import json
+from collections.abc import AsyncGenerator
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+import httpx
+import pytest
+from fakes.clock import advance_clock, run_with_advanceable_clock
+from fakes.model import (
+    ScriptedLlm,
+    json_result,
+    scripted_model,
+    text_result,
+    thought_result,
+    tool_call,
+)
+from fakes.telemetry import SERVER_EXPORT
+from fakes.worker_state import WorkerState
+from google.adk.events import Event, EventActions
+from google.adk.models.base_llm import BaseLlm
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
+from google.adk.sessions import InMemorySessionService
+from google.genai import types
+from pydantic import Field
+
+import contractor_runtime.worker.finalizer as finalizer_module
+import contractor_runtime.worker.runtime as worker_runtime_module
+from contractor_runtime.adapters import (
+    AdapterHandles,
+    RuntimeInstrumentation,
+    RuntimeSpan,
+    TelemetryAttribute,
+)
+from contractor_runtime.adapters.content import encode_content
+from contractor_runtime.artifacts import ArtifactValue
+from contractor_runtime.contracts import (
+    API_VERSION,
+    AgentTemplateRef,
+    ArtifactMetadataResult,
+    ArtifactRef,
+    ArtifactWriteResult,
+    CaidoSettings,
+    GatewayFailureSignature,
+    GatewayFailureSignatures,
+    HTTPOriginTargetSettings,
+    HTTPProxySettings,
+    ModelPolicyRef,
+    ResolvedAgentTemplate,
+    ResolvedInstructions,
+    ResolvedModelPolicy,
+    RuntimeSettings,
+    SandboxProfileRef,
+    StageContentRequest,
+    TelemetrySettings,
+    ToolsetRef,
+    ToolsetSelection,
+    WorkerRuntimeRef,
+    WorkerSessionMode,
+    WorkerSummarizerConfig,
+)
+from contractor_runtime.factories import WorkerBuildContext
+from contractor_runtime.llm.client import new_gateway_client
+from contractor_runtime.llm.factory import gateway_model
+from contractor_runtime.llm.openai import (
+    GatewayModelError,
+    OpenAICompatibleGatewayLlm,
+    _completion_request,
+)
+from contractor_runtime.reasoning import REASONING_INPUT_INSTRUCTION
+from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
+from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
+from contractor_runtime.toolsets.text_artifacts.tools import TextArtifactsToolsetFactory
+from contractor_runtime.worker.budget import WorkerBudgetExceeded
+from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
+from contractor_runtime.worker.failures import _chained_error
+from contractor_runtime.worker.finalizer import _SYSTEM_INSTRUCTION as FINALIZER_INSTRUCTION
+from contractor_runtime.worker.finalizer import ResultFinalizerFailure
+from contractor_runtime.worker.instrumentation import WorkerSummarizationRequested
+from contractor_runtime.worker.prompts import _summarizer_secrets
+from contractor_runtime.worker.runtime import INVOCATION_CLEANUP_TIMEOUT_SECONDS, AdkWorkerRuntime
+from contractor_runtime.worker.sessions import MAX_CARRIED_STATE_BYTES, WorkerSessionLifecycleError
+from contractor_runtime.worker.summarizer import TranscriptRecorder
+from contractor_runtime.workspace import AllocationWorkspace
+
+SECRET = "recognizable-adk-gateway-token"
+
+
+def structured_result(result: str, *, subtask_id: str = "0", **extra: object) -> object:
+    return json_result({"subtaskId": subtask_id, "result": result, **extra})
+
+
+def terminal_text(result: str) -> object:
+    return text_result(result)
+
+
+class CapturingScriptedLlm(ScriptedLlm):
+    payloads: list[dict[str, Any]] = Field(default_factory=list, exclude=True)
+
+    async def generate_content_async(
+        self, llm_request: LlmRequest, stream: bool = False
+    ) -> AsyncGenerator[LlmResponse]:
+        self.payloads.append(_completion_request(self.model, llm_request))
+        async for response in super().generate_content_async(llm_request, stream=stream):
+            yield response
+
+
+def assert_balanced_tool_calls(payload: dict[str, Any]) -> None:
+    pending: set[str] = set()
+    for message in payload["messages"]:
+        if message["role"] == "tool":
+            call_id = message["tool_call_id"]
+            assert call_id in pending
+            pending.remove(call_id)
+        else:
+            assert not pending
+            if message["role"] == "assistant":
+                pending = {call["id"] for call in message.get("tool_calls", [])}
+    assert not pending
+
+
+def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        model = scripted_model(
+            [
+                tool_call(
+                    "read_artifact",
+                    {"namespace": "inputs", "name": "source"},
+                    call_id="read-1",
+                ),
+                tool_call(
+                    "write_text_artifact",
+                    {"name": "report", "media_type": "application/json", "text": "{}"},
+                    call_id="write-1",
+                ),
+                terminal_text("Report created"),
+            ]
+        )
+        runtime = await create_runtime(tmp_path, state, tools, model)
+        assert runtime._agent is not None
+        assert runtime._agent.output_schema is None
+        assert runtime._app.plugins == [runtime._plugin, runtime._repeats]
+        assert runtime._agent.before_model_callback == runtime._prepare_model_request
+        assert runtime._agent.after_model_callback is None
+        assert runtime._agent.on_model_error_callback is None
+        assert runtime._pipeline.finalizer is not None
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.result is not None
+        assert result.failure is None
+        assert result.result.result == "Report created"
+        assert result.result.subtask_id == "0"
+        assert result.result.artifacts["report"].revision == "write-r1"
+        assert result.result.summarized is False
+        assert result.result.observations.profile == "lean@1"
+        assert {
+            name: value.model_dump() for name, value in result.result.observations.tools.items()
+        } == {
+            "read_artifact": {"calls": 1, "failures": 0},
+            "write_text_artifact": {"calls": 1, "failures": 0},
+        }
+        assert result.state_revision > 1
+        assert result.invocation_id.startswith("worker-")
+        assert client.calls == ["read_artifact", "write_artifact"]
+        assert state.metrics.counters == {
+            "input_tokens": 28,
+            "llm_calls": 4,
+            "output_tokens": 12,
+            "outcomes.succeeded": 1,
+            "tool_calls": 2,
+            "tool_calls.read_artifact": 1,
+            "tool_calls.write_text_artifact": 1,
+            "total_tokens": 40,
+        }
+        budget = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.worker_budget
+        assert budget is not None
+        assert budget.max_model_calls == 8
+        assert budget.max_tool_calls == 16
+        assert budget.max_total_tokens == 32768
+        assert budget.observed_model_calls == 4
+        assert budget.observed_tool_calls == 2
+        assert budget.observed_total_tokens == 40
+        assert budget.token_usage_unavailable == 0
+        assert budget.exhausted is None
+        assert all(request["maxOutputTokens"] == 4096 for request in model.requests)
+        assert all(request["temperature"] == 0.1 for request in model.requests)
+        assert all(request["responseMimeType"] is None for request in model.requests[:-1])
+        assert all(request["hasResponseSchema"] is False for request in model.requests[:-1])
+        assert model.requests[-1]["responseMimeType"] == "application/json"
+        assert model.requests[-1]["hasResponseSchema"] is True
+        assert all("Subtask ID:\n0" in request["contentText"] for request in model.requests[:-1])
+        assert all(
+            request["toolNames"] == ["read_artifact", "write_text_artifact"]
+            for request in model.requests[:-1]
+        )
+        assert model.requests[-1]["toolNames"] == []
+        assert "result finalization input" in model.requests[-1]["contentText"]
+        session_id = runtime._session_lifecycle.shared_session_id
+        assert session_id is not None
+        session = await runtime._session_service.get_session(
+            app_name=runtime._app_name,
+            user_id=runtime._user_id,
+            session_id=session_id,
+        )
+        assert session is not None
+        contractor_state = session.state["contractor"]
+        assert contractor_state["metrics"]["finalOutcome"] == "succeeded"
+        assert contractor_state["metrics"]["counters"]["tool_calls"] == 2
+        assert contractor_state["currentInvocation"] is None
+        assert contractor_state["lastCompletedInvocation"]["subtaskId"] == "0"
+        serialized = repr(runtime) + repr(state.metrics) + result.model_dump_json(by_alias=True)
+        assert SECRET not in serialized
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("mode", "retains_first_conversation"),
+    [
+        (WorkerSessionMode.ISOLATED, False),
+        (WorkerSessionMode.SHARED, True),
+    ],
+)
+def test_adk_worker_stage_session_mode_controls_conversation_history(
+    tmp_path: Path,
+    mode: WorkerSessionMode,
+    retains_first_conversation: bool,
+) -> None:
+    async def scenario() -> None:
+        model = scripted_model(
+            [terminal_text("FIRST_SESSION_SENTINEL"), terminal_text("SECOND_RESULT")]
+        )
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {},
+            model,
+            session_mode=mode,
+        )
+
+        first_request = stage_request().model_copy(update={"objective": "FIRST_OBJECTIVE_SENTINEL"})
+        second_request = stage_request().model_copy(
+            update={"subtask_id": "1", "objective": "SECOND_OBJECTIVE_SENTINEL"}
+        )
+        first = await runtime.invoke(first_request)
+        second = await runtime.invoke(second_request)
+
+        assert first.result is not None and second.result is not None
+        primary_requests = [
+            request for request in model.requests if not request["hasResponseSchema"]
+        ]
+        assert len(primary_requests) == 2
+        second_prompt = primary_requests[1]["contentText"]
+        assert ("FIRST_OBJECTIVE_SENTINEL" in second_prompt) is retains_first_conversation
+        assert ("FIRST_SESSION_SENTINEL" in second_prompt) is retains_first_conversation
+        assert "SECOND_OBJECTIVE_SENTINEL" in second_prompt
+
+        sessions = (
+            await runtime._session_service.list_sessions(
+                app_name=runtime._app_name, user_id=runtime._user_id
+            )
+        ).sessions
+        assert len(sessions) == (1 if mode == WorkerSessionMode.SHARED else 0)
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_rejects_oversized_stage_content_before_creating_session(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        model = scripted_model([terminal_text("must not run")])
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {},
+            model,
+            session_mode=WorkerSessionMode.ISOLATED,
+        )
+        assert (
+            await runtime._session_service.list_sessions(
+                app_name=runtime._app_name, user_id=runtime._user_id
+            )
+        ).sessions == []
+
+        completion = await runtime.invoke(
+            stage_request().model_copy(update={"instructions": "x" * (300 * 1024)})
+        )
+
+        assert completion.result is None
+        assert completion.failure is not None
+        assert completion.failure.code == "stage_content_too_large"
+        assert model.requests == []
+        assert (
+            await runtime._session_service.list_sessions(
+                app_name=runtime._app_name, user_id=runtime._user_id
+            )
+        ).sessions == []
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", [WorkerSessionMode.SHARED, WorkerSessionMode.ISOLATED])
+def test_adk_worker_sessions_mirror_the_canonical_contractor_state(
+    tmp_path: Path, mode: WorkerSessionMode
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        read = {"namespace": "inputs", "name": "source"}
+        model = scripted_model(
+            [
+                tool_call("read_artifact", read, call_id="read-1"),
+                terminal_text("FIRST"),
+                tool_call("read_artifact", read, call_id="read-2"),
+                terminal_text("SECOND"),
+            ]
+        )
+        runtime = await create_runtime(tmp_path, state, tools, model, session_mode=mode)
+        service = runtime._session_service
+        created: list[dict[str, Any]] = []
+        delivered: list[dict[str, Any]] = []
+        create_session = service.create_session
+        append_event = service.append_event
+
+        async def recording_create(**kwargs: Any) -> Any:
+            created.append(copy.deepcopy(kwargs["state"]["contractor"]))
+            return await create_session(**kwargs)
+
+        async def recording_append(*args: Any, **kwargs: Any) -> Any:
+            event = kwargs["event"] if "event" in kwargs else args[1]
+            delta = event.actions.state_delta if event.actions is not None else {}
+            if "contractor" in delta:
+                if event.author == "contractor_runtime":
+                    session = kwargs["session"] if "session" in kwargs else args[0]
+                    assert not session.events
+                delivered.append(copy.deepcopy(delta["contractor"]))
+            return await append_event(*args, **kwargs)
+
+        service.create_session = recording_create  # type: ignore[method-assign]
+        service.append_event = recording_append  # type: ignore[method-assign]
+
+        initial = await state.snapshot()
+        first = await runtime.invoke(stage_request())
+        after_first = await state.snapshot()
+        if mode == WorkerSessionMode.SHARED:
+            shared_id = runtime._session_lifecycle.shared_session_id
+            assert shared_id is not None
+            shared = await service.get_session(
+                app_name=runtime._app_name, user_id=runtime._user_id, session_id=shared_id
+            )
+            assert shared is not None
+            for index in range(1000):
+                delta = {"ordinary": "x" * MAX_CARRIED_STATE_BYTES} if index == 0 else {}
+                await service.append_event(
+                    shared,
+                    Event(
+                        invocationId=f"retained-{index}",
+                        author="worker",
+                        actions=EventActions(stateDelta=delta),
+                    ),
+                )
+        second = await runtime.invoke(stage_request().model_copy(update={"subtask_id": "1"}))
+        after_second = await state.snapshot()
+
+        assert first.result is not None and second.result is not None
+        assert first.state_revision == after_first["stateRevision"]
+        assert second.state_revision == after_second["stateRevision"]
+        assert [call["callId"] for call in after_second["metrics"]["toolCalls"]] == [
+            "tool-00000001",
+            "tool-00000002",
+        ]
+        # Every session carries the canonical subtree (WRK-R105): created from
+        # it, and handed each terminal revision.
+        assert created[0] == initial
+        assert after_first in delivered
+        assert delivered[-1] == after_second
+        if mode == WorkerSessionMode.ISOLATED:
+            assert created == [initial, after_first]
+        else:
+            assert created == [initial]
+            session_id = runtime._session_lifecycle.shared_session_id
+            assert session_id is not None
+            session = await service.get_session(
+                app_name=runtime._app_name, user_id=runtime._user_id, session_id=session_id
+            )
+            assert session is not None
+            assert session.state["contractor"] == after_second
+            assert len(session.state["ordinary"]) == MAX_CARRIED_STATE_BYTES
+            assert [
+                e.invocation_id for e in session.events if e.invocation_id.startswith("retained-")
+            ] == [f"retained-{index}" for index in range(1000)]
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def adk_system_instruction(instruction: str, *, agent: str, description: str) -> str:
+    """The exact system instruction the supported ADK sends: the text, then its identity line."""
+
+    identity = f'You are an agent. Your internal name is "{agent}".'
+    return f'{instruction}\n\n{identity} The description about you is "{description}".'
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "Inspect the literal {path}.",
+        "Keep {{path}}, {{{path}}}, {path?}, { path } and {artifact.report} as written.",
+        'Return JSON such as {"path": "src/app.py", "lines": [1, 2]} or {}.',
+        "The session key {contractor} is ordinary text here.",
+    ],
+)
+def test_adk_worker_sends_authored_instruction_literally(
+    tmp_path: Path, instruction: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The finalizer must preserve the same brace forms as the ordinary Worker.
+    finalizer_instruction = f"{FINALIZER_INSTRUCTION}\n{instruction}"
+    monkeypatch.setattr(finalizer_module, "_SYSTEM_INSTRUCTION", finalizer_instruction)
+
+    async def scenario() -> None:
+        model = scripted_model([terminal_text("done")])
+        runtime = await create_runtime(tmp_path, WorkerState(), {}, model, instruction=instruction)
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is None
+        assert completion.result is not None
+        assert completion.result.result == "done"
+        worker_request, finalizer_request = model.requests
+        # The Worker session always holds the `contractor` State subtree, so
+        # ADK templating would have replaced {contractor} with its value.
+        assert worker_request["systemInstruction"] == adk_system_instruction(
+            instruction, agent="contractor_worker", description="Build artifacts"
+        )
+        assert finalizer_request["systemInstruction"] == adk_system_instruction(
+            finalizer_instruction,
+            agent="contractor_worker_result_finalizer",
+            description="Serialize one already completed Worker result.",
+        )
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+class SeededSessionService(InMemorySessionService):
+    """Creates every session with extra State keys next to Runtime's own."""
+
+    def __init__(self, seeded: dict[str, str]) -> None:
+        super().__init__()
+        self._seeded = seeded
+
+    async def create_session(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        state: dict[str, Any] | None = None,
+        session_id: str | None = None,
+    ) -> Any:
+        return await super().create_session(
+            app_name=app_name,
+            user_id=user_id,
+            state={**(state or {}), **self._seeded},
+            session_id=session_id,
+        )
+
+
+def test_adk_worker_instruction_ignores_matching_session_state_keys(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        instruction = 'Inspect {path}, {{path}} and {path?}; answer {"path": "{path}"}.'
+        model = scripted_model([terminal_text("done"), terminal_text("again")])
+        context = replace(build_context(tmp_path, WorkerState(), {}), instruction=instruction)
+        runtime = AdkWorkerRuntime(
+            context,
+            model,
+            session_service=SeededSessionService({"path": "session-path-value"}),
+        )
+
+        # The shared session is reused, so the second invocation renders the
+        # instruction again from a session that already holds the key.
+        for expected in ("done", "again"):
+            completion = await runtime.invoke(stage_request())
+            assert completion.failure is None
+            assert completion.result is not None
+            assert completion.result.result == expected
+
+        session_id = runtime._session_lifecycle.shared_session_id
+        assert session_id is not None
+        session = await runtime._session_service.get_session(
+            app_name=runtime._app_name, user_id=runtime._user_id, session_id=session_id
+        )
+        assert session is not None
+        assert session.state["path"] == "session-path-value"
+        worker_requests = [
+            request
+            for request in model.requests
+            if request["systemInstruction"].startswith(instruction)
+        ]
+        assert len(worker_requests) == 2
+        for request in worker_requests:
+            assert request["systemInstruction"] == adk_system_instruction(
+                instruction, agent="contractor_worker", description="Build artifacts"
+            )
+        assert all("session-path-value" not in r["systemInstruction"] for r in model.requests)
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_emits_content_free_model_tool_and_a2a_hooks(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        model = scripted_model(
+            [
+                tool_call(
+                    "read_artifact",
+                    {"namespace": "inputs", "name": "source"},
+                    call_id="read-for-telemetry",
+                ),
+                terminal_text("Telemetry-safe result"),
+            ]
+        )
+        instrumentation = RecordingInstrumentation()
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            tools,
+            model,
+            instrumentation=instrumentation,
+        )
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.result is not None
+        assert [span.name for span in instrumentation.spans] == [
+            "contractor.worker.a2a_task",
+            "contractor.worker.model",
+            "contractor.worker.tool",
+            "contractor.worker.model",
+            "contractor.worker.model",
+        ]
+        assert [span.outcome for span in instrumentation.spans] == [
+            "succeeded",
+            "succeeded",
+            "succeeded",
+            "succeeded",
+            "succeeded",
+        ]
+        model_spans = [
+            span for span in instrumentation.spans if span.name == "contractor.worker.model"
+        ]
+        assert [span.attributes["gen_ai.usage.input_tokens"] for span in model_spans] == [7, 7, 7]
+        assert [span.attributes["gen_ai.usage.output_tokens"] for span in model_spans] == [3, 3, 3]
+        assert model_spans[-1].attributes["model.phase"] == "finalization"
+        assert instrumentation.spans[2].attributes["tool.name"] == "read_artifact"
+        assert instrumentation.spans[0].attributes["counts.model_calls"] == 3
+        assert instrumentation.spans[0].attributes["counts.tool_calls"] == 1
+        rendered = repr([span.attributes for span in instrumentation.spans])
+        for forbidden in (SECRET, "inputs", "source", "input-r1", "Telemetry-safe result"):
+            assert forbidden not in rendered
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_a2a_task_span_counts_are_per_invocation_and_absent_on_rejection(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        model = scripted_model(
+            [
+                tool_call(
+                    "read_artifact",
+                    {"namespace": "inputs", "name": "source"},
+                    call_id="first-task-read",
+                ),
+                terminal_text("First task complete"),
+                terminal_text("Second task complete"),
+            ]
+        )
+        instrumentation = RecordingInstrumentation()
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            tools,
+            model,
+            instrumentation=instrumentation,
+            session_mode=WorkerSessionMode.SHARED,
+        )
+
+        first = await runtime.invoke(stage_request())
+        assert first.result is not None
+        first_state = (await runtime._worker_state.snapshot())["lastCompletedInvocation"]
+        assert first_state["invocationId"] == first.invocation_id
+        second = await runtime.invoke(stage_request().model_copy(update={"subtask_id": "1"}))
+        assert second.result is not None
+        second_state = (await runtime._worker_state.snapshot())["lastCompletedInvocation"]
+        assert second_state["invocationId"] == second.invocation_id
+        runtime._accepting = False
+        rejected = await runtime.invoke(stage_request().model_copy(update={"subtask_id": "2"}))
+        assert rejected.failure is not None
+        assert rejected.failure.code == "worker_draining"
+
+        task_spans = [
+            span for span in instrumentation.spans if span.name == "contractor.worker.a2a_task"
+        ]
+        assert len(task_spans) == 3
+        assert [
+            (
+                span.attributes.get("counts.model_calls"),
+                span.attributes.get("counts.tool_calls"),
+            )
+            for span in task_spans
+        ] == [(3, 1), (2, 0), (None, None)]
+        for span, invocation in zip(task_spans[:2], (first_state, second_state), strict=True):
+            assert span.attributes["counts.model_calls"] == invocation["metrics"]["modelCalls"]
+            assert span.attributes["counts.tool_calls"] == invocation["metrics"]["toolCalls"]
+        assert state.metrics.counters["llm_calls"] == 5
+        assert state.metrics.counters["tool_calls"] == 1
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+class FailingTelemetrySink:
+    """A telemetry sink whose span start, or else span end, always raises."""
+
+    def __init__(self, *, fail_start: bool) -> None:
+        self.fail_start = fail_start
+        self.started: list[str] = []
+        self.end_attempts = 0
+
+    def start_span(
+        self,
+        name: str,
+        *,
+        attributes: dict[str, TelemetryAttribute] | None = None,
+    ) -> RuntimeSpan:
+        self.started.append(name)
+        if self.fail_start:
+            raise RuntimeError(f"telemetry sink failed {SECRET}")
+        return EndFailingSpan(self)
+
+
+class EndFailingSpan:
+    def __init__(self, sink: FailingTelemetrySink) -> None:
+        self._sink = sink
+
+    def end(
+        self,
+        *,
+        outcome: str,
+        attributes: dict[str, TelemetryAttribute] | None = None,
+    ) -> None:
+        self._sink.end_attempts += 1
+        raise RuntimeError(f"telemetry sink failed {SECRET}")
+
+
+@pytest.mark.parametrize("fail_start", [True, False], ids=["start-fails", "end-fails"])
+def test_failing_telemetry_sink_cannot_change_the_worker_outcome(
+    tmp_path: Path, fail_start: bool
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        model = scripted_model(
+            [
+                tool_call(
+                    "read_artifact",
+                    {"namespace": "inputs", "name": "source"},
+                    call_id="read-with-failing-sink",
+                ),
+                terminal_text("Result despite telemetry"),
+            ]
+        )
+        sink = FailingTelemetrySink(fail_start=fail_start)
+        runtime = await create_runtime(tmp_path, state, tools, model, instrumentation=sink)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.failure is None
+        assert result.result is not None
+        assert sink.started == [
+            "contractor.worker.a2a_task",
+            "contractor.worker.model",
+            "contractor.worker.tool",
+            "contractor.worker.model",
+            "contractor.worker.model",
+        ]
+        assert sink.end_attempts == (0 if fail_start else len(sink.started))
+        assert state.metrics.counters["llm_calls"] == 3
+        assert state.metrics.counters["tool_calls"] == 1
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "signal",
+    [
+        WorkerBudgetExceeded("model_calls", 1, 2),
+        WorkerSummarizationRequested(),
+        ResultFinalizerFailure("output_limit_exceeded"),
+        GatewayModelError("APIConnectionError", retryable=True),
+    ],
+    ids=lambda signal: type(signal).__name__,
+)
+def test_runtime_signals_are_found_through_callback_wrappers(signal: Exception) -> None:
+    kind = type(signal)
+
+    def wrapper(
+        *, cause: BaseException | None = None, context: BaseException | None = None
+    ) -> RuntimeError:
+        error = RuntimeError("ADK callback wrapper")
+        error.__cause__ = cause
+        error.__context__ = context
+        return error
+
+    assert _chained_error(signal, kind) is signal
+    assert _chained_error(wrapper(cause=signal), kind) is signal
+    assert _chained_error(wrapper(context=signal), kind) is signal
+    # A cause, then a context, further down the chain.
+    assert _chained_error(wrapper(cause=wrapper(context=signal)), kind) is signal
+    # ``raise ... from None`` hides the context from tracebacks, not from the walk.
+    suppressed = wrapper(context=signal)
+    suppressed.__suppress_context__ = True
+    assert _chained_error(suppressed, kind) is signal
+    # The walk is linear: an explicit cause is followed instead of the context.
+    assert _chained_error(wrapper(cause=ValueError("other"), context=signal), kind) is None
+    assert _chained_error(wrapper(context=ValueError("other")), kind) is None
+    first = wrapper()
+    second = wrapper(context=first)
+    first.__context__ = second
+    assert _chained_error(first, kind) is None
+
+
+@pytest.mark.parametrize("tool_name", ["http_request", "caido_replay", "declared_probe", "probe"])
+def test_adk_worker_preserves_content_for_all_selected_tools(
+    tmp_path: Path, tool_name: str
+) -> None:
+    async def probe() -> dict[str, str]:
+        return {"traffic": "tool-output-canary"}
+
+    probe.__name__ = tool_name
+    tool = DeclaredSensitiveTool() if tool_name == "declared_probe" else probe
+
+    async def scenario() -> None:
+        instrumentation = CapturingInstrumentation()
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {tool_name: tool},
+            scripted_model(
+                [tool_call(tool_name, {}, call_id="sensitive-call"), terminal_text("Reviewed")]
+            ),
+            instrumentation=instrumentation,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None
+        assert any(span.name == "contractor.worker.tool" for span in instrumentation.spans)
+        captured = repr(instrumentation.content)
+        assert "tool-output-canary" in captured
+        assert instrumentation.content
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_treats_terminal_text_as_opaque_and_blocks_secrets(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        shaped = json.dumps(
+            {
+                "subtaskId": "0",
+                "result": "guessed",
+                "outcome": "succeeded",
+                "artifacts": {"report": {"revision": "guessed"}},
+            },
+            separators=(",", ":"),
+        )
+        model = scripted_model([text_result(shaped)])
+        state = WorkerState()
+        runtime = await create_runtime(
+            tmp_path / "shaped",
+            state,
+            {},
+            model,
+        )
+        result = await runtime.invoke(stage_request())
+        assert result.result is not None
+        assert result.failure is None
+        assert result.result.result == shaped
+        assert result.result.artifacts == {}
+        assert len(model.requests) == 2
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+        secret_bearing = scripted_model([terminal_text(SECRET)])
+        secret_state = WorkerState()
+        secret_runtime = await create_runtime(tmp_path / "secret", secret_state, {}, secret_bearing)
+        secret_result = await secret_runtime.invoke(stage_request())
+        assert secret_result.failure is not None
+        assert secret_result.failure.code == "unsafe_worker_result"
+        assert len(secret_bearing.requests) == 1
+        assert SECRET not in secret_result.model_dump_json(by_alias=True)
+        assert SECRET not in repr(secret_state.metrics.snapshot())
+        await secret_runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+PROXY_PASSWORD = "recognizable-proxy-password"
+CAIDO_TOKEN = "recognizable-caido-bearer-token"
+TELEMETRY_HEADER = "Bearer recognizable-telemetry-header"
+ORIGIN_TOKEN = "recognizable-origin-target-token"
+
+
+def private_runtime_settings() -> RuntimeSettings:
+    return runtime_settings().model_copy(
+        update={
+            "telemetry": TelemetrySettings(
+                adapter="otlp-http@1",
+                endpoint="https://telemetry.example/v1/traces",
+                headers={"Authorization": TELEMETRY_HEADER},
+                flushTimeoutSeconds=1,
+                export=SERVER_EXPORT,
+            ),
+            "http_proxy": HTTPProxySettings(
+                adapter="http-proxy@1",
+                proxyUrl="https://proxy.example",
+                basicAuth={"username": "worker", "password": PROXY_PASSWORD},
+                targets=["tool-http"],
+            ),
+            "caido": CaidoSettings(
+                adapter="caido-graphql@1",
+                endpoint="https://caido.example",
+                bearerToken=CAIDO_TOKEN,
+                requestTimeoutSeconds=5,
+            ),
+            "http_origin_target": HTTPOriginTargetSettings(
+                url="https://app.example/", bearerToken=ORIGIN_TOKEN
+            ),
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "value", ["https://caido.example", "https://proxy.example", "https://telemetry.example"]
+)
+def test_adk_worker_results_may_name_runtime_endpoints(tmp_path: Path, value: str) -> None:
+    # Endpoints are not credentials: a same-host audit may legitimately name
+    # a service that shares the Runtime's host.
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {},
+            scripted_model([terminal_text(f"Observed service at {value}/health")]),
+            settings=private_runtime_settings(),
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is None
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "value", [PROXY_PASSWORD, CAIDO_TOKEN, TELEMETRY_HEADER, ORIGIN_TOKEN, SECRET]
+)
+def test_adk_worker_blocks_every_runtime_settings_secret_in_results(
+    tmp_path: Path, value: str
+) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {},
+            scripted_model([terminal_text(f"Observed credential {value} in traffic")]),
+            settings=private_runtime_settings(),
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is not None
+        assert completion.failure.code == "unsafe_worker_result"
+        assert value not in completion.model_dump_json(by_alias=True)
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_keeps_results_that_only_mention_short_setting_values(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        text = "The worker account and https://app.example/ target were reviewed"
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {},
+            scripted_model([terminal_text(text)]),
+            settings=private_runtime_settings(),
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is None
+        assert completion.result is not None
+        assert completion.result.result == text
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_summarizer_secrets_cover_runtime_settings_credentials(tmp_path: Path) -> None:
+    context = replace(
+        build_context(tmp_path, WorkerState(), {}), runtime_settings=private_runtime_settings()
+    )
+
+    secrets = _summarizer_secrets(context)
+
+    for value in (SECRET, PROXY_PASSWORD, CAIDO_TOKEN, TELEMETRY_HEADER, ORIGIN_TOKEN):
+        assert value in secrets
+    assert "https://proxy.example" in secrets
+    assert "worker" not in secrets
+    assert "https://app.example/" not in secrets
+    assert str(tmp_path) in secrets
+
+
+@pytest.mark.parametrize(
+    ("response", "expected_code", "retryable"),
+    [
+        (text_result("not-json"), "worker_result_invalid", True),
+        (thought_result("no final value"), "worker_result_missing", True),
+        (
+            json_result({"subtaskId": "0", "result": "original", "outcome": "succeeded"}),
+            "worker_result_invalid",
+            True,
+        ),
+        (
+            json_result({"subtaskId": "1", "result": "stale"}),
+            "worker_result_subtask_mismatch",
+            True,
+        ),
+        (json_result({"subtaskId": "0", "result": ""}), "worker_result_invalid", True),
+        (
+            json_result({"subtaskId": "0", "result": "x" * (64 * 1024 + 1)}),
+            "worker_result_too_large",
+            False,
+        ),
+        (
+            json_result({"subtaskId": "0", "result": "rewritten"}),
+            "worker_result_finalizer_mismatch",
+            True,
+        ),
+    ],
+    ids=[
+        "malformed",
+        "missing",
+        "unknown-field",
+        "subtask-mismatch",
+        "empty-result",
+        "oversized-result",
+        "changed-result",
+    ],
+)
+def test_adk_worker_rejects_invalid_result_finalizer_boundaries(
+    tmp_path: Path,
+    response: object,
+    expected_code: str,
+    retryable: bool,
+) -> None:
+    async def scenario() -> None:
+        model = scripted_model(
+            [terminal_text("original"), response],
+            auto_result_finalizer=False,
+        )
+        runtime = await create_runtime(
+            tmp_path / expected_code,
+            WorkerState(),
+            {},
+            model,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is None
+        assert completion.failure is not None
+        assert completion.failure.code == expected_code
+        assert completion.failure.retryable is retryable
+        assert completion.failure.message
+        assert completion.state_revision > 1
+        assert completion.failure.code != "worker_execution_failed"
+        assert len(model.requests) == 2
+        assert len(completion.model_dump_json(by_alias=True).encode("utf-8")) < 256 * 1024
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_maps_unhandled_model_error_to_safe_worker_failure(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, scripted_model([]))
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is None
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_execution_failed"
+        assert completion.failure.retryable is True
+        assert completion.invocation_id.startswith("worker-")
+        snapshot = await state.snapshot()
+        assert snapshot["lastCompletedInvocation"]["invocationId"] == completion.invocation_id
+        assert snapshot["lastCompletedInvocation"]["phase"] == "failed"
+        assert SECRET not in completion.model_dump_json(by_alias=True)
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_does_not_count_runtime_defects_as_model_errors(tmp_path: Path) -> None:
+    class FailingExporter:
+        reserved_slots: frozenset[str] = frozenset()
+
+        async def export(self, outcome: object) -> object:
+            del outcome
+            raise RuntimeError("exporter invariant violated")
+
+        def release(self) -> None:
+            pass
+
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, scripted_model([terminal_text("ok")]))
+        runtime._workspace_exporter = FailingExporter()  # type: ignore[assignment]
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_execution_failed"
+        assert "llm_errors" not in state.metrics.counters
+        snapshot = await state.snapshot()
+        invocation = snapshot["lastCompletedInvocation"]
+        assert invocation["invocationId"] == completion.invocation_id
+        assert invocation["metrics"]["modelErrors"] == 0
+        assert invocation["metrics"]["modelCalls"] == 2
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_counts_a_gateway_error_missed_by_model_callbacks_once(
+    tmp_path: Path,
+) -> None:
+    class FailingExporter:
+        reserved_slots: frozenset[str] = frozenset()
+
+        async def export(self, outcome: object) -> object:
+            del outcome
+            raise GatewayModelError("APIConnectionError", retryable=True)
+
+        def release(self) -> None:
+            pass
+
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, scripted_model([terminal_text("ok")]))
+        runtime._workspace_exporter = FailingExporter()  # type: ignore[assignment]
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_gateway_unavailable"
+        assert state.metrics.counters["llm_errors"] == 1
+        snapshot = await state.snapshot()
+        assert snapshot["lastCompletedInvocation"]["metrics"]["modelErrors"] == 1
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def _chat_completion(message: dict[str, object], total_tokens: int) -> dict[str, object]:
+    return {
+        "choices": [{"finish_reason": "stop", "message": message}],
+        "usage": {
+            "prompt_tokens": total_tokens - 5,
+            "completion_tokens": 5,
+            "total_tokens": total_tokens,
+        },
+    }
+
+
+REJECTED_TOOL_CALL = {
+    "content": None,
+    "tool_calls": [{"id": "call-1", "function": {"name": "tool", "arguments": '{"path":'}}],
+}
+
+
+@pytest.mark.parametrize(
+    ("phase", "max_total_tokens", "expected_code", "expected_tokens"),
+    [
+        ("main", 32768, "worker_gateway_unavailable", 30),
+        ("main", 20, "worker_budget_exhausted", 30),
+        ("result_finalizer", 32768, "worker_gateway_unavailable", 42),
+    ],
+)
+def test_adk_worker_accounts_usage_of_a_rejected_gateway_response(
+    tmp_path: Path,
+    phase: str,
+    max_total_tokens: int,
+    expected_code: str,
+    expected_tokens: int,
+) -> None:
+    responses = (
+        [_chat_completion(REJECTED_TOOL_CALL, 30)]
+        if phase == "main"
+        else [_chat_completion({"content": "done"}, 12), _chat_completion(REJECTED_TOOL_CALL, 30)]
+    )
+
+    async def gateway(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=responses.pop(0))
+
+    async def scenario() -> None:
+        state = WorkerState()
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            model = OpenAICompatibleGatewayLlm(
+                model="worker-model",
+                client_handle=new_gateway_client(
+                    base_url="https://gateway.example/v1",
+                    api_key=SECRET,
+                    timeout_seconds=1,
+                    http_client=http,
+                ),
+            )
+            runtime = await create_runtime(
+                tmp_path, state, {}, model, max_total_tokens=max_total_tokens
+            )
+
+            completion = await runtime.invoke(stage_request())
+
+            assert completion.failure is not None
+            assert completion.failure.code == expected_code
+            assert state.metrics.counters["llm_errors"] == 1
+            assert state.metrics.counters["total_tokens"] == expected_tokens
+            budget = state.metrics.build_report(
+                report_id="worker-report", duration_ms=1
+            ).metrics.worker_budget
+            assert budget is not None
+            assert budget.observed_total_tokens == expected_tokens
+            assert budget.token_usage_unavailable == 0
+            snapshot = await state.snapshot()
+            metrics = snapshot["lastCompletedInvocation"]["metrics"]
+            assert metrics["totalTokens"] == expected_tokens
+            assert metrics["modelErrors"] == 1
+            assert SECRET not in completion.model_dump_json(by_alias=True)
+            await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "error_type,retryable,request_invalid,expected_code",
+    [
+        ("TimeoutError", True, False, "worker_gateway_unavailable"),
+        ("BadRequestError", False, False, "worker_gateway_unavailable"),
+        ("UnsupportedContentPart", False, True, "worker_gateway_invalid_request"),
+    ],
+)
+def test_adk_worker_maps_gateway_error_to_safe_retryable_failure(
+    tmp_path: Path,
+    error_type: str,
+    retryable: bool,
+    request_invalid: bool,
+    expected_code: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = scripted_model([])
+
+    async def gateway_failure(_model: object, _request: object, stream: bool = False) -> Any:
+        del stream
+        if False:
+            yield None
+        raise GatewayModelError(error_type, retryable=retryable, request_invalid=request_invalid)
+
+    monkeypatch.setattr(type(model), "generate_content_async", gateway_failure)
+
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, model)
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is None
+        assert completion.failure is not None
+        assert completion.failure.code == expected_code
+        assert completion.failure.retryable is retryable
+        assert "TimeoutError" not in completion.failure.message
+        snapshot = await state.snapshot()
+        assert snapshot["lastCompletedInvocation"]["invocationId"] == completion.invocation_id
+        assert snapshot["lastCompletedInvocation"]["phase"] == "failed"
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("phase", ["main", "result_finalizer"])
+@pytest.mark.parametrize(
+    ("status", "provider_error", "retryable"),
+    [
+        (401, {}, False),
+        (403, {}, False),
+        (429, {}, True),
+        (404, {}, False),
+        (400, {"code": "context_length_exceeded"}, False),
+        (400, {"message": "Model is unloaded."}, True),
+        (400, {"code": "p" + "x" * 63}, False),
+    ],
+)
+def test_adk_worker_classified_gateway_errors_keep_stable_failure_code(
+    tmp_path: Path,
+    phase: str,
+    status: int,
+    provider_error: dict[str, str],
+    retryable: bool,
+) -> None:
+    async def scenario() -> None:
+        calls = 0
+
+        async def gateway(_request: httpx.Request) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            if phase == "result_finalizer" and calls == 1:
+                return httpx.Response(200, json=_chat_completion({"content": "done"}, 12))
+            return httpx.Response(status, json={"error": provider_error})
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            signatures = GatewayFailureSignatures(
+                modelUnavailable=[
+                    GatewayFailureSignature(status=400, messageEquals="Model is unloaded.")
+                ],
+                permanentCodes=["context_length_exceeded", "p" + "x" * 63],
+            )
+            handle = new_gateway_client(
+                base_url="https://gateway.example/v1",
+                api_key=SECRET,
+                timeout_seconds=1,
+                http_client=http,
+                failure_signatures=signatures,
+            )
+            handle.max_retries = 0
+            runtime = await create_runtime(
+                tmp_path,
+                WorkerState(),
+                {},
+                OpenAICompatibleGatewayLlm(model="worker-model", client_handle=handle),
+            )
+
+            completion = await runtime.invoke(stage_request())
+
+            assert completion.result is None
+            assert completion.failure is not None
+            assert completion.failure.code == "worker_gateway_unavailable"
+            assert completion.failure.retryable is retryable
+            assert calls == (1 if phase == "main" else 2)
+            await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_maps_only_declared_runtime_result_bindings(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        hidden = ArtifactRef(namespace="builder", name="memory.hidden", revision="memory-r1")
+        hidden_model = scripted_model(
+            [
+                tool_call("ref_probe", {}, call_id="hidden-ref"),
+                terminal_text("Notebook update completed"),
+            ]
+        )
+        first = await create_runtime(
+            tmp_path / "hidden",
+            WorkerState(),
+            {"ref_probe": RefExposingTool(hidden)},
+            hidden_model,
+        )
+        hidden_result = await first.invoke(stage_request())
+        assert hidden_result.result is not None
+        assert hidden_result.result.artifacts == {}
+        await first.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+        allowed = ArtifactRef(namespace="builder", name="report", revision="report-r1")
+        allowed_model = scripted_model(
+            [
+                tool_call("ref_probe", {}, call_id="allowed-ref"),
+                terminal_text("Purpose output selected"),
+            ]
+        )
+        second = await create_runtime(
+            tmp_path / "allowed",
+            WorkerState(),
+            {"ref_probe": RefExposingTool(allowed)},
+            allowed_model,
+        )
+        request = stage_request().model_copy(
+            update={"result_artifacts": {"report": ArtifactRef(namespace="builder", name="report")}}
+        )
+        accepted = await second.invoke(request)
+        assert accepted.result is not None
+        assert accepted.result.artifacts["report"] == allowed
+        await second.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_builds_typed_result_with_trusted_artifacts(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        model = scripted_model(
+            [
+                tool_call(
+                    "write_text_artifact",
+                    {"name": "report", "media_type": "application/json", "text": "{}"},
+                    call_id="write-before-invalid-result",
+                ),
+                terminal_text("Report created"),
+            ]
+        )
+        runtime = await create_runtime(tmp_path, state, tools, model)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.result is not None
+        assert result.result.artifacts["report"].revision == "write-r1"
+        assert result.result.result == "Report created"
+        assert len(model.requests) == 3
+        assert all(request["hasResponseSchema"] is False for request in model.requests[:-1])
+        assert model.requests[-1]["hasResponseSchema"] is True
+        for request in model.requests:
+            model_context = request["contentText"] + repr(request["systemInstruction"])
+            for forbidden in (
+                "StageContentRequest",
+                "StageContentResult",
+                "apiVersion",
+                "result slot",
+                "output bindings",
+                "protocol envelope",
+                "AgentTemplate",
+            ):
+                assert forbidden not in model_context
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_does_not_select_artifact_from_failed_tool_call(tmp_path: Path) -> None:
+    class FailingRefTool(RefExposingTool):
+        async def __call__(self) -> dict[str, bool]:
+            self._observations += 1
+            raise RuntimeError("synthetic failure after observation")
+
+    async def scenario() -> None:
+        ref = ArtifactRef(namespace="builder", name="report", revision="failed-r1")
+        model = scripted_model(
+            [
+                tool_call("ref_probe", {}, call_id="failed-ref"),
+                terminal_text("Could not update the report"),
+            ]
+        )
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {"ref_probe": FailingRefTool(ref)},
+            model,
+        )
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.result is not None
+        assert result.result.artifacts == {}
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_does_not_reuse_artifact_observed_by_an_earlier_invocation(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        tools = await selected_tools(tmp_path, client, WorkerState())
+        model = scripted_model(
+            [
+                tool_call(
+                    "write_text_artifact",
+                    {"name": "report", "media_type": "application/json", "text": "{}"},
+                    call_id="first-write",
+                ),
+                terminal_text("First task completed"),
+                terminal_text("Second task completed without touching the result"),
+            ]
+        )
+        runtime = await create_runtime(tmp_path, WorkerState(), tools, model)
+
+        first = await runtime.invoke(stage_request())
+        second = await runtime.invoke(stage_request())
+
+        assert first.result is not None
+        assert first.result.artifacts["report"].revision == "write-r1"
+        assert second.result is not None
+        assert second.result.artifacts == {}
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_finalizes_plain_terminal_text_once(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        model = scripted_model([text_result("not-json")])
+        runtime = await create_runtime(tmp_path, state, {}, model, max_model_calls=2)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.result is not None
+        assert result.failure is None
+        assert result.result.result == "not-json"
+        assert len(model.requests) == 2
+        assert model.requests[0]["hasResponseSchema"] is False
+        assert model.requests[1]["hasResponseSchema"] is True
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert report.metrics.worker_budget is not None
+        assert report.metrics.worker_budget.observed_model_calls == 2
+        assert report.metrics.worker_budget.exhausted is None
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_does_not_start_required_finalizer_without_model_budget(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        model = scripted_model([terminal_text("Terminal text is ready")])
+        runtime = await create_runtime(tmp_path, state, {}, model, max_model_calls=1)
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is None
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_budget_exhausted"
+        assert len(model.requests) == 1
+        budget = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.worker_budget
+        assert budget is not None
+        assert budget.observed_model_calls == 1
+        assert budget.exhausted == "model_calls"
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "error_type,retryable", [("TimeoutError", True), ("BadRequestError", False)]
+)
+def test_adk_worker_maps_result_finalizer_gateway_failure_once(
+    tmp_path: Path, error_type: str, retryable: bool
+) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        model = scripted_model(
+            [terminal_text("Terminal text is ready")],
+            result_finalizer_error=GatewayModelError(error_type, retryable=retryable),
+        )
+        runtime = await create_runtime(tmp_path, state, {}, model)
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is None
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_gateway_unavailable"
+        assert completion.failure.retryable is retryable
+        assert len(model.requests) == 2
+        assert state.metrics.counters["llm_calls"] == 2
+        assert state.metrics.counters["llm_errors"] == 1
+        snapshot = await state.snapshot()
+        metrics = snapshot["lastCompletedInvocation"]["metrics"]
+        assert metrics["modelCalls"] == 2
+        assert metrics["modelErrors"] == 1
+        retained = completion.model_dump_json(by_alias=True) + repr(state.metrics.snapshot())
+        assert "Terminal text is ready" not in retained
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_maps_unexpected_result_finalizer_failure_safely(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        model = scripted_model(
+            [terminal_text("Terminal text is ready")],
+            result_finalizer_error=RuntimeError("sensitive finalizer failure"),
+        )
+        runtime = await create_runtime(tmp_path, state, {}, model)
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is None
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_result_finalizer_failed"
+        assert completion.failure.retryable is True
+        assert completion.failure.message == "Worker result finalizer failed (runtime_failed)"
+        assert len(model.requests) == 2
+        assert state.metrics.counters["llm_errors"] == 1
+        assert "sensitive finalizer failure" not in completion.model_dump_json(by_alias=True)
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_abort_cancels_active_result_finalizer(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        instrumentation = RecordingInstrumentation()
+        model = scripted_model(
+            [terminal_text("Terminal text is ready")],
+            block_call_number=2,
+        )
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {},
+            model,
+            instrumentation=instrumentation,
+            session_mode=WorkerSessionMode.ISOLATED,
+        )
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(model.blocked.wait(), timeout=1)
+
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+        with pytest.raises(asyncio.CancelledError):
+            await invocation
+        assert len(model.requests) == 2
+        assert state.metrics.counters["llm_calls"] == 2
+        assert state.metrics.counters.get("llm_errors", 0) == 0
+        snapshot = await state.snapshot()
+        assert snapshot["lastCompletedInvocation"]["phase"] == "cancelled"
+        sessions = await runtime._session_service.list_sessions(
+            app_name=runtime._app_name, user_id=runtime._user_id
+        )
+        assert sessions.sessions == []
+        finalizer_spans = [
+            span
+            for span in instrumentation.spans
+            if span.attributes.get("model.phase") == "finalization"
+        ]
+        assert len(finalizer_spans) == 1
+        assert finalizer_spans[0].outcome == "cancelled"
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_bounds_result_finalizer_document_before_model_call(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        model = scripted_model([terminal_text("\x00" * (64 * 1024))])
+        runtime = await create_runtime(tmp_path, state, {}, model)
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is None
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_result_too_large"
+        assert completion.failure.retryable is False
+        assert len(model.requests) == 1
+        budget = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.worker_budget
+        assert budget is not None
+        assert budget.observed_model_calls == 1
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_can_recover_from_a_safe_tool_exception(tmp_path: Path) -> None:
+    class MissingArtifact(RuntimeError):
+        code = "not_found"
+        retryable = False
+
+    async def load_optional(name: str) -> dict[str, object]:
+        """Load an optional artifact."""
+
+        raise MissingArtifact(f"missing {name}: {SECRET}")
+
+    async def scenario() -> None:
+        model = scripted_model(
+            [
+                tool_call("load_optional", {"name": "candidate"}, call_id="load-1"),
+                terminal_text("Recovered from optional absence"),
+            ]
+        )
+        runtime = await create_runtime(
+            tmp_path, WorkerState(), {"load_optional": load_optional}, model
+        )
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.result is not None
+        assert len(model.requests) == 3
+        session_id = runtime._session_lifecycle.shared_session_id
+        assert session_id is not None
+        session = await runtime._session_service.get_session(
+            app_name=runtime._app_name,
+            user_id=runtime._user_id,
+            session_id=session_id,
+        )
+        assert session is not None
+        assert SECRET not in repr(session.events)
+        assert "load_optional failed (MissingArtifact)" in repr(session.events)
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_counts_unknown_model_tool_without_retaining_its_name(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        model_authored_name = "recognizable_model_authored_tool_name"
+        model = scripted_model(
+            [
+                tool_call(model_authored_name, {"body": SECRET}, call_id="unknown-1"),
+                terminal_text("Recovered from an unknown tool"),
+            ]
+        )
+        state = WorkerState()
+        instrumentation = RecordingInstrumentation()
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {},
+            model,
+            instrumentation=instrumentation,
+        )
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.result is not None
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert set(report.metrics.tools) == {"unknown_tool"}
+        assert report.metrics.tools["unknown_tool"].failed == 1
+        exported = repr(state.metrics.snapshot()) + repr(
+            [span.attributes for span in instrumentation.spans]
+        )
+        assert model_authored_name not in exported
+        assert SECRET not in exported
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "raw_arguments",
+    [
+        {"content": "body"},
+        {
+            "name": "safe_note",
+            "content": "body",
+            "unexpected": "recognizable-raw-argument-canary",
+        },
+        {"name": 7, "content": "body"},
+    ],
+    ids=["missing", "extra", "wrong-type"],
+)
+def test_adk_worker_reduces_malformed_raw_memory_arguments_before_binding(
+    tmp_path: Path,
+    raw_arguments: dict[str, object],
+) -> None:
+    async def scenario() -> None:
+        client = NoArtifactAccessClient()
+        state = WorkerState()
+        tools = await selected_memory_tools(tmp_path, client, state)
+        model = scripted_model(
+            [
+                tool_call("write_memory", raw_arguments, call_id="malformed-memory"),
+                terminal_text("Handled bounded memory failure"),
+            ]
+        )
+        runtime = await create_runtime(tmp_path, state, tools, model)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.result is not None
+        assert client.calls == []
+        assert state.metrics.counters["tool_calls"] == 1
+        assert state.metrics.counters["tool_errors"] == 1
+        assert len(state.metrics.tool_calls) == 1
+        call = state.metrics.tool_calls[0]
+        assert call.error is not None
+        assert call.error.code == "memory_invalid"
+        assert call.error.retryable is False
+        assert call.arguments is not None
+        assert set(call.arguments) == {
+            "name",
+            "content_bytes",
+            "description_bytes",
+            "tag_count",
+        }
+        assert call.arguments["content_bytes"] in {0, 4}
+        budget = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.worker_budget
+        assert budget is not None and budget.observed_tool_calls == 1
+        session_id = runtime._session_lifecycle.shared_session_id
+        assert session_id is not None
+        session = await runtime._session_service.get_session(
+            app_name=runtime._app_name,
+            user_id=runtime._user_id,
+            session_id=session_id,
+        )
+        assert session is not None
+        function_responses = [
+            part.function_response.response
+            for event in session.events
+            for part in (event.content.parts if event.content is not None else [])
+            if part.function_response is not None
+        ]
+        rendered_response = repr(function_responses)
+        rendered_metrics = repr(state.metrics.snapshot())
+        assert "memory_invalid" in rendered_response
+        assert "mandatory input parameters" not in rendered_response
+        assert "recognizable-raw-argument-canary" not in rendered_response
+        assert "recognizable-raw-argument-canary" not in rendered_metrics
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_does_not_start_a_serializer_when_structured_result_is_missing(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        model = scripted_model(
+            [
+                tool_call(
+                    "write_text_artifact",
+                    {"name": "report", "media_type": "application/json", "text": "{}"},
+                    call_id="write-before-missing-result",
+                ),
+                thought_result("The report is complete."),
+            ]
+        )
+        runtime = await create_runtime(tmp_path, state, tools, model)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.failure is not None
+        assert result.failure.code == "worker_result_missing"
+        assert len(model.requests) == 2
+        assert model.requests[0]["toolNames"] == ["read_artifact", "write_text_artifact"]
+        assert model.requests[1]["toolNames"] == ["read_artifact", "write_text_artifact"]
+        assert all("result_slot" not in request["contentText"] for request in model.requests)
+        assert all("StageContentResult" not in request["contentText"] for request in model.requests)
+        assert SECRET not in repr(state.metrics.snapshot())
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_missing_result_fails_without_an_extra_model_turn(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        model = scripted_model(
+            [
+                thought_result("The task is complete."),
+            ]
+        )
+        runtime = await create_runtime(tmp_path, state, {}, model)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.failure is not None
+        assert result.failure.code == "worker_result_missing"
+        assert result.failure.retryable
+        assert len(model.requests) == 1
+        assert model.requests[0]["toolNames"] == []
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("thought_only", [False, True])
+def test_adk_worker_reports_output_limit_instead_of_accepting_partial_result(
+    tmp_path: Path, thought_only: bool, caplog: pytest.LogCaptureFixture
+) -> None:
+    async def scenario() -> None:
+        response = thought_result("unfinished") if thought_only else text_result("partial result")
+        response.finish_reason = types.FinishReason.MAX_TOKENS
+        response.error_code = "MAX_TOKENS"
+        response.error_message = SECRET
+        model = scripted_model([response])
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, model)
+        result = await runtime.invoke(stage_request())
+        assert result.result is None
+        assert result.failure is not None
+        assert result.failure.code == "worker_output_limit_exceeded"
+        assert result.failure.retryable
+        assert len(model.requests) == 1
+        assert SECRET not in result.model_dump_json(by_alias=True)
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert report.metrics.total_tokens > 0
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+    assert not any(
+        record.name == "opentelemetry.context" and "Failed to detach context" in record.message
+        for record in caplog.records
+    )
+
+
+def test_adk_worker_reports_finalizer_output_limit(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        response = thought_result("unfinished serialization")
+        response.finish_reason = types.FinishReason.MAX_TOKENS
+        response.error_code = "MAX_TOKENS"
+        model = scripted_model([text_result("Done"), response], auto_result_finalizer=False)
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, model)
+        result = await runtime.invoke(stage_request())
+        assert result.result is None
+        assert result.failure is not None
+        assert result.failure.code == "worker_output_limit_exceeded"
+        assert result.failure.retryable
+        assert len(model.requests) == 2
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert report.metrics.model_calls == 2
+        assert report.metrics.total_tokens == 20
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_missing_result_does_not_exhaust_model_budget(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        model = scripted_model([thought_result("Task complete")])
+        runtime = await create_runtime(tmp_path, state, {}, model, max_model_calls=1)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.failure is not None
+        assert result.failure.code == "worker_result_missing"
+        assert result.failure.retryable
+        assert len(model.requests) == 1
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert report.complete
+        assert report.metrics.worker_budget is not None
+        assert report.metrics.worker_budget.observed_model_calls == 1
+        assert report.metrics.worker_budget.exhausted is None
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_tool_budget_stops_before_extra_side_effect(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        model = scripted_model(
+            [
+                tool_call(
+                    "read_artifact",
+                    {"namespace": "inputs", "name": "source"},
+                    call_id="read-1",
+                ),
+                tool_call(
+                    "read_artifact",
+                    {"namespace": "inputs", "name": "source"},
+                    call_id="read-2",
+                ),
+            ]
+        )
+        runtime = await create_runtime(tmp_path, state, tools, model, max_tool_calls=1)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.failure is not None
+        assert result.failure.code == "worker_budget_exhausted"
+        assert client.calls == ["read_artifact"]
+        assert len(model.requests) == 2
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert report.metrics.worker_budget is not None
+        assert report.metrics.worker_budget.observed_tool_calls == 1
+        assert report.metrics.worker_budget.exhausted == "tool_calls"
+        assert report.metrics.tools["read_artifact"].calls == 1
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("parallel", [False, True])
+@pytest.mark.parametrize("mode", [WorkerSessionMode.SHARED, WorkerSessionMode.ISOLATED])
+def test_tool_budget_does_not_poison_next_invocation_payload(
+    tmp_path: Path, parallel: bool, mode: WorkerSessionMode
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        first_call = tool_call(
+            "read_artifact",
+            {"namespace": "inputs", "name": "source"},
+            call_id="first-call",
+        )
+        responses = [first_call]
+        second_call = tool_call(
+            "read_artifact",
+            {"namespace": "inputs", "name": "source"},
+            call_id="unanswered-call",
+        )
+        if parallel:
+            first_call.content.parts.extend(second_call.content.parts)
+        else:
+            responses.append(second_call)
+        responses.append(terminal_text("Recovered on the next subtask"))
+        model = CapturingScriptedLlm(model="deterministic-fake", responses=responses)
+        runtime = await create_runtime(
+            tmp_path, state, tools, model, max_tool_calls=1, session_mode=mode
+        )
+
+        first = await runtime.invoke(stage_request())
+        assert first.failure is not None and first.failure.code == "worker_budget_exhausted"
+        budget = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.worker_budget
+        assert budget is not None and budget.observed_tool_calls == 1
+        assert len(client.calls) <= 1
+
+        payload_count = len(model.payloads)
+        next_request = stage_request().model_copy(update={"subtask_id": "1"})
+        second = await runtime.invoke(next_request)
+        assert second.result is not None
+        payload = model.payloads[payload_count]
+        assert_balanced_tool_calls(payload)
+        carried_ids = {
+            call["id"] for message in payload["messages"] for call in message.get("tool_calls", [])
+        }
+        if mode == WorkerSessionMode.SHARED:
+            assert "unanswered-call" in carried_ids
+            synthetic = [
+                message
+                for message in payload["messages"]
+                if message["role"] == "tool"
+                and json.loads(message["content"]).get("error", {}).get("code")
+                == "tool_call_not_executed"
+            ]
+            # The callback budget rejected this call before its function was dispatched.
+            assert "unanswered-call" in {message["tool_call_id"] for message in synthetic}
+        else:
+            assert not carried_ids
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_cancelled_tool_call_does_not_poison_next_shared_invocation(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        entered = asyncio.Event()
+        effects: list[str] = []
+
+        async def wait_for_release() -> dict[str, bool]:
+            effects.append("started")
+            entered.set()
+            await asyncio.Event().wait()
+            return {"released": True}
+
+        model = CapturingScriptedLlm(
+            model="deterministic-fake",
+            responses=[
+                tool_call("wait_for_release", {}, call_id="cancelled-call"),
+                terminal_text("Recovered after cancellation"),
+            ],
+        )
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {"wait_for_release": wait_for_release},
+            model,
+            session_mode=WorkerSessionMode.SHARED,
+        )
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(entered.wait(), timeout=2)
+        runtime.cancel_active(invocation)
+        with pytest.raises(asyncio.CancelledError):
+            await invocation
+
+        payload_count = len(model.payloads)
+        second = await runtime.invoke(stage_request().model_copy(update={"subtask_id": "1"}))
+        assert second.result is not None
+        payload = model.payloads[payload_count]
+        assert_balanced_tool_calls(payload)
+        assert effects == ["started"]
+        cancelled = next(
+            message
+            for message in payload["messages"]
+            if message["role"] == "tool" and message["tool_call_id"] == "cancelled-call"
+        )
+        assert json.loads(cancelled["content"])["error"]["code"] == "tool_call_cancelled"
+        assert any(
+            call["id"] == "cancelled-call"
+            for message in payload["messages"]
+            for call in message.get("tool_calls", [])
+        )
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("max_total_tokens", [15, 20])
+def test_adk_worker_token_budget_stops_before_response_tool_side_effect(
+    tmp_path: Path, max_total_tokens: int
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        response = tool_call(
+            "read_artifact",
+            {"namespace": "inputs", "name": "source"},
+            call_id="read-over-token-budget",
+        )
+        assert response.usage_metadata is not None
+        response.usage_metadata.total_token_count = 20
+        model = scripted_model([response])
+        runtime = await create_runtime(
+            tmp_path, state, tools, model, max_total_tokens=max_total_tokens
+        )
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.failure is not None
+        assert result.failure.code == "worker_budget_exhausted"
+        assert client.calls == []
+        assert len(model.requests) == 1
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert report.metrics.worker_budget is not None
+        assert report.metrics.worker_budget.observed_total_tokens == 20
+        assert report.metrics.worker_budget.exhausted == "total_tokens"
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_missing_token_usage_keeps_call_limits_effective(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        response = terminal_text("Done without provider token usage")
+        response.usage_metadata = None
+        state = WorkerState()
+        model = scripted_model([response])
+        runtime = await create_runtime(
+            tmp_path, state, {}, model, max_model_calls=2, max_total_tokens=10
+        )
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.result is not None
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert report.metrics.worker_budget is not None
+        assert report.metrics.worker_budget.observed_model_calls == 2
+        assert report.metrics.worker_budget.observed_total_tokens == 10
+        assert report.metrics.worker_budget.token_usage_unavailable == 1
+        assert report.metrics.worker_budget.exhausted is None
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_accepts_finalized_result_exactly_at_token_limit(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        model = scripted_model([terminal_text("Finished at the exact token ceiling")])
+        runtime = await create_runtime(tmp_path, state, {}, model, max_total_tokens=20)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.result is not None
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert report.metrics.worker_budget is not None
+        assert report.metrics.worker_budget.observed_total_tokens == 20
+        assert report.metrics.worker_budget.exhausted is None
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "trigger",
+    [
+        "cumulative-budget",
+        "context-window",
+        "tool-calls",
+        "tool-calls-missing-usage",
+        "tool-calls-parallel",
+    ],
+)
+def test_adk_worker_uses_one_terminal_summarizer_at_a_safe_tool_boundary(
+    tmp_path: Path,
+    trigger: str,
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        first_response = tool_call(
+            "read_artifact",
+            {"namespace": "inputs", "name": "source"},
+            call_id="read-before-summary",
+        )
+        expected_normal_total = 10
+        if trigger == "tool-calls-missing-usage":
+            first_response.usage_metadata = None
+            expected_normal_total = None
+        if trigger == "tool-calls-parallel":
+            for index in range(2):
+                first_response.content.parts.extend(
+                    tool_call(
+                        "read_artifact",
+                        {"namespace": "inputs", "name": "source"},
+                        call_id=f"overflow-{index}",
+                    ).content.parts
+                )
+        if trigger == "context-window":
+            assert first_response.usage_metadata is not None
+            # min(floor(8192 * .9), 8192 - 1024) == 7168.
+            first_response.usage_metadata.prompt_token_count = 7168
+            first_response.usage_metadata.total_token_count = 7171
+            expected_normal_total = 7171
+        normal_model = scripted_model([first_response])
+        summary_model = scripted_model(
+            [structured_result("Bounded terminal summary")],
+            model="worker-summary-model",
+        )
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            tools,
+            normal_model,
+            summary_model=summary_model,
+            max_output_tokens=1024,
+            context_window_tokens=8192,
+            cumulative_budget=10 if trigger == "cumulative-budget" else None,
+            max_tool_calls=1 if trigger.startswith("tool-calls") else 16,
+            summary_instructions="Summarize literally {subtaskId} with configured instructions.",
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None
+        assert completion.result.result == "Bounded terminal summary"
+        assert completion.result.summarized is True
+        assert completion.result.observations.tools["read_artifact"].calls == 1
+        assert len(normal_model.requests) == 1
+        assert len(summary_model.requests) == 1
+        summary_request = summary_model.requests[0]
+        assert summary_request["model"] == "worker-summary-model"
+        assert (
+            "Summarize literally {subtaskId} with configured instructions."
+            in summary_request["systemInstruction"]
+        )
+        assert summary_request["maxOutputTokens"] == 2048
+        assert summary_request["temperature"] == 0.0
+        assert summary_request["toolNames"] == []
+        assert summary_request["hasResponseSchema"] is True
+        assert "read_artifact" in summary_request["contentText"]
+        if trigger == "tool-calls-parallel":
+            assert "tool_call_not_executed" in summary_request["contentText"]
+            assert summary_request["contentText"].count("tool_call_not_executed") == 2
+        assert SECRET not in summary_request["contentText"]
+        assert client.calls == ["read_artifact"]
+
+        snapshot = await state.snapshot()
+        finished = snapshot["lastCompletedInvocation"]
+        assert finished["summarizer"]["phase"] == "succeeded"
+        assert finished["summarizer"]["modelCalls"] == 1
+        assert finished["summarizer"]["totalTokens"] == 10
+        assert finished["metrics"]["modelCalls"] == 1
+        assert "latestPromptTokens" not in finished["metrics"]
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert report.metrics.model_calls == 1
+        assert report.metrics.total_tokens == expected_normal_total
+        assert report.metrics.summarizer is not None
+        assert report.metrics.summarizer.attempts == 1
+        assert report.metrics.summarizer.succeeded == 1
+        assert report.metrics.summarizer.model_calls == 1
+        assert report.metrics.summarizer.total_tokens == 10
+        assert report.metrics.summarizer.failure_codes == {}
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_closes_ephemeral_gateway_summarizer_client(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        async def summarize(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "id": "chatcmpl-summary",
+                    "object": "chat.completion",
+                    "created": 1,
+                    "model": "worker-summary-model",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "finish_reason": "stop",
+                            "message": {
+                                "role": "assistant",
+                                "content": '{"subtaskId":"0","result":"Bounded summary"}',
+                            },
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 4,
+                        "completion_tokens": 3,
+                        "total_tokens": 7,
+                    },
+                },
+            )
+
+        summary_http = httpx.AsyncClient(
+            transport=httpx.MockTransport(summarize),
+            trust_env=False,
+        )
+        summary_model = OpenAICompatibleGatewayLlm(
+            model="worker-summary-model",
+            client_handle=new_gateway_client(
+                base_url="https://gateway.example/v1",
+                api_key=SECRET,
+                timeout_seconds=120,
+                http_client=summary_http,
+            ),
+        )
+        normal_model = scripted_model([tool_call("probe", {}, call_id="summary-probe")])
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {"probe": probe},
+            normal_model,
+            summary_model=summary_model,
+            cumulative_budget=10,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None
+        assert completion.result.result == "Bounded summary"
+        assert summary_model.closed
+        assert not summary_http.is_closed
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+        await summary_http.aclose()
+
+    asyncio.run(scenario())
+
+
+def spy_transcripts(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]]:
+    """Observe every TranscriptRecorder construction and record call."""
+
+    observed: dict[str, list[Any]] = {"created": [], "recorded": [], "secrets": []}
+    original_init = TranscriptRecorder.__init__
+    original_record = TranscriptRecorder.record
+
+    def init(self: TranscriptRecorder, *, include_reasoning: bool, secrets: Any = ()) -> None:
+        observed["created"].append(tuple(secrets))
+        original_init(self, include_reasoning=include_reasoning, secrets=secrets)
+
+    def record(self: TranscriptRecorder, event: Any) -> None:
+        observed["recorded"].append(event)
+        original_record(self, event)
+
+    def summarizer_secrets(context: WorkerBuildContext) -> tuple[str, ...]:
+        secrets = _summarizer_secrets(context)
+        observed["secrets"].append(secrets)
+        return secrets
+
+    monkeypatch.setattr(TranscriptRecorder, "__init__", init)
+    monkeypatch.setattr(TranscriptRecorder, "record", record)
+    monkeypatch.setattr(worker_runtime_module, "_summarizer_secrets", summarizer_secrets)
+    return observed
+
+
+def test_adk_worker_without_a_summarizer_records_no_transcript(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    observed = spy_transcripts(monkeypatch)
+
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        model = scripted_model(
+            [
+                tool_call(
+                    "read_artifact",
+                    {"namespace": "inputs", "name": "source"},
+                    call_id="read-1",
+                ),
+                terminal_text("Source read"),
+            ]
+        )
+        runtime = await create_runtime(tmp_path, state, tools, model)
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None
+        assert completion.result.result == "Source read"
+        assert completion.result.summarized is False
+        assert client.calls == ["read_artifact"]
+        assert observed == {"created": [], "recorded": [], "secrets": []}
+        finished = (await state.snapshot())["lastCompletedInvocation"]
+        assert finished["summarizer"]["phase"] == "disabled"
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_summarizer_receives_the_recorded_redacted_transcript(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    observed = spy_transcripts(monkeypatch)
+
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        first_response = tool_call(
+            "read_artifact",
+            {"namespace": "inputs", "name": "source"},
+            call_id="read-before-summary",
+        )
+        assert first_response.content is not None and first_response.content.parts is not None
+        first_response.content.parts.insert(
+            0, types.Part(text=f"Reading with {SECRET} under {tmp_path}")
+        )
+        normal_model = scripted_model([first_response])
+        summary_model = scripted_model(
+            [structured_result("Bounded terminal summary")],
+            model="worker-summary-model",
+        )
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            tools,
+            normal_model,
+            summary_model=summary_model,
+            cumulative_budget=10,
+        )
+        expected_secrets = _summarizer_secrets(runtime._context)
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None
+        assert completion.result.result == "Bounded terminal summary"
+        assert completion.result.summarized is True
+        assert observed["secrets"] == [expected_secrets]
+        assert observed["created"] == [expected_secrets]
+        events = list(observed["recorded"])
+        assert len(events) >= 2
+        # The summarizer receives exactly the bounded, redacted projection of
+        # the recorded normal-loop events (WRK-R146, WRK-R147).
+        replay = TranscriptRecorder(include_reasoning=False, secrets=expected_secrets)
+        for event in events:
+            replay.record(event)
+        expected_transcript = json.loads(json.dumps(replay.finish()))
+        content = summary_model.requests[0]["contentText"]
+        payload = json.loads(content.split("\n", 1)[1])
+        assert payload["transcript"] == expected_transcript
+        assert payload["transcriptTruncated"] is replay.truncated
+        assert "[REDACTED]" in json.dumps(payload["transcript"])
+        assert "read_artifact" in json.dumps(payload["transcript"])
+        assert SECRET not in content
+        assert str(tmp_path) not in content
+        finished = (await state.snapshot())["lastCompletedInvocation"]
+        assert finished["summarizer"]["phase"] == "succeeded"
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+REASONING_CANARY = "provider-reasoning-canary"
+
+
+@pytest.mark.parametrize("include_reasoning", [False, True])
+def test_adk_worker_summary_includes_provider_reasoning_only_when_enabled(
+    tmp_path: Path, include_reasoning: bool
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        responses = []
+        for index in range(2):
+            response = tool_call(
+                "read_artifact",
+                {"namespace": "inputs", "name": "source"},
+                call_id=f"read-with-reasoning-{index}",
+            )
+            assert response.content is not None and response.content.parts is not None
+            response.content.parts.insert(
+                0,
+                types.Part(text=f"{REASONING_CANARY}-{index} with {SECRET}", thought=True),
+            )
+            responses.append(response)
+        normal_model = CapturingScriptedLlm(model="deterministic-fake", responses=responses)
+        summary_model = scripted_model(
+            [structured_result("Summary with reasoning")], model="worker-summary-model"
+        )
+        # Each scripted call reports 10 tokens: the second call crosses 15.
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            tools,
+            normal_model,
+            summary_model=summary_model,
+            cumulative_budget=15,
+            include_reasoning=include_reasoning,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None and completion.result.summarized is True
+        assert len(normal_model.payloads) == 2
+        # The main Worker never replays provider reasoning (WRK-R181).
+        replayed = json.dumps(normal_model.payloads[1])
+        assert REASONING_CANARY not in replayed and "reasoning_content" not in replayed
+        request = summary_model.requests[0]
+        payload = json.loads(request["contentText"].split("\n", 1)[1])
+        reasoning = [
+            part["reasoning"]
+            for group in payload["transcript"]
+            for event in group
+            for part in event["parts"]
+            if "reasoning" in part
+        ]
+        instruction = str(request["systemInstruction"])
+        if include_reasoning:
+            assert reasoning == [
+                f"{REASONING_CANARY}-{index} with [REDACTED]" for index in range(2)
+            ]
+            assert payload["reasoningTruncated"] is False
+            assert REASONING_INPUT_INSTRUCTION in instruction
+        else:
+            assert reasoning == []
+            assert "reasoningTruncated" not in payload
+            assert REASONING_CANARY not in request["contentText"]
+            assert REASONING_INPUT_INSTRUCTION not in instruction
+        assert SECRET not in request["contentText"]
+        snapshot = json.dumps(await state.snapshot())
+        assert REASONING_CANARY not in snapshot
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_keeps_a_valid_normal_result_at_the_soft_boundary(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        normal_model = scripted_model([terminal_text("Normal result wins")])
+        summary_model = scripted_model([structured_result("Must not run")])
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {},
+            normal_model,
+            summary_model=summary_model,
+            cumulative_budget=10,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None
+        assert completion.result.result == "Normal result wins"
+        assert completion.result.summarized is False
+        assert len(normal_model.requests) == 2
+        assert summary_model.requests == []
+        snapshot = await state.snapshot()
+        assert snapshot["lastCompletedInvocation"]["summarizer"]["phase"] == "not_requested"
+        assert (
+            state.metrics.build_report(report_id="worker-report", duration_ms=1).metrics.summarizer
+            is None
+        )
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_does_not_guess_missing_usage_for_summarization(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        first = tool_call("probe", {}, call_id="missing-usage-probe")
+        first.usage_metadata = None
+        state = WorkerState()
+        normal_model = scripted_model([first, terminal_text("Completed normally")])
+        summary_model = scripted_model([structured_result("Must not run")])
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            normal_model,
+            summary_model=summary_model,
+            cumulative_budget=1,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None
+        assert completion.result.summarized is False
+        assert len(normal_model.requests) == 3
+        assert summary_model.requests == []
+        snapshot = await state.snapshot()
+        assert "latestPromptTokens" not in snapshot["lastCompletedInvocation"]["metrics"]
+        assert snapshot["lastCompletedInvocation"]["metrics"]["tokenUsageUnavailable"] == 1
+        assert snapshot["lastCompletedInvocation"]["summarizer"]["phase"] == "not_requested"
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_does_not_trigger_from_inconsistent_provider_usage(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        first = tool_call("probe", {}, call_id="inconsistent-usage-probe")
+        assert first.usage_metadata is not None
+        first.usage_metadata.prompt_token_count = 7168
+        first.usage_metadata.candidates_token_count = 3
+        first.usage_metadata.total_token_count = 100
+        state = WorkerState()
+        normal_model = scripted_model([first, terminal_text("Completed normally")])
+        summary_model = scripted_model([structured_result("Must not run")])
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            normal_model,
+            summary_model=summary_model,
+            max_output_tokens=1024,
+            context_window_tokens=8192,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None
+        assert completion.result.summarized is False
+        assert len(normal_model.requests) == 3
+        assert summary_model.requests == []
+        snapshot = await state.snapshot()
+        invocation = snapshot["lastCompletedInvocation"]
+        assert invocation["metrics"]["totalTokens"] == 20
+        assert invocation["metrics"]["tokenUsageUnavailable"] == 1
+        assert invocation["summarizer"]["phase"] == "not_requested"
+        budget = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.worker_budget
+        assert budget is not None
+        assert budget.observed_total_tokens == 20
+        assert budget.token_usage_unavailable == 1
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_reports_invalid_terminal_summary_as_one_safe_failure(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        state = WorkerState()
+        normal_model = scripted_model([tool_call("probe", {}, call_id="probe-1")])
+        summary_model = scripted_model([text_result("not structured")])
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            normal_model,
+            summary_model=summary_model,
+            cumulative_budget=10,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_summarization_failed"
+        assert completion.failure.retryable is True
+        assert "result_invalid" in completion.failure.message
+        assert len(normal_model.requests) == 1
+        assert len(summary_model.requests) == 1
+        snapshot = await state.snapshot()
+        summary = snapshot["lastCompletedInvocation"]["summarizer"]
+        assert summary["phase"] == "failed"
+        assert summary["failureCode"] == "result_invalid"
+        report_summary = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.summarizer
+        assert report_summary is not None
+        assert report_summary.attempts == 1
+        assert report_summary.failed == 1
+        assert report_summary.failure_codes == {"result_invalid": 1}
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "error_type,retryable", [("TimeoutError", True), ("BadRequestError", False)]
+)
+def test_terminal_summarizer_maps_provider_timeout_to_one_safe_failure(
+    tmp_path: Path,
+    error_type: str,
+    retryable: bool,
+) -> None:
+    class TimeoutSummaryModel(BaseLlm):
+        async def generate_content_async(self, _request: LlmRequest, stream: bool = False) -> Any:
+            del stream
+            if False:
+                yield None
+            raise GatewayModelError(error_type, retryable=retryable)
+
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        state = WorkerState()
+        normal_model = scripted_model([tool_call("probe", {}, call_id="timeout-probe")])
+        summary_model = TimeoutSummaryModel(model="worker-summary-model")
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            normal_model,
+            summary_model=summary_model,
+            cumulative_budget=10,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_summarization_failed"
+        assert completion.failure.retryable is retryable
+        summary = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.summarizer
+        assert summary is not None
+        assert summary.attempts == 1
+        assert summary.failed == 1
+        assert summary.model_calls == 1
+        assert summary.token_usage_unavailable == 1
+        assert summary.failure_codes == {"gateway_unavailable": 1}
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_terminal_summarizer_accounts_usage_of_a_rejected_gateway_response(
+    tmp_path: Path,
+) -> None:
+    class RejectedSummaryModel(BaseLlm):
+        async def generate_content_async(self, _request: LlmRequest, stream: bool = False) -> Any:
+            del stream
+            if False:
+                yield None
+            raise GatewayModelError(
+                "InvalidGatewayToolArguments",
+                response_received=True,
+                usage_metadata=types.GenerateContentResponseUsageMetadata(
+                    prompt_token_count=20, candidates_token_count=5, total_token_count=25
+                ),
+            )
+
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        state = WorkerState()
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            scripted_model([tool_call("probe", {}, call_id="rejected-probe")]),
+            summary_model=RejectedSummaryModel(model="worker-summary-model"),
+            cumulative_budget=10,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_summarization_failed"
+        summary = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.summarizer
+        assert summary is not None
+        assert summary.model_calls == 1
+        assert summary.input_tokens == 20
+        assert summary.output_tokens == 5
+        assert summary.total_tokens == 25
+        assert summary.token_usage_unavailable == 0
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("thought_only", [False, True])
+def test_terminal_summarizer_rejects_output_limited_response_and_keeps_usage(
+    tmp_path: Path, thought_only: bool
+) -> None:
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        state = WorkerState()
+        summary_response = (
+            thought_result("unfinished")
+            if thought_only
+            else structured_result("Valid-looking but truncated")
+        )
+        summary_response.finish_reason = types.FinishReason.MAX_TOKENS
+        summary_response.error_code = "MAX_TOKENS"
+        summary_model = scripted_model([summary_response], model="worker-summary-model")
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            scripted_model([tool_call("probe", {}, call_id="summary-limit-probe")]),
+            summary_model=summary_model,
+            cumulative_budget=10,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is None and completion.failure is not None
+        assert completion.failure.code == "worker_summarization_failed"
+        assert completion.failure.retryable
+        assert "output_limit_exceeded" in completion.failure.message
+        assert len(summary_model.requests) == 1
+        snapshot = await state.snapshot()
+        assert snapshot["lastCompletedInvocation"]["summarizer"]["failureCode"] == (
+            "output_limit_exceeded"
+        )
+        summary = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.summarizer
+        assert summary is not None
+        assert summary.model_calls == 1
+        assert summary.input_tokens == 7
+        assert summary.output_tokens == 3
+        assert summary.total_tokens == 10
+        assert summary.failure_codes == {"output_limit_exceeded": 1}
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_terminal_summarizer_enforces_its_independent_total_budget(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        state = WorkerState()
+        normal_model = scripted_model([tool_call("probe", {}, call_id="budget-probe")])
+        summary_response = structured_result("Summary beyond its own budget")
+        assert summary_response.usage_metadata is not None
+        summary_response.usage_metadata.total_token_count = 11
+        summary_model = scripted_model([summary_response], model="worker-summary-model")
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            normal_model,
+            summary_model=summary_model,
+            summary_max_total_tokens=10,
+            cumulative_budget=10,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_summarization_failed"
+        summary = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.summarizer
+        assert summary is not None
+        assert summary.model_calls == 1
+        assert summary.total_tokens == 11
+        assert summary.failure_codes == {"budget_exhausted": 1}
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_finalize_and_abort_never_start_an_idle_terminal_summarizer(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        for index, operation in enumerate(("finalize", "abort")):
+            normal_model = scripted_model([])
+            summary_model = scripted_model(
+                [structured_result("Must not run")], model="worker-summary-model"
+            )
+            runtime = await create_runtime(
+                tmp_path / operation,
+                WorkerState(),
+                {},
+                normal_model,
+                summary_model=summary_model,
+                cumulative_budget=10,
+            )
+            deadline = datetime.now(UTC) + timedelta(seconds=1)
+            if index == 0:
+                await runtime.finalize(deadline)
+            else:
+                await runtime.abort(deadline)
+            assert normal_model.requests == []
+            assert summary_model.requests == []
+
+    asyncio.run(scenario())
+
+
+def test_abort_cancels_terminal_summarizer_and_records_one_failed_attempt(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        state = WorkerState()
+        normal_model = scripted_model([tool_call("probe", {}, call_id="probe-before-abort")])
+        summary_model = scripted_model(
+            [structured_result("Too late")],
+            block=True,
+            model="worker-summary-model",
+        )
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            normal_model,
+            summary_model=summary_model,
+            cumulative_budget=10,
+        )
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(summary_model.started.wait(), timeout=1)
+
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+        with pytest.raises(asyncio.CancelledError):
+            await invocation
+        assert len(normal_model.requests) == 1
+        assert len(summary_model.requests) == 1
+        snapshot = await state.snapshot()
+        completed = snapshot["lastCompletedInvocation"]
+        assert completed["phase"] == "cancelled"
+        assert completed["summarizer"]["phase"] == "failed"
+        assert completed["summarizer"]["failureCode"] == "cancelled"
+        summary = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.summarizer
+        assert summary is not None
+        assert summary.attempts == 1
+        assert summary.failed == 1
+        assert summary.model_calls == 1
+        assert summary.failure_codes == {"cancelled": 1}
+
+    asyncio.run(scenario())
+
+
+def test_abort_cancels_long_running_adk_invocation(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        model = scripted_model(
+            [terminal_text("Too late")],
+            block=True,
+        )
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, model)
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(model.started.wait(), timeout=1)
+
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+        with pytest.raises(asyncio.CancelledError):
+            await invocation
+        assert state.metrics.final_outcome == "cancelled"
+        assert state.metrics.counters["llm_calls"] == 1
+        assert SECRET not in repr(state.metrics)
+
+    asyncio.run(scenario())
+
+
+def test_cancel_active_ignores_a_task_that_does_not_own_the_invocation(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        model = scripted_model([terminal_text("Too late")], block=True)
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, model)
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(model.started.wait(), timeout=1)
+        other = asyncio.current_task()
+        assert other is not None
+
+        runtime.cancel_active(other)
+        await asyncio.sleep(0)
+        assert not invocation.done()
+
+        runtime.cancel_active(invocation)
+        with pytest.raises(asyncio.CancelledError):
+            await invocation
+        assert state.metrics.final_outcome == "cancelled"
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", list(WorkerSessionMode))
+def test_partial_invocation_acquisition_releases_session_and_preserves_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: WorkerSessionMode
+) -> None:
+    async def scenario() -> None:
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {},
+            scripted_model([terminal_text("next")]),
+            session_mode=mode,
+        )
+        released: list[str | None] = []
+        finish = runtime._session_lifecycle.finish_invocation
+
+        async def record_finish() -> None:
+            released.append(runtime._session_lifecycle.active_session_id)
+            await finish()
+
+        def fail_budget(*_args: Any) -> Any:
+            raise RuntimeError("original budget acquisition failure")
+
+        monkeypatch.setattr(runtime._session_lifecycle, "finish_invocation", record_finish)
+        with monkeypatch.context() as patch:
+            patch.setattr(
+                "contractor_runtime.worker.invocation._summary_prompt_boundary", fail_budget
+            )
+            with pytest.raises(RuntimeError, match="original budget acquisition failure"):
+                await runtime.invoke(stage_request())
+        assert len(released) == 1 and released[0] is not None
+        assert runtime._session_lifecycle.active_session_id is None
+        assert runtime._invocation.task is None
+        assert runtime._invocation.budget is None
+        assert not runtime._invocation.lock.locked()
+        assert (await runtime.invoke(stage_request())).result is not None
+        assert len(released) == 2
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", list(WorkerSessionMode))
+@pytest.mark.parametrize("outcome", ["success", "budget", "finalizer"])
+def test_invocation_ownership_cleans_up_all_execution_outcomes(
+    tmp_path: Path, mode: WorkerSessionMode, outcome: str
+) -> None:
+    async def scenario() -> None:
+        model = scripted_model(
+            [terminal_text("result")],
+            result_finalizer_error=RuntimeError("private finalizer failure")
+            if outcome == "finalizer"
+            else None,
+        )
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {},
+            model,
+            session_mode=mode,
+            max_model_calls=1 if outcome == "budget" else 8,
+        )
+        completion = await runtime.invoke(stage_request())
+        assert (completion.result is not None) is (outcome == "success")
+        assert runtime._invocation.task is None
+        assert runtime._invocation.budget is None
+        assert not runtime._invocation.lock.locked()
+        assert runtime._session_lifecycle.active_session_id is None
+        # A failed invocation does not orphan ownership or fence a healthy session.
+        async with runtime._invocation.own():
+            assert runtime._invocation.task is asyncio.current_task()
+            assert runtime._invocation.budget is not None
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_cancellation_during_session_cleanup_cannot_publish_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {},
+            scripted_model([terminal_text("result")]),
+            session_mode=WorkerSessionMode.ISOLATED,
+        )
+        entered, proceed = asyncio.Event(), asyncio.Event()
+        finish = runtime._session_lifecycle.finish_invocation
+        releases = 0
+
+        async def delayed_finish() -> None:
+            nonlocal releases
+            releases += 1
+            entered.set()
+            await proceed.wait()
+            await finish()
+
+        monkeypatch.setattr(runtime._session_lifecycle, "finish_invocation", delayed_finish)
+        task = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(entered.wait(), timeout=1)
+        task.cancel()
+        assert runtime._invocation.lock.locked()
+        proceed.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert releases == 1
+        assert runtime._invocation.task is None
+        assert runtime._invocation.budget is None
+        assert not runtime._invocation.lock.locked()
+        assert runtime._session_lifecycle.active_session_id is None
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_cleanup_failure_does_not_mask_cancelled_invocation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        model = scripted_model([terminal_text("late")], block=True)
+        runtime = await create_runtime(tmp_path, WorkerState(), {}, model)
+
+        async def fail_finish() -> None:
+            raise WorkerSessionLifecycleError("delete_failed")
+
+        monkeypatch.setattr(runtime._session_lifecycle, "finish_invocation", fail_finish)
+        task = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(model.started.wait(), timeout=1)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert runtime._invocation.task is None
+        assert runtime._invocation.budget is None
+        assert not runtime._invocation.lock.locked()
+        assert not runtime._accepting
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_session_cleanup_timeout_is_bounded_and_keeps_invocation_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {},
+            scripted_model([terminal_text("result")]),
+        )
+
+        async def stuck_finish() -> None:
+            await asyncio.Event().wait()
+
+        monkeypatch.setattr(runtime._session_lifecycle, "finish_invocation", stuck_finish)
+        monkeypatch.setattr(
+            "contractor_runtime.worker.invocation.INVOCATION_CLEANUP_TIMEOUT_SECONDS", 0.05
+        )
+        completion = await asyncio.wait_for(runtime.invoke(stage_request()), timeout=1)
+        assert completion.result is None
+        assert completion.failure is not None
+        assert "cleanup_timeout" in completion.failure.message
+        snapshot = await state.snapshot()
+        assert completion.invocation_id == snapshot["lastCompletedInvocation"]["invocationId"]
+        assert completion.state_revision == snapshot["stateRevision"]
+        assert runtime._invocation.task is None
+        assert runtime._invocation.budget is None
+        assert not runtime._invocation.lock.locked()
+        assert not runtime._accepting
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+# stage_request() expires one hour after it is built; advancing the loop clock
+# by this much passes the deadline at a point the test chooses.
+PAST_STAGE_DEADLINE_SECONDS = timedelta(hours=1).total_seconds() + 1
+
+
+class SettlingScriptedLlm(ScriptedLlm):
+    """Record each started model call once it has ended, including by cancellation."""
+
+    settled: list[int] = Field(default_factory=list, exclude=True)
+
+    async def generate_content_async(
+        self, llm_request: LlmRequest, stream: bool = False
+    ) -> AsyncGenerator[LlmResponse]:
+        call = len(self.requests) + 1
+        try:
+            async for response in super().generate_content_async(llm_request, stream=stream):
+                yield response
+        finally:
+            self.settled.append(call)
+
+
+def settling_model(
+    responses: list[object],
+    *,
+    block_call_number: int | None = None,
+    model: str = "deterministic-fake",
+) -> SettlingScriptedLlm:
+    return SettlingScriptedLlm(
+        model=model,
+        responses=list(responses),
+        block_call_number=block_call_number,
+    )
+
+
+def assert_worker_timeout(completion: Any) -> None:
+    assert completion.result is None
+    assert completion.failure is not None
+    assert completion.failure.code == "worker_timeout"
+    assert completion.failure.message == "Worker invocation deadline exceeded"
+    assert completion.failure.retryable is True
+
+
+def assert_slot_released(runtime: AdkWorkerRuntime) -> None:
+    assert runtime._invocation.task is None
+    assert runtime._invocation.budget is None
+    assert not runtime._invocation.lock.locked()
+    assert runtime._session_lifecycle.active_session_id is None
+    # A deadline ends one invocation; it does not fence the Worker.
+    assert runtime._accepting
+
+
+def test_ordinary_worker_with_an_expired_deadline_starts_no_model_or_tool_call(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        tool_calls: list[str] = []
+
+        async def probe() -> dict[str, bool]:
+            tool_calls.append("probe")
+            return {"ok": True}
+
+        state = WorkerState()
+        model = scripted_model(
+            [tool_call("probe", {}, call_id="probe-after-deadline"), terminal_text("done")]
+        )
+        runtime = await create_runtime(
+            tmp_path, state, {"probe": probe}, model, session_mode=WorkerSessionMode.SHARED
+        )
+        expired = stage_request().model_copy(
+            update={
+                "deadline": datetime.now(UTC) - timedelta(days=1),
+                "objective": "EXPIRED_OBJECTIVE_SENTINEL",
+            }
+        )
+
+        # No CancelTask arrives: the Runtime alone refuses the expired call.
+        completion = await runtime.invoke(expired)
+
+        assert_worker_timeout(completion)
+        assert model.requests == []
+        assert tool_calls == []
+        assert state.metrics.counters.get("llm_calls", 0) == 0
+        snapshot = await state.snapshot()
+        completed = snapshot["lastCompletedInvocation"]
+        assert completed["invocationId"] == completion.invocation_id
+        assert completed["phase"] == "failed"
+        assert completed["metrics"]["modelCalls"] == 0
+        assert completed["metrics"]["toolCalls"] == 0
+        assert_slot_released(runtime)
+
+        later = await runtime.invoke(stage_request())
+
+        assert later.result is not None
+        assert later.result.result == "done"
+        assert tool_calls == ["probe"]
+        # The expired task never entered the shared conversation.
+        assert all(
+            "EXPIRED_OBJECTIVE_SENTINEL" not in call["contentText"] for call in model.requests
+        )
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("phase", ["model", "tool", "result_finalizer", "summarizer"])
+def test_deadline_during_an_ordinary_phase_cancels_and_joins_its_work(
+    tmp_path: Path, phase: str
+) -> None:
+    async def scenario() -> None:
+        tool_entered = asyncio.Event()
+        tool_settled: list[str] = []
+
+        async def probe() -> dict[str, bool]:
+            if phase == "tool":
+                tool_entered.set()
+                try:
+                    await asyncio.Event().wait()
+                finally:
+                    tool_settled.append("probe")
+            return {"ok": True}
+
+        state = WorkerState()
+        instrumentation = RecordingInstrumentation()
+        summary_model: SettlingScriptedLlm | None = None
+        if phase == "model":
+            model = settling_model([terminal_text("late")], block_call_number=1)
+        elif phase == "tool":
+            model = settling_model(
+                [tool_call("probe", {}, call_id="blocked-probe"), terminal_text("late")]
+            )
+        elif phase == "result_finalizer":
+            model = settling_model([terminal_text("late")], block_call_number=2)
+        else:
+            model = settling_model([tool_call("probe", {}, call_id="probe-before-summary")])
+            summary_model = settling_model(
+                [structured_result("late")],
+                block_call_number=1,
+                model="worker-summary-model",
+            )
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            model,
+            instrumentation=instrumentation,
+            summary_model=summary_model,
+            cumulative_budget=10 if summary_model is not None else None,
+        )
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        in_flight = tool_entered if phase == "tool" else (summary_model or model).blocked
+        await asyncio.wait_for(in_flight.wait(), timeout=1)
+
+        # No CancelTask arrives: only the Runtime's own deadline ends the work.
+        advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+        completion = await asyncio.wait_for(invocation, timeout=1)
+
+        assert_worker_timeout(completion)
+        # The work in flight ended before the invocation did, and nothing followed it.
+        if phase == "tool":
+            assert tool_settled == ["probe"]
+            assert len(model.requests) == 1
+        elif phase == "summarizer":
+            assert summary_model is not None
+            assert len(summary_model.requests) == 1
+            assert summary_model.settled == [1]
+            assert len(model.requests) == 1
+        else:
+            blocked_call = 1 if phase == "model" else 2
+            assert len(model.requests) == blocked_call
+            assert blocked_call in model.settled
+        snapshot = await state.snapshot()
+        completed = snapshot["lastCompletedInvocation"]
+        assert completed["invocationId"] == completion.invocation_id
+        assert completed["phase"] == "failed"
+        if phase == "summarizer":
+            assert completed["summarizer"]["phase"] == "failed"
+            assert completed["summarizer"]["failureCode"] == "cancelled"
+        # The terminal revision satisfies the Worker State contract.
+        agent_state = await runtime.agent_state_snapshot()
+        assert agent_state.state.last_completed_invocation is not None
+        if phase in {"model", "result_finalizer"}:
+            model_spans = [
+                span for span in instrumentation.spans if span.name == "contractor.worker.model"
+            ]
+            assert model_spans[-1].outcome == "cancelled"
+            assert (model_spans[-1].attributes.get("model.phase") == "finalization") is (
+                phase == "result_finalizer"
+            )
+        assert_slot_released(runtime)
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    run_with_advanceable_clock(scenario())
+
+
+@pytest.mark.parametrize("mode", list(WorkerSessionMode))
+@pytest.mark.parametrize("phase", ["model", "tool", "result_finalizer"])
+@pytest.mark.parametrize("ending", ["cancellation", "deadline"])
+def test_interrupted_callback_startup_closes_terminal_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: WorkerSessionMode,
+    phase: str,
+    ending: str,
+) -> None:
+    async def scenario() -> None:
+        tool_calls: list[str] = []
+
+        async def probe() -> dict[str, bool]:
+            tool_calls.append("probe")
+            return {"ok": True}
+
+        state = WorkerState()
+        instrumentation = RecordingInstrumentation()
+        responses = (
+            [tool_call("probe", {}, call_id="unstarted-probe"), terminal_text("Recovered")]
+            if phase == "tool"
+            else [terminal_text("Ready"), terminal_text("Recovered")]
+        )
+        model = scripted_model(responses)
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            model,
+            instrumentation=instrumentation,
+            session_mode=mode,
+        )
+        entered = asyncio.Event()
+        publish = state.publish_invocation_metrics
+
+        async def gated_publish(**kwargs: Any) -> Any:
+            pending = {
+                "model": runtime._plugin._pending_models,
+                "tool": runtime._plugin._pending_tools,
+                "result_finalizer": runtime._plugin._pending_auxiliary_models,
+            }[phase]
+            if pending and not entered.is_set():
+                entered.set()
+                await asyncio.Event().wait()
+            return await publish(**kwargs)
+
+        monkeypatch.setattr(state, "publish_invocation_metrics", gated_publish)
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(entered.wait(), timeout=1)
+        if ending == "cancellation":
+            runtime.cancel_active(invocation)
+            with pytest.raises(asyncio.CancelledError):
+                await invocation
+        else:
+            advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+            completion = await asyncio.wait_for(invocation, timeout=1)
+            assert_worker_timeout(completion)
+
+        snapshot = await state.snapshot()
+        assert snapshot["currentInvocation"] is None
+        completed = snapshot["lastCompletedInvocation"]
+        assert completed["phase"] == ("cancelled" if ending == "cancellation" else "failed")
+        assert len(model.requests) == (0 if phase == "model" else 1)
+        assert tool_calls == []
+        assert completed["metrics"]["modelCalls"] == (2 if phase == "result_finalizer" else 1)
+        assert completed["metrics"]["modelErrors"] == 0
+        assert runtime._plugin._active_invocation_id is None
+        assert not runtime._plugin._pending_models
+        assert not runtime._plugin._pending_auxiliary_models
+        assert not runtime._plugin._pending_tools
+        assert all(span.end_calls == 1 for span in instrumentation.spans)
+        callback_spans = [
+            span
+            for span in instrumentation.spans
+            if span.name in {"contractor.worker.model", "contractor.worker.tool"}
+        ]
+        assert callback_spans[-1].outcome == "cancelled"
+        assert_slot_released(runtime)
+        assert (await runtime.agent_state_snapshot()).state.current_invocation is None
+        sessions = await runtime._session_service.list_sessions(
+            app_name=runtime._app_name, user_id=runtime._user_id
+        )
+        assert len(sessions.sessions) == (1 if mode == WorkerSessionMode.SHARED else 0)
+        # A cancelled callback does not leave pending instrumentation or fence a healthy slot.
+        later = await runtime.invoke(stage_request())
+        assert later.result is not None
+        assert later.failure is None
+        assert_slot_released(runtime)
+        assert all(span.end_calls == 1 for span in instrumentation.spans)
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    run_with_advanceable_clock(scenario())
+
+
+@pytest.mark.parametrize("boundary", ["next_model_call", "result_finalizer"])
+def test_deadline_passing_at_a_step_boundary_starts_no_next_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, boundary: str
+) -> None:
+    """The clock passes the deadline in this task's ADK hooks, before its timer fires."""
+
+    async def scenario() -> None:
+        tool_calls: list[str] = []
+
+        async def probe() -> dict[str, bool]:
+            tool_calls.append("probe")
+            return {"ok": True}
+
+        state = WorkerState()
+        instrumentation = RecordingInstrumentation()
+        if boundary == "next_model_call":
+            model = scripted_model(
+                [tool_call("probe", {}, call_id="probe-1"), terminal_text("late")]
+            )
+        else:
+            model = scripted_model([terminal_text("late")])
+        runtime = await create_runtime(
+            tmp_path, state, {"probe": probe}, model, instrumentation=instrumentation
+        )
+        if boundary == "next_model_call":
+            original_on_event = runtime._plugin.on_event_callback
+
+            async def on_event(*, invocation_context: Any, event: Any) -> None:
+                await original_on_event(invocation_context=invocation_context, event=event)
+                if event.get_function_responses():
+                    advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+
+            monkeypatch.setattr(runtime._plugin, "on_event_callback", on_event)
+        else:
+
+            async def after_run(*, invocation_context: Any) -> None:
+                del invocation_context
+                advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+
+            monkeypatch.setattr(runtime._plugin, "after_run_callback", after_run)
+
+        # The guard outlives the clock jump that happens during the invocation.
+        completion = await asyncio.wait_for(
+            runtime.invoke(stage_request()), timeout=PAST_STAGE_DEADLINE_SECONDS + 10
+        )
+
+        assert_worker_timeout(completion)
+        # A call counts as started before the provider sees it: only the first
+        # main model call started, and no model or finalizer call followed.
+        assert state.metrics.counters["llm_calls"] == 1
+        assert len(model.requests) == 1
+        model_spans = [
+            span for span in instrumentation.spans if span.name == "contractor.worker.model"
+        ]
+        assert len(model_spans) == 1
+        assert model_spans[0].outcome == "succeeded"
+        assert tool_calls == ([] if boundary == "result_finalizer" else ["probe"])
+        assert_slot_released(runtime)
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    run_with_advanceable_clock(scenario())
+
+
+@pytest.mark.parametrize("ending", ["deadline_check", "deadline_timer", "cancellation"])
+def test_an_invocation_ending_before_its_summarizer_starts_closes_the_request(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ending: str
+) -> None:
+    """The request is committed; the invocation ends before the summarizer runs."""
+
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        state = WorkerState()
+        instrumentation = RecordingInstrumentation()
+        model = scripted_model([tool_call("probe", {}, call_id="probe-before-summary")])
+        summary_model = scripted_model([structured_result("late")], model="worker-summary-model")
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            model,
+            instrumentation=instrumentation,
+            summary_model=summary_model,
+            cumulative_budget=10,
+        )
+        parked = asyncio.Event()
+        never_released = asyncio.Event()
+
+        # ADK reports the committed summarization request as a run error from
+        # the invocation's own task, before Runtime starts the summarizer.
+        async def on_run_error(*, invocation_context: Any, error: Exception) -> None:
+            del invocation_context, error
+            if ending == "deadline_check":
+                # The deadline passes without this task yielding to its timer.
+                advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+                return
+            parked.set()
+            await never_released.wait()
+
+        monkeypatch.setattr(runtime._plugin, "on_run_error_callback", on_run_error)
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        if ending != "deadline_check":
+            await asyncio.wait_for(parked.wait(), timeout=5)
+            if ending == "deadline_timer":
+                advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+            else:
+                runtime.cancel_active(invocation)
+
+        if ending == "cancellation":
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(invocation, timeout=5)
+            expected_phase = "cancelled"
+        else:
+            # The guard outlives the clock jump that happens during the invocation.
+            assert_worker_timeout(
+                await asyncio.wait_for(invocation, timeout=PAST_STAGE_DEADLINE_SECONDS + 10)
+            )
+            expected_phase = "failed"
+
+        # No summarizer call started, and the request did not stay pending.
+        assert summary_model.requests == []
+        assert len(model.requests) == 1
+        snapshot = await state.snapshot()
+        completed = snapshot["lastCompletedInvocation"]
+        assert completed["phase"] == expected_phase
+        summarizer = completed["summarizer"]
+        assert summarizer["phase"] == "failed"
+        assert summarizer["failureCode"] == "cancelled"
+        assert summarizer["modelCalls"] == 0
+        summary_metrics = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.summarizer
+        assert summary_metrics is not None
+        assert (summary_metrics.attempts, summary_metrics.failed) == (1, 1)
+        assert summary_metrics.model_calls == 0
+        assert summary_metrics.failure_codes == {"cancelled": 1}
+        # GET Worker State validates the terminal revision instead of failing.
+        agent_state = await runtime.agent_state_snapshot()
+        assert agent_state.state.last_completed_invocation is not None
+        assert agent_state.state.last_completed_invocation.phase == expected_phase
+        assert agent_state.state.last_completed_invocation.summarizer.phase == "failed"
+        if ending == "cancellation":
+            assert not runtime._invocation.lock.locked()
+            await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+        else:
+            assert_slot_released(runtime)
+            await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    run_with_advanceable_clock(scenario())
+
+
+def test_summary_factory_crossing_deadline_starts_no_summary_call(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        state = WorkerState()
+        instrumentation = RecordingInstrumentation()
+        main = scripted_model([tool_call("probe", {}, call_id="before-summary-deadline")])
+        summary = scripted_model([structured_result("late")], model="worker-summary-model")
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            main,
+            summary_model=summary,
+            cumulative_budget=10,
+            instrumentation=instrumentation,
+        )
+
+        def expired_summary_factory(context: WorkerBuildContext) -> BaseLlm:
+            assert context.model_policy.model == "worker-summary-model"
+            advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+            return summary
+
+        runtime._pipeline._model_factory = expired_summary_factory
+        completion = await runtime.invoke(stage_request())
+        assert_worker_timeout(completion)
+        assert len(main.requests) == 1
+        assert summary.requests == []
+        completed = (await state.snapshot())["lastCompletedInvocation"]
+        assert completed["summarizer"]["phase"] == "failed"
+        assert completed["summarizer"]["failureCode"] == "cancelled"
+        assert completed["summarizer"]["modelCalls"] == 0
+        model_spans = [
+            span for span in instrumentation.spans if span.name == "contractor.worker.model"
+        ]
+        assert len(model_spans) == 1
+        assert model_spans[0].outcome == "succeeded"
+        assert_slot_released(runtime)
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    run_with_advanceable_clock(scenario())
+
+
+def test_cancellation_requested_before_the_deadline_stays_a_cancellation(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        model = scripted_model([terminal_text("late")], block=True)
+        runtime = await create_runtime(tmp_path, state, {}, model)
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(model.blocked.wait(), timeout=1)
+
+        # CancelTask wins; the deadline then passes while the cancellation unwinds.
+        runtime.cancel_active(invocation)
+        advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+
+        with pytest.raises(asyncio.CancelledError):
+            await invocation
+        assert state.metrics.final_outcome == "cancelled"
+        snapshot = await state.snapshot()
+        assert snapshot["lastCompletedInvocation"]["phase"] == "cancelled"
+        assert len(model.requests) == 1
+        assert not runtime._invocation.lock.locked()
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    run_with_advanceable_clock(scenario())
+
+
+@pytest.mark.parametrize(
+    ("deadline_seconds", "advance_seconds", "expected_code"),
+    [
+        # The Gateway operation timeout (requestTimeoutSeconds + 60 s) fires first.
+        (3600, 62, "worker_gateway_unavailable"),
+        # The Stage deadline fires before the Gateway's own timeout.
+        (30, 31, "worker_timeout"),
+    ],
+)
+def test_gateway_operation_timeout_and_stage_deadline_keep_separate_outcomes(
+    tmp_path: Path, deadline_seconds: int, advance_seconds: int, expected_code: str
+) -> None:
+    async def scenario() -> None:
+        sent = asyncio.Event()
+        settled: list[str] = []
+
+        async def gateway(_request: httpx.Request) -> httpx.Response:
+            sent.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                settled.append("request")
+            raise AssertionError("unreachable")
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            handle = new_gateway_client(
+                base_url="https://gateway.example/v1",
+                api_key=SECRET,
+                timeout_seconds=1,
+                http_client=http,
+            )
+            handle.max_retries = 0
+            runtime = await create_runtime(
+                tmp_path,
+                WorkerState(),
+                {},
+                OpenAICompatibleGatewayLlm(model="worker-model", client_handle=handle),
+            )
+            request = stage_request().model_copy(
+                update={"deadline": datetime.now(UTC) + timedelta(seconds=deadline_seconds)}
+            )
+            invocation = asyncio.create_task(runtime.invoke(request))
+            await asyncio.wait_for(sent.wait(), timeout=1)
+
+            advance_clock(advance_seconds)
+            completion = await asyncio.wait_for(invocation, timeout=1)
+
+            assert completion.result is None
+            assert completion.failure is not None
+            assert completion.failure.code == expected_code
+            assert completion.failure.retryable is True
+            assert settled == ["request"]
+            assert_slot_released(runtime)
+            await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    run_with_advanceable_clock(scenario())
+
+
+def test_a_nested_timeout_before_the_deadline_is_not_worker_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model = scripted_model([])
+
+    async def nested_timeout(_model: object, _request: object, stream: bool = False) -> Any:
+        del stream
+        if False:
+            yield None
+        raise TimeoutError("an operation inside the model call timed out")
+
+    monkeypatch.setattr(type(model), "generate_content_async", nested_timeout)
+
+    async def scenario() -> None:
+        runtime = await create_runtime(tmp_path, WorkerState(), {}, model)
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is None
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_execution_failed"
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("cleanup", ["completes", "stuck"])
+def test_session_cleanup_after_the_deadline_keeps_its_own_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cleanup: str
+) -> None:
+    async def scenario() -> None:
+        model = scripted_model([terminal_text("late")], block=True)
+        runtime = await create_runtime(
+            tmp_path, WorkerState(), {}, model, session_mode=WorkerSessionMode.ISOLATED
+        )
+        entered, proceed = asyncio.Event(), asyncio.Event()
+        finish = runtime._session_lifecycle.finish_invocation
+        releases = 0
+
+        async def gated_finish() -> None:
+            nonlocal releases
+            releases += 1
+            entered.set()
+            await proceed.wait()
+            await finish()
+
+        monkeypatch.setattr(runtime._session_lifecycle, "finish_invocation", gated_finish)
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(model.blocked.wait(), timeout=1)
+        advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+
+        # Release starts after the deadline and is not cut short by it.
+        await asyncio.wait_for(entered.wait(), timeout=1)
+        assert not invocation.done()
+        if cleanup == "completes":
+            proceed.set()
+        else:
+            advance_clock(INVOCATION_CLEANUP_TIMEOUT_SECONDS + 1)
+        completion = await asyncio.wait_for(invocation, timeout=1)
+
+        assert_worker_timeout(completion)
+        assert releases == 1
+        assert not runtime._invocation.lock.locked()
+        if cleanup == "completes":
+            assert_slot_released(runtime)
+        else:
+            # A release that exceeds its own budget fences the Worker, as
+            # without a deadline.
+            assert not runtime._accepting
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    run_with_advanceable_clock(scenario())
+
+
+def test_deadline_stops_an_ordinary_model_recovery_wait(tmp_path: Path) -> None:
+    from test_gateway_recovery import Authority
+
+    async def scenario() -> None:
+        authority = Authority(wait=True)
+        sent: list[httpx.Request] = []
+
+        async def gateway(request: httpx.Request) -> httpx.Response:
+            sent.append(request)
+            return httpx.Response(500)
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            handle = new_gateway_client(
+                base_url="https://gateway.example/v1",
+                api_key=SECRET,
+                timeout_seconds=1,
+                http_client=http,
+                recovery=authority,
+            )
+            runtime = await create_runtime(
+                tmp_path,
+                WorkerState(),
+                {},
+                OpenAICompatibleGatewayLlm(model="worker-model", client_handle=handle),
+            )
+            invocation = asyncio.create_task(runtime.invoke(stage_request()))
+            await asyncio.wait_for(authority.observed.wait(), timeout=1)
+
+            advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+            completion = await asyncio.wait_for(invocation, timeout=1)
+
+            assert_worker_timeout(completion)
+            assert sent == []
+            assert authority.events
+            assert {event[2] for event in authority.events} == {"acquire"}
+            assert_slot_released(runtime)
+            await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    run_with_advanceable_clock(scenario())
+
+
+def test_gateway_model_bounds_transport_retries_and_aggregate_timeout(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        context = build_context(tmp_path, WorkerState(), {})
+        model = gateway_model(context)
+
+        assert isinstance(model, OpenAICompatibleGatewayLlm)
+        assert model._client_handle.max_retries == 3
+        assert model._client_handle.operation_timeout_seconds == (
+            context.runtime_settings.request_timeout_seconds + 60
+        )
+        await model.close()
+
+    asyncio.run(scenario())
+
+
+async def create_runtime(
+    tmp_path: Path,
+    state: WorkerState,
+    tools: dict[str, object],
+    model: object,
+    *,
+    max_output_tokens: int = 4096,
+    max_model_calls: int = 8,
+    max_tool_calls: int = 16,
+    max_total_tokens: int = 32768,
+    instrumentation: RuntimeInstrumentation | None = None,
+    project_workspace: Any = None,
+    summary_model: object | None = None,
+    summary_max_total_tokens: int | None = None,
+    summary_instructions: str | None = None,
+    cumulative_budget: int | None = None,
+    include_reasoning: bool = False,
+    context_window_tokens: int = 131_072,
+    context_window_ratio: float = 0.9,
+    session_mode: WorkerSessionMode = WorkerSessionMode.SHARED,
+    settings: RuntimeSettings | None = None,
+    instruction: str | None = None,
+    response_recovery: str | None = None,
+) -> AdkWorkerRuntime:
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    context = build_context(tmp_path, state, tools)
+    context = replace(
+        context, worker_session_mode=session_mode, response_recovery=response_recovery
+    )
+    if instruction is not None:
+        context = replace(context, instruction=instruction)
+    if settings is not None:
+        context = replace(context, runtime_settings=settings)
+    if instrumentation is not None:
+        context = replace(
+            context,
+            adapter_handles=AdapterHandles(instrumentation=instrumentation),
+        )
+    if project_workspace is not None:
+        context = replace(context, project_workspace=project_workspace)
+    context = replace(
+        context,
+        model_policy=context.model_policy.model_copy(
+            update={
+                "context_window_tokens": (
+                    context_window_tokens if summary_model is not None else None
+                ),
+                "max_output_tokens": max_output_tokens,
+                "max_model_calls": max_model_calls,
+                "max_tool_calls": max_tool_calls,
+                "max_total_tokens": max_total_tokens,
+            }
+        ),
+    )
+    if summary_model is not None:
+        summary_policy = ResolvedModelPolicy(
+            ref=ModelPolicyRef(
+                policyId="worker_summarizer",
+                version="1",
+                digest="sha256:" + "9" * 64,
+            ),
+            model="worker-summary-model",
+            contextWindowTokens=131_072,
+            maxOutputTokens=2048,
+            maxModelCalls=1,
+            **(
+                {"maxTotalTokens": summary_max_total_tokens}
+                if summary_max_total_tokens is not None
+                else {}
+            ),
+            temperature=0.0,
+        )
+        context = replace(
+            context,
+            summarizer=WorkerSummarizerConfig(
+                **(
+                    {
+                        "instructions": ResolvedInstructions(
+                            ref="instructions/custom-summary.md",
+                            digest="sha256:" + "a" * 64,
+                            text=summary_instructions,
+                        )
+                    }
+                    if summary_instructions is not None
+                    else {}
+                ),
+                modelPolicy=summary_policy,
+                contextWindowRatio=context_window_ratio,
+                **(
+                    {"cumulativeBudget": cumulative_budget} if cumulative_budget is not None else {}
+                ),
+                includeReasoning=include_reasoning,
+            ),
+        )
+
+    def select_model(build: WorkerBuildContext) -> object:
+        if build.model_policy.model == "worker-summary-model":
+            if summary_model is None:
+                raise RuntimeError("summary model was not supplied")
+            return summary_model
+        return model
+
+    factory = AdkWorkerRuntimeFactory(select_model)  # type: ignore[arg-type]
+    runtime = await factory.create(context)
+    assert isinstance(runtime, AdkWorkerRuntime)
+    return runtime
+
+
+async def selected_tools(
+    tmp_path: Path, client: FakeArtifactClient, state: WorkerState
+) -> dict[str, object]:
+    settings = runtime_settings()
+    result = {}
+    for factory, selected in [
+        (RunArtifactsToolsetFactory(lambda *_: client), ["read_artifact"]),
+        (TextArtifactsToolsetFactory(lambda *_: client), ["write_text_artifact"]),
+    ]:
+        result.update(
+            await factory.create_selected(
+                selected=selected,
+                allocation_id="allocation-1",
+                run_id="run-1",
+                namespace="builder",
+                runtime_settings=settings,
+                workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
+                resources=state.resources,
+            )
+        )
+    return result
+
+
+async def selected_memory_tools(
+    tmp_path: Path, client: object, state: WorkerState
+) -> dict[str, object]:
+    factory = MemoryToolsetFactory(lambda _allocation, _settings: client)  # type: ignore[arg-type,return-value]
+    result = await factory.create_selected(
+        selected=["write_memory"],
+        allocation_id="allocation-1",
+        run_id="run-1",
+        namespace="builder",
+        runtime_settings=runtime_settings(),
+        workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
+        resources=state.resources,
+    )
+    return dict(result)
+
+
+def build_context(
+    tmp_path: Path, state: WorkerState, tools: dict[str, object]
+) -> WorkerBuildContext:
+    template = agent_template()
+    return WorkerBuildContext(
+        allocation_id="allocation-1",
+        run_id="run-1",
+        stage_execution_id="stage-execution-1",
+        logical_agent_name="builder",
+        namespace="builder",
+        worker_session_mode=WorkerSessionMode.SHARED,
+        description=template.description,
+        instruction=template.instructions.text,
+        card_version=template.ref.version,
+        model_policy=worker_policy(),
+        workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
+        tools=tools,  # type: ignore[arg-type]
+        state=state,
+        resources=state.resources,
+        a2a_base_url="https://runtime.example",
+        runtime_settings=runtime_settings(),
+        # What AllocationService passes for the production registry.
+    )
+
+
+class RecordingInstrumentation:
+    def __init__(self) -> None:
+        self.spans: list[RecordingSpan] = []
+
+    def start_span(
+        self,
+        name: str,
+        *,
+        attributes: dict[str, TelemetryAttribute] | None = None,
+    ) -> RuntimeSpan:
+        span = RecordingSpan(name, attributes or {})
+        self.spans.append(span)
+        return span
+
+
+class RecordingSpan:
+    def __init__(self, name: str, attributes: dict[str, TelemetryAttribute]) -> None:
+        self.name = name
+        self.attributes = dict(attributes)
+        self.outcome: str | None = None
+        self.end_calls = 0
+
+    def end(
+        self,
+        *,
+        outcome: str,
+        attributes: dict[str, TelemetryAttribute] | None = None,
+    ) -> None:
+        self.end_calls += 1
+        self.outcome = outcome
+        if attributes is not None:
+            self.attributes.update(attributes)
+
+    def __repr__(self) -> str:
+        return (
+            f"RecordingSpan(name={self.name!r}, outcome={self.outcome!r}, "
+            f"attribute_keys={tuple(sorted(self.attributes))!r})"
+        )
+
+
+def agent_template() -> ResolvedAgentTemplate:
+    return ResolvedAgentTemplate(
+        ref=AgentTemplateRef(
+            templateId="artifact_builder", version="1", digest="sha256:" + "0" * 64
+        ),
+        description="Build artifacts",
+        runtime=WorkerRuntimeRef(runtimeId="adk", version="1"),
+        instructions=ResolvedInstructions(
+            ref="instructions/worker.md", digest="sha256:" + "1" * 64, text="Use tools."
+        ),
+        toolsets=[
+            ToolsetSelection(
+                ref=ToolsetRef(toolsetId="run-artifacts", version="1"),
+                tools=["read_artifact"],
+            ),
+            ToolsetSelection(
+                ref=ToolsetRef(toolsetId="text-artifacts", version="1"),
+                tools=["write_text_artifact"],
+            ),
+        ],
+        sandboxProfile=SandboxProfileRef(sandboxProfileId="local-workdir", version="1"),
+    )
+
+
+def runtime_settings() -> RuntimeSettings:
+    return RuntimeSettings(
+        llmGatewayUrl="https://llm.example/v1",
+        llmGatewayToken=SECRET,
+        artifactApiUrl="https://control.example/private/v1",
+        requestTimeoutSeconds=30,
+    )
+
+
+def stage_request() -> StageContentRequest:
+    return StageContentRequest(
+        apiVersion=API_VERSION,
+        deadline=datetime.now(UTC) + timedelta(hours=1),
+        subtaskId="0",
+        objective="Build a report",
+        instructions="Read the input and write the report.",
+        parameters={"format": "json"},
+        artifacts={"source": ArtifactRef(namespace="inputs", name="source", revision="input-r1")},
+        resultArtifacts={"report": ArtifactRef(namespace="builder", name="report")},
+    )
+
+
+class FakeArtifactClient:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+        self._known: dict[tuple[str, str, str], ArtifactRef] = {}
+        self._observed: list[ArtifactRef] = []
+
+    @property
+    def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
+        return tuple(self._known.values())
+
+    @property
+    def observation_cursor(self) -> int:
+        return len(self._observed)
+
+    def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
+        return tuple(self._observed[cursor:])
+
+    async def read_artifact_metadata(self, ref: ArtifactRef) -> ArtifactMetadataResult:
+        # The read tools resolve the exact revision before the payload
+        # (ART-R116); like the real client, this is not a content read.
+        return ArtifactMetadataResult(
+            contentCacheKey="test_metadata_version",
+            apiVersion=API_VERSION,
+            artifact=ArtifactRef(namespace=ref.namespace, name=ref.name, revision="read-r1"),
+            mediaType="text/plain",
+            size=len(b"source"),
+        )
+
+    async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
+        self.calls.append("read_artifact")
+        exact = ArtifactRef(namespace=ref.namespace, name=ref.name, revision="read-r1")
+        self._remember(exact)
+        return ArtifactValue(
+            artifact=exact,
+            media_type="text/plain",
+            data=b"source",
+            binding_created_at=datetime.now(UTC),
+            revision_created_at=datetime.now(UTC),
+        )
+
+    async def write_artifact(
+        self,
+        target: ArtifactRef,
+        *,
+        data: bytes,
+        media_type: str,
+        expected_revision: str | None,
+    ) -> ArtifactWriteResult:
+        del expected_revision
+        self.calls.append("write_artifact")
+        exact = ArtifactRef(namespace=target.namespace, name=target.name, revision="write-r1")
+        self._remember(exact)
+        return ArtifactWriteResult(
+            apiVersion=API_VERSION,
+            artifact=exact,
+            mediaType=media_type,
+            size=len(data),
+        )
+
+    def _remember(self, ref: ArtifactRef) -> None:
+        assert ref.revision is not None
+        self._known[(ref.namespace, ref.name, ref.revision)] = ref
+        self._observed.append(ref)
+
+
+class NoArtifactAccessClient:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    async def list_artifact_prefix(
+        self, namespace: str, name_prefix: str, *, limit: int
+    ) -> list[ArtifactRef]:
+        del namespace, name_prefix, limit
+        self.calls.append("list_artifact_prefix")
+        raise AssertionError("malformed Memory arguments reached ArtifactClient")
+
+    async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
+        del ref
+        self.calls.append("read_artifact")
+        raise AssertionError("malformed Memory arguments reached ArtifactClient")
+
+    async def write_artifact(self, *args: object, **kwargs: object) -> ArtifactWriteResult:
+        del args, kwargs
+        self.calls.append("write_artifact")
+        raise AssertionError("malformed Memory arguments reached ArtifactClient")
+
+
+class RefExposingTool:
+    def __init__(self, ref: ArtifactRef) -> None:
+        self.__name__ = "ref_probe"
+        self.__doc__ = "Expose trusted test provenance."
+        self._ref = ref
+        self._observations = 0
+
+    @property
+    def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
+        return (self._ref,)
+
+    @property
+    def artifact_observation_cursor(self) -> int:
+        return self._observations
+
+    def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
+        return (self._ref,) if cursor < self._observations else ()
+
+    async def __call__(self) -> dict[str, bool]:
+        self._observations += 1
+        return {"ok": True}
+
+
+class CapturingInstrumentation(RecordingInstrumentation):
+    def __init__(self) -> None:
+        super().__init__()
+        self.content: list[tuple[str, str]] = []
+
+    def start_span(
+        self,
+        name: str,
+        *,
+        attributes: dict[str, TelemetryAttribute] | None = None,
+    ) -> RuntimeSpan:
+        span = CapturingSpan(name, attributes or {}, self.content)
+        self.spans.append(span)
+        return span
+
+
+class CapturingSpan(RecordingSpan):
+    def __init__(
+        self,
+        name: str,
+        attributes: dict[str, TelemetryAttribute],
+        content: list[tuple[str, str]],
+    ) -> None:
+        super().__init__(name, attributes)
+        self._content = content
+
+    def capture_content(self, kind: str, value: Any) -> None:
+        self._content.append((kind, encode_content(value)))
+
+
+class DeclaredSensitiveTool:
+    def __init__(self) -> None:
+        self.__name__ = "declared_probe"
+        self.__doc__ = "Return captured traffic."
+
+    async def __call__(self) -> dict[str, str]:
+        return {"traffic": "tool-output-canary"}
+
+
+def test_repeated_cancellation_joins_state_cleanup_before_next_invocation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(
+            tmp_path, state, {}, scripted_model([terminal_text("first"), terminal_text("next")])
+        )
+        entered, release = asyncio.Event(), asyncio.Event()
+        complete = runtime._plugin.complete_invocation
+
+        async def delayed_complete(**kwargs):
+            entered.set()
+            await release.wait()
+            return await complete(**kwargs)
+
+        monkeypatch.setattr(runtime._plugin, "complete_invocation", delayed_complete)
+        task = asyncio.create_task(runtime.invoke(stage_request()))
+        await entered.wait()
+        for _ in range(3):
+            task.cancel()
+            await asyncio.sleep(0)
+            assert not task.done()
+            assert runtime._invocation.lock.locked()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert (await state.snapshot())["currentInvocation"] is None
+        assert not runtime._invocation.lock.locked()
+        monkeypatch.setattr(runtime._plugin, "complete_invocation", complete)
+        assert (await runtime.invoke(stage_request())).result is not None
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_cancelled_session_release_keeps_failed_session_fenced(tmp_path, monkeypatch):
+    async def scenario():
+        runtime = await create_runtime(tmp_path, WorkerState(), {}, scripted_model([]))
+
+        async def cancelled_release():
+            runtime._session_lifecycle.fence()
+            raise asyncio.CancelledError
+
+        monkeypatch.setattr(runtime._session_lifecycle, "finish_invocation", cancelled_release)
+        with pytest.raises(asyncio.CancelledError):
+            await runtime._invocation.release_session()
+        assert not runtime._accepting
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def worker_policy() -> ResolvedModelPolicy:
+    return ResolvedModelPolicy(
+        ref=ModelPolicyRef(policyId="worker", version="1", digest="sha256:" + "2" * 64),
+        model="worker-model",
+        maxOutputTokens=4096,
+        maxModelCalls=8,
+        maxToolCalls=16,
+        maxTotalTokens=32768,
+        temperature=0.1,
+    )

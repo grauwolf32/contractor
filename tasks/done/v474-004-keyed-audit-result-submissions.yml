@@ -1,0 +1,107 @@
+schema_version: '1.0'
+id: V474-004
+title: Record Audit conclusions with separate scalar and keyed batch tools
+milestone: audit-worker-completion
+epic: audits
+kind: feature
+priority: P1
+status: completed
+depends_on: []
+languages: [python, go, yaml]
+goal: A Worker records or corrects one conclusion and can submit a complete set in any order using the assigned item keys.
+demonstration: >-
+  Assign two distinct exploration items to a Worker. A scripted Gateway reads their keys and submits two different
+  conclusions in reverse order. Verify the association by key in both the receipt and the published result.
+  Exercise a scalar correction using the revision from the receipt.
+context:
+  authority: >-
+    User decision 2026-11-21 approves a flat submit_check_result and a separate batch operation in which
+    every conclusion carries its own item_key. The approved flat signature includes item_key even for
+    a single assigned item.
+  verification_grouping: >-
+    Agent execution decision 2026-11-22 follows the user's request to minimize passes. This task
+    runs focused real-process regressions; V474-010 owns the unchanged mandatory full process
+    gate on the combined implementation. Failed/cancelled earlier full runs are not passes.
+  specification:
+    - docs/spec/audits/worker-completion.md#AWC-R32
+    - docs/spec/audits/worker-completion.md#AWC-R39
+    - docs/spec/audits/worker-completion.md#AWC-R126
+    - docs/spec/audits/worker-completion.md#AWC-R128
+  current: >-
+    runtime/src/contractor_runtime/toolsets/audit_results/v2.py:108 combines two modes. The scalar key
+    may currently be inferred for a singleton and the batch currently binds by position.
+scope:
+  in:
+    - Update the owning specification, including AWC-R30–R42 and their references, against the current common-context conclusion vocabulary.
+    - Migrate Runtime declarations, collectors, completion hooks, allowlists, shipped instructions, templates and fixtures together. Use fresh catalog identities and validate exact pins.
+  out:
+    - New evidence sources, changes to the durable conclusion format, new receipt storage and model-authored final assembly.
+requirements:
+  - id: R1
+    text: >-
+      submit_check_result requires item_key, rationale (text), tested_conditions and limitations (arrays).
+      evidence and http_request_ids default to empty arrays. verdict is required for a hypothesis and omitted
+      for exploration. Supported and refuted require tested conditions and evidence, and inconclusive requires
+      a limitation. A scalar corrects the entire conclusion using expected_revision from its receipt.
+  - id: R2
+    text: >-
+      submit_check_results(items) accepts a complete array of flat conclusions with identical content fields
+      and an explicit item_key on each. Each assigned key occurs exactly once. Only scalar correction accepts
+      expected_revision. Resolve each evidence handle against the member named by the key. Reuse one
+      content validator across both tools and keep receipt and output order in trusted assignment order.
+failure_outcomes:
+  - operation: Apply conclusions to the invocation collector
+    permanent: >-
+      Missing, unknown or duplicate keys and invalid evidence return a bounded field error before collection
+      acceptance. A batch with changed existing content conflicts as a whole. A stale scalar correction
+      returns the existing conflict and current revision.
+    ambiguous: Reuse the collector's replay rules for identical creates, batch retries and scalar correction retries.
+    cancelled: Follow the existing invocation cancellation and seal rules. Prepared evidence artifacts follow ordinary retention.
+    retryable: Propagate infrastructure failures through the existing completion path.
+    timeout: Use the invocation deadline and existing evidence budgets.
+cardinality:
+  - collection: Assigned Audit items
+    bound: Validate the complete set by key within the existing 64-member, evidence and aggregate byte limits.
+lifecycle:
+  - entity: Invocation-local conclusions
+    retention: Preserve logical invocation identity across compaction and publish through the existing Runtime assembler after completion.
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Gateway declarations expose the two distinct signatures. A single-item Worker supplies its assigned key.
+      A reversed two-member batch with distinct rationale and member-specific evidence attaches each to the correct item.
+  - id: A2
+    text: Missing, duplicate, foreign and omitted singleton keys fail explicitly. A malformed member or changed existing item leaves all conclusion revisions intact.
+  - id: A3
+    text: >-
+      Exercise the 64-member boundary, an identical batch retry, scalar correction, stale correction and lost-reply replay.
+      Assert revision, missing keys, completion and publication through the real Worker completion path.
+  - id: A4
+    text: Shipped selectors and prompts use the new declarations. Runtime, Server collection and the spec agree on item identity.
+tests:
+  - command: cd runtime && uv run pytest tests/test_audit_results_toolset.py tests/test_audit_result_collector.py tests/test_audit_result_publication.py
+    covers: [A1, A2, A3]
+  - command: go test -tags=e2e -count=1 ./tests/e2e -run '^(TestAuditCommonObservationProfilesAcrossProductionProcesses|TestAuditCompactionPreservesTrustedCompletionAcrossProcesses|TestAuditBasicExactHandoffAcrossProductionProcesses|TestAuditFixedHypothesesAcrossProductionProcesses|TestFactExtractionAuditEvalAcrossProcesses)$'
+    covers: [A1, A3, A4]
+  - command: make test-config
+    covers: [A4]
+  - command: make test-runtime
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A4]
+  - command: go test -count=1 ./tests/eval/project_facts
+    covers: [A4]
+  - command: go test -tags=e2e -count=1 ./tests/ui-stack -run '^TestManagedEval(AssertionsUseCurrentDomainContract|GatewayUsesCurrentCheckerContract)$'
+    covers: [A1, A4]
+  - command: go test -count=1 ./tests/e2e
+    covers: [A4]
+implementation_commit: 076435ee7e63e2d9c83ae83f4655a9c682b68067
+verification:
+  date: '2026-11-22'
+  result: >-
+    Full Runtime passed (6392 tests, 135 declared skips); the listed three Audit test modules
+    passed again. The five listed real-process roots passed together in 181.433 seconds, including
+    compaction, singleton repair, batch association and the current frozen Eval v3 recipe. Configuration,
+    recipe, fixture and UI consumer checks passed; final make lint kept all four import contracts.
+    Frozen v1/v2 assets remain unchanged. Earlier failed/cancelled full process runs are not successful
+    evidence; the mandatory complete combined gate belongs to V474-010.

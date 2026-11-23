@@ -1,0 +1,59 @@
+schema_version: '1.0'
+id: V410-033
+title: Bound native HTTP/1.1 framing and accept bounded trailers
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V410-030
+priority: P1
+status: completed
+depends_on: [V410-030]
+languages: [python, markdown]
+goal: Unfinished chunk framing cannot grow Runtime memory without a bound, and valid chunked messages with trailers complete normally.
+context:
+  protocol_authority: User clarification 2026-11-04 — HTTP/1.1 is the minimum supported version; HTTP/1.0 is rejected. Native Http1 class names denote the implementation family, not enabled HTTP/1.0 support.
+  authority: User request 2026-11-04 asks to repair the four reproduced regressions before local cleanup refactoring.
+  review: User review of a5e21bc4, findings 2 and 3.
+  finding: >-
+    bridge/mitmproxy/protocol.py:88 delegates to an unbounded native ChunkedReader.
+    A long unterminated chunk extension/trailer is retained before Exchange.receive;
+    responseBodyBytes does not bound it. Native read_body raises NotImplementedError
+    for valid nonempty trailers. IngressHttp1 inherits the same defects.
+  siblings: Outgoing response and scanner ingress request chunk readers, completed and incomplete size lines/extensions/trailers, HTTP/2 trailer bounds (already native/common bounded).
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R138
+  - docs/spec/tools/http-caido.md#HTP-R139
+  - docs/spec/tools/http-caido.md#HTP-R148
+  boundary_decision: >-
+    Keep native h11 framing and syntax validation; bound its incomplete framing
+    reads at the adapter boundary. Validate trailer bounds and preserve body bytes,
+    without promoting trailer fields into initial response headers, cookies or evidence.
+scope:
+  in:
+  - Apply bounded incomplete framing to both native HTTP/1.1 readers without copying the network dispatcher or adding a fallback transport.
+  - Handle valid trailers with existing raw-body and result semantics; classify invalid/oversized framing as response_invalid or scanner request failure.
+  - Prove bounded parser retention and valid/invalid framing on real sockets, including configured body limit three bytes.
+  out:
+  - New trailer wire/API fields, arbitrary trailer-derived credentials/evidence, WebSocket or generic protocol framework.
+acceptance_criteria:
+- id: A1
+  text: Long unterminated chunk sizes/extensions/trailers fail before unbounded retention; tests observe the parser buffer as well as the returned outcome.
+- id: A2
+  text: Valid HTTP/1.1 chunked response and request trailers complete with exact bodies, bounded metadata and no internal exception.
+- id: A3
+  text: Both outgoing and scanner ingress siblings reject malformed/oversized framing and retain cancellation/cleanup ownership.
+- id: A4
+  text: Complete affected HTTP/scanner suites and lint/spec/task checks pass.
+tests:
+- command: cd runtime && uv run pytest -W error tests/test_bridge_framing.py tests/test_bridge_messages.py tests/test_http_engine.py tests/test_http_proxy_bridge.py tests/test_engagement_socket_conformance.py tests/test_nuclei_engagement.py tests/test_engagement_target.py tests/test_engagement_identity.py tests/test_engagement_allocation.py tests/test_audit_http_credentials.py
+  covers: [A1, A2, A3, A4]
+- command: make lint
+  covers: [A4]
+- command: python3 scripts/check_spec.py
+  covers: [A4]
+- command: cd runtime && uv run python ../scripts/check_tasks.py
+  covers: [A4]
+implementation_commit: 2e36df1a6e81668dbf91470d804f146656797bc5
+verification:
+- 2026-11-04 — seven of nine target regression cases failed on the preceding implementation. The repaired native readers pass all eighteen target/scanner socket cases, with parser retention observed for complete and unfinished size lines, extensions and trailers.
+- 2026-11-04 — full affected HTTP/scanner suites passed (177 tests); make lint, check_spec.py and check_tasks.py passed. Native framing rejection also clears the buffer and ignores queued input after half-close.

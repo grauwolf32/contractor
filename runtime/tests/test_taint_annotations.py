@@ -1,0 +1,775 @@
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+from typing import Any
+
+import pytest
+from google.adk.tools import FunctionTool
+from test_projectfs_zip import archive, settings, workspace_inputs
+
+from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.core.lines import split_lines
+from contractor_runtime.projectfs import (
+    LocalWorkspaceProvider,
+    MemoryWorkspaceProvider,
+    hydrate_workspace,
+)
+from contractor_runtime.projectfs.storage import WorkspaceObservationMetadata
+from contractor_runtime.telemetry.metrics import MetricsState
+from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisToolsetFactory
+from contractor_runtime.toolsets.common.resources import ToolResources
+from contractor_runtime.toolsets.common.source_languages import Language
+from contractor_runtime.toolsets.taint_annotations.tools import (
+    EXPORTED_TOOLS,
+    MAX_SOURCE_FILE_BYTES,
+    TaintAnnotationError,
+    TaintAnnotationsToolsetFactory,
+    _parse_target_file,
+)
+from contractor_runtime.workspace import AllocationWorkspace
+
+LANGUAGE_CASES = (
+    (
+        "handler.py",
+        '@app.get("/x")\n@auth\nasync def handler(value):\n    return value\n',
+        "handler",
+        "# @trace target=test\n@app.get",
+    ),
+    (
+        "handler.js",
+        "export const handler = async (value) => value;\n",
+        "handler",
+        "// @trace target=test\nexport const handler",
+    ),
+    (
+        "handler.ts",
+        "class C {\n  @get()\n  async handler(value: string) { return value; }\n}\n",
+        "handler",
+        "  // @trace target=test\n  @get()",
+    ),
+    (
+        "handler.tsx",
+        "export const Handler = () => <div />;\n",
+        "Handler",
+        "// @trace target=test\nexport const Handler",
+    ),
+    (
+        "handler.go",
+        "package sample\nfunc handler(value string) string { return value }\n",
+        "handler",
+        "// @trace target=test\nfunc handler",
+    ),
+    (
+        "handler.rs",
+        '#[get("/x")]\npub async fn handler(value: String) -> String { value }\n',
+        "handler",
+        '// @trace target=test\n#[get("/x")]',
+    ),
+    (
+        "Handler.java",
+        "class C {\n  @Override\n  public String handler(String value) { return value; }\n}\n",
+        "handler",
+        "  // @trace target=test\n  @Override",
+    ),
+    (
+        "handler.kt",
+        "fun handler(value: String): String { return value }\n",
+        "handler",
+        "// @trace target=test\nfun handler",
+    ),
+    (
+        "handler.c",
+        "const char *handler(const char *value) { return value; }\n",
+        "handler",
+        "// @trace target=test\nconst char *handler",
+    ),
+    (
+        "handler.cpp",
+        "template <typename T>\nT handler(T value) { return value; }\n",
+        "handler",
+        "// @trace target=test\ntemplate <typename T>",
+    ),
+    (
+        "Handler.cs",
+        "class C {\n  [HttpGet]\n  public string Handler(string value) { return value; }\n}\n",
+        "Handler",
+        "  // @trace target=test\n  [HttpGet]",
+    ),
+    (
+        "handler.rb",
+        "def handler(value)\n  value\nend\n",
+        "handler",
+        "# @trace target=test\ndef handler",
+    ),
+    (
+        "handler.php",
+        '<?php\n#[Route("/x")]\nfunction handler($value) { return $value; }\n',
+        "handler",
+        '// @trace target=test\n#[Route("/x")]',
+    ),
+    (
+        "handler.scala",
+        "def handler(value: String): String = value\n",
+        "handler",
+        "// @trace target=test\ndef handler",
+    ),
+    (
+        "handler.swift",
+        "func handler(_ value: String) -> String { value }\n",
+        "handler",
+        "// @trace target=test\nfunc handler",
+    ),
+    (
+        "handler.lua",
+        "local function handler(value) return value end\n",
+        "handler",
+        "-- @trace target=test\nlocal function handler",
+    ),
+    (
+        "handler.ex",
+        "defmodule Sample do\n  def handler(value) do\n    value\n  end\nend\n",
+        "handler",
+        "  # @trace target=test\n  def handler",
+    ),
+    (
+        "handler.hs",
+        "handler value = value\n",
+        "handler",
+        "-- @trace target=test\nhandler value",
+    ),
+    (
+        "handler.sh",
+        "handler() { printf '%s' \"$1\"; }\n",
+        "handler",
+        "# @trace target=test\nhandler()",
+    ),
+)
+
+
+@pytest.mark.parametrize(("path", "source", "symbol", "expected"), LANGUAGE_CASES)
+def test_all_nineteen_languages_insert_one_syntax_safe_line(
+    tmp_path: Path,
+    path: str,
+    source: str,
+    symbol: str,
+    expected: str,
+) -> None:
+    async def scenario() -> None:
+        writer = MemoryWriter({path: source})
+        tools, _ = await make_tools(tmp_path, writer)
+        result = await tools["annotate_trace"](path, symbol, target="test")
+        updated = await writer.read_text(path)
+        assert expected in updated
+        assert updated.replace(expected.split("\n", 1)[0] + "\n", "", 1) == source
+        assert result == {
+            "path": path,
+            "symbol": symbol,
+            "kind": "trace",
+            "annotationLine": updated[: updated.index(expected)].count("\n") + 1,
+            "definitionLine": source[: source.index(symbol)].count("\n") + 2,
+            "changed": True,
+        }
+
+    asyncio.run(scenario())
+
+
+def test_cpp_header_inline_method_is_annotatable_and_parse_failures_are_final(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        writer = MemoryWriter(
+            {
+                "include/handler.h": (
+                    "namespace app {\nclass Handler {\npublic:\n"
+                    "  int count() const { return 1; }\n};\n}\n"
+                ),
+                "src/main.cpp": "int main() { return app::Handler{}.count(); }\n",
+                "broken.py": "def broken(\n",
+            }
+        )
+        tools, _ = await make_tools(tmp_path, writer)
+        result = await tools["annotate_trace"]("include/handler.h", "count", target="test")
+        assert result["changed"] is True
+        assert "  // @trace target=test\n  int count()" in await writer.read_text(
+            "include/handler.h"
+        )
+        with pytest.raises(TaintAnnotationError) as missing:
+            await tools["annotate_trace"]("broken.py", "missing")
+        assert missing.value.code == "taint_annotation_target_not_found"
+        assert missing.value.retryable is False
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("files", "path", "symbol", "language"),
+    [
+        (
+            {
+                # The NOEXCEPT macro is a syntax error for both grammars, so a
+                # clean parse cannot decide the language.
+                "include/handler.h": (
+                    "namespace app {\nclass Handler {\npublic:\n"
+                    "  int count() const NOEXCEPT { return 1; }\n};\n}\n"
+                ),
+                "src/main.cpp": "int main() { return 0; }\n",
+            },
+            "include/handler.h",
+            "count",
+            "cpp",
+        ),
+        (
+            {
+                "include/util.h": (
+                    "static inline int twice(int value) {\n"
+                    "  typeof(value) doubled = value * 2;\n  return doubled;\n}\n"
+                ),
+                "src/a.c": "int main(void) { return twice(2); }\n",
+                "src/b.c": "int other(void) { return 1; }\n",
+                "third_party/lib.cc": "int lib() { return 3; }\n",
+            },
+            "include/util.h",
+            "twice",
+            "c",
+        ),
+        (
+            {
+                # .hh is always C++, even where the .h vote would pick C.
+                "include/socket.hh": (
+                    "namespace net {\nclass Socket {\npublic:\n"
+                    "  int open() const { return 1; }\n};\n}\n"
+                ),
+                "src/a.c": "int main(void) { return 0; }\n",
+                "src/b.c": "int other(void) { return 1; }\n",
+            },
+            "include/socket.hh",
+            "open",
+            "cpp",
+        ),
+    ],
+    ids=["cpp-project-macros", "c-project-vendored-cpp", "hh-header-in-c-project"],
+)
+def test_header_definitions_found_by_search_def_are_annotatable(
+    tmp_path: Path, files: dict[str, str], path: str, symbol: str, language: str
+) -> None:
+    async def scenario() -> None:
+        spec, reader = workspace_inputs(
+            [
+                (
+                    "source",
+                    "",
+                    archive({name: text.encode() for name, text in files.items()}),
+                )
+            ]
+        )
+        provider = MemoryWorkspaceProvider(settings("memory"))
+        session = await hydrate_workspace(
+            provider=provider,
+            spec=spec,
+            artifact_reader=reader,
+            allocation_id="header-agreement",
+            timeout_seconds=5,
+        )
+        search_tools = await CodeAnalysisToolsetFactory().create_selected(
+            selected=("search_def",),
+            allocation_id="header-agreement",
+            run_id="annotation-run",
+            namespace="analysis",
+            runtime_settings=RuntimeSettings(
+                llmGatewayUrl="https://llm.example/v1",
+                llmGatewayToken="secret-token",
+                artifactApiUrl="https://server.example/private/v1",
+                requestTimeoutSeconds=30,
+            ),
+            workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
+            resources=ToolResources(metrics=MetricsState()),
+            project_workspace=session.reader_view(),
+        )
+        annotation_tools, _ = await make_tools(tmp_path, session.writer_view())
+        try:
+            found = await search_tools["search_def"](symbol)
+            assert [(item["path"], item["language"]) for item in found["items"]] == [
+                (path, language)
+            ]
+            result = await annotation_tools["annotate_trace"](
+                path, symbol, target="test", definition_line=found["items"][0]["line"]
+            )
+            assert result["changed"] is True
+            assert "// @trace target=test\n" in await session.read_text(path)
+        finally:
+            await search_tools["search_def"].close()
+            await annotation_tools["annotate_trace"].close()
+            await session.close()
+            await provider.cleanup(session.storage)
+
+    asyncio.run(scenario())
+
+
+def test_canonical_order_replay_and_trace_target_conflict(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        writer = MemoryWriter({"app.py": "def handler(req):\n    return req\n"})
+        tools, metrics = await make_tools(tmp_path, writer)
+        first = await tools["annotate_trace"](
+            "app.py",
+            "handler",
+            target="GET_/items/{id}",
+            args="req:tainted, item:derived",
+            calls="validate, repo.find",
+        )
+        replay = await tools["annotate_trace"](
+            "app.py",
+            "handler",
+            target="GET_/items/{id}",
+            args="req:tainted,item:derived",
+            calls="validate,repo.find",
+        )
+        second = await tools["annotate_trace"](
+            "app.py", "handler", target="POST_/items", args="req:validated"
+        )
+        validation = await tools["annotate_validate"]("app.py", "handler", arg="req", kind="schema")
+        sink = await tools["annotate_sink"]("app.py", "handler", kind="db.query", arg="item")
+        sink_replay = await tools["annotate_sink"]("app.py", "handler", kind="db.query", arg="item")
+        before_conflict = await writer.read_text("app.py")
+        with pytest.raises(TaintAnnotationError) as conflict:
+            await tools["annotate_trace"](
+                "app.py",
+                "handler",
+                target="GET_/items/{id}",
+                args="req:clean",
+            )
+        assert conflict.value.code == "taint_annotation_conflict"
+        assert await writer.read_text("app.py") == before_conflict
+        assert [first["changed"], replay["changed"], second["changed"]] == [
+            True,
+            False,
+            True,
+        ]
+        assert validation["changed"] and sink["changed"] and not sink_replay["changed"]
+        assert before_conflict == (
+            "# @trace target=GET_/items/{id} args=req:tainted,item:derived "
+            "calls=validate,repo.find\n"
+            "# @trace target=POST_/items args=req:validated\n"
+            "# @validate arg=req kind=schema\n"
+            "# @sink kind=db.query arg=item\n"
+            "def handler(req):\n"
+            "    return req\n"
+        )
+        snapshot = metrics.snapshot()
+        rendered = str(snapshot)
+        assert "GET_/items" not in rendered
+        assert "repo.find" not in rendered
+        assert "app.py" not in rendered
+
+    asyncio.run(scenario())
+
+
+def test_structural_resolution_rejects_calls_noncallables_and_ambiguity(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        source = (
+            "handler = 1\n"
+            "handler()\n"
+            "def handler(value):\n"
+            "    return value\n"
+            "\n"
+            "def handler(value):\n"
+            "    return value + 1\n"
+        )
+        writer = MemoryWriter({"duplicate.py": source, "call.py": "missing()\n"})
+        tools, _ = await make_tools(tmp_path, writer)
+        with pytest.raises(TaintAnnotationError) as ambiguous:
+            await tools["annotate_trace"]("duplicate.py", "handler")
+        assert ambiguous.value.code == "taint_annotation_target_ambiguous"
+
+        selected = await tools["annotate_trace"]("duplicate.py", "handler", definition_line=6)
+        assert selected["annotationLine"] == 6
+        assert "\n# @trace target=unknown\ndef handler(value):\n    return value + 1" in (
+            await writer.read_text("duplicate.py")
+        )
+
+        for path, symbol in (("call.py", "missing"), ("duplicate.py", "Handler")):
+            with pytest.raises(TaintAnnotationError) as missing:
+                await tools["annotate_sink"](path, symbol, kind="db.query")
+            assert missing.value.code == "taint_annotation_target_not_found"
+
+    asyncio.run(scenario())
+
+
+def test_method_name_and_parse_error_misses_are_deterministic(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        source = "class Handler:\n    def get(self):\n        return 1\n"
+        broken = source + "\ndef broken(:\n"
+        parsed = _parse_target_file(broken.encode(), Language.PYTHON)
+        assert parsed.parse_error
+        writer = MemoryWriter({"clean.py": source, "broken.py": broken})
+        tools, _ = await make_tools(tmp_path, writer)
+
+        for path, symbol in (
+            ("clean.py", "Handler.get"),
+            ("broken.py", "Handler.get"),
+            ("broken.py", "missing"),
+        ):
+            with pytest.raises(TaintAnnotationError) as missing:
+                await tools["annotate_trace"](path, symbol)
+            assert missing.value.code == "taint_annotation_target_not_found"
+            assert missing.value.retryable is False
+
+        result = await tools["annotate_trace"]("clean.py", "get")
+        assert result["changed"] is True
+        assert "# @trace target=unknown\n    def get" in await writer.read_text("clean.py")
+
+    asyncio.run(scenario())
+
+
+def test_qualified_declaration_names_in_cpp_and_lua(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        writer = MemoryWriter(
+            {
+                "handler.cpp": "struct Handler { void get(); };\nvoid Handler::get() {}\n",
+                "handler.lua": "function Handler.get(self) return self end\n",
+            }
+        )
+        tools, _ = await make_tools(tmp_path, writer)
+        for path, symbol in (("handler.cpp", "Handler::get"), ("handler.lua", "Handler.get")):
+            result = await tools["annotate_trace"](path, symbol)
+            assert result["changed"] is True
+
+    asyncio.run(scenario())
+
+
+def test_cpp_functions_returning_references_are_annotatable(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        source = (
+            "const std::string& Handler::name() const { return name_; }\n"
+            "int &counter() { static int c; return c; }\n"
+        )
+        writer = MemoryWriter({"handler.cpp": source})
+        tools, _ = await make_tools(tmp_path, writer)
+        for symbol in ("Handler::name", "counter"):
+            result = await tools["annotate_trace"]("handler.cpp", symbol, target="test")
+            assert result["changed"] is True
+        assert await writer.read_text("handler.cpp") == (
+            "// @trace target=test\n"
+            "const std::string& Handler::name() const { return name_; }\n"
+            "// @trace target=test\n"
+            "int &counter() { static int c; return c; }\n"
+        )
+
+    asyncio.run(scenario())
+
+
+def test_named_php_javascript_and_lua_closures_are_real_targets(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        writer = MemoryWriter(
+            {
+                "a.js": "const value = 1, handler = (req) => req;\n",
+                "a.php": "<?php\n$handler = fn($req) => $req;\n",
+                "a.lua": "local handler = function(req) return req end\n",
+            }
+        )
+        tools, _ = await make_tools(tmp_path, writer)
+        for path in writer.files:
+            result = await tools["annotate_trace"](path, "handler")
+            assert result["changed"] is True
+            assert "@trace target=unknown" in await writer.read_text(path)
+
+        with pytest.raises(TaintAnnotationError) as variable:
+            await tools["annotate_trace"]("a.js", "value")
+        assert variable.value.code == "taint_annotation_target_not_found"
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("storage", ["local", "memory"])
+@pytest.mark.parametrize("mode", ["direct", "overlay"])
+def test_real_workspace_providers_have_equal_annotation_behavior(
+    tmp_path: Path,
+    storage: str,
+    mode: str,
+) -> None:
+    async def scenario() -> str:
+        spec, reader = workspace_inputs(
+            [("source", "", archive({"src/app.py": b"def handler(req):\n    return req\n"}))]
+        )
+        spec.mode = mode  # type: ignore[assignment]
+        provider = (
+            LocalWorkspaceProvider(settings("local", tmp_path / f"local-{mode}"))
+            if storage == "local"
+            else MemoryWorkspaceProvider(settings("memory"))
+        )
+        session = await hydrate_workspace(
+            provider=provider,
+            spec=spec,
+            artifact_reader=reader,
+            allocation_id=f"{storage}-{mode}",
+            timeout_seconds=5,
+        )
+        tools, _ = await make_tools(tmp_path, session.writer_view())
+        await tools["annotate_trace"]("src/app.py", "handler", args="req:tainted")
+        result = await session.read_text("src/app.py")
+        await tools["annotate_trace"].close()
+        await session.close()
+        await provider.cleanup(session.storage)
+        return result
+
+    assert asyncio.run(scenario()) == (
+        "# @trace target=unknown args=req:tainted\ndef handler(req):\n    return req\n"
+    )
+
+
+def test_compare_inside_atomic_update_preserves_a_competing_write(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        source = "def handler(req):\n    return req\n"
+        writer = RacingWriter({"app.py": source})
+        tools, _ = await make_tools(tmp_path, writer)
+        with pytest.raises(TaintAnnotationError) as changed:
+            await tools["annotate_trace"]("app.py", "handler")
+        assert changed.value.code == "taint_annotation_workspace_changed"
+        assert changed.value.retryable
+        assert await writer.read_text("app.py") == source + "# competing-write\n"
+
+    asyncio.run(scenario())
+
+
+def test_crlf_and_input_failures_are_bounded_and_non_mutating(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        crlf = "class C:\r\n    def handler(self, req):\r\n        return req\r\n"
+        writer = MemoryWriter(
+            {
+                "app.py": crlf,
+                "notes.txt": "def handler():\n    pass\n",
+                "large.py": "x" * (MAX_SOURCE_FILE_BYTES + 1),
+            }
+        )
+        tools, _ = await make_tools(tmp_path, writer)
+        await tools["annotate_validate"]("app.py", "handler", "req", "schema")
+        assert await writer.read_text("app.py") == (
+            "class C:\r\n"
+            "    # @validate arg=req kind=schema\r\n"
+            "    def handler(self, req):\r\n"
+            "        return req\r\n"
+        )
+
+        invalid_calls = (
+            lambda: tools["annotate_trace"]("../app.py", "handler"),
+            lambda: tools["annotate_trace"]("app.py", "handler", target=""),
+            lambda: tools["annotate_trace"]("app.py", "handler", target="bad\nline"),
+            lambda: tools["annotate_trace"]("app.py", "handler", args="req:unknown"),
+            lambda: tools["annotate_trace"]("app.py", "handler", calls="same,same"),
+            lambda: tools["annotate_trace"]("app.py", "handler", definition_line=True),
+        )
+        stable = await writer.read_text("app.py")
+        for invoke in invalid_calls:
+            with pytest.raises(TaintAnnotationError) as invalid:
+                await invoke()
+            assert invalid.value.code == "taint_annotation_input_invalid"
+            assert await writer.read_text("app.py") == stable
+
+        with pytest.raises(TaintAnnotationError) as unsupported:
+            await tools["annotate_trace"]("notes.txt", "handler")
+        assert unsupported.value.code == "taint_annotation_language_unsupported"
+        with pytest.raises(TaintAnnotationError) as capacity:
+            await tools["annotate_trace"]("large.py", "handler")
+        assert capacity.value.code == "taint_annotation_capacity_exceeded"
+
+    asyncio.run(scenario())
+
+
+def test_line_indexing_ignores_non_newline_separators(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        source = "# page\x0cbreak\u2028here\ndef handler(req):\n    return req\n"
+        writer = MemoryWriter({"app.py": source})
+        tools, _ = await make_tools(tmp_path, writer)
+        result = await tools["annotate_validate"]("app.py", "handler", "req", "schema")
+        assert result["annotationLine"] == 2
+        assert await writer.read_text("app.py") == (
+            "# page\x0cbreak\u2028here\n"
+            "# @validate arg=req kind=schema\n"
+            "def handler(req):\n"
+            "    return req\n"
+        )
+
+    asyncio.run(scenario())
+
+
+def test_lone_carriage_returns_number_lines_like_read_file(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        # Doubled CR before each LF: read_file numbers "\r" and "\r\n" as two
+        # breaks, while parser rows count only "\n".
+        source = "def other():\r\r\n    pass\r\r\ndef handler(req):\r\r\n    return req\r\r\n"
+        writer = MemoryWriter({"app.py": source})
+        tools, _ = await make_tools(tmp_path, writer)
+        assert split_lines(source)[4] == "def handler(req):"
+        with pytest.raises(TaintAnnotationError) as parser_row:
+            await tools["annotate_validate"]("app.py", "handler", "req", "schema", 3)
+        assert parser_row.value.code == "taint_annotation_target_not_found"
+
+        result = await tools["annotate_validate"]("app.py", "handler", "req", "schema", 5)
+        assert result["annotationLine"] == 5
+        assert result["definitionLine"] == 6
+        updated = await writer.read_text("app.py")
+        assert updated == (
+            "def other():\r\r\n"
+            "    pass\r\r\n"
+            "# @validate arg=req kind=schema\r\n"
+            "def handler(req):\r\r\n"
+            "    return req\r\r\n"
+        )
+        lines = split_lines(updated)
+        assert lines[result["annotationLine"] - 1] == "# @validate arg=req kind=schema"
+        assert lines[result["definitionLine"] - 1] == "def handler(req):"
+
+        replay = await tools["annotate_validate"]("app.py", "handler", "req", "schema", 6)
+        assert replay["changed"] is False
+        assert replay["annotationLine"] == 5
+
+    asyncio.run(scenario())
+
+
+def test_carriage_return_only_file_gets_a_line_feed_terminated_comment(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        writer = MemoryWriter({"app.py": "def other():\r    pass\rdef handler(req):\r    pass\r"})
+        tools, _ = await make_tools(tmp_path, writer)
+        result = await tools["annotate_sink"]("app.py", "handler", "sql", definition_line=3)
+        assert result["annotationLine"] == 3
+        # A lone CR ends a read_file line but not a Python line comment, which
+        # would then swallow the definition below it.
+        assert await writer.read_text("app.py") == (
+            "def other():\r    pass\r# @sink kind=sql arg=unknown\ndef handler(req):\r    pass\r"
+        )
+        again = await tools["annotate_sink"]("app.py", "handler", "sql", definition_line=4)
+        assert again["changed"] is False
+        assert again["annotationLine"] == 3
+
+    asyncio.run(scenario())
+
+
+def test_factory_requires_a_writer_and_successful_positive_probe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        common = {
+            "selected": ("annotate_trace",),
+            "allocation_id": "annotation-allocation",
+            "run_id": "annotation-run",
+            "namespace": "analysis",
+            "runtime_settings": RuntimeSettings(
+                llmGatewayUrl="https://llm.example/v1",
+                llmGatewayToken="secret-token",
+                artifactApiUrl="https://server.example/private/v1",
+                requestTimeoutSeconds=30,
+            ),
+            "workspace": AllocationWorkspace(root=tmp_path, path=tmp_path),
+            "resources": ToolResources(),
+        }
+        with pytest.raises(TaintAnnotationError) as missing:
+            await TaintAnnotationsToolsetFactory().create_selected(**common)
+        assert missing.value.code == "workspace_required"
+
+        factory = TaintAnnotationsToolsetFactory()
+        monkeypatch.setattr(
+            "contractor_runtime.toolsets.taint_annotations.tools.language_support.probe_all_parsers",
+            lambda: False,
+        )
+        assert await factory.probe() == frozenset()
+        with pytest.raises(ValueError, match="unavailable selected taint annotation tools"):
+            await factory.create_selected(
+                project_workspace=MemoryWriter({"app.py": "def handler(): pass\n"}),
+                **common,
+            )
+
+    asyncio.run(scenario())
+
+
+def test_all_annotation_tools_generate_adk_function_declarations(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        tools, _ = await make_tools(
+            tmp_path,
+            MemoryWriter({"app.py": "def handler(value):\n    return value\n"}),
+        )
+        declarations = {
+            name: FunctionTool(tool)._get_declaration().model_dump(mode="json")
+            for name, tool in tools.items()
+        }
+        assert sorted(declarations) == sorted(EXPORTED_TOOLS)
+        assert declarations["annotate_trace"]["parameters_json_schema"] == {
+            "properties": {
+                "path": {"title": "Path", "type": "string"},
+                "symbol": {"title": "Symbol", "type": "string"},
+                "target": {"default": "unknown", "title": "Target", "type": "string"},
+                "args": {"default": "", "title": "Args", "type": "string"},
+                "calls": {"default": "", "title": "Calls", "type": "string"},
+                "definition_line": {
+                    "default": 0,
+                    "title": "Definition Line",
+                    "type": "integer",
+                },
+            },
+            "required": ["path", "symbol"],
+            "title": "annotate_traceParams",
+            "type": "object",
+        }
+        assert declarations["annotate_validate"]["name"] == "annotate_validate"
+        assert declarations["annotate_sink"]["name"] == "annotate_sink"
+
+    asyncio.run(scenario())
+
+
+async def make_tools(
+    tmp_path: Path,
+    writer: Any,
+    selected: tuple[str, ...] = tuple(sorted(EXPORTED_TOOLS)),
+) -> tuple[dict[str, Any], MetricsState]:
+    metrics = MetricsState()
+    result = await TaintAnnotationsToolsetFactory().create_selected(
+        selected=selected,
+        allocation_id="annotation-allocation",
+        run_id="annotation-run",
+        namespace="analysis",
+        runtime_settings=RuntimeSettings(
+            llmGatewayUrl="https://llm.example/v1",
+            llmGatewayToken="secret-token",
+            artifactApiUrl="https://server.example/private/v1",
+            requestTimeoutSeconds=30,
+        ),
+        workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
+        resources=ToolResources(metrics=metrics),
+        project_workspace=writer,
+    )
+    return dict(result), metrics
+
+
+class MemoryWriter:
+    def __init__(self, files: dict[str, str]) -> None:
+        self.files = dict(files)
+        self.lock = asyncio.Lock()
+
+    async def read_text(self, path: str) -> str:
+        async with self.lock:
+            try:
+                return self.files[path]
+            except KeyError:
+                from contractor_runtime.projectfs.storage import WorkspaceStorageError
+
+                raise WorkspaceStorageError("workspace_not_found") from None
+
+    async def update_text(self, path: str, transform: Any) -> None:
+        async with self.lock:
+            self.files[path] = transform(self.files[path])
+
+    async def observation_metadata(self) -> WorkspaceObservationMetadata:
+        async with self.lock:
+            return WorkspaceObservationMetadata(
+                digest="sha256:" + "0" * 64, managed_text_paths=tuple(sorted(self.files))
+            )
+
+
+class RacingWriter(MemoryWriter):
+    async def update_text(self, path: str, transform: Any) -> None:
+        async with self.lock:
+            self.files[path] += "# competing-write\n"
+            self.files[path] = transform(self.files[path])

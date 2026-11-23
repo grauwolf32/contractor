@@ -1,0 +1,250 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.dev/schemas/scan/v1/http-request-set.schema.json",
+  "title": "Contractor HTTPRequestSet v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "source",
+    "preparationDigest",
+    "requests",
+    "gaps",
+    "coverage"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "preparationDigest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "requests": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/entry"
+      },
+      "minItems": 0,
+      "maxItems": 1000
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/gap"
+      },
+      "minItems": 0,
+      "maxItems": 4096
+    },
+    "coverage": {
+      "$ref": "#/$defs/coverage"
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "name",
+        "revision"
+      ],
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact",
+        "contentDigest"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/artifact"
+        },
+        "contentDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "header": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "value"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[!#$%&'*+.^_`|~0-9a-z-]+$"
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 8192,
+          "pattern": "^[^\\x00-\\x08\\x0a-\\x1f\\x7f]*$"
+        }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "url",
+        "headers",
+        "body"
+      ],
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "GET",
+            "HEAD",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE",
+            "OPTIONS"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8192,
+          "pattern": "^https?://[\\x21-\\x22\\x24-\\x5b\\x5d-\\x7e]+$"
+        },
+        "headers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/header"
+          },
+          "minItems": 0,
+          "maxItems": 64
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 65536
+        }
+      }
+    },
+    "origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pointer"
+      ],
+      "properties": {
+        "pointer": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 8192,
+          "pattern": "^#(?:/(?:[^~]|~[01])*)+$"
+        }
+      }
+    },
+    "gap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pointer",
+        "code"
+      ],
+      "properties": {
+        "pointer": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8192,
+          "pattern": "^#(?:/(?:[^~]|~[01])*)*$"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]*$"
+        }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "contentDigest",
+        "request",
+        "origins"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^request-[0-9a-f]{64}$"
+        },
+        "contentDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "request": {
+          "$ref": "#/$defs/request"
+        },
+        "origins": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/origin"
+          },
+          "minItems": 1,
+          "maxItems": 1000
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operations",
+        "prepared",
+        "skipped",
+        "complete"
+      ],
+      "properties": {
+        "operations": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "prepared": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "complete": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

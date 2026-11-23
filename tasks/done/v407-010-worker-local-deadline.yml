@@ -1,0 +1,107 @@
+schema_version: '1.0'
+id: V407-010
+title: Enforce the effective Worker-call deadline for ordinary ADK invocations
+milestone: server-runtime-review-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V2-010
+priority: P2
+status: completed
+depends_on: []
+languages:
+- python
+goal: An ordinary ADK Worker locally stops model/tool work at the request deadline even if the Server
+  cancellation request is lost.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/execution/worker.md
+  validation: 'Revalidated against main dc7012e8 on 2026-10-23. Confirmed with the real ADK Runtime and
+    a scripted model: a deadline one day in the past still completed successfully with 2 model calls.
+    Existing model/tool/token budgets, request timeouts and allocation abort limit the impact; unbounded
+    execution was not established.'
+  severity: low
+  finding: runtime/src/contractor_runtime/worker/runtime.py:621-633 calculates request.deadline for every
+    invocation but applies asyncio.timeout_at only when an Audit completion strategy exists. Ordinary
+    completion reaches _complete_ordinary_finish without a deadline (727-758). The Server sends best-effort
+    CancelTask and ignores its failure (internal/planner/a2a/client.go:157-163), so ordinary local enforcement
+    is missing when cancel does not arrive. WRK-R6 defines the effective deadline carried by the request;
+    WRK-R158 currently explicitly describes whole-invocation enforcement for Audit completion. Ordinary
+    calls remain bounded by independent model/tool budgets and outbound timeouts. The issue is the missing
+    effective request deadline, not an absence of all resource limits.
+  siblings: Cover ordinary normal execution, result finalization and terminal summarization within the
+    same logical invocation. Preserve Audit completion WRK-R158, outbound request timeouts WRK-R157 and
+    separately bounded joined session/allocation cleanup. Model-free ToolWorker deadlines are not the
+    reproduced path.
+plan:
+- Extend the Worker specification to explicitly apply the effective request deadline to ordinary ADK model/tool
+  execution, result finalization and terminal summarization. Keep outbound request timeouts independent
+  and cleanup under its existing joined cleanup budget.
+- Reject an already expired ordinary request before starting model/tool work, and apply the converted
+  monotonic deadline across the complete ordinary invocation. Map expiration to the existing worker_timeout
+  outcome without masking externally requested cancellation.
+- Keep Audit completion error mapping and publication semantics unchanged; ensure no new model recovery/finalizer/summarizer
+  call starts after expiration and any in-flight work is cancelled/joined before release.
+- Use an injected UTC/monotonic clock or deadline scheduler plus synchronization gates for deterministic
+  expiry during model, tool, finalizer and summarizer phases. Do not use sleep-based elapsed-time thresholds.
+- Exercise expiration without a CancelTask, explicit cancellation before expiration, exhausted model budgets
+  and session cleanup to prove the timeout owner does not change those outcomes.
+scope:
+  in:
+  - Local effective-deadline enforcement on the ordinary ADK invocation path and its auxiliary model phases.
+  - Explicit timeout ownership and deterministic production-runtime regression tests.
+  out:
+  - Changing Server deadline computation, configured models, model/token/tool budgets or outbound request
+    timeouts.
+  - Changing Audit completion semantics, model-free ToolWorker execution or the existing joined cleanup
+    budget.
+  - Claims that every ordinary Run currently exceeds its deadline or can run without any bound.
+acceptance_criteria:
+- id: A1
+  text: An ordinary ADK invocation with an already expired effective deadline returns worker_timeout without
+    any model or tool call and without receiving CancelTask.
+- id: A2
+  text: Deterministically advancing the injected deadline during each ordinary execution/finalizer/summarizer
+    phase yields worker_timeout, starts no further model/tool calls and joins in-flight work before release.
+- id: A3
+  text: Explicit cancellation, budget exhaustion, Audit completion and cleanup retain their existing classified
+    outcomes and lifecycle behavior; independent outbound timeouts remain in force.
+- id: A4
+  text: The ordinary expired-deadline regression fails before the fix, and the Worker specification records
+    the deadline scope and separate cleanup budget without timing-based acceptance thresholds.
+tests:
+- command: cd runtime && uv run --locked pytest -q tests/test_adk_runtime.py tests/test_worker_summarizer.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+implementation_commit: dad9694711b375a5d2154e22d43538d7d2645c62
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64 worktree on 56ed4bd2 (V407-009 merged); Python 3.13 with uv sync --locked (google-adk 2.8.0); Go 1.26.9; Node 24.20 with Corepack pnpm; PostgreSQL 17.11 database contractor_test_r1 for the Audit completion gate.
+  evidence:
+  - 'Re-verified finding: on the base, runtime.py:625-637 converted request.deadline but entered asyncio.timeout_at only when an Audit completion strategy was bound (nullcontext otherwise), and mapped every TimeoutError to worker_timeout. An ordinary request whose deadline was a day in the past ran its model and tool calls and completed; a Gateway recovery wait had no local bound.'
+  - 'Fix: the converted monotonic deadline (_InvocationDeadline, converted once at invocation start) scopes every ADK invocation; an expired request starts no ADK run; a check before the result finalizer and in the error handler before the terminal summarizer refuses new work when the deadline passed without the timer firing; only the invocation deadline owns worker_timeout. Audit completion still receives the same loop-time float and keeps its own error mapping; workspace auto-export, State finalization and session release stay outside the deadline.'
+  - 'A1: test_ordinary_worker_with_an_expired_deadline_starts_no_model_or_tool_call: no model request, tool call or llm_calls metric, no CancelTask, lastCompletedInvocation failed with zero calls, and the expired objective never enters the SHARED session used by the next, successful invocation.'
+  - 'A2: test_deadline_during_an_ordinary_phase_cancels_and_joins_its_work[model|tool|result_finalizer|summarizer] advances an injected loop clock (tests/fakes/clock.py) at a gate inside each phase: worker_timeout, the in-flight model/tool call has settled (joined) before invoke returns, no further request, summarizer recorded failed/cancelled. test_deadline_passing_at_a_step_boundary_starts_no_next_call[next_model_call|result_finalizer] passes the deadline inside the consumer task''s ADK hooks before the timer fires: exactly one model span and no further model or finalizer request. test_an_invocation_ending_before_its_summarizer_starts_closes_the_request[deadline_check|deadline_timer|cancellation] ends the invocation after the committed summarization request: no summary-model request, summarizer section failed/cancelled with zero usage, one cancelled attempt in the summarizer aggregate, and runtime.agent_state_snapshot() validates. test_deadline_stops_an_ordinary_model_recovery_wait bounds a Gateway recovery wait.'
+  - 'A3: test_cancellation_requested_before_the_deadline_stays_a_cancellation; test_gateway_operation_timeout_and_stage_deadline_keep_separate_outcomes (Gateway series timeout first keeps worker_gateway_unavailable; deadline first gives worker_timeout); test_a_nested_timeout_before_the_deadline_is_not_worker_timeout (worker_execution_failed); test_session_cleanup_after_the_deadline_keeps_its_own_budget[completes|stuck] (slot released, or Worker fenced after INVOCATION_CLEANUP_TIMEOUT_SECONDS with the timeout outcome kept). Existing budget, Audit completion and cleanup tests pass unchanged. No wall-clock thresholds: every expiry is an explicit clock advance at a synchronization gate.'
+  - 'A4: with runtime/src reverted to 56ed4bd2, 13 of the 15 new tests fail; the external-cancellation and Gateway-timeout-first cases pass on both by design. Guard mutations on the fixed code: removing the pre-check, the summarizer-handler check, the before-finalizer check, the timeout ownership test or the deadline scope each fails at least one test. WRK-R167 records the ordinary deadline scope; WRK-R168 records that auto-export, State finalization and session release keep their own bounds; worker_timeout is added to the Worker error list and the error registry, and FAIL-WRK-1 names the outcome when the deadline stops a Gateway series.'
+  - 'Review finding (fixed in dad96947): the deadline check before the terminal summarizer ran after the plugin committed request_summarization, so the completed invocation kept summarizer phase requested, which the Runtime contract (contracts/worker.py WorkerInvocationState) and the Server contract (internal/contracts/reporting/agent_state.go) reject; GET Worker State would answer 503 agent_state_unavailable. The sibling path, a CancelTask or deadline timer landing between the request and the summarizer, left the same state on the base. WorkerStateStore.complete_invocation, the single terminal path, now closes a requested section as failed/cancelled with zero usage and counts one cancelled summarizer attempt after the close commits (WRK-R107, FAIL-WRK-6). Without the close, all three endings of the new Runtime test and both cases of test_completion_closes_a_pending_summarization_request[failed|cancelled] fail; without the handler check, the deadline_check ending fails.'
+  commands:
+  - 'cd runtime && uv run --locked pytest -q tests/test_adk_runtime.py tests/test_worker_summarizer.py: passed (141 tests).'
+  - 'cd runtime && uv run --locked pytest -q tests/test_worker_completion.py tests/test_adk_runtime.py tests/test_worker_summarizer.py tests/test_audit_completion_runtime.py tests/test_audit_completion_e2e.py tests/test_gateway_recovery.py: 227 passed, 1 skipped (test_audit_completion_e2e runs only under make test-audit-completion-e2e). After dad96947, tests/test_adk_runtime.py tests/test_worker_summarizer.py tests/test_worker_state.py tests/test_worker_completion.py tests/test_audit_completion_runtime.py tests/test_gateway_recovery.py tests/test_tool_worker*.py: 286 passed.'
+  - 'make lint: passed (spec, task and dependency-graph checks, ruff, ruff format, import-linter, staticcheck, test-only exports, UI gates). make docs-dependencies regenerated the graph page for the edited spec files.'
+  - 'make test-runtime (on dad96947): 4310 passed, 39 skipped, 106 failed. The identical 106 test IDs also fail on an unmodified 56ed4bd2 worktree (podman, trailmark child, tool process, projectfs local, code analysis: Errno 43 unsupported socket families, missing pidfd_open, Darwin limits). The first run on 5849ef10 also failed 8 test_worker_completion.py cases that call _complete_normal_finish with a float deadline; dceb2f83 restored that internal contract.'
+  - 'make test-audit-completion-e2e (CONTRACTOR_TEST_DATABASE_URL set, rerun on dad96947): the Runtime half passed (435 tests, base 418 plus the new deadline and State-close tests); the Go half failed 28 internal/auditimport cases (TestAuditCompletionRuntimeZIPImporter/*, TestImporterReportFinalizationSurvivesRunDeletion/*: auditstore invalid argument, stored Audit placement requirements are invalid). The identical 28 cases fail with the same error on an unmodified 56ed4bd2 worktree; this Runtime-only change does not touch them.'
+  database_tests_configured: true
+  declined:
+  - 'The model-free ToolWorker deadline stays out of scope as the task states.'
+  - 'No per-event deadline check inside the ADK event loop: in google-adk 2.8 model and tool work runs in the Runner''s background node task while this task waits on its event queue, so the scope timer fires before new work starts; a check there was unreachable by any test and was removed.'
+  - 'The pre-existing internal/auditimport placement-requirements failures were not fixed: they are outside this task and fail identically on the base.'

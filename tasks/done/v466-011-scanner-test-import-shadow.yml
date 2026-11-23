@@ -1,0 +1,35 @@
+schema_version: '1.0'
+id: V466-011
+title: Remove imported URL package shadowing in scanner process fixtures
+milestone: audit-scanners-engagement-2026-11
+epic: scan-tools
+kind: chore
+introduced_by: V461-003
+priority: P2
+status: completed
+depends_on:
+- V461-003
+languages:
+- go
+goal: Remove imported URL package shadowing in scanner process fixtures.
+context:
+  authority: User approval 2026-11-14 includes verification repairs found by full V417 batch checks.
+  finding: tests/e2e/scanner_findings_process_test.go:88 and :151 shadow net/url with local url arguments.
+  verification: Full affected packages and make lint passed; see tasks/evidence/v466-011-acceptance-20261114.json.
+    No production behavior changed.
+scope:
+  in:
+  - tests/e2e/scanner_findings_process_test.go:88 and :151 shadow net/url with local url arguments.
+  out:
+  - Production execution, model selection and telemetry policy changes.
+acceptance_criteria:
+- id: A1
+  text: The complete affected package suites pass with current bounded telemetry/model-context contracts.
+tests:
+- command: go test ./internal/archtest ./tests/e2e
+  covers:
+  - A1
+- command: make lint
+  covers:
+  - A1
+implementation_commit: 6d47e3d05d8815daa6eb7103de072c35e155c0bc

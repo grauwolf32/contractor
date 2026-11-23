@@ -1,0 +1,216 @@
+[project]
+name = "contractor-runtime"
+version = "0.1.0"
+description = "Single-slot Python Runtime Agent for Contractor v2"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "a2a-sdk[http-server]==1.1.2",
+  "cryptography>=45,<51",
+  "google-adk==2.15.0",
+  "httpx>=0.28,<1",
+  "idna>=3,<4",
+  "jcs>=0.2,<1",
+  "mitmproxy==12.3.1",
+  "opentelemetry-proto==1.42.1",
+  "pillow==13.0.0",
+  "psutil>=7.2.2,<8",
+  "pydantic>=2.11,<3",
+  "pyyaml>=6.0,<7",
+  "regex>=2026.7,<2027",
+  "starlette>=1.3.1,<2",
+  "trailmark==0.5.0",
+  "tree-sitter==0.25.2",
+  "tree-sitter-language-pack==1.14.3",
+  "uvicorn>=0.35,<1",
+]
+
+[project.scripts]
+contractor-runtime = "contractor_runtime.cli:main"
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+  "h11>=0.16,<0.17",
+  "import-linter>=2.15,<3",
+  "jsonschema>=4.25,<5",
+  "pytest>=8.4,<10",
+  "ruff>=0.12,<1",
+]
+
+[tool.uv]
+constraint-dependencies = [
+  "urllib3>=2.8.0",
+  "certifi>=2026.10.19",
+  "opentelemetry-api>=1.45.1",
+  "opentelemetry-sdk>=1.45.1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/contractor_runtime"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+# Architecture fitness check, run by `make lint` (`uv run lint-imports`).
+# The contracts below are the single source of truth for the Runtime's
+# dependency direction. Layers are listed top to bottom: a module may import
+# its own layer or any layer below it ("a : b" siblings may import each
+# other, "a | b" siblings may not). Both layers contracts are exhaustive, so a
+# new top-level module or a new toolset fails until it is classified here. A
+# forbidden contract keeps the Worker off the concrete toolsets, and two
+# protected contracts declare the only chains between toolsets. No contract
+# has ignore_imports entries (known violations); if one is ever added, keep a
+# "reason; fix" comment on it. Imports under `if TYPE_CHECKING:` are excluded.
+# See docs/development.md.
+[tool.importlinter]
+root_package = "contractor_runtime"
+exclude_type_checking_imports = true
+
+[[tool.importlinter.contracts]]
+id = "runtime-layers"
+name = "Runtime layers (top imports bottom, never the reverse)"
+type = "layers"
+containers = ["contractor_runtime"]
+exhaustive = true
+layers = [
+  # entry: process entry points and the private HTTP server
+  "__main__ : cli : server",
+  # orchestration: allocation lifecycle, control-plane client, lease and process state
+  "allocation : control_client : lease : state",
+  # composition: the toolset/worker factory registry and startup capability discovery
+  "capabilities : factories",
+  # agent loop
+  "worker",
+  # tools: concrete toolsets and their shared base (see the toolsets contract)
+  "toolsets",
+  # platform: infrastructure clients, workspace, sandbox, settings and protocol
+  # bindings, plus the workspace observations that tools report (the Worker
+  # keeps only their reducer)
+  "a2a_server : adapters : agent_skills : archive_cache : archive_cache_files : artifacts : audit_evidence : audit_judgments : finding_proposals : sitemap_collection : sitemap : llm : observations : projectfs : sandbox : settings : telemetry : work_root_lock : workspace",
+  # kernel: wire contracts and dependency-free helpers (core: target policy,
+  # subprocess pipes, line splitting, tool metrics and input errors, and the
+  # Worker completion protocol; reasoning: the provider-reasoning projection that
+  # the terminal summarizer and other model consumers share)
+  "_https : backoff : contracts : core : digests : http_body : log : mtls : probe : reasoning : redaction : shared_config : strict_json : threads",
+]
+unmatched_ignore_imports_alerting = "error"
+broken_contract_guidance = """
+A lower layer imports a higher one, or a module is not classified.
+- Invert the dependency: pass the higher-level object in (Protocol, callback or
+  factory argument) instead of importing it.
+- Move the shared type or helper down into the lower layer (for example into
+  contracts or a kernel module).
+- If the dependency is genuinely intended, move the module to another layer in
+  runtime/pyproject.toml, or add an ignore_imports entry with a
+  "reason; fix" comment.
+An unlisted module must be added to one layer. "No matches for ignored import"
+means a known violation is gone: delete that ignore_imports entry.
+"""
+
+# The layers above let the Worker import toolsets; it may use only
+# toolsets.common. The composition root (factories) registers the concrete
+# toolsets, and the Worker learns what it needs about them through its
+# WorkerBuildContext (for example the sensitive-output tools that the
+# registered toolset factories declare). Add a new toolset here too.
+[[tool.importlinter.contracts]]
+id = "worker-no-concrete-toolsets"
+name = "The Worker imports no concrete toolset, only toolsets.common"
+type = "forbidden"
+source_modules = ["contractor_runtime.worker"]
+forbidden_modules = [
+  "contractor_runtime.toolsets.audit_results",
+  "contractor_runtime.toolsets.caido",
+  "contractor_runtime.toolsets.interactsh",
+  "contractor_runtime.toolsets.code_analysis",
+  "contractor_runtime.toolsets.code_execution",
+  "contractor_runtime.toolsets.edit_files",
+  "contractor_runtime.toolsets.filesystem",
+  "contractor_runtime.toolsets.http",
+  "contractor_runtime.toolsets.likec4",
+  "contractor_runtime.toolsets.memory",
+  "contractor_runtime.toolsets.openapi",
+  "contractor_runtime.toolsets.run_artifacts",
+  "contractor_runtime.toolsets.sitemap",
+  "contractor_runtime.toolsets.scan",
+  "contractor_runtime.toolsets.security_findings",
+  "contractor_runtime.toolsets.source_analysis",
+  "contractor_runtime.toolsets.taint_annotations",
+  "contractor_runtime.toolsets.text_artifacts",
+  "contractor_runtime.toolsets.workspace_changes",
+]
+broken_contract_guidance = """
+The Worker imports a concrete toolset. Declare what the Worker needs on the
+toolset factory (see ToolsetFactory in factories.py), let the composition root
+derive it from the registered factories and pass it in through
+WorkerBuildContext, or move shared code into toolsets.common.
+"""
+
+# Toolsets are independent of each other and share code through
+# toolsets.common, except for one declared chain in which one toolset builds
+# on another:
+#   taint_annotations -> code_analysis
+#     (tree-sitter language support and the pinned-dependency check)
+# The layers contract below puts the chain base in a layer under the other
+# toolsets, so the base imports no toolset. The protected contract after it
+# then admits only the base's declared consumers and the composition root that
+# registers every toolset. Any other import of the base, from a toolset or from
+# anywhere else in the Runtime, breaks a contract. A new toolset joins the top
+# layer; it becomes a chain base only together with its own protected
+# contract.
+[[tool.importlinter.contracts]]
+id = "toolsets"
+name = "Toolsets are independent apart from declared chains and share code through toolsets.common"
+type = "layers"
+containers = ["contractor_runtime.toolsets"]
+exhaustive = true
+layers = [
+  # concrete toolsets: independent of each other ("|")
+  "audit_results | caido | interactsh | code_execution | edit_files | filesystem | http | likec4 | memory | openapi | run_artifacts | scan | security_findings | sitemap | source_analysis | taint_annotations | text_artifacts | workspace_changes",
+  # chain bases: independent of each other; each one is imported only by the
+  # consumers its protected contract below declares
+  "code_analysis",
+  # shared tool base
+  "common",
+]
+unmatched_ignore_imports_alerting = "error"
+broken_contract_guidance = """
+A toolset imports another toolset outside a declared chain, a chain base or
+toolsets.common imports a toolset above it, or a toolset package is not
+classified.
+- Move the shared code into toolsets.common (or below toolsets).
+- Add a new toolset to the concrete-toolsets layer in runtime/pyproject.toml.
+- If one toolset genuinely builds on another, declare the chain: move the base
+  to the chain-bases layer and give it a protected contract that names its
+  consumers.
+"""
+
+[[tool.importlinter.contracts]]
+id = "toolsets-chain-code-analysis"
+name = "Declared chain: only taint_annotations builds on code_analysis"
+type = "protected"
+protected_modules = ["contractor_runtime.toolsets.code_analysis"]
+allowed_importers = [
+  "contractor_runtime.toolsets.taint_annotations",
+  # composition root: registers every toolset
+  "contractor_runtime.factories",
+]
+broken_contract_guidance = """
+Only taint_annotations (and the factory registry) may import code_analysis.
+Move code that another toolset needs into toolsets.common, or extend the
+declared chain here and in the comment above the toolsets contract.
+"""

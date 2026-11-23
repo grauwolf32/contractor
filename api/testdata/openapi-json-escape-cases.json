@@ -1,0 +1,170 @@
+{
+  "description": "Declared JSON seed syntax and values shared by Runtime OpenAPI authoring, Server scan preparation and Audit inventory. Rejected inputs never fall back to YAML; accepted values preserve decoded member names, Unicode and exact numeric bounds.",
+  "cases": [
+    {
+      "name": "solidus-member-and-value",
+      "mediaType": "application/json",
+      "document": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Seed\",\"version\":\"1\"},\"paths\":{},\"x-\\/url\":\"https:\\/\\/example.test\"}",
+      "accepted": true,
+      "value": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "Seed",
+          "version": "1"
+        },
+        "paths": {},
+        "x-/url": "https://example.test"
+      }
+    },
+    {
+      "name": "surrogate-pair-member-and-value",
+      "mediaType": "application/json",
+      "document": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Seed\",\"version\":\"1\"},\"paths\":{},\"x-\\ud83d\\ude00\":\"\\ud83d\\ude00\"}",
+      "accepted": true,
+      "value": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "Seed",
+          "version": "1"
+        },
+        "paths": {},
+        "x-😀": "😀"
+      }
+    },
+    {
+      "name": "json-control-escapes",
+      "mediaType": "application/json",
+      "document": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Seed\",\"version\":\"1\"},\"paths\":{},\"x-value\":\"\\b\\f\\n\\r\\t\\u0000\"}",
+      "accepted": true,
+      "value": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "Seed",
+          "version": "1"
+        },
+        "paths": {},
+        "x-value": "\b\f\n\r\t\u0000"
+      }
+    },
+    {
+      "name": "safe-number",
+      "mediaType": "application/json",
+      "document": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Seed\",\"version\":\"1\"},\"paths\":{},\"x-value\":9007199254740991}",
+      "accepted": true,
+      "value": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "Seed",
+          "version": "1"
+        },
+        "paths": {},
+        "x-value": 9007199254740991
+      }
+    },
+    {
+      "name": "negative-zero",
+      "mediaType": "application/json",
+      "document": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Seed\",\"version\":\"1\"},\"paths\":{},\"x-value\":-0.0}",
+      "accepted": true,
+      "value": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "Seed",
+          "version": "1"
+        },
+        "paths": {},
+        "x-value": -0.0
+      }
+    },
+    {
+      "name": "duplicate-decoded-member",
+      "mediaType": "application/json",
+      "document": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Seed\",\"version\":\"1\"},\"paths\":{},\"x-a\":1,\"x-\\u0061\":2}",
+      "accepted": false
+    },
+    {
+      "name": "lone-high-surrogate-value",
+      "mediaType": "application/json",
+      "document": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Seed\",\"version\":\"1\"},\"paths\":{},\"x-value\":\"\\ud83d\"}",
+      "accepted": false
+    },
+    {
+      "name": "lone-low-surrogate-member",
+      "mediaType": "application/json",
+      "document": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Seed\",\"version\":\"1\"},\"paths\":{},\"x-\\ude00\":1}",
+      "accepted": false
+    },
+    {
+      "name": "reversed-surrogate-pair",
+      "mediaType": "application/json",
+      "document": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Seed\",\"version\":\"1\"},\"paths\":{},\"x-value\":\"\\ude00\\ud83d\"}",
+      "accepted": false
+    },
+    {
+      "name": "invalid-escape",
+      "mediaType": "application/json",
+      "document": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Seed\",\"version\":\"1\"},\"paths\":{},\"x-value\":\"\\x41\"}",
+      "accepted": false
+    },
+    {
+      "name": "non-json-constant",
+      "mediaType": "application/json",
+      "document": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Seed\",\"version\":\"1\"},\"paths\":{},\"x-value\":NaN}",
+      "accepted": false
+    },
+    {
+      "name": "exact-number-over-bound",
+      "mediaType": "application/json",
+      "document": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Seed\",\"version\":\"1\"},\"paths\":{},\"x-value\":9007199254740991.1}",
+      "accepted": false
+    },
+    {
+      "name": "negative-number-over-bound",
+      "mediaType": "application/json",
+      "document": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Seed\",\"version\":\"1\"},\"paths\":{},\"x-value\":-9007199254740991.1}",
+      "accepted": false
+    },
+    {
+      "name": "integer-over-bound",
+      "mediaType": "application/json",
+      "document": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Seed\",\"version\":\"1\"},\"paths\":{},\"x-value\":9007199254740992}",
+      "accepted": false
+    },
+    {
+      "name": "underflow",
+      "mediaType": "application/json",
+      "document": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Seed\",\"version\":\"1\"},\"paths\":{},\"x-value\":1e-999}",
+      "accepted": false
+    },
+    {
+      "name": "overflow",
+      "mediaType": "application/json",
+      "document": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Seed\",\"version\":\"1\"},\"paths\":{},\"x-value\":1e999}",
+      "accepted": false
+    },
+    {
+      "name": "leading-zero",
+      "mediaType": "application/json",
+      "document": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Seed\",\"version\":\"1\"},\"paths\":{},\"x-value\":01}",
+      "accepted": false
+    },
+    {
+      "name": "yaml-is-not-json",
+      "mediaType": "application/json",
+      "document": "openapi: 3.0.3\ninfo: {title: Seed, version: '1'}\npaths: {}\n",
+      "accepted": false
+    },
+    {
+      "name": "trailing-value",
+      "mediaType": "application/json",
+      "document": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Seed\",\"version\":\"1\"},\"paths\":{},\"x-value\":1} {}",
+      "accepted": false
+    },
+    {
+      "name": "not-object",
+      "mediaType": "application/json",
+      "document": "[]",
+      "accepted": false
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+schema_version: '1.0'
+id: V354-001
+title: Back off failed Operations snapshot reads triggered by live events
+milestone: review-followups-2026-10-04
+epic: operations
+kind: defect
+introduced_by: V262-001
+priority: P2
+status: completed
+implementation_commit: 941373e286b86fcf26cbfc163a6b6c683d8cf1ed
+depends_on: [V305-001]
+languages: [typescript]
+goal: Apply V305's backoff to snapshot reads triggered by live events, not only resyncs.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "Found while fixing V305-001: failed Operations snapshot reads triggered by live events (not resyncs) still retry every second (ui/src/routes/operations/live-refresh.ts)."
+scope:
+  in:
+    - Back off repeated failed event-triggered snapshot reads.
+  out:
+    - Unrelated refactors.
+acceptance_criteria:
+  - {id: A1, text: "Repeated failed event-triggered snapshot reads back off exponentially."}
+tests:
+  - {command: "cd ui && corepack pnpm exec vitest run src/routes/operations", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: Failed event-triggered snapshot reads still retry after the fixed one-second interval.
+
+verification:
+  date: "2026-10-09"
+  checks: Full UI Vitest suite passed, 1757 cases in 163 files, including Operations live-event failure recovery.

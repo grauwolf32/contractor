@@ -1,0 +1,174 @@
+schema_version: '1.0'
+id: V407-012
+title: Consolidate equivalent Runtime helpers and offload prepare filesystem work
+milestone: server-runtime-review-2026-10
+epic: planner-worker
+kind: chore
+priority: P3
+status: completed
+implementation_commit: 17e5c5e9bf58c3425cae689631042155af678551
+depends_on: []
+languages:
+- python
+goal: Remove proven helper duplication and keep prepare filesystem operations off the event loop without
+  changing helper semantics or allocation lifecycle coordination.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  finding: 'The exception-chain walkers in worker/runtime.py:1362-1400,1468-1476 share one algorithm;
+    span wrappers, background-task consumers and metric identifier normalization also have repeated implementations.
+    The JSON-size and UTF-8 truncation helpers are not interchangeable: telemetry/metrics.py:642-650 tolerates
+    values/errors that worker/summarizer.py:509-518 rejects, while metrics.py:634-639 and adapters/otlp_http.py:736-740
+    have distinct replacement and suffix policies. workspace.py:50-59, projectfs/provider.py:110-122 and
+    agent_skills/runtime.py:568-584 perform synchronous filesystem work from async prepare/probe paths.'
+  validation: Validated against main dc7012e8 on 2026-10-23. Duplication and synchronous calls were verified
+    statically; no latency threshold was measured. Allocation prepare holds its lock, but heartbeat reads
+    an independent runtime state and lease expiry/drain have explicit fencing paths. AllocationSnapshot.snapshot
+    has no production caller, so its responsiveness alone is not evidence for a lifecycle redesign.
+  siblings: Inspect the corresponding span wrappers in worker/instrumentation.py, task consumers in allocation/cleanup.py,
+    control_client.py and adapters/host.py, and metric identifiers in telemetry/invocations.py. Preserve
+    the separate JSON error/default and UTF-8 suffix/replacement policies, whether implemented separately
+    or through explicit parameters.
+plan:
+- Consolidate only helpers with equivalent semantics, using the existing lower-layer modules and production
+  callers. Add no exported helper used only by tests.
+- Keep distinct JSON-size and text policies explicit; add boundary characterization cases before sharing
+  a lower-level primitive. Do not choose a single ellipsis or JSON error policy for all consumers.
+- Move the synchronous filesystem portions of the three prepare/probe paths through threads.to_thread_until_done.
+  Preserve marker-before-directory ordering, modes, ownership checks, failure rollback and cancellation
+  joining before cleanup.
+- Use synchronization hooks to prove filesystem work is off the event-loop thread and cancellation joins
+  the worker before cleanup. Leave allocation prepare locking, lease fencing and drain ordering unchanged.
+scope:
+  in:
+  - Equivalent helper consolidation with import-layer validation.
+  - Filesystem offload in local workdir, local project workspace and native Skill startup probe.
+  out:
+  - Changing JSON/truncation semantics or model-visible diagnostics.
+  - Introducing a preparing flag, removing lease/drain safeguards or changing allocation locking and endpoint
+    availability.
+decisions:
+- 'One production definition per equivalent algorithm: the exception-chain walk is worker/runtime.py
+  _chained_error (it replaces the budget, summarization-request, finalizer and Gateway walkers); failure-isolated
+  span start and end are adapters/instrumentation.py start_isolated_span and end_isolated_span (used by
+  worker/runtime.py, worker/instrumentation.py and the terminal summarizer''s inline copy); the span error.type
+  rule is worker/instrumentation.py span_error_type over telemetry SAFE_ERROR_CODE (runtime.py''s copy
+  and its duplicate SAFE_TOOL_ERROR_CODE regex are gone); retrieving the exception of a deliberately
+  unawaited task is threads.consume_task_exception (allocation cleanup and service, adapter host, control
+  client, project workspace operation guard, Podman I/O, HTTP cookie checkpoint and to_thread_until_done);
+  telemetry/invocations.py keys tools with telemetry/metrics.py _metric_identifier; the summarizer''s
+  _document_size reuses its own strict _json_size.'
+- 'Distinct policies stay separate and unshared, so no common primitive was introduced: telemetry/metrics.py
+  _json_size (default=str, 0 on failure) and _truncate_utf8 (replacement, ellipsis inside the limit),
+  adapters/otlp_http.py _truncate_utf8 (strict, unchanged within the limit, no marker), worker/summarizer.py
+  _json_size and _bound_text (strict, [TRUNCATED] after the limit), contracts json_byte_size (wire measure),
+  agent_skills _json_bytes (default=str, raises) and the OpenAPI toolset _encoded_size (admits NaN).
+  metrics.py is not edited; V407-020 owns its JSON measure, so its private _json_size is not pinned by
+  a test here.'
+- 'control_client.py receives only the consumer replacement (one import, one callback); its transports
+  and shutdown belong to V407-013.'
+- 'Prepare/probe filesystem work runs in one joined worker thread per step. On cancellation the owner
+  waits for the thread, then removes what it created in another joined thread before re-raising: the
+  scratch directory keeps marker-before-directory creation and marker-last removal, and a failed rollback
+  is suppressed (OSError) so the cancellation propagates while the kept marker lets startup cleanup reclaim
+  the directory; the project workspace reuses its previous best-effort discard; the Skill probe removes
+  its TemporaryDirectory. Allocation prepare locking, lease fencing and drain ordering are unchanged.'
+- 'Ruled-out siblings (unchanged, outside the three named prepare/probe paths): PreparedAgentSkills.close
+  and _cleanup_failed_preparation still await asyncio.to_thread on release and rollback, capabilities._probe_podman
+  creates run_workdir with asyncio.to_thread, and the Podman engine/probe/lifecycle and trailmark host
+  keep their own thread use; reopen as a cancellation-ownership task if a joined-removal guarantee is
+  required there. projectfs SAFE_EXPORT_CAUSE shares the identifier grammar but names export causes,
+  and the uint64 saturating constants in telemetry, Worker State and the adapter host are not part of
+  this finding.'
+acceptance_criteria:
+- id: A1
+  text: Each consolidated algorithm has one production definition; deliberately distinct JSON-size and
+    UTF-8 policies remain explicit and retain their previous behavior on malformed text, non-JSON values,
+    overflow and exceptions.
+- id: A2
+  text: Synchronization tests observe the listed filesystem operations on a worker thread and prove that
+    cancelled preparation joins them before rollback; owner markers, permissions and cleanup outcomes
+    remain correct.
+- id: A3
+  text: Existing Runtime tests retain their semantic assertions; helper relocation does not change exception
+    propagation, telemetry failure isolation or import-layer direction.
+tests:
+- command: cd runtime && uv run --locked pytest -q tests/test_allocation.py tests/test_adk_runtime.py
+    tests/test_instrumentation.py tests/test_metrics.py tests/test_workspace_provider.py tests/test_agent_skill_lifecycle.py
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64 worktree /Users/ruslan/src/contractor-wt/d, branch claude/rv-d from ea65cd92,
+    implementation 17e5c5e9, then claude/review-v407-v409 (b4a6142c, V407-013) merged as fe55fe38 at
+    the coordinator's request; Python 3.13.16 with uv sync --locked; Go 1.26.9; Node 24.20 with Corepack
+    pnpm; CONTRACTOR_TEST_DATABASE_URL set to contractor_test_d for make lint. The change is Runtime-only,
+    so no PostgreSQL test exercises it.
+  evidence:
+  - 'Re-verified on ea65cd92: the four chain walkers were worker/runtime.py:1406-1445 and 1512-1520; span
+    wrappers were duplicated in worker/runtime.py:1372-1403 and worker/instrumentation.py:741-773, with
+    an inline copy in worker/summarizer.py:213-279; task consumers were in allocation/cleanup.py:45, control_client.py:414,
+    adapters/host.py:611, projectfs/operation_guard.py:112, sandbox/podman/io.py:62, toolsets/http/cookies.py:213
+    and threads.py:32; _metric_identifier was identical in telemetry/invocations.py:85 and telemetry/metrics.py:688;
+    workspace.py:50-62, projectfs/provider.py:110-125 and agent_skills/runtime.py:568-600 created directories
+    and files on the event loop.'
+  - 'A1: the decisions list names the single definition of each consolidated algorithm; git grep finds
+    no remaining copy in runtime/src after the merge. telemetry/metrics.py and adapters/otlp_http.py are
+    not edited. test_summary_json_measure_rejects_values_the_document_cannot_encode pins the summarizer''s
+    strict measure (NaN, unsupported type, mixed key types, lone surrogate) for _json_size and _document_size;
+    test_summary_text_bound_keeps_whole_characters_and_appends_its_marker pins _bound_text (redaction,
+    exact limit, character-boundary cut with [TRUNCATED], lone surrogate raises); test_span_text_bound_and_metric_text_bound_keep_distinct_policies
+    pins the OTLP bound (strict, no marker) against the metric bound (replacement, ellipsis inside the
+    limit). test_invocation_and_allocation_metrics_key_a_tool_by_one_identifier and test_span_error_type_admits_only_safe_provider_identifiers
+    pin the shared identifier and error.type rules.'
+  - 'A2: tests/filesystem_audit.py records audited os.mkdir, open, os.chmod, os.remove, os.rmdir, shutil.rmtree
+    and tempfile.mkdtemp events with their thread. test_local_preparation_writes_owned_directories_off_the_event_loop
+    sees the scratch root, marker and directory and the project directory, marker and chmod only on worker
+    threads and checks modes 0700/0600 and ownership; on an unmodified ea65cd92 worktree it fails with
+    six loop-thread operations. test_cancelled_workdir_preparation_joins_its_thread_before_rollback and
+    test_cancelled_project_workspace_creation_joins_its_thread_before_rollback hold the creation thread
+    with a threading.Event, cancel, and show the task pending with no rollback until release, then rollback
+    on a worker thread that saw the created directory and marker, CancelledError and an empty root. test_failed_workdir_rollback_keeps_cancellation_and_marker_for_startup_cleanup
+    shows a failing rollback still ends in CancelledError and leaves an owned directory that cleanup_orphan_workdirs
+    removes. test_failed_local_preparation_rolls_back_in_its_thread covers the in-thread failure rollbacks.
+    test_native_skill_probe_writes_and_removes_its_skill_off_the_event_loop and test_cancelled_native_skill_probe_joins_its_thread_before_cleanup
+    do the same for the adk@1 probe and its TemporaryDirectory. No elapsed-time assertion is used; the
+    waits are deadlock guards only. On ea65cd92 only test_local_preparation_writes_owned_directories_off_the_event_loop fails on its assertion (six writes on the loop thread); the other six fail with AttributeError because they patch helpers this change adds. Review evidence instead: with the three creation steps changed to plain asyncio.to_thread (no join), all three cancellation tests failed 15 of 15 runs, 5 of them under 2x CPU load; the catch relies on the rollback thread running within five sleep(0) yields.'
+  - 'A3: no existing test assertion was edited. test_runtime_signals_are_found_through_callback_wrappers[4
+    signal types] pins the walk (cause, context, cause then context, suppressed context still walked,
+    cause preferred over context, cycle stops). test_failing_telemetry_sink_cannot_change_the_worker_outcome[start-fails,
+    end-fails] runs a full Worker invocation with a sink that raises on every span start or end and gets
+    the same result, span attempts and counters. test_consumed_task_exception_is_never_reported_as_unretrieved
+    shows the shared consumer suppresses the never-retrieved report that an unconsumed control task produces.
+    lint-imports keeps all four contracts.'
+  - 'Spec: WSP-R168 (docs/spec/tools/workspace.md) now covers local creation as well as removal and the
+    joined rollback of a cancelled creation; no new requirement ID. make docs-dependencies left the graph
+    fingerprint unchanged.'
+  commands:
+  - 'cd runtime && uv run --locked pytest -q tests/test_allocation.py tests/test_adk_runtime.py tests/test_instrumentation.py
+    tests/test_metrics.py tests/test_workspace_provider.py tests/test_agent_skill_lifecycle.py: passed
+    (exit 0) before and after the merge.'
+  - 'After the merge, the same files plus tests/test_threads.py tests/test_worker_summarizer.py tests/test_otlp_adapter.py
+    tests/test_control_client.py tests/test_https.py tests/test_artifacts.py tests/test_adapter_host.py
+    tests/test_projectfs_operation_guard.py: 449 passed.'
+  - 'Before the merge, the touched test files with -W error (test-runtime-hardening mode): 285 passed;
+    the new synchronization tests passed in 5 consecutive runs.'
+  - 'make lint: passed before and after the merge.'
+  - 'make test-runtime (uv run pytest) after the merge: 4557 passed, 39 skipped, 105 failed. The 105 failing
+    IDs are exactly the 105 that fail on an unmodified ea65cd92 worktree (podman, tool_process, trailmark
+    child, projectfs local direct/io and code analysis on macOS, including the timing-sensitive four-MiB
+    parser gap test). Before the merge the branch failed 104 of the same IDs.'
+  database_tests_configured: true
+  declined:
+  - 'telemetry/metrics.py _json_size is not pinned by a characterization test: V407-020 owns that JSON
+    measure and may restructure it while preserving report output.'
+  - 'Plain asyncio.to_thread in PreparedAgentSkills.close, _cleanup_failed_preparation, capabilities._probe_podman
+    and the Podman and trailmark paths is outside the three named prepare/probe paths (see decisions);
+    reopen as a cancellation-ownership task if those removals must be joined.'

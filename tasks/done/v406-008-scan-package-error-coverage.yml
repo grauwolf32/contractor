@@ -1,0 +1,65 @@
+schema_version: '1.0'
+id: V406-008
+title: Include scanner package diagnostics in the shared outcome coverage gate
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: scan-tools
+kind: chore
+introduced_by: V406-001
+priority: P2
+status: completed
+depends_on:
+- V406-001
+- V406-003
+languages:
+- python
+goal: Keep the existing emitted-error coverage check aware of bounded package preparation diagnostics
+  without changing scan behavior.
+context:
+  specification: docs/spec/tools/scanners.md#SCN-R231
+  finding: runtime/tests/test_scan_error_codes.py:13 omits PackageError from CODE_EXCEPTIONS. The complete
+    Runtime suite rejects four correctly registered package/rulepack outcomes because the AST reader never
+    sees their production raise sites.
+  siblings: ScannerUnavailable and ScanTargetRefused are already enumerated. Go planner and UI mappings
+    and api/scan/v1/testdata/worker-error-codes.json already contain the new outcomes; real pack tests
+    exercise their emitted diagnostics.
+scope:
+  in:
+  - Extend the existing AST-backed production-module coverage check to PackageError.
+  - Run the full affected Runtime suites, Go planner outcome tests and final lint; keep the existing failing
+    equality as the regression.
+  out:
+  - Platform-only Runtime failures tracked by V401-007.
+  - Changing scanner diagnostics, classification, target policy or retry behavior.
+acceptance_criteria:
+- id: A1
+  text: The existing emitted-code equality passes and detects every literal PackageError code in actual
+    scanner modules.
+- id: A2
+  text: Core scan contracts, Tool Worker and scanner suites pass without a diagnostic or retry change.
+tests:
+- command: cd runtime && uv run pytest tests/test_scan_error_codes.py tests/test_contracts.py tests/test_tool_worker.py
+    tests/test_scan_toolset.py
+  covers:
+  - A1
+  - A2
+- command: go test ./internal/planner/scan/... ./internal/scanplan/...
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A1
+  - A2
+verification:
+  date: '2026-10-23'
+  results:
+  - Existing outcome equality failed before the change on four PackageError codes and passes with the
+    extended exception reader.
+  - 'Runtime scan error coverage, contracts, Tool Worker and scanner suites: 411 passed; one deliberate
+    duplicate-ZIP-name fixture warning.'
+  - Full Go planner/scan and scanplan suites passed; make lint passed.
+  - The integrated broad make verify run passed Go/PostgreSQL but failed the Runtime stage with 106 failures,
+    4285 passes and 39 skips. This task fixes the scanner coverage failure; other failing files are unchanged
+    platform/code-analysis modules, with platform classes tracked by V401-007. The broad Runtime gate
+    is not reported as passed.
+implementation_commit: 6c0ecc21a859a9ea9527b2499618dae0de72af83

@@ -1,0 +1,64 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: security-analysis
+  version: "3"
+
+spec:
+  parameters:
+    objective:
+      required: true
+    target:
+      required: true
+    authorization_scope:
+      required: true
+
+  inputs:
+    context:
+      required: false
+      mediaTypes: [text/plain, text/markdown]
+
+  outputs:
+    security_report:
+      required: true
+      primary: true
+      mediaTypes: [text/markdown]
+
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+
+  entryStage: analyze
+  stages:
+    analyze:
+      objective: Perform bounded authorized HTTP and Caido analysis and publish an evidence report
+      instructions:
+        ref: instructions/security-analysis-planner.md
+      planner: passthrough@1
+      agents:
+        analyst:
+          template: caido_analyst@2
+          namespace: security
+      context:
+        artifacts:
+          context:
+            namespace: inputs
+            name: context
+            required: false
+      result:
+        artifacts:
+          report:
+            required: true
+            mediaTypes: [text/markdown]
+            from: {namespace: security, name: report}
+      workflowOutputs:
+        security_report: report
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

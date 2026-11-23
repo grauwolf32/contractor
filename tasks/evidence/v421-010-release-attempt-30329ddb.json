@@ -1,0 +1,248 @@
+{
+  "status": "failed_gate_cancelled_and_joined",
+  "whole_release_passed": false,
+  "source_revision": "30329ddb380083ecbb52fd7fdb082a1e614342fd",
+  "source_tree": "c9d5174f48bd4dfa92b87851b834f48838c50e19",
+  "created_at_utc": "2026-10-27T20:06:30.025843+00:00",
+  "command": [
+    "make",
+    "-k",
+    "release-verify",
+    "RACE_PACKAGE_PARALLELISM=1"
+  ],
+  "setup": {
+    "client_exit_code": 0,
+    "elapsed_seconds": 3.558,
+    "exit_code": 0,
+    "finished_at_utc": "2026-10-27T18:34:48.261887+00:00",
+    "phase": "setup",
+    "redacted_output_bytes": 4585,
+    "started_at_utc": "2026-10-27T18:34:44.703406+00:00",
+    "status": "passed",
+    "timeout_seconds": 3600
+  },
+  "gate": {
+    "client_exit_code": 130,
+    "elapsed_seconds": 4919.614,
+    "exit_code": 130,
+    "finished_at_utc": "2026-10-27T19:56:49.180552+00:00",
+    "phase": "gate",
+    "redacted_output_bytes": 11401926,
+    "started_at_utc": "2026-10-27T18:34:49.526728+00:00",
+    "status": "cancelled",
+    "timeout_seconds": 28800
+  },
+  "source_proof": {
+    "clean_before": true,
+    "clean_after": true,
+    "revision_unchanged": true,
+    "tree_unchanged": true,
+    "locks_unchanged": true,
+    "lock_sha256": {
+      "go.mod": "39814d7a347628f48a62289abba63beba81db20dd51d1acf233d308e654bb937",
+      "go.sum": "33d3b901321b8f39d44e379736d2c9a42b8a0fcb7455ad6c20594ef5417cc195",
+      "runtime/uv.lock": "feb5a55a9097fc6224384a99b7c506467196ab87435ba3a83ac0a230023bb027",
+      "ui/pnpm-lock.yaml": "0e4c20b6ad30b3ba279b51deddfa6f9855423edfd96952a1493e8e1a137774e1"
+    },
+    "runtime_actual_import": {
+      "major_minor": [
+        3,
+        13
+      ],
+      "prefix": "/work/v421-integrated-final-30329ddb-c1/runtime/.venv",
+      "resolved_prefix": "/work/v421-integrated-final-30329ddb-c1/runtime/.venv",
+      "contractor_runtime_file": "/work/v421-integrated-final-30329ddb-c1/runtime/src/contractor_runtime/__init__.py"
+    },
+    "all_tracked_bytes_and_modes_capture_manifest": "/private/tmp/v421-final-capture-30329ddb-c1/source-manifest.json"
+  },
+  "stages": [
+    {
+      "name": "release-verify-lint",
+      "status": "completed"
+    },
+    {
+      "name": "release-verify-unit",
+      "status": "completed"
+    },
+    {
+      "name": "release-verify-ui",
+      "status": "completed"
+    },
+    {
+      "name": "release-verify-families",
+      "status": "completed"
+    },
+    {
+      "name": "release-verify-browser-a",
+      "status": "completed"
+    },
+    {
+      "name": "release-verify-browser-b",
+      "status": "completed"
+    },
+    {
+      "name": "release-verify-race",
+      "status": "completed"
+    },
+    {
+      "name": "release-verify-race-discovered",
+      "status": "failed"
+    },
+    {
+      "name": "release-verify-integration",
+      "status": "started_cancelled_unproven"
+    },
+    {
+      "name": "release-verify-process-a",
+      "status": "not_started"
+    },
+    {
+      "name": "release-verify-process-b",
+      "status": "not_started"
+    },
+    {
+      "name": "release-verify-process-c",
+      "status": "not_started"
+    }
+  ],
+  "failure": {
+    "test": "TestPostgresSitemapSingleRunExceedsRemovedPublicationCaps",
+    "package": "github.com/grauwolf32/contractor/internal/projectsitemap",
+    "test_elapsed_seconds": 24.08,
+    "package_elapsed_seconds": 29.017,
+    "message": "service_postgres_test.go:139: publication 0: context deadline exceeded",
+    "production_operation_timeout_seconds": 15,
+    "test_total_context_minutes": 8,
+    "plain_failure_context": "sitemap-race-failure.txt",
+    "exact_package_group_command": "discovered-race-command.txt"
+  },
+  "completed_go_unit": {
+    "identities": 9813,
+    "pass": 9806,
+    "optional_skip": 7,
+    "fail": 0,
+    "root_tests": 3052,
+    "root_pass": 3045,
+    "root_skip": 7,
+    "packages_pass": 102,
+    "packages_no_tests": 25
+  },
+  "partial_integration": {
+    "status": "started_cancelled_unproven",
+    "test_pass_events": 45,
+    "root_pass_events": 37,
+    "package_pass_events": 1,
+    "last_event_utc": "2026-10-27T19:56:37.833151418Z",
+    "canonical_lifecycle_validation": "not_run",
+    "report": "evidence/reports/go-integration.jsonl"
+  },
+  "canonical_exit_commands": {
+    "status": "not_started",
+    "reason": "whole release did not pass"
+  },
+  "joined_owned_attempt_process_count": 0,
+  "failure_baseline_comparison": "/private/tmp/v421-sitemap-race-baseline-compare-s1/result.json",
+  "evidence_files": {
+    "gate.log": {
+      "sha256": "caeabcd6b81491b9a2d961a9d5e0f201a2b6efa00882399971a70f1e4a3e6019",
+      "bytes": 11401926
+    },
+    "setup.log": {
+      "sha256": "39924895fe55e03cd9a219fdfcb5ea3d8d64b573006bfb7256ee55a8112fb0d6",
+      "bytes": 4585
+    },
+    "result.json": {
+      "sha256": "838e3f258f5f1abde610b60dde6392f5214f2209cba07a004eb17680c751b598",
+      "bytes": 21303
+    },
+    "source-before.json": {
+      "sha256": "9abca73a00ee23dab4e18ff16e38ffb876f9f3637ed68e263701a15db041a061",
+      "bytes": 1160
+    },
+    "source-after.json": {
+      "sha256": "363b755c96fa0d207fb854f171cecfafec7a9cdf1e9bb0bcb26101517e7e7e75",
+      "bytes": 7359
+    },
+    "source-after-setup.json": {
+      "sha256": "efe7e2c64c5ca249b2a6953700155710fe857ab30e4dc7a642f4c1179c572e60",
+      "bytes": 7359
+    },
+    "gate-result.json": {
+      "sha256": "1a64ba1883ae62b9361a2f966da76cbf65fa14587388dbfb7a6f312beb5b32b0",
+      "bytes": 276
+    },
+    "setup-result.json": {
+      "sha256": "bc1c544f0a896da91f8a421cc6d24b3ee2e78c3f25d51aa2961f9e8e968397de",
+      "bytes": 264
+    },
+    "sitemap-race-failure.txt": {
+      "sha256": "3101ac3846396b331fe84bcd7340ed9a08810d277802b5c05be29e11ae7b8bb9",
+      "bytes": 1169
+    },
+    "discovered-race-command.txt": {
+      "sha256": "27718a6a2c1f9fe6f950303338950082194fdd92ff35e3117f3ba55852a649f6",
+      "bytes": 699
+    },
+    "stop-after-race-trigger.json": {
+      "sha256": "95f2f5dc2f338dfedf3637cb41e18eedc8f50729db90f0a2450911a123d5282e",
+      "bytes": 209
+    },
+    "joined-owned-processes-resources.json": {
+      "sha256": "f61f233f6c723916fc0ed37c68328fbe59f63c5bf26a91b2d2592e5d7f8e2bf9",
+      "bytes": 807
+    },
+    "pg-safe-checkpoint.json": {
+      "sha256": "9f47d52a862181a690766f98e6aa8610a6527c8ffc76310617abae3dda61379d",
+      "bytes": 1194
+    }
+  },
+  "report_files": {
+    "evidence/reports/shared-fixture-reads.log": {
+      "sha256": "4b3cd33d081a4d3120b718f58e5b1f48e3d612ba94b91f56ccc25e14b60c0720",
+      "bytes": 543922
+    },
+    "evidence/reports/runtime.xml": {
+      "sha256": "befec6480fc56683da373e10cb026359ed30f81dd04069deb4624e6a79b788d0",
+      "bytes": 19279994
+    },
+    "evidence/reports/go-unit.jsonl": {
+      "sha256": "a91b1b224901becfa8aaf74a48b6f8f747c89d769fcbb7e908bd5a6ff23294ee",
+      "bytes": 11030583
+    },
+    "evidence/reports/go-integration.jsonl": {
+      "sha256": "13c76abb1c3c7d76ecf105c431d7f95c01df641163ad25b4dc5961192509681a",
+      "bytes": 53668
+    },
+    "evidence/reports/ui-stack/run-2350634971/browser-report.json": {
+      "sha256": "bddbbb2adea5da567934d17bdf1f15cd67c55c871b7a9eef8d2c2c5c714140ae",
+      "bytes": 140805
+    },
+    "evidence/reports/ui-stack/run-3340232398/browser-report.json": {
+      "sha256": "7edf42900aaf2ef98e3cfa7e67970e3e2afc10cee5b7ba2ccff2e964c929ec2b",
+      "bytes": 3330
+    }
+  },
+  "independent_counts": {
+    "path": "/private/tmp/v421-c1-failed-counts.json",
+    "sha256": "6f102e117d3595f785f0df2646cf99c1acf92005440ca634a56e73c8eda49f86",
+    "complete_go_unit": {
+      "passed": 9806,
+      "optional_skip": 7
+    },
+    "runtime": {
+      "passed": 5287,
+      "optional_or_separate_gate_skip": 55
+    },
+    "full_ui": {
+      "passed": 2510,
+      "expected_negative_control": 1
+    },
+    "race_packages": {
+      "explicit_pass": 45,
+      "explicit_no_test": 5,
+      "discovered_pass": 56,
+      "discovered_fail": 1
+    },
+    "integration_lifecycle_incomplete_tests": 5
+  }
+}

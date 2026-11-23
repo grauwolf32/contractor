@@ -1,0 +1,39 @@
+schema_version: '1.0'
+id: V406-012
+title: Include the merged Audit-label browser journey in the mandatory inventory
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: ui
+kind: defect
+introduced_by: V405-005
+priority: P2
+status: completed
+depends_on: [V405-005]
+languages: [typescript]
+goal: Keep the fail-closed browser inventory complete after integrating placement work with the basic scanner widgets.
+context:
+  specification: docs/testing/README.md
+  finding: ui/server/mocked-browser-gate.mjs:7 omits e2e/audit-labels.spec.ts added by d624fec643f62ab9b1b2673ab9bcc67e46d34d53 under V405-005. checkBrowserSpecs rejects the merged mandatory browser gate before any scenario runs.
+  siblings: web-scans.spec.ts is already registered; the other mocked/process specs remain covered by the existing inventory guard. The release browser stage invokes this same target.
+scope:
+  in:
+  - Register the existing Audit-label scenario in the mocked browser gate.
+  - Execute it together with all existing browser cases; retain zero-test and inventory mismatch failures.
+  out:
+  - Placement behavior, Studio changes, disabling the inventory guard or new browser scenario implementations.
+acceptance_criteria:
+- id: A1
+  text: The inventory guard rejects the unfixed merged checkout and accepts the complete list after the registration.
+- id: A2
+  text: The full mocked browser gate passes, including the three Audit-label themes and existing scan/sweep widgets, with no skipped or flaky cases.
+tests:
+- command: make ui-browser-mocked
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2]
+implementation_commit: 8a96fb05caa0dd8552b20b02fb187603f0accbc6
+verification:
+  date: '2026-10-23'
+  passed:
+  - The unfixed inventory failed with unlisted=e2e/audit-labels.spec.ts before any browser scenario ran.
+  - make ui-browser-mocked; 91 passing cases across 23 specs, including the three Audit-label themes; no skipped or flaky cases.
+  - make lint

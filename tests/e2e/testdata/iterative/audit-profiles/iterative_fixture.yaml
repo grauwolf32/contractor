@@ -1,0 +1,69 @@
+apiVersion: contractor/v1alpha1
+kind: AuditProfile
+metadata: {name: iterative-fixture, version: "1"}
+spec:
+  mode: custom-checklist
+  standards: []
+  inputs:
+    checklist: {required: true, mediaTypes: [application/json]}
+  inventory:
+    implementation: checklist@1
+    source: {source: audit-input, name: checklist}
+    itemWorkflowRole: seed
+  methods:
+    follow-up:
+      planSchema: contractor.audit.finding-check-plan.v1
+      method: verify
+      workflowRole: ordinary-follow-up
+      requiredCapabilities:
+        - stage: check
+          agent: checker
+          ref: {toolsetId: run-artifacts, version: "1"}
+          tools: [read_artifact]
+        - stage: check
+          agent: checker
+          ref: {toolsetId: source-analysis, version: "1"}
+          tools: [open_source_archive, read_source]
+  workflows:
+    seed:
+      kind: check
+      ref: typed-check-fixture@1
+      workerCompletion: {kind: audit-check-results@1, stage: check, agent: checker}
+      inputs:
+        task: {source: item-package}
+        execution_manifest: {source: execution-manifest}
+      parameters: {}
+      outputs: {result: result}
+    ordinary-follow-up:
+      kind: check
+      ref: iterative-check-fixture@1
+      workerCompletion: {kind: audit-check-results@1, stage: check, agent: checker}
+      inputs:
+        task: {source: item-package}
+        execution_manifest: {source: execution-manifest}
+        proposal: {source: retained-dependency, name: proposal}
+        prior: {source: retained-dependency, name: source-result}
+      parameters: {}
+      outputs: {result: result}
+    inspect:
+      kind: assessment
+      ref: iterative-assessment-fixture@1
+      inputs:
+        snapshot: {source: round-results}
+      parameters: {}
+      outputs: {result: result}
+  execution:
+    roundMode: fixed-barrier
+    maxRounds: 2
+    batchSize: 1
+    maxItemsPerRound: 8
+    maxItemsTotal: 8
+    maxSubmittedRuns: 16
+    maxItemRunAttempts: 1
+    deadlineSeconds: 3600
+    maxEvidenceBytes: 67108864
+    incompleteRound: assess-with-gaps
+  interaction:
+    activeChecks: prohibited
+    notApplicable: profile-rule
+    reportAcceptance: automatic

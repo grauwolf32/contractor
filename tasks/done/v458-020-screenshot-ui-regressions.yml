@@ -1,0 +1,83 @@
+schema_version: "1.0"
+id: V458-020
+title: Repair the review and workspace regressions shown in the screenshots
+milestone: ui-consolidation-2026-10
+epic: ui
+kind: defect
+introduced_by: V64-014
+priority: P2
+status: completed
+depends_on: []
+languages: [typescript, css]
+goal: Issue review, Inbox, Project materials/results/cost and Run diagnostics retain the compact useful design on real data.
+context:
+  authority: User 2026-11-23 requests fixing all six observations from five supplied screenshots dated November 22–23.
+  design: docs/design/ui/README.md
+  specification: docs/spec/ui/ui.md#UI-R39
+  finding: >-
+    finding-decision.tsx:149 and issues/overview.tsx:118 repeat saved assessment
+    information and keep unnecessary controls in a sticky footer. inbox/index.tsx
+    initial selection refuses already loaded rows when another source is incomplete,
+    exposing the Continue placeholder in detail-parts.tsx:219. projects.css:594
+    changes common header geometry only on Overview. artifact-region.tsx:170
+    foregrounds namespace and internal guidance. overview-runs.tsx:250 and
+    llm-cost-card.tsx expose unexplained unavailable states. tool-diagnostics.tsx:161
+    gives a long technical identifier the strongest type and attempt.tsx:295
+    leaves diagnostics in a narrow half-width card.
+  siblings: >-
+    Review presentation is shared by Issues and embedded Inbox; ordinary Check
+    annotations retain the same CAS, required rationale and idempotency rules.
+    Project sections share one header. User/Project/Run material rows and formats
+    share one presentation. Cost empty, partial, pending and read-error states
+    remain distinct. Run attempt and retained tool errors remain separate facts.
+    Related presentation origins include V429-004 and V429-034.
+  boundary: >-
+    UI presentation and initial selection only. Existing readers, bounded pages,
+    server assertions, review mutation ownership, raw technical detail and safe
+    previews remain authoritative. Do not fabricate cost, roles or a root cause;
+    no schema/config change, deployment or automatic main merge.
+scope:
+  in:
+    - Compact saved assessment and review controls with an explicit edit action; expanded drafts must not obscure the reader.
+    - Show loaded Inbox issue/report detail directly while retaining partial-load notices and mobile Back.
+    - Stable Project header across tabs, clear results/cost states and concise Materials with accessible advanced filtering.
+    - Readable full-width diagnostics, compact copyable identifiers and secondary technical fields.
+    - Routed regression and browser layout checks, production preview and evidence at 390/1440 in all three themes.
+  out:
+    - Backend error remediation, new API filters or fetch fan-out, changing business data, new model calls and replacing archived OpenDesign sources.
+acceptance_criteria:
+  - id: A1
+    text: Saved Issues show a compact assessment and explicit Change decision action; idle controls have no summary-copy or draft hint clutter, and draft edits retain required validation and conflict handling.
+  - id: A2
+    text: Desktop Inbox opens an already loaded first item even when other sources fail, with matching selected row and full in-place detail; mobile list/back and explicit URLs remain authoritative.
+  - id: A3
+    text: Project header/tab geometry stays stable across Overview and Materials; results, monetary-data absence versus read errors and advanced material filters are understandable without raw revisions or MIME dominating.
+  - id: A4
+    text: Run diagnostics use the available width, expose actual messages before secondary fields, preserve full copyable references and never turn missing observations into zero or a made-up cause.
+  - id: A5
+    text: Real production routes pass browser checks in light/dark/black at 390/1440 with no horizontal overflow and no oversized sticky review overlay; sources and screenshots remain reviewable in a local preview.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+  - command: make ui-browser-mocked
+    covers: [A1, A2, A3, A4, A5]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3, A4, A5]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2, A3, A4]
+  - command: git diff --check
+    covers: [A1, A2, A3, A4, A5]
+  - command: Browser review of compiled production routes and regression scenarios at 390/1440 in light/dark/black
+    covers: [A1, A2, A3, A4, A5]
+verification:
+  results:
+    - VITEST_MAX_WORKERS=4 make ui-verify passed generation checks, ESLint/Prettier, both TypeScript projects, 228 unit-test files with 2585 passing cases and one existing expected failure, all 17 Node server cases, and the production build. UI release is 0.11.44.
+    - GODEBUG=netdns=cgo make lint completed all gates, including staticcheck, task/spec checks, script/deployment checks and Runtime import contracts. The initial invocation failed resolving proxy.golang.org through Go's default resolver; no application dependency, system DNS or security setting was changed.
+    - make ui-browser-mocked passed 256 cases across 35 specs. After completing the preview byte fixtures and the real Preview action assertion, the focused production-server replay passed all 16 screenshot/Project Overview cases and the final seven screenshot-polish cases passed again. Final pnpm lint and typecheck also passed.
+    - Production-route screenshots cover saved Issue, Project Overview, Materials and Run diagnostics at 390/1440 in light/dark/black. CUA additionally checked embedded Inbox issue/report detail in all 12 combinations; every document width matched its viewport and no Continue action remained. Expanded review composers were static, collapsed saved-review regions stayed below 90 pixels, and the common Project header dimensions matched across tabs.
+    - Required rationale, stale revision, idempotency and pending canonical refresh regression cases passed. The review does not collapse or re-enable editing until the canonical reread completes. Existing direct-reader, mobile Back and Report behavior remains covered.
+    - The read-only compiled preview and source/evidence are retained locally and copied into iterations/2026-11-23-screenshot-polish in the shared UI archive. Original OpenDesign archive contents are preserved; this iteration repairs the working UI without generating or replacing OpenDesign sources.
+    - No Server/API/schema change, demo business-data mutation, deployment, main merge or full release gate was performed. Changes remain on codex/ui-screenshot-polish-20261123 pending user review.
+implementation_commit: e2de9f4978c74c8cc95800d2b816f45349a5bbbe

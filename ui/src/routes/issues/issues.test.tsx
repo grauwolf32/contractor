@@ -1,0 +1,860 @@
+import { act, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, onTestFinished } from "vitest";
+
+import { queryKeys } from "../../api/query-keys";
+import * as build from "../../test/builders";
+import { deferred } from "../../test/deferred";
+import { check, issue, issuesServer, renderIssues } from "./test-support";
+
+const shop = build.project("project_shop", { name: "Shop" });
+const billing = build.project("project_billing", { name: "Billing" });
+
+/**
+ * Two projects: Shop with a running trace (an older possible issue on an
+ * endpoint) and Billing with a finished check (a newer possible issue and a
+ * confirmed issue).
+ */
+function twoProjects() {
+  return issuesServer({
+    projects: [shop, billing],
+    audits: [
+      check(shop.projectId, "audit_shop", "active"),
+      check(
+        billing.projectId,
+        "audit_billing",
+        "completed",
+        "owasp-top10-2025-source-risk",
+      ),
+    ],
+    findings: [
+      issue(
+        "project_shop",
+        "finding_orders",
+        "Any user can read any order",
+        "2026-10-04T10:00:00Z",
+        {},
+        {
+          subject: { kind: "openapi-operation", key: "GET /orders/{id}" },
+          standard_refs: [
+            { scheme: "CWE", version: "4.20", requirement_id: "CWE-639" },
+          ],
+          severity_suggestion: "high",
+        },
+      ),
+      issue(
+        "project_billing",
+        "finding_invoices",
+        "Invoices leak through a debug endpoint",
+        "2026-10-05T09:00:00Z",
+        {},
+        { severity_suggestion: "" },
+      ),
+      issue(
+        "project_billing",
+        "finding_refunds",
+        "Refunds skip the approval step",
+        "2026-10-03T09:00:00Z",
+        {
+          state: "confirmed",
+          analystVerdict: "true_positive",
+          analystSeverity: "high",
+        },
+        { severity_suggestion: "low" },
+      ),
+    ],
+  });
+}
+
+function rowTitles() {
+  return [
+    ...screen
+      .getByRole("region", { name: "Possible issues" })
+      .querySelectorAll("li.ui-row"),
+  ].map((row) => row.querySelector(".ui-row-title")?.textContent);
+}
+
+/** The detail header of the possible issue `findingId`, once it shows. */
+function detailBar(findingId: string): HTMLElement | undefined {
+  return [
+    ...document.querySelectorAll<HTMLElement>(
+      ".ui-panes-detail .issues-detail-bar",
+    ),
+  ].find(
+    (bar) =>
+      bar.querySelector(".issues-workspace-title")?.textContent ===
+      (findingId === "finding_orders"
+        ? "Any user can read any order"
+        : "Invoices leak through a debug endpoint"),
+  );
+}
+
+/**
+ * Where focus is when `find` first returns an element. It is read in the
+ * MutationObserver callback of the DOM change that showed the element, so
+ * before any later task (a passive effect, a timer, the next poll of a
+ * findBy query) could move focus.
+ */
+function focusWhenShown(find: () => Element | null | undefined): {
+  element?: Element;
+  focused?: Element | null;
+} {
+  const seen: { element?: Element; focused?: Element | null } = {};
+  const observer = new MutationObserver(() => {
+    const element = find();
+    if (element === null || element === undefined) return;
+    seen.element = element;
+    seen.focused = document.activeElement;
+    observer.disconnect();
+  });
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+  });
+  onTestFinished(() => observer.disconnect());
+  return seen;
+}
+
+/** The page's own status region: outside both panes, so never hidden with one. */
+function pageStatus(): HTMLElement {
+  const outside = screen
+    .getAllByRole("status")
+    .filter((region) => region.closest(".ui-panes") === null);
+  expect(outside).toHaveLength(1);
+  return outside[0]!;
+}
+
+it("opens a finding's existing Evidence tab from a direct duplicate link", async () => {
+  const view = renderIssues(
+    twoProjects(),
+    "/issues/project_shop/finding_orders?tab=evidence",
+  );
+  expect(await screen.findByRole("tab", { name: /^Evidence/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await view.user.click(screen.getByRole("tab", { name: "Summary" }));
+  await screen.findByText("What the AI found");
+  expect(view.location()).not.toContain("tab=evidence");
+});
+
+describe("Issues", () => {
+  it("lists possible issues across projects by severity, with filters in the URL", async () => {
+    const server = twoProjects();
+    const { router } = renderIssues(server, "/issues");
+    const list = await screen.findByRole("region", { name: "Possible issues" });
+    expect(
+      within(list).getByRole("heading", { level: 1, name: "Possible issues" }),
+    ).toBeVisible();
+    expect(within(list).getByText("Across all projects")).toBeVisible();
+    await waitFor(() =>
+      expect(rowTitles()).toEqual([
+        "Any user can read any order",
+        "Invoices leak through a debug endpoint",
+      ]),
+    );
+    const states = within(list).getByRole("group", { name: "Filter by state" });
+    expect(
+      await within(states).findByRole("button", { name: "Needs review 2" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(within(states).getByRole("button", { name: "All 3" })).toBeVisible();
+
+    const orders = screen
+      .getByRole("link", { name: "Any user can read any order" })
+      .closest("li") as HTMLElement;
+    expect(within(orders).getByText("GET")).toHaveClass("ui-method-chip");
+    expect(within(orders).getByText("/orders/{id}")).toBeVisible();
+    expect(within(orders).getByText("Shop")).toBeVisible();
+    expect(within(orders).getByText("Not assessed")).toBeVisible();
+    expect(within(orders).getByText("Not assessed")).toBeVisible();
+    expect(within(orders).getByText("Severity not set")).toBeVisible();
+    expect(within(orders).getByText("AI suggestion: High")).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Any user can read any order" }),
+    ).toHaveAttribute("href", "/issues/project_shop/finding_orders");
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText("More filters"));
+    await user.selectOptions(screen.getByLabelText("State"), "confirmed");
+    expect(router.state.location.search).toBe("?state=confirmed");
+    await waitFor(() =>
+      expect(rowTitles()).toEqual(["Refunds skip the approval step"]),
+    );
+    expect(screen.getByText("Severity: High")).toBeVisible();
+
+    await user.selectOptions(screen.getByLabelText("Project"), "Billing");
+    expect(router.state.location.search).toBe(
+      "?state=confirmed&project=project_billing",
+    );
+    expect(within(list).getByText("In Billing")).toBeVisible();
+    await user.click(within(states).getByRole("button", { name: /^All/ }));
+    expect(router.state.location.search).toBe(
+      "?state=all&project=project_billing",
+    );
+    await waitFor(() =>
+      expect(rowTitles()).toEqual([
+        "Refunds skip the approval step",
+        "Invoices leak through a debug endpoint",
+      ]),
+    );
+  });
+
+  it("filters by analyst severity with a producer suggestion fallback", async () => {
+    const server = twoProjects();
+    server.findings.push(
+      issue(
+        "project_shop",
+        "finding_low",
+        "Verbose errors on login",
+        "2026-10-02T09:00:00Z",
+        {
+          state: "confirmed",
+          analystVerdict: "true_positive",
+          analystSeverity: "low",
+        },
+        { severity_suggestion: "high" },
+      ),
+    );
+    const { requests, router } = renderIssues(server, "/issues?state=all");
+    await waitFor(() => expect(rowTitles()).toHaveLength(4));
+    const user = userEvent.setup();
+    await user.click(screen.getByText("More filters"));
+    await user.selectOptions(screen.getByLabelText("Severity"), "high");
+    expect(router.state.location.search).toBe("?state=all&severity=high");
+    // An analyst Low overrides source High; an unassessed source High remains visible.
+    await waitFor(() =>
+      expect(rowTitles()).toEqual([
+        "Any user can read any order",
+        "Refunds skip the approval step",
+      ]),
+    );
+    const reads = requests
+      .map((request) => new URL(request.url))
+      .filter((url) => url.pathname.endsWith("/findings"));
+    expect(
+      reads.some((url) => url.searchParams.get("severity") === "high"),
+    ).toBe(true);
+    expect(
+      reads.every(
+        (url) =>
+          !url.searchParams.has("severity") ||
+          url.searchParams.get("severity") === "high",
+      ),
+    ).toBe(true);
+  });
+
+  it("opens a possible issue with Summary, Evidence and History tabs and masks credentials", async () => {
+    const server = twoProjects();
+    const orders = server.findings[0]!;
+    const source = server.sources.find(
+      (value) => value.receiptId === orders.firstReceiptId,
+    )!;
+    source.document.locations = [
+      { file: "orders/views.py", line: 42 },
+      { url: "https://shop.example/orders/1", method: "GET" },
+    ];
+    source.document.evidence_ids = ["response"];
+    source.document.http_exchange = {
+      request_id: 7,
+      request_tag: "probe",
+      response_body_evidence_id: "response",
+      attempts: [
+        {
+          method: "GET",
+          url: "https://shop.example/orders/1",
+          headers: [
+            { name: "Accept", value: "application/json" },
+            { name: "Authorization", value: "Bearer secret-token" },
+          ],
+          body_base64: btoa('{"note":"probe"}'),
+          status: 200,
+          response_headers: [
+            { name: "Set-Cookie", value: "session=abc123" },
+            { name: "Content-Type", value: "application/json" },
+          ],
+        },
+      ],
+    };
+    source.projectEvidence = [
+      {
+        ref: { namespace: "audit-evidence", name: "body", revision: "r1" },
+        digest: build.DIGEST,
+        mediaType: "application/json",
+        sizeBytes: 64,
+      },
+    ];
+    renderIssues(server, "/issues/project_shop/finding_orders");
+    const review = await screen.findByRole("region", { name: "Review" });
+    expect(
+      await within(review).findByLabelText("Possible issue 1 of 2"),
+    ).toBeVisible();
+    expect(
+      within(review).getByRole("link", { name: "View in Project" }),
+    ).toHaveAttribute("href", "/projects/project_shop/findings");
+    const tabs = within(review).getByRole("tablist", {
+      name: "Review sections",
+    });
+    expect(within(tabs).getByRole("tab", { name: "Summary" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      await within(review).findByRole("heading", {
+        level: 2,
+        name: "Any user can read any order",
+      }),
+    ).toBeVisible();
+    expect(
+      within(review).getByRole("heading", {
+        name: "What the AI found",
+      }),
+    ).toBeVisible();
+
+    const user = userEvent.setup();
+    await user.click(
+      await within(tabs).findByRole("tab", { name: "Evidence 4" }),
+    );
+    const panel = within(review).getByRole("tabpanel", { name: "Evidence 4" });
+    expect(
+      within(panel).getByRole("heading", { name: "Captured HTTP exchange" }),
+    ).toBeVisible();
+    expect(within(panel).getByText("orders/views.py:42")).toBeVisible();
+    expect(
+      within(panel).getByText("GET https://shop.example/orders/1"),
+    ).toBeVisible();
+    expect(within(panel).getByText("HTTP 200")).toBeVisible();
+    expect(within(panel).getByText('{"note":"probe"}')).toBeVisible();
+    expect(
+      within(panel).getByText("Accept", { selector: "dt" }).nextElementSibling,
+    ).toHaveTextContent("application/json");
+    // Credentials stay out of the page until shown, one value at a time.
+    expect(review).not.toHaveTextContent("Bearer secret-token");
+    expect(review).not.toHaveTextContent("session=abc123");
+    await user.click(
+      within(panel).getByRole("button", { name: "Show Authorization value" }),
+    );
+    expect(within(panel).getByText("Bearer secret-token")).toBeVisible();
+    expect(review).not.toHaveTextContent("session=abc123");
+    await user.click(
+      within(panel).getByRole("button", { name: "Hide Authorization value" }),
+    );
+    expect(review).not.toHaveTextContent("Bearer secret-token");
+    expect(
+      within(panel).getByRole("button", { name: "Show Set-Cookie value" }),
+    ).toBeVisible();
+    expect(within(panel).getByText(/Response body ·/)).toBeVisible();
+
+    // Arrow keys move between the tabs.
+    within(tabs).getByRole("tab", { name: "Evidence 4" }).focus();
+    await user.keyboard("{ArrowRight}");
+    const history = within(tabs).getByRole("tab", { name: "History" });
+    expect(history).toHaveFocus();
+    expect(history).toHaveAttribute("aria-selected", "true");
+    const historyPanel = within(review).getByRole("tabpanel", {
+      name: "History",
+    });
+    expect(
+      await within(historyPanel).findByRole("heading", {
+        name: "Independent sources",
+      }),
+    ).toBeVisible();
+    expect(
+      await within(historyPanel).findByText(/source-review@1/),
+    ).toBeVisible();
+    expect(
+      await within(historyPanel).findByRole("heading", {
+        name: "Source history and check results",
+      }),
+    ).toBeVisible();
+  });
+
+  it("records a decision, announces it and moves on when the possible issue leaves the list", async () => {
+    const server = twoProjects();
+    const { router, sent } = renderIssues(
+      server,
+      "/issues/project_billing/finding_invoices",
+    );
+    const review = await screen.findByRole("region", { name: "Review" });
+    expect(
+      await within(review).findByLabelText("Possible issue 2 of 2"),
+    ).toBeVisible();
+    const bar = await within(review).findByRole("region", {
+      name: "Your decision",
+    });
+    const user = userEvent.setup();
+    await user.click(
+      await within(bar).findByRole("button", { name: "Confirm issue" }),
+    );
+    await user.click(within(bar).getByRole("radio", { name: "High" }));
+    await user.type(
+      within(bar).getByRole("textbox", { name: "Why" }),
+      "The debug endpoint returns invoices without a session.",
+    );
+    await user.click(
+      within(bar).getByRole("button", { name: "Record decision" }),
+    );
+
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(
+        "/issues/project_shop/finding_orders",
+      ),
+    );
+    const outcome =
+      "Decision recorded: Confirmed · High. Showing the next possible issue: Any user can read any order.";
+    expect(pageStatus()).toHaveTextContent(outcome);
+    // Shown in the detail too, without a second announcement.
+    const shown = within(
+      screen.getByRole("region", { name: "Review" }),
+    ).getByText(outcome);
+    expect(shown).toBeVisible();
+    expect(shown).toHaveAttribute("aria-hidden", "true");
+    expect(sent("PATCH", "/findings/finding_invoices")).toHaveLength(1);
+    // The decided issue leaves the Needs review list once it is read again.
+    await waitFor(() =>
+      expect(rowTitles()).toEqual(["Any user can read any order"]),
+    );
+    expect(
+      await within(
+        screen.getByRole("region", { name: "Review" }),
+      ).findByLabelText("Possible issue 1 of 1"),
+    ).toBeVisible();
+    await waitFor(() => expect(detailBar("finding_orders")).toHaveFocus());
+  });
+
+  it.each(["list", "detail"] as const)(
+    "moves focus to the next possible issue once shown when the %s reads answer first",
+    async (first) => {
+      const server = twoProjects();
+      // After the decision: the list reads, the decided possible issue's
+      // reads and those of the next one wait until the test answers them.
+      const gates = { list: deferred(), detail: deferred(), next: deferred() };
+      const asked = { list: 0, detail: 0, next: 0 };
+      let decided = false;
+      server.hold = ({ request, url }) => {
+        if (!decided) {
+          decided =
+            request.method === "PATCH" &&
+            url.pathname.endsWith("/findings/finding_invoices");
+          return undefined;
+        }
+        if (request.method !== "GET") return undefined;
+        const group = ["/v1/findings", "/v1/audits", "/v1/projects"].includes(
+          url.pathname,
+        )
+          ? "list"
+          : url.pathname.startsWith("/v1/projects/project_billing/findings/")
+            ? "detail"
+            : url.pathname.startsWith("/v1/projects/project_shop/findings/")
+              ? "next"
+              : undefined;
+        if (group === undefined) return undefined;
+        asked[group] += 1;
+        return gates[group].promise;
+      };
+      const { router, queryClient } = renderIssues(
+        server,
+        "/issues/project_billing/finding_invoices",
+      );
+      const review = await screen.findByRole("region", { name: "Review" });
+      expect(
+        await within(review).findByLabelText("Possible issue 2 of 2"),
+      ).toBeVisible();
+      const bar = await within(review).findByRole("region", {
+        name: "Your decision",
+      });
+      const user = userEvent.setup();
+      await user.click(
+        await within(bar).findByRole("button", { name: "Not an issue" }),
+      );
+      await user.type(
+        within(bar).getByRole("textbox", { name: "Why" }),
+        "Invoices need a session.",
+      );
+      const shown = focusWhenShown(() => detailBar("finding_orders"));
+      await user.click(
+        within(bar).getByRole("button", { name: "Record decision" }),
+      );
+
+      // The decision refetches the list and the decided possible issue's
+      // reads together, and moves on once both answered.
+      await waitFor(() => {
+        expect(asked.list).toBeGreaterThan(0);
+        expect(asked.detail).toBeGreaterThan(0);
+      });
+      gates[first].resolve();
+      if (first === "list")
+        await waitFor(() =>
+          expect(rowTitles()).toEqual(["Any user can read any order"]),
+        );
+      else
+        expect(
+          await within(review).findByRole("region", {
+            name: "Recorded decision",
+          }),
+        ).toBeVisible();
+      expect(router.state.location.pathname).toBe(
+        "/issues/project_billing/finding_invoices",
+      );
+      gates[first === "list" ? "detail" : "list"].resolve();
+
+      // The next possible issue shows from the list while its own reads
+      // wait; its header has focus from the change that shows it.
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe(
+          "/issues/project_shop/finding_orders",
+        ),
+      );
+      await waitFor(() => expect(shown.element).toBeDefined());
+      expect(shown.focused).toBe(shown.element);
+      expect(shown.element).toHaveFocus();
+      await waitFor(() => expect(asked.next).toBeGreaterThan(0));
+
+      // The polled list reads again while the next possible issue's reads
+      // are on their way; they answer in the same order as before.
+      gates.list = deferred();
+      void queryClient.refetchQueries({
+        queryKey: queryKeys.crossProject.all,
+        type: "active",
+      });
+      const listSettled = () =>
+        waitFor(() =>
+          expect(
+            queryClient.isFetching({ queryKey: queryKeys.crossProject.all }),
+          ).toBe(0),
+        );
+      const nextSettled = () =>
+        waitFor(() =>
+          expect(
+            within(
+              screen.getByRole("region", { name: "Your decision" }),
+            ).getByRole("button", { name: "Not an issue" }),
+          ).toBeEnabled(),
+        );
+      if (first === "list") {
+        gates.list.resolve();
+        await listSettled();
+        gates.next.resolve();
+        await nextSettled();
+      } else {
+        gates.next.resolve();
+        await nextSettled();
+        gates.list.resolve();
+        await listSettled();
+      }
+      const header = detailBar("finding_orders");
+      expect(header).toBe(shown.element);
+      expect(header).toHaveTextContent("Possible issue 1 of 1");
+      expect(header).toHaveFocus();
+    },
+  );
+
+  it("stays where the user went when a decision answers after they left", async () => {
+    const server = twoProjects();
+    let release: () => void = () => undefined;
+    server.decisionGate = new Promise<void>((resolve) => {
+      release = () => resolve();
+    });
+    const { router, sent } = renderIssues(
+      server,
+      "/issues/project_billing/finding_invoices",
+    );
+    const review = await screen.findByRole("region", { name: "Review" });
+    const bar = await within(review).findByRole("region", {
+      name: "Your decision",
+    });
+    const user = userEvent.setup();
+    await user.click(
+      await within(bar).findByRole("button", { name: "Not an issue" }),
+    );
+    await user.type(
+      within(bar).getByRole("textbox", { name: "Why" }),
+      "Invoices need a session.",
+    );
+    await user.click(
+      within(bar).getByRole("button", { name: "Record decision" }),
+    );
+    await waitFor(() =>
+      expect(sent("PATCH", "/findings/finding_invoices")).toHaveLength(1),
+    );
+    // The user opens the check page while the decision is recorded.
+    await act(async () => {
+      await router.navigate(
+        "/projects/project_billing/audits/audit_billing/findings",
+      );
+    });
+    expect(await screen.findByText("Check page")).toBeVisible();
+    await act(async () => {
+      release();
+      await server.decisionGate;
+    });
+    // The decision took the possible issue out of the Needs review list, so
+    // the Issues page would move on; the user stays on the check page.
+    await waitFor(() => expect(server.findings[1]?.state).toBe("rejected"));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(router.state.location.pathname).toBe(
+      "/projects/project_billing/audits/audit_billing/findings",
+    );
+    expect(screen.getByText("Check page")).toBeVisible();
+  });
+
+  it("returns to the list after deciding the last possible issue, and stays on one opened from a link", async () => {
+    const server = twoProjects();
+    const { router } = renderIssues(
+      server,
+      "/issues/project_shop/finding_orders?project=project_shop",
+    );
+    const review = await screen.findByRole("region", { name: "Review" });
+    expect(
+      await within(review).findByLabelText("Possible issue 1 of 1"),
+    ).toBeVisible();
+    const user = userEvent.setup();
+    let bar = await within(review).findByRole("region", {
+      name: "Your decision",
+    });
+    // R chooses "Not an issue" and moves to the reason.
+    await user.click(within(review).getByRole("tab", { name: "Summary" }));
+    await user.keyboard("r");
+    const reason = within(bar).getByRole("textbox", { name: "Why" });
+    expect(reason).toHaveFocus();
+    await user.type(reason, "Orders are scoped by the session.");
+    const listShown = focusWhenShown(() =>
+      document.querySelector(".ui-panes-detail .issues-detail-empty"),
+    );
+    await user.click(
+      within(bar).getByRole("button", { name: "Record decision" }),
+    );
+    await waitFor(() => expect(router.state.location.pathname).toBe("/issues"));
+    expect(router.state.location.search).toBe("?project=project_shop");
+    const outcome =
+      "Decision recorded: Not an issue. That was the last possible issue in this list.";
+    expect(pageStatus()).toHaveTextContent(outcome);
+    const list = screen.getByRole("region", { name: "Possible issues" });
+    expect(await within(list).findByText(outcome)).toBeVisible();
+    // The decision and its row go away, so focus moves to the list's title.
+    const title = within(list).getByRole("heading", {
+      level: 1,
+      name: "Possible issues",
+    });
+    await waitFor(() => expect(title).toHaveFocus());
+    // From the change that shows the list without a selection on.
+    expect(listShown.element).toBeDefined();
+    expect(listShown.focused).toBe(title);
+    expect(title).toHaveAttribute("tabindex", "-1");
+    // The decided possible issue leaves the list once its check is read again.
+    expect(
+      await within(list).findByText("That is everything that needs review."),
+    ).toBeVisible();
+    expect(title).toHaveFocus();
+
+    // A possible issue outside the list (here: already decided) stays open.
+    await act(async () => {
+      await router.navigate(
+        "/issues/project_billing/finding_invoices?state=rejected",
+      );
+    });
+    bar = await screen.findByRole("region", { name: "Your decision" });
+    expect(await screen.findByText("Not in this list")).toBeVisible();
+    await user.click(
+      within(bar).getByRole("button", { name: "Needs evidence" }),
+    );
+    await user.type(
+      within(bar).getByRole("textbox", { name: "Why" }),
+      "Attach the debug response.",
+    );
+    await user.click(
+      within(bar).getByRole("button", { name: "Record decision" }),
+    );
+    expect(
+      await screen.findByRole("region", { name: "Recorded decision" }),
+    ).toBeVisible();
+    expect(router.state.location.pathname).toBe(
+      "/issues/project_billing/finding_invoices",
+    );
+  });
+
+  it("moves with J and K and the previous and next buttons", async () => {
+    const server = twoProjects();
+    const { router } = renderIssues(server, "/issues");
+    await waitFor(() => expect(rowTitles()).toHaveLength(2));
+    expect(
+      screen.getByText("Choose a possible issue", { exact: false }),
+    ).toBeVisible();
+    const user = userEvent.setup();
+    await user.keyboard("j");
+    expect(router.state.location.pathname).toBe(
+      "/issues/project_shop/finding_orders",
+    );
+    await user.keyboard("j");
+    expect(router.state.location.pathname).toBe(
+      "/issues/project_billing/finding_invoices",
+    );
+    expect(
+      screen.getByRole("link", {
+        name: "Invoices leak through a debug endpoint",
+      }),
+    ).toHaveAttribute("aria-current", "true");
+    await user.keyboard("k");
+    expect(router.state.location.pathname).toBe(
+      "/issues/project_shop/finding_orders",
+    );
+    const next = await screen.findByRole("button", {
+      name: "Next possible issue",
+    });
+    expect(next).toHaveAttribute("aria-keyshortcuts", "J");
+    expect(
+      screen.getByRole("button", { name: "Previous possible issue" }),
+    ).toBeDisabled();
+    await user.click(next);
+    expect(router.state.location.pathname).toBe(
+      "/issues/project_billing/finding_invoices",
+    );
+  });
+
+  it("marks a failed owner list incomplete and retries it", async () => {
+    const server = twoProjects();
+    server.failing.add("audit_billing");
+    renderIssues(server, "/issues");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Some possible issues could not be loaded.",
+    );
+    expect(alert).toHaveTextContent(
+      "The possible issues list could not be refreshed: Findings unavailable",
+    );
+    expect(rowTitles()).toEqual([]);
+    server.failing.clear();
+    await userEvent
+      .setup()
+      .click(within(alert).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(rowTitles()).toEqual([
+      "Any user can read any order",
+      "Invoices leak through a debug endpoint",
+    ]);
+  });
+
+  it("says when everything was reviewed and a check is still running", async () => {
+    const server = twoProjects();
+    server.findings = server.findings.filter(
+      (finding) => finding.state !== null && finding.state !== "proposed",
+    );
+    renderIssues(server, "/issues");
+    expect(
+      await screen.findByText("That is everything that needs review."),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        "OpenAPI · Operation trace on Shop is still running, so more may arrive.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("does not call the review queue clear under a severity filter or after failed reads", async () => {
+    const server = twoProjects();
+    const { unmount } = renderIssues(server, "/issues?severity=critical");
+    const list = await screen.findByRole("region", { name: "Possible issues" });
+    expect(
+      await within(list).findByText("No possible issues match these filters"),
+    ).toBeVisible();
+    expect(
+      within(list).getByText(
+        /Records with unknown severity do not match this filter/,
+      ),
+    ).toBeVisible();
+    expect(
+      within(list).getByRole("link", {
+        name: "Show every project and severity",
+      }),
+    ).toHaveAttribute("href", "/issues");
+    expect(
+      screen.queryByText("That is everything that needs review."),
+    ).toBeNull();
+    unmount();
+
+    server.failing.add("audit_shop");
+    server.failing.add("audit_billing");
+    renderIssues(server, "/issues");
+    expect(
+      await screen.findByText("Some possible issues could not be loaded."),
+    ).toBeVisible();
+    expect(await screen.findByText("No possible issues listed")).toBeVisible();
+    expect(
+      screen.getByText("There may be more in what could not be loaded."),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("That is everything that needs review."),
+    ).toBeNull();
+  });
+
+  it("lists all matches without the former per-check cap notice", async () => {
+    const server = twoProjects();
+    server.more.add("audit_billing");
+    renderIssues(server, "/issues?state=confirmed&severity=high");
+    await waitFor(() =>
+      expect(rowTitles()).toEqual(["Refunds skip the approval step"]),
+    );
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it("says the list is loading rather than that a linked possible issue is not in it", async () => {
+    const server = twoProjects();
+    let release: () => void = () => undefined;
+    server.gate = new Promise<void>((resolve) => {
+      release = () => resolve();
+    });
+    renderIssues(server, "/issues/project_shop/finding_orders");
+    const review = await screen.findByRole("region", { name: "Review" });
+    // The exact read finishes before any list read.
+    expect(
+      await within(review).findByRole("heading", {
+        level: 2,
+        name: "Any user can read any order",
+      }),
+    ).toBeVisible();
+    expect(within(review).getByText("Loading the list…")).toBeVisible();
+    expect(within(review).queryByText("Not in this list")).toBeNull();
+    await act(async () => {
+      release();
+      await server.gate;
+    });
+    expect(
+      await within(review).findByLabelText("Possible issue 1 of 2"),
+    ).toBeVisible();
+    expect(within(review).queryByText("Loading the list…")).toBeNull();
+    expect(within(review).queryByText("Not in this list")).toBeNull();
+  });
+});
+
+it("retains selection and the review draft when sorting or searching the loaded list", async () => {
+  const view = renderIssues(
+    twoProjects(),
+    "/issues/project_shop/finding_orders",
+  );
+  await waitFor(() => expect(rowTitles()).toHaveLength(2));
+  const bar = await screen.findByRole("region", { name: "Your decision" });
+  await view.user.click(
+    await within(bar).findByRole("button", { name: "Not an issue" }),
+  );
+  const reason = within(bar).getByRole("textbox", { name: "Why" });
+  await view.user.type(reason, "Keep this unsaved rationale.");
+  await view.user.selectOptions(screen.getByLabelText("Sort"), "newest");
+  expect(view.location()).toContain("finding_orders?sort=newest");
+  expect(rowTitles()).toEqual([
+    "Invoices leak through a debug endpoint",
+    "Any user can read any order",
+  ]);
+  expect(within(bar).getByRole("textbox", { name: "Why" })).toBe(reason);
+  expect(reason).toHaveValue("Keep this unsaved rationale.");
+  await view.user.type(
+    screen.getByRole("searchbox", { name: "Search issues" }),
+    "invoices",
+  );
+  expect(rowTitles()).toEqual(["Invoices leak through a debug endpoint"]);
+  expect(view.location()).toContain("finding_orders");
+  expect(reason).toHaveValue("Keep this unsaved rationale.");
+  expect(screen.getByText("Not in this list")).toBeVisible();
+  expect(view.sent("PATCH", "/findings/finding_invoices")).toHaveLength(0);
+});

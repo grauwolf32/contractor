@@ -1,0 +1,54 @@
+schema_version: "1.0"
+id: V457-004
+title: "Share one bounded budget across postcommit filesystem blob cleanup"
+milestone: artifact-release-cleanup-2026-11
+epic: projects-artifacts
+kind: chore
+introduced_by: V437-004
+priority: P2
+status: completed
+depends_on: []
+languages: [go]
+goal: "A committed purge spends one bounded best-effort budget on filesystem unlink work and retains the existing offline orphan recovery path."
+context:
+  authority: "User request 2026-11-07 authorizes the release review fixes and simplifications on a separate branch."
+  review: "Contractor main release review 2026-11-07, DATA1."
+  specification:
+    - docs/spec/artifacts/blob-storage.md#BLB-R72
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R22
+  finding: >-
+    internal/persistence/postgres/commit.go:26 executes all callbacks serially;
+    internal/artifacts/postgres/blob_context.go:57 allocates a new five-second
+    context per object. A Run purge can enqueue 50000 objects, so the cleanup
+    budget is multiplied by the callback count after the logical commit.
+scope:
+  in:
+    - "Use one cancellation-independent postcommit cleanup context shared by the transaction's effects."
+    - "Stop best-effort cleanup at the shared budget and log bounded deferral through the existing Artifact boundary."
+    - "Prove the callback bound with a deterministic injected budget and verify real filesystem/registry purge and rollback."
+  out: ["Durable cleanup queues, online orphan sweeping, changed logical deletion or transaction boundaries."]
+acceptance_criteria:
+  - id: A1
+    text: "One successful transaction shares a five-second cleanup budget; rollback and ambiguous commit run no cleanup."
+  - id: A2
+    text: "A representative thousand-callback batch stops deterministically when its injected shared budget ends, while logical commit remains successful."
+  - id: A3
+    text: "Real PostgreSQL/filesystem purges retain rollback safety, unlink unreferenced generations and leave interrupted best-effort cleanup recoverable offline."
+tests:
+  - command: "go test -count=1 ./internal/persistence/postgres"
+    covers: [A1, A2]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/artifacts/postgres ./internal/rundeletion ./internal/persistence/postgres"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification: >-
+  Full artifacts/postgres, rundeletion and persistence/postgres suites passed
+  against the owned PostgreSQL 17 database: 157 top-level tests passed and two
+  declared disk-heavy Artifact fixtures skipped with HEAVY_IO disabled.
+  The injected-budget regression admitted 3 of 1000 callbacks and emitted one
+  diagnostic for 997 unstarted callbacks without wall-clock assertions.
+  A real committed Run purge unlinked 64 unique filesystem objects using one
+  shared context and left no registry object or filesystem orphan. Caller
+  cancellation, rollback and ambiguous-commit regressions passed. Evidence:
+  work/data1-postgres-tests.jsonl in the coordinating workspace. Integrated make lint passed on the combined branch.
+implementation_commit: b62142c5cd9390d67ee133182875b5058bc8c818

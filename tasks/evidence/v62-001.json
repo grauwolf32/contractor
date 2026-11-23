@@ -1,0 +1,32 @@
+{
+  "task": "V62-001",
+  "verified_on": "2026-09-21",
+  "result": "passed",
+  "implementation_commit": "22fcba08211b83bb109c34c706ce5696602b699d",
+  "prerequisite": "V62-009 process and cross-Run collection acceptance passed; see tasks/evidence/v62-009.json",
+  "acceptance": {
+    "A1": "Specification 19 defines the source-to-OpenAPI-to-inventory chain, direct inputs, exact provenance, dependencies and pre-Round control transitions. Runtime behavior is selected by explicit role/source contracts.",
+    "A2": "27 preparation authoring fixtures (3 valid, 24 invalid) plus dependency, cycle, scope, exact source equality and persisted snapshot mutation cases pass. Obsolete sourceInput/settingsInput and old snapshots are rejected; no compatibility reader was added.",
+    "A3": "Public preparation fixtures, API conformance, generated clients, TypeScript and the complete repository catalog pass. TestPreparationIsCatalogValidButCannotStartOrPreview preserves preparation_unsupported until V62-002\u2013004."
+  },
+  "commands": [
+    {
+      "command": "go test ./internal/config ./internal/contracts ./internal/auditdomain ./internal/auditservice",
+      "result": "passed as part of the uncached focused Go gate"
+    },
+    {
+      "command": "make verify-public-api ui-generate-check ui-typecheck test-config",
+      "result": "passed",
+      "node": "24.20.0"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "scope_limit": "Only preparation contracts, schemas, public projections and capability gating are accepted. Durable preparation, controller dispatch and generated inventory remain V62-002, V62-003 and V62-004.",
+  "evidence_sha256": {
+    "go-focused.log": "d84f41ceee37829a8a62c90d8f6801c7acb7e16eb9941056c6fea1a677de5405",
+    "contracts-ui-config.log": "f49361d272e710a79f6842b79260d567794d10065f10329cfbf884dc7669af58"
+  }
+}

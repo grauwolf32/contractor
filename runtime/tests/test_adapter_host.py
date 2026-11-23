@@ -1,0 +1,964 @@
+from __future__ import annotations
+
+import asyncio
+import json
+from collections.abc import Mapping
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from types import MappingProxyType
+from typing import Any
+
+import pytest
+from fakes.spec import allocation_spec
+from fakes.telemetry import SERVER_EXPORT
+from fakes.worker_runtime import StubADKWorkerRuntimeFactory, StubWorkerRuntime
+from pydantic import SecretStr
+
+from contractor_runtime.a2a_server import agent_card_dict, build_agent_card
+from contractor_runtime.adapters import (
+    AdapterFactoryError,
+    AdapterHandles,
+    RuntimeAdapterBuildContext,
+    RuntimeAdapterMetricsState,
+)
+from contractor_runtime.allocation import AllocationError, AllocationService
+from contractor_runtime.allocation.redaction import _trusted_agent_card_values
+from contractor_runtime.capabilities import CapabilitySnapshot
+from contractor_runtime.contracts import (
+    API_VERSION,
+    AllocationSpec,
+    CaidoSettings,
+    FinalizeAllocationRequest,
+    HTTPProxySettings,
+    ReleaseAllocationRequest,
+    RuntimeAdapterRef,
+    TelemetrySettings,
+)
+from contractor_runtime.factories import (
+    FactoryRegistry,
+    WorkerBuildContext,
+)
+from contractor_runtime.state import ProcessState, RuntimeState
+from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactory
+
+TELEMETRY_SECRET = "recognizable-telemetry-header-secret"
+AGENT_CARD_SCAN = json.loads(
+    (
+        Path(__file__).parents[2] / "api/testdata/v1alpha1/agent-card-secret-scan-cases.json"
+    ).read_text(encoding="utf-8")
+)
+PROXY_SECRET = "recognizable-proxy-password-secret"
+CAIDO_SECRET = "recognizable-caido-bearer-secret"
+
+
+@pytest.mark.parametrize("with_proxy", [False, True])
+def test_shared_invalid_last_adapter_is_rejected_and_closed_before_sandbox(
+    tmp_path: Path, with_proxy: bool
+) -> None:
+    events: list[str] = []
+    adapters = {"otlp-http@1": FakeAdapterFactory("otlp-http@1", events, handles=AdapterHandles())}
+    if with_proxy:
+        adapters["http-proxy@1"] = FakeAdapterFactory(
+            "http-proxy@1", events, handles=AdapterHandles(model_http=object())
+        )
+
+    async def scenario() -> None:
+        state, service = await make_service(
+            tmp_path,
+            runtime_adapters=adapters,
+            sandbox=RecordingSandbox(tmp_path, events),
+        )
+        with pytest.raises(AllocationError) as failure:
+            await service.prepare(
+                configured_spec(
+                    telemetry=True, proxy_targets=["llm-gateway"] if with_proxy else None
+                )
+            )
+
+        assert failure.value.code == "runtime_adapter_prepare_failed"
+        assert not failure.value.retryable
+        expected = ["create:otlp-http@1", "close:otlp-http@1"]
+        if with_proxy:
+            expected = ["create:http-proxy@1", *expected, "close:http-proxy@1"]
+        assert events == expected
+        assert await service.snapshot() is None
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())
+
+
+def test_shared_second_adapter_prepare_failure_rolls_back_first_before_sandbox(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    proxy = FakeAdapterFactory(
+        "http-proxy@1",
+        events,
+        handles=AdapterHandles(model_http=object()),
+    )
+    telemetry = FakeAdapterFactory(
+        "otlp-http@1",
+        events,
+        handles=AdapterHandles(instrumentation=object()),
+        prepare_error=AdapterFactoryError(retryable=True),
+    )
+
+    async def scenario() -> None:
+        state, service = await make_service(
+            tmp_path,
+            runtime_adapters={"http-proxy@1": proxy, "otlp-http@1": telemetry},
+            sandbox=RecordingSandbox(tmp_path, events),
+        )
+        with pytest.raises(AllocationError) as failure:
+            await service.prepare(configured_spec(telemetry=True, proxy_targets=["llm-gateway"]))
+
+        assert failure.value.code == "runtime_adapter_prepare_failed"
+        assert failure.value.retryable
+        assert str(failure.value) == "allocation Runtime adapter preparation failed"
+        assert events == [
+            "create:http-proxy@1",
+            "create:otlp-http@1",
+            "close:http-proxy@1",
+        ]
+        assert await service.snapshot() is None
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())
+    assert TELEMETRY_SECRET not in repr(telemetry)
+    assert PROXY_SECRET not in " ".join(events)
+
+
+def test_shared_hanging_flush_is_metrics_only_and_replayed_lifecycle_is_idempotent(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    telemetry = FakeAdapterFactory(
+        "otlp-http@1",
+        events,
+        handles=AdapterHandles(instrumentation=object()),
+        hang_flush=True,
+    )
+
+    async def scenario() -> None:
+        state, service = await make_service(
+            tmp_path,
+            runtime_adapters={"otlp-http@1": telemetry},
+        )
+        source_labels = {"purpose": "eval", "eval.id": "eval_01"}
+        spec = configured_spec(telemetry=True).model_copy(
+            update={"run_metadata_labels": source_labels, "project_id": "project-1"}
+        )
+        await service.prepare(spec)
+        source_labels["eval.id"] = "changed"
+        assert len(telemetry.contexts) == 1
+        assert telemetry.contexts[0].project_id == "project-1"
+        assert dict(telemetry.contexts[0].run_metadata_labels) == {
+            "purpose": "eval",
+            "eval.id": "eval_01",
+        }
+        with pytest.raises(TypeError):
+            telemetry.contexts[0].run_metadata_labels["eval.id"] = "changed"  # type: ignore[index]
+        snapshot = await service.snapshot()
+        assert snapshot is not None
+        assert snapshot.runtime_adapter_refs == ("otlp-http@1",)
+
+        request = FinalizeAllocationRequest(
+            apiVersion=API_VERSION,
+            allocationId=spec.allocation_id,
+            finalizationId="finalize-adapter-timeout",
+            deadline=datetime.now(UTC) + timedelta(milliseconds=50),
+        )
+        first = await service.finalize(request)
+        second = await service.finalize(request)
+        assert second == first
+        metrics = first.report.runtime.adapters["otlp-http@1"]
+        assert metrics.operations == 1
+        assert metrics.failed_operations == 1
+        assert metrics.flush_attempted
+        assert metrics.flush_succeeded is False
+        assert metrics.last_error_code == "flush_timeout"
+        assert first.report.worker.complete
+        assert events.count("flush:otlp-http@1") == 1
+        assert events.count("close:otlp-http@1") == 1
+
+        release = ReleaseAllocationRequest(
+            apiVersion=API_VERSION,
+            allocationId=spec.allocation_id,
+        )
+        await service.release(release)
+        await service.release(release)
+        await service.confirm_release(spec.allocation_id)
+        await service.confirm_release(spec.allocation_id)
+        assert events.count("flush:otlp-http@1") == 1
+        assert events.count("close:otlp-http@1") == 1
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+        next_spec = configured_spec(telemetry=True).model_copy(
+            update={"allocation_id": "allocation-next", "run_id": "run-next"}
+        )
+        await service.prepare(next_spec)
+        assert len(telemetry.contexts) == 2
+        assert telemetry.contexts[1].project_id is None
+        assert dict(telemetry.contexts[1].run_metadata_labels) == {}
+        await service.finalize(
+            FinalizeAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId=next_spec.allocation_id,
+                finalizationId="finalize-next",
+                deadline=datetime.now(UTC) + timedelta(milliseconds=50),
+            )
+        )
+        await service.release(
+            ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=next_spec.allocation_id)
+        )
+        await service.confirm_release(next_spec.allocation_id)
+
+    asyncio.run(scenario())
+
+
+def test_shared_handles_are_injected_explicitly_and_erased_on_confirmed_lease_loss(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    model_handle = object()
+    tool_handle = object()
+    proxy = FakeAdapterFactory(
+        "http-proxy@1",
+        events,
+        handles=AdapterHandles(model_http=model_handle, tool_http=tool_handle),
+    )
+    toolset = CapturingToolset()
+    runtime = CapturingRuntimeFactory()
+
+    async def scenario() -> None:
+        state, service = await make_service(
+            tmp_path,
+            runtime_adapters={"http-proxy@1": proxy},
+            toolset=toolset,
+            runtime=runtime,
+        )
+        spec = configured_spec(proxy_targets=["llm-gateway", "tool-http"]).model_copy(
+            update={
+                "run_metadata_labels": {"purpose": "eval", "eval.id": "eval_01"},
+                "project_id": "project-proxy-hidden",
+            }
+        )
+        await service.prepare(spec)
+
+        assert len(proxy.contexts) == 1
+        assert dict(proxy.contexts[0].run_metadata_labels) == {}
+        assert proxy.contexts[0].project_id is None
+
+        assert toolset.handles is not None
+        assert toolset.handles.tool_http is tool_handle
+        assert runtime.context is not None
+        assert runtime.context.adapter_handles.model_http is model_handle
+        assert runtime.context.adapter_handles.tool_http is None
+        assert "recognizable" not in repr(runtime.context.adapter_handles)
+
+        await service.expire_control_lease(1)
+        assert events[-1] == "close:http-proxy@1"
+        snapshot = await service.snapshot()
+        assert snapshot is not None
+        assert not snapshot.has_worker
+        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        assert service._context is not None
+        assert service._context.adapter_host.closed
+        assert service._context.adapter_host.handles.enabled_channels == ()
+
+    asyncio.run(scenario())
+
+
+def test_shared_unselected_tool_channels_are_not_injected(tmp_path: Path) -> None:
+    events: list[str] = []
+    tool_handle = object()
+    proxy = FakeAdapterFactory(
+        "http-proxy@1",
+        events,
+        handles=AdapterHandles(tool_http=tool_handle),
+    )
+    toolset = CapturingToolset()
+    toolset.infrastructure_channels = MappingProxyType({})
+    runtime = CapturingRuntimeFactory()
+
+    async def scenario() -> None:
+        _state, service = await make_service(
+            tmp_path,
+            runtime_adapters={"http-proxy@1": proxy},
+            toolset=toolset,
+            runtime=runtime,
+        )
+        spec = configured_spec(proxy_targets=["tool-http"])
+        await service.prepare(spec)
+
+        assert toolset.handles is not None
+        assert toolset.handles.enabled_channels == ()
+        assert runtime.context is not None
+        assert runtime.context.adapter_handles.enabled_channels == ()
+
+        await service.finalize(
+            FinalizeAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId=spec.allocation_id,
+                finalizationId="finalize-no-tool-channel",
+                deadline=datetime.now(UTC) + timedelta(seconds=1),
+            )
+        )
+        await service.release(
+            ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
+        )
+        await service.confirm_release(spec.allocation_id)
+
+    asyncio.run(scenario())
+
+
+def test_shared_caido_handle_is_injected_only_into_selected_toolset_and_erased(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    caido_handle = object()
+    caido = FakeAdapterFactory(
+        "caido-graphql@1",
+        events,
+        handles=AdapterHandles(caido_graphql=caido_handle),
+    )
+    toolset = CapturingToolset()
+    toolset.infrastructure_channels = MappingProxyType(
+        {"read_artifact": frozenset({"caido-graphql-client"})}
+    )
+    runtime = CapturingRuntimeFactory()
+
+    async def scenario() -> None:
+        state, service = await make_service(
+            tmp_path,
+            runtime_adapters={"caido-graphql@1": caido},
+            toolset=toolset,
+            runtime=runtime,
+        )
+        spec = configured_spec(caido=True)
+        await service.prepare(spec)
+        assert toolset.handles is not None
+        assert toolset.handles.caido_graphql is caido_handle
+        assert runtime.context is not None
+        assert runtime.context.adapter_handles.caido_graphql is None
+        response = await service.finalize(
+            FinalizeAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId=spec.allocation_id,
+                finalizationId="finalize-caido",
+                deadline=datetime.now(UTC) + timedelta(seconds=1),
+            )
+        )
+        assert response.report.runtime.adapters["caido-graphql@1"].operations == 0
+        assert events[-1] == "close:caido-graphql@1"
+        await service.release(
+            ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
+        )
+        await service.confirm_release(spec.allocation_id)
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())
+
+
+def test_shared_caido_channel_without_private_configuration_fails_before_resources(
+    tmp_path: Path,
+) -> None:
+    toolset = CapturingToolset()
+    toolset.infrastructure_channels = MappingProxyType(
+        {"read_artifact": frozenset({"caido-graphql-client"})}
+    )
+
+    async def scenario() -> None:
+        state, service = await make_service(
+            tmp_path,
+            runtime_adapters={},
+            toolset=toolset,
+        )
+        with pytest.raises(AllocationError) as failure:
+            await service.prepare(configured_spec())
+        assert failure.value.code == "caido_not_configured"
+        assert await service.snapshot() is None
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())
+
+
+def test_shared_unconfirmed_adapter_close_fences_slot_and_requests_process_exit(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    exits: list[int] = []
+    telemetry = FakeAdapterFactory(
+        "otlp-http@1",
+        events,
+        handles=AdapterHandles(instrumentation=object()),
+        close_error=RuntimeError(f"close failed with {TELEMETRY_SECRET}"),
+    )
+
+    async def scenario() -> None:
+        state, service = await make_service(
+            tmp_path,
+            runtime_adapters={"otlp-http@1": telemetry},
+            force_exit=exits.append,
+        )
+        spec = configured_spec(telemetry=True)
+        await service.prepare(spec)
+        with pytest.raises(AllocationError) as failure:
+            await service.finalize(
+                FinalizeAllocationRequest(
+                    apiVersion=API_VERSION,
+                    allocationId=spec.allocation_id,
+                    finalizationId="finalize-close-failure",
+                    deadline=datetime.now(UTC) + timedelta(seconds=1),
+                )
+            )
+        assert failure.value.code == "runtime_adapter_close_unconfirmed"
+        assert TELEMETRY_SECRET not in str(failure.value)
+        assert exits == [70]
+        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        snapshot = await service.snapshot()
+        assert snapshot is not None
+        assert snapshot.has_runtime_settings
+
+    asyncio.run(scenario())
+
+
+def test_shared_adapter_secret_in_worker_handle_is_rejected_and_every_resource_rolls_back(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    telemetry = FakeAdapterFactory(
+        "otlp-http@1",
+        events,
+        handles=AdapterHandles(instrumentation=object()),
+    )
+
+    async def scenario() -> None:
+        state, service = await make_service(
+            tmp_path,
+            runtime_adapters={"otlp-http@1": telemetry},
+            sandbox=RecordingSandbox(tmp_path / "work", events),
+            runtime=LeakingRuntimeFactory(),
+        )
+        with pytest.raises(AllocationError) as failure:
+            await service.prepare(configured_spec(telemetry=True))
+        assert failure.value.code == "unsafe_worker_handle"
+        assert TELEMETRY_SECRET not in str(failure.value)
+        assert events == [
+            "create:otlp-http@1",
+            "sandbox:prepare",
+            "sandbox:cleanup",
+            "close:otlp-http@1",
+        ]
+        assert await service.snapshot() is None
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("kind", "value"),
+    [
+        ("telemetry", "1"),
+        ("proxy", "contractor"),
+        ("proxy", "stage"),
+        ("proxy", "JSONRPC"),
+        ("proxy", "adk"),
+    ],
+)
+def test_shared_short_credentials_matching_fixed_card_strings_allow_prepare(
+    tmp_path: Path, kind: str, value: str
+) -> None:
+    async def scenario() -> None:
+        events: list[str] = []
+        adapters = {
+            "otlp-http@1": FakeAdapterFactory(
+                "otlp-http@1", events, handles=AdapterHandles(instrumentation=object())
+            )
+        }
+        if kind == "proxy":
+            adapters["http-proxy@1"] = FakeAdapterFactory(
+                "http-proxy@1", events, handles=AdapterHandles(model_http=object())
+            )
+        _, service = await make_service(
+            tmp_path, runtime_adapters=adapters, runtime=ProductionCardRuntimeFactory()
+        )
+        spec = configured_spec(
+            telemetry=True, proxy_targets=["llm-gateway"] if kind == "proxy" else None
+        )
+        assert spec.runtime_settings.telemetry is not None
+        if kind == "telemetry":
+            spec.runtime_settings.telemetry.headers["X-Scope-OrgID"] = SecretStr(value)
+        else:
+            assert spec.runtime_settings.http_proxy is not None
+            assert spec.runtime_settings.http_proxy.basic_auth is not None
+            spec.runtime_settings.http_proxy.basic_auth.username = SecretStr(value)
+        response = await service.prepare(spec)
+        assert response.worker_handle.allocation_id == spec.allocation_id
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("secret", "card_text"),
+    [
+        ("stage", "stage"),
+        (TELEMETRY_SECRET, f"prefix-{TELEMETRY_SECRET}-suffix"),
+    ],
+)
+def test_shared_runtime_chosen_card_text_still_rejects_private_values(
+    tmp_path: Path, secret: str, card_text: str
+) -> None:
+    async def scenario() -> None:
+        events: list[str] = []
+        telemetry = FakeAdapterFactory(
+            "otlp-http@1", events, handles=AdapterHandles(instrumentation=object())
+        )
+        _, service = await make_service(
+            tmp_path,
+            runtime_adapters={"otlp-http@1": telemetry},
+            runtime=LeakingCardTextRuntimeFactory(card_text),
+        )
+        spec = configured_spec(telemetry=True)
+        assert spec.runtime_settings.telemetry is not None
+        spec.runtime_settings.telemetry.headers["Authorization"] = SecretStr(secret)
+        with pytest.raises(AllocationError) as failure:
+            await service.prepare(spec)
+        assert failure.value.code == "unsafe_worker_handle"
+
+    asyncio.run(scenario())
+
+
+def test_shared_agent_card_scan_shares_the_trusted_table_and_production_card() -> None:
+    placeholders = card_placeholders(
+        allocation_id="allocation-1",
+        logical_agent_name="builder",
+        description="Builds a requested artifact",
+        version="1",
+        endpoint="https://runtime.example/private/v1/allocations/allocation-1/a2a",
+    )
+    trusted = _trusted_agent_card_values(
+        allocation_id="allocation-1",
+        logical_agent_name="builder",
+        description="Builds a requested artifact",
+        version="1",
+        endpoint="https://runtime.example/private/v1/allocations/allocation-1/a2a",
+    )
+    assert trusted == {
+        tuple(entry["path"]): tuple(render_card_value(entry["values"], placeholders))
+        for entry in AGENT_CARD_SCAN["trustedValues"]
+    }
+    card = build_agent_card(
+        allocation_id="allocation-1",
+        endpoint="https://runtime.example/private/v1/allocations/allocation-1/a2a",
+        logical_agent_name="builder",
+        description="Builds a requested artifact",
+        version="1",
+    )
+    assert agent_card_dict(card) == render_card_value(AGENT_CARD_SCAN["card"], placeholders)
+
+
+@pytest.mark.parametrize("case", AGENT_CARD_SCAN["cases"], ids=lambda case: case["name"])
+def test_shared_worker_handle_secret_scan_shared_cases(
+    tmp_path: Path, case: dict[str, Any]
+) -> None:
+    async def scenario() -> None:
+        events: list[str] = []
+        telemetry = FakeAdapterFactory(
+            "otlp-http@1", events, handles=AdapterHandles(instrumentation=object())
+        )
+        _, service = await make_service(
+            tmp_path,
+            runtime_adapters={"otlp-http@1": telemetry},
+            runtime=SharedCaseCardRuntimeFactory(case),
+        )
+        spec = configured_spec(telemetry=True)
+        assert spec.runtime_settings.telemetry is not None
+        placeholders = card_placeholders(
+            allocation_id=spec.allocation_id,
+            logical_agent_name=spec.logical_agent_name,
+            description=spec.agent_template.description,
+            version=spec.agent_template.ref.version,
+            endpoint=f"https://runtime.example/private/v1/allocations/{spec.allocation_id}/a2a",
+        )
+        secret = render_card_value(case["secret"], placeholders)
+        spec.runtime_settings.telemetry.headers["X-Scope-OrgID"] = SecretStr(secret)
+        if case["leak"]:
+            with pytest.raises(AllocationError) as failure:
+                await service.prepare(spec)
+            assert failure.value.code == "unsafe_worker_handle"
+        else:
+            response = await service.prepare(spec)
+            assert response.worker_handle.allocation_id == spec.allocation_id
+
+    asyncio.run(scenario())
+
+
+def card_placeholders(
+    *, allocation_id: str, logical_agent_name: str, description: str, version: str, endpoint: str
+) -> dict[str, str]:
+    return {
+        "{allocationId}": allocation_id,
+        "{logicalAgentName}": logical_agent_name,
+        "{description}": description,
+        "{version}": version,
+        "{endpoint}": endpoint,
+    }
+
+
+def render_card_value(value: Any, placeholders: Mapping[str, str]) -> Any:
+    if isinstance(value, str):
+        for placeholder, replacement in placeholders.items():
+            value = value.replace(placeholder, replacement)
+        return value
+    if isinstance(value, list):
+        return [render_card_value(item, placeholders) for item in value]
+    if isinstance(value, dict):
+        return {
+            render_card_value(key, placeholders): render_card_value(item, placeholders)
+            for key, item in value.items()
+        }
+    return value
+
+
+def set_card_value(card: dict[str, Any], path: list[str], value: Any) -> None:
+    current: Any = card
+    for element in path[:-1]:
+        current = (
+            current[int(element)] if isinstance(current, list) else current.setdefault(element, {})
+        )
+    if isinstance(current, list):
+        current[int(path[-1])] = value
+    else:
+        current[path[-1]] = value
+
+
+def test_shared_metrics_saturate_and_reject_unbounded_error_codes() -> None:
+    metrics = RuntimeAdapterMetricsState(
+        operations=2**64 - 1,
+        failed_operations=2**64 - 1,
+    )
+    metrics.record_operation(succeeded=False, error_code="delivery_failed")
+    assert metrics.operations == 2**64 - 1
+    assert metrics.failed_operations == 2**64 - 1
+    assert metrics.snapshot().last_error_code == "delivery_failed"
+    with pytest.raises(ValueError, match="allowlisted"):
+        metrics.record_operation(succeeded=False, error_code=TELEMETRY_SECRET)
+    metrics.operations = -100
+    metrics.failed_operations = 100
+    metrics.last_error_code = TELEMETRY_SECRET
+    snapshot = metrics.snapshot()
+    assert snapshot.operations == 0
+    assert snapshot.failed_operations == 0
+    assert snapshot.last_error_code is None
+
+
+async def make_service(
+    tmp_path: Path,
+    *,
+    runtime_adapters: Mapping[str, FakeAdapterFactory],
+    sandbox: LocalWorkdirFactory | None = None,
+    toolset: CapturingToolset | None = None,
+    runtime: CapturingRuntimeFactory | None = None,
+    force_exit: Any = lambda _: None,
+) -> tuple[RuntimeState, AllocationService]:
+    state = RuntimeState(instance_id="runtime-adapter-test")
+    await state.mark_registered()
+    selected_toolset = toolset or CapturingToolset()
+    registry = FactoryRegistry(
+        worker_runtimes={"adk@1": runtime or StubADKWorkerRuntimeFactory()},
+        toolsets={"run-artifacts@1": selected_toolset},
+        sandbox_profiles={"local-workdir@1": sandbox or LocalWorkdirFactory(tmp_path / "work")},
+        runtime_adapters=runtime_adapters,
+    )
+    capabilities = CapabilitySnapshot.create(
+        runtimes=["adk@1"],
+        toolsets={"run-artifacts@1": ["read_artifact"]},
+        sandbox_profiles=["local-workdir@1"],
+        runtime_adapters=runtime_adapters,
+    )
+    return state, AllocationService(
+        state,
+        registry,
+        capabilities,
+        a2a_base_url="https://runtime.example",
+        force_exit=force_exit,
+    )
+
+
+def configured_spec(
+    *,
+    telemetry: bool = False,
+    proxy_targets: list[str] | None = None,
+    caido: bool = False,
+) -> AllocationSpec:
+    spec = allocation_spec(tools=["read_artifact"])
+    telemetry_settings = (
+        TelemetrySettings(
+            adapter="otlp-http@1",
+            endpoint="https://telemetry.example/v1/traces",
+            headers={"Authorization": TELEMETRY_SECRET},
+            flushTimeoutSeconds=1,
+            export=SERVER_EXPORT,
+        )
+        if telemetry
+        else None
+    )
+    proxy_settings = (
+        HTTPProxySettings(
+            adapter="http-proxy@1",
+            proxyUrl="https://proxy.example",
+            basicAuth={"username": "worker", "password": PROXY_SECRET},
+            targets=sorted(proxy_targets),
+        )
+        if proxy_targets
+        else None
+    )
+    caido_settings = (
+        CaidoSettings(
+            adapter="caido-graphql@1",
+            endpoint="https://caido.example/prefix",
+            bearerToken=CAIDO_SECRET,
+            requestTimeoutSeconds=3,
+        )
+        if caido
+        else None
+    )
+    refs = sorted(
+        ref
+        for ref, selected in (
+            ("http-proxy@1", proxy_settings),
+            ("otlp-http@1", telemetry_settings),
+            ("caido-graphql@1", caido_settings),
+        )
+        if selected is not None
+    )
+    return spec.model_copy(
+        update={
+            "runtime_settings": spec.runtime_settings.model_copy(
+                update={
+                    "telemetry": telemetry_settings,
+                    "http_proxy": proxy_settings,
+                    "caido": caido_settings,
+                }
+            ),
+            "resolved_runtime_config_provenance": (
+                spec.resolved_runtime_config_provenance.model_copy(
+                    update={"runtime_adapters": refs}
+                )
+            ),
+        }
+    )
+
+
+class FakeAdapterFactory:
+    def __init__(
+        self,
+        ref: str,
+        events: list[str],
+        *,
+        handles: AdapterHandles,
+        prepare_error: Exception | None = None,
+        close_error: Exception | None = None,
+        hang_flush: bool = False,
+    ) -> None:
+        self.ref = ref
+        self._events = events
+        self._handles = handles
+        self._prepare_error = prepare_error
+        self._close_error = close_error
+        self._hang_flush = hang_flush
+        self.contexts: list[RuntimeAdapterBuildContext] = []
+
+    async def probe(self) -> bool:
+        return True
+
+    async def create(
+        self,
+        context: RuntimeAdapterBuildContext,
+        settings: object,
+    ) -> FakeAdapter:
+        self.contexts.append(context)
+        del settings
+        self._events.append(f"create:{self.ref}")
+        if self._prepare_error is not None:
+            raise self._prepare_error
+        return FakeAdapter(
+            self.ref,
+            self._events,
+            handles=self._handles,
+            close_error=self._close_error,
+            hang_flush=self._hang_flush,
+        )
+
+    def __repr__(self) -> str:
+        return f"FakeAdapterFactory(ref={self.ref!r})"
+
+
+class FakeAdapter:
+    def __init__(
+        self,
+        ref: str,
+        events: list[str],
+        *,
+        handles: AdapterHandles,
+        close_error: Exception | None,
+        hang_flush: bool,
+    ) -> None:
+        self.ref: RuntimeAdapterRef = ref
+        self.handles = handles
+        self.metrics = RuntimeAdapterMetricsState()
+        self._events = events
+        self._close_error = close_error
+        self._hang_flush = hang_flush
+
+    async def flush(self) -> None:
+        self._events.append(f"flush:{self.ref}")
+        if self._hang_flush:
+            await asyncio.Event().wait()
+
+    async def close(self) -> None:
+        self._events.append(f"close:{self.ref}")
+        if self._close_error is not None:
+            raise self._close_error
+
+
+class RecordingSandbox(LocalWorkdirFactory):
+    def __init__(self, root: Path, events: list[str]) -> None:
+        super().__init__(root)
+        self._events = events
+
+    async def prepare(self) -> AllocationWorkspace:
+        self._events.append("sandbox:prepare")
+        return await super().prepare()
+
+    async def cleanup(self, workspace: AllocationWorkspace) -> None:
+        self._events.append("sandbox:cleanup")
+        await super().cleanup(workspace)
+
+
+class CapturingToolset:
+    ref = "run-artifacts@1"
+    exported_tools = frozenset({"read_artifact"})
+    infrastructure_channels = MappingProxyType(
+        {"read_artifact": frozenset({"runtime-http-client"})}
+    )
+
+    def __init__(self) -> None:
+        self.handles: AdapterHandles | None = None
+
+    async def probe(self) -> frozenset[str]:
+        return self.exported_tools
+
+    async def create_selected(self, **values: Any) -> dict[str, CapturingTool]:
+        self.handles = values["adapter_handles"]
+        return {"read_artifact": CapturingTool()}
+
+
+class CapturingTool:
+    name = "read_artifact"
+
+    async def close(self) -> None:
+        return None
+
+
+class CapturingRuntimeFactory:
+    ref = "adk@1"
+
+    def __init__(self) -> None:
+        self.context: WorkerBuildContext | None = None
+
+    async def probe(self) -> bool:
+        return True
+
+    async def create(self, context: WorkerBuildContext) -> StubWorkerRuntime:
+        self.context = context
+        return StubWorkerRuntime(context)
+
+
+class LeakingRuntimeFactory(CapturingRuntimeFactory):
+    async def create(self, context: WorkerBuildContext) -> StubWorkerRuntime:
+        runtime = await super().create(context)
+        runtime._agent_card["description"] = TELEMETRY_SECRET
+        return runtime
+
+
+class ProductionCardRuntimeFactory(CapturingRuntimeFactory):
+    async def create(self, context: WorkerBuildContext) -> StubWorkerRuntime:
+        runtime = await super().create(context)
+        card = build_agent_card(
+            allocation_id=context.allocation_id,
+            endpoint=(
+                f"{context.a2a_base_url.rstrip('/')}/private/v1/allocations/"
+                f"{context.allocation_id}/a2a"
+            ),
+            logical_agent_name=context.logical_agent_name,
+            description=context.description,
+            version=context.card_version,
+        )
+        runtime._agent_card = agent_card_dict(card)
+        return runtime
+
+
+class SharedCaseCardRuntimeFactory(CapturingRuntimeFactory):
+    """Serve the shared fixture card with one case's changes applied."""
+
+    def __init__(self, case: dict[str, Any]) -> None:
+        super().__init__()
+        self.case = case
+
+    async def create(self, context: WorkerBuildContext) -> StubWorkerRuntime:
+        runtime = await super().create(context)
+        placeholders = card_placeholders(
+            allocation_id=context.allocation_id,
+            logical_agent_name=context.logical_agent_name,
+            description=context.description,
+            version=context.card_version,
+            endpoint=(
+                f"{context.a2a_base_url.rstrip('/')}/private/v1/allocations/"
+                f"{context.allocation_id}/a2a"
+            ),
+        )
+        card = render_card_value(AGENT_CARD_SCAN["card"], placeholders)
+        for operation in self.case["set"]:
+            set_card_value(
+                card,
+                render_card_value(operation["path"], placeholders),
+                render_card_value(operation["value"], placeholders),
+            )
+        runtime._agent_card = card
+        return runtime
+
+
+class LeakingCardTextRuntimeFactory(ProductionCardRuntimeFactory):
+    def __init__(self, card_text: str) -> None:
+        super().__init__()
+        self.card_text = card_text
+
+    async def create(self, context: WorkerBuildContext) -> StubWorkerRuntime:
+        runtime = await super().create(context)
+        runtime._agent_card["description"] = self.card_text
+        return runtime
+
+
+def test_shared_interactsh_channel_without_private_configuration_fails_before_resources(
+    tmp_path: Path,
+) -> None:
+    toolset = CapturingToolset()
+    toolset.infrastructure_channels = MappingProxyType(
+        {"read_artifact": frozenset({"interactsh-client"})}
+    )
+
+    async def scenario() -> None:
+        state, service = await make_service(
+            tmp_path,
+            runtime_adapters={},
+            toolset=toolset,
+        )
+        with pytest.raises(AllocationError) as failure:
+            await service.prepare(configured_spec())
+        assert failure.value.code == "interactsh_not_configured"
+        assert await service.snapshot() is None
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())

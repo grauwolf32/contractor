@@ -1,0 +1,243 @@
+schema_version: '1.0'
+id: V420-001
+title: Prove Planner compaction checkpoints and freeze the integration contract
+milestone: planner-context-compaction-2026-10
+epic: planner-worker
+kind: chore
+priority: P1
+status: completed
+depends_on:
+- V419-005
+languages:
+- go
+- markdown
+goal: Resolve Go ADK compaction integration and policy ownership on the accepted v2.6 lock before exposing
+  a production configuration.
+context:
+  authority: 'User request on 2026-10-25: create detailed tasks for Go ADK v2.6.0 and Planner compaction, including
+    compatibility, tests and mutual exclusion with terminal summarization; keep Scheduler substantially unchanged.
+    These pending records authorize planning only, do not start implementation and do not change the current
+    delivery focus.'
+  review: tasks/evidence/v419-go-adk-26-review.json
+  evidence: tasks/evidence/v420-001-planner-compaction-spike.json
+  decision: tasks/evidence/v420-001-planner-compaction-contract.md
+  specification:
+  - docs/spec/execution/planners.md#PLN-R1
+  - docs/spec/execution/planners.md#PLN-R81
+  - docs/spec/execution/planners.md#PLN-R94
+  - docs/spec/execution/planners.md#PLN-R106
+  - docs/spec/execution/planners.md#PLN-R107
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/platform/failure-model.md
+  - docs/spec/configuration/workflows.md#WFL-R14
+  - docs/spec/configuration/workflows.md#WFL-R86
+  - docs/spec/configuration/agent-templates.md#TPL-R19
+  - docs/spec/platform/persistence.md#PER-R24
+  - docs/spec/platform/lifecycle.md#LIFE-R1
+  - docs/spec/execution/scheduler.md
+  implementation_boundary: Update owning numbered specifications, limits/errors/failure/lifecycle registries
+    and every affected reader/writer with implementation. A planned extension is not current shipped behavior.
+    No legacy readers, v1/v2 production branches, native SDK resume, new receipt store or model substitution.
+    Scheduler retains claims, queues, Stage identities, transitions, retries and completed recovery; only configuration
+    plumbing, mechanical imports and regression fixtures may change there.
+  finding: Native summary calls bypass Planner callbacks and tail-retention AppendEvent failure is suppressed.
+    The historical finish-before-iterationErr finding was repaired by V419-006 before this spike;
+    preserve and run its required-write/finish/cancellation real-store regressions.
+scope:
+  in:
+  - Test-only integration proof, implementation-ready task/evidence decisions, strict policy matrix and reproducible
+    safe evidence.
+  out:
+  - Production configuration without a consumer, SDK pin changes, Python Worker implementation, terminal Planner
+    feature, global Stage-level exclusion of Worker summarization or new Scheduler behavior.
+acceptance_criteria:
+- id: A1
+  given: Accepted ADK 2.6 and controlled main/compactor/Worker responses
+  when: Several checkpoints execute through real request assembly
+  then: One logical Planner owner continues, each prior side effect happens once and the next request contains
+    the intended bounded projection.
+- id: A2
+  given: Malformed/equal-time/foreign ranges and stale generations
+  when: Checkpoint selection and marker roundtrip execute
+  then: Only exact eligible complete groups are summarized; invalid selections cannot mutate context.
+- id: A3
+  given: Cancelled, rejected, unavailable or ambiguous checkpoint append, including near finish
+  when: The selected integration unwinds
+  then: No successful candidate or later semantic work escapes failure, all local work joins and existing classification/receipt
+    ownership survives.
+- id: A4
+  given: Maximum groups/results and malicious lossy summaries
+  when: Projection, retrieval and boundary checks run
+  then: Exact authority remains reachable within explicit byte/work ceilings; contradictory/old refs in summary
+    have no authority.
+- id: A5
+  given: Policy ownership and mutual-exclusion combinations
+  when: The design and acceptance fixtures are reviewed
+  then: One complete implementable contract is frozen, existing Worker handoff remains valid and Scheduler
+    needs no new state or scheduling behavior.
+tests:
+- command: go test -race -count=1 ./internal/planner/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-streamline
+  covers:
+  - A1
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A2
+  - A5
+requirements:
+- id: R1
+  text: Run a test-only real-Runner/Gateway/session spike on accepted ADK 2.6 with two or more checkpoints
+    in one logical Planner invocation. Prove the actual next Gateway request contains protected task/current
+    state, one rolling summary and intact recent groups; preserve counters, absolute deadline, Worker handles
+    and plan identity without recursively invoking Planner.Run.
+- id: R2
+  text: Select one supported managed adapter using public ADK compaction events or a tested bounded request
+    projection. Native tail retention suppresses append errors and calls the model outside Planner callbacks;
+    its estimator, post-invocation compaction and cancellation-detached repair are not automatically acceptable.
+    Prove explicit guards or leave those automatic paths disabled. No SDK-private imports or second production
+    engine.
+- id: R3
+  text: 'Freeze a Stage-level plannerContextManagement policy independent of the planner factory selector and
+    Worker binding contextManagement: omitted authoring normalizes to none, resolved snapshots carry exactly
+    none or compact@1. Workflow owns strategy/instructions/thresholds; exact compactor ModelPolicy references
+    use the existing Planner execution selection precedence and effective Gateway/credential. No inline model/URL/credential/budget
+    overrides. Freeze a tool-free compactor policy requiring contextWindowTokens, positive maxOutputTokens
+    below that window, maxModelCalls=1 per cycle and positive finite maxTotalTokens, with maxToolCalls/maxWorkerCalls
+    forbidden. Prove input admission for instructions plus selected groups and output reserve using a supported
+    tokenizer or a justified conservative bound; do not confuse the 4-MiB byte cap with token capacity. A smaller
+    compactor window or a single indivisible group that cannot fit fails before transport; no silent truncation
+    or model switch.'
+- id: R4
+  text: 'Mutual exclusion is per context owner. Planner has no terminal summarizer today: reject terminal@1,
+    summarizerModelPolicy, mixed strategy fields and terminal fallback on its own policy; do not invent a terminal
+    Planner result. Separate Workers retain their own terminal/compact choice. Compactor is the tool-free internal
+    consumer of compact@1, not an additional terminal mode.'
+- id: R5
+  text: 'Freeze eligibility without changing Scheduler: compact@1 is supported for a currently modeled Streamline/Router
+    Stage only; model-free/passthrough settings are rejected. Existing passthrough-to-Streamline summary escalation
+    remains valid and uses none in this first slice, with no hidden inherited compaction. A later explicit
+    policy for an escalation target is separate work. A modeled Planner may compact while an independent Worker
+    has terminal summarization.'
+- id: R6
+  text: Trigger only from the latest actual main-model prompt usage at min(floor(contextWindowTokens*contextWindowRatio),contextWindowTokens-maxOutputTokens),
+    after completed tool groups and before another model turn; valid terminal finish wins. Require main contextWindowTokens
+    for compact@1. Compactor usage, cumulative spend and token estimates cannot overwrite or substitute this
+    measurement. Require a fresh context generation and newly eligible prefix before another cycle.
+- id: R7
+  text: Prove exact checkpoint scope using source IDs/ordinals, session/branch/isolation and generation. Test
+    inclusive/equal timestamps, same-time retained neighbors, overlap/subsumption, out-of-order/foreign events
+    and incomplete calls. If ADK ranges cannot represent a selected safe group exactly, reject before mutation
+    or use the proved projection alternative.
+- id: R8
+  text: Prove fail-closed handling of ordinary/summary/repair append failures, including after iterator exit
+    and near finish. A sticky classified persistence failure is checked before any next semantic call AND before
+    candidate completion; checking only BeforeModel is insufficient. Avoid all compaction after terminal decision.
+- id: R9
+  text: Prove exact validated old Worker results/ArtifactRefs remain recoverable independently of lossy summary;
+    current plan stores no full result history and State tools expose only latest completion. Choose a bounded
+    invocation-local index and actually callable paged reader/projection. Freeze opaque cursor binding to session,
+    generation/index revision and selected view/Worker; invalid/foreign/stale/expired cursors reveal no data.
+    Enforce item and encoded-byte page bounds; archive fragments do not permit splitting active prompt FC/FR
+    groups. Reader access is live-Planner-only, without a new public endpoint. Preserve original objective,
+    parameters, inputs, result contract and separate continuation context; never inject the entire maximum
+    plan.
+- id: R10
+  text: 'Freeze numerical limits and counting definitions in the linked design evidence for installation in the owning limits registry together with V420-002 production enforcement, using the initial envelope
+    in cardinality: default ratio 0.75 within strict (0,1), cycles 8/max 16, recent groups 4/max 16, summary
+    16 KiB, tail 1 MiB, retained data 32 MiB/4096 groups and accounted peak 64 MiB. Every serialized Gateway
+    request still fits 4 MiB; pages fit 32 KiB and 8 groups or a bounded fragment. If a measured valid group
+    cannot fit, select and document a bounded alternative before completing this spike; no unresolved limits
+    pass to implementation.'
+- id: R11
+  text: 'Freeze stable errors, precedence and outcomes: pre-commit invalid/ineffective summary adds no checkpoint;
+    if ineffectiveness is only known from the next measured main response, retain the committed checkpoint
+    and all charges and stop before another cycle when no eligible progress remains. Hard total budgets never
+    trigger compaction or reset. Define compactor known-usage accounting on rejected responses and missing
+    usage.'
+- id: R12
+  text: Record the accepted design, concrete config shape, limits/error decisions, alternatives, evidence and
+    reversal conditions in this task and its safe evidence record. V420-002 updates normative specs together
+    with production behavior; do not document an unimplemented feature as shipped. Keep harness test-local
+    and add no unused production exports or accepted configuration until V420-002. Worker V417/0046 is a design
+    reference, not a Python implementation dependency.
+failure_outcomes:
+- operation: Compactor model call, checkpoint selection/append, history projection and continuation
+  permanent: Empty/declined/tool-bearing/truncated/oversized/invalid output is a finite planner_compaction_failed
+    outcome; exhausted cycle/retention limits use planner_compaction_limit_exceeded. Freeze stable codes/reasons
+    in V420-001 and owning registries before implementation. Invalid session writes remain nonretryable planner_session_rejected.
+    Never fall back to terminal summarizer or silently continue after an admitted failed checkpoint.
+  retryable: Gateway/session outages retain their existing classified bounded recovery and PLN-R106 rules.
+    Do not add semantic compaction retries, duplicate summary appends or model fallbacks. Total attempts/known
+    usage and original deadline remain authoritative.
+  ambiguous: Fence continuation; reconcile the same pending checkpoint ID/generation/source range through the
+    existing session/reduced-fact sequence. Never append a fresh marker or redispatch a Worker merely because
+    acknowledgement was lost. Unresolved ambiguity ends in the owning classified session failure.
+  cancelled: Cancellation takes precedence; the Planner owner closes the iterator and joins main/compactor/persistence/repair
+    work before return and cleanup. It cannot promise rollback of a dispatched remote effect.
+  timeout: Admission uses the original absolute Planner/Stage deadline; each compactor request uses the minimum
+    of the remaining invocation deadline and effective LLMGatewayConfig requestTimeout. ModelPolicy does not
+    own timeouts. Session-write/cleanup timeouts stay distinct and no detached repair may outlive Planner return.
+cardinality:
+- collection: Invocation-local raw history, prior summaries and validated Worker-result/reference index together
+  expected: Several dozen groups and two or more checkpoints within one ordinary Planner invocation.
+  maximum: 'Initial design envelope to prove/freeze in V420-001: 4096 complete source groups and 32 MiB aggregate
+    retained UTF-8/serialized data; 64 MiB accounted peak including bounded projections and transient copies;
+    summary 16 KiB, recent tail 1 MiB, 1..16 recent groups default 4, 1..16 compactions default 8.'
+  bound: Count shared backing data once and actual copies separately. Bound each scan, serialization, append
+    and history page. Enforce existing 4-MiB actual Gateway-request bytes and stricter policy context window;
+    compaction does not reclaim raw ADK history automatically.
+- collection: Authoritative plan, validated results and existing durable session state
+  expected: Default 32 subtasks, one current subtask/active dispatch and exact refs from completed Workers.
+  maximum: 'Existing independent ceilings: 1000 subtasks, objective 64 KiB, subtask objective 8 KiB/instructions
+    32 KiB, Worker result text 64 KiB/payload 256 KiB/128 refs, session JSON 2 MiB and 256 recorded fact digests.'
+  bound: Do not inject the full plan/result index into each prompt or assume all independent maxima fit. Preserve
+    exact full authority in its existing owner and expose bounded current projections/pages; enclosing overflow
+    produces a classified failure before further effects.
+lifecycle:
+- entity: One Planner invocation context generation, checkpoint and bounded in-memory history/result index
+  delete: Planner owner releases these on success, failure, cancellation or timeout after joining all local
+    work.
+  cascade: All history, summaries, paging cursors and retained validated result views are invalidated with
+    that session; completed StageResult and existing receipts/artifacts retain their existing owners.
+  retention: RAM only for raw context, summary and history index. No PostgreSQL transcript/checkpoint table,
+    cross-Stage context service or partial restart recovery. Completed-result recovery remains durable and
+    model-free.
+test_prerequisites:
+- Commands are future implementation acceptance, not checks completed by this planning change. Record exact
+  revision, Go/ADK versions, module graph/checksums, commands, executed case counts, skips and outcomes. Required
+  cases cannot be skipped or match zero tests.
+- Use disposable real PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set for persistence acceptance; an unreachable
+  configured database fails. Canonicalize TMPDIR as Makefile does. Full package suites accompany focused regressions.
+  make test-streamline does not cover Router, so run all internal/planner packages too.
+- Use actual pinned ADK Runner/tool dispatch and controlled Gateway responses. tests/integration/streamline
+  uses a fake WorkerInvoker and does not prove a real Server/Runtime process. Register new process cases in
+  the release graph and provide their fixtures/prerequisites.
+- Use testdata and test-only pseudo-Skills rather than reading live configs. Use injected clocks, synchronization
+  barriers and work/byte/row counters, not wall-clock assertions. Live Gateway benchmarks are outside deterministic
+  acceptance; keep configured models unchanged.
+- No dependency on Python V418 or Worker compaction V417 is implied. Cross-language regression uses the currently
+  supported Runtime lock. New shared grammar or wire changes, if actually needed, must update all implementations
+  and shared fixtures in the owning task.
+
+verification:
+  result: Public request projection selected; two real Runner/Gateway/PostgreSQL checkpoints continue one
+    Planner owner with exact recent groups. Closed Stage policy, byte/token admission, errors, memory
+    accounting, callable exact-history reader, opaque cursors and lifecycle are frozen in linked evidence.
+  tests: Full internal/planner race suite PASS (690 test records, 238 parents, no failures/skips); final
+    full changed-package race suite PASS (283 records, including 54 spike records, no failures/skips).
+    make test-streamline PASS on real PostgreSQL. Frozen-source make lint PASS.
+  boundary: Test-local harness only; no production config, Scheduler behavior, SDK lock, public wire or
+    terminal summarizer changed. Planned numbered registries land with V420-002 enforcement.
+  delivery: Merged codex/compaction-spikes into main with --no-ff at the user request on 2026-10-26.
+    Implementation commit and original verification evidence are retained; no push or deployment.
+  merge_checks: Integrated main passed the full streamline race suite (283 records, zero skips/failures),
+    all 32 Runtime spike cases, task/spec checks and formatting/lint for the changed test files.
+implementation_commit: 02cab3749f866ef0fbefbe13a749e47c5f42eb9c

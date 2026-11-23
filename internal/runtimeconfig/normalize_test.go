@@ -1,0 +1,410 @@
+package runtimeconfig
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/jackc/pgx/v5"
+)
+
+func TestNormalizeEquivalentDefaultsAndTargetOrder(t *testing.T) {
+	t.Parallel()
+	first := []byte(`{
+  "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
+  "metadata":{"name":"debug","version":"1"},
+  "spec":{"worker":{
+    "llmGateway":{"gateway":"local-litellm@1","credential":"worker-local"},
+    "telemetry":{"adapter":"otlp-http@1","endpoint":"https://otel.example/v1/traces"},
+    "httpProxy":{"adapter":"http-proxy@1","proxyUrl":"http://proxy.example:8080","targets":["tool-subprocess","llm-gateway","tool-http"]}
+  }}
+}`)
+	second := []byte(`{
+  "kind":"RuntimeConfig","apiVersion":"contractor/v1alpha1",
+  "metadata":{"version":"1","name":"debug"},
+  "spec":{"worker":{
+    "httpProxy":{"targets":["llm-gateway","tool-http","tool-subprocess"],"proxyUrl":"http://proxy.example:8080","adapter":"http-proxy@1"},
+    "telemetry":{"flushTimeoutSeconds":10,"endpoint":"https://otel.example/v1/traces","adapter":"otlp-http@1"},
+    "llmGateway":{"credential":"worker-local","gateway":"local-litellm@1"}
+  }}
+}`)
+
+	left, err := PreparePublication(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	right, err := PreparePublication(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if left.RequestDigest() != right.RequestDigest() || string(left.authorCanonical) != string(right.authorCanonical) {
+		t.Fatalf("equivalent author requests differ:\n%s\n%s", left.authorCanonical, right.authorCanonical)
+	}
+	resolver := fixedGatewayResolver("sha256:" + strings.Repeat("a", 64))
+	leftVersion, err := left.Resolve(context.Background(), resolver)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rightVersion, err := right.Resolve(context.Background(), resolver)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if leftVersion.Ref != rightVersion.Ref || string(leftVersion.CanonicalDocument) != string(rightVersion.CanonicalDocument) {
+		t.Fatalf("equivalent immutable documents differ:\n%s\n%s", leftVersion.CanonicalDocument, rightVersion.CanonicalDocument)
+	}
+	decoded, err := DecodeStoredDocument(leftVersion.CanonicalDocument)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !decoded.Spec.Worker.LLMGateway.Gateway.Present || decoded.Spec.Worker.Telemetry.Value.FlushTimeoutSeconds != 10 {
+		t.Fatalf("decoded normalized spec = %+v", decoded.Spec)
+	}
+	if got := decoded.Spec.Worker.HTTPProxy.Value.Targets; strings.Join(got, ",") != "llm-gateway,tool-http,tool-subprocess" {
+		t.Fatalf("normalized targets = %v", got)
+	}
+}
+
+func TestNormalizeTelemetryConfigured(t *testing.T) {
+	prepared, err := PreparePublication([]byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"debug","version":"2"},"spec":{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"http://localhost:3000/api/public/otel/v1/traces"}},"planner":{"telemetry":{"adapter":"otlp-http@1","endpoint":"http://localhost:3000/api/public/otel/v1/traces"}}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	version, err := prepared.Resolve(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := DecodeStoredDocument(version.CanonicalDocument)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Spec.Worker.Telemetry.Value.Endpoint == "" || decoded.Spec.Planner.Telemetry.Value.Endpoint == "" {
+		t.Fatal("configured telemetry lost")
+	}
+}
+
+func TestExplicitNullIsPatchAndOmissionIsNot(t *testing.T) {
+	t.Parallel()
+	prepared, err := PreparePublication([]byte(`{
+  "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
+  "metadata":{"name":"no-debug","version":"1"},
+  "spec":{"worker":{"telemetry":null},"planner":{"telemetry":null}}
+}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	version, err := prepared.Resolve(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !version.Spec.Worker.Telemetry.Present || !version.Spec.Worker.Telemetry.Clear ||
+		!version.Spec.Planner.Telemetry.Present || !version.Spec.Planner.Telemetry.Clear {
+		t.Fatalf("explicit null was not retained: %+v", version.Spec)
+	}
+}
+
+func TestCaidoConfigNormalizesAsOneAtomicWorkerField(t *testing.T) {
+	t.Parallel()
+	document := []byte(`{
+  "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
+  "metadata":{"name":"caido-lab","version":"1"},
+  "spec":{"worker":{"caido":{
+    "requestTimeoutSeconds":30,"credential":"caido-token",
+    "endpoint":"https://caido.example/prefix","adapter":"caido-graphql@1"
+  }}}
+}`)
+	prepared, err := PreparePublication(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	version, err := prepared.Resolve(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	caido := version.Spec.Worker.Caido
+	if !caido.Present || caido.Clear || caido.Value.Adapter != "caido-graphql@1" ||
+		caido.Value.Endpoint != "https://caido.example/prefix" ||
+		caido.Value.Credential != "caido-token" || caido.Value.RequestTimeoutSeconds != 30 {
+		t.Fatalf("normalized Caido config = %+v", caido)
+	}
+	decoded, err := DecodeStoredDocument(version.CanonicalDocument)
+	if err != nil || decoded.Spec.Worker.Caido != caido {
+		t.Fatalf("stored Caido round trip = (%+v, %v)", decoded.Spec.Worker.Caido, err)
+	}
+
+	clear, err := PreparePublication([]byte(`{
+  "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
+  "metadata":{"name":"no-caido","version":"1"},
+  "spec":{"worker":{"caido":null}}
+}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleared, err := clear.Resolve(context.Background(), nil)
+	if err != nil || !cleared.Spec.Worker.Caido.Present || !cleared.Spec.Worker.Caido.Clear {
+		t.Fatalf("Caido clear = (%+v, %v)", cleared.Spec.Worker.Caido, err)
+	}
+}
+
+func TestPlannerTelemetryAdapterPublicationUsesServerCatalog(t *testing.T) {
+	t.Parallel()
+	spec := Spec{Planner: PlannerPatch{Telemetry: AtomicPatch[TelemetryConfig]{
+		Present: true,
+		Value: TelemetryConfig{
+			Adapter: "otlp-http@1", Endpoint: "https://otel.example/v1/traces",
+			FlushTimeoutSeconds: 3,
+		},
+	}}}
+	accepting := plannerTelemetryAdapterCatalogFunc(func(ref string) bool {
+		return ref == "otlp-http@1"
+	})
+	if err := validatePlannerTelemetryAdapter(spec, accepting); err != nil {
+		t.Fatalf("registered Planner adapter rejected: %v", err)
+	}
+	rejecting := plannerTelemetryAdapterCatalogFunc(func(string) bool { return false })
+	if err := validatePlannerTelemetryAdapter(spec, rejecting); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("unregistered Planner adapter error = %v", err)
+	}
+	spec.Planner.Telemetry.Clear = true
+	if err := validatePlannerTelemetryAdapter(spec, rejecting); err != nil {
+		t.Fatalf("clear operation consulted current adapter registry: %v", err)
+	}
+}
+
+func TestPreparePublicationRejectsUnsafeOrAmbiguousDocuments(t *testing.T) {
+	t.Parallel()
+	base := func(spec string) []byte {
+		return []byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"debug","version":"1"},"spec":` + spec + `}`)
+	}
+	tests := map[string][]byte{
+		"empty":                        base(`{}`),
+		"unknown":                      base(`{"worker":{"telemetry":null,"mystery":1}}`),
+		"duplicate":                    base(`{"worker":{"telemetry":null,"telemetry":null}}`),
+		"bad endpoint":                 base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://user:secret@example/a?x=1"}}}`),
+		"obsolete content switch":      base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://example/a","captureContent":true}}}`),
+		"duplicate targets":            base(`{"worker":{"httpProxy":{"adapter":"http-proxy@1","proxyUrl":"http://proxy.example","targets":["tool-http","tool-http"]}}}`),
+		"null gateway":                 base(`{"worker":{"llmGateway":{"gateway":null}}}`),
+		"invalid surrogate":            base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://example/\ud800"}}}`),
+		"Caido wrong adapter":          base(`{"worker":{"caido":{"adapter":"http-proxy@1","endpoint":"https://caido.example"}}}`),
+		"Interactsh wrong adapter":     base(`{"worker":{"interactsh":{"adapter":"http-proxy@1","endpoint":"https://interactsh.example"}}}`),
+		"Caido endpoint userinfo":      base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://user:secret@caido.example"}}}`),
+		"Interactsh endpoint userinfo": base(`{"worker":{"interactsh":{"adapter":"interactsh-http@1","endpoint":"https://user:secret@interactsh.example"}}}`),
+		"Caido endpoint query":         base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.example?token=secret"}}}`),
+		"Interactsh endpoint query":    base(`{"worker":{"interactsh":{"adapter":"interactsh-http@1","endpoint":"https://interactsh.example?token=secret"}}}`),
+		"Caido null credential":        base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.example","credential":null}}}`),
+		"Interactsh null credential":   base(`{"worker":{"interactsh":{"adapter":"interactsh-http@1","endpoint":"https://interactsh.example","credential":null}}}`),
+		"Caido zero timeout":           base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.example","requestTimeoutSeconds":0}}}`),
+		"Interactsh zero timeout":      base(`{"worker":{"interactsh":{"adapter":"interactsh-http@1","endpoint":"https://interactsh.example","requestTimeoutSeconds":0}}}`),
+		"Caido excessive timeout":      base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.example","requestTimeoutSeconds":121}}}`),
+		"Interactsh excessive timeout": base(`{"worker":{"interactsh":{"adapter":"interactsh-http@1","endpoint":"https://interactsh.example","requestTimeoutSeconds":121}}}`),
+	}
+	for name, document := range tests {
+		document := document
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := PreparePublication(document); !errors.Is(err, ErrInvalid) {
+				t.Fatalf("PreparePublication error = %v", err)
+			}
+		})
+	}
+	if _, err := PreparePublication([]byte(strings.Repeat(" ", maxDocumentBytes+1))); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("oversized error = %v", err)
+	}
+	builtIn := []byte(BuiltInCanonicalDocument)
+	if _, err := PreparePublication(builtIn); !errors.Is(err, ErrReserved) {
+		t.Fatalf("built-in publication error = %v", err)
+	}
+}
+
+func TestPrepareRejectsPrivateKeyPEM(t *testing.T) {
+	t.Parallel()
+	document := map[string]any{
+		"apiVersion": APIVersion, "kind": Kind,
+		"metadata": map[string]any{"name": "caido", "version": "1"},
+		"spec": map[string]any{"worker": map[string]any{"httpProxy": map[string]any{
+			"adapter": "http-proxy@1", "proxyUrl": "http://proxy.example", "targets": []string{"tool-http"},
+			"caBundlePem": "-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n",
+		}}},
+	}
+	encoded, err := json.Marshal(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := PreparePublication(encoded); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("private-key PEM error = %v", err)
+	}
+}
+
+func TestSharedPublicationCABundleMatchesRuntimeGrammar(t *testing.T) {
+	t.Parallel()
+	encodedFixture := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "runtime-settings-ca-bundle.json")
+	var fixture struct {
+		HTTPProxy struct {
+			CABundlePEM string `json:"caBundlePem"`
+		} `json:"httpProxy"`
+	}
+	if err := json.Unmarshal(encodedFixture, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	certificate := fixture.HTTPProxy.CABundlePEM
+	for _, owner := range []string{"httpProxy", "caido"} {
+		t.Run(owner, func(t *testing.T) {
+			for _, test := range []struct {
+				name, bundle string
+				valid        bool
+			}{
+				{"single", certificate, true},
+				{"eight", strings.Repeat(certificate, 8), true},
+				{"nine", strings.Repeat(certificate, 9), false},
+				{"preamble", "Bag Attributes\n" + certificate, false},
+				{"between", certificate + "subject=CN=fixture\n" + certificate, false},
+				{"private key comment", "# PRIVATE KEY\n" + certificate, false},
+				{"PEM header", strings.Replace(certificate, "-----BEGIN CERTIFICATE-----\n", "-----BEGIN CERTIFICATE-----\nProc-Type: 4,ENCRYPTED\n", 1), false},
+			} {
+				t.Run(test.name, func(t *testing.T) {
+					worker := map[string]any{}
+					if owner == "httpProxy" {
+						worker[owner] = map[string]any{
+							"adapter": "http-proxy@1", "proxyUrl": "http://proxy.example",
+							"targets": []string{"tool-http"}, "caBundlePem": test.bundle,
+						}
+					} else {
+						worker[owner] = map[string]any{
+							"adapter": "caido-graphql@1", "endpoint": "https://caido.example",
+							"caBundlePem": test.bundle,
+						}
+					}
+					document, err := json.Marshal(map[string]any{
+						"apiVersion": APIVersion, "kind": Kind,
+						"metadata": map[string]any{"name": "ca-test", "version": "1"},
+						"spec":     map[string]any{"worker": worker},
+					})
+					if err != nil {
+						t.Fatal(err)
+					}
+					_, err = PreparePublication(document)
+					if test.valid && err != nil {
+						t.Fatalf("valid CA bundle rejected: %v", err)
+					}
+					if !test.valid && (!errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "spec.worker."+owner+".caBundlePem")) {
+						t.Fatalf("invalid CA bundle error = %v", err)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestBuiltInCanonicalDigest(t *testing.T) {
+	t.Parallel()
+	if got := contentdigest.Bytes([]byte(BuiltInCanonicalDocument)); got != BuiltInDigest {
+		t.Fatalf("built-in digest = %s, want %s", got, BuiltInDigest)
+	}
+	version, err := DecodeStoredDocument([]byte(BuiltInCanonicalDocument))
+	if err != nil || version.Ref.Digest != BuiltInDigest || !version.BuiltIn {
+		t.Fatalf("decode built-in = (%+v, %v)", version, err)
+	}
+}
+
+func fixedGatewayResolver(digest string) GatewayResolver {
+	return GatewayResolverFunc(func(_ context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
+		id, version, ok := strings.Cut(selector, "@")
+		if !ok {
+			return llmgateway.ResolvedLLMGatewayConfig{}, errors.New("bad selector")
+		}
+		return llmgateway.ResolvedLLMGatewayConfig{
+			Ref:      llmgateway.LLMGatewayConfigRef{GatewayID: id, Version: version, Digest: digest},
+			Protocol: llmgateway.OpenAICompatibleProtocol, URL: "http://127.0.0.1:4000/v1",
+		}, nil
+	})
+}
+
+func TestPreparePublicationGatewaySelectorUsesConfigurationGrammar(t *testing.T) {
+	t.Parallel()
+	document := func(selector string) []byte {
+		return []byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"debug","version":"1"},` +
+			`"spec":{"worker":{"llmGateway":{"gateway":` + strconv.Quote(selector) + `}}}}`)
+	}
+	for _, selector := range []string{
+		"local-litellm@2026.1+eu", strings.Repeat("g", contracts.MaxConfigIDLength) + "@1",
+		"gateway@" + strings.Repeat("1", contracts.MaxConfigVersionLength),
+	} {
+		if _, err := PreparePublication(document(selector)); err != nil {
+			t.Errorf("Gateway selector %q rejected: %v", selector, err)
+		}
+	}
+	for _, selector := range []string{
+		"Gateway@1", "gateway@1@2", "gateway@", strings.Repeat("g", contracts.MaxConfigIDLength+1) + "@1",
+		"gateway@" + strings.Repeat("1", contracts.MaxConfigVersionLength+1),
+	} {
+		if _, err := PreparePublication(document(selector)); !errors.Is(err, ErrInvalid) {
+			t.Errorf("Gateway selector %q error = %v", selector, err)
+		}
+	}
+}
+
+func TestInteractshConfigNormalizesAsOneAtomicWorkerField(t *testing.T) {
+	t.Parallel()
+	document := []byte(`{
+  "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
+  "metadata":{"name":"interactsh-lab","version":"1"},
+  "spec":{"worker":{"interactsh":{
+    "requestTimeoutSeconds":30,"credential":"interactsh-token",
+    "endpoint":"https://interactsh.example/prefix","adapter":"interactsh-http@1"
+  }}}
+}`)
+	prepared, err := PreparePublication(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	version, err := prepared.Resolve(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	interactsh := version.Spec.Worker.Interactsh
+	if !interactsh.Present || interactsh.Clear || interactsh.Value.Adapter != "interactsh-http@1" ||
+		interactsh.Value.Endpoint != "https://interactsh.example/prefix" ||
+		interactsh.Value.Credential != "interactsh-token" || interactsh.Value.RequestTimeoutSeconds != 30 {
+		t.Fatalf("normalized Interactsh config = %+v", interactsh)
+	}
+	decoded, err := DecodeStoredDocument(version.CanonicalDocument)
+	if err != nil || decoded.Spec.Worker.Interactsh != interactsh {
+		t.Fatalf("stored Interactsh round trip = (%+v, %v)", decoded.Spec.Worker.Interactsh, err)
+	}
+
+	clear, err := PreparePublication([]byte(`{
+  "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
+  "metadata":{"name":"no-interactsh","version":"1"},
+  "spec":{"worker":{"interactsh":null}}
+}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleared, err := clear.Resolve(context.Background(), nil)
+	if err != nil || !cleared.Spec.Worker.Interactsh.Present || !cleared.Spec.Worker.Interactsh.Clear {
+		t.Fatalf("Interactsh clear = (%+v, %v)", cleared.Spec.Worker.Interactsh, err)
+	}
+}
+
+// plannerTelemetryAdapterCatalogFunc states a PlannerTelemetryAdapterCatalog
+// as a function for this package's tests, as runtimeconfigtest does for others.
+type plannerTelemetryAdapterCatalogFunc func(string) bool
+
+func (f plannerTelemetryAdapterCatalogFunc) SupportsPlannerTelemetryAdapter(ref string) bool {
+	return f != nil && f(ref)
+}
+
+// transactionLLMCredentialLookupFactoryFunc states a
+// TransactionLLMCredentialLookupFactory as a function for this package's tests.
+type transactionLLMCredentialLookupFactoryFunc func(pgx.Tx) (resolved.CredentialLookup, error)
+
+func (f transactionLLMCredentialLookupFactoryFunc) ForTransaction(tx pgx.Tx) (resolved.CredentialLookup, error) {
+	return f(tx)
+}

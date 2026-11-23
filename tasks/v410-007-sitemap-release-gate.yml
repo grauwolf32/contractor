@@ -1,0 +1,314 @@
+schema_version: '1.0'
+id: V410-007
+title: Verify the standalone sitemap slice across scale and lifecycle boundaries
+milestone: project-sitemap-2026-10
+epic: quality
+kind: chore
+priority: P1
+status: pending
+depends_on:
+- V410-006
+- V410-018
+- V410-012
+- V410-013
+- V410-014
+- V410-015
+- V410-016
+- V410-017
+- V410-019
+- V410-020
+- V410-021
+- V410-022
+- V410-024
+languages:
+- go
+- python
+- yaml
+- markdown
+goal: Accept the independent HTTP/OpenAPI sitemap slice through standalone Workflows and real-store/process
+  evidence of sharing, bounded history, truthful failures and recoverable lifecycle, without a dependency
+  on the Audit redesign.
+context:
+  authority: User decisions on 2026-10-24 and 2026-10-28 establish independent HTTP/OpenAPI sitemap delivery,
+    shared metadata for every permitted reader and snapshot-only original-file retention. On 2026-10-31
+    the user requested sitemap work in parallel with the Audit redesign and explicitly asked to rewrite
+    the tasks. Standalone Workflows and their release gate are V410-006/007; V410-025 owns the Audit-dependent
+    integration. This update changes planning, not implementation. User decision on 2026-11-05
+    makes the exact disk-heavy cases registered by V448-002 optional even in full gates;
+    only explicit CONTRACTOR_TEST_HEAVY_IO=1 enables them. Their skips are reported as
+    unproven scale evidence, never as successful publication-volume verification.
+  proposal: docs/proposals/0042-live-project-sitemap.md
+  proposal_sections: 'Sections 10-12: measured publication amplification, limits, required cases and first
+    useful delivery.'
+  specification:
+  - docs/spec/artifacts/project-sitemap.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/artifacts/projects.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/testing/README.md
+  - docs/spec/operations/operations.md
+  boundary: This gate owns standalone sitemap readiness and SMT-specific scale/lifecycle evidence, consuming
+    the existing generic ArtifactStore gates. V410-025 owns new/migrated Audit composition cases. Pending
+    Audit, hypothesis and pentest work cannot block this milestone.
+  code:
+  - make/features.mk
+  - make/release.mk
+  - scripts/check_release_verify_graph.py
+  - scripts/shared_fixture_gate.py
+  - tests/e2e
+  - internal/projectsitemap
+  - internal/artifacts
+  - internal/projectlifecycle
+  parallel_delivery: The Audit design-review gate does not apply to V410-006/007. Keep ordinary task/prerequisite/completion
+    policy and existing release regressions. This planning update starts no implementation or measurement.
+scope:
+  in:
+  - Extend the existing sitemap PostgreSQL/process gates and their mandatory case lists. An umbrella make
+    alias may compose them, but do not create a second case registry/orchestration framework.
+  - Measure deterministic work counters, total encoded publication bytes, retained revisions, CAS attempts
+    and paging/import work at representative and ceiling sizes; record actual measurements and conclusions
+    during implementation verification.
+  - Test sitemap-specific ten-writer, import, source-CAS, shared-view, publication and lifecycle paths.
+    Consume the V410-010 generic admission/history/hold/GC gate evidence instead of rebuilding all-scope
+    matrices here.
+  - Verify identical shared metadata for all permitted readers across every adapter, including credential-like
+    names, opaque paths and known-credential matches. Check current operation permission on every cached
+    page, no input resolution on reads, and bounded snapshot-only original-file retention. Distinguish
+    references without matching permitted original inputs (gap unless requireReferencedInputs) from missing/corrupt
+    resolved content or I/O failure (ordinary storage error and rollback regardless of the flag), preserving
+    existing frozen-context replay. Deliberate ordinary owner-selected inputs remain complete; general
+    telemetry redaction is unchanged.
+  - Document best-effort automatic updates, isolated failure handling and explicit snapshot/import semantics.
+    Prove that blocked/refused storage never delays HTTP submission or changes target/Run results and
+    that no publisher survives cleanup.
+  out:
+  - Incremental Caido history and managed Playwright delivery gates (V410-008/009), external model-quality
+    claims or live external targets.
+  - Accepting a failed scale budget by silently raising ceilings, adding a second persistence system or
+    leaving an unbounded bypass.
+  - Fabricated evidence records at task-planning time.
+  - Generic collection-completeness/report states, zero-loss traffic capture or duplicated generic ArtifactStore
+    policy/GC test implementations.
+  - New or migrated Audit task/workspace/profile fixtures and Audit composition selectors; V410-025 consumes
+    this independent gate and owns those cases.
+requirements:
+- id: R1
+  text: The mandatory gate requires a disposable reachable PostgreSQL instance, actual Server/Runtime
+    processes and local controlled fixtures; absent prerequisites, selected skips and zero-match selections
+    fail.
+- id: R2
+  text: Run existing V410-010 generic ArtifactStore gates as prerequisites. Add only sitemap-specific
+    full-map/nested-bound, ten-writer, source replacement and exact snapshot/view races. Use deterministic
+    work counters; do not recreate the all-scope retention/holder/writer matrix. Require RunStore original-input
+    resolution through generic artifact fork descriptors, common Project mutation receipts and ordinary
+    artifact UI metadata without sitemap-specific storage branches.
+- id: R3
+  text: Prove more than 256 MiB of cumulative Project map writes and more than 256 accepted map updates
+    within one Run succeed while current-map/nested bounds and generic per-binding history policy holds.
+    Use a controlled source fixture without unrelated Audit/target budget constraints. Report publication/retained-byte
+    amplification, CAS contention and bounded coalescing/flush work; no per-Run sitemap quota or replacement
+    rate cap may remain. If accepted generic/domain budgets fail, implement and test a reviewed representation/coalescing
+    remedy; partitioning is one option. Numeric policy changes require explicit user approval, not a silent
+    increase.
+- id: R4
+  text: 'All reviewed sitemap failure classes specified by proposal 0042 for this slice have explicit
+    executable coverage: bounded metadata normalization, trusted source/deployment provenance, Run-independent
+    coalescing, stale source replacement, bounded members/suppression, and shared retained-history policy
+    bypass paths.'
+- id: R5
+  text: Run full touched-package suites and affected HTTP/Caido, OpenAPI and ordinary Workflow regressions.
+    The mandatory sitemap case inventory uses standalone Runs and excludes Audit composition, which V410-025
+    owns. Browser/history and pending Audit redesign tasks are not prerequisites.
+- id: R6
+  text: Prove source publication/receipt/fence and selected snapshot/eviction races on real storage/processes.
+    Reuse common admission, holds, accounting and GC. Add a case asserting best-effort automatic publication
+    creates no Run/report fields or generic incompleteness markers and never repeats target work.
+- id: R7
+  text: Prove that one allocation-owned immutable shared-map view obeys its 32-MiB encoded/128-MiB total
+    limit and current Server operation checks on every page after source eviction, without input-lineage
+    resolution; replaced/absent views fail explicitly. Pagination creates no hold. Durable proof selection
+    either wins atomic existing-reference protection or reports the exact ref unavailable. Memory/eligible
+    disk bytes never grant access or acquire an implicit pin; exercise the cache boundary without depending
+    on the optional V413-001 implementation.
+failure_outcomes:
+- operation: Verification setup or required case execution
+  permanent: Missing/unreachable database, missing process fixture, zero selected cases or a mandatory
+    skip fails the gate; no partial result is presented as a pass.
+  retryable: Fixture orchestration may use bounded readiness retries with explicit deadlines; deterministic
+    contract failures are never retried until green.
+  ambiguous: Persist case identity/result in the verification report and distinguish rerun evidence; do
+    not infer executed cases from a consolidated gate name.
+  cancelled: Join child processes and cleanup temporary schemas/workspaces after cancellation.
+  timeout: Each suite has an explicit orchestration deadline; timeout is failure with retained diagnostics.
+- operation: Measured scale/publication budget
+  permanent: Budget overrun blocks acceptance and records the exact failing cardinality/cost; no automatic
+    quota increase.
+  retryable: No endless benchmark rerun or probabilistic suppression of failures.
+  ambiguous: Use exact tested revision and workload manifest so results remain attributable.
+  cancelled: Interrupted measurement is incomplete evidence and cannot complete the task.
+  timeout: Record elapsed time diagnostically; correctness depends on deterministic work/budget counters
+    and completion outcomes.
+cardinality:
+- collection: Map, members, examples, sources, markers, behavior summaries and accumulated publication
+    history
+  expected: Typical proposal workload plus each independent ceiling
+  maximum: Proposal section 10 map/nested limits and V410-010 ordinary per-binding history limits, with
+    ten concurrent writers and independently bounded logical artifacts
+  bound: Count candidates and removed metadata separately, each at most 64 per retention transaction,
+    plus indexed reference checks, pages/import batches and shared-blob work; physical GC separately caps
+    each pass at 64 version/blob candidates and 64 MiB encoded payload. Bound the whole containing collection;
+    exercise lifetime writes beyond 1 GiB across Runs and a single Run above both removed publication
+    thresholds. Use bounded controlled fixtures without replacing those removed limits with another domain
+    rate budget.
+- collection: Gate case manifest and evidence
+  expected: Finite named mandatory cases covering all specified boundaries
+  maximum: One bounded case/result record per declared case, bounded process logs
+  bound: Detect duplicate/zero/missing case execution and do not store unbounded raw target traffic.
+lifecycle:
+- entity: Verification databases, Runtime processes and evidence
+  delete: Test orchestrator owns disposable infrastructure cleanup and joins every child.
+  cascade: Disposable scope cleanup cannot target demo/business data.
+  retention: Record only sanitized actual verification evidence at the tested revision; project artifacts
+    under test use their normal holds and purge contracts.
+acceptance_criteria:
+- id: A1
+  given: The standalone V410-006 catalog and actual Server/Runtime/PostgreSQL with local fixtures
+  when: The mandatory sitemap gate runs without an Audit, browser or incremental history integration
+  then: Ordinary discovery, import, exact snapshot handoff and model-free reconciliation execute with
+    zero mandatory skips; no Audit profile, prepare/same-round mapping or new Audit composition case is
+    required.
+- id: A2
+  given: Maximum map/nested cardinalities, ten writers, sequential Runs and a controlled single-Run source
+    fixture
+  when: Concurrent append/source/manual operations and bounded readers/imports execute without unrelated
+    Audit limits
+  then: More than 256 MiB cumulative Project map writes and more than 256 accepted updates succeed in
+    one Run; lifetime volume can exceed 1 GiB through common oldest-unpinned eviction while retained history
+    stays bounded. More-than-64-candidate cases prove scan/delete limits and generic backpressure without
+    payload/all-JSON scans. Mixed pins, all pins and former-current replacement preserve every legitimate
+    retention obligation.
+- id: A3
+  given: Credential-like metadata, excluded fields, source-kind/deployment/source-CAS/member-overflow
+    fixtures and owner-selected inputs
+  when: Every ingress and consumer surface is exercised
+  then: Valid metadata survives without secret matching or matching-secret transport. Fields outside the
+    map model stay excluded, permitted dedicated readers see the same shared map and ordinary owner-selected
+    inputs remain complete. Current operation grants and exact snapshot-file permissions remain enforced
+    without view policy digests. General telemetry redaction is unchanged; no old-source rollback or principal
+    attribution is introduced, and split/merge/suppression uncertainty remains truthful.
+- id: A4
+  given: Lost replies, evicted receipt results, pin/delete/publication races, shared blobs, direct bypass
+    attempts and purge
+  when: The faults occur through real storage/process boundaries, including bounded separately committed
+    maintenance
+  then: Existing receipts, authorization, exact holds and common lifecycle remain correct. Automatic failure
+    is isolated and technically diagnosed; crash may lose the last bounded private batch. No publisher
+    survives release. Generic policy/GC behavior is proved by the existing V410-010 gates, without new
+    domain state/accounting.
+- id: A5
+  given: The exact tested revision and case manifest
+  when: Release registration and full affected regressions run
+  then: The evidence names commands, counts, zero mandatory skips, separately identified optional
+    disk-heavy skips, actual cost and residual limitations; a failed executed scaling claim leaves
+    the task unfinished. The publication-volume proof runs only with explicit heavy-I/O opt-in;
+    without it that claim is reported as unproven. Enabled evidence proves the removed per-Run
+    publication caps are absent. Generic RunScope revision semantics and the remaining common/domain
+    work-bound cases retain their requirements.
+    Inadequate useful workload needs an implemented reviewed representation/coalescing remedy and fresh
+    evidence; changing numeric policy requires explicit user approval, not an automatic implementation
+    change.
+- id: A6
+  given: Authorized materialized views, revoked grants, evicted source refs and concurrent proof selection
+  when: Cursors continue/replace/expire and a durable exact selection races oldest-unpinned eviction
+  then: One bounded view serves its original shared-map pages while the current Server operation grant
+    permits; invalidated cursors fail explicitly. Proof selection acquires the legitimate hold atomically
+    or reports unavailable; neither memory nor an optional eligible disk cache becomes authority, a pin
+    or a source of implicit latest.
+deliverables:
+- path: make/features.mk
+  description: Composition of existing mandatory sitemap gates in the release graph, reusing their executable
+    case lists.
+- path: tasks/evidence/v410-007.json
+  description: Create only during actual implementation verification, recording tested revision, executed
+    cases and measured budgets.
+- path: docs/testing
+  description: Reproducible gate instructions and the limits of best-effort automatic updates; explicit
+    outputs retain exact-reference contracts.
+tests:
+- command: make test-project-sitemap-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make test-artifact-history-postgres test-artifact-history-e2e
+  covers:
+  - A2
+  - A4
+  - A5
+- command: make test-project-sitemap-postgres test-project-sitemap-tools-e2e
+  covers:
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make test-wire-cross-language verify-public-api verify-public-api-postgres test-config
+  covers:
+  - A1
+  - A3
+  - A5
+  - A6
+- command: make test-http-caido-e2e
+  covers:
+  - A1
+  - A4
+  - A5
+  - A6
+- command: make release-verify
+  covers:
+  - A5
+  - A6
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+test_prerequisites:
+- New test-project-sitemap-e2e and its manifest are deliverables, not pre-existing evidence. Existing
+  consolidated release mode must still prove actual required case execution.
+- A scale failure may require implementation changes within this task or a separately tracked dependency;
+  the task cannot complete with a merely proposed partitioning remedy.
+- Use controlled non-Audit fixtures for the single-Run publication regression; no unrelated execution
+  budget may mask removed-limit cases. V410-010 owns generic non-sitemap User/Project/Run fixtures and
+  automatic per-binding retention gates; do not duplicate their implementation or introduce registration
+  for those fixtures.
+- Baseline regressions included by release-verify still run on the tested branch. They do not require
+  implementing or preserving the obsolete Audit architecture. All new/migrated sitemap-Audit cases/selectors
+  belong to V410-025; the sitemap umbrella gate must not acquire a hidden V64 prerequisite.
+execution:
+  released_on: '2026-10-26'
+  previous_branch: codex/v410-sitemap
+  note: Returned to pending at the user's request to finish V410-002 and pause. Implementation of this
+    task has not started; the prior batch reservation is released.
+implementation_decisions:
+- date: '2026-10-27'
+  decision: Keep one executable owner for each required case and reuse existing sitemap and common ArtifactStore
+    gates. Verification must exercise actual nonblocking submission, keyed acknowledgement recovery, explicit
+    read of committed state after automatic refusal, and joined crash/cancel/release. It does not create
+    completeness states or duplicate generic persistence mechanisms.
+- date: '2026-10-31'
+  decision: Keep V410-007 as the independent sitemap exit after standalone V410-006. Move Audit-specific
+    composition acceptance/selector work to V410-025. Preserve every numeric scale, retention, concurrency,
+    authority and failure guarantee; optional V410-008/009 still follow this gate.
+demonstration: Run the standalone discovery/snapshot/reconciliation catalog from V410-006 against local
+  fixtures and actual Server/Runtime/PostgreSQL, then the existing SMT scale/concurrency/lifecycle cases.
+  The mandatory sitemap gate executes no Audit-specific case; V410-025 separately proves later Audit composition.

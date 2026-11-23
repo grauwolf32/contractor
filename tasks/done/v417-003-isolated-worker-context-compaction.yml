@@ -1,0 +1,420 @@
+schema_version: '1.0'
+id: V417-003
+title: Accept merged isolated Worker context compaction
+milestone: worker-context-compaction-2026-10
+epic: planner-worker
+kind: feature
+priority: P1
+status: completed
+depends_on:
+- V417-002
+- V466-001
+- V466-002
+- V466-005
+- V466-006
+- V466-007
+languages:
+- go
+- python
+- typescript
+- yaml
+goal: A normal isolated Worker selected by compact@1 in a Workflow continues the same subtask after bounded
+  context compression, can retrieve details from retained history, and returns a normal trusted result
+  only on actual completion.
+context:
+  authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
+    includeReasoning independently deliverable. This record plans work; it does not start implementation
+    or change existing delivery priorities. User decision on 2026-10-30: start implementation now; the
+    coordinator session runs it in lane cmp-worker together with V417-001, V417-003 and V420-002. User
+    decision on 2026-10-31: the database contains test data; conflicting records may be manually repaired
+    or deleted. Keeping pre-change snapshots readable is not a requirement for this transition; retain
+    the explicit contextManagement strategy required by R1. User decision on 2026-10-31: terminal summarizer
+    includeReasoning also uses an explicit true/false boolean below authoring, matching compact@1; its
+    earlier true-only encoding is superseded by V417-001. User assignment 2026-11-10: merge the reviewed
+    task scope/order into main and begin the agreed implementation chain. This chat continues acceptance
+    of the already-merged V417-003 prerequisite before isolated Audit work in V417-005; shared V417-004
+    executes last. Acceptance uses current production paths and does not claim the earlier gates ran.'
+  proposal: docs/proposals/0046-workflow-context-compaction.md
+  specification:
+  - docs/spec/configuration/workflows.md#WFL-R86
+  - docs/spec/configuration/agent-templates.md#TPL-R48
+  - docs/spec/execution/worker.md#WRK-R137
+  - docs/spec/execution/worker.md#WRK-R146
+  - docs/spec/tools/skills.md#SKL-R98
+  - docs/spec/tools/memory.md#MEM-R2
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  implementation_boundary: Update numbered owning specifications, limits/errors/failure/lifecycle registries,
+    strict schemas, fixtures and every affected reader/writer together with implemented behavior. Generated
+    clients are regenerated through their tools. No legacy readers, unsupported accepted configuration,
+    speculative exports or new receipt store.
+  adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
+    Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
+    not 2.8 callback/identity assumptions.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: The isolated Worker implementation and example are merged through d7ecbed9a. runtime/worker/compaction.py,
+    test_worker_compaction.py and TestWorkerCompactionContinuesIsolatedWorker are existing production-path
+    coverage. Shared and Audit admission are still rejected by contracts.ValidateCompactionTarget; those
+    extensions remain V417-004/005.
+  acceptance_evidence:
+  - tasks/evidence/v417-003-acceptance-20261110.md
+  - tasks/evidence/v417-003-size-probe-20261110.json
+  - tasks/evidence/v417-003-verification-20261110.json
+  - tasks/evidence/v466-007-aggregate-budget-20261110.json
+  - tasks/evidence/v417-003-acceptance-20261111.json
+  acceptance_status: 'Accepted 2026-11-11: all A1-A7 and required commands pass. Full Runtime: 6199 passed,
+    135 declared skips excluded. Complete process gate: 50 roots, no failures/skips, all five report verifiers
+    pass. Retained Go/PostgreSQL/wire/API/UI/config results apply to byte-identical owning paths; current
+    lint passes. Owned processes/pools stopped and the database was dropped. Earlier failed reports remain
+    historical evidence.'
+  telemetry_policy_clarification: User clarification 2026-11-10 permits Skill/Memory/source content in
+    configured external telemetry and prohibits credentials. Completed V466-001 preserves known credential
+    and independent retained/public diagnostic guards. Completed V466-002/005 align strict Gateway tool
+    oracles; completed V466-003/004 inspect exact Stage checkpoints and preserve valid exact diff prefixes.
+    Completed V466-006 preserves scan_timeout when an inner HTTP timer settles at the total scanner deadline.
+    The final complete Runtime and process gates pass; historical failures remain recorded.
+  verification_history:
+    acceptance_status: '2026-11-10 follow-up: V466-001 through V466-006 are completed. Full Runtime passes
+      6199 tests with 135 declared skips excluded from passing coverage. Focused process commands and
+      lint pass. The full 50-minute process aggregate passed 48 roots then timed out inside session modes;
+      no scenario failed before the package timer. Session modes and summarizer then both passed separately
+      under their original inner deadlines. V466-007 corrects the aggregate budget to 75/80 minutes; the
+      complete make test-e2e rerun is running. This task remains in_progress until that command and every
+      report verifier succeed. Historical failed reports remain preserved.'
+    remaining_work:
+    - Complete V466-007 and the full make test-e2e rerun with its corrected aggregate budget before closing
+      this task and starting V417-005. The 48-root timeout and two passing tail controls are evidence,
+      not a successful complete aggregate.
+    - The full Runtime suite, focused real process scenarios and lint pass. Prior Go config/contracts/controlplane,
+      PostgreSQL, wire, API, UI and shipped-config checks remain recorded against unchanged owning implementation.
+    - Representative serialized-input and temporary-copy measurements for R12/R13 remain recorded on the
+      six deterministic production-path fixtures, including the 4096-group ceiling and near-32-MiB history.
+      They are fixture measurements, not live-model quality or universal RSS guarantees.
+    - Accept the current binding-selected compactor policy here. The separately authorized V417-006 migration
+      to executionConfig does not block acceptance of this slice. Shared V417-004 remains last.
+scope:
+  in:
+  - 'One vertical change: Workflow binding authoring and normalization, exact model/instruction dependencies,
+    resolved snapshots, allocation wire and the reachable Runtime coordinator.'
+  - Ordinary isolated ADK Workers, repeated compaction, bounded retained history and read_context_history,
+    minimal truthful state, errors, cancellation and cleanup.
+  - Compactor ModelPolicy consumer, instruction resource and an opt-in ordinary Workflow example with
+    a real production consumer; generated policies through deploy/models sources.
+  - Public descriptors/editor validation and generated clients for the config fields; real PostgreSQL
+    snapshot and real Server/Runtime process regressions.
+  out:
+  - Shared-mode admission (V417-004), Audit completion admission (V417-005), compactorModelPolicy execution
+    overrides (V417-006) and richer metrics/UI (V417-007).
+  - Terminal summarizer includeReasoning (independent V417-001), Workflow-wide strategy merging, cumulative-spend
+    compaction, estimated token triggers, reactive retry after context rejection, recursive map-reduce,
+    durable context recovery or new tables.
+  - Changing existing Workflows or active Runs to compact@1 by default; learning prompts from benchmark
+    answers.
+requirements:
+- id: R1
+  text: 'Introduce a closed contextManagement union on each object-valued Workflow agent binding: template@1
+    or compact@1. Missing authoring normalizes to template@1; resolved bindings require an explicit strategy
+    and AllocationSpec exactly one effective none/terminal@1/compact@1 branch. No read-time inference
+    or legacy acceptance. A compact branch wholly replaces template summary instructions/ratio/cumulativeBudget
+    without changing its template digest.'
+- id: R2
+  text: compact@1 requires explicit includeReasoning and exact modelPolicy/instructions refs; normalize
+    contextWindowRatio, keepRecentGroups and maxCompactions defaults. Reject model-free bindings, shared
+    sessions and Audit completion until their tasks land, and reject on.summarized with compact@1. Never
+    silently fall back to terminal mode or accept ignored summarizer-only overrides.
+- id: R3
+  text: Pin resolved fields, instruction text and dependencies into Workflow/Run/allocation digests. Strictly
+    validate on authoring, persistence read and Runtime admission. Update affected Go/Python/public schemas,
+    clients and descriptors together; use shared valid/invalid fixtures under api/testdata/v1alpha1 and
+    config fixtures.
+- id: R4
+  text: Compactor uses one tool-free model consumer with required contextWindowTokens, maxOutputTokens,
+    maxModelCalls=1 and finite maxTotalTokens; reject tool/worker-call limits. Use the effective Worker
+    Gateway/credential and explicitly selected policy. It receives no domain tools, Skills, Memory, workspace
+    or Artifact client.
+- id: R5
+  text: At the safe boundary after completed tools, ordinary valid completion has priority. Trigger only
+    from actual latest main-model prompt usage at min(floor(contextWindowTokens*ratio), contextWindowTokens-maxOutputTokens).
+    Missing usage does not cause an estimated trigger; compactor/finalizer usage does not overwrite main
+    prompt usage. New context generation and new eligible prefix are required before another compaction.
+- id: R6
+  text: Retain one logical Contractor invocation/allocation/A2A task/subtask identity, tool instances,
+    counters, original deadline, canonical State, trusted observations/refs, Skills and disclosure budgets
+    across every internal SDK turn. Use V418 ownership mapping; repeated callbacks never reset State or
+    completion. Every compactor call/token counts once toward existing invocation hard budgets plus its
+    own finite policy; finalizer remains charged normally. Never use terminal cumulativeBudget as a recurring
+    trigger.
+- id: R7
+  text: Build bounded input from the exact Runtime task, previous memory and newly eligible complete old
+    groups. Runtime protects objective/instructions/parameters/named refs, groups call/response pairs
+    and assigns checkpoint identity/range/generation. The model returns only non-empty bounded summary;
+    model-authored identities/refs do not gain authority. Replace previous memory, not append all summaries.
+- id: R8
+  text: Reasoning is provider-supplied text only, serialized as tagged ordinary data when the compact
+    branch explicitly selects true, with redaction and 8-KiB/part and 64-KiB total bounds and truncation
+    markers. Task/tool observations take priority. No raw reasoning replay to the main model and no new
+    telemetry-capture permission. This task has no prerequisite on terminal reasoning support; share helpers
+    when both real callers exist.
+- id: R9
+  text: Use the ADK 2.13 adapter and logical invocation/SDK turn mapping proved by V417-002. Close the
+    old generator in its owner task, make one bounded compactor call, validate before commit and deliver
+    the Runtime continuation to the actual next model request. Native ADK automatic/token-trigger/post-invocation
+    compaction and resumability stay off. Bind the marker to Runtime source ordinals/generation/session/branch/isolation;
+    inclusive timestamp ranges with equal-time neighbors, previous/overlapping summaries or foreign events
+    must represent exactly those groups or fail before mutation.
+- id: R10
+  text: Use existing allocation-local session events as bounded source history with incremental group
+    indexes. Do not reuse the lossy tail-only terminal TranscriptRecorder as a complete archive or allocate
+    a second unbounded raw copy. read_context_history accepts scoped ordinals/continuation positions,
+    never arbitrary paths/session IDs/refs; responses are historical data, not new protocol calls or current
+    mutable state.
+- id: R11
+  text: History reads use ordinary tool budgets, the same reasoning/redaction projection and current Skill
+    disclosure checks, including repeated reads and partial large-group pages. Integrate shared logic
+    through toolsets.common or an injected boundary, not upward imports into concrete toolsets. Reject
+    access outside the current isolated invocation and clear all cursors/history at its end.
+- id: R12
+  text: 'Validate and register initial proposal bounds before enabling the branch: cycles 1..16 default8/invocation
+    and 32/allocation; recent groups 1..16 default4 and 128 KiB; compactor input 8 MiB; summary 16 KiB;
+    retained history 32 MiB and 4096 groups; archive page 32 KiB and 8 groups or a bounded fragment. Measure
+    representative serialized inputs and copies first; record any justified adjustment in proposal and
+    shared limits before changing these acceptance values.'
+- id: R13
+  text: Count admitted raw events, indexes, projections, markers and temporary input copies; state a finite
+    transient-memory bound as well as archive storage bounds. A required prefix/tail that does not fit
+    fails explicitly; no silent prefix loss, half-groups or unbounded rescan per history page. Large serialization
+    uses joined off-event-loop work with short State lock holds.
+- id: R14
+  text: 'Invalid/None/empty/oversized/output-limited output, summarizer exception or a candidate demonstrably
+    ineffective before commit produces worker_compaction_failed with a bounded cause: that rejected attempt
+    adds no marker and starts no continuation. Native skip cannot authorize using unchanged history after
+    an admitted failed attempt. If ineffective is first established from actual main usage after a valid
+    checkpoint, retain its marker, observations and charged calls, then stop before another dispatch/cycle
+    rather than roll back or loop. Cancellation/deadline retains precedence; history/tail/cycle ceilings
+    produce non-retryable worker_context_limit_exceeded, and general budget exhaustion remains worker_budget_exhausted.
+    Preserve transport retry classification without semantic repair.'
+- id: R15
+  text: 'Reconcile ambiguous append by inspecting the same pending marker ID/exact range in the existing
+    session. Reused Event.id alone does not prove deduplication: confirm the marker or prove absence before
+    append, otherwise fence. Cancel/deadline/lease loss stops new semantic model/tool/publication dispatch
+    and joins local work. Already-sent uncertain effects use existing receipts; authorized WRK-R168 cleanup/auto-export
+    keeps its separate bounded budget. Finalize/abort/release do not compact and clear owned session/history/reasoning/client
+    buffers; incomplete cleanup retains the fence.'
+- id: R16
+  text: Successful compaction emits bounded factual internal status without reusing the monotone terminal
+    summarizer section. Normal finalizer/trusted result assembly returns summarized=false after useful
+    continuation; no intermediate WorkerResult, Planner handoff or fresh subtask. Exposed schema fields
+    have real readers/writers now; richer numeric reporting belongs to V417-007.
+failure_outcomes:
+- operation: Workflow publication, snapshot read and allocation admission
+  permanent: Reject invalid, unsupported and inapplicable combinations under existing config/400 classifications
+    before allocation; deterministic invalid reads are permanent.
+  retryable: Existing storage conflict/503 and bounded transport policy only.
+  ambiguous: Reconcile existing publication/Run identities and exact pins, never create a second workflow
+    or allocation.
+  cancelled: Existing request/Run owner joins accepted work before release.
+  timeout: Keep admission/request timeouts separate from the invocation deadline.
+- operation: Compactor Gateway call and input/output admission
+  permanent: worker_compaction_failed preserves permanent provider classification; worker_context_limit_exceeded
+    is non-retryable; worker_budget_exhausted remains distinct. No silent terminal fallback.
+  retryable: Use existing bounded Gateway attempt/backoff policy within the same original deadline; no
+    second semantic attempt.
+  ambiguous: A lost Gateway response may repeat computation/billing under existing transport rules; it
+    never authorizes a duplicate checkpoint.
+  cancelled: Cancellation/lease loss wins; join calls and serializers and discard late output.
+  timeout: The original Worker-call deadline bounds every cycle without renewal.
+- operation: Session marker commit and history read
+  permanent: Invalid/foreign/expired cursors return bounded tool errors; unsafe ranges or unverifiable
+    session state stop continuation.
+  retryable: No unbounded session retry; deterministic failures are not retried.
+  ambiguous: Inspect the same pending marker ID/range; accept once or fence. No new receipt mechanism.
+  cancelled: No history/model/tool access after ownership fence; join before clearing session buffers.
+  timeout: History reads and commit stay within the existing tool/invocation deadline.
+cardinality:
+- collection: Invocation cycles and protected recent groups
+  expected: 8 cycles configured; last 4 complete groups
+  maximum: 16 cycles/invocation, 32/allocation;16 recent groups and128 KiB
+  bound: Reject an unrepresentable or oversized protected tail rather than silently discarding required
+    groups.
+- collection: Retained raw history and transient projections
+  expected: Incremental events and one current memory
+  maximum: 4096 complete groups and 32 MiB retained history;8-MiB compactor input;16-KiB summary
+  bound: Register and test a total raw+projection+copy memory bound. Incremental ordinal index bounds
+    read work; byte ceilings use UTF-8 serialized representation.
+- collection: Archive response and reasoning projection
+  expected: Up to8 groups or part of one large group
+  maximum: 32-KiB page;8-KiB per reasoning part and64-KiB included reasoning per compactor input
+  bound: Page metadata, delimiters and truncation markers count toward bytes; repeated Skill disclosure
+    and ordinary calls remain charged.
+lifecycle:
+- entity: Compaction session, marker, memory and archive
+  delete: Invocation owner deletes all isolated conversation state; allocation abort/release owns client
+    cleanup.
+  cascade: History, indexes, pending markers, reasoning and cursors disappear with the session; no State
+    carry or new durable store.
+  retention: No checkpoint recovery after process restart; existing interrupted/retry path applies. Ordinary
+    immutable configuration pins retain the existing Run lifecycle.
+acceptance_criteria:
+- id: A1
+  given: Template/no-summarizer and explicit compact Workflows plus invalid shared/Audit/handoff combinations
+  when: Configuration is published, stored, read and delivered to Runtime
+  then: Every supported strategy/pin is exact and reaches its real consumer; malformed or unsupported
+    shapes fail in every language and snapshot path; existing terminal behavior stays valid.
+- id: A2
+  given: One ordinary isolated task with two compaction boundaries and a prior side effect
+  when: Real ADK 2.13 executes multiple internal turns through the production coordinator
+  then: The Worker makes useful subsequent tool calls under one logical owner, preserves exact task/refs/state/deadline
+    and collector, executes the prior side effect once, and invokes finalizer only at normal completion
+    with summarized=false.
+- id: A3
+  given: Missing/stale usage, high usage with no eligible prefix and hard budgets
+  when: Safe-boundary admission evaluates a next call
+  then: No estimated or immediate stale re-trigger occurs; progress failure and hard limits are explicit;
+    main/compactor/finalizer counts are neither reset nor double counted. When ineffectiveness is detected
+    only after a valid committed checkpoint and measured main response, the marker and charged calls remain;
+    no next cycle or semantic dispatch is admitted.
+- id: A4
+  given: History contains interleaved calls/results, errors, partial events, equal-time retained neighbors,
+    previous summaries, foreign scopes, reasoning and Skills
+  when: Checkpoint projection and paged retrieval execute
+  then: Marker ranges cover exactly the selected intact groups or fail before mutation; paged data remains
+    scoped and recoverable, reasoning filtering/redaction holds and history cannot bypass Skill disclosure
+    or tool-call budgets.
+- id: A5
+  given: Exact ceilings and one-over cases including 4096 groups/32 MiB, multibyte content and large tool
+    payloads
+  when: Input admission, history pages and cleanup run
+  then: Work and all retained/transient bytes remain bounded; deterministic limits fail without truncating
+    required prefix/tail; indexed reads do not repeatedly traverse the entire archive.
+- id: A6
+  given: Invalid model output, ambiguous append and cancellation/deadline/lease loss before and after
+    commit
+  when: Each injected failure runs through the real coordinator
+  then: Existing error classes and new bounded codes agree across readers; marker commits once or fences;
+    no late continuation, leak or terminal fallback occurs. None/native skip/invalid summary adds no marker
+    for the rejected attempt and starts zero later model/tool calls; cancellation and deadline retain
+    their owning outcome.
+- id: A7
+  given: Real Server, Runtime and disposable PostgreSQL using the opt-in Workflow
+  when: An end-to-end task compresses twice then finishes
+  then: Wire selection, snapshot reads, trusted result assembly and cleanup agree; no summarized event
+    or streamline handoff is fabricated.
+tests:
+- command: go test ./internal/config/... ./internal/contracts/... ./internal/controlplane/...
+  covers:
+  - A1
+  - A6
+- command: make test-runtime
+  covers:
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make test-postgres
+  covers:
+  - A1
+- command: make test-e2e
+  covers:
+  - A7
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A3
+  - A6
+- command: make verify-public-api
+  covers:
+  - A1
+  - A6
+- command: make ui-verify
+  covers:
+  - A1
+- command: make test-config
+  covers:
+  - A1
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+  - A7
+test_prerequisites:
+- Every named mandatory command must execute successfully; zero selected or skipped mandatory cases fail.
+  Final verification is recorded in context.acceptance_evidence.
+- Use locked Runtime dependencies, testdata catalogs and pseudo-Skills. Unit and integration tests never
+  read the live configs tree; make test-config validates the shipped catalog.
+- Persistence and immutable snapshot reads use disposable real PostgreSQL. Set CONTRACTOR_TEST_DATABASE_URL
+  for required gates; an unreachable configured database or skipped required case is a failure.
+- Run full suites for every touched package in addition to focused gates. Use injected clocks and deterministic
+  work counters for assertions, not wall-clock thresholds.
+- Run integration acceptance on the exact ADK 2.13.0 closure accepted by V418-007; record Runtime revision
+  and lock digest. No separate old-SDK compaction implementation or version-switching production path.
+- Cancellation/deadline tests distinguish new semantic dispatch from remote completion of already-sent
+  effects and separately authorized bounded terminal cleanup (WRK-R168); unknown effects reconcile through
+  existing receipts.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.
+delivery_note: 'This slice is intentionally vertical: splitting unsupported config/wire types from their
+  first production consumer would violate AGENTS.md. Shared and Audit combinations remain explicit validation
+  errors until V417-004 and V417-005 land. Basic safety, archive recovery and limits are not postponed
+  to the exit task.'
+decisions:
+- '2026-10-31 (user decision): retain R1''s explicit contextManagement strategy in resolved bindings,
+  Workflow/Stage snapshots and AuditProfile-embedded Workflows (WFL-R91). Pre-change Runs, Audits and
+  Eval pins may fail strict reads or digest validation; the database is test-only and the user permits
+  manual repair or deletion of conflicting data. This closes the snapshot-encoding decision without a
+  compatibility reader, omission-based encoding or a re-pinning migration to preserve old data. No database
+  records were changed while recording this decision. At deployment, identify and repair or remove conflicting
+  test records if needed; any manual repair must satisfy current strict validation and dependent digest/pin
+  checks. Reopen before a deployment whose data must be retained.'
+- '2026-10-31 (lane cmp-worker): contextManagement is one flat tagged union on the binding and on AllocationSpec
+  ({strategy} alone, or compact@1 with every member beside it), decoded with strictjson in Go and a discriminated
+  union in Python. compact@1 keeps the explicit JSON/YAML boolean includeReasoning that R2 requires. User
+  decision on 2026-10-31 restores the same explicit boolean for the terminal summarizer (TPL-R116, V417-001),
+  superseding that lane''s earlier true-only encoding.'
+- '2026-10-31 (lane cmp-worker): the compactor policy is pinned by the Workflow binding (WFL-R94). Deployment
+  model selection does not retarget it; scripts/generate_model_config.py emits a non-selectable compactor@1
+  (own compactor-model route, default model, maxModelCalls 1, finite maxTotalTokens, no tool limits) that
+  stays out of configs/model-selection.json. Overrides belong to V417-006. The Server resolves it into
+  the allocation runtime configuration only for credential authorization and Gateway recovery routes (CTL-R154).'
+- '2026-10-31 (lane cmp-worker): one compactor ModelPolicy rule (TPL-R118) for Planner and Worker: ResolvedModelPolicy.ValidateForCompactor
+  replaced the duplicate resolved.ValidatePlannerCompactorModelPolicy that V420-002 landed in parallel.'
+- '2026-10-31 (lane cmp-worker): history scope and safety. Groups are indexed incrementally from persisted
+  session events and projected once with the terminal summarizer projection (redaction, part bounds, tagged
+  reasoning). Skill tool results are replaced by a fixed notice in compactor input and read_context_history,
+  so the Worker must call the Skill tool again and reserve its disclosure budget again (SKL-R98), instead
+  of re-charging the budget per history read. Evidence is selected before reasoning: reasoning does not
+  count against the 128 KiB recent-group bound, the 8 MiB input reserves 64 KiB for it and reasoning is
+  admitted newest group first (WRK-R188). The proposal bounds of R12 are registered unchanged (LIM-WRK-30
+  to LIM-WRK-36, LIM-WFL-9 to LIM-WFL-12); no live measurement of representative sizes was made, so they
+  are proposal values tested at their exact ceilings.'
+- '2026-10-31 (lane cmp-worker): marker commit reuses the ADK session as its receipt: a failed append
+  is followed by one bounded session read; an exactly equal stored marker is committed, no marker means
+  not committed (worker_compaction_failed, no fence) and a conflicting marker or an unreadable session
+  fences the session lifecycle (WRK-R190). A summary that is not smaller than the evidence it replaces
+  is ineffective before commit; ineffectiveness first seen in the next measured main response keeps the
+  marker and stops (WRK-R193).'
+- '2026-10-31 (lane cmp-worker): R16 status is the contractor.worker.context_compaction span (generation,
+  outcome, bounded cause) and the model.phase=context_compactor span; no new Worker State or ExecutionMetrics
+  field is exposed (richer reporting is V417-007).'
+- '2026-10-31 (lane cmp-worker): opt-in example taint-trace-from-workspace-compact@1 is a copy of taint-trace-from-workspace@4
+  with compact@1 on its analyst and no on.summarized escalation; existing Workflows are unchanged. Specification
+  numbers: WFL-R91 to WFL-R95 (V420-002 took WFL-R90), WRK-R184 to WRK-R195, FAIL-WRK-8, LIFE-WRK-6.'
+remaining_work: []
+implementation_commit: 00f135ce11cc158820328d5fef1cf33d85715ae0
+verification_results:
+- A1-A7 and all listed commands are accepted in tasks/evidence/v417-003-acceptance-20261111.json.
+- 54 mandatory compaction/ADK cases and the real two-checkpoint Server/Runtime/PostgreSQL case pass. Six
+  size/copy probes include 4096 groups and near-32-MiB history; live-model quality is not claimed.
+- Shared and Audit compact policies remain rejected at this delivery boundary; their later tasks must
+  update owning contracts and tests together.

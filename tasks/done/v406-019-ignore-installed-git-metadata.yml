@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V406-019
+title: Exclude root Git metadata from installed Nuclei package snapshots
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: scan-tools
+kind: defect
+introduced_by: V406-001
+priority: P1
+status: completed
+depends_on: []
+languages: [python]
+goal: A Git checkout and an archive containing the same installed Nuclei rules share one pin and scan only package content.
+context:
+  severity: medium
+  specification:
+    - docs/spec/tools/scanners.md#SCN-R227
+    - docs/spec/tools/scanners.md#SCN-R228
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/scan/nuclei_package.py:60 copies
+    and hashes the root .git metadata. The local v10.5.0 clone has the same
+    templates as the release archive but fails with nuclei_package_mismatch.
+  siblings: >-
+    Installed tool invocations and the operator pin CLI both use
+    snapshot_package. Custom rulepacks use their separate explicit file
+    manifest and retain their existing admission contract.
+scope:
+  in:
+    - Skip the root .git entry without opening or traversing it, including worktree marker files and links.
+    - Keep all other resources, nested names, bounds, link refusal and private-byte verification intact.
+    - Update the owning specification and real-filesystem and Worker regressions.
+  out:
+    - Change existing literal pins, custom rulepacks, scanner selection, or deployed services.
+acceptance_criteria:
+  - id: A1
+    text: Adding or changing root Git metadata cannot change the package pin and no root .git bytes appear in the private snapshot.
+  - id: A2
+    text: Nested .git names, ordinary dotfiles and helper resources still participate in the pin; metadata alone is not a valid package.
+  - id: A3
+    text: The pinned Worker succeeds with root Git metadata present and retains the same single selected template and immutable report provenance.
+  - id: A4
+    text: Regressions fail on the original implementation and affected tests and repository lint pass.
+tests:
+  - command: cd runtime && uv run --locked pytest tests/test_nuclei_package.py tests/test_scan_toolset.py tests/test_scan_error_codes.py
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification_results:
+  - "New real-filesystem regressions: 5 failed and 1 passed on the original snapshot implementation; all 6 pass with the fix."
+  - "Runtime owner suites: 152 tests passed, including real installed Nuclei HTTP checks and pinned Worker provenance."
+  - "The updated pin CLI computed sha256:51a3bd4eef14e95bdeb0bad14ca4bd9bd455479a7044b244b76dee8f6dba5014 from the existing local Git clone without modifying it."
+  - "make lint passed, including Go checks, UI gates, deployment suites, specification/task checks, Ruff and all import contracts."
+implementation_commit: e1e1c98fa75ab1c10a30eee65e3bb90c0ce71869

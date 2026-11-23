@@ -1,0 +1,64 @@
+schema_version: "1.0"
+id: V384-002
+title: Retain explicit Worker session modes in Planner database fixtures
+milestone: workflow-planner-subtask-budgets-2026-10
+epic: planner-worker
+kind: chore
+introduced_by: V384-001
+priority: P2
+status: completed
+depends_on: [V384-001]
+languages: [go]
+goal: Restore Memory and Streamline regression coverage through the real Planner session startup boundary using valid persisted Stage fixtures.
+context:
+  specification:
+    - docs/spec/configuration/workflows.md#WFL-R33
+    - docs/spec/execution/planners.md#PLN-R27
+  ci: https://github.com/grauwolf32/contractor/actions/runs/38641080151/job/116116529819
+  finding: >-
+    V384-001 makes internal/planner/session/service.go:85 decode immutable Stage
+    authority before pinning the Workflow subtask limit. The fixtures at
+    internal/memory/postgres_integration_test.go:725 and
+    tests/integration/streamline/streamline_test.go:415 omit the required session
+    mode. Memory tests fail during setup with workerSessionMode must be isolated
+    or shared; the Streamline Gateway/recovery test fails with
+    planner_session_unavailable before exercising its assertions. CI fails
+    release-verify-unit while the other selected stages pass.
+  siblings: >-
+    Audit every test importing internal/planner/session. Planner session unit
+    and PostgreSQL fixtures already retain isolated; Scheduler and public API
+    fixtures encode resolved Stages carrying their session mode; Router and
+    Streamline unit tests use their own session adapters. Other opaque Stage
+    records in lower-level store tests do not invoke Planner session startup.
+scope:
+  in:
+    - Add explicit isolated mode to both PostgreSQL Stage fixtures that start real Planner sessions.
+    - Reproduce the existing real-PostgreSQL Memory and Streamline failures before the fix, then run their complete packages and the full Go gate.
+  out:
+    - Production decoding, defaults, Planner limits, API or Runtime changes.
+    - Looser validation, skipped assertions, added retries or adjusted timing thresholds.
+acceptance_criteria:
+  - id: A1
+    text: Existing Memory PostgreSQL tests reach their transaction, lifecycle and receipt assertions after normal Planner startup with valid immutable Stage authority.
+  - id: A2
+    text: The scripted Streamline Gateway/Worker test succeeds, and fresh adapters recover the saved completion without new Gateway or Worker calls.
+  - id: A3
+    text: The complete affected packages, full Go gate and lint pass with disposable PostgreSQL configured, exercising the same startup boundary that failed in CI.
+tests:
+  - command: go test -count=1 ./internal/memory/... ./tests/integration/streamline
+    covers: [A1, A2]
+  - command: make test-go
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A3]
+verification:
+  date: 2026-10-15
+  results:
+    - Before the correction, both complete packages reproduced the CI failures against disposable PostgreSQL, including all affected Memory setup paths and the scripted Streamline recovery test.
+    - go test -count=1 ./internal/memory/... ./tests/integration/streamline passed after adding the explicit session mode to both fixture snapshots.
+    - make test-go passed with disposable PostgreSQL configured, including all Go packages selected by CI's unit gate and the production configuration hardening checks.
+    - make lint passed without changes to validation, assertions, test timing, skip rules or CI stage selection.
+  notes:
+    - The opt-in live Gateway test remains outside deterministic verification; its skip is not counted as a passed live-model check.
+    - All tests importing the real Planner session service were audited; Scheduler and public API fixtures already serialize valid resolved Stage authority.
+implementation_commit: 4dff68c968e1def1ad6bb6cbb5236234d72d985a

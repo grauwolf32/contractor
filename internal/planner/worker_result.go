@@ -1,0 +1,102 @@
+package planner
+
+import (
+	"fmt"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/stageresult"
+)
+
+// ValidateWorkerCompletion enforces the trusted request correlation again at
+// the framework-neutral Planner boundary. A2A transports are expected to run
+// the same validation, but injected/test WorkerInvokers are not trusted.
+func ValidateWorkerCompletion(
+	completion contracts.WorkerCompletion,
+	expectedSubtaskID string,
+) *Error {
+	if err := completion.Validate(); err != nil {
+		return NewError(
+			"invalid_worker_result", "Worker returned an invalid WorkerCompletion", false, err,
+		)
+	}
+	if completion.Result != nil && completion.Result.SubtaskID != expectedSubtaskID {
+		return NewError(
+			"worker_result_subtask_mismatch",
+			"Worker result does not match the requested subtask",
+			true,
+			nil,
+		)
+	}
+	return nil
+}
+
+// StageCandidateFromWorkerCompletion is the deterministic passthrough@1
+// adapter. Modeled Planners must never call it: their finish tool alone owns
+// the Stage candidate.
+func StageCandidateFromWorkerCompletion(
+	completion contracts.WorkerCompletion,
+) (stageresult.StageContentResult, error) {
+	if err := completion.Validate(); err != nil {
+		return stageresult.StageContentResult{}, fmt.Errorf("invalid WorkerCompletion: %w", err)
+	}
+	if completion.Failure != nil {
+		failure := completion.Failure
+		return stageresult.StageContentResult{
+			APIVersion: contracts.APIVersion,
+			Outcome:    stageresult.StageFailed,
+			Summary:    failure.Message,
+			Artifacts:  map[string]contracts.ArtifactRef{},
+			Error: &contracts.TerminationError{
+				Code: failure.Code, Message: failure.Message, Retryable: failure.Retryable,
+			},
+		}, nil
+	}
+	result := completion.Result
+	if result.Summarized {
+		return stageresult.StageContentResult{
+			APIVersion: contracts.APIVersion,
+			Outcome:    stageresult.StageFailed,
+			Summary:    result.Result,
+			Artifacts:  contracts.CloneArtifactRefs(result.Artifacts),
+			Summarized: true,
+			Error: &contracts.TerminationError{
+				Code:      stageresult.SummaryRequiredCode,
+				Message:   "Worker returned a terminal summary; continuation is required",
+				Retryable: false,
+			},
+		}, nil
+	}
+	return stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion,
+		Outcome:    stageresult.StageSucceeded,
+		Summary:    result.Result,
+		Artifacts:  contracts.CloneArtifactRefs(result.Artifacts),
+	}, nil
+}
+
+// CloneWorkerResult detaches all mutable maps and slices in the safe
+// model-facing Worker result projection.
+func CloneWorkerResult(input contracts.WorkerResult) contracts.WorkerResult {
+	result := input
+	result.Artifacts = contracts.CloneArtifactRefs(input.Artifacts)
+	result.Observations = cloneWorkerObservations(input.Observations)
+	return result
+}
+
+func cloneWorkerObservations(input contracts.WorkerObservations) contracts.WorkerObservations {
+	result := input
+	result.Tools = make(map[string]contracts.ToolObservationCount, len(input.Tools))
+	for name, counters := range input.Tools {
+		result.Tools[name] = counters
+	}
+	if input.Workspace != nil {
+		workspace := *input.Workspace
+		workspace.FilesRead = append([]string(nil), input.Workspace.FilesRead...)
+		if input.Workspace.UnreadFiles != nil {
+			unread := *input.Workspace.UnreadFiles
+			workspace.UnreadFiles = &unread
+		}
+		result.Workspace = &workspace
+	}
+	return result
+}

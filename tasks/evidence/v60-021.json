@@ -1,0 +1,15 @@
+{
+  "task_id": "V60-021",
+  "verified_on": "2026-09-20",
+  "base_commit": "5856beb5c13429f4be54856015ad7e86bd8b573d",
+  "implementation_commit": "cf21c0763994443b49a6ef8ed66959f0b8adf8f8",
+  "reproduction": "Permanent encoded identity tests returned404 before fix; correct shell/status and unsafe-path cases now pass.",
+  "commands": [
+    "cd ui && node --test server/*.test.mjs"
+  ],
+  "results": [
+    "11 Node tests passed. Decoded safe paths are used consistently; encoded separators and traversal remain rejected."
+  ],
+  "logs": ".local/review-fixes/",
+  "scope": "Local source and regression checks; no deployment, real models or external security targets."
+}

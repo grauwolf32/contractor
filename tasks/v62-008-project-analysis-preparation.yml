@@ -1,0 +1,100 @@
+schema_version: "1.0"
+id: V62-008
+title: Publish reusable project analysis and chained OpenAPI preparation
+milestone: audit-workflow-composition
+epic: audits
+kind: feature
+priority: P2
+status: deferred
+deferral:
+  date: "2026-09-20"
+  previous_status: pending
+  reason: Existing openapi-from-workspace@7 already combines analysis and generation; a separate report producer is not a first-release prerequisite.
+  reactivate_when: Explicit user approval of standalone analysis-report reuse and the additional two-Workflow chain.
+implementation_commit: null
+depends_on: [V62-004]
+languages: [go, yaml, markdown]
+goal: Provide real catalog Workflows for source analysis followed by OpenAPI generation without repeating the analysis in every Audit round.
+context:
+  authority: User requested project analysis followed by OpenAPI generation and scanning in one Audit.
+  design: docs/plans/2026-09-20-audit-workflow-composition.md
+  specification: [docs/spec/configuration/workflows.md, docs/spec/audits/audits.md, docs/spec/artifacts/artifact-store.md]
+  reuse: Extract the existing dependency/project discovery stages and templates from openapi-from-workspace and reuse openapi-from-analysis@4 under the current schema; accepted Workflow snapshots remain immutable and historical catalog variants need not be retained for compatibility.
+  revalidated: >-
+    2026-10-24 on b523ae77: still deferred, not superseded. Every V62 foundation is complete:
+    V62-001 (22fcba08), V62-002 (c13dfbb9), V62-003 and V62-004 (11471640), V62-009 (4bd4fd6d),
+    V62-010 (233b94a5), V62-011 (a597d779) and V62-012 (8c2441f0). The Audit specification was split
+    on 2026-10-11: mapping sources and preparation are docs/spec/audits/scans.md ASC-R13 to ASC-R19
+    (the ASC-R17 table keeps retained-output same-Round only and lets prepare-output feed every
+    Round), role bindings are docs/spec/audits/audits.md AUD-R31 to AUD-R43 (AUD-R41 forbids
+    dependencies on per-item check outputs), and execution, review and completion moved to
+    execution.md (AUX), review-and-reports.md (REV) and worker-completion.md (AWC); the scans.md and
+    audits.md non-goals still list round-results, retained dependencies, proposed-check routing and
+    standalone project-analysis as not provided. Schema changes since deferral:
+    audit_collection_receipts folded into audit_executions (V365-017, b97fa2b6), audit_coverage_rows
+    and audit_proposal_items into audit_items (V365-018, b2deb200), and audit_report_candidates into
+    the report-acceptance review request (V365-019, b74c3f5c); keyed receipts use mutation_receipts
+    and controller leases use audit_controller_claims through ControllerClaims (V370-007, PER-R24,
+    PER-R25); migrations restart at 000001_baseline.sql (V367-001) and the next free number is
+    000040. internal/auditstore is now split into claimstore, hookstore, ownerstore, querystore,
+    reviewstore and internal/pgstore. Task-specific: not superseded by the new plans. V410-005
+    reconciles an exact OpenAPI with sitemap members and excludes generating or rewriting OpenAPI,
+    V410-006 excludes generated-OpenAPI prerequisites, and V411-014 and proposal 0033 exclude the
+    standalone project-analysis chain. Generic prepare-to-prepare chaining in dependency order and
+    reuse of accepted prepare outputs in every Round already shipped with V62-001 to V62-004
+    (ASC-R17), so on reactivation the remaining work is project-analysis@1, the composed profile and
+    its process test. openapi-from-workspace@7
+    (configs/workflows/openapi_from_workspace_v7_memory.yaml), openapi-from-analysis@4
+    (configs/workflows/openapi_from_analysis_v4_memory.yaml) and the prepare-role profile
+    source-openapi-sqlmap-scan@1 (configs/audit-profiles/source_openapi_sqlmap_scan.yaml) are
+    current; configs/workflows/project_analysis.yaml and tests/e2e/audit_preparation_test.go do not
+    exist. The shipped catalog may change in place before the first release (CAT-R74), and tests
+    must use testdata fixtures rather than configs/.
+  baseline_fold: >-
+    User decision on 2026-10-31 (V428-001): the previous baseline and
+    migrations 000002-000065 are replaced by one current 000001_baseline.sql.
+    Migration numbers and file/line references in the dated revalidation
+    above describe the retired chain. On explicit reactivation, inspect the
+    current baseline and choose the next free migration number from the
+    directory; keep PER-R33 upgrade coverage for any new data-moving change.
+    This maintenance note does not reactivate the deferred task or alter its
+    scope or deferral conditions.
+scope:
+  in:
+    - Add project-analysis@1 with source ZIP input and required dependency_report/project_report Markdown outputs using existing workspace analysis capabilities.
+    - Preserve exact source and workspace-state transfer between analysis stages and explicit ordinary standalone Run support.
+    - Compose analysis and openapi-from-analysis@4 as prepare roles in an isolated integration profile with a declared check fixture.
+    - Verify required Runtime graph/workspace/validator capabilities and exact version/Skill/config pins before dispatch.
+    - Document optional two-Workflow composition and output contracts after the V62-009 scan adapter and V62-004 single-prepare profile exist.
+  out:
+    - Rewrite accepted immutable Workflow snapshots, introduce placeholder production refs, run paid models or publish an incomplete scan profile as runnable.
+deliverables:
+  - path: configs/workflows/project_analysis.yaml
+    description: New versioned reusable source/dependency analysis Workflow with explicit required outputs.
+  - path: internal/config
+    description: Catalog and stage/output compatibility checks for the new analysis Workflow.
+  - path: tests/e2e/testdata
+    description: Isolated prepare-chain catalog and scripted source-analysis/OpenAPI fixture outputs.
+  - path: tests/e2e/audit_preparation_test.go
+    description: New TestAuditPreparationAcrossProductionProcesses exercising real preparation, retention and inventory acceptance.
+  - path: docs/guides/project-workflows.md
+    description: Standalone analysis and explicit reuse in preparation with actual existing references.
+acceptance_criteria:
+  - id: A1
+    text: The shipped analysis Workflow resolves against real templates/instructions and publishes both required reports from the exact selected source.
+  - id: A2
+    text: Chained prepare roles pass those reports to openapi-from-analysis@4 and freeze a validated OpenAPI revision used by generated inventory.
+  - id: A3
+    text: Later rounds reuse accepted preparation outputs; missing capability or validation failure prevents inventory acceptance with truthful diagnostics.
+tests:
+  - command: go test ./internal/config ./internal/auditcontroller ./internal/auditservice
+    covers: [A1, A2, A3]
+  - command: make test-config
+    covers: [A1]
+  - command: go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestAuditPreparationAcrossProductionProcesses$'
+    covers: [A2, A3]
+test_prerequisites:
+  - New named process test is a deliverable of this task and must be discovered and executed, not silently matched zero times.
+  - Disposable PostgreSQL, real Server/Runtime, required workspace/validator prerequisites and controlled scripted model responses.
+verification_requirements:
+  - Record actual process execution and exact report/OpenAPI input refs; deterministic fixture success does not establish live-model analysis quality.

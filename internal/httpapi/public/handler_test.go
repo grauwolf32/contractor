@@ -1,0 +1,2133 @@
+package public
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/auth"
+	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/configtest"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
+	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
+	"github.com/grauwolf32/contractor/internal/performance"
+	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
+	"github.com/grauwolf32/contractor/internal/runservice"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/grauwolf32/contractor/internal/telemetry"
+)
+
+const (
+	testBearerToken   = "test-bearer-token"
+	testAuthPassword  = "correct horse battery staple"
+	testBrowserOrigin = "https://ui.contractor.test"
+)
+
+var (
+	testAuthenticationOnce sync.Once
+	testAuthenticationHash string
+	testAuthenticationErr  error
+)
+
+type handlerFixture struct {
+	transfers           *blob.Runtime
+	handler             http.Handler
+	configs             *config.Manager
+	repository          *fakeArtifactRepository
+	artifacts           *artifacts.Service
+	runs                *fakeRunStore
+	unit                *fakeUnitOfWork
+	notifier            *recordingRunNotifier
+	metrics             *fakeMetricsReader
+	plans               *fakePlannerPlanReader
+	allocationResources *fakeAllocationResourceReader
+	// detailStores are the readers GET /v1/runs/{runId} uses; a test may
+	// replace one before it sends a request.
+	detailStores       *runservice.RunDetailStores
+	credentials        *fakeManagedCredentials
+	runtimeConfigs     *fakeRuntimeConfigManagement
+	runtimeCredentials *fakeRuntimeCredentialManagement
+	runtimePrincipals  *fakeRuntimeAgentPrincipalManagement
+	projects           *fakeProjectStore
+	operations         *fakeOperationsReader
+	settings           *fakeSchedulerSettings
+}
+
+func newHandlerFixture(t *testing.T) handlerFixture {
+	return newHandlerFixtureWithConfig(t, "../../config/testdata/valid")
+}
+
+func TestProjectCreateReplayListGetAndCASUpdate(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	createBody := []byte(`{"kind":"project","name":"Payment service","description":"Initial"}`)
+	create := authenticatedRequest(http.MethodPost, "/v1/projects", bytes.NewReader(createBody))
+	create.Header.Set("Content-Type", "application/json")
+	create.Header.Set("Idempotency-Key", "create-payment-project")
+	created := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(created, create)
+	if created.Code != http.StatusCreated || created.Header().Get("ETag") != `"1"` {
+		t.Fatalf("create Project = %d headers=%v body=%s", created.Code, created.Header(), created.Body.String())
+	}
+	var resource projectResponse
+	if err := json.Unmarshal(created.Body.Bytes(), &resource); err != nil ||
+		resource.ProjectID != "project_fixed" || resource.Kind != "project" || resource.Revision != "1" {
+		t.Fatalf("created Project = (%+v, %v)", resource, err)
+	}
+
+	replay := authenticatedRequest(http.MethodPost, "/v1/projects", bytes.NewReader(createBody))
+	replay.Header.Set("Content-Type", "application/json")
+	replay.Header.Set("Idempotency-Key", "create-payment-project")
+	replayed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(replayed, replay)
+	if replayed.Code != http.StatusCreated || replayed.Header().Get("Idempotency-Replayed") != "true" ||
+		replayed.Body.String() != created.Body.String() {
+		t.Fatalf("replay Project = %d headers=%v body=%s", replayed.Code, replayed.Header(), replayed.Body.String())
+	}
+
+	changed := authenticatedRequest(
+		http.MethodPost, "/v1/projects", bytes.NewReader([]byte(`{"kind":"evaluation","name":"Payment service"}`)),
+	)
+	changed.Header.Set("Content-Type", "application/json")
+	changed.Header.Set("Idempotency-Key", "create-payment-project")
+	changedResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(changedResponse, changed)
+	assertIdempotencyConflict(t, changedResponse)
+
+	update := authenticatedRequest(
+		http.MethodPatch, "/v1/projects/project_fixed", bytes.NewReader([]byte(`{"description":"Current"}`)),
+	)
+	update.Header.Set("Content-Type", "application/json")
+	update.Header.Set("If-Match", `"1"`)
+	updated := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(updated, update)
+	if updated.Code != http.StatusOK || updated.Header().Get("ETag") != `"2"` {
+		t.Fatalf("update Project = %d headers=%v body=%s", updated.Code, updated.Header(), updated.Body.String())
+	}
+
+	stale := authenticatedRequest(
+		http.MethodPatch, "/v1/projects/project_fixed", bytes.NewReader([]byte(`{"name":"Stale"}`)),
+	)
+	stale.Header.Set("Content-Type", "application/json")
+	stale.Header.Set("If-Match", `"1"`)
+	staleResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(staleResponse, stale)
+	if staleResponse.Code != http.StatusPreconditionFailed {
+		t.Fatalf("stale Project update = %d %s", staleResponse.Code, staleResponse.Body.String())
+	}
+
+	list := authenticatedRequest(http.MethodGet, "/v1/projects?kind=project", bytes.NewReader(nil))
+	listed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(listed, list)
+	var page projectPageResponse
+	if listed.Code != http.StatusOK || json.Unmarshal(listed.Body.Bytes(), &page) != nil ||
+		len(page.Items) != 1 || page.Items[0].Description != "Current" {
+		t.Fatalf("list Projects = %d %s", listed.Code, listed.Body.String())
+	}
+
+	get := authenticatedRequest(http.MethodGet, "/v1/projects/project_fixed", bytes.NewReader(nil))
+	got := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(got, get)
+	if got.Code != http.StatusOK || got.Header().Get("ETag") != `"2"` {
+		t.Fatalf("get Project = %d headers=%v body=%s", got.Code, got.Header(), got.Body.String())
+	}
+}
+
+func TestProjectDeleteIsCASDurableIdempotentAndFencesMutations(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	create := authenticatedRequest(
+		http.MethodPost,
+		"/v1/projects",
+		bytes.NewReader([]byte(`{"kind":"project","name":"Payment service"}`)),
+	)
+	create.Header.Set("Content-Type", "application/json")
+	create.Header.Set("Idempotency-Key", "create-project-for-deletion")
+	created := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(created, create)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create Project = %d %s", created.Code, created.Body.String())
+	}
+
+	withoutRevision := authenticatedRequest(
+		http.MethodDelete, "/v1/projects/project_fixed", bytes.NewReader(nil),
+	)
+	withoutRevisionResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(withoutRevisionResponse, withoutRevision)
+	if withoutRevisionResponse.Code != http.StatusBadRequest {
+		t.Fatalf("delete without If-Match = %d %s", withoutRevisionResponse.Code, withoutRevisionResponse.Body.String())
+	}
+
+	stale := authenticatedRequest(
+		http.MethodDelete, "/v1/projects/project_fixed", bytes.NewReader(nil),
+	)
+	stale.Header.Set("If-Match", `"2"`)
+	staleResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(staleResponse, stale)
+	if staleResponse.Code != http.StatusPreconditionFailed {
+		t.Fatalf("stale Project delete = %d %s", staleResponse.Code, staleResponse.Body.String())
+	}
+
+	request := authenticatedRequest(
+		http.MethodDelete, "/v1/projects/project_fixed", bytes.NewReader(nil),
+	)
+	request.Header.Set("If-Match", `"1"`)
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	var deleting projectResponse
+	if response.Code != http.StatusAccepted || response.Header().Get("ETag") != `"2"` ||
+		json.Unmarshal(response.Body.Bytes(), &deleting) != nil ||
+		deleting.Lifecycle != projectstore.LifecycleDeleting || deleting.Deletion == nil ||
+		deleting.Deletion.Phase != projectstore.DeletionCancelling {
+		t.Fatalf("delete Project = %d headers=%v body=%s", response.Code, response.Header(), response.Body.String())
+	}
+
+	retry := authenticatedRequest(
+		http.MethodDelete, "/v1/projects/project_fixed", bytes.NewReader(nil),
+	)
+	retry.Header.Set("If-Match", `"1"`)
+	retryResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(retryResponse, retry)
+	if retryResponse.Code != http.StatusAccepted || retryResponse.Body.String() != response.Body.String() {
+		t.Fatalf("reconcile Project delete = %d %s", retryResponse.Code, retryResponse.Body.String())
+	}
+
+	update := authenticatedRequest(
+		http.MethodPatch, "/v1/projects/project_fixed", bytes.NewReader([]byte(`{"description":"too late"}`)),
+	)
+	update.Header.Set("Content-Type", "application/json")
+	update.Header.Set("If-Match", `"2"`)
+	updateResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(updateResponse, update)
+	if updateResponse.Code != http.StatusConflict || !strings.Contains(updateResponse.Body.String(), `"project_deleting"`) {
+		t.Fatalf("update deleting Project = %d %s", updateResponse.Code, updateResponse.Body.String())
+	}
+
+	upload := authenticatedRequest(
+		http.MethodPut,
+		"/v1/projects/project_fixed/artifacts/sources/service",
+		bytes.NewReader([]byte("payload")),
+	)
+	upload.Header.Set("Content-Type", "text/plain")
+	upload.Header.Set("If-None-Match", "*")
+	uploadResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(uploadResponse, upload)
+	if uploadResponse.Code != http.StatusConflict || !strings.Contains(uploadResponse.Body.String(), `"project_deleting"`) {
+		t.Fatalf("upload to deleting Project = %d %s", uploadResponse.Code, uploadResponse.Body.String())
+	}
+	if fixture.notifier.calls != 2 {
+		t.Fatalf("Project deletion wake calls = %d, want 2", fixture.notifier.calls)
+	}
+}
+
+func TestProjectHTTPTargetUsesSafeCredentialReferenceAndCASDetach(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	fixture.runtimeCredentials.records["project-origin"] = credentials.RuntimeCredentialMetadata{
+		CredentialID: "project-origin", Kind: credentials.RuntimeCredentialOriginBearer,
+		CreatedBy: "user-1", CreatedAt: now,
+	}
+	fixture.projects.projects["project-target"] = projectstore.Project{
+		ProjectID: "project-target", OwnerID: "user-1", Kind: projectstore.KindProject,
+		Lifecycle: projectstore.LifecycleActive,
+		Name:      "Target", Revision: 1, CreatedAt: now, UpdatedAt: now,
+	}
+	attach := authenticatedRequest(
+		http.MethodPatch, "/v1/projects/project-target",
+		bytes.NewReader([]byte(`{"httpTarget":{"url":"https://app.example.test/api","credential":{"credentialId":"project-origin","kind":"http-origin-bearer@1"}}}`)),
+	)
+	attach.Header.Set("Content-Type", "application/json")
+	attach.Header.Set("If-Match", `"1"`)
+	attached := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(attached, attach)
+	if attached.Code != http.StatusOK || attached.Header().Get("ETag") != `"2"` ||
+		strings.Contains(attached.Body.String(), "secret") {
+		t.Fatalf("attach Project HTTP target = %d headers=%v body=%s", attached.Code, attached.Header(), attached.Body.String())
+	}
+	var resource projectResponse
+	if err := json.Unmarshal(attached.Body.Bytes(), &resource); err != nil || resource.HTTPTarget == nil ||
+		resource.HTTPTarget.Credential == nil || resource.HTTPTarget.Credential.CredentialID != "project-origin" {
+		t.Fatalf("attached target response = (%+v, %v)", resource, err)
+	}
+
+	detach := authenticatedRequest(
+		http.MethodPatch, "/v1/projects/project-target", bytes.NewReader([]byte(`{"httpTarget":null}`)),
+	)
+	detach.Header.Set("Content-Type", "application/json")
+	detach.Header.Set("If-Match", `"2"`)
+	detached := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(detached, detach)
+	if detached.Code != http.StatusOK || detached.Header().Get("ETag") != `"3"` ||
+		strings.Contains(detached.Body.String(), "httpTarget") {
+		t.Fatalf("detach Project HTTP target = %d headers=%v body=%s", detached.Code, detached.Header(), detached.Body.String())
+	}
+}
+
+func TestProjectHTTPTargetRejectsUnusableURLs(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	fixture.projects.projects["project-target"] = projectstore.Project{
+		ProjectID: "project-target", OwnerID: "user-1", Kind: projectstore.KindProject,
+		Lifecycle: projectstore.LifecycleActive,
+		Name:      "Target", Revision: 1, CreatedAt: now, UpdatedAt: now,
+	}
+	for _, targetURL := range []string{
+		"http://target:70000/", "http://target:0/", "https://[fe80::1%25en0]/",
+		"http://10.0.0.256/", "https://host/#",
+	} {
+		t.Run(targetURL, func(t *testing.T) {
+			body, err := json.Marshal(map[string]any{"httpTarget": map[string]string{"url": targetURL}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			request := authenticatedRequest(http.MethodPatch, "/v1/projects/project-target", bytes.NewReader(body))
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("If-Match", `"1"`)
+			response := httptest.NewRecorder()
+			fixture.handler.ServeHTTP(response, request)
+			if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `"invalid_request"`) {
+				t.Fatalf("target %q = %d %s", targetURL, response.Code, response.Body.String())
+			}
+		})
+	}
+}
+
+func TestProjectHTTPTargetRejectsAnotherOwnersCredential(t *testing.T) {
+	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	userOnly := auth.Principal{UserID: "user-2", Username: "user", Capabilities: []string{auth.CapabilityUser}}
+	operations := userOnly
+	operations.Capabilities = []string{auth.CapabilityUser, auth.CapabilityOperations}
+	for _, test := range []struct {
+		name       string
+		principal  auth.Principal
+		createdBy  string
+		wantStatus int
+	}{
+		{"foreign credential", userOnly, "user-1", http.StatusNotFound},
+		{"own credential", userOnly, "user-2", http.StatusOK},
+		{"operations principal", operations, "user-1", http.StatusOK},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newHandlerFixture(t)
+			fixture.runtimeCredentials.records["origin"] = credentials.RuntimeCredentialMetadata{
+				CredentialID: "origin", Kind: credentials.RuntimeCredentialOriginBearer,
+				CreatedBy: test.createdBy, CreatedAt: now,
+			}
+			fixture.projects.projects["project-target"] = projectstore.Project{
+				ProjectID: "project-target", OwnerID: "user-2", Kind: projectstore.KindProject,
+				Lifecycle: projectstore.LifecycleActive, Name: "Target", Revision: 1, CreatedAt: now, UpdatedAt: now,
+			}
+			current := &projectHandlers{ProjectDependencies: ProjectDependencies{
+				Projects: fixture.projects, Editor: testProjectEditor(fixture.projects, fixture.runtimeCredentials),
+			}}
+			request := httptest.NewRequest(http.MethodPatch, "/v1/projects/project-target", bytes.NewReader([]byte(
+				`{"httpTarget":{"url":"https://attacker.example.test","credential":{"credentialId":"origin","kind":"http-origin-bearer@1"}}}`,
+			)))
+			request.SetPathValue("projectId", "project-target")
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("If-Match", `"1"`)
+			request = request.WithContext(auth.WithPrincipal(request.Context(), test.principal))
+			response := httptest.NewRecorder()
+			serve(current.updateProject)(response, request)
+			if response.Code != test.wantStatus {
+				t.Fatalf("attach = %d, want %d: %s", response.Code, test.wantStatus, response.Body.String())
+			}
+			stored := fixture.projects.projects["project-target"]
+			if attached := stored.HTTPTarget != nil; attached != (test.wantStatus == http.StatusOK) {
+				t.Fatalf("stored Project target = %+v", stored.HTTPTarget)
+			}
+		})
+	}
+}
+
+// A target attached before ownership was enforced, or by a principal that
+// has since lost the Operations capability, is not pinned into a new Run.
+func TestProjectRunRechecksHTTPTargetCredentialUse(t *testing.T) {
+	userOnly := auth.Principal{UserID: "user-2", Username: "user", Capabilities: []string{auth.CapabilityUser}}
+	operations := userOnly
+	operations.Capabilities = []string{auth.CapabilityUser, auth.CapabilityOperations}
+	for _, test := range []struct {
+		name       string
+		principal  auth.Principal
+		wantStatus int
+	}{
+		{"user only", userOnly, http.StatusNotFound},
+		{"operations principal", operations, http.StatusAccepted},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newHandlerFixture(t)
+			if _, _, err := fixture.projects.Create(t.Context(), projectstore.CreateParams{
+				ProjectID: "project-two", OwnerID: "user-2", Kind: projectstore.KindProject,
+				Name: "Workspace", IdempotencyKey: "project-two", RequestDigest: "sha256:project-two",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			fixture.runtimeCredentials.records["foreign-origin"] = credentials.RuntimeCredentialMetadata{
+				CredentialID: "foreign-origin", Kind: credentials.RuntimeCredentialOriginBearer,
+				CreatedBy: "user-1", CreatedAt: time.Now(),
+			}
+			configured := fixture.projects.projects["project-two"]
+			configured.HTTPTarget = &runtimesettings.HTTPOriginTargetRef{
+				URL: "https://attacker.example.test",
+				Credential: &runtimesettings.RuntimeCredentialRef{
+					CredentialID: "foreign-origin", Kind: runtimesettings.RuntimeCredentialOriginBearer,
+				},
+			}
+			fixture.projects.projects["project-two"] = configured
+			project, err := fixture.artifacts.Project("project-two")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := project.Write(
+				t.Context(), contracts.ArtifactRef{Namespace: "sources", Name: "service"},
+				artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil,
+			); err != nil {
+				t.Fatal(err)
+			}
+			services := testServices{Transfers: artifactpgtest.NewRuntime(),
+				Config: fixture.configs, Credentials: fixture.credentials, ManagedCredentials: fixture.credentials,
+				RuntimeCredentials: fixture.runtimeCredentials, Projects: fixture.projects,
+			}
+			current := &runHandlers{RunDependencies: RunDependencies{
+				Projects: fixture.projects, RunNotifier: fixture.notifier,
+				RunCreator: newTestRunCreator(t, services, fixture.runs, fixture.unit, true),
+				NewID:      func(prefix string) (string, error) { return prefix + "fixed", nil },
+			}}
+			request := httptest.NewRequest(http.MethodPost, "/v1/projects/project-two/runs", bytes.NewReader([]byte(
+				`{"workflow":"artifact-copy@1","parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"sources","name":"service"}}}`,
+			)))
+			request.SetPathValue("projectId", "project-two")
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set(idempotencyKeyHeader, "project-run-two")
+			request = request.WithContext(auth.WithPrincipal(request.Context(), test.principal))
+			response := httptest.NewRecorder()
+			serve(current.createProjectRun)(response, request)
+			if response.Code != test.wantStatus {
+				t.Fatalf("create Project Run = %d, want %d: %s", response.Code, test.wantStatus, response.Body.String())
+			}
+			if _, created := fixture.runs.runs["run_fixed"]; created != (test.wantStatus == http.StatusAccepted) {
+				t.Fatalf("Run created = %v", created)
+			}
+		})
+	}
+}
+
+func TestProjectArtifactRoutesAreOwnerScopedAndRevisionExact(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	createProject := authenticatedRequest(
+		http.MethodPost, "/v1/projects", bytes.NewReader([]byte(`{"kind":"project","name":"Workspace"}`)),
+	)
+	createProject.Header.Set("Content-Type", "application/json")
+	createProject.Header.Set("Idempotency-Key", "create-workspace")
+	projectResponseRecorder := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(projectResponseRecorder, createProject)
+	if projectResponseRecorder.Code != http.StatusCreated {
+		t.Fatalf("create Project = %d %s", projectResponseRecorder.Code, projectResponseRecorder.Body.String())
+	}
+
+	put := authenticatedRequest(
+		http.MethodPut, "/v1/projects/project_fixed/artifacts/sources/service", bytes.NewReader([]byte("first")),
+	)
+	put.Header.Set("Content-Type", "application/zip")
+	put.Header.Set("If-None-Match", "*")
+	created := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(created, put)
+	if created.Code != http.StatusCreated || created.Header().Get("ETag") == "" {
+		t.Fatalf("create Project Artifact = %d headers=%v body=%s", created.Code, created.Header(), created.Body.String())
+	}
+	var first artifactWriteResponse
+	if err := json.Unmarshal(created.Body.Bytes(), &first); err != nil || first.Artifact.Revision == nil {
+		t.Fatalf("created Project Artifact = (%+v, %v)", first, err)
+	}
+
+	update := authenticatedRequest(
+		http.MethodPut, "/v1/projects/project_fixed/artifacts/sources/service", bytes.NewReader([]byte("second")),
+	)
+	update.Header.Set("Content-Type", "application/zip")
+	update.Header.Set("If-Match", created.Header().Get("ETag"))
+	updated := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(updated, update)
+	if updated.Code != http.StatusOK || updated.Header().Get("ETag") == created.Header().Get("ETag") {
+		t.Fatalf("update Project Artifact = %d headers=%v body=%s", updated.Code, updated.Header(), updated.Body.String())
+	}
+
+	exact := authenticatedRequest(
+		http.MethodGet,
+		"/v1/projects/project_fixed/artifacts/sources/service?revision="+*first.Artifact.Revision,
+		bytes.NewReader(nil),
+	)
+	exactResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(exactResponse, exact)
+	if exactResponse.Code != http.StatusOK || exactResponse.Body.String() != "first" {
+		t.Fatalf("exact Project Artifact = %d %q", exactResponse.Code, exactResponse.Body.String())
+	}
+
+	for name, path := range map[string]string{
+		"list":     "/v1/projects/project_fixed/artifacts",
+		"metadata": "/v1/projects/project_fixed/artifacts/sources/service/metadata",
+		"versions": "/v1/projects/project_fixed/artifacts/sources/service/versions",
+		"lineage":  "/v1/projects/project_fixed/artifacts/sources/service/lineage",
+	} {
+		request := authenticatedRequest(http.MethodGet, path, bytes.NewReader(nil))
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("Project Artifact %s = %d %s", name, response.Code, response.Body.String())
+		}
+	}
+	projectArtifacts, err := fixture.artifacts.Project("project_fixed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	staging := contracts.ArtifactRef{Namespace: "audit-staging", Name: "report.json"}
+	stagingPayload := artifacts.Payload{MediaType: "application/json", Data: []byte(`{"hidden":true}`)}
+	if _, err := projectArtifacts.Write(t.Context(), staging, stagingPayload, nil); !errors.Is(err, artifacts.ErrReservedNamespace) {
+		t.Fatalf("generic Audit staging write = %v, want reserved namespace", err)
+	}
+	// Seed the staging binding below the Service, as Audit staging exists only
+	// through the trusted Audit writers.
+	projectScope, err := artifacts.ProjectScope("project_fixed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.repository.Write(t.Context(), projectScope, staging, stagingPayload, nil); err != nil {
+		t.Fatal(err)
+	}
+	listHidden := authenticatedRequest(
+		http.MethodGet, "/v1/projects/project_fixed/artifacts", bytes.NewReader(nil),
+	)
+	listHiddenResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(listHiddenResponse, listHidden)
+	if listHiddenResponse.Code != http.StatusOK || strings.Contains(listHiddenResponse.Body.String(), "audit-staging") {
+		t.Fatalf("Project Artifact list exposed Audit staging = %d %s", listHiddenResponse.Code, listHiddenResponse.Body.String())
+	}
+	for _, method := range []string{http.MethodGet, http.MethodPut} {
+		hidden := authenticatedRequest(
+			method, "/v1/projects/project_fixed/artifacts/audit-staging/report.json", bytes.NewReader([]byte(`{}`)),
+		)
+		if method == http.MethodPut {
+			hidden.Header.Set("Content-Type", "application/json")
+			hidden.Header.Set("If-Match", `"ignored"`)
+		}
+		hiddenResponse := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(hiddenResponse, hidden)
+		if hiddenResponse.Code != http.StatusNotFound {
+			t.Fatalf("%s hidden Audit Project Artifact = %d %s", method, hiddenResponse.Code, hiddenResponse.Body.String())
+		}
+	}
+
+	_, _, err = fixture.projects.Create(t.Context(), projectstore.CreateParams{
+		ProjectID: "project-foreign", OwnerID: "user-2", Kind: projectstore.KindProject,
+		Name: "Foreign", IdempotencyKey: "create-foreign", RequestDigest: "sha256:foreign",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign := authenticatedRequest(
+		http.MethodGet, "/v1/projects/project-foreign/artifacts", bytes.NewReader(nil),
+	)
+	foreignResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(foreignResponse, foreign)
+	if foreignResponse.Code != http.StatusNotFound {
+		t.Fatalf("foreign Project Artifact list = %d %s", foreignResponse.Code, foreignResponse.Body.String())
+	}
+}
+
+func TestProjectRunForksExactProjectInputAndKeepsImmutableMembership(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	_, _, err := fixture.projects.Create(t.Context(), projectstore.CreateParams{
+		ProjectID: "project-one", OwnerID: "user-1", Kind: projectstore.KindProject,
+		Name: "Workspace", IdempotencyKey: "project-one", RequestDigest: "sha256:project-one",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture.runtimeCredentials.records["project-origin"] = credentials.RuntimeCredentialMetadata{
+		CredentialID: "project-origin", Kind: credentials.RuntimeCredentialOriginBearer,
+		CreatedBy: "user-1", CreatedAt: time.Now(),
+	}
+	configuredProject := fixture.projects.projects["project-one"]
+	configuredProject.HTTPTarget = &runtimesettings.HTTPOriginTargetRef{
+		URL: "https://app.example.test/api",
+		Credential: &runtimesettings.RuntimeCredentialRef{
+			CredentialID: "project-origin", Kind: runtimesettings.RuntimeCredentialOriginBearer,
+		},
+	}
+	fixture.projects.projects["project-one"] = configuredProject
+	project, err := fixture.artifacts.Project("project-one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	written, err := project.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "sources", Name: "service"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("project revision one")}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// An identically named UserScope artifact must never be selected by the
+	// Project route.
+	user, _ := fixture.artifacts.User("user-1")
+	if _, err := user.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "sources", Name: "service"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("user bytes")}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	body := []byte(`{"workflow":"artifact-copy@1","parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"sources","name":"service"}}}`)
+	create := authenticatedRequest(
+		http.MethodPost, "/v1/projects/project-one/runs", bytes.NewReader(body),
+	)
+	create.Header.Set(idempotencyKeyHeader, "project-run-one")
+	created := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(created, create)
+	if created.Code != http.StatusAccepted {
+		t.Fatalf("create Project Run = %d %s", created.Code, created.Body.String())
+	}
+	var model createRunResponse
+	if err := json.Unmarshal(created.Body.Bytes(), &model); err != nil ||
+		model.ProjectID == nil || *model.ProjectID != "project-one" || model.ProjectHTTPTarget == nil ||
+		model.ProjectHTTPTarget.Credential == nil || model.ProjectHTTPTarget.Credential.CredentialID != "project-origin" {
+		t.Fatalf("Project Run response = (%+v, %v)", model, err)
+	}
+
+	if _, err := project.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "sources", Name: "service"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("project revision two")},
+		written.Ref.Revision,
+	); err != nil {
+		t.Fatal(err)
+	}
+	runArtifacts, _ := fixture.artifacts.Run("run_fixed")
+	pinned, err := runArtifacts.Read(
+		t.Context(), contracts.ArtifactRef{Namespace: "inputs", Name: "source"},
+	)
+	if err != nil || string(pinned.Payload.Data) != "project revision one" {
+		t.Fatalf("pinned Project input = (%q, %v)", pinned.Payload.Data, err)
+	}
+	stored := fixture.runs.runs["run_fixed"]
+	if stored.ProjectID == nil || *stored.ProjectID != "project-one" {
+		t.Fatalf("stored Project membership = %+v", stored.ProjectID)
+	}
+	if stored.ProjectHTTPTarget == nil || stored.ProjectHTTPTarget.Credential == nil ||
+		stored.ProjectHTTPTarget.Credential.CredentialID != "project-origin" {
+		t.Fatalf("stored Project HTTP target = %+v", stored.ProjectHTTPTarget)
+	}
+
+	replay := authenticatedRequest(
+		http.MethodPost, "/v1/projects/project-one/runs", bytes.NewReader(body),
+	)
+	replay.Header.Set(idempotencyKeyHeader, "project-run-one")
+	replayed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(replayed, replay)
+	if replayed.Code != http.StatusAccepted || replayed.Header().Get("Idempotency-Replayed") != "true" ||
+		replayed.Body.String() != created.Body.String() || fixture.notifier.calls != 1 {
+		t.Fatalf("Project Run replay = %d headers=%v body=%s", replayed.Code, replayed.Header(), replayed.Body.String())
+	}
+
+	list := authenticatedRequest(http.MethodGet, "/v1/projects/project-one/runs", bytes.NewReader(nil))
+	listed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(listed, list)
+	var page runPageResponse
+	if listed.Code != http.StatusOK || json.Unmarshal(listed.Body.Bytes(), &page) != nil ||
+		len(page.Items) != 1 || page.Items[0].ProjectID == nil || *page.Items[0].ProjectID != "project-one" {
+		t.Fatalf("list Project Runs = %d %s", listed.Code, listed.Body.String())
+	}
+
+	detail := authenticatedRequest(http.MethodGet, "/v1/runs/run_fixed", bytes.NewReader(nil))
+	detailed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(detailed, detail)
+	var status runStatusResponse
+	if detailed.Code != http.StatusOK || json.Unmarshal(detailed.Body.Bytes(), &status) != nil ||
+		status.ProjectID == nil || *status.ProjectID != "project-one" {
+		t.Fatalf("Project Run detail = %d %s", detailed.Code, detailed.Body.String())
+	}
+}
+
+func TestProjectRunRejectsForeignProjectAndCannotReplayStandaloneKey(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	_, _, err := fixture.projects.Create(t.Context(), projectstore.CreateParams{
+		ProjectID: "foreign", OwnerID: "user-2", Kind: projectstore.KindProject,
+		Name: "Foreign", IdempotencyKey: "foreign", RequestDigest: "sha256:foreign",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := authenticatedRequest(
+		http.MethodPost, "/v1/projects/foreign/runs",
+		bytes.NewReader([]byte(`{"workflow":"artifact-copy@1"}`)),
+	)
+	request.Header.Set(idempotencyKeyHeader, "foreign-run")
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusNotFound || fixture.unit.calls != 0 {
+		t.Fatalf("foreign Project Run = %d transactions=%d body=%s", response.Code, fixture.unit.calls, response.Body.String())
+	}
+
+	// The key of a standalone Run is bound to its source scope: the same body
+	// sent with that key to a Project is another request, not a replay.
+	if _, _, err := fixture.projects.Create(t.Context(), projectstore.CreateParams{
+		ProjectID: "own", OwnerID: "user-1", Kind: projectstore.KindProject,
+		Name: "Own", IdempotencyKey: "own", RequestDigest: "sha256:own",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	userArtifacts, err := fixture.artifacts.User("user-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := userArtifacts.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "source"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"workflow":"artifact-copy@1","parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`
+	standalone := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader([]byte(body)))
+	standalone.Header.Set(idempotencyKeyHeader, "shared-run-key")
+	created := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(created, standalone)
+	if created.Code != http.StatusAccepted {
+		t.Fatalf("standalone Run = %d %s", created.Code, created.Body.String())
+	}
+	captured := authenticatedRequest(http.MethodPost, "/v1/projects/own/runs", bytes.NewReader([]byte(body)))
+	captured.Header.Set(idempotencyKeyHeader, "shared-run-key")
+	conflict := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(conflict, captured)
+	if conflict.Code != http.StatusConflict || !strings.Contains(conflict.Body.String(), `"idempotency_conflict"`) {
+		t.Fatalf("Project Run with a standalone key = %d %s", conflict.Code, conflict.Body.String())
+	}
+}
+
+func newHandlerFixtureWithConfig(t *testing.T, configRoot string) handlerFixture {
+	return newHandlerFixtureWithAuth(
+		t,
+		configRoot,
+		newTestAuthentication(t),
+		mustTestOrigins(t),
+		false,
+		nil,
+	)
+}
+
+func newHandlerFixtureWithAuth(
+	t *testing.T,
+	configRoot string,
+	authentication *auth.Service,
+	origins auth.OriginPolicy,
+	insecureLoopbackCookie bool,
+	logger *slog.Logger,
+	configure ...func(*testServices),
+) handlerFixture {
+	t.Helper()
+	manager, _, err := configload.NewManager(config.ManagerOptions{
+		OperatorRoot: configRoot,
+		ManagedRoot:  filepath.Join(t.TempDir(), "managed-configs"),
+	})
+	if err != nil {
+		t.Fatalf("load test config: %v", err)
+	}
+	transferRuntime := artifactpgtest.NewRuntime()
+	repository := newFakeArtifactRepository()
+	service := artifacts.NewService(repository)
+	runs := newFakeRunStore()
+	unit := &fakeUnitOfWork{runs: runs, artifacts: service}
+	notifier := &recordingRunNotifier{}
+	metrics := &fakeMetricsReader{records: map[string]telemetry.StageMetricsRecord{}}
+	plans := &fakePlannerPlanReader{plans: map[string]planner.PlannerPlanProjection{}}
+	allocationResources := &fakeAllocationResourceReader{byStage: map[string][]telemetry.AllocationResourceSummary{}}
+	managedCredentials := newFakeManagedCredentials()
+	if gateway, gatewayErr := manager.LLMGateway("local-litellm@1"); gatewayErr == nil {
+		for _, id := range []string{"development-worker", "development-planner"} {
+			managedCredentials.lookups[id] = resolved.CredentialMetadata{
+				Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref,
+			}
+		}
+	}
+	runtimeConfigs := newFakeRuntimeConfigManagement(runtimeconfig.GatewayResolverFunc(
+		func(_ context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
+			return manager.LLMGateway(selector)
+		},
+	))
+	runtimeCredentials := newFakeRuntimeCredentialManagement()
+	runtimePrincipals := newFakeRuntimeAgentPrincipalManagement()
+	projects := newFakeProjectStore()
+	runs.projects = projects
+	operations := newFakeOperationsReader()
+	settings := newFakeSchedulerSettings()
+	detailStores := &runservice.RunDetailStores{
+		Runs: runs, Deletion: runs, Artifacts: service, Plans: plans, Metrics: metrics,
+		Resources: allocationResources,
+		Recovery: func(context.Context, string, string) (*gatewayrecovery.Status, error) {
+			return nil, nil
+		},
+	}
+	runDetails, err := runservice.NewRunDetailReader(func(
+		_ context.Context, fn func(runservice.RunDetailStores) error,
+	) error {
+		return fn(*detailStores)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eventHub, err := publicevents.NewHub(publicevents.Options{
+		Context: t.Context(), Authentication: authentication, Origins: origins,
+		Runs: runs, Operations: operations,
+	})
+	if err != nil {
+		t.Fatalf("create public event Hub: %v", err)
+	}
+	t.Cleanup(eventHub.Close)
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
+	services := testServices{Transfers: transferRuntime,
+		Authentication: authentication, BrowserOrigins: origins,
+		InsecureLoopbackCookie: insecureLoopbackCookie,
+		Config:                 manager, ConfigurationPublisher: manager,
+		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
+		RuntimeConfigs: runtimeConfigs, RuntimeCredentials: runtimeCredentials,
+		RuntimeAgentPrincipals: runtimePrincipals,
+		Projects:               projects,
+		Audits:                 &fakeAuditManagement{},
+		FindingProposals:       missingFindingProposals{},
+		FindingCollections:     missingFindingCollections{},
+		FindingExports:         missingFindingExports{},
+		Evals:                  unservedEvals{},
+		EvalNotifier:           &countingWaker{},
+		GitImports:             unavailableGitImports{},
+		GitKeys:                unavailableGitKeys{},
+		GatewayRecovery:        noGatewayWait{},
+		Runs:                   runs, RunDetails: runDetails, RunQueue: runs, RunLifecycle: runs, RunDeletion: runs, Artifacts: service,
+		Operations: operations, OperationsInvalidator: operations, SchedulerSettings: settings, Events: eventHub,
+		Performance: performance.NewReadService(false, nil, nil, nil, func() time.Time {
+			return time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
+		}),
+		AllocationResources:     allocationResources,
+		BearerToken:             contracts.NewSecretString(testBearerToken),
+		NewID:                   func(prefix string) (string, error) { return prefix + "fixed", nil },
+		NewRequestID:            func() (string, error) { return "request-fixed", nil },
+		RunNotifier:             notifier,
+		ProjectDeletionNotifier: notifier,
+		Logger:                  logger,
+		Now: func() time.Time {
+			return time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
+		},
+	}
+	for _, apply := range configure {
+		apply(&services)
+	}
+	if services.RunCreator == nil {
+		services.RunCreator = newTestRunCreator(t, services, runs, unit, true)
+	}
+	handler, err := NewHandler(services.dependencies())
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+	return handlerFixture{transfers: transferRuntime,
+		handler: handler, configs: manager, repository: repository, artifacts: service,
+		runs: runs, unit: unit, notifier: notifier, metrics: metrics, plans: plans,
+		allocationResources: allocationResources, detailStores: detailStores,
+		credentials:    managedCredentials,
+		runtimeConfigs: runtimeConfigs, runtimeCredentials: runtimeCredentials,
+		runtimePrincipals: runtimePrincipals,
+		projects:          projects,
+		operations:        operations,
+		settings:          settings,
+	}
+}
+
+func newTestAuthentication(t *testing.T) *auth.Service {
+	t.Helper()
+	testAuthenticationOnce.Do(func() {
+		testAuthenticationHash, testAuthenticationErr = auth.HashPassword([]byte(testAuthPassword))
+	})
+	if testAuthenticationErr != nil {
+		t.Fatal(testAuthenticationErr)
+	}
+	bootstrap, err := auth.NewBootstrap("user-1", "admin", testAuthenticationHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := auth.NewService(bootstrap, auth.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return service
+}
+
+func mustTestOrigins(t *testing.T) auth.OriginPolicy {
+	t.Helper()
+	origins, err := auth.NewOriginPolicy([]string{testBrowserOrigin}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return origins
+}
+
+// authenticatedRequest returns a bearer-authenticated request. A non-empty
+// body is declared as application/json, the media type of every JSON
+// operation (API-R112); a test of another media type sets its own.
+func authenticatedRequest(method, target string, body *bytes.Reader) *http.Request {
+	request := httptest.NewRequest(method, target, body)
+	request.Header.Set("Authorization", "Bearer "+testBearerToken)
+	if body != nil && body.Len() > 0 {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	if method == http.MethodPost && target == "/v1/runs" {
+		request.Header.Set(idempotencyKeyHeader, "test-create-run")
+	}
+	return request
+}
+
+func TestAuthenticationAndRequestID(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	for _, authorization := range []string{"", "Bearer wrong"} {
+		request := httptest.NewRequest(http.MethodGet, "/v1/runs/missing", nil)
+		if authorization != "" {
+			request.Header.Set("Authorization", authorization)
+		}
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		if response.Code != http.StatusUnauthorized || response.Header().Get("X-Request-ID") != "request-fixed" {
+			t.Fatalf("auth response = status %d, request ID %q", response.Code, response.Header().Get("X-Request-ID"))
+		}
+		if response.Header().Get(APIVersionHeader) != APIVersion {
+			t.Fatalf("auth response API version = %q", response.Header().Get(APIVersionHeader))
+		}
+		assertErrorCode(t, response, "unauthorized")
+	}
+}
+
+func TestManagedCredentialCRUDIsStrictSecretFreeAndIdempotent(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	gateway, err := fixture.configs.Snapshot().LLMGateway("local-litellm@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy, err := fixture.configs.Snapshot().ModelPolicy("worker@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(createCredentialRequest{
+		CredentialID: "managed-worker", LLMGateway: gateway.Ref, Label: stringPointer("Managed worker"),
+		GatewayPolicy: credentials.GatewayPolicy{ModelPolicies: []contracts.ModelPolicyRef{policy.Ref}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	create := func(key string, payload []byte) *httptest.ResponseRecorder {
+		request := authenticatedRequest(
+			http.MethodPost, "/v1/operations/credentials", bytes.NewReader(payload),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set(idempotencyKeyHeader, key)
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		return response
+	}
+	created := create("create-managed-worker", body)
+	if created.Code != http.StatusCreated || strings.Contains(created.Body.String(), "token") ||
+		strings.Contains(created.Body.String(), "cipher") || strings.Contains(created.Body.String(), "remoteKey") {
+		t.Fatalf("create credential = %d %s", created.Code, created.Body.String())
+	}
+	if revision := fixture.operations.SnapshotOperations().Cursor.Revision; revision != 1 {
+		t.Fatalf("credential creation Operations revision = %d", revision)
+	}
+	replayed := create("create-managed-worker", body)
+	if replayed.Code != http.StatusCreated || replayed.Header().Get("Idempotency-Replayed") != "true" ||
+		replayed.Body.String() != created.Body.String() {
+		t.Fatalf("create replay = %d headers=%v body=%s", replayed.Code, replayed.Header(), replayed.Body.String())
+	}
+	if revision := fixture.operations.SnapshotOperations().Cursor.Revision; revision != 1 {
+		t.Fatalf("credential replay advanced Operations revision to %d", revision)
+	}
+	secondBody, err := json.Marshal(createCredentialRequest{
+		CredentialID: "managed-worker-2", LLMGateway: gateway.Ref, Label: stringPointer("Managed worker 2"),
+		GatewayPolicy: credentials.GatewayPolicy{ModelPolicies: []contracts.ModelPolicyRef{policy.Ref}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second := create("create-managed-worker-2", secondBody); second.Code != http.StatusCreated {
+		t.Fatalf("create second credential = %d %s", second.Code, second.Body.String())
+	}
+	if revision := fixture.operations.SnapshotOperations().Cursor.Revision; revision != 2 {
+		t.Fatalf("second credential Operations revision = %d", revision)
+	}
+	invalid := create("create-invalid", []byte(`{
+		"credentialId":"invalid-token-input",
+		"llmGateway":{"gatewayId":"local-litellm","version":"1","digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111"},
+		"gatewayPolicy":{"modelPolicies":[]},
+		"token":"must-not-be-accepted"
+	}`))
+	if invalid.Code != http.StatusBadRequest {
+		t.Fatalf("secret-bearing create request = %d %s", invalid.Code, invalid.Body.String())
+	}
+
+	list := authenticatedRequest(http.MethodGet, "/v1/operations/credentials?limit=1", bytes.NewReader(nil))
+	listed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(listed, list)
+	var firstPage credentialPageResponse
+	if listed.Code != http.StatusOK || json.Unmarshal(listed.Body.Bytes(), &firstPage) != nil ||
+		len(firstPage.Items) != 1 || firstPage.Items[0].CredentialID != "managed-worker" ||
+		!firstPage.Page.HasMore || firstPage.Page.NextCursor == nil {
+		t.Fatalf("list credentials = %d %s", listed.Code, listed.Body.String())
+	}
+	nextList := authenticatedRequest(
+		http.MethodGet, "/v1/operations/credentials?limit=1&cursor="+*firstPage.Page.NextCursor,
+		bytes.NewReader(nil),
+	)
+	nextListed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(nextListed, nextList)
+	var secondPage credentialPageResponse
+	if nextListed.Code != http.StatusOK || json.Unmarshal(nextListed.Body.Bytes(), &secondPage) != nil ||
+		len(secondPage.Items) != 1 || secondPage.Items[0].CredentialID != "managed-worker-2" ||
+		secondPage.Page.HasMore || secondPage.Page.NextCursor != nil {
+		t.Fatalf("next credential page = %d %s", nextListed.Code, nextListed.Body.String())
+	}
+	get := authenticatedRequest(http.MethodGet, "/v1/operations/credentials/managed-worker", bytes.NewReader(nil))
+	got := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(got, get)
+	if got.Code != http.StatusOK || got.Body.String() != created.Body.String() {
+		t.Fatalf("get credential = %d %s", got.Code, got.Body.String())
+	}
+
+	deleteCall := func(key string) *httptest.ResponseRecorder {
+		request := authenticatedRequest(
+			http.MethodDelete, "/v1/operations/credentials/managed-worker", bytes.NewReader(nil),
+		)
+		request.Header.Set(idempotencyKeyHeader, key)
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		return response
+	}
+	deleted := deleteCall("delete-managed-worker")
+	if deleted.Code != http.StatusNoContent || deleted.Body.Len() != 0 {
+		t.Fatalf("delete credential = %d %s", deleted.Code, deleted.Body.String())
+	}
+	if revision := fixture.operations.SnapshotOperations().Cursor.Revision; revision != 3 {
+		t.Fatalf("credential deletion Operations revision = %d", revision)
+	}
+	if replay := deleteCall("delete-managed-worker"); replay.Code != http.StatusNoContent {
+		t.Fatalf("delete replay = %d %s", replay.Code, replay.Body.String())
+	}
+	if revision := fixture.operations.SnapshotOperations().Cursor.Revision; revision != 3 {
+		t.Fatalf("credential deletion replay advanced Operations revision to %d", revision)
+	}
+	missing := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(missing, get)
+	if missing.Code != http.StatusNotFound {
+		t.Fatalf("get deleted credential = %d %s", missing.Code, missing.Body.String())
+	}
+}
+
+func TestCredentialInUseAndGatewayFailuresHaveBoundedPublicErrors(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	fixture.credentials.records["managed-worker"] = credentials.Record{
+		CredentialID: "managed-worker",
+		LLMGateway: llmgateway.LLMGatewayConfigRef{
+			GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("1", 64),
+		},
+		EffectivePolicy: credentials.EffectiveGatewayPolicy{
+			ModelPolicies: []contracts.ModelPolicyRef{{
+				PolicyID: "worker", Version: "1", Digest: "sha256:" + strings.Repeat("2", 64),
+			}}, Models: []string{"test-model"},
+		},
+		CreatedAt: time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC),
+	}
+	fixture.credentials.deleteErr = &credentials.CredentialInUseError{
+		RunIDs: []string{"run-2", "run-1"}, BindingLabels: []string{"default", "investigate"},
+	}
+	request := authenticatedRequest(
+		http.MethodDelete, "/v1/operations/credentials/managed-worker", bytes.NewReader(nil),
+	)
+	request.Header.Set(idempotencyKeyHeader, "delete-in-use")
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), `"kind":"credential_in_use"`) ||
+		!strings.Contains(response.Body.String(), `"runIds":["run-2","run-1"]`) ||
+		!strings.Contains(response.Body.String(), `"bindingLabels":["default","investigate"]`) {
+		t.Fatalf("credential-in-use response = %d %s", response.Code, response.Body.String())
+	}
+	fixture.credentials.deleteErr = errors.New("provider exposed sk-secret-body")
+	response = httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusInternalServerError || strings.Contains(response.Body.String(), "secret") {
+		t.Fatalf("unknown Gateway failure response = %d %s", response.Code, response.Body.String())
+	}
+	fixture.credentials.deleteErr = credentials.ErrGatewayUnavailable
+	response = httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusBadGateway || strings.Contains(response.Body.String(), "secret") {
+		t.Fatalf("Gateway unavailable response = %d %s", response.Code, response.Body.String())
+	}
+}
+
+func TestArtifactCreateUpdateAndExactRead(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	create := authenticatedRequest(http.MethodPut, "/v1/artifacts/projects/source", bytes.NewReader([]byte("first")))
+	create.Header.Set("Content-Type", "text/plain")
+	create.Header.Set("If-None-Match", "*")
+	created := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(created, create)
+	if created.Code != http.StatusCreated || created.Header().Get("ETag") == "" {
+		t.Fatalf("create = status %d, ETag %q, body %s", created.Code, created.Header().Get("ETag"), created.Body.String())
+	}
+
+	update := authenticatedRequest(http.MethodPut, "/v1/artifacts/projects/source", bytes.NewReader([]byte("second")))
+	update.Header.Set("Content-Type", "text/plain")
+	update.Header.Set("If-Match", created.Header().Get("ETag"))
+	updated := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(updated, update)
+	if updated.Code != http.StatusOK || updated.Header().Get("ETag") == created.Header().Get("ETag") {
+		t.Fatalf("update = status %d, ETag %q, body %s", updated.Code, updated.Header().Get("ETag"), updated.Body.String())
+	}
+
+	exact := authenticatedRequest(http.MethodGet, "/v1/artifacts/projects/source?revision=revision-1", bytes.NewReader(nil))
+	read := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(read, exact)
+	if read.Code != http.StatusOK || read.Body.String() != "first" || read.Header().Get("ETag") != `"revision-1"` {
+		t.Fatalf("exact read = status %d, ETag %q, body %q", read.Code, read.Header().Get("ETag"), read.Body.String())
+	}
+}
+
+func TestArtifactResponseLossRetryFailsCASWithoutAnotherRevision(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	create := func() *httptest.ResponseRecorder {
+		request := authenticatedRequest(
+			http.MethodPut,
+			"/v1/artifacts/projects/source",
+			bytes.NewReader([]byte("first")),
+		)
+		request.Header.Set("Content-Type", "text/plain")
+		request.Header.Set("If-None-Match", "*")
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		return response
+	}
+	first := create()
+	if first.Code != http.StatusCreated {
+		t.Fatalf("first create = %d %s", first.Code, first.Body.String())
+	}
+	retry := create()
+	if retry.Code != http.StatusConflict || fixture.repository.next != 1 {
+		t.Fatalf("lost-response create retry = status %d revisions %d body %s", retry.Code, fixture.repository.next, retry.Body.String())
+	}
+
+	oldETag := first.Header().Get("ETag")
+	update := func() *httptest.ResponseRecorder {
+		request := authenticatedRequest(
+			http.MethodPut,
+			"/v1/artifacts/projects/source",
+			bytes.NewReader([]byte("second")),
+		)
+		request.Header.Set("Content-Type", "text/plain")
+		request.Header.Set("If-Match", oldETag)
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		return response
+	}
+	accepted := update()
+	if accepted.Code != http.StatusOK {
+		t.Fatalf("first update = %d %s", accepted.Code, accepted.Body.String())
+	}
+	lostResponseRetry := update()
+	if lostResponseRetry.Code != http.StatusConflict || fixture.repository.next != 2 {
+		t.Fatalf("lost-response update retry = status %d revisions %d body %s", lostResponseRetry.Code, fixture.repository.next, lostResponseRetry.Body.String())
+	}
+	current := authenticatedRequest(
+		http.MethodGet,
+		"/v1/artifacts/projects/source",
+		bytes.NewReader(nil),
+	)
+	read := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(read, current)
+	if read.Code != http.StatusOK || read.Body.String() != "second" ||
+		read.Header().Get("ETag") != accepted.Header().Get("ETag") {
+		t.Fatalf("current artifact after retry = %d etag=%q body=%q", read.Code, read.Header().Get("ETag"), read.Body.String())
+	}
+}
+
+func TestArtifactUploadIsBoundedBeforeRepository(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	request := authenticatedRequest(
+		http.MethodPut, "/v1/artifacts/projects/large",
+		bytes.NewReader(bytes.Repeat([]byte("x"), artifacts.MaxPayloadSize+1)),
+	)
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusRequestEntityTooLarge || fixture.repository.writes != 0 {
+		t.Fatalf("oversized upload = status %d, writes %d", response.Code, fixture.repository.writes)
+	}
+	assertErrorCode(t, response, "artifact_too_large")
+}
+
+func TestCreateRunStrictValidationOccursBeforeTransaction(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	requests := []string{
+		`{"workflow":"artifact-copy@1","executionConfig":{}}`,
+		`{"workflow":"artifact-copy@1","executionConfig":{"workers":{"modelPolicy":"test-worker@1"}}}`,
+		`{"workflow":"artifact-copy@1","runtimeLabels":null,"parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`,
+		`{"workflow":"artifact-copy@1","labels":[],"parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`,
+		`{"workflow":"artifact-copy@1","parameters":{"objective":42},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`,
+		`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{},"extra":true}`,
+		`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{}}`,
+		`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}},"executionConfig":null}`,
+		`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}},"executionConfig":{"workers":{"modelPolicy":null}}}`,
+		`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}},"executionConfig":{"workers":{}}}`,
+	}
+	for _, body := range requests {
+		request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader([]byte(body)))
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("invalid Run request status = %d, body %s", response.Code, response.Body.String())
+		}
+		assertErrorCode(t, response, "invalid_request")
+	}
+	if fixture.unit.calls != 0 || len(fixture.runs.runs) != 0 || fixture.notifier.calls != 0 {
+		t.Fatalf("invalid requests used transaction %d times or created %d Runs", fixture.unit.calls, len(fixture.runs.runs))
+	}
+}
+
+func TestCreateRunMetadataLabelsAreStrictBeforeTransaction(t *testing.T) {
+	tooMany := make([]string, 0, runstore.MaxRunMetadataLabels+1)
+	for index := 0; index <= runstore.MaxRunMetadataLabels; index++ {
+		tooMany = append(tooMany, `"key`+strings.Repeat("x", index+1)+`":"value"`)
+	}
+	invalidUTF8 := append(
+		[]byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"`), 0xff,
+	)
+	invalidUTF8 = append(invalidUTF8, []byte(`"},"parameters":{},"artifacts":{}}`)...)
+	requests := [][]byte{
+		[]byte(`{"workflow":"artifact-copy@1","labels":null,"parameters":{},"artifacts":{}}`),
+		[]byte(`{"workflow":"artifact-copy@1","labels":[],"parameters":{},"artifacts":{}}`),
+		[]byte(`{"workflow":"artifact-copy@1","labels":"eval","parameters":{},"artifacts":{}}`),
+		[]byte(`{"workflow":"artifact-copy@1","labels":{"purpose":1},"parameters":{},"artifacts":{}}`),
+		[]byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"eval","purpose":"debug"},"parameters":{},"artifacts":{}}`),
+		[]byte(`{"workflow":"artifact-copy@1","labels":{"contractor.internal":"value"},"parameters":{},"artifacts":{}}`),
+		[]byte(`{"workflow":"artifact-copy@1","labels":{"Upper":"value"},"parameters":{},"artifacts":{}}`),
+		[]byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"before\u0000after"},"parameters":{},"artifacts":{}}`),
+		[]byte(`{"workflow":"artifact-copy@1","labels":{` + strings.Join(tooMany, ",") + `},"parameters":{},"artifacts":{}}`),
+		invalidUTF8,
+	}
+	for _, body := range requests {
+		fixture := newHandlerFixture(t)
+		request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("invalid metadata labels status = %d, body %s, request %q", response.Code, response.Body.String(), body)
+		}
+		assertErrorCode(t, response, "invalid_request")
+		if fixture.unit.calls != 0 || len(fixture.runs.runs) != 0 {
+			t.Fatalf("invalid metadata labels entered transaction %d times or created %d Runs", fixture.unit.calls, len(fixture.runs.runs))
+		}
+	}
+}
+
+func TestCreateRunMetadataLabelsRoundTripAndIdempotency(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	user, _ := fixture.artifacts.User("user-1")
+	if _, err := user.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "source"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	body := []byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"eval","eval.sample":"2","eval.id":"eval_01","debug":""},"parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+	create := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+	create.Header.Set(idempotencyKeyHeader, "metadata-label-replay")
+	created := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(created, create)
+	if created.Code != http.StatusAccepted {
+		t.Fatalf("create labeled Run = %d %s", created.Code, created.Body.String())
+	}
+	var createModel createRunResponse
+	if err := json.Unmarshal(created.Body.Bytes(), &createModel); err != nil ||
+		createModel.Labels["eval.id"] != "eval_01" || len(createModel.Labels) != 4 {
+		t.Fatalf("create metadata labels = (%+v, %v)", createModel.Labels, err)
+	}
+
+	listRequest := authenticatedRequest(http.MethodGet, "/v1/runs", bytes.NewReader(nil))
+	listed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(listed, listRequest)
+	var page runPageResponse
+	if listed.Code != http.StatusOK {
+		t.Fatalf("list labeled Run = %d %s", listed.Code, listed.Body.String())
+	}
+	if err := json.Unmarshal(listed.Body.Bytes(), &page); err != nil || len(page.Items) != 1 ||
+		page.Items[0].Labels["eval.sample"] != "2" {
+		t.Fatalf("listed metadata labels = (%+v, %v)", page.Items, err)
+	}
+
+	detailRequest := authenticatedRequest(http.MethodGet, "/v1/runs/run_fixed", bytes.NewReader(nil))
+	detailed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(detailed, detailRequest)
+	var detail runStatusResponse
+	if detailed.Code != http.StatusOK {
+		t.Fatalf("detail labeled Run = %d %s", detailed.Code, detailed.Body.String())
+	}
+	if err := json.Unmarshal(detailed.Body.Bytes(), &detail); err != nil || detail.Labels["purpose"] != "eval" {
+		t.Fatalf("detail metadata labels = (%+v, %v)", detail.Labels, err)
+	}
+
+	if value, present := detail.Labels["debug"]; !present || value != "" {
+		t.Fatalf("key-only label was not preserved: %v", detail.Labels)
+	}
+
+	retryBody := []byte(`{"workflow":"artifact-copy@1","labels":{"debug":"","eval.id":"eval_01","eval.sample":"2","purpose":"eval"},"parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+	retry := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(retryBody))
+	retry.Header.Set(idempotencyKeyHeader, "metadata-label-replay")
+	replayed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(replayed, retry)
+	if replayed.Code != http.StatusAccepted || replayed.Header().Get("Idempotency-Replayed") != "true" ||
+		replayed.Body.String() != created.Body.String() {
+		t.Fatalf("metadata label replay = %d headers=%v body=%s", replayed.Code, replayed.Header(), replayed.Body.String())
+	}
+
+	changedBody := bytes.Replace(body, []byte(`"eval_01"`), []byte(`"eval_02"`), 1)
+	changed := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(changedBody))
+	changed.Header.Set(idempotencyKeyHeader, "metadata-label-replay")
+	conflict := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(conflict, changed)
+	assertIdempotencyConflict(t, conflict)
+	if len(fixture.runs.runs) != 1 || fixture.unit.calls != 1 {
+		t.Fatalf("changed metadata label replay = %d transactions=%d body=%s", conflict.Code, fixture.unit.calls, conflict.Body.String())
+	}
+}
+
+func TestCreateRunForksInputAndReturnsPending(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	user, _ := fixture.artifacts.User("user-1")
+	written, err := user.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "source"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := `{"workflow":"artifact-copy@1","parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`
+	request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader([]byte(body)))
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("create Run = status %d, body %s", response.Code, response.Body.String())
+	}
+	if fixture.notifier.calls != 1 {
+		t.Fatalf("Scheduler wake calls = %d", fixture.notifier.calls)
+	}
+	if fixture.credentials.guarded != 1 {
+		t.Fatalf("Run initialization guard calls = %d", fixture.credentials.guarded)
+	}
+	run := fixture.runs.runs["run_fixed"]
+	if run.State != runstore.RunPending || run.OwnerID != "user-1" || len(run.WorkflowSnapshot) == 0 {
+		t.Fatalf("stored Run = %+v", run)
+	}
+	runArtifacts, _ := fixture.artifacts.Run("run_fixed")
+	forked, err := runArtifacts.Read(t.Context(), contracts.ArtifactRef{Namespace: "inputs", Name: "source"})
+	if err != nil || string(forked.Payload.Data) != "source" || written.Ref.Revision == nil {
+		t.Fatalf("forked input = (%+v, %v)", forked, err)
+	}
+}
+
+func TestCreateRunResponseLossRetryReturnsExistingRun(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	user, _ := fixture.artifacts.User("user-1")
+	if _, err := user.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "source"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	body := []byte(`{"workflow":"artifact-copy@1","parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+
+	first := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+	firstResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(firstResponse, first)
+	if firstResponse.Code != http.StatusAccepted {
+		t.Fatalf("first create = %d %s", firstResponse.Code, firstResponse.Body.String())
+	}
+
+	retry := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+	retryResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(retryResponse, retry)
+	if retryResponse.Code != http.StatusAccepted ||
+		retryResponse.Header().Get("Idempotency-Replayed") != "true" ||
+		retryResponse.Body.String() != firstResponse.Body.String() {
+		t.Fatalf("retry create = %d headers=%v body=%s", retryResponse.Code, retryResponse.Header(), retryResponse.Body.String())
+	}
+	if len(fixture.runs.runs) != 1 || fixture.notifier.calls != 1 || fixture.repository.writes != 1 {
+		t.Fatalf("retry side effects = runs:%d wakes:%d artifact writes:%d",
+			len(fixture.runs.runs), fixture.notifier.calls, fixture.repository.writes)
+	}
+
+	different := []byte(`{"workflow":"artifact-copy@1","parameters":{"objective":"different"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+	conflict := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(different))
+	conflictResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(conflictResponse, conflict)
+	assertIdempotencyConflict(t, conflictResponse)
+}
+
+func TestCreateRunPinsCanonicalLabelsAndReplaySkipsCurrentBindings(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	user, _ := fixture.artifacts.User("user-1")
+	if _, err := user.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "source"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	pinCalls := 0
+	fixture.runs.pinRuntimeLabels = func(
+		_ context.Context, labels []string,
+	) (runtimeconfig.RunSnapshot, error) {
+		pinCalls++
+		if strings.Join(labels, ",") != "debug,trace" {
+			t.Fatalf("canonical labels = %v", labels)
+		}
+		result := runtimeconfigtest.BuiltInRunSnapshot()
+		result.Labels = []runtimeconfig.PinnedLabel{
+			{Label: "debug", Explicit: true, BindingRevision: 7, Config: result.Default.Config},
+			{Label: "trace", Explicit: true, BindingRevision: 9, Config: result.Default.Config},
+		}
+		return result, nil
+	}
+	requestBody := func(labels string) []byte {
+		return []byte(`{"workflow":"artifact-copy@1","runtimeLabels":` + labels +
+			`,"parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+	}
+	first := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(requestBody(`["trace","debug"]`)))
+	first.Header.Set(idempotencyKeyHeader, "label-replay")
+	firstResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(firstResponse, first)
+	if firstResponse.Code != http.StatusAccepted || pinCalls != 1 {
+		t.Fatalf("first labeled Run = %d calls=%d body=%s", firstResponse.Code, pinCalls, firstResponse.Body.String())
+	}
+	var created createRunResponse
+	if err := json.Unmarshal(firstResponse.Body.Bytes(), &created); err != nil ||
+		strings.Join(created.RuntimeLabels, ",") != "debug,trace" ||
+		created.RuntimeConfiguration.Labels[0].BindingRevision != "7" {
+		t.Fatalf("labeled Run response = (%+v, %v)", created, err)
+	}
+
+	// Simulate removal of both mutable bindings after the original commit.
+	fixture.runs.pinRuntimeLabels = func(
+		context.Context, []string,
+	) (runtimeconfig.RunSnapshot, error) {
+		pinCalls++
+		return runtimeconfig.RunSnapshot{}, runtimeconfig.ErrUnknownLabel
+	}
+	retry := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(requestBody(`["debug","trace"]`)))
+	retry.Header.Set(idempotencyKeyHeader, "label-replay")
+	retryResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(retryResponse, retry)
+	if retryResponse.Code != http.StatusAccepted ||
+		retryResponse.Header().Get("Idempotency-Replayed") != "true" ||
+		retryResponse.Body.String() != firstResponse.Body.String() || pinCalls != 1 {
+		t.Fatalf("binding-independent replay = %d calls=%d headers=%v body=%s",
+			retryResponse.Code, pinCalls, retryResponse.Header(), retryResponse.Body.String())
+	}
+}
+
+func TestCreateRunRejectsMalformedAndUnknownLabels(t *testing.T) {
+	for _, test := range []struct {
+		name, labels, code string
+	}{
+		{name: "duplicate", labels: `["debug","debug"]`, code: "runtime_config_invalid"},
+		{name: "reserved", labels: `["default"]`, code: "runtime_config_invalid"},
+		{name: "unknown", labels: `["missing"]`, code: "runtime_label_unknown"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newHandlerFixture(t)
+			body := []byte(`{"workflow":"artifact-copy@1","runtimeLabels":` + test.labels +
+				`,"parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+			request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+			request.Header.Set(idempotencyKeyHeader, "invalid-label-"+test.name)
+			response := httptest.NewRecorder()
+			fixture.handler.ServeHTTP(response, request)
+			if response.Code != http.StatusBadRequest {
+				t.Fatalf("label rejection = %d %s", response.Code, response.Body.String())
+			}
+			assertErrorCode(t, response, test.code)
+			if test.name != "unknown" && fixture.unit.calls != 0 {
+				t.Fatalf("malformed label entered transaction %d times", fixture.unit.calls)
+			}
+		})
+	}
+}
+
+func TestCreateRunReplayDoesNotResolveDeletedManagedCredential(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	user, _ := fixture.artifacts.User("user-1")
+	if _, err := user.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "source"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := fixture.configs.ResolveRunWorkflow(
+		t.Context(), "artifact-copy@1", fixture.credentials,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateway := workflow.Stages[workflow.EntryStage].ExecutionConfig.Agents["builder"].LLMGateway.Ref
+	fixture.credentials.records["development-worker"] = credentials.Record{
+		CredentialID: "development-worker", LLMGateway: gateway,
+		CreatedAt: time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC),
+	}
+	body := []byte(`{"workflow":"artifact-copy@1","parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+
+	first := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+	first.Header.Set(idempotencyKeyHeader, "credential-replay")
+	firstResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(firstResponse, first)
+	if firstResponse.Code != http.StatusAccepted {
+		t.Fatalf("first create = %d %s", firstResponse.Code, firstResponse.Body.String())
+	}
+	fixture.credentials.mu.Lock()
+	delete(fixture.credentials.records, "development-worker")
+	fixture.credentials.mu.Unlock()
+
+	retry := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+	retry.Header.Set(idempotencyKeyHeader, "credential-replay")
+	retryResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(retryResponse, retry)
+	if retryResponse.Code != http.StatusAccepted ||
+		retryResponse.Header().Get("Idempotency-Replayed") != "true" ||
+		retryResponse.Body.String() != firstResponse.Body.String() {
+		t.Fatalf("credential-independent replay = %d headers=%v body=%s",
+			retryResponse.Code, retryResponse.Header(), retryResponse.Body.String())
+	}
+	if fixture.credentials.guarded != 1 {
+		t.Fatalf("replay entered mutable credential resolution %d times", fixture.credentials.guarded)
+	}
+}
+
+func TestCreateRunPinsExecutionConfigAndDetectsSelectorIdempotencyConflict(t *testing.T) {
+	fixture := newHandlerFixtureWithConfig(t, configtest.CopyWithEscalation(t, "../../../testdata/configs"))
+	user, _ := fixture.artifacts.User("user-1")
+	if _, err := user.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "source"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	requestBody := func(workflow string) []byte {
+		return []byte(`{"workflow":"` + workflow + `","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+	}
+
+	first := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(requestBody("artifact-copy@1")))
+	firstResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(firstResponse, first)
+	if firstResponse.Code != http.StatusAccepted {
+		t.Fatalf("first create = %d %s", firstResponse.Code, firstResponse.Body.String())
+	}
+	stored := fixture.runs.runs["run_fixed"]
+	var workflow resolved.ResolvedWorkflow
+	if err := json.Unmarshal(stored.WorkflowSnapshot, &workflow); err != nil {
+		t.Fatal(err)
+	}
+	selection := workflow.Stages["copy"].ExecutionConfig.Agents["builder"]
+	if selection.ModelPolicy.Ref.PolicyID != "test-worker" ||
+		selection.Origins.ModelPolicy != "workflow.executionConfig.workers" {
+		t.Fatalf("stored resolved executionConfig = %+v", selection)
+	}
+
+	conflict := authenticatedRequest(
+		http.MethodPost, "/v1/runs", bytes.NewReader(requestBody("other-workflow@1")),
+	)
+	conflictResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(conflictResponse, conflict)
+	assertIdempotencyConflict(t, conflictResponse)
+	if len(fixture.runs.runs) != 1 || fixture.repository.writes != 1 {
+		t.Fatalf(
+			"selector conflict = status:%d runs:%d writes:%d body:%s",
+			conflictResponse.Code, len(fixture.runs.runs), fixture.repository.writes,
+			conflictResponse.Body.String(),
+		)
+	}
+}
+
+func TestCreateRunPinsNamedEscalationVariant(t *testing.T) {
+	fixture := newHandlerFixtureWithConfig(t, configtest.CopyWithEscalation(t, "../../../testdata/configs"))
+	user, _ := fixture.artifacts.User("user-1")
+	if _, err := user.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "source-archive"},
+		artifacts.Payload{MediaType: "application/zip", Data: []byte("source")}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	body := []byte(`{"workflow":"openapi-from-workspace@5","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source-archive"}}}`)
+	request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("create = %d %s", response.Code, response.Body.String())
+	}
+	stored := fixture.runs.runs["run_fixed"]
+	var workflow resolved.ResolvedWorkflow
+	if err := json.Unmarshal(stored.WorkflowSnapshot, &workflow); err != nil {
+		t.Fatal(err)
+	}
+	variant := workflow.Stages["openapi_validate"].On.Failed.Escalate.ExecutionConfig
+	if variant.Effective.Agents["validator"].ModelPolicy.Ref.PolicyID != "test-strong-worker" {
+		t.Fatalf("stored escalation variant = %+v", variant)
+	}
+}
+
+func TestCreateRunRequiresValidIdempotencyKey(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	body := []byte(`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+	for _, key := range []string{"", "two words", strings.Repeat("x", 129)} {
+		request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+		request.Header.Del(idempotencyKeyHeader)
+		if key != "" {
+			request.Header.Set(idempotencyKeyHeader, key)
+		}
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("key %q status = %d %s", key, response.Code, response.Body.String())
+		}
+	}
+}
+
+type recordingRunNotifier struct {
+	calls         int
+	cancellations []string
+}
+
+func (n *recordingRunNotifier) Wake() { n.calls++ }
+func (n *recordingRunNotifier) Cancel(runID string) {
+	n.cancellations = append(n.cancellations, runID)
+}
+
+func TestCancelRunIsOwnedStrictDurableAndIdempotent(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	fixture.runs.runs["run-cancel"] = runstore.WorkflowRun{
+		RunID: "run-cancel", OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
+		State: runstore.RunRunning,
+	}
+
+	request := authenticatedRequest(
+		http.MethodPost, "/v1/runs/run-cancel/cancel",
+		bytes.NewReader([]byte(`{"reason":"  user changed direction  "}`)),
+	)
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("cancel Run = status %d, body %s", response.Code, response.Body.String())
+	}
+	var first cancelRunResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &first); err != nil {
+		t.Fatal(err)
+	}
+	if first.State != runstore.RunCancelling || first.Cancellation == nil ||
+		first.Cancellation.Reason == nil || *first.Cancellation.Reason != "user changed direction" ||
+		first.Cancellation.RequestedBy == nil || *first.Cancellation.RequestedBy != "user-1" {
+		t.Fatalf("cancel response = %+v", first)
+	}
+
+	repeat := authenticatedRequest(
+		http.MethodPost, "/v1/runs/run-cancel/cancel",
+		bytes.NewReader([]byte(`{"reason":"must not replace winner"}`)),
+	)
+	repeated := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(repeated, repeat)
+	stored := fixture.runs.runs["run-cancel"]
+	if repeated.Code != http.StatusAccepted || stored.Cancellation == nil ||
+		stored.Cancellation.Reason == nil || *stored.Cancellation.Reason != "user changed direction" ||
+		len(fixture.notifier.cancellations) != 2 {
+		t.Fatalf("repeat = status %d, cancellation %+v, notifications %v", repeated.Code, stored.Cancellation, fixture.notifier.cancellations)
+	}
+
+	terminalRun := fixture.runs.runs["run-cancel"]
+	terminalRun.State = runstore.RunCancelled
+	fixture.runs.runs["run-cancel"] = terminalRun
+	terminal := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(terminal, authenticatedRequest(
+		http.MethodPost, "/v1/runs/run-cancel/cancel", bytes.NewReader([]byte(`{}`)),
+	))
+	if terminal.Code != http.StatusOK || len(fixture.notifier.cancellations) != 2 {
+		t.Fatalf("terminal repeat = status %d, notifications %v", terminal.Code, fixture.notifier.cancellations)
+	}
+}
+
+func TestCancelRunRejectsInvalidOrForeignRequests(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	fixture.runs.runs["foreign"] = runstore.WorkflowRun{RunID: "foreign", OwnerID: "user-2", State: runstore.RunRunning}
+	fixture.runs.runs["owned"] = runstore.WorkflowRun{RunID: "owned", OwnerID: "user-1", State: runstore.RunSucceeded}
+
+	tests := []struct {
+		method string
+		target string
+		body   string
+		status int
+	}{
+		{http.MethodPost, "/v1/runs/foreign/cancel", `{}`, http.StatusNotFound},
+		{http.MethodPost, "/v1/runs/owned/cancel?force=true", `{}`, http.StatusBadRequest},
+		{http.MethodPost, "/v1/runs/owned/cancel", `{"reason":" "}`, http.StatusBadRequest},
+		{http.MethodPost, "/v1/runs/owned/cancel", `{"unexpected":true}`, http.StatusBadRequest},
+		{http.MethodPost, "/v1/runs/owned/cancel", `null`, http.StatusBadRequest},
+		{http.MethodGet, "/v1/runs/owned/cancel", `{}`, http.StatusMethodNotAllowed},
+	}
+	for _, test := range tests {
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, authenticatedRequest(test.method, test.target, bytes.NewReader([]byte(test.body))))
+		if response.Code != test.status {
+			t.Errorf("%s %s = %d, want %d: %s", test.method, test.target, response.Code, test.status, response.Body.String())
+		}
+	}
+	if fixture.runs.runs["owned"].Cancellation != nil || len(fixture.notifier.cancellations) != 0 {
+		t.Fatal("invalid cancellation changed state or notified Scheduler")
+	}
+}
+
+func TestDeleteRunRequiresOwnedReleasedTerminalRun(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	finished := time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
+	fixture.runs.runs["run-delete"] = runstore.WorkflowRun{
+		RunID: "run-delete", OwnerID: "user-1", State: runstore.RunSucceeded, FinishedAt: &finished,
+	}
+	fixture.runs.runs["run-active"] = runstore.WorkflowRun{
+		RunID: "run-active", OwnerID: "user-1", State: runstore.RunRunning,
+	}
+	fixture.runs.runs["run-foreign"] = runstore.WorkflowRun{
+		RunID: "run-foreign", OwnerID: "user-2", State: runstore.RunFailed, FinishedAt: &finished,
+	}
+	fixture.runs.runs["run-release-pending"] = runstore.WorkflowRun{
+		RunID: "run-release-pending", OwnerID: "user-1", State: runstore.RunCancelled, FinishedAt: &finished,
+	}
+	fixture.runs.executions["run-release-pending"] = []runstore.StageExecution{{
+		StageExecutionID: "stage-release-pending", RunID: "run-release-pending",
+	}}
+	fixture.runs.allocations["stage-release-pending"] = []runstore.StageAllocation{{
+		AllocationID: "allocation-release-pending", StageExecutionID: "stage-release-pending",
+	}}
+
+	requestDeletion := func(target string, body []byte) *httptest.ResponseRecorder {
+		t.Helper()
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, authenticatedRequest(
+			http.MethodDelete, target, bytes.NewReader(body),
+		))
+		return response
+	}
+	deleted := requestDeletion("/v1/runs/run-delete", nil)
+	if deleted.Code != http.StatusNoContent || deleted.Body.Len() != 0 {
+		t.Fatalf("delete terminal Run = %d: %s", deleted.Code, deleted.Body.String())
+	}
+	if _, present := fixture.runs.runs["run-delete"]; present {
+		t.Fatal("deleted Run remains in store")
+	}
+
+	if response := requestDeletion("/v1/runs/run-delete", nil); response.Code != http.StatusNotFound {
+		t.Errorf("repeat deletion = %d, want 404: %s", response.Code, response.Body.String())
+	}
+	if response := requestDeletion("/v1/runs/run-foreign", nil); response.Code != http.StatusNotFound {
+		t.Errorf("foreign deletion = %d, want owner-safe 404: %s", response.Code, response.Body.String())
+	}
+	assertNotDeletable := func(runID string, reason rundeletion.Reason) {
+		t.Helper()
+		response := requestDeletion("/v1/runs/"+runID, nil)
+		var problem struct {
+			Code    string `json:"code"`
+			Details struct {
+				Kind   string             `json:"kind"`
+				Reason rundeletion.Reason `json:"reason"`
+			} `json:"details"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &problem); err != nil ||
+			response.Code != http.StatusConflict || problem.Code != "run_not_deletable" ||
+			problem.Details.Kind != "run_not_deletable" || problem.Details.Reason != reason {
+			t.Errorf("delete %s = status %d problem %+v error %v", runID, response.Code, problem, err)
+		}
+	}
+	assertNotDeletable("run-active", rundeletion.RunNotTerminal)
+	assertNotDeletable("run-release-pending", rundeletion.AllocationReleasePending)
+	if response := requestDeletion("/v1/runs/run-active?force=true", nil); response.Code != http.StatusBadRequest {
+		t.Errorf("deletion with query = %d, want 400: %s", response.Code, response.Body.String())
+	}
+	if response := requestDeletion("/v1/runs/run-active", []byte(`{}`)); response.Code != http.StatusBadRequest {
+		t.Errorf("deletion with body = %d, want 400: %s", response.Code, response.Body.String())
+	}
+	if _, present := fixture.runs.runs["run-active"]; !present {
+		t.Fatal("rejected deletion removed active Run")
+	}
+	if _, present := fixture.runs.runs["run-release-pending"]; !present {
+		t.Fatal("rejected deletion removed release-pending Run")
+	}
+}
+
+func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	snapshot, _, err := configload.LoadUnionReadOnly("../../config/testdata/valid", filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stageSnapshot, err := json.Marshal(workflow.Stages[workflow.EntryStage])
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture.runs.runs["run-metrics"] = runstore.WorkflowRun{
+		RunID: "run-metrics", OwnerID: "user-1", WorkflowName: "artifact-copy",
+		WorkflowVersion: "1", State: runstore.RunRunning,
+	}
+	fixture.runs.executions["run-metrics"] = []runstore.StageExecution{{
+		StageExecutionID: "stage-metrics", RunID: "run-metrics", StageName: "copy",
+		Attempt: 1, ExecutionConfigVariant: runstore.StageExecutionConfigBase,
+		StageSpecSnapshot: stageSnapshot, State: runstore.StageRunning,
+	}}
+	retryable := true
+	normalizedWorker, err := telemetry.NewPolicy("must-not-be-public").NormalizeExecutionReport(
+		reporting.ExecutionReport{
+			ReportID: "worker-secret", Complete: true,
+			Metrics: reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}},
+			ToolCalls: []reporting.ToolCallRecord{{
+				CallID: "call-secret", Tool: "probe",
+				Arguments: map[string]any{"token": "must-not-be-public"},
+				Outcome:   reporting.ToolCallSucceeded,
+			}},
+			Errors: []reporting.ExecutionError{
+				{
+					Code:      "worker_result_schema_json_invalid",
+					Message:   "Worker result did not match StageContentResult",
+					Retryable: &retryable,
+				},
+				{
+					Code:    "gateway_error",
+					Message: "provider must-not-be-public at https://provider.example.test/v1",
+				},
+			},
+		},
+		telemetry.MaxReportJSONBytes,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture.metrics.records["stage-metrics"] = telemetry.StageMetricsRecord{
+		StageExecutionID: "stage-metrics",
+		Metrics: reporting.StageMetrics{
+			Workers: map[string]reporting.ExecutionReport{
+				"builder": normalizedWorker,
+			},
+			Runtime: map[string]reporting.RuntimeReport{"builder": {Complete: true}},
+		},
+		Summary: telemetry.Summary{
+			ReportsComplete: true, ModelCalls: 2, ToolCalls: 1, ErrorCount: 2,
+		},
+	}
+	fixture.allocationResources.byStage["stage-metrics"] = []telemetry.AllocationResourceSummary{{
+		AllocationID: "allocation-metrics", RunID: "run-metrics", StageExecutionID: "stage-metrics",
+		Stage: "copy", LogicalAgent: "builder", Outcome: "succeeded",
+		FinishedAt:       time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC),
+		CollectionPolicy: reporting.PerformanceCollectionUnsupported,
+		Status:           telemetry.AllocationResourceUnsupported,
+	}}
+
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, authenticatedRequest(
+		http.MethodGet, "/v1/runs/run-metrics", bytes.NewReader(nil),
+	))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status response = %d: %s", response.Code, response.Body.String())
+	}
+	if strings.Contains(response.Body.String(), "must-not-be-public") ||
+		strings.Contains(response.Body.String(), "call-secret") ||
+		strings.Contains(response.Body.String(), "worker-secret") ||
+		strings.Contains(response.Body.String(), "https://provider.example.test") {
+		t.Fatalf("public status leaked detailed telemetry: %s", response.Body.String())
+	}
+	var result runStatusResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Attempts) != 1 || result.Attempts[0].Metrics == nil ||
+		result.Attempts[0].Metrics.ModelCalls != 2 || result.Attempts[0].Metrics.ToolCalls != 1 {
+		t.Fatalf("public metrics summary = %+v", result.Attempts)
+	}
+	diagnostics := result.Attempts[0].Diagnostics
+	if diagnostics == nil || diagnostics.Truncated || len(diagnostics.Items) != 2 ||
+		diagnostics.Items[0].Participant != telemetry.AttemptDiagnosticWorker ||
+		diagnostics.Items[0].LogicalAgent != "builder" ||
+		diagnostics.Items[0].Code != "worker_result_schema_json_invalid" ||
+		diagnostics.Items[0].Retryable == nil || !*diagnostics.Items[0].Retryable ||
+		!strings.Contains(diagnostics.Items[1].Message, "[REDACTED_URL]") {
+		t.Fatalf("public attempt diagnostics = %+v", diagnostics)
+	}
+	if result.Attempts[0].ExecutionConfig.Variant != runstore.StageExecutionConfigBase ||
+		result.Attempts[0].ExecutionConfig.Agents["builder"].ModelPolicy.PolicyID != "worker" {
+		t.Fatalf("public effective executionConfig refs = %+v", result.Attempts[0].ExecutionConfig)
+	}
+	if len(result.Attempts[0].Resources) != 1 ||
+		result.Attempts[0].Resources[0].AllocationID != "allocation-metrics" {
+		t.Fatalf("public allocation resources = %+v", result.Attempts[0].Resources)
+	}
+}
+
+func TestRunStatusExposesEscalationLineageAndSafeEffectiveRefs(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	snapshot, _, err := configload.LoadUnionReadOnly(configtest.CopyWithEscalation(t, "../../../testdata/configs"), filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.Workflow("openapi-from-workspace@5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages["openapi_validate"]
+	action := stage.On.Failed
+	if action.Escalate == nil {
+		t.Fatal("repository Workflow has no failed escalation")
+	}
+	baseSnapshot, err := json.Marshal(stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage.ExecutionConfig = action.Escalate.ExecutionConfig.Effective
+	escalatedSnapshot, err := json.Marshal(stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous, ordinal := "stage-base", 1
+	fixture.runs.runs["run-escalation"] = runstore.WorkflowRun{
+		RunID: "run-escalation", OwnerID: "user-1", WorkflowName: "openapi-from-workspace",
+		WorkflowVersion: "3", State: runstore.RunFailed,
+	}
+	fixture.runs.executions["run-escalation"] = []runstore.StageExecution{
+		{
+			StageExecutionID: "stage-base", RunID: "run-escalation", StageName: "openapi_validate",
+			Attempt: 1, ExecutionConfigVariant: runstore.StageExecutionConfigBase,
+			StageSpecSnapshot: baseSnapshot, State: runstore.StageFailed,
+		},
+		{
+			StageExecutionID: "stage-escalated", RunID: "run-escalation", StageName: "openapi_validate",
+			Attempt: 2, PreviousExecutionID: &previous,
+			ExecutionConfigVariant: runstore.StageExecutionConfigFailedEscalation,
+			EscalationOrdinal:      &ordinal,
+			StageSpecSnapshot:      escalatedSnapshot, State: runstore.StageFailed,
+		},
+	}
+	fixture.runs.decisions["run-escalation"] = []runstore.StageTransitionDecision{
+		{
+			SourceExecutionID: "stage-base", RunID: "run-escalation",
+			Action: runstore.StageTransitionEscalate, TargetStageName: stringTestPointer("openapi_validate"),
+			TargetExecutionID: stringTestPointer("stage-escalated"), EscalationOrdinal: &ordinal,
+		},
+		{
+			SourceExecutionID: "stage-escalated", RunID: "run-escalation",
+			Action: runstore.StageTransitionFail, EscalationOrdinal: &ordinal,
+			EscalationExhausted: true,
+		},
+	}
+
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, authenticatedRequest(
+		http.MethodGet, "/v1/runs/run-escalation", bytes.NewReader(nil),
+	))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status response = %d: %s", response.Code, response.Body.String())
+	}
+	var result runStatusResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Attempts) != 2 || len(result.Transitions) != 2 ||
+		result.Attempts[1].PreviousExecutionID == nil || *result.Attempts[1].PreviousExecutionID != "stage-base" ||
+		result.Attempts[1].ExecutionConfig.Agents["validator"].ModelPolicy.PolicyID != "test-strong-worker" ||
+		result.Attempts[1].ExecutionConfig.Agents["validator"].Credential == nil ||
+		result.Attempts[1].ExecutionConfig.Agents["validator"].Credential.CredentialID != "development-worker" ||
+		result.Transitions[0].Action != runstore.StageTransitionEscalate ||
+		!result.Transitions[1].EscalationExhausted {
+		t.Fatalf("public escalation read model = %+v", result)
+	}
+	if strings.Contains(response.Body.String(), "http://litellm") ||
+		strings.Contains(response.Body.String(), "secret-value") {
+		t.Fatalf("public escalation read model leaked connection details: %s", response.Body.String())
+	}
+}
+
+func stringTestPointer(value string) *string { return &value }
+
+func TestRunOutputDownloadRequiresOwnerAndReturnsExactMetadata(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	fixture.runs.runs["run-owned"] = runstore.WorkflowRun{
+		RunID: "run-owned", OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1", State: runstore.RunSucceeded,
+	}
+	runArtifacts, _ := fixture.artifacts.Run("run-owned")
+	source, err := runArtifacts.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "builder", Name: "result"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("finished")}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bound, err := artifactstest.BindOutput(t.Context(), fixture.artifacts, "run-owned", "result", source.Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	request := authenticatedRequest(http.MethodGet, "/v1/runs/run-owned/outputs/result", bytes.NewReader(nil))
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || response.Body.String() != "finished" || response.Header().Get("ETag") != httpx.QuotedETag(bound.TargetRef.Revision) {
+		t.Fatalf("output = status %d, ETag %q, body %q", response.Code, response.Header().Get("ETag"), response.Body.String())
+	}
+
+	fixture.runs.runs["run-owned"] = runstore.WorkflowRun{RunID: "run-owned", OwnerID: "another-user"}
+	readsBefore := fixture.repository.reads
+	denied := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(denied, request)
+	if denied.Code != http.StatusNotFound || fixture.repository.reads != readsBefore {
+		t.Fatalf("foreign output = status %d, reads before/after %d/%d", denied.Code, readsBefore, fixture.repository.reads)
+	}
+}
+
+func TestRawArtifactBytesAreNeverRenderedInAPIOrigin(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	markup := []byte("<script>untrusted()</script>")
+	user, _ := fixture.artifacts.User("user-1")
+	if _, err := user.Write(t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "page"},
+		artifacts.Payload{MediaType: "text/html", Data: markup}, nil); err != nil {
+		t.Fatal(err)
+	}
+	fixture.projects.projects["project-owned"] = projectstore.Project{
+		ProjectID: "project-owned", OwnerID: "user-1", Lifecycle: projectstore.LifecycleActive,
+	}
+	projectArtifacts, err := fixture.artifacts.Project("project-owned")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := projectArtifacts.Write(t.Context(), contracts.ArtifactRef{Namespace: "sources", Name: "page"},
+		artifacts.Payload{MediaType: "text/html", Data: markup}, nil); err != nil {
+		t.Fatal(err)
+	}
+	fixture.runs.runs["run-owned"] = runstore.WorkflowRun{
+		RunID: "run-owned", OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1", State: runstore.RunSucceeded,
+	}
+	runArtifacts, _ := fixture.artifacts.Run("run-owned")
+	source, err := runArtifacts.Write(t.Context(), contracts.ArtifactRef{Namespace: "builder", Name: "result"},
+		artifacts.Payload{MediaType: "text/html", Data: markup}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifactstest.BindOutput(t.Context(), fixture.artifacts, "run-owned", "result", source.Ref); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{
+		"/v1/artifacts/projects/page",
+		"/v1/projects/project-owned/artifacts/sources/page",
+		"/v1/runs/run-owned/artifacts/builder/result",
+		"/v1/runs/run-owned/outputs/result",
+	} {
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, authenticatedRequest(http.MethodGet, path, bytes.NewReader(nil)))
+		header := response.Header()
+		if response.Code != http.StatusOK || response.Body.String() != string(markup) || header.Get("Content-Type") != "text/html" ||
+			header.Get("Cache-Control") != "no-store" ||
+			header.Get("X-Content-Type-Options") != "nosniff" ||
+			header.Get("Content-Security-Policy") != "sandbox; default-src 'none'" ||
+			header.Get("Content-Disposition") != "attachment" {
+			t.Fatalf("%s = status %d, headers %v", path, response.Code, header)
+		}
+	}
+}
+
+// assertIdempotencyConflict requires the permanent outcome of an
+// Idempotency-Key reused with a different request: 409 idempotency_conflict,
+// retryable false (FAIL-RUN-1).
+func assertIdempotencyConflict(t *testing.T, response *httptest.ResponseRecorder) {
+	t.Helper()
+	var body errorResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode error response: %v; body %q", err, response.Body.String())
+	}
+	if response.Code != http.StatusConflict || body.Code != "idempotency_conflict" || body.Retryable {
+		t.Fatalf("reused Idempotency-Key = %d %+v, want 409 idempotency_conflict, retryable false",
+			response.Code, body)
+	}
+}
+
+func assertErrorCode(t *testing.T, response *httptest.ResponseRecorder, expected string) {
+	t.Helper()
+	var body errorResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode error response: %v; body %q", err, response.Body.String())
+	}
+	if body.Code != expected || strings.TrimSpace(body.Message) == "" ||
+		body.RequestID != "request-fixed" || response.Header().Get("X-Request-ID") != body.RequestID {
+		t.Fatalf("error response = %+v, want code %q", body, expected)
+	}
+}
+
+type fakeMetricsReader struct {
+	records map[string]telemetry.StageMetricsRecord
+	err     error
+}
+
+func (f *fakeMetricsReader) GetStageMetricsBatch(
+	_ context.Context, stageExecutionIDs []string,
+) (map[string]telemetry.StageMetricsRecord, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	records := make(map[string]telemetry.StageMetricsRecord)
+	for _, id := range stageExecutionIDs {
+		if record, ok := f.records[id]; ok {
+			records[id] = record
+		}
+	}
+	return records, nil
+}
+
+func TestRunEndpointsRejectRemovedExecutionConfigBeforeTransaction(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	fixture.projects.projects["project-override"] = projectstore.Project{ProjectID: "project-override", OwnerID: "user-1", Kind: projectstore.KindProject, Lifecycle: projectstore.LifecycleActive, Name: "Fixture", Revision: 1}
+	for _, path := range []string{"/v1/runs", "/v1/projects/project-override/runs"} {
+		for _, patch := range []string{`{}`, `null`, `{"workers":{"modelPolicy":"test-worker@1"}}`} {
+			request := authenticatedRequest(http.MethodPost, path, bytes.NewReader([]byte(`{"workflow":"artifact-copy@1","executionConfig":`+patch+`}`)))
+			response := httptest.NewRecorder()
+			fixture.handler.ServeHTTP(response, request)
+			if response.Code != http.StatusBadRequest {
+				t.Fatalf("%s patch %s: %d %s", path, patch, response.Code, response.Body.String())
+			}
+			assertErrorCode(t, response, "invalid_request")
+		}
+	}
+	if fixture.unit.calls != 0 || len(fixture.runs.runs) != 0 || fixture.notifier.calls != 0 {
+		t.Fatal("removed override reached durable effects")
+	}
+}

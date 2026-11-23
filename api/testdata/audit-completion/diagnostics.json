@@ -1,0 +1,336 @@
+[
+  {
+    "name": "null-completion",
+    "value": null,
+    "valid": false
+  },
+  {
+    "name": "null-failure-code",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0,
+      "failureCode": null
+    },
+    "valid": false
+  },
+  {
+    "name": "whitespace-padded",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": true,
+    "jsonWhitespaceBytes": 4096
+  },
+  {
+    "name": "collecting",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": true
+  },
+  {
+    "name": "partial",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 1,
+      "totalCount": 2,
+      "reminderCount": 1
+    },
+    "valid": true
+  },
+  {
+    "name": "sealed",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "sealed",
+      "acceptedCount": 2,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": true
+  },
+  {
+    "name": "publishing",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "publishing",
+      "acceptedCount": 2,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": true
+  },
+  {
+    "name": "published",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "published",
+      "acceptedCount": 2,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": true
+  },
+  {
+    "name": "incomplete",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "failed",
+      "acceptedCount": 1,
+      "totalCount": 2,
+      "reminderCount": 2,
+      "failureCode": "audit_result_incomplete"
+    },
+    "valid": true
+  },
+  {
+    "name": "conflict",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "failed",
+      "acceptedCount": 2,
+      "totalCount": 2,
+      "reminderCount": 0,
+      "failureCode": "audit_result_publication_conflict"
+    },
+    "valid": true
+  },
+  {
+    "name": "cancelled",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "failed",
+      "acceptedCount": 1,
+      "totalCount": 2,
+      "reminderCount": 0,
+      "failureCode": "worker_cancelled"
+    },
+    "valid": true
+  },
+  {
+    "name": "too-many",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 3,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false,
+    "semanticOnly": true
+  },
+  {
+    "name": "too-large",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 65,
+      "reminderCount": 0
+    },
+    "valid": false
+  },
+  {
+    "name": "too-many-reminders",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 3
+    },
+    "valid": false
+  },
+  {
+    "name": "negative",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": -1,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false
+  },
+  {
+    "name": "bool-count",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": true,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false
+  },
+  {
+    "name": "null-count",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": null,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false
+  },
+  {
+    "name": "missing-count",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false
+  },
+  {
+    "name": "partial-published",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "published",
+      "acceptedCount": 1,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false,
+    "semanticOnly": true
+  },
+  {
+    "name": "failed-without-code",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "failed",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false
+  },
+  {
+    "name": "not-failed-with-code",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0,
+      "failureCode": "worker_cancelled"
+    },
+    "valid": false
+  },
+  {
+    "name": "raw-payload",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0,
+      "summary": "private-evidence-marker"
+    },
+    "valid": false
+  },
+  {
+    "name": "unbounded-code",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "failed",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0,
+      "failureCode": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    "valid": false
+  },
+  {
+    "name": "unknown-kind",
+    "value": {
+      "kind": "future@2",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false
+  },
+  {
+    "name": "unknown-phase",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "accepted",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false
+  },
+  {
+    "name": "unknown-phase-case",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "Sealed",
+      "acceptedCount": 2,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false
+  },
+  {
+    "name": "empty-kind",
+    "value": {
+      "kind": "",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false
+  },
+  {
+    "name": "empty-phase",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false
+  },
+  {
+    "name": "empty-failure-code",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0,
+      "failureCode": ""
+    },
+    "valid": false
+  },
+  {
+    "name": "fractional-count",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 0.5,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false
+  }
+]

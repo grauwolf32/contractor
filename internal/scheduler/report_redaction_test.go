@@ -1,0 +1,213 @@
+package scheduler
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/telemetry"
+)
+
+type normalizingReportStore struct{ *memorySchedulerStore }
+
+func (s *normalizingReportStore) RecordAllocationReport(
+	ctx context.Context, envelope telemetry.AllocationReportEnvelope,
+) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	report, err := telemetry.NewPolicy(envelope.Secrets...).NormalizeAllocationReport(envelope.Report)
+	if err != nil {
+		return err
+	}
+	envelope.Report = report
+	envelope.Secrets = nil
+	return s.memorySchedulerStore.RecordAllocationReport(ctx, envelope)
+}
+
+// withReports is a copy of the harness options that records reports in store.
+func withReports(options Options, store ReportStore) Options {
+	options.Reports = store
+	return options
+}
+
+func TestReportPersistenceReresolvesAllocationCredentialsAcrossSchedulers(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	const (
+		llmSecret        = "llm-report-secret"
+		otlpSecret       = "otlp-report-secret"
+		proxySecret      = "proxy-report-secret"
+		caidoSecret      = "caido-report-secret"
+		originUserSecret = "origin-report-username"
+		originPassSecret = "origin-report-password"
+		staticSecret     = "static-report-secret"
+	)
+	harness.scheduler.options.Credentials = credentialResolverFunc(func(
+		context.Context, llmgateway.LLMCredentialRef, llmgateway.LLMGatewayConfigRef,
+	) (contracts.SecretString, error) {
+		return contracts.NewSecretString(llmSecret), nil
+	})
+	type runtimeMaterial struct {
+		kind     runtimesettings.RuntimeCredentialKind
+		document string
+	}
+	materials := map[string]runtimeMaterial{
+		"otlp":   {runtimesettings.RuntimeCredentialOTLPHeaders, `{"headers":{"x-otlp-token":"` + otlpSecret + `"}}`},
+		"proxy":  {runtimesettings.RuntimeCredentialProxyBearer, `{"token":"` + proxySecret + `"}`},
+		"caido":  {runtimesettings.RuntimeCredentialCaidoBearer, `{"token":"` + caidoSecret + `"}`},
+		"origin": {runtimesettings.RuntimeCredentialOriginBasic, `{"username":"` + originUserSecret + `","password":"` + originPassSecret + `"}`},
+	}
+	harness.scheduler.options.RuntimeCredentials = runtimeCredentialResolverFunc(func(
+		_ context.Context,
+		credentialID string,
+		_ []runtimesettings.RuntimeCredentialKind,
+		consumer func(runtimesettings.RuntimeCredentialKind, []byte) error,
+	) error {
+		material, ok := materials[credentialID]
+		if !ok {
+			return errors.New("unknown report credential")
+		}
+		return consumer(material.kind, []byte(material.document))
+	})
+	harness.scheduler.options.TelemetrySecrets = []string{staticSecret}
+
+	stage := harness.workflow.Stages[harness.workflow.EntryStage]
+	binding := stage.Agents["builder"]
+	binding.Template.Toolsets = append(binding.Template.Toolsets, contracts.ToolsetSelection{
+		Ref: contracts.ToolsetRef{ToolsetID: "http-tools", Version: "1"}, Tools: []string{"http_request"},
+	})
+	stage.Agents["builder"] = binding
+	reservations := schedulerTestReservations(t, stage)
+	if len(reservations) != 1 {
+		t.Fatalf("reservations = %d", len(reservations))
+	}
+	reservation := &reservations[0]
+	reservation.Grant.AllocationID = "allocation-report-redaction"
+	resolved := reservation.ResolvedRuntimeConfig
+	resolved.WorkerTelemetry = &runtimeconfig.TelemetryConfig{
+		Adapter: string(runtimesettings.RuntimeAdapterOTLPHTTP), Endpoint: "https://otlp.example/v1/traces",
+		Credential: "otlp", FlushTimeoutSeconds: 1,
+	}
+	resolved.HTTPProxy = &runtimeconfig.HTTPProxyConfig{
+		Adapter: string(runtimesettings.RuntimeAdapterHTTPProxy), ProxyURL: "https://proxy.example",
+		Credential: "proxy", Targets: []string{string(runtimesettings.ProxyTargetToolHTTP)},
+	}
+	resolved.Caido = &runtimeconfig.CaidoConfig{
+		Adapter: string(runtimesettings.RuntimeAdapterCaidoGraphQL), Endpoint: "https://caido.example/api",
+		Credential: "caido", RequestTimeoutSeconds: 5,
+	}
+	run := harness.store.run
+	run.ProjectHTTPTarget = &runtimesettings.HTTPOriginTargetRef{
+		URL: "https://target.example/api",
+		Credential: &runtimesettings.RuntimeCredentialRef{
+			CredentialID: "origin", Kind: runtimesettings.RuntimeCredentialOriginBasic,
+		},
+	}
+	prepared, err := harness.scheduler.materializeRuntimeSettings(t.Context(), resolved.Clone())
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := map[string]runtimesettings.WorkerExecutionSettings{
+		"builder": {RuntimeSettings: prepared},
+	}
+	clearWorkerExecutionSettings(settings)
+	if settings["builder"].RuntimeSettings.LLMGatewayToken != nil {
+		t.Fatal("prepared credential was retained after Worker preparation")
+	}
+
+	execution := runstore.StageExecution{
+		StageExecutionID: "stage-report-redaction", CreatedAt: harness.clock.now,
+	}
+	harness.store.allocations = []runstore.StageAllocation{{
+		AllocationID: reservation.Grant.AllocationID, StageExecutionID: execution.StageExecutionID,
+		LogicalAgentName: "builder",
+	}}
+	report := schedulerTestAllocationReport(reservation.Grant.AllocationID, harness.clock.now)
+	secretValues := []string{
+		llmSecret, otlpSecret, proxySecret, caidoSecret, originUserSecret, originPassSecret, staticSecret,
+	}
+	for index, secret := range secretValues {
+		report.Worker.ToolCalls = append(report.Worker.ToolCalls, reporting.ToolCallRecord{
+			CallID: "secret-call-" + strconv.Itoa(index), Tool: "probe",
+			Arguments: map[string]any{"detail": "before " + secret + " after"},
+			Outcome:   reporting.ToolCallSucceeded,
+		})
+		report.Worker.Errors = append(report.Worker.Errors, reporting.ExecutionError{
+			Code: "provider_error", Message: "before " + secret + " after",
+		})
+	}
+
+	store := &normalizingReportStore{harness.store}
+	other, err := New(
+		store, harness.persistence, harness.artifacts, harness.allocator, harness.workers,
+		harness.planners, withReports(harness.scheduler.options, store),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other.persistReports(t.Context(), run, executableWorkflow{stage: stage}, execution, reservations,
+		map[string]reporting.AllocationFinalReport{"builder": report})
+	if len(harness.store.reports) != 1 {
+		t.Fatalf("persisted report count = %d", len(harness.store.reports))
+	}
+	stored := harness.store.reports[0].Report
+	encoded, err := json.Marshal(stored)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index, secret := range secretValues {
+		if strings.Contains(string(encoded), secret) {
+			t.Fatalf("credential %d remained in persisted report", index)
+		}
+		if got := stored.Worker.ToolCalls[index].Arguments["detail"]; got != "before [REDACTED] after" {
+			t.Fatalf("tool argument %d = %v", index, got)
+		}
+		if got := stored.Worker.Errors[index].Message; got != "before [REDACTED] after" {
+			t.Fatalf("error message %d = %q", index, got)
+		}
+	}
+}
+
+func TestReportPersistenceContinuesWhenCredentialResolutionFails(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.scheduler.options.OperationTimeout = 20 * time.Millisecond
+	reservations := schedulerTestReservations(t, harness.workflow.Stages[harness.workflow.EntryStage])
+	reservations[0].Grant.AllocationID = "allocation-unresolved-report"
+	harness.store.allocations = []runstore.StageAllocation{{
+		AllocationID:     reservations[0].Grant.AllocationID,
+		StageExecutionID: "stage-unresolved-report", LogicalAgentName: "builder",
+	}}
+	harness.scheduler.options.Credentials = credentialResolverFunc(func(
+		ctx context.Context, _ llmgateway.LLMCredentialRef, _ llmgateway.LLMGatewayConfigRef,
+	) (contracts.SecretString, error) {
+		<-ctx.Done()
+		return contracts.SecretString{}, ctx.Err()
+	})
+	store := &normalizingReportStore{harness.store}
+	other, err := New(store, harness.persistence, harness.artifacts, harness.allocator,
+		harness.workers, harness.planners, withReports(harness.scheduler.options, store))
+	if err != nil {
+		t.Fatal(err)
+	}
+	execution := runstore.StageExecution{
+		StageExecutionID: "stage-unresolved-report", CreatedAt: harness.clock.now,
+	}
+	other.persistReports(t.Context(), harness.store.run,
+		executableWorkflow{stage: harness.workflow.Stages[harness.workflow.EntryStage]},
+		execution, reservations, map[string]reporting.AllocationFinalReport{
+			"builder": schedulerTestAllocationReport(reservations[0].Grant.AllocationID, harness.clock.now),
+		})
+	if len(harness.store.reports) != 1 {
+		t.Fatalf("credential failure blocked report persistence: reports = %d", len(harness.store.reports))
+	}
+}

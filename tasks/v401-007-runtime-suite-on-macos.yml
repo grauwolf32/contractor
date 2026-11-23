@@ -1,0 +1,129 @@
+schema_version: "1.0"
+id: V401-007
+title: "Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: in_progress
+depends_on: []
+languages: [python, markdown]
+goal: "make test-runtime on a macOS developer host passes with the explicit OPS-R1 Linux-only Podman and filesystem fixture skips; the remaining portable tests run and the testing guide states their acceptance scope."
+context:
+  acceptance_update: >-
+    User decision 2026-11-02: the two fixtures tracked by V425-001/002 must
+    not execute on macOS or affect acceptance. V433-007 adds their explicit
+    Linux-only marker. Earlier failure classifications below are historical;
+    macOS acceptance now requires the standard gate to pass with expected
+    platform skips. This policy update does not complete this task's other
+    portability and regression-proof requirements or change its status.
+  review: "2026-10-23 merged verification run of the quick-win batch on macOS (102 failures on main @ 257c57d8); reclassified 2026-10-24 on b523ae77"
+  specification:
+    - docs/testing/README.md
+    - docs/spec/operations/operations.md#OPS-R1
+    - docs/spec/tools/workspace.md#WSP-R88
+    - docs/spec/tools/code-analysis.md#CAN-R60
+  severity: low
+  revalidated: >-
+    2026-10-24 on b523ae77: rewritten against a fresh run, cd runtime && uv
+    run --locked pytest -q -p no:randomly on macOS arm64 (Python 3.13.16):
+    4726 tests, 4582 passed, 39 skipped, 105 failed, a stable set also seen
+    in other runs that day. The original open question (sandbox artefact or
+    macOS) is answered: every failure has a platform cause independent of a
+    command sandbox (below), confirmed per test with probes that recorded the
+    first SOCK_SEQPACKET socketpair of each test and the OSError behind each
+    AllocationError and Trailmark engine failure. The original A1
+    (classify every failure) is done in this record; what remains is the
+    portable fixes, the Linux marker, the two defect tasks and the guide.
+  finding: >-
+    Podman, 95 failures in runtime/tests/test_podman_*.py (capabilities 32,
+    supervisor 18, allocation 15, command_coordination 13, network 9,
+    recovery 5, workflow 2, engine 1), all Linux-only by OPS-R1: (a) 92 open
+    an AF_UNIX SOCK_SEQPACKET socketpair, which Darwin refuses with
+    "OSError: [Errno 43] Protocol not supported": the fake owner
+    (tests/fakes/podman_lifecycle.py:70), mirroring production
+    (src/contractor_runtime/sandbox/podman/lifecycle.py:53 and
+    supervisor.py:111); it surfaces as Errno 43 (60), as "allocation resource
+    preparation failed (OSError)" wrapped at allocation/service.py:483-496
+    (22, the cause probed at sandbox/podman/lifecycle.py:269), and as
+    downstream CancelledError, IndexError and empty-container assertions
+    (10). (b) test_pidfd_is_real_close_on_exec_and_detects_live_process and
+    test_cancelled_delayed_guardian_spawn_retains_descriptors_and_reaps
+    (test_podman_supervisor.py:149 and :218) need pidfd_open
+    (supervisor.py:30-45: "dlsym(RTLD_DEFAULT, pidfd_open): symbol not
+    found"). (c) test_real_cli_transport_preserves_argv_and_does_not_inherit_secrets
+    (test_podman_engine.py:609) runs a fake CLI whose shebang is
+    #!/usr/bin/python3 (tests/fakes/podman_cli.py:1); on macOS that is the
+    Xcode shim, which adds SDKROOT, CPATH, MANPATH, LIBRARY_PATH and
+    __CF_USER_TEXT_ENCODING to the child environment, so the allowed-variable
+    assertion fails although LocalPodmanCLI passed none of them (test
+    artefact). Other Runtime tests, 10 failures: (d) test artefacts that use
+    Linux-only facilities in the test itself:
+    test_unsupported_external_types_cannot_use_stale_memory_or_escape[socket]
+    (test_local_direct_faults.py:29, binds a socket through
+    /proc/self/fd/N/sock at :52), test_content_scan_stops_after_first_binary_chunk
+    [\x00] and [\xff] (test_projectfs_local_direct.py:234, its os.read
+    counter calls os.readlink("/proc/self/fd/N"), which raises inside the
+    patched read and turns into workspace_not_found),
+    test_detached_descendant_holding_pipes_cannot_stall_stop[timeout] and
+    [cancel] (test_tool_process.py:131, the holder runs setsid(1), absent
+    from /usr/bin:/bin on macOS, so nothing detaches and the command ends
+    early), and test_address_space_budget_accounts_for_darwin_mappings_and_hard_limit
+    [linux--1-...] and [darwin--1-...] (test_trailmark_child.py:32, passes -1
+    as the unlimited hard limit, but resource.RLIM_INFINITY is 2**63-1 on
+    macOS, so _maximum_address_space_bytes returns -1). (e) A wall-clock
+    budget: test_real_four_mib_parser_keeps_event_loop_gaps_below_100_ms
+    (test_code_analysis_shallow.py:1287) measured a 0.141 s loop gap in
+    isolation and 0.206 s in the suite against its 0.1 s bound, while CAN-R60
+    says the pinned binding holds the GIL for the whole parse, so the gap
+    grows with file size and host load. (f) Two Runtime defects on macOS,
+    which OPS-R1 names as an ordinary Runtime target:
+    test_limits_deadline_names_and_binary_classification
+    (test_projectfs_local_io.py:155, assertion at :183): the default APFS
+    volume looks names up normalization-insensitively, so reading the NFC
+    path "café" opens the on-disk NFD entry that the scan listed as an
+    opaque leaf, against WSP-R88 (opaque leaves are never opened or read);
+    test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor
+    (test_code_analysis_graph.py:503): the Trailmark mirror writes each file
+    by absolute path (_materialize_snapshot,
+    toolsets/code_analysis/trailmark_host.py:907-935), and a 1,600-byte
+    workspace path exceeds the 1,024-byte macOS PATH_MAX ("OSError: [Errno 63]
+    File name too long", caught at trailmark_host.py:276-278 and returned as
+    code_analysis_engine_failed), although workspace paths may reach 4,096
+    bytes (WSP-R13).
+  siblings: >-
+    The Go side's macOS issues are V401-003 and V401-004; the browser gate's
+    is V401-005. The real-engine Podman suites (test_podman_*_integration.py,
+    test_podman_capabilities.py:337) already skip unless their explicit gate
+    variable is set, and stay as they are. V372-016 owns the other wall-clock
+    budgets; this task owns only the macOS failure of (e).
+scope:
+  in:
+    - "One shared marker skips the Podman tests of (a) and (b) on non-Linux hosts with the OPS-R1 reason; they still run and pass on Linux."
+    - "The test artefacts of (c) and (d) become portable (for example sys.executable for the fake CLI, a short socket directory instead of /proc/self/fd, fcntl F_GETPATH or a descriptor set instead of /proc readlink, os.setsid from Python instead of setsid(1), resource.RLIM_INFINITY instead of -1), so they run on macOS and Linux and still fail when the behaviour they check breaks."
+    - "The parser loop-gap test of (e) asserts a bound the specification supports (CAN-R60) without a fixed wall-clock threshold, or is replaced by a deterministic check that the parse runs off the event loop."
+    - "Retain the historical (f) concerns in V425-001/002 as deferred non-blocking work; their two fixtures are Linux-only under the 2026-11-02 user decision and OPS-R1."
+    - "docs/testing/README.md records the macOS status: which tests skip and why, and which open tasks explain remaining failures."
+  out:
+    - "Making the Podman sandbox work on macOS."
+    - "Fixing the two macOS defects of (f), which their own tasks own."
+acceptance_criteria:
+  - id: A1
+    given: "A Linux host with the release toolchain"
+    when: "make test-runtime runs"
+    then: "Neither the Podman nor the two filesystem fixtures are skipped by the platform markers on Linux; platform eligibility is preserved."
+  - id: A2
+    given: "A macOS arm64 developer host"
+    when: "make test-runtime runs"
+    then: "It passes with OPS-R1 skips for the Podman tests of (a)/(b) and the two Linux filesystem fixtures of (f); every portable test of (c), (d) and (e) passes without manual deselection."
+  - id: A3
+    text: "Each portable fixture still fails when its behaviour breaks: checked once per changed test by breaking the asserted behaviour (for example letting the detached holder keep the pipes, or reading the whole binary file)."
+  - id: A4
+    text: "docs/testing/README.md names the Linux-only markers, reasons and non-blocking status of the two historical filesystem concerns."
+tests:
+  - command: "make test-runtime"
+    covers: [A1, A2, A3]
+  - command: "cd runtime && uv run --locked pytest -q -p no:randomly"
+    covers: [A2]
+  - command: make lint
+    covers: [A4]

@@ -1,0 +1,7 @@
+{
+  "name": "contractor-runtime-likec4",
+  "private": true,
+  "dependencies": {
+    "likec4": "1.56.0"
+  }
+}

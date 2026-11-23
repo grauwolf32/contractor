@@ -1,0 +1,2008 @@
+# Scanners
+
+Requirement prefix: `SCN` · [Specification index](../README.md)
+
+## Purpose and scope
+
+This document owns the deterministic scanning path of Contractor:
+
+- model-free tool Workers (`tool@1`): their `execution` bindings, model
+  absence, invocation receipts, reports, replay and failure handling;
+- the scanner Toolset `scan@1` and its adapters `scan_nuclei`, `scan_sqlmap`,
+  `scan_naabu` and `scan_ffuf`;
+- the SQLMap HTTP request artifact and the scanner wordlist artifact;
+- deterministic scan request preparation: RequestSet v1 and single-operation
+  preparation from an OpenAPI document, including the source-document bounds
+  that the OpenAPI authoring Toolset `openapi@1` shares;
+- deterministic scan planning: the `scan-plan@1` Planner, its plan, its
+  journal and its aggregate report.
+
+It leaves to other documents:
+
+- AgentTemplate fields, the `adk@1` model fields (absent in the `tool@1`
+  variant) and the ResolvedAgentTemplate projection and canonical digest that
+  embed `execution`: [AgentTemplates](../configuration/agent-templates.md).
+- RuntimeSettings, runtime labels, label merge, credentials, LLM Gateways and
+  the `tool-http` and `tool-subprocess` proxy routes:
+  [RuntimeConfig](../configuration/runtime-config.md).
+- Workflow input slots and slot media-type matching:
+  [Workflows](../configuration/workflows.md).
+- The common Toolset selection contract and tool allowlists:
+  [Toolsets](toolsets.md).
+- The reserved `memory.` and `tool-invocation.` artifact-name prefixes, exact
+  ArtifactRefs, scopes and input forks:
+  [ArtifactStore](../artifacts/artifact-store.md) (ART-R19 to ART-R23).
+- The `passthrough@1` Planner and the general Planner contract:
+  [Planners](../execution/planners.md).
+- Scheduler claims, Worker allocation, readiness, leases and placement:
+  [Scheduler](../execution/scheduler.md).
+- Runtime startup and the Runtime-side allocation lifecycle:
+  [Runtime Agent](../execution/runtime-agent.md).
+- WorkerCompletion, WorkerFailure and Worker State:
+  [Worker](../execution/worker.md).
+- The shared target policy: [Security](../platform/security.md).
+- The OpenAPI Audit scan adapter, including the fixed Nuclei URL target
+  (`scanplan.PrepareOperationTarget` and its `url-target` preparation identity) and the
+  Audit use of SQLMap requests: [Audit scans](../audits/scans.md).
+- Active-check classification and approval in Audits:
+  [Audits](../audits/audits.md).
+- Shared registries: [limits](../platform/limits.md),
+  [errors](../platform/errors.md),
+  [failure model](../platform/failure-model.md) and
+  [lifecycle](../platform/lifecycle.md).
+
+## Concepts
+
+Terms are defined once in the [glossary](../glossary.md).
+
+| Term | Meaning here |
+| --- | --- |
+| Tool Worker | A Worker whose AgentTemplate selects the model-free runtime `tool@1` and invokes one registered callable without a model. |
+| `execution` | The AgentTemplate block of a tool Worker that names the tool, its argument bindings, its report binding and its deadline. |
+| Argument binding | One entry of `execution.arguments` that takes its value from exactly one source: `parameter`, `artifact` or `literal`. |
+| Execution key | The SHA-256 of canonical JSON of `runId`, `stageExecutionId`, `logicalAgentName` and `subtaskId` that identifies one tool invocation. |
+| Invocation receipt | The Runtime-owned `tool-invocation.<hex-key>` artifact that records the phase of one tool invocation. |
+| Input digest | The digest of the template ref, resolved arguments and output bindings of one tool invocation. |
+| Tool Worker report | The bounded `application/json` artifact that carries a tool invocation's observation, with adapter-owned compact projections for separately published findings. |
+| ScanToolset | The `scan@1` Toolset exporting `scan_nuclei`, `scan_sqlmap`, `scan_naabu` and `scan_ffuf`. |
+| SQLMap request artifact | The six-field JSON description of one HTTP request that `scan_sqlmap` request mode accepts. |
+| Scanner wordlist | A `text/vnd.contractor.wordlist` (or `text/plain`) artifact holding one scanner payload per line. |
+| RequestSet | The bounded, versioned `application/vnd.contractor.http-requests+json` set of neutral prepared HTTP requests with exact source provenance and preparation gaps. |
+| Preparation gap | A `pointer` and fixed `code` recording source data that preparation omitted, ignored or could not use. |
+| Preparation digest | The digest that binds preparation policy, source, options, selected operation and mode. |
+| Concrete value | A value taken from an explicit binding or a document hint; preparation never invents one. |
+| Target list | A `text/vnd.contractor.target-list` artifact of nonempty target lines. |
+| Scan plan | The immutable `application/vnd.contractor.scan-plan+json` artifact that `scan-plan@1` builds from one input. |
+| Candidate | One possible (Worker, input) pairing in a scan plan, with its selection decision. |
+| Job | A selected candidate, executed as one tool Worker invocation. |
+| Scan session | The durable journal of a scan plan's job records, fenced by the Scheduler claim. |
+| Aggregate report | The Stage-level `application/json` report that references the plan and every per-job report. |
+
+## Model
+
+### Scanning path
+
+An OpenAPI operation can be prepared into a RequestSet in process; a RequestSet
+or target list Artifact supplied to a Run is planned and executed by
+`scan-plan@1` through fixed tool Workers.
+
+```mermaid
+flowchart LR
+    OAS["OpenAPI document bytes from an exact ArtifactRef"] --> PREP["Preparation library internal/scanplan: one selected operation"]
+    PREP --> RS["RequestSet v1"]
+    RSA["RequestSet Artifact"] --> PLAN["scan-plan@1: BuildPlan"]
+    TLA["Target list Artifact"] --> PLAN
+    RS -->|"Audit scan adapter"| PLAN
+    PLAN --> PA["Scan plan Artifact and derived SQLMap request Artifacts"]
+    PA --> SESSION["Durable scan session"]
+    SESSION -->|"jobs, sequentially"| TW["tool@1 Workers using scan@1"]
+    TW --> JR["Per-job reports"]
+    JR --> AGG["Aggregate report"]
+    PA --> AGG
+```
+
+### Tool Worker invocation
+
+```mermaid
+sequenceDiagram
+    participant W as Tool Worker (Runtime)
+    participant A as Artifact API
+    participant T as Callable (scanner adapter)
+    W->>W: Compute execution key and input digest
+    W->>A: Create tool-invocation receipt, If-None-Match, phase started
+    alt Receipt created
+        W->>T: Invoke with bound arguments under timeoutSeconds
+        T->>A: Read exact input Artifacts
+        T-->>W: status, optional errorCode, observation
+        W->>A: Verify additional artifact revisions
+        W->>A: Publish report, create-only
+        W->>A: CAS receipt to completed or failed
+    else Completed receipt with the same input digest
+        W->>A: Revalidate saved refs
+        W->>W: Publish fresh WorkerState, no tool or model call
+    else Started or malformed receipt
+        W->>W: tool_outcome_unknown, no launch
+    else Different input digest
+        W->>W: tool_input_conflict, no launch
+    end
+```
+
+### Scan job states
+
+A job record in the scan session moves through these states. A Worker outcome
+other than completion is classified by the Worker error code table.
+`completed`, `failed`, `unavailable`, `incomplete` and `unknown` are never
+silently restarted.
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending
+    pending --> started: durable transition before the Worker call
+    started --> completed: Worker outcome
+    started --> failed: Worker outcome
+    started --> unavailable: Worker outcome
+    started --> incomplete: Worker outcome
+    started --> unknown: new Scheduler claim
+    pending --> incomplete: ambiguous invocation outcome stops dispatch in the attempt
+```
+
+## Requirements
+
+### Tool Workers: template and arguments
+
+**SCN-R1.** `tool@1` invokes one registered callable without a model. It uses
+the ordinary Allocation, A2A, WorkerState, Artifact API and WorkerCompletion
+contracts.
+
+**SCN-R2.** A `tool@1` AgentTemplate accepts exactly one selected tool
+(LIM-SCN-1) and no Agent Skills, summarizer, instructions, ModelPolicy, custom
+completion contract or project workspace.
+
+**SCN-R3.** The `local-workdir@1` sandbox profile owns disposable scanner
+files.
+
+**SCN-R4.** `execution` is forbidden for runtimes other than `tool@1`. ADK
+requirements remain unchanged.
+
+**SCN-R5.** `execution` has exactly four required fields: `tool`, `arguments`,
+`resultArtifact` and `timeoutSeconds`.
+
+**SCN-R6.** `arguments` is an object with at most 32 keys (LIM-SCN-2). Argument
+names match `[A-Za-z_][A-Za-z0-9_]{0,63}` (LIM-SCN-3). Each binding selects
+exactly one source:
+
+| `source` | Required payload | Resolved value |
+| --- | --- | --- |
+| `parameter` | `name`, 1–128 non-whitespace characters (LIM-SCN-4) | The supplied `StageContentRequest.parameters` string, or explicitly parsed/defaulted value (SCN-R222) |
+| `artifact` | `name`, with the same bounds | The exact ArtifactRef object from `StageContentRequest.artifacts` |
+| `literal` | `value` | A non-null JSON string, boolean or finite number |
+
+**SCN-R7.** `name` is forbidden for `literal`, and `value` is forbidden for the
+other sources.
+
+**SCN-R8.** Literal strings are at most 8192 UTF-8 bytes (LIM-SCN-5). Numbers
+must be finite and, when integral, within the exactly representable integer
+range ±9007199254740991 (LIM-SCN-6).
+
+**SCN-R9.** There is no string interpolation or implicit JSON/type coercion.
+Only an explicit `parameter` binding's `parse: integer` performs conversion
+(SCN-R222); the public Run parameter mapping remains unchanged.
+
+**SCN-R10.** Numeric limits can be pinned as literals or supplied through an
+explicit integer parameter binding. Callable defaults apply to arguments absent
+from `execution.arguments`; parameter binding defaults follow SCN-R223.
+
+**SCN-R222.** A `parameter` binding may declare `parse: integer`. Supplied
+text must match the complete ASCII grammar `0|[1-9][0-9]*` and represent an
+integer from zero through 9007199254740991 (LIM-SCN-6). Validate its length
+before conversion. Signs, whitespace, leading zeroes, fractions, exponents and
+empty strings fail. Without `parse`, supplied strings pass through unchanged.
+The callable or scanner owns any narrower domain range.
+
+**SCN-R223.** A `parameter` binding may declare a non-null `default`. It is a
+string within LIM-SCN-5 without `parse`, or an exact nonnegative integer within
+LIM-SCN-6 with `parse: integer`. It applies only when the named parameter is
+absent; explicitly supplied empty/invalid text never selects it. A missing
+parameter without a default fails. Other sources forbid `parse` and `default`;
+explicit null, unknown options and unknown parsers fail strict decoding.
+
+**SCN-R224.** Server validates bound parameter projections at ordinary tool
+Workflow admission, and Runtime uses the same projection before strict callable
+validation. `scan-plan@1` retains ownership of generated per-job parameters.
+Neither projection modifies the supplied durable Run string map. Resolved
+arguments, including typed defaults, enter the ordinary tool input digest.
+Bindings remain bounded by LIM-SCN-2 and LIM-SCN-9; errors do not echo supplied
+values.
+
+**SCN-R11.** Artifacts remain refs for adapters to resolve, never local paths
+or model context.
+
+**SCN-R12.** `tool` must equal the one selected exported tool name.
+
+**SCN-R13.** `resultArtifact` names a versionless binding in
+`StageContentRequest.resultArtifacts` and is required for every call. Its
+target must be in the Worker's own namespace and cannot use the reserved
+`tool-invocation.` prefix ([ART-R23](../artifacts/artifact-store.md)).
+
+**SCN-R14.** Up to 16 additional result bindings (LIM-SCN-7) may be supplied
+for artifacts produced by the callable. They belong to the Worker's namespace,
+have names distinct from each other and from the report, and cannot use the
+`tool-invocation.` or `memory.` prefixes. Invalid additional bindings fail
+before invocation.
+
+**SCN-R15.** `timeoutSeconds` is an integer in 1–3600 (LIM-SCN-8). The Worker
+enforces it around the tool call, independently of the tool's own deadline.
+The required `StageContentRequest.deadline` ([WRK-R6](../execution/worker.md))
+is converted once to a monotonic deadline at invocation admission. New receipt
+creation and tool preparation/execution cannot outlive that deadline; the tool
+call uses the smaller remaining invocation budget and `timeoutSeconds`. Runtime
+checks expiry before creating a receipt, after its acknowledgement and after a
+call that returns without yielding to the deadline timer. Expired work launches
+no tool; in-flight expiry cancels and joins the tool before returning the
+nonretryable `tool_timeout`, without depending on best-effort A2A cancellation.
+The semantic timer closes before joining child cleanup, so it cannot interrupt
+cleanup of an externally cancelled invocation or relabel it as a timeout.
+
+**SCN-R16.** The bound arguments, artifact refs and output binding together are
+limited to 64 KiB of canonical JSON (LIM-SCN-9).
+
+**SCN-R17.** Unknown arguments, missing sources, wrong types or missing
+required arguments fail before invocation.
+
+**SCN-R18.** Runtime builds a strict input schema from the selected callable's
+annotations and defaults at allocation preparation.
+
+**SCN-R19.** The callable returns a JSON object with `status: completed|failed`
+and an optional fixed `errorCode`. Invalid, non-finite or oversized responses
+fail explicitly.
+
+**SCN-R20.** Runtime never interprets the objective or instructions as
+arguments and never chooses a different tool.
+
+### Tool Workers: model absence and placement
+
+How ResolvedAgentTemplate embeds `execution`, how its canonical digest covers
+it, and how model absence is carried through resolved execution config and
+AllocationSpec are specified in
+[AgentTemplates](../configuration/agent-templates.md).
+
+**SCN-R21.** RuntimeSettings permits an absent `llmGatewayUrl` and token, but
+AllocationSpec requires them for ADK and forbids them for `tool@1`.
+
+**SCN-R22.** Tool allocation provenance has no LLM Gateway or credential refs.
+
+**SCN-R23.** Template model absence and effective model absence are validated
+independently; omission does not relax model validation for ADK.
+
+**SCN-R24.** Workflow, Run and escalation execution patches that target a tool
+Worker cannot set a model policy, Gateway or model credential, including an
+explicit clear.
+
+**SCN-R25.** Shared Runtime labels may contain model routes for other Workers.
+Those leaves are irrelevant to `tool@1` and must be projected out before merge,
+catalog or credential lookup and adapter materialization.
+
+**SCN-R26.** Telemetry and applicable HTTP and proxy adapters retain their
+normal precedence and provenance for a tool Worker.
+
+**SCN-R27.** Selecting `tool@1` never requires a model catalog or key.
+
+**SCN-R28.** Tool and runtime capability matching and active-check
+classification apply to tool Workers as to other Workers; there is no fallback
+to ADK.
+
+**SCN-R29.** Stage-local parameter, artifact and output bindings are checked
+against the resolved execution contract when a Workflow is loaded.
+
+**SCN-R30.** The ordinary `passthrough@1` Planner
+([Planners](../execution/planners.md)) supplies single-call tool Worker
+scenarios and needs no model.
+
+### Tool Workers: receipt, report and replay
+
+**SCN-R31.** The execution key is the SHA-256 of canonical JSON containing
+`runId`, `stageExecutionId`, `logicalAgentName` and `subtaskId`.
+
+**SCN-R32.** The Worker's owned namespace stores a `tool-invocation.<hex-key>`
+`application/json` receipt, created with `If-None-Match` before tool launch
+(FAIL-SCN-1).
+
+**SCN-R33.** The input digest covers the template ref, the resolved arguments
+and the output binding, plus any additional result bindings. A changed input
+under the same execution key fails as `tool_input_conflict`. The objective and
+instructions and the request deadline do not affect execution identity.
+
+**SCN-R34.** The receipt provides delivery deduplication within one
+StageExecution; an explicitly new Run or StageExecution is new work.
+
+**SCN-R35.** A receipt starts with `schemaVersion` 1, `inputDigest` and phase
+`started`. Only its creator may launch the tool.
+
+**SCN-R36.** A terminal CAS update records phase `completed` or `failed`, an
+optional exact report ref, optional additional artifact refs and a fixed error
+code (FAIL-SCN-2, LIFE-SCN-1).
+
+**SCN-R37.** An existing `started` receipt means `tool_outcome_unknown`, and
+Runtime does not rescan. A receipt write with an ambiguous result also prevents
+launch.
+
+**SCN-R38.** An in-memory completed delivery returns the same WorkerCompletion.
+Receipt replay on another allocation publishes fresh local WorkerState with
+zero new tool or model calls and reuses the exact report and additional
+artifacts. Repeated delivery therefore reuses the durable report and never
+automatically repeats an unknown scan. This lookup and completed replay remain
+available after the request deadline: they do not launch semantic work. Receipt
+lookup and replay-reference verification each have a separate
+`requestTimeoutSeconds` budget; failure to establish a saved outcome remains
+`tool_outcome_unknown`. If no receipt exists after lookup, the original
+invocation deadline still applies without being reset.
+
+**SCN-R39.** Receipts contain no target, credentials or raw arguments.
+
+**SCN-R40.** An invocation that declares no additional result bindings
+computes its input digest and writes its receipt without any additional-binding
+fields.
+
+**SCN-R41.** The report is `application/json`, at most 512 KiB (LIM-SCN-10),
+and contains `schemaVersion` 1, `tool`, `inputDigest`, the exact
+`inputArtifacts` and the bounded tool response under `observation`. A scanner
+adapter projects separately selected normalized findings as specified in SCN-R264;
+the common Worker does not interpret provider fields.
+After ordinary publication the tool Worker may notify a generic optional report
+subscriber with the tool name and exact ref, including when the report describes
+a failed invocation. Subscriber failure never replaces the report or tool outcome;
+the caller joins cancellation. Allocation composition owns subscriber selection
+and cleanup. Structured sitemap imports are specified by
+[SMT-R22](../artifacts/project-sitemap.md) through [SMT-R25](../artifacts/project-sitemap.md).
+
+**SCN-R42.** Report publication is create-only to the supplied output binding.
+Runtime must not overwrite an existing report or infer its ownership by name
+(LIFE-SCN-2).
+
+**SCN-R43.** The callable may return an `observation.artifacts` object that
+maps additional declared slots to exact ArtifactRefs. A successful observation
+must include every additional declared slot; a failed observation may include a
+subset, so that an early tool failure can still publish its diagnostic report.
+
+**SCN-R44.** The `observation.artifacts` map is at most 8192 UTF-8 JSON bytes
+(LIM-SCN-11). Each ref must identify its declared namespace and name, include
+an immutable revision and exclude the primary report slot. Invalid output
+mappings fail as `tool_output_invalid`.
+
+**SCN-R45.** Before publishing success, Runtime verifies each exact revision
+through the Artifact API with a 16 MiB read bound (LIM-SCN-12). Inaccessible
+or mismatched published revisions fail as `tool_report_failed` (FAIL-SCN-3).
+
+**SCN-R46.** The receipt persists the validated refs, and WorkerCompletion
+returns them alongside the report for ordinary Workflow output propagation.
+
+**SCN-R47.** Completed receipt replay revalidates the declared refs and their
+availability. An invalid or unavailable saved ref produces
+`tool_outcome_unknown`, never a new tool call or a substitution of the latest
+mutable binding (FAIL-SCN-4).
+
+**SCN-R48.** Tool Worker completion and recovery follow this table
+(FAIL-SCN-5):
+
+| Event | Completion / recovery |
+| --- | --- |
+| Tool completes, report and receipt persist | Result with the report ref, `summarized=false` |
+| Tool reports `failed` | Publish the diagnostic report; nonretryable WorkerFailure |
+| Invalid input | `tool_input_invalid`, no process launch |
+| Tool exception / invalid output | `tool_execution_failed` / `tool_output_invalid` |
+| Tool or effective invocation deadline | `tool_timeout`; await tool cancellation and cleanup; an unacknowledged started receipt remains a no-rescan fence |
+| User cancel, lease loss, abort | Cancel the task and join child cleanup; a `started` receipt prevents a rescan if final persistence is fenced |
+| Report publication fails | `tool_report_failed`; no rescan; the receipt retains the failure if writable |
+| Terminal receipt persistence is ambiguous | `tool_outcome_unknown`; no success declaration or rescan |
+| Same key, same completed input | Replay the existing result and ref; no new tool call |
+| Same key, different input | `tool_input_conflict`; no launch |
+| Existing `started` or malformed receipt | `tool_outcome_unknown`; no launch |
+
+**SCN-R49.** Tool Worker failures use bounded fixed messages and
+`retryable=false`.
+
+**SCN-R50.** Reports may contain scanner evidence, including sensitive target
+data, under the normal artifact access rules. Metrics and receipts do not
+contain argument values or output.
+
+**SCN-R51.** Worker State revisions and tool counts are updated through
+WorkerStateStore. Model counters remain zero, and no ADK finalizer or
+summarizer is constructed. Report-reference verification plus report publication
+and the terminal receipt update each use their own `requestTimeoutSeconds`
+budget after semantic work settles; the expired invocation deadline does not
+cancel these writes or authorize another scan. An unconfirmed terminal write
+returns `tool_outcome_unknown` and leaves the durable fence authoritative.
+State admission and terminal State publication each have a five-second budget
+(LIM-SCN-93); repeated cancellation cannot interrupt the join or cancel the
+owned State task. Invocation ownership is retained until that task completes
+or its original budget expires, without restarting the budget. A failed State
+admission or terminal publication fences the Worker instead of returning
+success with an unclosed State; an externally requested cancellation remains
+cancellation even when that bounded State operation fails. A started receipt
+remains a no-rescan fence when final persistence is fenced.
+
+### Scan toolset
+
+**SCN-R52.** `scan@1` exports `scan_nuclei`, `scan_sqlmap`, `scan_naabu` and
+`scan_ffuf` through the explicit tool allowlist of [Toolsets](toolsets.md).
+`scan_ffuf` is independently selectable.
+
+**SCN-R53.** Every scanner operation declares the `runtime-subprocess-launcher`
+infrastructure channel.
+
+**SCN-R54.** Runtime startup probes each optional scanner executable
+separately, and only tools whose version commands succeed are advertised.
+Missing scanners do not prevent Runtime registration, and an empty ScanToolset
+is omitted. The Katana adapter advertises `scan_katana` only for successful
+version probes in the verified 1.7.x and 1.8.x release families; prereleases,
+malformed versions and unverified families are omitted independently of other
+scanners. Before admitting another release family, its real loopback adapter
+suite must verify origin isolation, redirect/form suppression, depth and page
+bounds, exact target export, timeout and transport-failure outcomes.
+
+**SCN-R55.** All four scanner operations are active checks for Audit
+compatibility.
+
+The scanner CLI contract and provisioning requirements are documented in the
+[Runtime README](../../../runtime/README.md#cli-scanners). `scan_sqlmap`
+request inputs follow [SQLMap HTTP request
+artifacts](#sqlmap-http-request-artifacts) and `scan_ffuf` wordlists follow
+[Scanner wordlist artifacts](#scanner-wordlist-artifacts).
+
+**SCN-R56.** Each standalone scanner Worker applies the shared target policy
+([Security](../platform/security.md)) to its target host before launching its
+scanner. A refusal is reported without an exit code as `scan_target_denied`,
+or as `scan_target_unresolved` when the host did not resolve; the policy
+decisions behind both are owned by [SEC-R78](../platform/security.md)
+(FAIL-SCN-6). With an engagement HTTP assignment, SCN-R259 replaces this
+pre-launch check with the shared transport's authoritative per-request admission.
+
+**SCN-R57.** No scanner result establishes the absence of a vulnerability:
+empty matches, an empty result list, an empty SQL-injection technique list,
+truncation, a completed process and a completed invocation never establish that
+a target is secure or free of vulnerabilities, or a negative SQL-injection
+result.
+
+**SCN-R254.** Scanner adapters keep blocking work off the Runtime event loop.
+Creating and removing the private per-invocation scratch directory (including
+the capability probe's), adapter preparation inside it, wordlist and request
+parsing, writing private scanner input files and projecting scanner output into
+the observation run in worker threads. Destination checks, Artifact reads and
+writes, process supervision and result publication stay awaited on the loop.
+An invocation submits a fixed number of worker threads, independent of its
+input and output size. Cancellation, the scan deadline and allocation close
+join each in-flight thread before scratch removal and before the allocation's
+scan lock is released, so no thread outlives the invocation; the deadline still
+yields `scan_timeout` and a stop still yields cancellation.
+
+**SCN-R255.** The `targets` output of `scan_katana` and the `template-manifest`
+that `scan_nuclei` publishes for a pinned installed package (SCN-R229) or a
+custom rulepack (SCN-R241) are create-only. Before launch, the adapter
+checks that the output name is free with a metadata read
+([ART-R116](../artifacts/artifact-store.md)) and never downloads an existing
+payload for this check. Only `404` admits the invocation; an existing binding
+fails as `scan_output_exists`, and any other read failure fails as
+`scan_artifact_unavailable`. Neither failure launches the scanner.
+
+### Nuclei under an engagement HTTP assignment
+
+**SCN-R259.** With an allocation HTTP assignment, `scan_nuclei` uses the
+allocation-owned HTTP transport through HTP-R148. The URL remains one explicit
+scan work item; it grants no authority beyond the selected engagement. Server
+and Runtime classify this supported path through its `runtime-http-client` and
+`runtime-subprocess-launcher` descriptor channels. A subprocess-only scanner
+remains uncontrolled and is refused in an engagement. The supported controlled
+engine is Nuclei v3.11.1, matching the provisioned engine. A different engine
+fails with `nuclei_selection_invalid` before target traffic; admit another
+version only after real proxy, cookie, retry and teardown conformance.
+
+**SCN-R260.** Controlled scans snapshot installed content even without an
+explicit package pin; custom rulepacks retain their exact Artifact source.
+Native filtering reads private inert copies containing only original ID/info
+and a normal HTTP placeholder. Original variables and DSL never reach native
+selection: variable unmarshalling may evaluate helpers even without a target.
+The adapter maps selected paths back into the verified original package and
+keeps its ordinary source manifest/digests. Controlled invocations publish
+create-only manifests under distinct ordinary binding names, so explicit
+subsequent calls can select other rules/credentials within the same allocation.
+It admits the selected normal HTTP
+subset and validates private execution copies before scanning. Those copies
+set `disable-cookie` and disable redirects; source bytes and provenance remain
+unchanged. The bridge also removes engine-added Cookie headers, including
+cookies retained by an explicit native jar despite `disable-cookie`.
+
+The admitted subset is structured HTTP methods/paths/headers/bodies, inline
+payload lists, normal matchers/extractors and the adapter's closed pure-helper
+allowlist. Raw/unsafe/pipeline/race HTTP, other protocols, flow/JavaScript,
+external payload files, OAST and impure or unknown helper functions fail before
+any target request. Parsing uses the existing bounded, duplicate-free YAML
+reader. Native validation remains responsible for Nuclei syntax. Unsupported
+features produce `nuclei_selection_invalid`, without an installed-rule fallback.
+
+**SCN-R261.** Optional `credential_id` has the existing Runtime credential ID
+grammar and 128-byte maximum. It selects only an exact credential assigned to
+this allocation; omission uses its anonymous session. A credential selector
+without an engagement or outside its assignment is invalid before scanner
+launch. Runtime injects credential values and keeps learned cookies by exact
+origin. Controlled templates cannot supply Cookie headers, or Authorization
+headers alongside a selected credential. Supplied private values and their
+HTTP authentication encodings are redacted from scanner diagnostics/results;
+proxy credentials stay in a private mode-0600 config file and never enter argv,
+environment, metrics or retained Artifacts. The ordinary scoped-Artifact policy
+for target observations remains SCN-R219.
+
+**SCN-R262.** Controlled Nuclei disables scanner retries and sets its native
+request rate to the engagement RPS when configured (zero otherwise). Template
+concurrency is at most five, further capped by configured concurrency and RPS;
+payload concurrency and target batch size are one. This paces request production
+before the proxy rather than relying on transport queueing. The shared transport
+remains authoritative for aggregate RPS, concurrency and body limits from the
+engagement (HTP-R145), together with
+ordinary HTTP framing/buffering bounds. Thus HTTP tools and Nuclei consume the
+same allocation allowance. An omitted engagement limit stays absent. The
+`rate_limit` argument continues to configure standalone scans; controlled scans
+report `httpLimits` and use the engagement instead. Native redirect following
+is disabled; every actual request is admitted separately. Native template/payload
+scheduling does not create another target quota. Pre-send GET/HEAD/OPTIONS
+retry belongs only to the shared transport under HTP-R139.
+
+**SCN-R263.** A refused proxy exchange, failed request or truncated response
+makes the scan fail even when Nuclei exits zero or has earlier matches. Scope
+refusal uses `scan_target_denied`; other controlled HTTP failures use
+`scan_request_failed`. Unsupported source/engine features use the existing
+Nuclei selection diagnostic. None authorize an automatic write replay. The
+whole invocation, including preparation, process, output handling and bridge,
+is owned by the allocation HTTP lifecycle (HTP-R149). Process and per-request
+deadlines remain independently bounded; ordinary tool Worker receipts and
+report publication retain their ownership.
+Expiry of the total scan deadline yields `scan_timeout` even when the bridge
+or delegated HTTP timeout settles before the outer scanner timer. A shorter
+per-request timeout that settles before the scan deadline remains
+`scan_request_failed`; target denial and other request failures keep their
+own classifications.
+
+### Pinned installed Nuclei web scans
+
+**SCN-R225.** User-facing target scanning belongs to the Project's ordinary
+`web-scan@1` Audit, whose `audit-web-nuclei-scan@1` Workflow executes one
+explicit target without a model or OpenAPI input. Target, filter parameters and engagement
+and optional exact Project rulepack are baseline inputs; ASC-R151 to ASC-R153
+own admission, authority and result collection. The primary catalog has no
+standalone `nuclei-web` launcher. Generic tool Workflows remain available.
+The adapter deadline is 300 seconds and Worker deadline 330 seconds for
+publication. Shared scanner-owned fixtures define URL, filter, severity and
+rate grammar; inputs are not rewritten in the retained Run.
+
+**SCN-R226.** The AgentTemplate pins the installed package using a literal
+`templates_digest` (`sha256:` and 64 lowercase hexadecimal characters), covered
+by its resolved digest, the Run snapshot and invocation input digest. The
+shipped pin covers the complete Ansible-provisioned nuclei-templates v10.5.0
+release archive. A changed installation requires a matching authored literal
+for new Runs. Existing direct/Audit adapters may omit the pin; they retain
+explicitly unpinned installed-rule semantics. No caller substitutes a local
+package for a supplied mismatching pin (FAIL-SCN-12).
+
+**SCN-R227.** Canonical package identity is SHA-256 of RFC 8785 JSON
+`{"schemaVersion":1,"files":[{"path":...,"digest":...,"size":...},...]}`.
+Each path is package-relative with `/` separators; records sort by UTF-8 path
+bytes. Include every regular file, including helper resources and engine ignore
+files, without extension filtering, except the package-root entry named `.git`.
+Exclude that entry and all its descendants from copying, hashing and package
+bounds without opening or following it; this includes Git worktree marker files
+and links. Nested entries named `.git` remain ordinary package content. All
+other symlinks and special files fail. Bound the package to 50000 files,
+512 MiB aggregate and 16 MiB per file (LIM-SCN-69 to
+LIM-SCN-71); directory traversal admits at most 100000 entries, depth 64 and
+1024 UTF-8 path bytes (LIM-SCN-73 to LIM-SCN-75). Reject empty packages. The
+canonical package/provenance JSON is at most 16 MiB (LIM-SCN-72).
+
+**SCN-R228.** Before pinned scanning, Runtime copies and hashes the installation
+content defined by SCN-R227 into a private per-invocation directory using
+link-refusing opens,
+regular-file checks and streaming count/byte limits. Copying, hashing and
+selected-template manifest assembly run off the event loop and consume the
+scanner preparation deadline. Scanning reads only verified private bytes,
+including relative helper resources; subsequent changes to the installation
+cannot change them. Replacement allocations verify the same pin again.
+Cancellation/close joins copy threads and all subprocesses before scratch
+removal (LIFE-SCN-7).
+
+**SCN-R229.** With the verified private package and the same HTTP/ID/tag/severity
+filters, Runtime invokes the engine's bounded local `-tl` selection before the
+scan. Every selected path must resolve inside that manifest and name a YAML
+file with a top-level scalar Nuclei ID (plain or quoted ASCII ID). Empty,
+duplicate, escaping or malformed selections fail as `nuclei_selection_invalid`.
+The installed engine's version probe must yield a version and finish within two
+seconds and the remaining preparation budget. Runtime publishes create-only
+`template-manifest` in the scanner Namespace before target scanning. Schema
+version 2 always contains `packageDigest`, `engineVersion`,
+`selectedTemplateCount` and a source kind. For the installed package, the
+manifest contains only its one verified `packageDigest` content hash, not a
+per-Run copy of the package inventory or selected template records. For an
+owner rulepack, it also contains the exact source ArtifactRef and source
+content digest, all verified file records, and selected templates with
+ID/path/content digest/size. Publication ambiguity or failure stops before
+scanning; existing receipt semantics prevent another invocation.
+
+**SCN-R230.** Nuclei publishes its internal template manifest as
+`application/vnd.contractor.nuclei-manifest+json`. It exposes the exact reference
+in its report without declaring another Worker result slot. The bounded ordinary
+report contains expectedPackageDigest, actualPackageDigest when computed,
+engineVersion when known, selectedTemplateCount, resolved filters/rateLimit and
+the exact templateManifest ArtifactRef. The separate manifest carries compact
+installed-package provenance or detailed owner-rulepack provenance and follows
+ordinary Run retention/purge. The installed package digest is computed from
+every verified file record (SCN-R227); the report's filters and engine version
+describe its selection without duplicating thousands of records in each Run.
+Reports remain bounded by SCN-R41; additional revision verification follows
+SCN-R45.
+
+**SCN-R231.** Missing installed content yields `nuclei_templates_unavailable`;
+invalid/unbounded package content yields `nuclei_package_invalid`; a differing
+computed digest yields `nuclei_package_mismatch`. These fixed nonretryable
+preparation diagnostics launch no target scan. Mismatch reports retain both
+expected and actual digests. `scan-plan@1` classifies invalid packages, mismatch
+and invalid selection as incomplete through the shared outcome table. Timeout,
+process/output failure, cancellation and ambiguous receipt delivery retain their
+existing outcomes; none implies a clean scan or automatic rescan (FAIL-SCN-12).
+
+**SCN-R232.** Retired: independent client scan orchestration was removed.
+
+**SCN-R233.** Retired: local scan manifests were removed.
+
+**SCN-R234.** Retired: client fan-out bounds were removed.
+
+**SCN-R235.** Retired: client scan recovery was removed; ordinary Audit keys own replay.
+
+**SCN-R236.** Retired: scan manifest persistence and locking were removed.
+
+**SCN-R237.** The required production-process gate exercises the shipped Web
+scan Audit through real Server, Scheduler, Runtime and Artifact collection with
+a deterministic scanner fixture. It proves installed/custom rules, exact
+accepted inputs after source edits, active-check approval, create/start replay,
+ordinary child cancellation, bounded failures and retained results after Run
+deletion. A separate explicit gate retains real installed Nuclei smoke coverage.
+A zero-test or skipped acceptance selection is not a pass.
+
+### Owner-uploaded custom Nuclei rulepacks
+
+**SCN-R238.** `scan_nuclei` accepts optional `rulepack_ref`, an exact
+visible RunScope ArtifactRef. An absent binding selects installed mode; a
+supplied invalid/inaccessible pack fails without fallback. An ordinary tool Workflow's
+optional `rulepack` input may declare `sourceScope: user`; trusted Run admission
+derives its UserScope from the authenticated owner even for Project Runs,
+validates media/size and forks the exact source to `inputs/rulepack` in the
+same create transaction. No request selects a scope ID. Other Project inputs
+remain ProjectScope inputs. Runtime receives only RunScope authority.
+
+**SCN-R239.** A pack is one UTF-8 HTTP template with `application/yaml`, or a
+flat archive with `application/vnd.contractor.nuclei-rulepack+zip`. ZIP input
+is at most 16 MiB; expanded content is at most 64 MiB, 1000 files and 1 MiB
+per file (also the single-YAML limit; LIM-SCN-81 to LIM-SCN-84). Only stored
+or deflated regular `.yaml`/`.yml` files are accepted. Reject directories,
+links, escapes, special files, encryption, split/ZIP64/SFX/appended archives,
+unsupported entries, duplicate IDs and duplicate or Unicode/case-fold-colliding
+names. Names contain at most 128 UTF-8 bytes, no leading dot, surrounding
+whitespace, separators, colon or controls (LIM-SCN-85). ZIP entry preflight and
+streaming expansion enforce limits before unbounded allocation or writes.
+The encoded media/size predicate is owned by `contracts/scan` and shared
+fixtures cover Run, Audit admission/dispatch, UI and Runtime checks.
+Metadata admits zero bytes; content validation separately rejects an empty pack (SCN-R240).
+The predicate grants no source authority: ordinary Workflow admission uses
+SCN-R238's per-slot scope, Project Audit admission uses its exact Project inputs
+(ASC-R152), and Runtime reads only the forked RunScope input.
+
+**SCN-R240.** Parse every template, rejecting duplicate/non-string YAML
+mapping keys, aliases, anchors, explicit tags, multiple documents, invalid IDs,
+missing/empty HTTP requests and other protocol templates. Bound YAML to
+100000 tokens and depth 64 (LIM-SCN-86, LIM-SCN-87). Off-loop private extraction,
+validation, hashing and manifest assembly share the scanner deadline. Native
+Nuclei `-validate` validates the complete private pack before filters or target
+scanning; a single invalid file rejects the whole pack as
+`nuclei_rulepack_invalid`. Unavailable Artifact reads use
+`scan_artifact_unavailable`; validation never silently falls back or retries
+(FAIL-SCN-14).
+
+**SCN-R241.** Custom mode works without an installed template directory and
+exclusively supplies private pack bytes to validation, selection and scanning.
+It overrides the installed package pin without adding installed rules. Apply
+ordinary ID/tag/severity selection within the pack. Canonical package identity
+and the create-only manifest follow SCN-R227 and SCN-R229; the manifest additionally
+records `source` with kind `rulepack`, exact Run input ArtifactRef and raw source
+contentDigest. The report records source `rulepack`, rulepackArtifact,
+sourceContentDigest and actualPackageDigest. Source advancement cannot change
+a Run's fork or invocation bytes. Purge removes the Run fork and manifest,
+independently of the owner source (LIFE-SCN-9).
+
+**SCN-R242.** Custom rules are trusted owner-controlled content. Ordinary
+supplied-target validation, no proxy, disabled OAST and HTTP-only selection
+remain enforced. Isolation of template-controlled request destinations is an
+accepted non-goal owned by the operator; reconsider before accepting untrusted
+or shared rulepacks. Pack size, structure, source scope and provenance remain
+strictly enforced. No arbitrary scope/owner selection is added.
+
+**SCN-R243.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
+
+**SCN-R244.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
+
+**SCN-R245.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
+
+**SCN-R246.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
+
+**SCN-R247.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
+
+**SCN-R248.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
+
+**SCN-R249.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
+
+**SCN-R250.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
+
+**SCN-R251.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
+
+**SCN-R252.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
+
+### SQLMap HTTP request artifacts
+
+**SCN-R58.** `scan_sqlmap(request_ref=...)` accepts one prepared HTTP request
+as an exact ArtifactRef containing `namespace`, `name` and `revision`. The
+allocation's Artifact client resolves the ref under its normal access and
+visibility rules; the caller cannot supply a local request-file path.
+
+**SCN-R59.** The request artifact's media type must be `application/json` or
+`application/vnd.contractor.http-request+json`.
+
+**SCN-R60.** An inaccessible artifact, a wrong media type or an invalid request
+fails before scanner launch with a fixed diagnostic that omits the supplied
+request data (FAIL-SCN-7).
+
+**SCN-R61.** The request artifact is a UTF-8 JSON object with exactly the six
+required fields below. Duplicate JSON keys, extra fields, nulls and implicit
+type conversions are rejected.
+
+| Field | Version 1 contract |
+| --- | --- |
+| `schemaVersion` | Integer `1`. |
+| `method` | One of `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, in uppercase. |
+| `url` | Absolute ASCII `http://` or `https://` URL, including any query string and explicit port. No embedded credentials, fragment, whitespace, backslash or malformed percent escape. |
+| `headers` | Array of objects with exactly `name` and `value` string fields; an empty array is allowed. Header names are unique case-insensitively. |
+| `body` | UTF-8 text string; use `""` for an empty body. It is not decoded from base64 or coerced from a JSON object. |
+| `testParameters` | Nonempty array of distinct explicit parameter names passed to sqlmap's `-p`. Each matches `[A-Za-z0-9_][A-Za-z0-9_.\[\]-]*`. Runtime does not choose parameters or infer a request from an OpenAPI document. |
+
+**SCN-R62.** A request artifact must satisfy these bounds:
+
+| Bound | Value | Limit |
+| --- | --- | --- |
+| Request artifact | 256 KiB | LIM-SCN-13 |
+| UTF-8 body | 64 KiB | LIM-SCN-14 |
+| URL | 8192 bytes | LIM-SCN-15 |
+| Input headers | 64 | LIM-SCN-16 |
+| Header name | 128 bytes | LIM-SCN-17 |
+| Header value | 8192 bytes | LIM-SCN-18 |
+| Serialized headers, including synthesized headers | 32 KiB | LIM-SCN-19 |
+| Test parameters | 64 | LIM-SCN-20 |
+| One test parameter | 128 bytes | LIM-SCN-21 |
+
+**SCN-R63.** Header names use HTTP token characters, and header values are
+printable ASCII without leading or trailing whitespace.
+
+**SCN-R64.** A supplied `Host` must match the URL authority and explicit port
+case-insensitively. A supplied `Content-Length` must be the decimal UTF-8 body
+length. Runtime adds either header when it is absent.
+
+**SCN-R65.** A `Content-Type` charset, if present, must be `utf-8` or `utf8`
+and appear once.
+
+**SCN-R66.** `Authorization`, `Cookie` and custom headers can be supplied.
+Encoding, connection and conditional headers that sqlmap cannot preserve are
+rejected: `Connection`, `Content-Encoding`, `Expect`, `If-Modified-Since`,
+`If-None-Match`, `Keep-Alive`, `Proxy-Connection`, `TE`, `Trailer`,
+`Transfer-Encoding` and `Upgrade`.
+
+**SCN-R67.** The body text subset excludes carriage returns and other
+characters below U+0020 except tab and line feed. A body may contain internal
+line feeds but cannot end with a line feed or a final whitespace-only line,
+because sqlmap's reader would change those representations. Binary bodies and
+non-UTF-8 charsets are unsupported.
+
+**SCN-R68.** Literal `*` injection markers in the URL, body or headers are
+rejected; `Accept: */*` is permitted. The scanner request-file delimiters
+`==========` and `### Conversation`, and the case-insensitive `<request
+base64=`, `%INJECTHERE%`, `%INJECT_HERE%` and `%INJECT HERE%`, are also
+rejected.
+
+Rationale: these restrictions keep one artifact from becoming multiple requests
+or an implicit injection-marker selection.
+
+**SCN-R69.** Runtime serializes an absolute-form HTTP/1.1 request line, the
+validated headers and the UTF-8 body into `request.http`. The absolute URL
+retains HTTPS and any explicit port.
+
+**SCN-R70.** `request.http` is created exclusively with mode `0600` under a
+private per-call directory and passed through `-r`, together with an explicit
+`--method`, `--encoding=utf-8` and the selected `-p` names.
+
+**SCN-R71.** `--skip-waf` disables automatic WAF probes that would add
+unselected query parameters. Redirects and response-driven cookie replacement
+are disabled.
+
+**SCN-R72.** Artifact retrieval and file materialization share the scanner
+deadline. Completion, timeout, cancellation and allocation close remove the
+temporary request and output files; child cleanup is joined before deletion
+(FAIL-SCN-7, LIFE-SCN-3).
+
+**SCN-R73.** Request mode cannot be combined with nonempty `url`, `parameter`,
+`data` or `cookie` arguments. Without `request_ref`, URL mode remains
+available.
+
+**SCN-R74.** Both modes accept `level` (1–5, default 1) (LIM-SCN-22), `risk`
+(1–3, default 1) (LIM-SCN-23) and `timeout_seconds` (1–3600, default 300)
+(LIM-SCN-24).
+
+**SCN-R75.** Request mode does not accept additional CLI options and does not
+enable dumping databases or executing commands.
+
+**SCN-R76.** Request-mode observations retain the process `status`, `exitCode`,
+`errorCode`, duration and truncation fields and add the exact `requestArtifact`
+ref.
+
+**SCN-R77.** In request mode `stdout` and `stderr` are empty and
+`diagnosticsRedacted` is `true`, because arbitrary scanner diagnostics can
+reveal headers, credentials or body data.
+
+**SCN-R78.** `injectionTechniques` contains only recognized fixed labels:
+`boolean-based blind`, `error-based`, `inline query`, `stacked queries`,
+`time-based blind` and `union query`. `injectionOutcome` is `reported` when at
+least one such label is found and `unknown` otherwise.
+
+**SCN-R79.** A `tool@1` Worker binds `request_ref` using `{source: artifact,
+name: request}`.
+
+The [SQLMap Workflow fixture](../../../configs/scan/README.md#sqlmap-request)
+supplies the required input slot and a complete upload and run example.
+
+### Scanner wordlist artifacts
+
+**SCN-R80.** `text/vnd.contractor.wordlist` identifies a UTF-8 list of scanner
+payloads, one payload per line. A wordlist input slot also accepts
+`text/plain`, so an ordinary uploaded `.txt` file can be reused without
+rewriting its contents.
+
+**SCN-R81.** The semantic media type describes the input; it does not replace
+byte-level validation or create a separate storage service.
+
+**SCN-R82.** The usual UserScope and ProjectScope upload and the exact RunScope
+input fork ([ArtifactStore](../artifacts/artifact-store.md)) apply to
+wordlists.
+
+**SCN-R83.** `scan_ffuf` accepts an exact `wordlist_ref` with `namespace`,
+`name` and `revision` and reads it using the allocation-bound Artifact client.
+It rejects versionless, inaccessible, hidden or wrong-media-type refs before
+process launch (FAIL-SCN-8).
+
+**SCN-R84.** A caller cannot supply a host path, an input command or multiple
+lists.
+
+**SCN-R85.** The wordlist's bytes remain in the Artifact plane and private
+scanner scratch; binding the ref does not place the full list into a model
+prompt.
+
+**SCN-R86.** The source artifact is at most 1 MiB (LIM-SCN-25), the list at
+most 10,000 payloads (LIM-SCN-26) and each payload at most 4096 UTF-8 bytes,
+excluding its line delimiter (LIM-SCN-27).
+
+**SCN-R87.** UTF-8 decoding is strict. A leading UTF-8 byte-order mark,
+malformed UTF-8, a bare carriage return, C0 controls other than line delimiters
+(tab included) and DEL are rejected.
+
+**SCN-R88.** LF and CRLF delimit lines, and CRLF is normalized to LF in the
+private scanner file. Unicode NEL and the line and paragraph separator
+characters are payload characters, not delimiters.
+
+**SCN-R89.** The reserved literal `FFUFHASH` is rejected in payloads and target
+URLs, because ffuf can replace it with an internal value outside the supplied
+wordlist.
+
+**SCN-R90.** Payload order, duplicate lines, blank lines, leading and trailing
+spaces and `#` characters are preserved. Runtime performs no trimming, comment
+interpretation, deduplication or placeholder expansion.
+
+**SCN-R91.** A final LF or CRLF terminates the final payload and does not
+create another empty payload. An additional blank line does represent an empty
+payload:
+
+| Source bytes | Payloads |
+| --- | --- |
+| Empty file | Invalid: no payloads. |
+| `a` or `a\n` or `a\r\n` | One payload, `a`. |
+| `\n` | One empty payload. |
+| `a\n\n` | `a`, then one empty payload. |
+| ` a \n#entry\na\na\n` | ` a `, `#entry`, `a`, `a`, unchanged and in order. |
+
+**SCN-R92.** Validation finishes before launch. Runtime creates the normalized
+wordlist exclusively with mode `0600` in its private per-invocation directory.
+
+**SCN-R93.** Artifact retrieval, validation and execution share the scan
+deadline. Completion, timeout, cancellation and allocation close remove the
+list and scanner scratch after joining child cleanup (FAIL-SCN-8, LIFE-SCN-4).
+
+### ffuf invocation and results
+
+**SCN-R94.** `scan_ffuf(url, wordlist_ref, ...)` requires an absolute ASCII
+HTTP(S) URL without credentials, a fragment, whitespace or malformed percent
+escapes.
+
+**SCN-R95.** At least one `FUZZ` must appear in the URL's path or query; a
+marker in the authority is rejected. One wordlist replaces all `FUZZ`
+occurrences.
+
+**SCN-R96.** Payloads are passed to ffuf unchanged after newline normalization.
+ffuf's normal URL handling applies when it constructs HTTP requests, so
+wordlist bytes are not promised to be the literal encoded bytes on the wire.
+
+**SCN-R97.** `scan_ffuf` accepts these arguments:
+
+| Argument | Contract |
+| --- | --- |
+| `rate` | Standalone payloads per second, integer 1–1000; default 10 (LIM-SCN-28). Controlled execution uses SCN-R268. |
+| `timeout_seconds` | Total artifact-read, preparation and scan deadline, integer 1–3600 seconds; default 300 (LIM-SCN-29). |
+| `match_status` | HTTP status codes or ordered ranges to include; default `all`. |
+| `filter_status` | HTTP status codes or ordered ranges to exclude; default empty. |
+| `filter_size` | Response byte counts or ordered ranges to exclude; default empty. |
+| `filter_words` | Response word counts or ordered ranges to exclude; default empty. |
+| `filter_lines` | Response line counts or ordered ranges to exclude; default empty. |
+| `credential_id` | Optional exact assigned engagement credential; omission selects anonymous access (SCN-R268). |
+
+**SCN-R98.** Filters (`match_status`, `filter_status`, `filter_size`,
+`filter_words` and `filter_lines`) are comma-separated numbers or ranges, each
+with at most 64 entries (LIM-SCN-30) and 1024 ASCII bytes (LIM-SCN-31), and at
+most ten digits per number (LIM-SCN-32). Status values are 100–599
+(LIM-SCN-33); byte, word and line counts are 0–1000000000 (LIM-SCN-34).
+
+**SCN-R99.** `all` is accepted only for `match_status`, which cannot be empty.
+Exclusion filters combine using ffuf's OR semantics. No regex or arbitrary
+flags are accepted.
+
+**SCN-R100.** Runtime invokes a fixed GET operation with one thread
+(LIM-SCN-35), a ten-second standalone HTTP timeout (LIM-SCN-36) and no shell. Redirect
+following, recursion, auto-calibration, comment removal, external input
+commands and additional wordlists are not enabled.
+
+**SCN-R101.** A configured `tool-http` or `tool-subprocess` proxy route
+([RuntimeConfig](../configuration/runtime-config.md)) fails with
+`scan_proxy_unsupported` (FAIL-SCN-8).
+
+**SCN-R102.** Standalone ffuf may retry a failed HTTP request once (LIM-SCN-68) without
+another rate-limiter tick. `rate` therefore controls payload scheduling, not a strict
+cap on physical HTTP requests; the retry remains within the overall Runtime
+deadline.
+
+**SCN-R268.** With an allocation HTTP assignment, `scan_ffuf` uses the same
+private bridge and transport as HTTP tools under HTP-R148–149. Its controlled
+engine is provisioned ffuf 2.3.0; a different reported version fails with
+`scan_proxy_unsupported` before target traffic. Standalone probing and execution
+remain unchanged. The fixed GET/wordlist/filter surface of SCN-R94–100 remains;
+no native preflight/postflight, replay proxy, redirects, additional headers,
+cookies, arbitrary config or command options are exposed.
+
+The bridge capability is written only to a mode-0600 scratch TOML file. An
+explicit `credential_id` must belong to the allocation and is invalid without
+an engagement, before scanner launch. Runtime owns exact-origin credential
+injection, cookie state, DNS admission and target TLS verification. Scanner
+output uses existing private-value redaction and bounded report projection.
+Native single-threaded scheduling uses the assigned RPS, or zero when absent;
+the allocation transport remains authoritative for shared HTTP limits. The
+report records `httpLimits` only for controlled execution. The ordinary strict
+ffuf sitemap report adapter accepts these same typed limits without adding
+them to surface metadata or interpreting credentials.
+
+The native request timeout equals the invocation budget, so it cannot introduce
+an earlier scanner timeout/retry over an in-flight controlled request. The
+transport's own request deadline and the original invocation deadline still
+bound execution. ffuf has an unconditional native retry after transport errors;
+the first failed bridge exchange closes that invocation's target authority
+before any further request, including on another proxy connection. Its process
+is cancelled and joined through the existing owner. Only the shared transport
+may make the proven pre-send retry permitted by HTP-R139. Refused, failed or
+truncated exchanges fail the scan even if native output reports success;
+earlier valid matches remain observations, never an automatic Finding.
+
+Boundary decision: native ffuf substitutes payloads and filters responses;
+the existing allocation owner enforces networking and lifecycle. This uses the
+shared failure fence rather than an ffuf request journal or patched scanner.
+Revisit the admitted version or timeout arrangement only after actual-engine
+proxy, TLS, retry, credential and termination conformance.
+
+**SCN-R103.** The JSONL output is projected to at most 100 matches (LIM-SCN-37)
+and 128 KiB of encoded match data (LIM-SCN-38). Each match contains the decoded
+`input.FUZZ`, its one-based `position`, HTTP `status`, response `length`,
+`words`, `lines`, `url`, `durationNs`, `contentType` and `redirectLocation`.
+
+**SCN-R104.** Payloads in matched results are visible in the report; the
+complete input file and arbitrary scanner output are not. Raw `stdout` and
+`stderr` are empty, with `diagnosticsRedacted: true`.
+
+**SCN-R105.** The observation includes the exact `wordlistArtifact`,
+`wordlistEntries`, `payloadsAttempted`, `requestErrors`, `scanComplete`,
+`resultsTruncated` and `invalidResultLines`, alongside the process status and
+exit code and the output limit and truncation fields. Request and error counts
+are null when no progress was observed.
+
+**SCN-R106.** `payloadsAttempted` counts scheduled wordlist entries, excluding
+ffuf's internal retries; `requestErrors` counts final failures after retry.
+
+**SCN-R107.** A scan is complete only after a successful process, valid output
+and final progress confirming that all wordlist entries were attempted with
+zero request errors.
+
+**SCN-R108.** Because ffuf can exit zero despite HTTP transport failures,
+`scan_request_failed` reports request errors, `scan_incomplete` reports missing
+or incomplete progress and `invalid_scanner_output` reports malformed results.
+Timeout, process failure and output overflow retain their own error codes
+(FAIL-SCN-8).
+
+**SCN-R109.** Result truncation is independent of whether the scan completed.
+
+### Scan request preparation
+
+**SCN-R110.** The preparation library `internal/scanplan` prepares one assigned
+OpenAPI operation from an exact Artifact input. It performs no network
+requests, scanner execution, credential lookup or model calls, and it neither
+fetches references nor dispatches scans.
+
+**SCN-R111.** The caller supplies bytes read from an authorized exact
+ArtifactRef; the library validates the ref and records a SHA-256 digest of the
+supplied bytes. The caller remains responsible for matching those bytes to the
+selected revision.
+
+The production caller is the OpenAPI Audit scan adapter ([Audit
+scans](../audits/scans.md)), which prepares SQLMap requests or fixed Nuclei
+targets with `AuditSelection.PrepareOperations` when it builds the inventory
+(SCN-R256) and with `AuditSelection.PrepareOperation` when it reproduces one
+accepted task.
+
+**SCN-R220.** The `request-set-scan@1` Workflow consumes a separately supplied
+valid RequestSet Artifact; scanner selection and dispatch belong to [scan
+planning](#scan-planning).
+
+#### RequestSet v1
+
+**SCN-R112.** `application/vnd.contractor.http-requests+json` carries a
+bounded, versioned RequestSet with exact source provenance, deterministic
+request IDs and explicit preparation gaps. Its normative JSON schema and
+fixture live in [api/scan/v1](../../../api/scan/v1/README.md).
+
+**SCN-R113.** A RequestSet contains `schemaVersion: 1`, `source` (the exact
+`artifact` and `contentDigest`), `preparationDigest`, `requests`, `gaps` and
+`coverage`. Arrays are always present, including when empty.
+
+**SCN-R114.** Each entry contains `id`, `contentDigest`, a `request` and sorted
+unique `origins`. A request contains `method`, `url`, `headers` and a UTF-8
+text `body`. Headers use lowercase names, sorted by name; duplicates are
+forbidden. An origin contains the operation's JSON Pointer, such as
+`#/paths/~1pets~1{id}/get`.
+
+**SCN-R115.** The request digest is the SHA-256 of the RFC 8785 canonical JSON
+of the request alone, formatted `sha256:<64 lowercase hex digits>`. The entry
+ID is `request-<same hex>`. Provenance and gaps do not change the identity of
+the HTTP request.
+
+**SCN-R116.** The entry that operation preparation returns, if any, has the
+selected operation as its origin.
+
+**SCN-R117.** RequestSet entries are neutral prepared HTTP inputs: they do not
+choose SQLMap test parameters or declare scanner eligibility. A later planner
+must select parameters explicitly and construct the six-field single-request
+artifact (SCN-R61), including its additional scanner-specific validation.
+Passing a RequestSet entry directly to SQLMap is not supported.
+
+**SCN-R118.** The preparation digest binds policy version 2, the exact source
+ref and bytes, the input media type, the normalized preparation options, the
+selected operation and the `request` mode.
+
+**SCN-R119.** RequestSet artifacts can contain credentials and private example
+data. Neither their canonical bytes nor option values belong in logs.
+Diagnostic codes contain no supplied values; JSON Pointers identify source
+locations, not resolved values.
+
+**SCN-R120.** `coverage.operations` counts the selected path operation;
+`prepared` is one when its request is retained, and `skipped` is their
+difference. `complete` requires zero skipped operations and zero gaps.
+`complete` describes extraction under the documented one-sample policy; it does
+not certify schema validity, exhaustive API coverage or the security of a
+target.
+
+**SCN-R121.** Gaps contain `pointer` and a fixed `code`, sorted by pointer then
+code and deduplicated.
+
+**SCN-R122.** Invalid source documents or options return a fixed preparation
+error; they never return a successful empty RequestSet.
+
+#### Input and selection policy
+
+**SCN-R123.** Preparation policy 2 accepts OpenAPI 3.0.x and 3.1.x, as JSON or
+YAML (`application/json`, `application/yaml`, `application/x-yaml`,
+`text/yaml`). Other OpenAPI versions are rejected explicitly.
+
+**SCN-R124.** The JSON or YAML source must contain one UTF-8 mapping with
+string member names and no duplicate member names, YAML anchors, aliases or
+merge keys, tags other than the core tags, nonfinite numbers or numbers outside
+the exact integer range of IEEE 754 doubles (LIM-SCN-67). YAML reads under one
+scalar and key rule, which `internal/helpers/documentyaml` implements for preparation
+and for the `openapi-operations@1` inventory
+([audits](../audits/audits.md), AUD-R143) and which the OpenAPI authoring
+Toolset `openapi@1` ports (SCN-R257). An untagged plain scalar resolves as
+go-yaml v4 resolves it: `true`, `True`, `TRUE`, `false`, `False` and `FALSE`
+are booleans; `~`, `null`, `Null`, `NULL` and the empty scalar are null;
+`0o17`, `017`, `0x1F`, `0b101`, `1_000` and `1e3` are numbers; `yes`, `no`,
+`on`, `off`, `y`, `n` and `1:30` are strings; and a plain date such as
+`2023-01-01` keeps its source text. A plain scalar spelled like a number that
+does not resolve to a number within those bounds, such as
+`0x10000000000000000`, rejects the document rather than reading as a string.
+Quoted and block scalars are strings. A plain mapping key is the string of its
+source text, whatever it would resolve to, so `200:` names the member `"200"`
+and `0o17:` the member `"0o17"`; the duplicate check compares those strings,
+and a plain `<<` key is a merge key. An explicit tag must be `!!str`, `!!int`,
+`!!float`, `!!bool` or `!!null` on a scalar, `!!map` on a mapping or `!!seq` on
+a sequence; `!!int`, `!!float`, `!!bool` and `!!null` accept only text that
+the untagged rule reads as a value of that type, and a tagged mapping key must
+be `!!str`. A `%YAML` directive must name version 1.1. Preparation, the
+inventory and `openapi@1` give the same verdict and value on the
+[shared YAML cases](../../../api/testdata/openapi-yaml-scalar-cases.json).
+
+Rationale: rejecting numbers outside that range prevents silent changes to
+large numeric examples. The scalar rule is the one go-yaml v4 applies, because
+both Server readers use it; the Runtime ports it instead of reading YAML 1.1,
+under which `yes` is a boolean and `1e3` a string. For mapping keys two rules
+were considered: requiring every key to resolve to a string, which go-yaml
+applies by default and which rejects `200:`, and reading a plain key as its
+source text, which `openapi@1` has applied since issue #100. The source-text
+rule was chosen because unquoted response codes are common in authored OpenAPI
+YAML and the source text loses nothing. Reconsider it if a supported reader
+cannot recover a plain key's source text, or if differently spelled keys such
+as `1` and `01` must name one member.
+
+**SCN-R257.** `openapi@1` reads every YAML document it loads under SCN-R124
+and reports a document that rule rejects as the non-retryable
+`tool_input_invalid` tool error, leaving the current document unchanged, so a
+seed loaded at its own binding keeps only bytes that preparation reads alike.
+It writes a string as a quoted scalar whenever SCN-R124 or YAML 1.1 would read
+the plain scalar as anything other than that string, and it accepts from
+mutations only numbers that SCN-R124 accepts, so every document it writes
+means the same JSON value to preparation, to the inventory and to a YAML 1.1
+reader. Its YAML parser shares go-yaml's double-quoted escapes and rejects surrogate
+code points, which go-yaml also rejects; it remains stricter than go-yaml in
+some lexical details, such as a tab between a member name and its value, which
+it rejects and preparation accepts. An `application/json` seed uses JSON escape
+semantics: escaped solidus and valid UTF-16 surrogate pairs decode to their
+string values; lone or reversed surrogates reject. Invalid JSON never falls
+back to YAML. Duplicate decoded member names, numeric and document bounds
+remain subject to SCN-R124 and SCN-R253. Runtime authoring, preparation and the
+inventory agree on the [shared JSON cases](../../../api/testdata/openapi-json-escape-cases.json).
+
+**SCN-R125.** Preparation extracts concrete HTTP data on a best-effort basis.
+Schema type, format, dialect and validation constraints do not reject supplied
+values or examples, and ignoring those validation keywords does not create a
+coverage gap. Strict checks apply to source syntax, resource bounds and the
+resulting HTTP representation.
+
+**SCN-R126.** RequestSet keeps `schemaVersion: 1`; the extraction policy is
+recorded by `preparationDigest`.
+
+**SCN-R127.** Only in-document `#/...` JSON Pointer references are resolved.
+The resolver does not fetch files, URLs or external example values.
+
+**SCN-R128.** Schema references are followed when concrete hints are needed; an
+unused or broken schema reference does not invalidate an explicit value.
+Unavailable hints can fall through to other concrete values.
+
+**SCN-R129.** If required data remains unavailable, only the affected operation
+is skipped; unavailable optional inputs are omitted with a gap. Unresolvable
+parameter definitions still skip the operation, because their name, location
+and requiredness cannot be established.
+
+**SCN-R130.** Unused response schemas are not traversed. Resolved reference
+siblings override referenced fields.
+
+**SCN-R131.** Callbacks and unknown operation metadata other than `x-`
+extensions are reported as gaps; recognized fields can still produce a request.
+
+**SCN-R132.** The caller selects one canonical operation pointer. Other
+operations do not consume its request or reference budget or contribute gaps.
+
+**SCN-R133.** Supported methods are DELETE, GET, HEAD, OPTIONS, PATCH, POST and
+PUT. TRACE is an explicit unsupported operation.
+
+**SCN-R134.** `Options` supplies a global `Server`, `ServerVariables`,
+`Authentication`, per-operation `Operations` and `MaxRequests`. The only
+allowed operation binding is the selected pointer; unknown operation bindings
+fail validation.
+
+**SCN-R135.** An `OperationInput` supplies `Parameters` keyed by
+`location:name` and an optional `Body` containing `MediaType` and a
+JSON-compatible `Value`.
+
+**SCN-R136.** Bound values take precedence over document examples. No values
+are read from environment variables.
+
+**SCN-R137.** Server precedence is explicit override, operation servers, path
+servers, root servers; the first declared server is selected. Relative URLs
+need an explicit absolute override.
+
+**SCN-R138.** Server variables use supplied values or declared defaults,
+without checking schema enum restrictions. Variable values cannot introduce new
+`{...}` placeholders.
+
+**SCN-R139.** The final server must be an absolute ASCII HTTP(S) URL without
+credentials, a fragment or a query. Base paths are retained; the OpenAPI path
+is appended without URL resolution or path cleaning.
+
+**SCN-R140.** Path-level parameters are overridden by operation parameters with
+the same `in` and `name`. Header names and `header:name` bindings are compared
+case-insensitively; duplicate bindings are rejected.
+
+**SCN-R141.** Reserved `Accept`, `Content-Type` and `Authorization` parameter
+definitions are ignored with an explicit gap.
+
+**SCN-R142.** Scalar strings, numbers and booleans use simple style for path
+and header parameters and form style for query and cookie parameters,
+regardless of their declared schema type. Path parameters are required even
+when their `required` flag is absent or false.
+
+**SCN-R143.** Arrays, objects, parameter content, `allowReserved: true` and
+other styles are unsupported. Optional unsupported parameters without explicit
+bindings are omitted with a gap. A required input or explicitly bound value
+that cannot be serialized skips the affected operation with a diagnostic.
+
+**SCN-R144.** Path and query values are percent-encoded; cookie and header
+values must satisfy their respective HTTP syntax. Invalid HTTP syntax skips the
+operation, including when the offending input was optional.
+
+**SCN-R145.** Concrete value precedence is:
+
+1. Explicit operation binding.
+2. Parameter or media-type `example`.
+3. First named `examples` entry with a concrete `value`, in lexicographic
+   order.
+4. Schema `example`.
+5. Schema `examples[0]`.
+6. Schema `default`.
+7. Schema `const`.
+8. Schema `enum[0]`.
+
+**SCN-R146.** Broken named example references and `externalValue` entries can
+fall through to later entries or schema hints.
+
+**SCN-R147.** Explicit `null` is a concrete value. Its usability depends on
+HTTP serialization: it is accepted in a JSON body but not as a scalar parameter
+or text body.
+
+**SCN-R148.** Selecting a concrete hint does not retry lower-priority hints
+when that value cannot be serialized.
+
+**SCN-R149.** Without a direct hint, schema properties can supply an object.
+Synthesis omits `readOnly` properties and fails when a required property has no
+concrete value.
+
+**SCN-R150.** Available object samples in `allOf` are merged in array order,
+later fields win, and local property hints override the merged fields. Missing
+required data in an `allOf` branch prevents that synthesis.
+
+**SCN-R151.** If no object can be synthesized, `oneOf` then `anyOf` branches
+are tried in array order for the first concrete sample; branch uniqueness and
+schema intersection are not validated.
+
+**SCN-R152.** A supplied object retains its fields. No placeholder strings,
+random values or arbitrary values inferred from types are generated.
+
+**SCN-R153.** Bodies use the same concrete-value precedence. Supported output
+media types are `application/json` and `text/plain`.
+
+**SCN-R154.** An explicit body binding can supply either supported type even
+when its definition is absent, broken or does not declare that media type; the
+deviation receives a gap.
+
+**SCN-R155.** Without a binding, supported declared media types are tried in
+lexicographic order until usable body data is found.
+
+**SCN-R156.** JSON is canonicalized deterministically; plain text must be a
+string. The matching content-type header is added.
+
+**SCN-R157.** Missing or unsupported optional bodies are omitted with a gap,
+while unavailable required bodies skip the affected operation. An unusable
+explicit body binding also skips that operation.
+
+**SCN-R158.** Multipart and binary output formats are not synthesized. A
+schema's `format` annotation does not prevent use of a concrete JSON or text
+value. Bodies can be prepared for all supported methods, including GET, HEAD
+and DELETE.
+
+**SCN-R159.** Operation `security` overrides root security, including an empty
+array that disables authentication. Requirement objects are OR alternatives in
+document order; scheme names within each alternative are AND requirements. The
+first fully satisfiable alternative is selected. An empty object allows
+anonymous access.
+
+**SCN-R160.** Preparation supports apiKey in header, query or cookie and HTTP
+bearer. Values must come from the explicit authentication binding for that
+scheme; declared examples are never credentials. HTTP bearer bindings contain
+the raw token, without the `Bearer ` prefix.
+
+**SCN-R161.** Unsupported schemes, missing values or collisions with ordinary
+parameters cannot silently create an unauthenticated request.
+
+#### Operation preparation
+
+**SCN-R162.** `scanplan.PrepareOperation` accepts one canonical
+`#/paths/<escaped-path>/<method>` selector and returns a bounded RequestSet
+holding at most that operation's request. It retains the original full source
+ref and byte digest.
+
+**SCN-R163.** `PrepareOperation` does not filter a whole-document RequestSet
+after unrelated operations have consumed its budget.
+
+**SCN-R164.** Bindings for any other operation fail with
+`unassigned_operation_binding`. Unknown selectors fail explicitly.
+
+**SCN-R165.** An unresolved selected path or an unusable request remains one
+skipped operation with diagnostics, never an empty success.
+
+**SCN-R166.** Source parsing and the size, depth and node bounds apply to the
+entire document; reference expansion and request preparation concern only the
+assigned operation.
+
+**SCN-R256.** `AuditSelection.PrepareOperations` prepares every operation
+that one explicit parameter selection selects, in pointer order, from one exact source:
+it validates the ref, parses and checks the document and computes the source
+content digest once, then prepares each operation from that parsed source.
+Each operation keeps its own options, reference and concrete-hint budgets and
+depth limits (LIM-SCN-43 to LIM-SCN-46), gaps, coverage and copy of the source
+identity, so every result, digest and error code equals what
+`AuditSelection.PrepareOperation` returns for the same bytes, media type,
+exact ref and operation; the first failing operation ends the batch. The
+parsed source is read-only and lives for one call: it holds one document
+within the source bounds (LIM-SCN-39, LIM-SCN-41, LIM-SCN-42) and an index
+with one entry per path key, for at most 1,000 operations (LIM-ASC-12).
+Nothing caches it on the selection or across calls, inventories or Runs, so
+the same selection with other bytes, another media type or another revision
+prepare from that source. The OpenAPI Audit scan inventory
+([Audit scans](../audits/scans.md)) is the batch caller; a caller that
+prepares one operation, such as dispatch-time re-preparation of an accepted
+task, parses its source in each call.
+
+#### Preparation bounds
+
+**SCN-R167.** Preparation enforces these bounds:
+
+| Bound | Value | Limit |
+| --- | --- | --- |
+| Source bytes | 2 MiB | LIM-SCN-39 |
+| Options | 256 KiB | LIM-SCN-40 |
+| Parsed document depth | 64 | LIM-SCN-41 |
+| Parsed document nodes | 100,000 | LIM-SCN-42 |
+| Local reference resolutions for the selected operation | 4,096 | LIM-SCN-43 |
+| Reference depth | 32 | LIM-SCN-44 |
+| Concrete-hint extraction work budget, shared | 100,000 nodes | LIM-SCN-45 |
+| Concrete-hint extraction depth | 64 | LIM-SCN-46 |
+| `MaxRequests`, after defaulting | 1–1,000 | LIM-SCN-47 |
+| Requests in an operation-scoped RequestSet; samples for the selection | at most 1 | LIM-SCN-48 |
+| Serialized RequestSet | 4 MiB | LIM-SCN-49 |
+| Gaps | 4,096 | LIM-SCN-50 |
+| Entry URL | 8,192 ASCII bytes | LIM-SCN-51 |
+| Entry body (wire limit for serialized bodies) | 64 KiB | LIM-SCN-52 |
+| Entry headers | 64 | LIM-SCN-53 |
+| Header name | 128 bytes | LIM-SCN-54 |
+| Header value | 8,192 bytes | LIM-SCN-55 |
+| Total header bytes of an entry | 32 KiB | LIM-SCN-56 |
+
+**SCN-R168.** The concrete-hint work budget and depth limit prevent repeated
+references from expanding into an unbounded tree. Expanded concrete values are
+measured before JSON encoding to bound amplification from repeated references;
+serialized bodies must still fit the 64 KiB wire limit (LIM-SCN-52).
+
+**SCN-R169.** Source-document, reference-work and serialized-output bounds fail
+explicitly rather than returning unaccounted partial data.
+
+**SCN-R253.** The source-document bounds count the UTF-8 bytes of the document
+as stored (LIM-SCN-39); the depth of the parsed document, with the top-level
+value at depth 1 and every member name, member value and array element one
+deeper than its container (LIM-SCN-41); and its nodes, one for every object,
+array, scalar and member name (LIM-SCN-42). A JSON document and a YAML document
+of the same tree count alike. Scan preparation and the `openapi-operations@1`
+inventory use the same source decoder, including each JSON/YAML member of an
+OpenAPI source package. The OpenAPI authoring Toolset `openapi@1` enforces the
+same three bounds, counted the same way, on every document it loads, on the
+result of every mutation, on every document it writes or returns, and in
+`validate_openapi` before the external validator runs. All three read YAML
+scalars and member names under SCN-R124 (SCN-R257).
+
+
+OpenAPI authoring validation used by source preparation runs Vacuum locally.
+`validate_openapi` rejects external `$ref`/`$dynamicRef` values before launch,
+sets `--remote=false` and `--no-update-check`, and uses an explicit empty config
+in a private temporary directory. It selects no network adapter or proxy
+subprocess channel. Generated contracts must carry internal references; this
+keeps source preparation usable within engagement without authorizing egress.
+
+The shared source decoder and the `openapi-operations@1` inventory apply no
+additional length limit to source strings or member names, including path
+templates, operation IDs and local JSON pointers. The whole-document
+bounds suffice; adding an independent string bound would reject documents
+that authoring and preparation already admit. Revisit this choice only if
+measured resource use demonstrates a need, then register and enforce the same
+bound in all three readers. Package member paths retain their separate
+LIM-AUD-15/16 bounds; generated Audit documents and reference expansion retain
+the limits in [audits](../audits/audits.md), AUD-R128 and AUD-R144. Checklist
+and Audit-internal field bounds are unchanged.
+
+Preparation reports an exceeded source bound as `source_limit_exceeded`;
+`openapi@1` reports it as the non-retryable `tool_input_invalid` tool error
+that names the bound and leaves the current document unchanged; the inventory
+uses its existing `audit_document_invalid` or `audit_inventory_invalid`
+rejection (FAIL-AUD-8). Sharing source bounds does not make authoring
+validation a scan-readiness or inventory-readiness check: reference resolution,
+operation selection and generated-output bounds remain each consumer's own
+contract. In particular, the authoring structural path check remains separate
+from source decoding; a long path can pass the shared source bounds and the
+inventory but fail authoring readiness. The Go preparation and Audit inventory readers and the Python
+authoring reader give the same verdict on the
+[shared boundary cases](../../../api/testdata/openapi-document-bounds.json).
+
+### Scan planning
+
+**SCN-R170.** `scan-plan@1` is the model-free scan Planner. It consumes one
+exact Run Artifact containing prepared HTTP requests or a target list, creates
+a bounded immutable plan and invokes existing fixed logical `tool@1` Workers.
+
+**SCN-R171.** `scan-plan@1` does not discover targets, invent scanner
+arguments, resolve remote schemas or ask a model to rank candidates. Request
+preparation remains the separate [preparation
+library](#scan-request-preparation).
+
+#### Inputs and fixed Workers
+
+**SCN-R172.** A Stage selects `planner: scan-plan@1` and supplies `scanPlan`
+with:
+
+- `inputArtifact`: a required Stage context Artifact slot;
+- `maxInputs`: 1–1,000 prepared requests or nonempty target lines
+  (LIM-SCN-57);
+- `maxJobs`: 1–100 selected jobs across all Workers
+  (LIM-SCN-58);
+- `maxTotalSeconds`: 1–86,400 summed configured Worker timeout seconds
+  (LIM-SCN-59);
+- `tools`: 1–4 entries (LIM-SCN-60), each naming a fixed
+  `worker`, its `maxJobs` and `maxTotalSeconds`, and any scanner-specific
+  selection inputs.
+
+**SCN-R173.** Every Stage Worker must appear exactly once in `tools`, and each
+scanner may have only one Worker. Workers use `tool@1`, `scan@1` and the
+`report` result slot. No Planner model configuration is accepted.
+
+**SCN-R174.** Except for the closed exact-input Nuclei selection bindings of
+[ASC-R153](../audits/scans.md), extra tool arguments are pinned scalar literals in the
+resolved AgentTemplate, so policy cannot override template-owned scanner flags.
+The fixed dynamic-input bindings have no parser or default; the Planner owns
+and supplies those exact per-job values.
+
+**SCN-R175.** Worker allocation, readiness, leases and placement remain
+Scheduler responsibilities ([Scheduler](../execution/scheduler.md)). All
+configured Workers must be prepared before the Planner runs, so a missing
+scanner binary can fail Stage preparation before a scan plan exists.
+
+**SCN-R176.** The source media type is either
+`application/vnd.contractor.http-requests+json` (RequestSet v1) or
+`text/vnd.contractor.target-list`.
+
+**SCN-R177.** A target list is bounded UTF-8 text of at most 2 MiB (LIM-SCN-61)
+and 1,000 nonempty lines (LIM-SCN-62). LF and CRLF are accepted; a bare CR and
+a UTF-8 BOM are rejected. Empty lines are ignored; other lines retain their
+exact bytes. Provenance uses original line numbers, including preceding blank
+lines.
+
+**SCN-R178.** RequestSet entries retain their neutral HTTP method, URL, headers
+and body. Request IDs refer back to all original OpenAPI operation pointers
+through the exact source Artifact.
+
+**SCN-R179.** Preparation gaps and coverage are copied into the plan. The
+planner neither discards those gaps nor treats preparation coverage as scan
+coverage.
+
+**SCN-R180.** Tool eligibility is explicit:
+
+| Scanner | Dynamic Worker input | Selection rule |
+| --- | --- | --- |
+| nuclei | `url` from parameter `target` | Absolute HTTP(S) target; a RequestSet entry must be GET without a body or headers. |
+| naabu | `host` from parameter `target` | Valid DNS name or IP address; URL input contributes its hostname. Host names are normalized to lowercase. |
+| sqlmap | `request_ref` from Artifact `request` | RequestSet only; nonempty `testParameters` in policy must name available query, body, cookie or header inputs. |
+| ffuf | `url` from parameter `target`, `wordlist_ref` from Artifact `wordlist` | Target-only HTTP(S) input with a `FUZZ` marker in path or query; policy names a required exact `wordlistArtifact` context slot. |
+
+**SCN-R181.** SQLMap jobs use the single-request artifact format (SCN-R61) with
+explicitly selected parameter names. The planner checks the request-file
+representation before job selection; missing parameters and unsupported
+serialization are recorded as skips.
+
+**SCN-R182.** JSON selection covers top-level object keys, and form bodies use
+ordinary form fields. The planner does not infer nested schema paths or broaden
+the set of tested parameters.
+
+**SCN-R183.** The generated single-request Artifact revision belongs to
+execution state and is absent from immutable job identity.
+
+**SCN-R184.** For nuclei and ffuf, authenticated requests and requests with
+other headers are skipped, because their target-only Worker interfaces cannot
+preserve those inputs.
+
+**SCN-R185.** The planner never invents an ffuf marker or wordlist. An exact
+wordlist ArtifactRef becomes part of the semantic job input.
+
+**SCN-R186.** Planning performs no DNS or reachability checks, so a plan may
+contain targets the Runtime refuses. A refused job is not skipped at planning.
+Like other pre-launch refusals, such as `scan_proxy_unsupported`, the Planner
+records it as `incomplete`, never as completed coverage (FAIL-SCN-6).
+
+#### Plan v1 and selection
+
+**SCN-R187.** The plan media type is
+`application/vnd.contractor.scan-plan+json`; its structural schema is
+[scan-plan.schema.json](../../../api/scan/v1/scan-plan.schema.json).
+
+**SCN-R188.** `BuildPlan(input, policy, bindings, wordlists)` is a pure Go
+function in `internal/scanplan`. The caller supplies the exact input refs, the
+actual source bytes and the resolved templates from the Run snapshot.
+
+**SCN-R189.** `MarshalPlan` emits canonical JSON. `DecodePlan` rejects unknown,
+duplicate, missing or null required fields, invalid identities, inconsistent
+accounting and oversized input. The Go codec enforces cross-field identities,
+ordering, budgets and scanner input semantics in addition to the structural
+JSON schema.
+
+**SCN-R190.** The plan contains `schemaVersion: 1`, `id`, `source`, normalized
+`policy`, `preparationGaps`, `candidates` and `jobs`; RequestSet sources also
+contain `preparationCoverage`. Arrays are present even when empty. Source
+metadata binds the exact ArtifactRef, media type and SHA-256 digest of the
+supplied bytes.
+
+**SCN-R191.** Each candidate records its stable ID, logical Worker, scanner,
+sorted unique `sourceIds`, `selection` and diagnostic `code`. A selected
+candidate has an empty code and exactly one job. Unselected candidates retain a
+fixed reason, such as unsupported input, an unavailable selected parameter or
+an exceeded budget.
+
+**SCN-R192.** The codec also reserves `unavailable` for candidates with an
+explicit diagnostic; the pure builder classifies unsupported candidates as
+`skipped`.
+
+**SCN-R193.** Each selected job contains semantic parameters or SQLMap request
+data, exact external input refs, the resolved execution configuration, the
+template selector and digest, the logical Worker namespace and the timeout.
+Physical allocation IDs, Run IDs, Stage execution IDs and generated request and
+report Artifact revisions are not job inputs.
+
+**SCN-R194.** Candidate IDs derive from semantic job content; duplicate jobs
+combine source provenance. Policy tools and SQLMap parameter names are
+normalized before hashing. Candidates and jobs sort by candidate ID.
+
+**SCN-R195.** The input bound applies before deduplication. Candidates outside
+`maxInputs` remain visible with `input_budget_exceeded`.
+
+**SCN-R196.** Within the input bound, deduplicated candidates are considered in
+stable candidate-ID order. Selection checks the global job count, the per-tool
+job count, the global summed timeout, then the per-tool summed timeout.
+Rejected candidates remain in the plan with the corresponding reason. A later
+candidate may fit a remaining time budget even when an earlier one did not.
+
+**SCN-R197.** The plan ID is the SHA-256 of the canonical plan content with its
+own ID and the job IDs blanked. A job ID binds the plan ID and the candidate
+ID. Source revision, template, wordlist, policy or concrete input changes
+therefore change the plan and job identity.
+
+**SCN-R198.** A plan has at most 4,000 candidates (LIM-SCN-63), 100 selected
+jobs (LIM-SCN-64) and 4 MiB of serialized plan (LIM-SCN-65). These bounds are
+not guarantees about the number of network requests generated inside a scanner.
+
+**SCN-R199.** Time budgets count configured Worker deadlines; each invocation
+is additionally bounded by the remaining Stage deadline.
+
+#### Persistence, execution and recovery
+
+**SCN-R200.** The Planner reads through the authorized Run Artifact service.
+
+**SCN-R201.** Before dispatch, the Planner persists the canonical plan bytes
+and any derived SQLMap request artifacts, then initializes a durable scan
+session containing the exact plan ref, digest and job records.
+
+**SCN-R202.** Create-only Artifact writes use deterministic bindings. A lost
+write acknowledgement can be recovered only when the existing immutable bytes
+match; conflicting content is not overwritten (FAIL-SCN-9).
+
+**SCN-R203.** The Planner invokes selected jobs sequentially through the
+ordinary Worker invoker. Each job has a stable subtask ID and its own result
+Artifact binding.
+
+**SCN-R204.** The scan session journal is fenced by the current durable
+Scheduler claim ([Scheduler](../execution/scheduler.md)). Only the owner of
+that claim may mutate the session or complete it.
+
+**SCN-R205.** A job must transition from `pending` to `started` durably before
+its Worker call (FAIL-SCN-10).
+
+**SCN-R206.** A new Scheduler claim preserves completed records and converts
+any previously `started` job to `unknown`. Only `pending` jobs remain eligible
+for execution; completed, failed, unavailable, incomplete and unknown jobs are
+not silently restarted (FAIL-SCN-10, LIFE-SCN-5).
+
+**SCN-R207.** An ambiguous invocation outcome stops further dispatch in that
+attempt, and the remaining jobs receive an incomplete outcome (FAIL-SCN-10).
+This deliberately records a possible scan without claiming that it finished or
+automatically repeating it.
+
+**SCN-R208.** Recovery rechecks the exact source snapshot, the canonical
+persisted plan and the derived input Artifact refs; changed bytes, revisions or
+ownership fail explicitly. A durably completed session returns its previously
+validated aggregate result (FAIL-SCN-11).
+
+#### Planner failure classification
+
+**SCN-R258.** A `scan-plan@1` failure classifies the cause separately from
+whether a new Stage execution can safely retry the work. The codes below use
+cause-based retry only for transient PostgreSQL classes, cancellation, an expired
+operation budget or unavailable Artifact/blob I/O. PostgreSQL classification is
+central (PER-R13); other database classes, exact-reference rejections, immutable
+content conflicts, size/revision limits, active ownership and deterministic
+validation failures are permanent. An absent cause does not authorize retry.
+Nested classified failures retain their cause's retryability within this scope.
+
+Audit retries consult the durable cross-Stage attempt history (ASC-R137,
+ASC-R138, ASC-R139, ASC-R141): completed and unknown attempts are reused without
+another scanner call. A result-building rejection reported by
+`auditscan.ErrInvalid` is `audit_scan_result_invalid`; other result-building
+failures use `audit_scan_result_unavailable` and the cause rule. Missing retained
+plan/report artifacts keep their existing coverage-gap outcome. Assembly,
+publication and verification share a five-second result-building budget and
+honor caller cancellation. Completion journaling has its own existing bounded
+budget and transient retry (FAIL-SCN-16).
+
+Ordinary retries create a new session and new report bindings (SCN-R210), so only
+plan publication, derived input publication and session initialization can retry
+by cause: all precede the first dispatch. Ordinary session/source reads can also
+run during recovery, while a failed claim can follow earlier jobs. They remain
+non-retryable, as do post-dispatch writes and shared result-verification failures
+(including recovered completions). Recovery distinguishes an unread saved plan
+or input from a deterministic content mismatch; only Audit recovery may retry
+those read causes. Reopen this conservative ordinary-scan rule only when durable
+cross-Stage attempt reuse exists or the failure carries proof that no job was
+dispatched. Changing a generic storage failure to retryable is insufficient.
+
+| Code | Retryable | Meaning |
+| --- | --- | --- |
+| `audit_scan_assignment_invalid` | no | The manifest assignment does not match the exact task, source, selection, request values or rulepack. |
+| `audit_scan_input_invalid` | no | The Audit source or request-values media type differs from the assigned contract. |
+| `audit_scan_input_missing` | no | A required assigned Audit input is absent. |
+| `audit_scan_manifest_invalid` | no | The execution manifest is malformed or has an invalid assignment count. |
+| `audit_scan_preparation_invalid` | no | The assigned operation or prepared request cannot be validated or encoded. |
+| `audit_scan_preparation_write_failed` | cause-based for Audit; no for ordinary scans | The create-only prepared Audit input could not be published. |
+| `audit_scan_result_invalid` | no | Audit result assembly rejected retained content, bounds or assignment with auditscan.ErrInvalid. |
+| `audit_scan_result_unavailable` | cause-based for Audit; no for ordinary scans | Retained evidence could not be read or result assembly was cancelled or exhausted its budget. |
+| `audit_scan_result_write_failed` | cause-based for Audit; no for ordinary scans | The create-only Audit result package could not be published. |
+| `audit_scan_request_values_unavailable` | cause-based for Audit; no for ordinary scans | The exact Audit request values could not be read. |
+| `audit_scan_operation_unavailable` | cause-based for Audit; no for ordinary scans | The exact selected OpenAPI operation material could not be read. |
+| `audit_scan_source_unavailable` | cause-based for Audit; no for ordinary scans | The exact assigned source or selected rulepack could not be read. |
+| `audit_scan_task_invalid` | no | The assigned task package, member, document or scanner identity is invalid. |
+| `scan_completion_write_failed` | cause-based for Audit; no for ordinary scans | The completed scan result could not be recorded within the separate completion budget. |
+| `scan_failed` | yes, known Audit outcome only | An Audit scan has a known failed or unavailable current-attempt outcome; the retained package preserves coverage and evidence. |
+| `scan_history_invalid` | no | The current scan attempt is missing from the bounded Audit journal history. |
+| `scan_history_unavailable` | cause-based for Audit; no for ordinary scans | The bounded Audit scan history could not be read. |
+| `scan_incomplete` | no | An ordinary scan selected no job or not all selected jobs completed; its aggregate report is retained. |
+| `scan_input_write_failed` | cause-based, before dispatch | A derived job input could not be published before any job dispatch. |
+| `scan_job_claim_unavailable` | cause-based for Audit; no for ordinary scans | The durable job claim failed or was not acquired; no call follows that failed claim. |
+| `scan_job_result_unavailable` | cause-based for Audit; no for ordinary scans | The observed job result could not be recorded; further dispatch stops. |
+| `scan_plan_invalid` | no | The source, policy or bindings cannot produce a valid canonical plan. |
+| `scan_plan_record_failed` | cause-based, before dispatch | The prepared plan and pending jobs could not be initialized before any dispatch. |
+| `scan_plan_write_failed` | cause-based, before dispatch | The canonical plan could not be published before any job dispatch. |
+| `scan_prior_attempt_active` | no | A prior Audit attempt is still active and cannot be consumed as terminal history. |
+| `scan_report_invalid` | no | The aggregate ordinary scan report cannot be encoded. |
+| `scan_report_write_failed` | no | The aggregate ordinary scan report could not be published after execution. |
+| `scan_saved_input_invalid` | no | A retained derived input has changed bindings, media type, bytes or references. |
+| `scan_saved_input_unavailable` | cause-based for Audit; no for ordinary scans | A retained derived input could not be read during session recovery. |
+| `scan_saved_plan_invalid` | no | A retained plan has changed media type, bytes, digest or job identities. |
+| `scan_saved_plan_unavailable` | cause-based for Audit; no for ordinary scans | A retained plan could not be read during session recovery. |
+| `scan_session_invalid` | no | The ordinary scan session has no complete, terminal plan and job state. |
+| `scan_session_unavailable` | cause-based for Audit; no for ordinary scans | The scan session could not be opened or did not grant invocation ownership. |
+| `scan_source_unavailable` | cause-based for Audit; no for ordinary scans | A required source/wordlist binding is absent or the exact source could not be read. |
+
+The shared Planner result-verification codes remain owned by
+[Planners](../execution/planners.md); SCN-R258 narrows their retry scope for
+ordinary scans without changing their code or meaning.
+
+#### Results and coverage
+
+**SCN-R209.** The Stage publishes one required `application/json` aggregate
+`report` and may explicitly select an additional `application/json` `materials`
+output for Finding candidates, in a namespace separate from the Workers. It references the exact
+plan and the per-job reports and accounts for selected, skipped and terminal
+job outcomes. An explicitly selected `materials` output requests the common
+candidates/evidence pair from each Nuclei/SQLMap job. It contains a flat
+`contractor.material-set.v1` of exact current-Run descriptors, at most 32 materials
+(16 jobs); incomplete jobs without a complete pair contribute no material.
+The job journal retains accepted exact pairs. This selection never parses raw
+provider reports and never embeds them in another Artifact.
+
+**SCN-R210.** Aggregate and per-job report bindings include the Stage execution
+identity, to avoid collisions between Stages or retries with different semantic
+work.
+
+**SCN-R211.** The configured `report.from.name` is a prefix of at most 100
+bytes (LIM-SCN-66). The actual binding name is `<prefix>.<first 16 hex
+characters of SHA-256(stageExecutionId)>`; the returned result and the Workflow
+output retain that exact reference.
+
+**SCN-R212.** Aggregate JSON contains `schemaVersion: 1`, `plan`, `planId`,
+`jobs` and `coverage`. Coverage counts candidates, selected jobs, skipped
+candidates, unavailable candidates and jobs, and completed, failed, incomplete
+and unknown jobs.
+
+**SCN-R213.** `coverage.complete` requires every selected job to complete with
+no selection or preparation gaps.
+
+**SCN-R214.** The Stage succeeds when at least one job was selected and all
+selected jobs completed; it can therefore succeed with partial overall
+coverage. Otherwise it fails with `scan_incomplete` while retaining the
+aggregate report (LIFE-SCN-6).
+
+**SCN-R215.** Job outcomes distinguish `completed`, `failed`, `unavailable`,
+`incomplete` and `unknown`. Scanner absence is `unavailable`; timeouts,
+truncation, incomplete ffuf scans and malformed outputs are `incomplete`; an
+ordinary nonzero scanner exit remains `failed`.
+
+**SCN-R216.** The shared [Worker error code
+table](../../../api/testdata/scan/worker-error-codes.json) fixes the outcome
+of every reported `errorCode`; an unlisted code is an invalid report.
+
+**SCN-R217.** When `tool_execution_failed` or `tool_report_failed` omits the
+report reference, the Planner resolves only that job's own deterministic report
+binding. A missing execution-failure report remains failed; a missing publication
+report remains unknown. A retained original report and complete exact normalized
+pair survive output acknowledgement failure and may proceed to explicit
+publication, while the scan Stage retains its incomplete outcome. No branch
+repeats scanner traffic.
+
+**SCN-R218.** Scanner error reports and interrupted results remain separate
+from completed coverage; missing or invalid reports do not become successful
+scans. The aggregate preserves preparation gaps and candidate selection reasons
+through its exact plan reference.
+
+Controlled HTTP failure promptly stops and joins the scanner process group while
+retaining already received stdout/stderr within the ordinary combined output
+limit. Provider parsing and Finding/evidence publication still consume that
+partial output, including when process completion races with transport failure;
+the report retains the transport error and never claims completed coverage.
+Allocation/caller cancellation still propagates after child cleanup.
+
+**SCN-R221.** Both selection accounting and execution outcomes must be
+inspected before a security report is interpreted.
+
+**SCN-R219.** Prepared requests, plan artifacts and scanner reports may contain
+credentials, private examples or target data. They remain ordinary scoped
+Artifacts; diagnostic codes and journal records do not copy supplied HTTP
+bodies or scanner arguments.
+
+## Interfaces
+
+| Media type | Content | Contract |
+| --- | --- | --- |
+| `application/vnd.contractor.http-request+json` or `application/json` | One SQLMap HTTP request, version 1 | SCN-R61 |
+| `text/vnd.contractor.wordlist` or `text/plain` | Scanner wordlist | SCN-R80 |
+| `application/vnd.contractor.http-requests+json` | RequestSet v1 | [http-request-set.schema.json](../../../api/scan/v1/http-request-set.schema.json), SCN-R112 |
+| `text/vnd.contractor.target-list` | Target list | SCN-R177 |
+| `application/vnd.contractor.scan-plan+json` | Scan plan v1 | [scan-plan.schema.json](../../../api/scan/v1/scan-plan.schema.json), SCN-R187 |
+| `application/json` | Invocation receipt, tool Worker report, aggregate report | SCN-R32, SCN-R41, SCN-R209 |
+
+## Limits, failures and errors
+
+Limits LIM-SCN-1 to LIM-SCN-68 are registered in
+[limits](../platform/limits.md).
+
+The failure outcomes of tool-invocation receipt creation (FAIL-SCN-1), terminal
+receipt updates (FAIL-SCN-2), tool invocation (FAIL-SCN-5), report publication
+(FAIL-SCN-3), receipt replay (FAIL-SCN-4), the scanner target-policy check
+(FAIL-SCN-6), the SQLMap request input (FAIL-SCN-7), the ffuf wordlist input
+and scan (FAIL-SCN-8), scan-plan Artifact writes (FAIL-SCN-9), scan job
+dispatch (FAIL-SCN-10), scan-plan recovery (FAIL-SCN-11) and Audit result
+assembly (FAIL-SCN-16) are registered in
+the [failure model](../platform/failure-model.md).
+
+The retention of SQLMap temporary files (LIFE-SCN-3), ffuf wordlist scratch
+(LIFE-SCN-4), invocation receipts (LIFE-SCN-1), tool Worker reports
+(LIFE-SCN-2), scan session job records (LIFE-SCN-5) and aggregate reports
+(LIFE-SCN-6) is registered in [lifecycle](../platform/lifecycle.md).
+
+Error codes owned here are registered in [errors](../platform/errors.md):
+`tool_input_invalid`, `tool_input_conflict`, `tool_execution_failed`,
+`tool_output_invalid`, `tool_timeout`, `tool_report_failed`,
+`tool_outcome_unknown`, `scan_target_denied`, `scan_target_unresolved`,
+`scan_proxy_unsupported`, `scan_request_failed`, `scan_incomplete`,
+`invalid_scanner_output`, `input_budget_exceeded` and
+`unassigned_operation_binding`. `scan_incomplete` is both an ffuf observation
+code (SCN-R108) and the failure code of a `scan-plan@1` Stage (SCN-R214).
+A scanner reports `scan_target_denied`, `scan_target_unresolved`,
+`scan_proxy_unsupported`, `scan_request_failed`, `scan_incomplete` and
+`invalid_scanner_output` as the `errorCode` of a `failed` result (SCN-R19), so
+a `tool@1` Worker that reports one publishes its diagnostic report and ends
+with a nonretryable WorkerFailure (`retryable=false`, SCN-R48, SCN-R49).
+The target-policy decisions that raise `scan_target_denied` and
+`scan_target_unresolved` are owned by [Security](../platform/security.md)
+(SEC-R78).
+
+## Security
+
+Scanners execute active checks against targets (SCN-R55). The security rules of
+this document are: the shared target policy before every scanner launch
+(SCN-R56); exact, authorized artifact refs instead of host paths for request
+and wordlist inputs (SCN-R58, SCN-R83, SCN-R84, SCN-R11); `request.http` and
+the normalized wordlist created exclusively with mode `0600` in a private
+per-call or per-invocation directory (SCN-R70, SCN-R92); temporary request,
+output, wordlist and scratch files removed on completion, timeout, cancellation
+and allocation close (SCN-R72, SCN-R93); template-owned scanner flags pinned as
+literals (SCN-R174); ffuf invoked as a fixed GET with no shell (SCN-R100);
+SQLMap request mode without extra CLI options, database dumping or command
+execution (SCN-R75); redacted diagnostics for SQLMap request mode and ffuf
+(SCN-R60, SCN-R77, SCN-R104); no model credentials for tool Workers
+(SCN-R21 to SCN-R27); credentials only from explicit authentication bindings
+(SCN-R160, SCN-R161); and sensitive content kept in ordinary scoped Artifacts
+and out of receipts, logs, diagnostic codes and journal records (SCN-R39,
+SCN-R50, SCN-R119, SCN-R219).
+
+## Observability
+
+Metrics and receipts carry no argument values or output (SCN-R50, SCN-R39).
+Tool Workers update Worker State revisions and tool counts through
+WorkerStateStore and keep model counters at zero (SCN-R51). RequestSet bytes
+and preparation option values never reach logs (SCN-R119).
+
+## Examples
+
+A tool Worker AgentTemplate that runs nuclei against one supplied target:
+
+```yaml
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: nuclei-scan
+  version: "1"
+spec:
+  description: Scan one supplied target with installed nuclei templates.
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  toolsets:
+    - ref: scan@1
+      tools: [scan_nuclei]
+  execution:
+    tool: scan_nuclei
+    arguments:
+      url: {source: parameter, name: target}
+      rate_limit: {source: literal, value: 10}
+    resultArtifact: report
+    timeoutSeconds: 300
+```
+
+Invalid examples include:
+
+```yaml
+# Missing parameter name; a literal cannot also name a parameter.
+badBindings:
+  url: {source: parameter}
+  rate_limit: {source: literal, name: rate, value: 10}
+# String-to-integer coercion is not permitted by the callable schema.
+badTypedInput:
+  rate_limit: {source: literal, value: "10"}
+# Contradictory runtime selection.
+badTemplate:
+  runtime: tool@1
+  modelPolicy: worker@1
+```
+
+A compatible Workflow wordlist input slot is:
+
+```yaml
+inputs:
+  wordlist:
+    required: true
+    mediaTypes: [text/vnd.contractor.wordlist, text/plain]
+```
+
+## Non-goals
+
+- A SQLMap request artifact describing more than one request: request v1
+  represents a single request, not a RequestSet or a scanner proxy-log format.
+- A general OpenAPI-to-RequestSet Artifact exporter.
+- Implicit Finding publication by tool Workers and raw unbounded log artifacts.
+  Explicit normalized outputs followed by `publish-findings@1` use SCN-R264–R266.
+- Exactly-once remote scanner execution across an acknowledgement failure:
+  scan-plan recovery provides conservative recovery accounting only.
+
+
+## Normalized problem and surface outputs
+
+**SCN-R264.** Explicit tool Worker `candidates` and `evidence` result bindings
+materialize provider-neutral `contractor.finding.candidates.v1` and selected
+normalized evidence. Direct tool calls remain observations. A scanner report is
+published after attempting additional output publication. The adapter's report
+projection retains `findingSummary` with candidate/evidence counts, completion,
+skipped outcomes and bounded surface facts. Once explicit candidates/evidence
+outputs are confirmed it omits the repeated `findingCandidates` body and
+native result rows;
+successfully confirmed exact output refs remain under `observation.artifacts`.
+Without those outputs the original finding payload stays in the report, since
+there is no separately retained copy. An output failure still publishes the
+original diagnostic payload without claiming unconfirmed output refs, then uses
+the durable `tool_report_failed` class. Recreated Workers replay that failure
+from the same receipt. Provider adapters own
+normalization once; Server operations never parse native scanner formats.
+Nuclei evidence retains a candidate-related manifest selection: the original
+exact manifest descriptor (ref, digest, media type and size), package digest,
+engine version, source and only the selected-template records named by problem
+candidates. The full manifest is read under LIM-SCN-72 and stays Run-local;
+unrelated inventory is not embedded or Base64-expanded into Finding evidence.
+Installed manifests retain their compact package provenance without inventing
+per-template records. A custom candidate missing from the selected manifest
+fails output publication. Existing evidence limits apply to the retained selection.
+
+The Planner publishes the selected material set at the declared downstream
+Stage binding. A later attempt advances that binding with the Artifact store's
+revision CAS; previous exact result revisions remain readable. Identical replay
+reuses the current exact revision, including after a lost write acknowledgement.
+Conflicting writes fail without overwriting an unobserved revision or repeating
+scanner traffic; ordinary scan error classification and recovery still apply.
+
+**SCN-R265.** Nuclei follows its template severity: evidenced low/medium/high/
+critical matches become problem candidates, while info, unknown and absent
+severity remain explicit skipped outcomes. There is no separate configurable
+rule policy, allowlist or classifier. Useful factual sitemap metadata is
+independent at every severity. The adapter inherits template-author
+classification; revisit only for demonstrated unacceptable routing errors.
+Methods derive from emitted actual requests or unambiguous explicit methods in
+exact selected templates. Missing method/status never fabricates GET/200.
+
+**SCN-R266.** SQLMap problem candidates require actual reported injectable
+Parameter/Type blocks tied to the exact prepared request or URL invocation.
+Technique-only output cannot create a Finding for every tested parameter. Keys
+separate endpoints, methods, parameter locations and names. A missing supported
+parameter is an explicit gap, never a clean verdict. Partial scans preserve
+individually complete positives and explicit incompleteness.
+
+
+**SCN-R267.** Controlled SQLMap uses the same authenticated per-invocation HTTP
+bridge and allocation transport as Nuclei. Both URL and prepared-request modes
+accept an explicit assigned `credential_id`; omission selects the anonymous
+identity. Proxy address and authentication are written only to private mode-0600
+scratch configuration. Native retries, redirects, preconnections and learned
+scanner cookies are disabled. Runtime owns cookies, TLS verification, egress
+and aggregate limits. Explicit SQLMap Cookie input is preserved for anonymous
+requests; conflicts with a selected credential fail before target traffic.
+
+SQLMap detection stays single-threaded, within every positive engagement
+concurrency bound. Configured RPS becomes native `--delay=1/RPS` because its
+delay applies per thread; absent RPS adds no delay. This is native pacing, not
+an additional Runtime sleep. Target response timing still includes contention
+with other tools sharing the allocation, so timing evidence is not a promise
+of exclusive target capacity. Refused, failed or truncated exchanges fail the
+scan even after a zero native exit. Preparation, process, proxy and temporary
+files follow the existing invocation deadline and joined cleanup.
+
+**SCN-R269.** A tool owner may provide one internal
+`contractor_trusted_call` with a distinct strict signature for model-free
+execution. ToolWorkerRuntime validates and invokes that signature, while
+retaining the original owner for observations, identity and cleanup. ADK exposes
+only the ordinary model callable; this internal facet is not another tool or a
+compatibility alias. Tools without a distinct facet use their ordinary callable.
+The Sitemap editor is the initial consumer: deterministic configuration retains
+explicit preconditions while its model facade obtains them from a reviewed view.
+Existing invocation receipts, bounds and retry/deadline rules remain authoritative.
+
+**SCN-R270.** Model scan_sqlmap.request_ref, scan_ffuf.wordlist_ref and
+scan_nuclei.rulepack_ref contain closed namespace/name selectors. Runtime resolves
+trusted assigned or already observed exact materials before scanner preparation;
+unknown/ambiguous/hidden selections fail before launch. Nested model revision
+fields are rejected. Deterministic tool@1 uses the trusted callable (SCN-R269),
+retains strict exact inputs and never resolves them to latest. Reports/manifests
+and tool results continue to record exact revisions.

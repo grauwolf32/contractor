@@ -1,0 +1,473 @@
+package scheduler
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+)
+
+// Allocation configuration is materialized only at preparation time. These
+// helpers do not acquire claims, persist snapshots or own allocation release.
+func (s *Scheduler) workerExecutionSettingsForRun(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	stage resolved.ResolvedStage,
+	reservationSet []controlplane.Reservation,
+) (map[string]runtimesettings.WorkerExecutionSettings, error) {
+	if len(reservationSet) != len(stage.ExecutionConfig.Agents) {
+		return nil, fmt.Errorf("reservation set differs from Worker execution settings")
+	}
+	reservations := make(map[string]controlplane.Reservation, len(reservationSet))
+	for _, reservation := range reservationSet {
+		name := reservation.Grant.LogicalAgentName
+		if _, duplicate := reservations[name]; duplicate {
+			return nil, fmt.Errorf("duplicate Worker reservation %q", name)
+		}
+		reservations[name] = reservation
+	}
+	result := make(map[string]runtimesettings.WorkerExecutionSettings, len(stage.ExecutionConfig.Agents))
+	for logicalName := range stage.ExecutionConfig.Agents {
+		reservation, ok := reservations[logicalName]
+		if !ok || reservation.ResolvedRuntimeConfig == nil {
+			return nil, fmt.Errorf("Worker %q has no complete Runtime configuration", logicalName)
+		}
+		runtimeConfig := reservation.ResolvedRuntimeConfig.Clone()
+		modelFree := stage.Agents[logicalName].Template.IsToolWorker()
+		if runtimeConfig.Validate() != nil || runtimeConfig.ModelFree != modelFree {
+			return nil, fmt.Errorf("Worker %q has no complete Runtime configuration", logicalName)
+		}
+		runtimeSettings, err := s.materializeRuntimeSettings(ctx, runtimeConfig)
+		if err != nil {
+			return nil, err
+		}
+		if run.ProjectHTTPTarget != nil && agentUsesHTTPRequest(stage.Agents[logicalName].Template) {
+			target, targetErr := s.materializeHTTPOriginTarget(ctx, *run.ProjectHTTPTarget)
+			if targetErr != nil {
+				return nil, targetErr
+			}
+			runtimeSettings.HTTPOriginTarget = target
+		}
+		result[logicalName] = runtimesettings.WorkerExecutionSettings{
+			ModelPolicy: runtimeConfig.ModelPolicy.Clone(), RuntimeSettings: runtimeSettings,
+			SummarizerModelPolicy:           runtimeConfig.SummarizerModelPolicy,
+			CompactorModelPolicy:            runtimeConfig.CompactorModelPolicy,
+			ResolvedRuntimeConfigProvenance: runtimeConfig.Provenance,
+		}
+	}
+	return result, nil
+}
+
+func agentUsesHTTPRequest(template contracts.ResolvedAgentTemplate) bool {
+	for _, selection := range template.Toolsets {
+		if selection.Ref.ToolsetID != "http-tools" || selection.Ref.Version != "1" {
+			continue
+		}
+		for _, tool := range selection.Tools {
+			if tool == "http_request" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (s *Scheduler) materializeHTTPOriginTarget(
+	ctx context.Context,
+	reference runtimesettings.HTTPOriginTargetRef,
+) (*runtimesettings.HTTPOriginTargetSettings, error) {
+	if err := reference.Validate(); err != nil {
+		return nil, errors.New("Project HTTP target snapshot is invalid")
+	}
+	target := &runtimesettings.HTTPOriginTargetSettings{URL: reference.URL}
+	if reference.Credential == nil {
+		return target, nil
+	}
+	err := s.useRuntimeCredential(
+		ctx, reference.Credential.CredentialID,
+		[]runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialOriginBasic, runtimesettings.RuntimeCredentialOriginBearer},
+		func(kind runtimesettings.RuntimeCredentialKind, plaintext []byte) error {
+			switch kind {
+			case runtimesettings.RuntimeCredentialOriginBasic:
+				var material struct {
+					Password string `json:"password"`
+					Username string `json:"username"`
+				}
+				if strictjson.Decode(plaintext, &material) != nil {
+					return errors.New("invalid HTTP origin basic credential material")
+				}
+				target.BasicAuth = &runtimesettings.HTTPProxyBasicAuth{
+					Username: contracts.NewSecretString(material.Username),
+					Password: contracts.NewSecretString(material.Password),
+				}
+			case runtimesettings.RuntimeCredentialOriginBearer:
+				var material struct {
+					Token string `json:"token"`
+				}
+				if strictjson.Decode(plaintext, &material) != nil {
+					return errors.New("invalid HTTP origin bearer credential material")
+				}
+				token := contracts.NewSecretString(material.Token)
+				target.BearerToken = &token
+			default:
+				return errors.New("invalid HTTP origin credential kind")
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, persistencepostgres.WrapError("Project HTTP target credential is unavailable", err)
+	}
+	if err := target.Validate(); err != nil {
+		return nil, errors.New("Project HTTP target settings are invalid")
+	}
+	return target, nil
+}
+
+func (s *Scheduler) materializeRuntimeSettings(
+	ctx context.Context,
+	runtimeConfig runtimeconfig.ResolvedRuntimeConfig,
+) (runtimesettings.RuntimeSettings, error) {
+	result := runtimesettings.RuntimeSettings{
+		LLMRecovery:           s.options.GatewayRecovery != nil,
+		LLMGatewayURL:         runtimeConfig.LLMGateway.URL,
+		ArtifactAPIURL:        s.options.RuntimeTransport.ArtifactAPIURL,
+		RequestTimeoutSeconds: s.options.RuntimeTransport.RequestTimeoutSeconds,
+	}
+	if limits := s.options.RuntimeTransport.SourceArchiveLimits; limits != nil {
+		copied := *limits
+		result.SourceArchiveLimits = &copied
+	}
+	if signatures := runtimeConfig.LLMGateway.FailureSignatures; signatures != nil {
+		copied := signatures.Clone()
+		result.LLMGatewayFailureSignatures = &copied
+	}
+	if runtimeConfig.LLMCredential != nil {
+		token, err := s.resolveLLMCredential(
+			ctx, *runtimeConfig.LLMCredential, runtimeConfig.LLMGateway.Ref,
+		)
+		if err := resolvedCredentialError(token, err); err != nil {
+			return runtimesettings.RuntimeSettings{}, err
+		}
+		result.LLMGatewayToken = &token
+	}
+	if runtimeConfig.WorkerTelemetry != nil {
+		telemetry := &runtimesettings.TelemetrySettings{
+			Adapter: runtimesettings.RuntimeAdapterOTLPHTTP, Endpoint: runtimeConfig.WorkerTelemetry.Endpoint,
+			Headers:             map[string]contracts.SecretString{},
+			FlushTimeoutSeconds: runtimeConfig.WorkerTelemetry.FlushTimeoutSeconds,
+		}
+		// The Server pins every export value (RCF-R102): a RuntimeConfig that
+		// omits the export or retry block gets the defaults (RCF-R99, RCF-R103),
+		// copied so the settings never alias the resolved configuration.
+		export := runtimesettings.PinTelemetryExport(runtimeConfig.WorkerTelemetry.Export)
+		telemetry.Export = &export
+		if credentialID := runtimeConfig.WorkerTelemetry.Credential; credentialID != "" {
+			if err := s.useRuntimeCredential(
+				ctx, credentialID, []runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialOTLPHeaders},
+				func(kind runtimesettings.RuntimeCredentialKind, plaintext []byte) error {
+					var material struct {
+						Headers map[string]string `json:"headers"`
+					}
+					if kind != runtimesettings.RuntimeCredentialOTLPHeaders || strictjson.Decode(plaintext, &material) != nil {
+						return errors.New("invalid OTLP credential material")
+					}
+					for name, value := range material.Headers {
+						telemetry.Headers[name] = contracts.NewSecretString(value)
+					}
+					return nil
+				},
+			); err != nil {
+				return runtimesettings.RuntimeSettings{}, persistencepostgres.WrapError("Worker telemetry credential is unavailable", err)
+			}
+		}
+		result.Telemetry = telemetry
+	}
+	if runtimeConfig.HTTPProxy != nil {
+		proxy := &runtimesettings.HTTPProxySettings{
+			Adapter: runtimesettings.RuntimeAdapterHTTPProxy, ProxyURL: runtimeConfig.HTTPProxy.ProxyURL,
+			Targets: make([]runtimesettings.HTTPProxyTarget, len(runtimeConfig.HTTPProxy.Targets)),
+		}
+		for index, target := range runtimeConfig.HTTPProxy.Targets {
+			proxy.Targets[index] = runtimesettings.HTTPProxyTarget(target)
+		}
+		if runtimeConfig.HTTPProxy.CABundlePEM != "" {
+			bundle := runtimeConfig.HTTPProxy.CABundlePEM
+			proxy.CABundlePEM = &bundle
+		}
+		if credentialID := runtimeConfig.HTTPProxy.Credential; credentialID != "" {
+			if err := s.useRuntimeCredential(
+				ctx, credentialID,
+				[]runtimesettings.RuntimeCredentialKind{
+					runtimesettings.RuntimeCredentialProxyBasic, runtimesettings.RuntimeCredentialProxyBearer,
+				},
+				func(kind runtimesettings.RuntimeCredentialKind, plaintext []byte) error {
+					switch kind {
+					case runtimesettings.RuntimeCredentialProxyBasic:
+						var material struct {
+							Password string `json:"password"`
+							Username string `json:"username"`
+						}
+						if strictjson.Decode(plaintext, &material) != nil {
+							return errors.New("invalid proxy basic credential material")
+						}
+						proxy.BasicAuth = &runtimesettings.HTTPProxyBasicAuth{
+							Username: contracts.NewSecretString(material.Username),
+							Password: contracts.NewSecretString(material.Password),
+						}
+					case runtimesettings.RuntimeCredentialProxyBearer:
+						var material struct {
+							Token string `json:"token"`
+						}
+						if strictjson.Decode(plaintext, &material) != nil {
+							return errors.New("invalid proxy bearer credential material")
+						}
+						token := contracts.NewSecretString(material.Token)
+						proxy.BearerToken = &token
+					default:
+						return errors.New("invalid proxy credential kind")
+					}
+					return nil
+				},
+			); err != nil {
+				return runtimesettings.RuntimeSettings{}, persistencepostgres.WrapError("Worker HTTP proxy credential is unavailable", err)
+			}
+		}
+		result.HTTPProxy = proxy
+	}
+	if runtimeConfig.Caido != nil {
+		timeout := runtimeConfig.Caido.RequestTimeoutSeconds
+		if timeout == 0 || timeout > result.RequestTimeoutSeconds {
+			timeout = result.RequestTimeoutSeconds
+		}
+		if timeout > runtimesettings.MaxCaidoRequestTimeoutSeconds {
+			timeout = runtimesettings.MaxCaidoRequestTimeoutSeconds
+		}
+		caido := &runtimesettings.CaidoSettings{
+			Adapter: runtimesettings.RuntimeAdapterCaidoGraphQL, Endpoint: runtimeConfig.Caido.Endpoint,
+			RequestTimeoutSeconds: timeout,
+		}
+		if runtimeConfig.Caido.CABundlePEM != "" {
+			bundle := runtimeConfig.Caido.CABundlePEM
+			caido.CABundlePEM = &bundle
+		}
+		if credentialID := runtimeConfig.Caido.Credential; credentialID != "" {
+			if err := s.useRuntimeCredential(
+				ctx, credentialID, []runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialCaidoBearer},
+				func(kind runtimesettings.RuntimeCredentialKind, plaintext []byte) error {
+					var material struct {
+						Token string `json:"token"`
+					}
+					if kind != runtimesettings.RuntimeCredentialCaidoBearer || strictjson.Decode(plaintext, &material) != nil {
+						return errors.New("invalid Caido credential material")
+					}
+					token := contracts.NewSecretString(material.Token)
+					caido.BearerToken = &token
+					return nil
+				},
+			); err != nil {
+				return runtimesettings.RuntimeSettings{}, persistencepostgres.WrapError("Worker Caido credential is unavailable", err)
+			}
+		}
+		result.Caido = caido
+	}
+	if runtimeConfig.Interactsh != nil {
+		timeout := runtimeConfig.Interactsh.RequestTimeoutSeconds
+		if timeout == 0 || timeout > result.RequestTimeoutSeconds {
+			timeout = result.RequestTimeoutSeconds
+		}
+		if timeout > runtimesettings.MaxInteractshRequestTimeoutSeconds {
+			timeout = runtimesettings.MaxInteractshRequestTimeoutSeconds
+		}
+		interactsh := &runtimesettings.InteractshSettings{
+			Adapter: runtimesettings.RuntimeAdapterInteractshHTTP, Endpoint: runtimeConfig.Interactsh.Endpoint,
+			RequestTimeoutSeconds: timeout,
+		}
+		if runtimeConfig.Interactsh.CABundlePEM != "" {
+			bundle := runtimeConfig.Interactsh.CABundlePEM
+			interactsh.CABundlePEM = &bundle
+		}
+		if credentialID := runtimeConfig.Interactsh.Credential; credentialID != "" {
+			if err := s.useRuntimeCredential(
+				ctx, credentialID, []runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialInteractshToken},
+				func(kind runtimesettings.RuntimeCredentialKind, plaintext []byte) error {
+					var material struct {
+						Token string `json:"token"`
+					}
+					if kind != runtimesettings.RuntimeCredentialInteractshToken || strictjson.Decode(plaintext, &material) != nil {
+						return errors.New("invalid Interactsh credential material")
+					}
+					token := contracts.NewSecretString(material.Token)
+					interactsh.Token = &token
+					return nil
+				},
+			); err != nil {
+				return runtimesettings.RuntimeSettings{}, persistencepostgres.WrapError("Worker Interactsh credential is unavailable", err)
+			}
+		}
+		result.Interactsh = interactsh
+	}
+	if err := result.Validate(); err != nil {
+		return runtimesettings.RuntimeSettings{}, fmt.Errorf("materialized Runtime settings are invalid")
+	}
+	return result, nil
+}
+
+func (s *Scheduler) useRuntimeCredential(
+	ctx context.Context,
+	credentialID string,
+	allowed []runtimesettings.RuntimeCredentialKind,
+	consumer func(runtimesettings.RuntimeCredentialKind, []byte) error,
+) error {
+	if s.options.RuntimeCredentials == nil {
+		return errors.New("Runtime credential service is unavailable")
+	}
+	ctx, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+	defer cancel()
+	return s.options.RuntimeCredentials.UsePlaintext(ctx, credentialID, allowed, consumer)
+}
+
+func clearWorkerExecutionSettings(settings map[string]runtimesettings.WorkerExecutionSettings) {
+	for name, value := range settings {
+		value.RuntimeSettings.LLMGatewayToken = nil
+		if value.RuntimeSettings.Telemetry != nil {
+			value.RuntimeSettings.Telemetry.Headers = nil
+		}
+		if value.RuntimeSettings.HTTPProxy != nil {
+			value.RuntimeSettings.HTTPProxy.BasicAuth = nil
+			value.RuntimeSettings.HTTPProxy.BearerToken = nil
+		}
+		if value.RuntimeSettings.Caido != nil {
+			value.RuntimeSettings.Caido.BearerToken = nil
+		}
+		if value.RuntimeSettings.Interactsh != nil {
+			value.RuntimeSettings.Interactsh.Token = nil
+		}
+		if value.RuntimeSettings.HTTPOriginTarget != nil {
+			value.RuntimeSettings.HTTPOriginTarget.BasicAuth = nil
+			value.RuntimeSettings.HTTPOriginTarget.BearerToken = nil
+			value.RuntimeSettings.HTTPOriginTarget = nil
+		}
+		settings[name] = value
+	}
+}
+
+func (s *Scheduler) plannerModelAccess(
+	ctx context.Context,
+	stage resolved.ResolvedStage,
+) (*planner.ModelAccess, error) {
+	if stage.ExecutionConfig.Planner == nil {
+		return nil, nil
+	}
+	selection := *stage.ExecutionConfig.Planner
+	if selection.LLMGateway == nil {
+		return nil, fmt.Errorf("Planner has no complete LLM Gateway route")
+	}
+	token, err := s.resolveCredential(ctx, selection)
+	if err != nil {
+		return nil, err
+	}
+	result := &planner.ModelAccess{
+		ModelPolicy: selection.ModelPolicy.Clone(),
+		LLMGateway:  *selection.LLMGateway,
+		Token:       token,
+	}
+	if selection.Credential != nil {
+		credential := *selection.Credential
+		result.Credential = &credential
+	}
+	return result, nil
+}
+
+func (s *Scheduler) resolveCredential(
+	ctx context.Context,
+	selection resolved.ResolvedConsumerExecutionConfig,
+) (contracts.SecretString, error) {
+	if selection.Credential == nil {
+		return contracts.NewSecretString(""), nil
+	}
+	if selection.LLMGateway == nil {
+		return contracts.SecretString{}, fmt.Errorf("selected LLM credential has no Gateway")
+	}
+	token, err := s.resolveLLMCredential(
+		ctx, *selection.Credential, selection.LLMGateway.Ref,
+	)
+	if err := resolvedCredentialError(token, err); err != nil {
+		return contracts.SecretString{}, err
+	}
+	return token, nil
+}
+
+var errEmptyCredential = errors.New("credential material is empty")
+
+// resolvedCredentialError keeps the resolver cause for classification while
+// rendering only a static message.
+func resolvedCredentialError(token contracts.SecretString, err error) error {
+	if err == nil && token.Reveal() == "" {
+		err = errEmptyCredential
+	}
+	if err != nil {
+		return persistencepostgres.WrapError("selected LLM credential is unavailable", err)
+	}
+	return nil
+}
+
+// credentialFailure converts a credential or execution-configuration error
+// into a Stage failure. Context cancellation and transient storage failures
+// are retryable; missing, invalid or unreadable credentials are permanent.
+// Only a coarse cause is logged, never the underlying error text.
+func (s *Scheduler) credentialFailure(
+	run runstore.WorkflowRun, execution runstore.StageExecution, code, message string, err error,
+) planner.Failure {
+	retryable, cause, _ := classifyCredentialError(err)
+	s.options.Logger.Warn(
+		message,
+		"run_id", run.RunID, "stage_execution_id", execution.StageExecutionID,
+		"cause", cause, "retryable", retryable,
+	)
+	return planner.Failure{Code: code, Message: message, Retryable: retryable}
+}
+
+// classifyCredentialError also reports whether the cause belongs to its known
+// credential/context/storage classes. Other infrastructure failures keep their
+// caller-owned default instead of becoming permanent configuration failures.
+// A confirmed permanent credential cause wins over a joined cleanup timeout.
+func classifyCredentialError(err error) (bool, string, bool) {
+	switch {
+	case errors.Is(err, credentials.ErrNotFound), errors.Is(err, credentials.ErrRuntimeCredentialNotFound):
+		return false, "credential_not_found", true
+	case errors.Is(err, credentials.ErrInvalid), errors.Is(err, credentials.ErrRuntimeCredentialInvalid),
+		errors.Is(err, errEmptyCredential):
+		return false, "credential_invalid", true
+	case errors.Is(err, credentials.ErrCrypto), errors.Is(err, credentials.ErrKeyUnavailable):
+		return false, "credential_unreadable", true
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return true, "context_ended", true
+	}
+	if persistencepostgres.IsTransientFailure(err) {
+		return true, "storage_unavailable", true
+	}
+	return false, "configuration_unavailable", false
+}
+
+// Credential lookup is a store operation, separate from the Runtime batch
+// and from any later Planner model request.
+func (s *Scheduler) resolveLLMCredential(ctx context.Context, ref llmgateway.LLMCredentialRef, gateway llmgateway.LLMGatewayConfigRef) (contracts.SecretString, error) {
+	if s.options.Credentials == nil {
+		return contracts.SecretString{}, fmt.Errorf("selected LLM credential is unavailable")
+	}
+	ctx, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+	defer cancel()
+	return s.options.Credentials.ResolveLLMCredential(ctx, ref, gateway)
+}

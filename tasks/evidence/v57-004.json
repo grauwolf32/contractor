@@ -1,0 +1,167 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V57-004",
+  "verified_on": "2026-09-19",
+  "base_commit": "d2920a17381266bb94f0925015e5efca1681b702",
+  "environment": {
+    "python": "3.13.14",
+    "go": "go1.25.6 linux/amd64",
+    "google_adk_python": "2.8.0",
+    "pydantic": "2.13.5",
+    "runtime_dependencies": "uv sync --locked",
+    "execution": "isolated worktree; fake models/local fixtures, no live inference"
+  },
+  "authorization": "User approved implementation after detailed discussion and explicitly selected removal only of the artificial Audit JSON limit; shared result contract limits are deferred.",
+  "implemented": [
+    "Model JSON decoder and fresh field validation extracted; finalizer/summarizer retain the model facade and original validation order.",
+    "Shared typed Runtime assembler retains secret policy, request-owned ID/slots, invocation-local exact refs, publisher receipt priority, exporter reservations and output bound.",
+    "Trusted completion validates fresh request-ID/text fields and calls assembler directly; no synthetic JSON serialization/parsing or its encoding-size admission check.",
+    "Real Audit runner regression proves collection/reminder/publication gates, exact content and refs, four model calls/two tool calls, and one terminal State without entering the model decoder."
+  ],
+  "compatibility_exception": {
+    "removed": "256 KiB limit applied to synthetic ASCII-escaped Audit JSON wrapper",
+    "example": {
+      "text": "U+007F repeated 44,000 times",
+      "text_utf8_bytes": 44000,
+      "old_wrapper_bytes_with_subtask_id_0": 264032,
+      "minimal_worker_result_bytes": 44145,
+      "typed_completion": "accepted when actual output fits",
+      "same_oversized_model_json": "still worker_result_too_large, retryable=false"
+    },
+    "retained": "64 KiB UTF-8 text,256 KiB actual model JSON/finalizer input/assembled result/WorkerCompletion, Go Planner/Stage bounds and1 MiB A2A response bound"
+  },
+  "new_boundary_cases": [
+    "tests/test_worker_completion.py::test_model_result_decoder_preserves_validation_errors[missing]",
+    "tests/test_worker_completion.py::test_model_result_decoder_preserves_validation_errors[malformed]",
+    "tests/test_worker_completion.py::test_model_result_decoder_preserves_validation_errors[non-object]",
+    "tests/test_worker_completion.py::test_model_result_decoder_preserves_validation_errors[missing-text]",
+    "tests/test_worker_completion.py::test_model_result_decoder_preserves_validation_errors[model-artifact-authority]",
+    "tests/test_worker_completion.py::test_model_result_decoder_preserves_validation_errors[non-text]",
+    "tests/test_worker_completion.py::test_model_result_decoder_preserves_validation_errors[empty-text]",
+    "tests/test_worker_completion.py::test_model_result_decoder_preserves_validation_errors[blank-text]",
+    "tests/test_worker_completion.py::test_model_result_decoder_preserves_validation_errors[invalid-subtask-schema]",
+    "tests/test_worker_completion.py::test_model_result_decoder_preserves_validation_errors[different-subtask]",
+    "tests/test_worker_completion.py::test_model_result_decoder_preserves_validation_errors[utf8-byte-overflow]",
+    "tests/test_worker_completion.py::test_model_result_decoder_preserves_validation_errors[text-size-before-schema-and-id]",
+    "tests/test_worker_completion.py::test_model_result_decoder_preserves_validation_errors[schema-before-id]",
+    "tests/test_worker_completion.py::test_model_result_decoder_preserves_validation_errors[encoded-size-before-json]",
+    "tests/test_worker_completion.py::test_model_result_decoder_accepts_exact_size_boundaries[utf8-text]",
+    "tests/test_worker_completion.py::test_model_result_decoder_accepts_exact_size_boundaries[encoded-json]",
+    "tests/test_worker_completion.py::test_collected_completion_uses_typed_request_owned_result",
+    "tests/test_worker_completion.py::test_collected_completion_revalidates_mutated_result_text[none]",
+    "tests/test_worker_completion.py::test_collected_completion_revalidates_mutated_result_text[non-text]",
+    "tests/test_worker_completion.py::test_collected_completion_revalidates_mutated_result_text[empty]",
+    "tests/test_worker_completion.py::test_collected_completion_revalidates_mutated_result_text[blank]",
+    "tests/test_worker_completion.py::test_collected_completion_revalidates_mutated_result_text[utf8-overflow]",
+    "tests/test_worker_completion.py::test_collected_completion_removes_only_synthetic_json_encoding_bound",
+    "tests/test_worker_completion.py::test_collected_completion_retains_actual_worker_result_wire_bound",
+    "tests/test_worker_completion.py::test_result_assembly_preserves_reserved_binding_policy[inputs-report]",
+    "tests/test_worker_completion.py::test_result_assembly_preserves_reserved_binding_policy[outputs-report]",
+    "tests/test_worker_completion.py::test_result_assembly_preserves_reserved_binding_policy[skills-report]",
+    "tests/test_worker_completion.py::test_result_assembly_preserves_reserved_binding_policy[builder-memory.shared]",
+    "tests/test_worker_completion.py::test_model_decoder_and_result_policy_keep_error_precedence"
+  ],
+  "strengthened_audit_case": "tests/test_audit_completion_runtime.py::test_audit_typed_assembly_preserves_reminder_publication_and_refs_without_model_decode",
+  "checks": [
+    {
+      "command": "runtime/.venv/bin/pytest -W error runtime/tests/test_worker_completion.py runtime/tests/test_result_finalizer.py runtime/tests/test_adk_runtime.py runtime/tests/test_instrumentation.py",
+      "exit_code": 0,
+      "python_passed": 107,
+      "output": [
+        "........................................................................ [ 67%]",
+        "...................................                                      [100%]",
+        "107 passed in 2.06s"
+      ]
+    },
+    {
+      "command": "runtime/.venv/bin/pytest -W error runtime/tests/test_worker_summarizer.py runtime/tests/test_workspace_auto_export.py runtime/tests/test_a2a_server.py",
+      "exit_code": 0,
+      "python_passed": 17,
+      "output": [
+        ".................                                                        [100%]",
+        "17 passed in 0.91s"
+      ]
+    },
+    {
+      "command": "runtime/.venv/bin/pytest -W error runtime/tests/test_audit_completion_runtime.py runtime/tests/test_audit_completion_continuation.py runtime/tests/test_audit_result_publication.py runtime/tests/test_audit_completion_diagnostics.py",
+      "exit_code": 0,
+      "python_passed": 139,
+      "output": [
+        "........................................................................ [ 51%]",
+        "...................................................................      [100%]",
+        "139 passed in 2.77s"
+      ]
+    },
+    {
+      "command": "make verify-wire-contracts",
+      "exit_code": 0,
+      "python_passed": 175,
+      "output": [
+        "go test ./internal/contracts/...",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/contracts\t0.044s",
+        "cd runtime && uv run pytest tests/test_contracts.py tests/test_performance_contracts.py",
+        "........................................................................ [ 41%]",
+        "........................................................................ [ 82%]",
+        "...............................                                          [100%]",
+        "175 passed in 0.50s"
+      ]
+    },
+    {
+      "command": "runtime/.venv/bin/ruff check runtime/src/contractor_runtime/worker/runtime.py runtime/tests/test_worker_completion.py runtime/tests/test_audit_completion_runtime.py && runtime/.venv/bin/ruff format --check runtime/src/contractor_runtime/worker/runtime.py runtime/tests/test_worker_completion.py runtime/tests/test_audit_completion_runtime.py",
+      "exit_code": 0,
+      "output": [
+        "All checks passed!",
+        "3 files already formatted"
+      ]
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "output": []
+    },
+    {
+      "command": "git diff --cached --check",
+      "exit_code": 0,
+      "output": []
+    }
+  ],
+  "python_tests_passed": 438,
+  "limit_history": {
+    "origins": [
+      {
+        "commit": "a565c2426b7ca6019de7735f4567ab3b9260c370",
+        "finding": "MVP-012 Python stage result JSON256 KiB"
+      },
+      {
+        "commit": "aacda4b36be505201f0f95aecc7d586107ba68a5",
+        "finding": "V1-006 Go Planner stage payload256 KiB"
+      },
+      {
+        "commit": "4d39a6925278a5916f9c97be1ec2526b0789f5c6",
+        "finding": "V11-010 workspace-exported result256 KiB"
+      },
+      {
+        "commit": "b939133f67fbe6f0c2dac13a7d6e318077753b4e",
+        "finding": "V17-001 Python/Go WorkerCompletion256 KiB"
+      },
+      {
+        "commit": "6631c606209240e2713d51c34c343b4714903303",
+        "finding": "V21-001 finalizer input256 KiB"
+      },
+      {
+        "commit": "bd36ef6b64e7eee4fe43f1e6996d80363341891a",
+        "finding": "V39-005 synthetic Audit wrapper reuses model decoder"
+      },
+      {
+        "commit": "79d30099dab175a749e0b4470f2e34ad565a1162",
+        "finding": "V45-012 names existing Go result limits without raising them"
+      }
+    ],
+    "rationale": "No quantitative justification for exactly256 KiB found in inspected tasks/specifications/commit messages; a Contractor budget, not an ADK/A2A limit. Global limit revision is outside this change."
+  },
+  "review": {
+    "independent_runtime_review": "execution_review: decoder/error precedence, immediate fresh validation, artifact authority and limits preserved; no material issues.",
+    "production_changes": "Only runtime/src/contractor_runtime/worker/runtime.py; no Go/config/wire-schema/dependency/prompt/budget changes.",
+    "scope": "No ordinary finalizer removal, no additional model calls, no live Run or deployment."
+  }
+}

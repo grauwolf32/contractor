@@ -1,0 +1,287 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-25",
+  "task": "V419-005",
+  "status": "Server GoADKv2.6 and preceding RuntimeADK2.13 accepted through the user-authorized targeted scope; all mandatory declared checks passed. No complete final release/global Go/Runtime/UI/allE2E run is claimed.",
+  "authority": "User directed Runtime first, then Server, and explicitly prohibited a full rerun after the final dependency update. Preserve historical full records at their original source/lock; reuse actual passing unchanged-input component records instead of rerunning them.",
+  "accepted_versions": {
+    "google.golang.org/adk/v2": "v2.6.0",
+    "go_directive": "1.26.6",
+    "go_toolchain": "1.26.9",
+    "google-adk": "2.13.0",
+    "a2a-sdk": "1.1.2",
+    "certifi": "2026.10.23",
+    "opentelemetry-api": "1.45.1",
+    "opentelemetry-sdk": "1.45.1",
+    "opentelemetry-proto": "1.42.1"
+  },
+  "locks_and_graph": {
+    "go.mod": "39814d7a347628f48a62289abba63beba81db20dd51d1acf233d308e654bb937",
+    "go.sum": "33d3b901321b8f39d44e379736d2c9a42b8a0fcb7455ad6c20594ef5417cc195",
+    "runtime/uv.lock": "feb5a55a9097fc6224384a99b7c506467196ab87435ba3a83ac0a230023bb027",
+    "selected_Go_modules": 264,
+    "canonical_graph_sha256": "a7e89ecafc6ec0b47d527b85e87f3feacd60d30682b79808c7fbdee11a952269"
+  },
+  "evidence": [
+    {
+      "path": "tasks/evidence/v419-go-adk-26-atomic-migration.json",
+      "sha256": "7b64adcad80e44295476532db9ca9630544766840eba77fa1cfd57fbccbc06be"
+    },
+    {
+      "path": "tasks/evidence/v419-go-adk-26-runner-conformance.json",
+      "sha256": "68fcd13beeac6f3c26de03c8afe3d7dd2310288352324caef617f8f0afbf5611"
+    },
+    {
+      "path": "tasks/evidence/v419-go-adk-26-adjacent-owner-wire.json",
+      "sha256": "b7b42439cddf71297a11072cd049cf956a145b1b0c9a944e690d6ddb15ad1f23"
+    },
+    {
+      "path": "tasks/evidence/v419-go-adk-26-selected-processes.json",
+      "sha256": "d9caf4d149d0475926e651496941a528cc7947c46f2374ac87960fe77625ca49"
+    },
+    {
+      "path": "tasks/evidence/v418-patched-dependency-acceptance.json",
+      "sha256": "1faae98f738f6938cee1b1d6769e815a0f877d80ee4ac5aa2ae9457047bfc199"
+    },
+    {
+      "path": "tasks/evidence/v418-final-migration-acceptance.json",
+      "sha256": "37b0ea4fdfdbfef6d6d31f44dcc7ea005d8201bfce52440b8c7c2d8c260dd809"
+    }
+  ],
+  "checks": {
+    "Go_atomic_owners": "12 affected owner packages:574top-level1354passrecords,534uniquePlanner leaves,84requiredcases and16projection observations. Exactly2namedliveGateway+1optionalCollector skips.",
+    "Go_Runner_PG_race": "5 affected packages:145top-level374passrecords321uniqueleaves;100/100requiredcases (84prior+16new),16projectionobservations;2namedliveGateway optin skips.",
+    "Go_adjacent_race": "4package exact-source union107top-level300passrecords264leaves;1optionalCollector skip. Changed fulltelemetryrace50top-level122records109leaves; sameoptionalCollector skip.",
+    "wire": "make test-wire-cross-language PASS:271sharedfixtures,326Go/224Pythonsharedfunctions; Go contracts821records786leaves, Runtimecontracts313 and Runtime sharedsubset1240cases. No unrelated fullRuntime/UIrun.",
+    "selected_processes": {
+      "bad_events": [],
+      "canonical_report_sha256": "27e77d743e1422125e8c6ad3170f745cee4564a1ca0a75e3f7fb40640ccca03a",
+      "passed_required_leaf_count": 22,
+      "passed_test_records": 27,
+      "passed_top_level_parents": 5,
+      "required_leaves": [
+        "TestWorkerSessionModesAcrossProductionProcesses/adk213/isolated/artifact-pair",
+        "TestWorkerSessionModesAcrossProductionProcesses/adk213/isolated/finalizer-cancel",
+        "TestWorkerSessionModesAcrossProductionProcesses/adk213/isolated/finalizer-empty",
+        "TestWorkerSessionModesAcrossProductionProcesses/adk213/isolated/finalizer-limit",
+        "TestWorkerSessionModesAcrossProductionProcesses/adk213/isolated/finalizer-thought",
+        "TestWorkerSessionModesAcrossProductionProcesses/adk213/isolated/main-cancel",
+        "TestWorkerSessionModesAcrossProductionProcesses/adk213/isolated/main-empty",
+        "TestWorkerSessionModesAcrossProductionProcesses/adk213/isolated/main-limit",
+        "TestWorkerSessionModesAcrossProductionProcesses/adk213/isolated/main-thought",
+        "TestWorkerSessionModesAcrossProductionProcesses/adk213/isolated/raw-arguments",
+        "TestWorkerSessionModesAcrossProductionProcesses/adk213/isolated/reuse-after-finalizer-cancel",
+        "TestWorkerSessionModesAcrossProductionProcesses/adk213/isolated/reuse-after-main-cancel",
+        "TestWorkerSessionModesAcrossProductionProcesses/adk213/isolated/unknown",
+        "TestWorkerSessionModesAcrossProductionProcesses/adk213/shared/artifact-pair",
+        "TestWorkerSessionModesAcrossProductionProcesses/adk213/shared/raw-arguments",
+        "TestWorkerSessionModesAcrossProductionProcesses/adk213/shared/unknown",
+        "TestWorkerSummarizerProductionBoundaries/invalid-summary",
+        "TestWorkerSummarizerProductionBoundaries/provider-timeout",
+        "TestWorkerSummarizerProductionBoundaries/empty-summary",
+        "TestWorkerSummarizerProductionBoundaries/thought-summary",
+        "TestWorkerSummarizerProductionBoundaries/limited-summary",
+        "TestWorkerSummarizerProductionBoundaries/reuse-after-failure"
+      ],
+      "required_parent_names": [
+        "TestRoutingAndEscalationProductionBoundaries",
+        "TestWorkerSessionModesAcrossProductionProcesses",
+        "TestWorkerSummarizerProductionBoundaries",
+        "TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses",
+        "TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses"
+      ]
+    },
+    "Runtime_final_targeted": "323targetedRuntimePASS;11nativeADK/mTLSleavesPASS; runtime advisory positivecanary then0productionadvisories. Earlier fullRuntime5031+55skip and26globalprocessparents remain historicaloldlock5b8 only."
+  },
+  "process_attribution": {
+    "actual_execution_revision": "b46cc5e08490562a0490c8c8fce29dbb0a50d597",
+    "canonical_report_sha256": "27e77d743e1422125e8c6ad3170f745cee4564a1ca0a75e3f7fb40640ccca03a",
+    "provenance_sha256": "4b619821f1d18adc6a93a42306a26da04e7241c21d472ce0bd391bbfb0e66d3e",
+    "archive_sha256": "b6599b02a64b5473a1770b98350f59abf2ef1096cb24ffa89c2b7c726547d34d",
+    "fresh_server_sha256": "bc41dda3612034668347cae9c283c0e4c26ff34f1194955a3aeb5c5e6bc07de5",
+    "source_equivalence": {
+      "process_revision": "b46cc5e08490562a0490c8c8fce29dbb0a50d597",
+      "integrated_revision": "9874fde9c4520c90e6790a6307c08163831fbea3",
+      "differences": [
+        {
+          "path": "internal/planner/session/adk_event_fields_postgres_test.go",
+          "reason": "New owner-package Go test, outside production and selected process compilation"
+        },
+        {
+          "path": "internal/planner/streamline/go_adk_boundary_postgres_test.go",
+          "reason": "New owner-package Go test, outside production and selected process compilation"
+        },
+        {
+          "path": "internal/telemetry/planner_transport_isolation_test.go",
+          "reason": "New owner-package Go test, outside production and selected process compilation"
+        },
+        {
+          "path": "tasks/BACKLOG.md",
+          "reason": "Tracker/evidence only"
+        },
+        {
+          "path": "tasks/done/v419-003-go-adk-26-runner-session-conformance.yml",
+          "reason": "Tracker/evidence only"
+        },
+        {
+          "path": "tasks/done/v419-004-go-adk-26-adjacent-dependency-conformance.yml",
+          "reason": "Tracker/evidence only"
+        },
+        {
+          "path": "tasks/evidence/v419-go-adk-26-adjacent-owner-wire.json",
+          "reason": "Tracker/evidence only"
+        },
+        {
+          "path": "tasks/evidence/v419-go-adk-26-runner-conformance.json",
+          "reason": "Tracker/evidence only"
+        },
+        {
+          "path": "tasks/evidence/v419-go-adk-26-selected-processes.json",
+          "reason": "Tracker/evidence only"
+        },
+        {
+          "path": "tasks/v419-005-go-adk-26-release-gate.yml",
+          "reason": "Tracker/evidence only"
+        }
+      ],
+      "production_modules_Runtime_and_process_fixtures_unchanged": true,
+      "module_and_lock_sha256": {
+        "go.mod": "39814d7a347628f48a62289abba63beba81db20dd51d1acf233d308e654bb937",
+        "go.sum": "33d3b901321b8f39d44e379736d2c9a42b8a0fcb7455ad6c20594ef5417cc195",
+        "runtime/pyproject.toml": "7cf2a6b5cc903488c6aea270d778709a41e01922aa356d6970b88965f704a33d",
+        "runtime/uv.lock": "feb5a55a9097fc6224384a99b7c506467196ab87435ba3a83ac0a230023bb027"
+      },
+      "attribution": "Selected process results remain explicitly identified by their actual committed source revision. Input equivalence attributes unchanged production behavior; it is not a full run or an exact final-HEAD binary test."
+    },
+    "command": [
+      "/process-v419004/runtime/.venv/bin/python",
+      "scripts/release_test_reports.py",
+      "run",
+      "--report",
+      "/tmp/v419004-process-gate/process.jsonl",
+      "--",
+      "go",
+      "test",
+      "-json",
+      "-tags=e2e",
+      "-p=1",
+      "-count=1",
+      "-timeout=20m",
+      "./tests/e2e",
+      "-run",
+      "^(TestRoutingAndEscalationProductionBoundaries|TestWorkerSessionModesAcrossProductionProcesses|TestWorkerSummarizerProductionBoundaries|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses)$"
+    ],
+    "execution": "Actually executed once under004A2, attributed here after input equivalence. No process rerun."
+  },
+  "final_scoped_static_checks": [
+    {
+      "command": [
+        "go",
+        "mod",
+        "verify"
+      ],
+      "exit_code": 0,
+      "log_sha256": "b4537ed75f533f993f371954de47e42a793b8e5b0587577de7e27fb3e50696bd"
+    },
+    {
+      "command": [
+        "go",
+        "mod",
+        "tidy",
+        "-diff"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "go",
+        "vet",
+        "-p=1",
+        "./internal/planner/session",
+        "./internal/planner/streamline",
+        "./internal/telemetry"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "runtime/.venv/bin/python",
+        "scripts/check_spec.py"
+      ],
+      "exit_code": 0,
+      "log_sha256": "41ebd9c784e5883e970529a94152263d1de1eb51babd5d415e53b3a1d41be449"
+    },
+    {
+      "command": [
+        "runtime/.venv/bin/python",
+        "scripts/check_tasks.py"
+      ],
+      "exit_code": 0,
+      "log_sha256": "63c5561921f69754bf5a59adbfcf0e6d3d4268ae7b288bbde94c2a08afe6df3a"
+    },
+    {
+      "command": [
+        "runtime/.venv/bin/python",
+        "scripts/dependencies/build_graph.py",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log_sha256": "bc3e51ed52bb210989be63f904a2d0271f55d6f6f30c2041efc3fcff4e4c560d"
+    }
+  ],
+  "finding_dispositions": [
+    {
+      "finding": "Module identity, removed callback/tool contexts, allthree NewEvent constructors and raised module closure",
+      "owner": "V419-002",
+      "disposition": "Atomic v2 adaptation; one module identity, Go min1.26.6/toolchain1.26.9, all27consumers and264module graph verified."
+    },
+    {
+      "finding": "Strict core/Memory/State dispatch, functiontool result normalization and orphan history projection",
+      "owner": "V419-001,V419-002,V419-003",
+      "disposition": "Exact baseline/candidate observations and actual committed Runner regressions pass; raw RAM history remains intact, durable reduced facts and no SDK partial resume preserved."
+    },
+    {
+      "finding": "Accepted finish hid a required event append failure on supported1.6",
+      "owner": "V419-006",
+      "disposition": "Fixed before migration; realPG invalid/unavailable/finaloutcome/cancel24cases also pass under committedv2.6."
+    },
+    {
+      "finding": "Ambiguous committed append, cancellation during SQL/Worker cleanup, new Event fields and direct LLMResponse serialization",
+      "owner": "V419-003",
+      "disposition": "16newrequiredcases pass onrealRunner/PG; no blind replay, work joins, privatefieldsremainRAMonly. Existing documented plan-write-error precedence is preserved and proven on1.6and2.6; the contrary newtest assumption was rejected with evidence."
+    },
+    {
+      "finding": "Raised Gateway/A2A/OTel/protobuf dependencies and exporter proxy/isolation",
+      "owner": "V419-004",
+      "disposition": "Actual owner/race, realHTTP/mTLS, sharedwire and5realprocessparents pass; no native provider/delegation/exporter replaces Contractor adapters."
+    },
+    {
+      "finding": "Unmetered native compaction, summary append/tail retention, exact historical result retrieval and compaction/summarizer exclusion",
+      "owner": "V420-001 through V420-005",
+      "disposition": "Separate pending feature scope; nativecompaction nil/off onacceptedpath, no SDK resume/Scheduler redesign. These inactive features are not claimed delivered."
+    }
+  ],
+  "behavior": {
+    "Scheduler": "Production unchanged; only mechanical test import migrated. Existing claims/queues/transitions/retries and completed recovery remain Contractor-owned.",
+    "compaction": "Disabled; V417/V420 remain separate planned implementation.",
+    "Consult": "Proposal0047 only.",
+    "live_models": "Configured models unchanged; no live-model benchmark/quality claim.",
+    "Runtime_override": "Exactlytwo documented uv API/SDK1.45.1 overrides outside ADK declared metadata cap. Tested supported project paths; no upstream metadata-compatibility claim, ignored advisory or SDK source patch."
+  },
+  "limitations": [
+    "No complete final release graph, global Go/Runtime/UI or all26-E2E rerun, per explicit user instruction.",
+    "Two liveGateway optins and optional external Collector were skipped and are not claimed passing.",
+    "Completed/running-session recovery is proven against realPG inowner suites; no dedicated Server process-restart recovery test is claimed.",
+    "Historical Runtime full tests retain their old5b8lock; the patchedfinalfeblock uses targeted acceptance."
+  ],
+  "independent_review": "Read-only final scope/version/evidence audit found no actionable blocker; no additional tests or global commands executed.",
+  "delivery": {
+    "branch": "codex/adk-runtime-213",
+    "merged_to_main": false,
+    "pushed": false,
+    "deployed": false,
+    "state": "All intended SDK updates and their targeted acceptance complete; final metadata closure follows this primary evidence commit."
+  }
+}

@@ -1,0 +1,906 @@
+# Public API
+
+Requirement prefix: `API` · [Specification index](../README.md)
+
+## Purpose and scope
+
+This document owns the conventions shared by every resource of the public
+`/v1` Server API: the committed OpenAPI contract and API versioning, the public
+JSON request-body bound, the boundary between browser clients and domain
+services, the browser-origin allowlist and CORS, the browser authentication
+routes, the session cookie, session lifetime and CSRF protection, the
+non-disclosing `404`, the precondition policy for configuration and credential
+mutations, and the live event WebSocket with its `run` and `operations`
+streams.
+
+It leaves to other documents:
+
+- Create idempotency of `POST /v1/runs` (the canonical request digest, exact
+  replay and key reuse), which published configurations a caller may select,
+  and the public Runtime-label field `runtimeLabels`: Runs
+  ([RUN-R5, RUN-R7, RUN-R8, RUN-R17 to RUN-R21](../execution/runs.md)).
+- Request correlation through `X-Request-ID` and the `requestId` field of REST
+  error objects: Observability
+  ([OBS-R1 to OBS-R5](../platform/observability.md)).
+- The local principal and its capabilities, the local-auth file, password
+  hashing, the login body bound, the generic login failure, the login limiter,
+  client IP and trusted proxies, the browser-session bootstrap settings, the
+  insecure loopback cookie name, the `Authorization: Bearer` path and the
+  meaning of `401` and `403`: Security
+  ([SEC-R38 to SEC-R62](../platform/security.md)).
+- The UI build's supported API versions and incompatible-version error,
+  additive API changes within a supported version, the transport adapter and
+  the SPA's reaction to `401` and `403`: UI
+  ([UI-R5 to UI-R7, UI-R20 to UI-R22, UI-R31 to UI-R36](../ui/ui.md)).
+- The headers and ETags of individual resources: Runtime configuration
+  ([RCF-R125, RCF-R173 to RCF-R176](../configuration/runtime-config.md)), the
+  Scheduler settings resource in Operations
+  ([OPS-R53 to OPS-R60](../operations/operations.md)), the Git routes in Git
+  import ([GIT-R82, GIT-R84](../artifacts/git-import.md)) and the Audit routes
+  in Audits ([AUD-R198 to AUD-R205](../audits/audits.md)).
+- Filtering and keyset pagination of each collection: Configuration catalog
+  ([CAT-R67 to CAT-R69](../configuration/catalog.md)), Runs
+  ([RUN-R81](../execution/runs.md)), Audits
+  ([AUD-R203](../audits/audits.md)) and Managed Evals
+  ([EVM-R210 to EVM-R214](../evals/managed-evals.md)).
+- The generic Artifact payload limit: ArtifactStore
+  ([ART-R65](../artifacts/artifact-store.md),
+  [LIM-ART-4](../platform/limits.md)).
+- The content of reduced durable Planner facts and of the typed Planner-plan
+  projection: [Planners](../execution/planners.md).
+- Run hard deletion: [Retention and deletion](../artifacts/retention-and-deletion.md).
+
+## Concepts
+
+- **Public API**: the versioned, authenticated `/v1` Server API described by
+  the committed OpenAPI 3.1 contract and used by browser and non-UI clients.
+- **Browser-origin allowlist**: the operator-configured list of exact browser
+  origins that Server allows; credentialed CORS is enabled only for them.
+- **Session cookie**: the `__Host-contractor_session` cookie that carries a
+  browser session's random value.
+- **CSRF token**: the session-bound 32-byte random token that a
+  cookie-authenticated non-safe request presents in `X-CSRF-Token`.
+- **Live event WebSocket**: the read-only `GET /v1/events/ws` endpoint that
+  multiplexes `run` and `operations` subscriptions.
+- **Event cursor**: an opaque generation combined with an unsigned decimal
+  string sequence that identifies a position in one stream.
+- **Run event**: a row of `workflow_run_events`, the sole Run replay
+  authority.
+- **Operations invalidation**: a typed, process-local notification on the
+  `operations` stream that an Operations resource changed.
+
+Terms are defined once in the [glossary](../glossary.md).
+
+## Model
+
+### Browser session
+
+A browser session exists only in Server memory, from a successful login until
+logout, expiry, revocation or Server restart (API-R15 to API-R21).
+
+```mermaid
+stateDiagram-v2
+    [*] --> Live: successful login creates a fresh session
+    Live --> Live: accepted authenticated request advances the idle deadline
+    Live --> [*]: logout
+    Live --> [*]: eight-hour idle limit reached
+    Live --> [*]: 24-hour absolute limit reached
+    Live --> [*]: revoked as the oldest by a ninth successful login
+    Live --> [*]: Server restart
+```
+
+Leaving `Live` through expiry, logout or revocation closes the session's live
+event sockets (API-R35).
+
+### Live event streams
+
+| Stream | Content | Cursor | Replay and retention |
+| --- | --- | --- | --- |
+| `run` | Every durable Run or StageExecution lifecycle change and every public Planner fact of one Run | Per-Run sequence assigned in the source record's transaction; generation stable for the Run; returned by Run detail | Committed events replayable from `workflow_run_events` while the Run is retained |
+| `operations` | Runtime Agent, allocation, configuration, credential and scheduler-settings changes | Process-local; generation and revision returned by the Operations snapshot; Server restart creates another generation | Latest 255 typed Operations invalidations; otherwise `resync_required` |
+
+A `run` subscription:
+
+```mermaid
+sequenceDiagram
+    participant C as Browser
+    participant S as Server
+    participant DB as PostgreSQL
+    C->>S: GET /v1/events/ws, subprotocol contractor.events.v1, session cookie
+    S->>S: Authenticate the session cookie and require the exact configured UI Origin
+    S-->>C: Socket accepted
+    C->>S: subscribe frame for a run stream, with or without an after cursor
+    S->>S: Recheck authorization for this subscription
+    S-->>C: subscribed
+    alt with an after cursor
+        S->>DB: Read committed workflow_run_events after the cursor
+        S-->>C: Replayed events in order
+    else without an after cursor
+        Note over S: Tail from the cursor captured after authorization, no older history
+    end
+    DB--)S: Notification, visible only after the source transaction commits
+    S->>DB: Catch up the Run once for all of its subscriptions, also periodically
+    S-->>C: New events in order
+    C->>S: unsubscribe frame
+    S->>S: Stop the subscription pump
+    S-->>C: unsubscribed
+```
+
+An `operations` subscription and its resynchronization:
+
+```mermaid
+flowchart TD
+    A["Authenticated REST Operations snapshot with its generation and revision"] --> B["Subscribe to the operations stream from that cursor"]
+    B --> C{"Next revision of the same generation available?"}
+    C -->|"yes"| D["Typed Operations invalidation"]
+    D --> C
+    C -->|"missed revision, unavailable cursor, cursor older than the latest 255 invalidations, or another generation after Server restart"| E["resync_required"]
+    E --> A
+```
+
+## Requirements
+
+### Contract and versioning
+
+**API-R1.** The browser API has one committed OpenAPI 3.1 contract at
+[`api/openapi/contractor-public-v1.yaml`](../../../api/openapi/contractor-public-v1.yaml).
+It describes the public `/v1` auth, Workflow, Run, Artifact and Operations
+resources, their error envelope and the mutation headers used by browser and
+non-UI clients.
+
+**API-R2.** Private Control Plane, Runtime Agent and A2A wire contracts remain
+separate and are not made public by including them in this specification.
+
+**API-R3.** Incompatible changes require a new public API version.
+Regenerating a client from an incompatible document does not make the change
+backward compatible. Until the first release `/v1` is pre-production, like the
+shipped catalog (CAT-R74): an incompatible `/v1` change is allowed when the
+Server, `api/openapi/contractor-public-v1.yaml`, both generated clients and the
+UI change in one commit, `make verify-public-api` passes, and the task that
+makes the change records it. The first release removes this exception.
+
+Rationale: the project has no external clients, deployments or stored client
+state yet, so a removed field, parameter or value breaks only the UI and CLI
+that change with it. Keeping an unused variant to stay additive cost more than
+removing it (the experiment-list filters that EVM-R247 removed made every page
+read the owner's whole history). Reopen at the first release, or as soon
+as a client outside this repository depends on `/v1`.
+
+**API-R68.** The Go client bundled with the CLI is generated from the
+committed contract by a pinned oapi-codegen version that builds without
+network access, and is never hand-edited. Its freshness check regenerates it
+into a temporary file and fails `make lint` when the result differs from the
+committed client; the UI client follows the same rule (UI-R19). Every `enum` and
+`const` schema in the HTTP contract and linked event schema declares a `type`
+that admits its values. Untyped literals make the Go generator emit
+`interface{}`, so the contract tests reject them in both documents. Literal
+example/default data and property names are not schema constraints. The Go public
+client replays only requests with a replayable method or idempotency key and a
+rewindable body, at most three attempts per call. It honours a valid Retry-After
+up to 30 seconds; a longer delay returns the response for explicit later resume,
+without an early retry.
+
+**API-R70.** Every identity the public API shows as a `ResourceId` (or as the
+`Revision` and live event `SafeIdentifier` it equals) uses the resource
+identifier grammar `[A-Za-z0-9][A-Za-z0-9_.:-]*` of at most 256 characters
+(LIM-API-19), and every name it shows as a `ConfigId` or `ArtifactName` uses
+the shared name grammar `[A-Za-z0-9][A-Za-z0-9_.-]*` of at most 128 characters
+(LIM-API-20). The Server has one definition of each grammar, which handlers,
+the live event protocol and the stores apply. A store rejects an identity
+outside its grammar as invalid when it is written, so no stored identity can
+fail a later strict read. An `If-Match` revision precondition is exactly one
+strong entity tag (RFC 9110): a double quote, one or more visible ASCII
+characters other than a double quote, a backslash or a comma, and a double
+quote. The Server compares its value verbatim and never unescapes it; the
+private Artifact API and the Runtime read and write the same grammar
+([ART-R45](../artifacts/artifact-store.md)). An entity tag has no escapes, and
+no Server ETag contains a backslash, a comma or a non-ASCII byte, so such a
+value, surrounding whitespace, a single- or back-quoted value, an empty or weak
+tag and a list are malformed: the request is `400 invalid_request`, or
+`422 eval_invalid` on Managed Eval routes, before any revision is compared,
+never a precondition conflict. A revision counter precondition (the
+`RequiredIfMatch` and `IfMatch` parameters, on Managed Eval routes too)
+carries a positive decimal revision in its one canonical spelling, ASCII
+digits without a sign or a leading zero, at most 2^64−1: `"01"` is malformed,
+not revision 1. One reader applies this rule to every such operation, and an
+operation that requires the precondition takes exactly one `If-Match` and no
+`If-None-Match`.
+
+**API-R73.** The Server serves exactly the operations of the contract: another
+method on an operation's path is `405 method_not_allowed`, and any other path
+is the non-disclosing `404 not_found`. It answers a failure with the error kind
+that its domain error reports, as that kind's registered code, HTTP status and
+`retryable` flag ([ERR-R14](../platform/errors.md)). A definite database
+transaction conflict that no kind classifies is `503
+storage_transaction_conflict`, and any other failure is `500 internal_error`,
+retryable because the Server cannot tell a transient failure from a defect. An
+archive preview refuses an Artifact that is not a ZIP or Skill package with
+`415 archive_media_type`, and an invalid, oversized or non-text archive or file
+with `422 archive_invalid`, `archive_preview_limit` or `archive_file_not_text`;
+the original stays downloadable.
+
+**API-R111.** No operation of the contract defines `HEAD`, so `HEAD` on an
+operation's path, the live event WebSocket path included, is one of the other
+methods of API-R73 and is answered `405 method_not_allowed`. The route table
+owns this rule: the router answers `HEAD` itself, before any operation
+handler, query validation or store read, so a malformed query and an existing
+or missing resource get the same `405`. `HEAD` keeps the order of every other
+request: the API version, request ID and browser-origin checks, authentication
+and, under `/v1/operations`, the Operations capability check answer first. An
+unauthenticated `HEAD` is therefore `401` and a `HEAD` without the Operations
+capability `403`, exactly as `GET` on the same path
+([SEC-R45](../platform/security.md)); only an authorized `HEAD` reaches the
+`405`, and an authorized `HEAD` on a path that is no operation's gets the
+`404 not_found` of API-R73. `HEAD` therefore discloses no more about the
+routes than another undeclared method already does. The private allocation
+API registers its routes through the same rule
+([ART-R120](../artifacts/artifact-store.md)).
+
+The UI's supported-version check and the rule that additive changes within a
+supported version need no coordinated release are in UI
+([UI-R5 to UI-R7](../ui/ui.md)). The public Runtime-label field name and the
+joint upgrade of Server, UI and bundled clients are in Runs
+([RUN-R7, RUN-R8](../execution/runs.md)).
+
+### Request bodies
+
+**API-R4.** Every public JSON request body is bounded at 1 MiB (LIM-API-1)
+unless a resource declares a smaller bound, such as the login body
+([SEC-R49](../platform/security.md)). A larger body is rejected with
+`413 request_too_large` and never reaches the handler's validation
+(FAIL-API-1). The OpenAPI document declares each operation's exact bound as
+`x-max-request-body-bytes`: 8 KiB for login (LIM-SEC-8), 64 KiB for the Git key
+and Git import bodies (LIM-GIT-21, LIM-GIT-5), 1 KiB for Audit start and resume
+(LIM-AUD-28), 128 KiB for RuntimeConfig publication, 64 MiB for Artifact
+payloads (API-R5) and 1 MiB for Eval documents (API-R6). A string that the
+Server bounds in UTF-8 bytes declares that bound as `x-max-utf8-bytes` next to
+an equal `maxLength`, so text outside ASCII reaches the byte bound first: Run
+cancellation reasons (LIM-RUN-10), Project names and descriptions (LIM-PRJ-3,
+LIM-PRJ-5), Audit scope fields (LIM-AUD-29), review rationales (LIM-REV-11),
+Run metadata label values (LIM-RUN-5), the login password (LIM-SEC-7), Git
+import refs and repository URLs (LIM-GIT-22, LIM-GIT-23), the Git SSH key
+(LIM-GIT-3), Gateway failure signature texts (LIM-RCF-1), Basic credentials
+(LIM-RCF-23), archive file paths
+(LIM-API-27), Audit artifact keys and item subject keys (LIM-AUD-39,
+LIM-AUD-40), sitemap mutation URLs (LIM-SMT-2) and sitemap rule pointers
+(LIM-SMT-16). Every other request string with a `maxLength`, in a body or a
+parameter, either declares an ASCII-only grammar (a `pattern`, or `format: uri`
+for an RFC 3986 URI), under which `maxLength` counts bytes, or is one the
+Server does not reject for its UTF-8 size: one it bounds in code points, such as
+a credential label or a catalog search, or a lookup value it only compares.
+Server-issued opaque values declare their ASCII grammar: sealed cursors and
+Eval bin tokens are unpadded base64url, and Artifact revisions, Audit package
+member IDs and sitemap member IDs keep their identifier grammars. A Run label
+selector `key=value` declares its derived 320-byte envelope (LIM-RUN-11);
+Server also validates its key and value separately (LIM-RUN-4, LIM-RUN-5).
+Sitemap rule origin and path each declare the 8 KiB byte bound, and Server
+also enforces that bound on their sum (LIM-SMT-2). The OpenAPI descriptions
+state these part and sum constraints; neither composite is a byte-bound exception.
+
+**API-R5.** An Artifact over its payload limit (LIM-ART-4)
+([ART-R65](../artifacts/artifact-store.md),
+[LIM-ART-4](../platform/limits.md)) is rejected in the same way, with
+`413 artifact_too_large` (FAIL-API-1).
+
+**API-R6.** Eval documents keep their own `422 eval_limit_exceeded` bound
+([EVM-R63](../evals/managed-evals.md)).
+
+**API-R71.** A JSON request body and a WebSocket client frame are decoded
+strictly: a member name must match its OpenAPI or event-schema property
+exactly, so a case alias such as `Reason` for `reason` is an unknown member,
+and duplicate member names at any depth, unknown members and data after the
+value are rejected rather than guessed. A body is rejected with
+`400 invalid_request`; a frame is answered with an `invalid_frame` error frame
+and leaves the socket and its subscriptions unchanged.
+
+JSON mutation metadata also excludes U+0000 in every string and member name:
+the JSON escape `\u0000` is rejected with the operation's permanent invalid
+request error before a service reads or claims a mutation receipt or writes
+data. A literal backslash followed by `u0000` remains ordinary text. The same
+rule governs allocation-scoped private JSON mutations; Managed Eval documents
+apply it through [EVF-R236](../evals/format.md) with `422 eval_invalid`.
+PostgreSQL cannot store U+0000 in `text` or `jsonb`; a remaining data exception
+at the HTTP boundary is permanent `400 invalid_request`, never retryable
+`500 internal_error` (PER-R13). Opaque artifact payloads, login passwords,
+Runtime credential material and Git SSH key bytes are exceptions: they are
+stored as bytes, encrypted or hashed, and their enclosing identifiers retain
+their own validation. This metadata rule does not inspect WebSocket text or
+the contents of an execution output.
+
+### Browser clients and domain services
+
+**API-R7.** Browser code uses the authenticated public Server APIs directly.
+
+**API-R8.** UI-oriented query endpoints may aggregate existing durable or
+read-model state, but mutations must call the same domain application services
+as non-UI API clients.
+
+### Browser origins and CORS
+
+**API-R9.** Because UI and API may have different origins, Server has an
+operator-configured exact browser-origin allowlist (the `--browser-origin`
+setting, [SEC-R58](../platform/security.md)). Wildcard and reflected
+origins and the opaque `null` origin are invalid.
+
+**API-R10.** A matching preflight exposes only the public API methods that
+Server supports and the required headers, including `Content-Type`,
+`Idempotency-Key`, `If-Match` and `X-CSRF-Token`.
+
+**API-R11.** Browser-readable response headers include `X-Request-ID`, `ETag`,
+`Content-Disposition` and `Retry-After`.
+
+**API-R12.** Credentialed CORS is enabled only for an exact allowed origin.
+
+**API-R13.** CORS grants no authorization. Non-browser clients remain subject
+to the public API's authentication contract: non-browser authentication gains
+no authority from CORS and does not bypass the domain's owner and audit rules.
+
+### Browser authentication routes
+
+**API-R14.** The browser auth API is:
+
+```text
+POST /v1/auth/login       username + password; create session
+GET  /v1/auth/session     return safe principal + session-bound CSRF token
+POST /v1/auth/logout      require CSRF; destroy session
+```
+
+The single local principal and its bootstrap file, password rules, the 8 KiB
+login body bound, the generic login failure response, the failed-login limiter
+and `429`, and the non-browser `Authorization: Bearer` path are specified in
+Security ([SEC-R38 to SEC-R62](../platform/security.md)).
+
+### Session cookie
+
+**API-R15.** Successful login always creates a fresh cryptographically random
+32-byte value (LIM-API-2), puts its unpadded base64url representation only in
+a `__Host-contractor_session` cookie and stores only its SHA-256 digest in
+Server memory.
+
+**API-R16.** The session cookie is `HttpOnly`, `Secure`, `SameSite=Lax`,
+`Path=/` and has no `Domain`. Frontend requests send it with
+`credentials: include`.
+
+**API-R17.** Production UI and API must therefore be HTTPS and same-site even
+when they have different origins.
+
+**API-R18.** A separately named insecure cookie is permitted only behind an
+explicit loopback-development mode and is never accepted on a non-loopback
+listener. Its name and the mode's listener and origin rules are in Security
+([SEC-R59 to SEC-R61](../platform/security.md)).
+
+### Session lifetime
+
+**API-R19.** Sessions have an eight-hour idle limit (LIM-API-3), a 24-hour
+absolute limit (LIM-API-4) and a maximum of eight live sessions (LIM-API-5); a
+ninth successful login revokes the oldest (LIFE-API-1).
+
+**API-R20.** An accepted authenticated request advances only the idle
+deadline.
+
+**API-R21.** Restarting Server invalidates every session. No browser session,
+password hash or CSRF token is written to PostgreSQL (LIFE-API-1).
+
+**API-R22.** `GET /v1/auth/session` uses `Cache-Control: no-store` and lets a
+reloaded SPA recover the session-bound 32-byte random CSRF token (LIM-API-6)
+without exposing the session cookie.
+
+### CSRF and Origin checks
+
+**API-R23.** Every cookie-authenticated non-safe request requires both an
+exact allowed `Origin` and `X-CSRF-Token`; missing or mismatched values have no
+side effect (FAIL-API-2).
+
+**API-R24.** Login itself requires JSON plus an exact allowed browser Origin
+when an Origin header is present.
+
+The non-browser `Authorization: Bearer` path, which requires neither Origin
+nor CSRF, is in Security ([SEC-R62](../platform/security.md)). How the SPA
+handles `401`, `403` and a CSRF token replaced by another tab is in UI
+([UI-R31 to UI-R36](../ui/ui.md)).
+
+### Principal and non-disclosure
+
+The local principal's capabilities, the derivation of `userId` from the
+authenticated request context, the meaning of `401` and `403` and the reuse of
+the principal boundary by a future OIDC or session adapter and RBAC are in
+Security ([SEC-R43 to SEC-R46](../platform/security.md)). The Audit routes
+take their owner from authentication and Project membership
+([AUD-R199](../audits/audits.md)).
+
+**API-R25.** Ownership checks keep their non-disclosing `404` behaviour; the
+Audit routes, for example, return the same safe `404` for unknown and
+other-owner IDs ([AUD-R200](../audits/audits.md)).
+
+### Mutation preconditions
+
+**API-R26.** Run and Artifact mutations retain their existing idempotency,
+ownership and CAS requirements ([Runs](../execution/runs.md),
+[ArtifactStore](../artifacts/artifact-store.md)).
+
+**API-R27.** Configuration publication, credential creation and deletion, and
+RuntimeConfig, label and Agent-label administrative commands require their own
+idempotency keys, revision preconditions where specified, and an audit actor.
+
+**API-R69.** Every operation that binds an `Idempotency-Key` (the OpenAPI
+`IdempotencyKey` parameter) takes exactly one such header of 1 to 128
+characters in `[A-Za-z0-9][A-Za-z0-9._:-]*` (LIM-API-26). The Server has one
+definition of the grammar, which every handler, Managed Eval mutations, the
+stores that keep keys and the bundled CLI apply; a missing, repeated or
+malformed key is `400 invalid_request`, or `422 eval_invalid` on Managed Eval
+routes, before any receipt is read or written. The operation treats the key as
+bound to its exact request:
+repeating that request with the key replays the original result, and sending
+a different request with it is `409 idempotency_conflict` with `retryable`
+false. The safe metadata command of [Project sitemap](../artifacts/project-sitemap.md)
+binds its code-owned projected intent, including omission flags, rather than
+hashing discarded credential values (SMT-R9). The outcome is permanent: the
+original result is unchanged, and only
+a new key can carry the changed request (FAIL-RUN-1). It is distinct from an
+optimistic revision or identity conflict, which keeps its own code and
+retryability. Managed Eval mutations report the same outcome as
+`eval_idempotency_conflict`, also with `retryable` false. The bundled Go
+client never retries a response marked `retryable` false, whatever its
+status.
+
+**API-R28.** RuntimeCredential deletion is idempotent by resource identity
+through its durable tombstone (the OpenAPI `OptionalIdempotencyKey` parameter).
+It accepts but neither requires nor binds an idempotency key. A supplied key
+is still one header in the API-R69 grammar, or the request is
+`400 invalid_request` and changes nothing. The replay response is defined in
+[RCF-R176](../configuration/runtime-config.md).
+
+**API-R112.** A mutation checks its request metadata before it reads its
+body or a store, and a request that fails one of these checks reads no byte
+of its body and gets the same answer whatever resource it names. These checks
+run in the operation handler, so authentication and the route table's method
+answers (API-R73, API-R111) come before them. First come
+the query, the path parameters it checks syntactically, such as Artifact
+names, and the media type. Every operation whose request body is JSON
+requires exactly one `Content-Type: application/json` without parameters and
+answers anything else, a missing `Content-Type` included, with its own
+media-type status: the `415` of the Operations settings
+([OPS-R60](../operations/operations.md)), `422 eval_invalid` on Managed Eval
+routes and otherwise `400 invalid_request`. An operation whose JSON body is
+optional (Audit start and resume) checks the media type only when the request
+announces a body by a positive `Content-Length` or a `Transfer-Encoding`, and
+an operation that takes no body does not check `Content-Type`. Then come the
+`Idempotency-Key` (API-R69) and the `If-Match` or `If-None-Match`
+precondition the operation requires (API-R70), whose failure is `400
+invalid_request`, or on Managed Eval routes `422 eval_invalid` and, for a
+missing required `If-Match`, `428 eval_precondition_required`. Project Run
+creation and Project Artifact upload then read the Project (the
+non-disclosing `404` of API-R25 for an unknown or foreign Project; for an
+upload, `409 project_deleting` for a deleting Project and then the `404` of
+an Audit-managed namespace), and only then the body. The body is checked
+last: first its bound (`413`, API-R4), then strict decoding (API-R71). A JSON
+body that cannot be read completely, such as one that ends before its
+declared length, is `400 invalid_request`, or `422 eval_invalid` on Managed
+Eval routes, changes nothing and is never a retryable internal error
+(FAIL-API-1); the JSON body of a Git import follows this rule even when its
+read misses the import's deadline ([GIT-R72](../artifacts/git-import.md)).
+Artifact payload transfers keep their own socket deadlines and outcome: an
+interrupted payload is a retryable `500 internal_error`
+([BLB-R28](../artifacts/blob-storage.md), FAIL-BLB-1).
+
+**API-R29.** The API keeps configuration and credential mutations distinct
+from ordinary Run and Artifact use, so later RBAC does not require changing
+domain semantics.
+
+The headers of individual resources are specified by their owners, which this
+table only indexes:
+
+| Resource | Owner |
+| --- | --- |
+| `POST /v1/runs` create idempotency | Runs, [RUN-R17 to RUN-R21](../execution/runs.md) |
+| RuntimeConfig, bindings, runtime credentials and Agent labels | Runtime configuration, [RCF-R173 to RCF-R176](../configuration/runtime-config.md) |
+| Revision ETags | Runtime configuration, [RCF-R125](../configuration/runtime-config.md) |
+| Scheduler settings | Operations, [OPS-R53 to OPS-R60](../operations/operations.md) |
+| Git import and the owner Git key | Git import, [GIT-R82, GIT-R84](../artifacts/git-import.md) |
+| Audit routes | Audits, [AUD-R198 to AUD-R205](../audits/audits.md) |
+| Project sitemap mutation key and expected revision/source preconditions | Project sitemap, [SMT-R6 to SMT-R9](../artifacts/project-sitemap.md) |
+
+### Collections and pagination
+
+**API-R67.** Every paged collection that takes the shared `limit` query
+parameter (OpenAPI `#/components/parameters/Limit`) accepts a page of 1 to
+200 items and defaults to 50 (LIM-API-18); any other `limit` is
+`400 invalid_request`. Server reads one row beyond the requested page to
+decide `page.hasMore` and the continuation cursor, so every store behind such
+a collection accepts a read of 201 rows. Server, its stores and the CLI take
+both numbers from one definition. The shared continuation cursor is at most
+512 bytes (LIM-API-23); Server and CLI use the same Go bound, checked against
+both OpenAPI Cursor and PageInfo. Collections with their own bound declare
+it instead: Managed Eval lists (LIM-EVM-15) and allocation history
+(LIM-OPS-28).
+
+Filtering and keyset pagination are specified for each collection by its
+owner, which this table only indexes:
+
+| Collection | Owner |
+| --- | --- |
+| Configuration catalog | Configuration catalog, [CAT-R67 to CAT-R69](../configuration/catalog.md) |
+| `/v1/runs` | Runs, [RUN-R81](../execution/runs.md) |
+| Audits | Audits, [AUD-R203](../audits/audits.md) |
+| Managed Eval lists | Managed Evals, [EVM-R210 to EVM-R214](../evals/managed-evals.md) ([LIM-EVM-14, LIM-EVM-15](../platform/limits.md)) |
+
+### Live event WebSocket
+
+#### Endpoint and authentication
+
+**API-R30.** Live UI updates use one read-only WebSocket endpoint on Go
+Server, `GET /v1/events/ws`, negotiated with the subprotocol
+`contractor.events.v1`.
+
+**API-R31.** The browser connects directly to the configured API origin; Node
+does not proxy the upgrade.
+
+**API-R32.** Production uses `wss`. `ws` is accepted only for the same
+loopback development exception as the HTTP runtime config
+([UI-R10](../ui/ui.md)).
+
+**API-R33.** The upgrade authenticates the ordinary Server session cookie and
+rejects every `Origin` other than the exact configured UI origin before
+accepting the socket.
+
+**API-R34.** No credential, CSRF token or cursor is placed in the URL.
+
+**API-R35.** Session expiry, logout or revocation closes the session's sockets
+(LIFE-API-1).
+
+**API-R36.** Periodic socket checks validate the existing session handle
+without extending its idle deadline. Revocation notifications are only a fast
+process-local edge and do not replace those checks.
+
+**API-R37.** The channel is strictly observational: subscription and
+unsubscribe frames require no CSRF token and cannot cancel a Run, publish a
+configuration, manage a credential or perform any other domain mutation. Those
+operations remain authenticated HTTP requests with their existing CSRF,
+idempotency and CAS contracts.
+
+#### Subscriptions and frames
+
+**API-R38.** One connection multiplexes explicit `run` and `operations`
+subscriptions.
+
+**API-R39.** Authorization is rechecked for each subscription, so a principal
+may observe only its own Runs and its permitted Operations surface.
+
+**API-R40.** All client and Server frames are bounded JSON (API-R61) and carry
+the protocol version.
+
+**API-R41.** A Server event envelope has this shape:
+
+```json
+{
+  "type": "event",
+  "stream": {"kind": "run", "id": "run_..."},
+  "cursor": {"generation": "run-generation-...", "sequence": "42"},
+  "kind": "planner.event",
+  "occurredAt": "2026-08-30T12:00:00Z",
+  "data": {}
+}
+```
+
+**API-R42.** The cursor combines an opaque generation with an unsigned decimal
+string sequence, so a Server restart or browser number precision cannot
+silently alter its meaning.
+
+**API-R43.** Unknown protocol versions, stream kinds, event kinds and fields
+are rejected rather than guessed.
+
+**API-R44.** The message contract is committed at
+[`api/events/contractor-events-v1.schema.json`](../../../api/events/contractor-events-v1.schema.json);
+the OpenAPI document describes the HTTP upgrade and links that schema.
+
+**API-R45.** Normal generated HTTP methods and the browser WebSocket adapter
+remain separate code paths.
+
+**API-R46.** Server sends `subscribed` before replay, and sends
+`unsubscribed` only after that subscription pump has stopped, so no later frame
+can reuse the acknowledged subscription ID.
+
+#### Run stream
+
+**API-R47.** For a `run` stream, every durable Run or StageExecution lifecycle
+change and every public Planner fact receives one monotonically increasing
+per-Run sequence in the same transaction as its source record. Its generation
+is stable for that Run.
+
+**API-R48.** A Run detail response includes the corresponding event cursor,
+read in the same database snapshot as the durable response fields, so the cursor
+never runs ahead of the state it accompanies. Process-local model recovery is a
+separate live observation for that snapshot's exact active Stage
+([RUN-R87](../execution/runs.md)).
+
+**API-R49.** Subscribing with `after` replays committed events after that
+cursor in order and then follows new commits. Reconnect uses the last fully
+processed cursor.
+
+**API-R50.** A subscription without `after` tails from the cursor captured
+after authorization and does not replay older history.
+
+**API-R51.** Run events remain replayable for as long as the Run itself is
+retained (LIFE-API-2).
+
+**API-R52.** `planner.event` carries exactly the reduced durable fact or typed
+Planner-plan projection change defined in [Planners](../execution/planners.md),
+never a live raw ADK or model stream. Prompts, model responses, reasoning, tool
+payloads, provider bodies and credentials cannot appear in a Planner event
+frame.
+
+**API-R53.** Lifecycle events are invalidation hints: the UI refetches the
+affected TanStack Query and does not treat their payload as a replacement
+authoritative aggregate.
+
+**API-R54.** `workflow_run_events` is the sole Run replay authority.
+
+**API-R55.** The insert trigger of `workflow_run_events` emits a PostgreSQL
+notification that becomes visible only if the source transaction commits. That
+notification is only a coalescible wake-up hint: Server also catches up
+periodically from the last delivered sequence of each subscription
+(API-R72), so a lost or duplicated notification cannot create a gap
+(FAIL-API-3).
+
+**API-R72.** Server reads the committed events of one Run once per catch-up
+for all of that Run's subscriptions, from the lowest last delivered sequence
+among them, and delivers to each subscription only the events after its own
+sequence. A notification of the Run, a new subscription to it and a change of
+the notification listener's state each trigger a catch-up. Without a trigger,
+Server catches up every second (LIM-API-21) while it has no established
+notification listener and every 15 seconds (LIM-API-22) while it has one, so
+idle subscriptions to one Run cost one read per interval however many there
+are. When the listener is established every subscribed Run catches up at once,
+because commits made before the listener took effect were never notified; when
+it stops, every subscribed Run catches up at once and returns to the
+one-second interval.
+
+Rationale: while the listener is established every commit wakes its Run, so
+the periodic catch-up only bounds how long a lost notification can delay
+delivery, for example while a broken listener connection is not yet detected.
+
+**API-R110.** One read of a Run's committed events after a cursor, such as
+one page of a catch-up (API-R72), returns the events after that cursor in
+sequence order and ends before the first event that would exceed either the
+number of events the read requests or 8 MiB of persisted event data
+(LIM-API-24). The data budget counts the octet length of each event's stored
+`data` JSON text, the measure in which one event's data is at most 2 MiB
+(LIM-API-25), so a read returns at least the next committed event whenever
+one exists. A read reports whether a committed event follows the last event
+it returns without transferring that event's data, and measures no event
+beyond that one. A catch-up continues from the last delivered sequence while
+a read reports a following event, without waiting for another trigger, and
+ends at the read that reports none. A stored event that fails validation
+fails the read that would return it and is never skipped. The budget bounds
+the event data one read transfers from PostgreSQL, not the memory of Server
+or the size of a frame (LIM-API-9).
+
+Rationale: a read bounded only by its event count transfers up to that count
+times the per-event bound. A read that ends on its data budget is shorter
+than its count although more events are committed, so the catch-up follows
+the read's report, not its length.
+
+#### Operations stream
+
+**API-R56.** The `operations` stream reports Runtime Agent, allocation,
+configuration, credential and scheduler-settings changes, but its cursor is
+process-local and its notifications are not a new audit log.
+
+**API-R57.** The Operations snapshot response includes its current generation
+and revision. A new subscription is established from that cursor.
+
+**API-R58.** Server restart creates another generation, while a missed
+revision or an unavailable cursor produces `resync_required`. The UI then
+obtains another authenticated REST snapshot before continuing (FAIL-API-5).
+
+**API-R59.** Server retains only the latest 255 typed Operations invalidations
+(LIM-API-7); an older cursor also requires that snapshot resynchronization
+(LIFE-API-3, FAIL-API-5).
+
+#### Delivery, flow control and limits
+
+**API-R60.** Delivery may be duplicated across disconnects. The client
+deduplicates by stream and cursor, processes events in order and treats any
+gap as a resync, not as permission to infer missing state (FAIL-API-4).
+
+**API-R61.** A client frame is at most 16 KiB (LIM-API-8) and a Server frame
+at most 64 KiB (LIM-API-9).
+
+**API-R62.** An authenticated session has at most eight sockets (LIM-API-10)
+and a socket at most 32 subscriptions (LIM-API-11).
+
+**API-R63.** Exceeding an input or subscription limit closes or rejects only
+that socket (FAIL-API-4).
+
+**API-R64.** Each connection has a bounded output queue of at most 256 frames
+(LIM-API-12) or 1 MiB (LIM-API-13), whichever is reached first. A slow
+consumer that fills it is closed with retryable overload semantics, WebSocket
+status `1013`, instead of blocking Scheduler or Planner persistence; the client
+then resynchronizes (FAIL-API-4).
+
+**API-R65.** Server ping and control frames detect dead connections: Server
+sends a ping after 20 seconds without outbound traffic (LIM-API-14) and closes
+a connection that has not answered within 60 seconds (LIM-API-15)
+(FAIL-API-4).
+
+**API-R66.** Client reconnect uses bounded exponential backoff with full
+jitter: UI reconnect starts at 500 ms (LIM-API-16) and doubles up to 30 seconds
+(LIM-API-17). The client always supports explicit manual refresh
+(FAIL-API-4).
+
+## Interfaces
+
+| Interface | Use | Requirements |
+| --- | --- | --- |
+| [`contractor-public-v1.yaml`](../../../api/openapi/contractor-public-v1.yaml) | Public `/v1` resources, error envelope, mutation headers and the WebSocket upgrade | API-R1, API-R44 |
+| [`contractor-events-v1.schema.json`](../../../api/events/contractor-events-v1.schema.json) | Live event message contract | API-R41, API-R44 |
+| `POST /v1/auth/login`, `GET /v1/auth/session`, `POST /v1/auth/logout` | Browser authentication | API-R14 to API-R24 |
+| `GET /v1/events/ws`, subprotocol `contractor.events.v1` | Live event WebSocket | API-R30 to API-R66, API-R72, API-R110 |
+| Request headers `Content-Type`, `Idempotency-Key`, `If-Match`, `X-CSRF-Token`, `Origin` | Mutation headers and browser checks | API-R10, API-R23, API-R27, API-R112 |
+| Response headers `X-Request-ID`, `ETag`, `Content-Disposition`, `Retry-After` | Browser-readable response headers | API-R11 |
+
+The error envelope is the `Error` schema of the OpenAPI document; its
+`requestId` repeats `X-Request-ID`
+([OBS-R5](../platform/observability.md)).
+
+## Limits, failures and errors
+
+Limits ([registry](../platform/limits.md)):
+
+- LIM-API-1 — public JSON request body: 1 MiB unless a resource declares a
+  smaller bound (API-R4).
+- LIM-API-2 — session value: 32 random bytes (API-R15).
+- LIM-API-3 — session idle limit: eight hours (API-R19).
+- LIM-API-4 — session absolute limit: 24 hours (API-R19).
+- LIM-API-5 — live sessions: at most eight (API-R19).
+- LIM-API-6 — CSRF token: 32 random bytes (API-R22).
+- LIM-API-7 — retained typed Operations invalidations: the latest 255
+  (API-R59).
+- LIM-API-8 — live event client frame: 16 KiB (API-R61).
+- LIM-API-9 — live event Server frame: 64 KiB (API-R61).
+- LIM-API-10 — live event sockets per authenticated session: eight (API-R62).
+- LIM-API-11 — subscriptions per socket: 32 (API-R62).
+- LIM-API-12 — output queue: 256 frames (API-R64).
+- LIM-API-13 — output queue: 1 MiB (API-R64).
+- LIM-API-14 — ping after 20 seconds without outbound traffic (API-R65).
+- LIM-API-15 — unanswered connection closed after 60 seconds (API-R65).
+- LIM-API-16 — UI reconnect initial delay: 500 ms (API-R66).
+- LIM-API-17 — UI reconnect maximum delay: 30 seconds (API-R66).
+- LIM-API-18 — page of a collection with the shared `limit` parameter: 200
+  items, default 50 (API-R67).
+- LIM-API-19 — `ResourceId`: 1 to 256 characters in the resource identifier
+  grammar (API-R70).
+- LIM-API-20 — `ConfigId` and `ArtifactName`: 1 to 128 characters in the
+  shared name grammar (API-R70).
+- LIM-API-21 — Run stream catch-up without an established notification
+  listener: every second (API-R72).
+- LIM-API-22 — Run stream catch-up while the notification listener is
+  established: every 15 seconds (API-R72).
+- LIM-API-24 — persisted event data per Run event read: 8 MiB (API-R110).
+- LIM-API-25 — persisted data of one Run event: 2 MiB (API-R110).
+- LIM-API-26 — `Idempotency-Key`: exactly one header of 1 to 128 characters
+  in `[A-Za-z0-9][A-Za-z0-9._:-]*` (API-R69).
+
+The generic Artifact payload limit is [LIM-ART-4](../platform/limits.md)
+([ART-R65](../artifacts/artifact-store.md)); the login body and login limiter
+bounds are [LIM-SEC-8 to LIM-SEC-10](../platform/limits.md)
+([SEC-R49, SEC-R51](../platform/security.md)); the `X-Request-ID` bound is
+[LIM-OBS-1](../platform/limits.md) ([OBS-R1](../platform/observability.md)).
+
+Failure outcomes ([failure model](../platform/failure-model.md)):
+
+- FAIL-API-1 — an oversized or incomplete public request body (API-R4, API-R5,
+  API-R112).
+- FAIL-API-2 — a cookie-authenticated non-safe request without a valid
+  `Origin` and `X-CSRF-Token` (API-R23).
+- FAIL-API-3 — the `workflow_run_events` notification (API-R55, API-R72).
+- FAIL-API-4 — live event delivery to a client (API-R60, API-R63 to API-R66).
+- FAIL-API-5 — an `operations` subscription cursor (API-R58, API-R59).
+
+Entity lifecycle ([lifecycle](../platform/lifecycle.md)):
+
+- LIFE-API-1 — browser session and its CSRF token (API-R19, API-R21,
+  API-R35).
+- LIFE-API-2 — Run events (API-R51).
+- LIFE-API-3 — typed Operations invalidations (API-R59).
+
+Errors ([registry](../platform/errors.md)): `request_too_large` (API-R4),
+`idempotency_conflict` (API-R69),
+`artifact_too_large` (API-R5), the non-disclosing `404` (API-R25),
+`method_not_allowed` (API-R73, API-R111), `storage_transaction_conflict`,
+`internal_error` and the archive preview codes (API-R73),
+`resync_required` (API-R58, API-R59) and WebSocket close status `1013`
+(API-R64). `eval_limit_exceeded` is owned by Managed Evals
+([EVM-R63](../evals/managed-evals.md)); `401` and `403` by Security
+([SEC-R45](../platform/security.md)) and the failed-login `429` by Security
+([SEC-R51](../platform/security.md)); `412` and the stale-revision contracts by
+the resource owners listed under
+[Mutation preconditions](#mutation-preconditions); the catalog cursor `400` by
+Configuration catalog ([CAT-R68](../configuration/catalog.md)).
+
+## Security
+
+Security-relevant requirements: the exact browser-origin allowlist and CORS
+(API-R9 to API-R13); the session cookie (API-R15 to API-R18); in-memory
+session lifetime and no persistence of session material (API-R19 to API-R22);
+Origin and CSRF checks (API-R23, API-R24); the non-disclosing `404` (API-R25);
+WebSocket authentication, per-subscription authorization, URL content and the
+observational-only channel (API-R33 to API-R39). Trust boundaries, the local
+principal and login protection are in [Security](../platform/security.md).
+
+## Observability
+
+`X-Request-ID` is browser-readable (API-R11); its generation and propagation
+are in [Observability](../platform/observability.md). Operations
+invalidations are process-local hints, not an audit log (API-R56).
+
+## Invariants
+
+These properties follow from the cited requirements, which are authoritative.
+The owning tests are the live event contract tests in
+[`internal/httpapi/public/events/events_test.go`](../../../internal/httpapi/public/events/events_test.go),
+[`internal/httpapi/public/events/run_poller_test.go`](../../../internal/httpapi/public/events/run_poller_test.go)
+and
+[`internal/httpapi/public/event_handlers_test.go`](../../../internal/httpapi/public/event_handlers_test.go),
+the Run event read tests in
+[`internal/runstore/run_event_page_postgres_test.go`](../../../internal/runstore/run_event_page_postgres_test.go)
+and the route table tests in
+[`internal/httpapi/public/routes_test.go`](../../../internal/httpapi/public/routes_test.go).
+
+1. An upgrade with an invalid Origin or session, and a Run subscription the
+   principal is not authorized for, are rejected (API-R33, API-R39); tests
+   `TestPublicEventWebSocketRequiresCookieAndExactOrigin` (session cookie and
+   Origin) and
+   `TestHandshakeAuthorizationUnknownFramesAndSubscriptionLimitFailClosed`
+   (Origin, subprotocol, unauthorized Run subscription).
+2. Replay after reconnect is ordered and tolerates duplicate delivery
+   (API-R49, API-R55, API-R60); test
+   `TestRunSubscriptionReplaysThenFollowsAndUnsubscribesInOrder`.
+3. An `operations` subscription resynchronizes after a Server restart
+   (API-R58); test `TestOperationsResyncAndLiveInvalidation`.
+4. A slow consumer is closed without affecting other sockets (API-R64); test
+   `TestProtocolAndQueueBoundsRejectUnknownOrUnsafeData`.
+5. Prompts, model responses, reasoning, tool payloads, provider bodies and
+   credentials never appear in a Planner event frame (API-R52); test
+   `TestProtocolAndQueueBoundsRejectUnknownOrUnsafeData`.
+6. Idle subscriptions to one Run, however many, cost one event read per
+   catch-up interval, and the 15-second interval applies only while the
+   notification listener is established (API-R72); tests
+   `TestIdleRunSubscriptionsShareOneCatchUpRead` and
+   `TestRunCatchUpFollowsTheNotificationListener`.
+7. Subscriptions to one Run from different cursors each receive exactly the
+   events after their own cursor (API-R49, API-R72); test
+   `TestRunSubscriptionsFromDifferentCursorsShareOnePoller`.
+8. A Run event read returns at most 8 MiB of persisted event data, starts
+   with the next committed event however large, and reports a following
+   event without transferring it; a catch-up reads on across such reads in
+   the same round and ends at the read that reports no following event
+   (API-R110); tests `TestPostgresListRunEventsBoundsPageDataBytes`,
+   `TestPostgresListRunEventsFailsOnInvalidStoredEventsAndKeepsGaps`,
+   `TestRunCatchUpContinuesAcrossByteShortPages` and
+   `TestRunCatchUpEndsAtTheLastCommittedEvent`.
+9. `HEAD` enters no operation handler on any path of the route table and is
+   `405` for an authorized principal with or without a malformed query, after
+   the same `401` and `403` answers that `GET` gets (API-R111); tests
+   `TestHeadNeverReachesAPublicOperationHandler` and
+   `TestHeadOnEveryPublicGetRouteIsRejectedAfterAuthentication`.
+
+**API-R109.** Retired: independent scan resources and their public operations
+were removed. Target scans use ordinary Project Audit APIs (ASC-R151 to ASC-R153).
+
+**API-R113.** Authenticated `GET /v1/config` returns the non-secret shared
+startup policy owned by CTL-R171, with the same version, limits and digest as
+`GET /private/v1/config`. Ordinary users can read it without Operations access.
+It rejects query parameters and a body, returns `Cache-Control: no-store`, and
+uses ordinary public API version, authentication and error handling. The
+handler reads no store. Server-only settings, credentials and allocation
+RuntimeSettings are absent. The public schema is generated from the private
+owning SharedConfig schema; both endpoints use the same Server constructor.
+
+
+Run Runtime diagnostics include the content-free compaction observation and
+model-phase usage when available (OBS-R126). While final reports are pending,
+the same owner-authorized, bounded page may read live State. Adapter report
+availability and completion remain independent from compaction; no missing
+report is represented as complete. Live cursor continuation is fenced by the
+Stage tuple generation, and final retained reports replace the live view.

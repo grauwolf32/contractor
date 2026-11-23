@@ -1,0 +1,134 @@
+package scheduler
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
+	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
+)
+
+func (s *Scheduler) invokeStagePlanner(ctx context.Context, run runstore.WorkflowRun, workflow executableWorkflow, execution runstore.StageExecution, stageDeadline time.Time, prepared *preparedStageWorkers) error {
+	reservations, handles := prepared.reservations, prepared.handles
+	modelAccess, err := s.plannerModelAccess(ctx, workflow.stage)
+	if err != nil {
+		return s.beginAbort(ctx, run, workflow, execution, reservations, s.credentialFailure(
+			run, execution, "planner_execution_config_unavailable", "Planner execution configuration is unavailable", err,
+		))
+	}
+	if modelAccess != nil && s.options.GatewayRecovery != nil {
+		route := plannerModelRoute(run.OwnerID, workflow.stage)
+		modelAccess.Recovery = s.options.GatewayRecovery.Planner(
+			run.RunID, execution.StageExecutionID, *route, modelAccess.LLMGateway.EffectiveFailureSignatures(),
+		)
+	}
+	plannerRef := workflow.stage.Planner.Selector()
+	plannerTelemetry := s.newPlannerTelemetry(
+		ctx, run, execution, reservations, plannerRef, modelAccess,
+	)
+	if plannerTelemetry != nil {
+		defer plannerTelemetry.Close()
+	}
+	instrumentation := telemetry.NoopPlannerInstrumentation()
+	if plannerTelemetry != nil {
+		instrumentation = plannerTelemetry.Instrumentation()
+	}
+	invocation := planner.Invocation{
+		StageExecutionID: execution.StageExecutionID,
+		RunID:            run.RunID,
+		Stage:            workflow.stage,
+		Context:          plannerContext(execution.StageContext),
+		Workers:          handles,
+		ModelAccess:      modelAccess,
+		Instrumentation:  instrumentation,
+		Deadline:         stageDeadline,
+	}
+	claimID, err := claimIDForRun(ctx, run.RunID)
+	if err != nil {
+		return err
+	}
+	invocation.SchedulerClaimID = claimID
+	invocationSpan := instrumentation.StartSpan(
+		telemetry.PlannerSpanInvocation,
+		telemetry.PlannerSpanAttributes{Operation: "planner.run"},
+	)
+	instance, err := s.planners.Create(plannerRef, invocation)
+	telemetry.CapturePlannerInput(invocationSpan, func() any {
+		return map[string]any{"objective": invocation.Stage.Objective, "context": invocation.Context}
+	})
+	if err != nil {
+		invocationSpan.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: "planner_initialization_failed"})
+		s.flushPlannerTelemetry(ctx, plannerTelemetry, stageDeadline, execution.StageExecutionID)
+		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
+			Code: "planner_initialization_failed", Message: "Planner could not be initialized", Retryable: false,
+		})
+	}
+	if s.options.GatewayRecovery != nil {
+		s.options.GatewayRecovery.Activate(run.RunID, execution.StageExecutionID)
+	}
+	stopWaits := s.monitorModelWaits(ctx, run, execution.StageExecutionID)
+	candidate, err := instance.Run(ctx)
+	s.endModelRoutes(run.RunID, execution.StageExecutionID)
+	stopWaits()
+	if err == nil {
+		telemetry.CapturePlannerOutput(invocationSpan, func() any { return candidate })
+	}
+	invocationOutcome := "succeeded"
+	invocationAttributes := telemetry.PlannerSpanAttributes{}
+	if err != nil {
+		failure := planner.FailureFrom(err)
+		invocationOutcome = "failed"
+		invocationAttributes.ErrorCode = failure.Code
+	}
+	invocationSpan.End(invocationOutcome, invocationAttributes)
+	exportResult := s.flushPlannerTelemetry(
+		ctx, plannerTelemetry, stageDeadline, execution.StageExecutionID,
+	)
+	// Planner.Run can return after user cancellation, lease loss or process
+	// shutdown. Reload and record its real report under a bounded cleanup
+	// context while the Run claim is still owned.
+	loadContext, cancelLoad := s.terminalOperationContext(ctx)
+	currentExecution, loadErr := s.store.GetStageExecution(loadContext, execution.StageExecutionID)
+	claimLost := errors.Is(context.Cause(loadContext), ErrClaimLost)
+	cancelLoad()
+	if claimLost {
+		return ErrClaimLost
+	}
+	if loadErr != nil {
+		return errors.Join(err, loadErr)
+	}
+	execution = currentExecution
+	s.persistPlannerReport(ctx, execution, workflow.stage.Planner, instance, exportResult)
+	if cause := context.Cause(ctx); errors.Is(cause, ErrAllocationLeaseLost) {
+		return cause
+	}
+	if err != nil {
+		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.FailureFrom(err))
+	}
+
+	return s.enterFinalizing(ctx, run, workflow, execution, reservations, candidate)
+}
+
+func plannerContext(snapshot runstore.StageContextSnapshot) planner.StageContext {
+	result := planner.StageContext{
+		Parameters: clone.Map(snapshot.Parameters),
+		Artifacts:  make(map[string]*contracts.ArtifactRef, len(snapshot.Artifacts)),
+	}
+	for name, pinned := range snapshot.Artifacts {
+		if pinned.Artifact != nil {
+			ref := pinned.Artifact.Clone()
+			result.Artifacts[name] = &ref
+		} else {
+			result.Artifacts[name] = nil
+		}
+	}
+	if snapshot.Continuation != nil {
+		continuation := snapshot.Continuation.Clone()
+		result.Continuation = &continuation
+	}
+	return result
+}

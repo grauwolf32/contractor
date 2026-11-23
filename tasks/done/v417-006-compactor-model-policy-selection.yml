@@ -1,0 +1,224 @@
+schema_version: '1.0'
+id: V417-006
+title: Select Worker compactor models only through Workflow executionConfig
+milestone: worker-context-compaction-2026-10
+epic: planner-worker
+kind: feature
+priority: P1
+status: completed
+implementation_commit: e638133e3e09237e71970d3ab90fb67b2990f1ef
+depends_on:
+- V417-003
+languages:
+- go
+- python
+- typescript
+- yaml
+goal: Choose the Worker compactor model through Workflow executionConfig and inline escalation, with one
+  exact pinned policy source; Worker contextManagement describes compaction behavior only.
+context:
+  authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
+    includeReasoning independently deliverable. This record plans work; it does not start implementation
+    or change existing delivery priorities. User request 2026-11-14: take several ready V417 tasks in one pass. Agent execution
+    choice: group V417-006, V417-007 and V417-008 with separate acceptance and task commits;
+    V417-004 remains last and live experiments remain after deterministic acceptance.'
+  proposal: docs/proposals/0046-workflow-context-compaction.md
+  specification:
+  - docs/spec/configuration/agent-templates.md#TPL-R70
+  - docs/spec/configuration/agent-templates.md#TPL-R71
+  - docs/spec/configuration/agent-templates.md#TPL-R76
+  - docs/spec/configuration/agent-templates.md#TPL-R80
+  - docs/spec/configuration/agent-templates.md#TPL-R117
+  - docs/spec/configuration/workflows.md#WFL-R91
+  - docs/spec/execution/worker.md#WRK-R184
+  - docs/spec/evals/managed-evals.md
+  implementation_boundary: Update numbered owning specifications, limits/errors/failure/lifecycle registries,
+    strict schemas, fixtures and every affected reader/writer together with implemented behavior. Generated
+    clients are regenerated through their tools. No legacy readers, unsupported accepted configuration,
+    speculative exports or new receipt store.
+  adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
+    Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
+    not 2.8 callback/identity assumptions.
+  replanning_authority: 'User request 2026-11-07: update tasks after refactoring. The user explicitly
+    chose to move the Worker compactor model to Workflow executionConfig, matching Planner, rather than
+    retain contextManagement.modelPolicy and archive this task. This authorizes this task specification;
+    implementation is a subsequent assignment.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: V425-041 removed Run-create/Eval execution overrides and V425-042 migrated Planner
+    model selection. Worker contextManagement still requires modelPolicy, while executionConfig rejects
+    compactorModelPolicy for Workers. This task migrates that remaining consumer; it does not reimplement
+    Planner selection.
+  process_acceptance: Extend the existing TestWorkerCompactionContinuesIsolatedWorker real-process scenario
+    for migrated policy selection and preserve its nonzero required-case registration. Reuse the ordinary
+    scripted Gateway; this planning change makes no model calls.
+  evidence: tasks/evidence/v417-006-acceptance-20261114.json
+  implemented_boundary: '2026-11-14: contextManagement is behavior-only in authored,
+    resolved and allocation values. The existing consumer execution selection owns
+    the compactor policy and origin; RuntimeConfig materialization and AllocationSpec
+    carry it as compactorModelPolicy. The Runtime verifies that exact policy digest
+    before resource preparation. Default, binding and escalation selections use
+    one resolver and the owning Worker Gateway/credential. No production policy definitions,
+    deployment model roles, production models or budgets changed.'
+  stored_format_transition: 'The pre-production closed snapshot/wire grammar changes
+    in place. Obsolete nested modelPolicy is rejected, including null and YAML merge;
+    no legacy reader or mutable catalog fallback is added. No stored business data
+    is rewritten or reset, and existing Runs are not retargeted. Newly resolved Runs
+    and prepared Eval bindings capture the new single-source selection.'
+scope:
+  in:
+  - Remove modelPolicy from Worker contextManagement authoring and its base-policy resolution; retain
+    one behavior-only compact@1 grammar.
+  - Admit compactorModelPolicy for applicable Worker leaves in existing Workflow-wide workers defaults,
+    Stage binding selections and inline escalation. Resolve it once into exact consumer pins and allocation
+    context.
+  - Migrate current shipped examples, fixtures, public/editor descriptors and generated consumers while
+    preserving effective models, instructions and budgets.
+  out:
+  - Run-create or Eval executionConfig overrides, standalone ExecutionConfig profiles, new deployment
+    model roles, inline ModelPolicy values or dynamic publication.
+  - Planner model-selection redesign, a second merge engine, compatibility readers or competing context-block/executionConfig
+    model sources.
+  - Changing compaction strategy, reasoning, instructions or cycle limits through execution selection;
+    live model changes or deployment.
+requirements:
+- id: R1
+  text: Remove contextManagement.modelPolicy from the closed Worker binding authoring grammar. Reject
+    the removed field, including null and values inherited through YAML merge. Extend existing executionConfig
+    compactorModelPolicy to effective compact@1 Workers; require one exact compatible selected policy
+    before publication/admission. Missing policy, summarizerModelPolicy on compact and compactorModelPolicy
+    on terminal/none/model-free consumers fail strictly.
+- id: R2
+  text: Resolve one effective Worker compactor policy using Workflow-wide workers defaults, Stage/binding
+    selections and the existing final inline-escalation layer. Do not add a compactor deployment role
+    or a context-block base fallback. Mixed Router bindings obey current applicability rules; include
+    both valid specific selections and rejected inapplicable broad selections. Preserve Planner executionConfig
+    selection independently.
+- id: R3
+  text: The selected policy satisfies the existing shared compactor constraints and uses the effective
+    Worker Gateway/credential. Execution selection changes only the exact compactor model policy; context
+    behavior, identities, original deadline and Worker hard budgets stay with their current owners. The
+    resolved AllocationSpec still carries the effective policy required by the Runtime consumer, without
+    a second authoring authority.
+- id: R4
+  text: Pin exact policy content/digests through Workflow closure, Run snapshot and allocation. Eval variants
+    select authored Workflow refs and freeze those same consumer pins; Run-create and Eval requests continue
+    to reject executionConfig, even empty or null. Snapshot reads never re-resolve mutable catalog content;
+    missing or drifted required dependencies fail under the current strict contract.
+- id: R5
+  text: Update current Workflow authoring/public read schemas, Go/Python resolved/allocation consumers,
+    Studio producers and generated clients affected by the migration. Add shared absent/removed/malformed/inapplicable
+    fields, mixed-binding, escalation and native-YAML-merge cases. Do not add Run/Eval launch controls
+    for model overrides. Rewrite active catalog examples/fixtures in place under the pre-production policy
+    and compare normalized effective selection before and after migration.
+- id: R6
+  text: Deliver the existing Worker compactor Runtime consumer and its migrated resolver/pins together.
+    Remove the obsolete binding policy source and associated origin/parser branches; no legacy reader
+    or runtime fallback. Existing Runs are not retargeted to a new model. Preserve Artifact/Run snapshot
+    retention and handle any necessary stored-format transition explicitly under current repository policy;
+    never reset user data implicitly.
+failure_outcomes:
+- operation: Selection validation, pinning and Run/Eval publication
+  permanent: Malformed/inapplicable or unavailable policy returns the owning validation error (public
+    400 where applicable), with no partial accepted snapshot.
+  retryable: Reuse storage_transaction_conflict/503 and bounded existing lookup/admission retries.
+  ambiguous: Reconcile the same existing Run/Eval/publication key and exact selection, not a replacement
+    snapshot or new model.
+  cancelled: Request/controller owner joins accepted writes and normal cancellation cleanup.
+  timeout: Existing config/admission request timeouts apply; an override never extends Worker execution.
+cardinality:
+- collection: Model selection layers and bindings
+  expected: A few existing layers and Worker bindings
+  maximum: Existing Workflow/binding/selection and snapshot byte limits
+  bound: Resolve only bounded published bindings/dependencies; no whole-catalog scan per binding and no
+    new unrestricted list in the snapshot.
+lifecycle:
+- entity: Pinned compactor selection on existing Run/Eval/allocation snapshots
+  delete: The existing parent owns deletion and catalog reference holds.
+  cascade: No new side table or independent selector entity.
+  retention: Exact snapshots persist under current retention; authoring changes apply only to new selections.
+acceptance_criteria:
+- id: A1
+  given: Equivalent compact Worker Workflows using default, per-binding and inline-escalation policies;
+    an independent Planner control
+  when: The single-source migration resolves each consumer and prepares an allocation
+  then: The intended exact Worker compactor policy reaches the actual call, migrated catalog behavior
+    is preserved and Planner policies remain independently correct.
+- id: A2
+  given: Missing policy, removed contextManagement.modelPolicy (including null/YAML merge), mixed binding
+    modes and Run/Eval executionConfig payloads
+  when: Authoring, public requests, persisted snapshot and allocation readers validate
+  then: Invalid or removed forms fail consistently. Worker compactor selection is available only through
+    the supported Workflow/escalation leaves; no old override surface or fallback is restored.
+- id: A3
+  given: Published Workflow refs selected by Runs and Eval variants, with pinned policies and subsequent
+    catalog drift
+  when: Real PostgreSQL snapshot/Eval reads and replay paths execute
+  then: Exact captured policy content survives or the owning strict read fails; no per-Run/Eval model
+    override or mutable re-resolution occurs.
+- id: A4
+  given: Workflow authoring/read surfaces, generated clients and Go/Python allocation consumers
+  when: Shared fixtures, catalog migration comparison and end-to-end resolution execute
+  then: All changed grammars agree, old authoring is rejected, and the actual compactor uses the exact
+    resolved policy. No new Run/Eval launch selector is exposed.
+tests:
+- command: go test ./internal/config/... ./internal/contracts/... ./internal/controlplane/...
+  covers:
+  - A1
+  - A2
+  - A4
+- command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^TestWorkerCompactionContinuesIsolatedWorker$'
+  covers:
+  - A1
+  - A4
+- command: make test-runtime
+  covers:
+  - A1
+  - A4
+- command: make test-postgres
+  covers:
+  - A3
+- command: go test -count=1 ./internal/evalservice
+  covers:
+  - A3
+- command: make test-wire-cross-language
+  covers:
+  - A2
+  - A4
+- command: make verify-public-api
+  covers:
+  - A2
+  - A4
+- command: make ui-verify
+  covers:
+  - A4
+- command: make test-config
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+test_prerequisites:
+- These are future implementation acceptance commands, not verification performed while creating tasks.
+  Implement every explicitly named new gate in its owning task; zero selected or skipped mandatory cases
+  fail.
+- Use locked Runtime dependencies, testdata catalogs and pseudo-Skills. Unit and integration tests never
+  read the live configs tree; make test-config validates the shipped catalog.
+- Persistence and immutable snapshot reads use disposable real PostgreSQL. Set CONTRACTOR_TEST_DATABASE_URL
+  for required gates; an unreachable configured database or skipped required case is a failure.
+- Run full suites for every touched package in addition to focused gates. Use injected clocks and deterministic
+  work counters for assertions, not wall-clock thresholds.
+- Run integration acceptance on the exact ADK 2.13.0 closure accepted by V418-007; record Runtime revision
+  and lock digest. No separate old-SDK compaction implementation or version-switching production path.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.
+demonstration: An ordinary isolated compact Worker Run executes using the exact compactor policy selected
+  in Workflow executionConfig. A per-binding selection and a pinned inline escalation change only that
+  model selection; a Planner control remains unchanged. The equivalent migrated catalog pins the same
+  effective policy, while old contextManagement.modelPolicy and Run/Eval executionConfig are rejected.

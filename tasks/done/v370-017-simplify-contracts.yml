@@ -1,0 +1,95 @@
+schema_version: "1.0"
+id: V370-017
+title: "Remove orphan schemas and lenient paths in the wire contracts"
+milestone: hub-audit-structure-2026-10
+epic: api-contracts
+kind: chore
+priority: P3
+status: completed
+implementation_commit: "ce85b0abda1ef950da77c10de848a3117b4d6951"
+depends_on: []
+languages: [go, python]
+goal: "No schema or model without a reader remains."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), contracts D 3.7, H; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    audit-worker-completion.schema.json describes a shape nobody uses;
+    workflow-transition.schema.json is never executed although the spec
+    calls it validation; Python StageContentResult has no producer; README
+    legitimizes an optional deadline and an empty llmGatewayToken that no
+    producer sends; three wire make targets overlap; clones duplicated
+    outside the hub (runtimeconfig/resolver.go:767-774,
+    planner/passthrough.go:378-420).
+  siblings: >-
+    Re-verified on fc25b5d. The resolver.go copy of ResolvedModelPolicy.Clone
+    was already gone (V368-030); the other copies of hub value clones were
+    still there and are all replaced: the planner pairs
+    cloneStageRequest/CloneStageRequest and cloneWorkerHandle/CloneWorkerHandle
+    (now StageContentRequest.Clone and WorkerHandle.Clone in contracts, used by
+    passthrough, streamline, scan and stateview) and pointerToResult; Run Skill
+    clones in auditcontroller (cloneSkill), runservice (cloneSkills) and the
+    Audit baseline clone, which copied only Source (RunSkillSnapshot.Clone,
+    CloneRunSkills); Exact artifact clones in auditcontroller (cloneExact),
+    runservice (cloneExactArtifact/s), auditservice (cloneExactInputs) and
+    auditimport (cloneExactArtifactMap, which shared revision pointers)
+    (ExactArtifact.Clone, CloneExactArtifacts); ArtifactRef map copies in
+    runrepeat (cloneInputs) and runservice (cloneRefs) (CloneArtifactRefs);
+    pointer copies in runtimeconfig (cloneGatewayRef, cloneCaido, the Planner
+    Runtime credential) and streamline (cloneTerminationError) (clone.Pointer);
+    the Audit baseline HTTP target copy (HTTPOriginTargetRef.Clone). The
+    unused test-runtime-wire family target was a fourth overlapping wire
+    target. Ruled out: execution-config-manifest and llm-gateway-config-manifest
+    schemas keep a reader (the shared config identity test reads their name and
+    version grammars); clones of non-hub types (config, auditstandards,
+    controlplane registry, telemetry policy) are outside this finding.
+  decision: >-
+    Both orphan schemas are deleted rather than executed: the authored Workflow
+    on block is configuration, not a Server/Runtime message, the Go
+    WorkflowCatalog loader is its one validator and nothing else reads that
+    grammar, so the Workflow spec and LIM-WFL-5/LIM-WFL-8 now name the loader
+    instead of the schema. StageContentResult left the private catalog (schema
+    branch, two valid and three invalid fixtures, Python StageContentResult and
+    StageOutcome); its outcome/error pairing and exact-ref rules are Go unit
+    tests now, and the Go type moves out of the kernel in V370-005.
+    StageContentRequest.deadline is required in the schema, Go (strictjson
+    required tag plus a non-zero check) and Python; WRK-R6 states it, the
+    compatibility rule AWC-R29 is deleted (its ID stays retired), the duplicate
+    deadline fixture folds into stage-content-request.json and the two invalid
+    request fixtures carry a deadline so each fails only for its own reason.
+    An unauthenticated Gateway omits llmGatewayToken; Go, Python and the schema
+    (minLength 1) reject an empty token (RCF-R160) and the Runtime's
+    gateway_authorization no longer treats an empty token as absent. Every
+    producer already sent a deadline and never an empty token, so the shapes of
+    used messages are unchanged; only values no producer sends are now
+    rejected. test-wire-cross-language is the one wire gate (whole contracts
+    packages and Runtime contract suites plus the shared fixture checks);
+    test-contracts, verify-wire-contracts and test-runtime-wire are removed and
+    the deferred V61 task commands name the remaining target (a rename, their
+    scope is unchanged). Reversal: a second exchange format for the on block
+    (for example a Studio validator that reads a schema) would bring a schema
+    back as its shared fixture, with a reader on both sides. Verified: go build
+    and go vet ./...; go test ./internal/contracts/... ./internal/planner/...
+    ./internal/runtimeconfig ./internal/runrepeat; with the test database,
+    go test ./internal/runservice ./internal/auditservice
+    ./internal/auditcontroller ./internal/auditimport (no skips); pytest of
+    test_contracts and the 18 Runtime test files that build Stage requests;
+    ruff check and format; check_spec, check_tasks and
+    check_release_verify_graph; make test-wire-cross-language. Five
+    test_adk_runtime tests (test_adk_worker_executes_selected_tools_and_validates_exact_result
+    and four more) and test_podman_workflow fail identically on fc25b5d
+    without this change and are left out of scope.
+scope:
+  in:
+    - "Delete or execute the orphan schemas (fix the spec), require deadline and token, remove Python StageContentResult, one wire make target, remove duplicate clones."
+  out:
+    - "Wire format of used messages."
+acceptance_criteria:
+  - id: A1
+    text: "No schema or model without a reader remains."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "make test-wire-cross-language"
+    covers: [A1]
+  - command: "go test ./internal/contracts/... ./internal/planner/..."
+    covers: [A1]

@@ -1,0 +1,57 @@
+schema_version: '1.0'
+id: V465-004
+title: Integrate verified artifact cleanup into current main
+milestone: artifact-release-cleanup-2026-11
+epic: projects-artifacts
+kind: chore
+introduced_by: V465-001
+priority: P2
+status: completed
+depends_on: [V465-001, V465-002, V465-003]
+languages: [python, go, markdown]
+goal: Land the artifact cleanup in main with its verified behavior and the primary checkout's unrelated work preserved.
+context:
+  authority: >-
+    User request 2026-11-10 explicitly authorizes merging codex/artifact-cleanup
+    into main. Runs and execution history remain retained; deployment is not assigned.
+  finding: >-
+    Main advanced to ee53d96ab7f6e07fd098973d6996aefdf4165d9f with the completed
+    V463-004 HTTP bridge cleanup. The branches overlap only in generated backlog
+    metadata. The primary checkout retains six unrelated modified/untracked files,
+    including its own uncommitted tasks/BACKLOG.md.
+scope:
+  in:
+    - Reconcile current main in the isolated checkout and regenerate backlog metadata.
+    - Verify the Runtime composition and lint, create a no-fast-forward main merge and preserve the primary files and staged delta exactly.
+    - Record merge identity and verification in this task and the delivered artifact tasks.
+  out:
+    - New feature work, demo deployment, data deletion and remote publication.
+acceptance_criteria:
+  - id: A1
+    text: Main contains the verified artifact cleanup through a merge with the previous main and the feature branch as parents.
+  - id: A2
+    text: Current bridge cleanup and scanner report changes pass their combined Runtime suites; lint and task/spec/generated consistency checks pass.
+  - id: A3
+    text: All six primary changed files retain their exact bytes and modes, and the staged patch remains byte-identical.
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_tool_worker.py tests/test_tool_worker_deadline.py tests/test_scan*.py tests/test_sitemap*.py tests/test_bridge_reset.py tests/test_bridge_retirement.py tests/test_allocation_stop.py
+    covers: [A2]
+  - command: make lint
+    covers: [A2]
+  - command: git merge-base --is-ancestor codex/artifact-cleanup main
+    covers: [A1]
+  - command: python3 /private/tmp/artifact-cleanup-install-main.py --verify-only
+    covers: [A3]
+
+implementation_commit: bbd795db9688c192b9b38136fd9adb0105ddc78d
+verification_results:
+  - "2026-11-10: reconciled current main ee53d96ab through e05ef07b6. The only conflict was generated tasks/BACKLOG.md, rebuilt with make tasks-backlog; no production source conflict occurred."
+  - "The combined Tool Worker/scanner/sitemap/bridge-reset/bridge-retirement/allocation-stop Runtime selection passed all 772 tests, without skips. make lint passed all checks on the reconciled code."
+  - "Compared internal/, ui/, configs/ and api/ against the previously verified artifact head d06da7b33: all trees are unchanged. The earlier real-PostgreSQL, full UI, API, configuration and 21 browser-test evidence remains applicable; these suites were not rerun for the metadata/Runtime-only reconciliation."
+  - "Created no-fast-forward merge bbd795db9688c192b9b38136fd9adb0105ddc78d with previous main and verified feature head as its two parents. Its tree equals the verified feature tree. Installed it in local main through a compare-and-swap ref advance after updating only clean working paths and the committed base of the user backlog."
+  - "The snapshot verifier passed after main advanced: all six original primary changed/untracked files retain their exact SHA-256 and mode, and the staged binary patch remains byte-identical. Durable verification metadata is tasks/evidence/v465-004-main-integration.json."
+  - "No new database, remote publication or demo deployment was needed. Existing Runs, snapshots and demo business data were not changed."
+delivery:
+  date: '2026-11-10'
+  merged_into_main: true
+  merge_commit: bbd795db9688c192b9b38136fd9adb0105ddc78d

@@ -1,0 +1,263 @@
+import { describe, expect, it } from "vitest";
+
+import type { RunStatus, StageAttempt } from "../../api/runs";
+import { deriveRunTriage } from "./triage";
+
+const digest = `sha256:${"1".repeat(64)}`;
+
+function attempt(
+  stageExecutionId: string,
+  stage: string,
+  ordinal: number,
+): StageAttempt {
+  return {
+    stageExecutionId,
+    stage,
+    attempt: ordinal,
+    executionConfig: { variant: "base", agents: {} },
+    state: "running",
+  };
+}
+
+function runFixture(): RunStatus {
+  return {
+    runId: "run-triage",
+    workflow: "review@1",
+    state: "running",
+    deletable: false,
+    runtimeLabels: [],
+    labels: {},
+    runtimeConfiguration: {
+      default: {
+        label: "default",
+        bindingRevision: "1",
+        config: { name: "base", version: "1", digest },
+      },
+      labels: [],
+    },
+    attempts: [],
+    transitions: [],
+    outputs: {},
+    outputPublications: [],
+    createdAt: "2026-09-02T10:00:00Z",
+    startedAt: "2026-09-02T10:00:02Z",
+    updatedAt: "2026-09-02T10:00:36Z",
+  };
+}
+
+describe("Run triage", () => {
+  it("guides successful Runs to their outputs without treating execution as a quality verdict", () => {
+    const run = runFixture();
+    run.state = "succeeded";
+    run.outputs = {
+      report: { namespace: "outputs", name: "report", revision: "r1" },
+    };
+    expect(deriveRunTriage(run).guidance).toMatchObject({
+      title: "Read the recorded results",
+      message: expect.stringContaining("does not establish result quality"),
+    });
+    run.outputs = {};
+    expect(deriveRunTriage(run).guidance.message).toContain(
+      "No output artifacts",
+    );
+  });
+  it("selects the latest authoritative failure and aggregates bounded metrics", () => {
+    const first = attempt("stage-1", "analysis", 1);
+    first.state = "interrupted";
+    first.termination = {
+      outcome: "interrupted",
+      code: "worker_lease_lost",
+      message: "Worker lease expired.",
+      retryable: true,
+      phase: "running",
+      occurredAt: "2026-09-02T10:00:12Z",
+    };
+    first.metrics = {
+      reportsComplete: true,
+      modelCalls: 1,
+      inputTokens: 100,
+      outputTokens: 50,
+      totalTokens: 150,
+      toolCalls: 2,
+      toolFailures: 0,
+      errorCount: 1,
+      truncated: false,
+    };
+    const second = attempt("stage-2", "analysis", 2);
+    second.state = "failed";
+    second.result = {
+      apiVersion: "contractor/v1alpha1",
+      outcome: "failed",
+      summary: "Planner could not start.",
+      artifacts: {},
+      error: {
+        code: "planner_gateway_unavailable",
+        message: "The configured Planner gateway is unavailable.",
+        retryable: true,
+      },
+    };
+    second.metrics = {
+      reportsComplete: false,
+      modelCalls: 2,
+      inputTokens: 200,
+      outputTokens: 75,
+      totalTokens: 275,
+      toolCalls: 3,
+      toolFailures: 1,
+      errorCount: 2,
+      truncated: false,
+    };
+    const run = runFixture();
+    run.state = "failed";
+    run.attempts = [first, second];
+    run.finishedAt = "2026-09-02T10:00:36Z";
+
+    expect(deriveRunTriage(run)).toEqual({
+      stage: "analysis",
+      stageExecutionId: "stage-2",
+      attemptCount: 2,
+      durationMs: 34_000,
+      outputCount: 0,
+      issue: {
+        code: "planner_gateway_unavailable",
+        message: "The configured Planner gateway is unavailable.",
+        retryable: true,
+        source: "result",
+      },
+      metrics: {
+        modelCalls: 3,
+        totalTokens: 425,
+        toolCalls: 5,
+        errorCount: 3,
+        incomplete: true,
+      },
+      guidance: {
+        kind: "gateway-configuration",
+        title: "Review the selected model infrastructure",
+        message:
+          "Inspect the failed attempt first. An operator can then verify the referenced Gateway, ModelPolicy and credential before you configure a new Run.",
+        operationsPath: "/operations/configurations",
+      },
+    });
+  });
+
+  it("does not present a recovered diagnostic as a successful Run failure", () => {
+    const recovered = attempt("stage-1", "analysis", 1);
+    recovered.state = "interrupted";
+    recovered.diagnostics = {
+      items: [
+        {
+          participant: "worker",
+          logicalAgent: "reviewer",
+          code: "worker_timeout",
+          message: "The first attempt timed out.",
+          retryable: true,
+        },
+      ],
+      truncated: false,
+    };
+    const completed = attempt("stage-2", "publish", 1);
+    completed.state = "succeeded";
+    const run = runFixture();
+    run.state = "succeeded";
+    run.attempts = [recovered, completed];
+    run.outputs = {
+      report: { namespace: "outputs", name: "report", revision: "r1" },
+    };
+
+    expect(deriveRunTriage(run)).toMatchObject({
+      stage: "publish",
+      stageExecutionId: "stage-2",
+      attemptCount: 2,
+      outputCount: 1,
+    });
+    expect(deriveRunTriage(run).issue).toBeUndefined();
+  });
+
+  it.each(["planner_gateway_rejected", "worker_gateway_invalid_request"])(
+    "routes the permanent Gateway failure %s to model infrastructure review",
+    (code) => {
+      const failed = attempt("stage-1", "analysis", 1);
+      failed.state = "failed";
+      failed.result = {
+        apiVersion: "contractor/v1alpha1",
+        outcome: "failed",
+        summary: "The Gateway rejected the request.",
+        artifacts: {},
+        error: { code, message: "Gateway request rejected", retryable: false },
+      };
+      const run = runFixture();
+      run.state = "failed";
+      run.attempts = [failed];
+
+      expect(deriveRunTriage(run).guidance).toMatchObject({
+        kind: "gateway-configuration",
+        title: "Review the selected model infrastructure",
+        operationsPath: "/operations/configurations",
+      });
+    },
+  );
+
+  it("distinguishes an active configured retry from a manual new Run", () => {
+    const source = attempt("stage-1", "analysis", 1);
+    source.state = "interrupted";
+    const retry = attempt("stage-2", "analysis", 2);
+    retry.previousExecutionId = source.stageExecutionId;
+    retry.state = "preparing";
+    const run = runFixture();
+    run.attempts = [source, retry];
+    run.activeStageExecutionId = retry.stageExecutionId;
+    run.transitions = [
+      {
+        sourceExecutionId: source.stageExecutionId,
+        action: "retry",
+        targetStage: "analysis",
+        targetExecutionId: retry.stageExecutionId,
+        escalationExhausted: false,
+        decidedAt: "2026-09-02T10:00:14Z",
+      },
+    ];
+
+    expect(deriveRunTriage(run).guidance).toMatchObject({
+      kind: "scheduled-retry",
+      title: "Scheduler retry is already active",
+    });
+  });
+
+  it("describes preparation as a bounded placement wait without inferring capacity", () => {
+    const run = runFixture();
+    run.attempts = [attempt("stage-1", "analysis", 1)];
+    run.attempts[0]!.state = "preparing";
+    run.activeStageExecutionId = "stage-1";
+    expect(deriveRunTriage(run).guidance).toEqual({
+      kind: "placement-wait",
+      title: "Scheduler is preparing placement",
+      message:
+        "The Run may be resolving configuration or waiting for a compatible Runtime slot. This snapshot does not prove a capacity shortage or promise a start time.",
+      operationsPath: "/operations/runtime-agents",
+    });
+  });
+
+  it("does not infer an operator action from an unknown lookalike code", () => {
+    const run = runFixture();
+    run.state = "failed";
+    delete run.activeStageExecutionId;
+    run.attempts = [attempt("stage-1", "analysis", 1)];
+    run.attempts[0]!.state = "failed";
+    run.attempts[0]!.termination = {
+      outcome: "interrupted",
+      code: "unverified_credential_probe",
+      message: "An unknown component reported a credential-like code.",
+      retryable: false,
+      phase: "running",
+      occurredAt: "2026-09-02T10:00:14Z",
+    };
+
+    const guidance = deriveRunTriage(run).guidance;
+    expect(guidance).toMatchObject({
+      kind: "manual-repeat",
+      title: "A new Run is a separate decision",
+    });
+    expect(guidance).not.toHaveProperty("operationsPath");
+  });
+});

@@ -1,0 +1,958 @@
+package runtimeconfig
+
+import (
+	"errors"
+	"fmt"
+	"slices"
+	"sort"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
+)
+
+// ResolutionErrorCode is a stable, content-free failure class. Paths are
+// limited to the typed merge units below; neither endpoint nor credential
+// material is formatted into an error.
+type ResolutionErrorCode string
+
+const (
+	ResolutionConflict               ResolutionErrorCode = "runtime_config_conflict"
+	ResolutionIncomplete             ResolutionErrorCode = "runtime_config_incomplete"
+	ResolutionInvalid                ResolutionErrorCode = "runtime_config_invalid"
+	ResolutionGatewayMismatch        ResolutionErrorCode = "runtime_config_gateway_mismatch"
+	ResolutionCredentialKindMismatch ResolutionErrorCode = "runtime_credential_kind_mismatch"
+	ResolutionModelUnauthorized      ResolutionErrorCode = "runtime_model_unauthorized"
+)
+
+type ResolutionError struct {
+	Code  ResolutionErrorCode
+	Path  string
+	cause error
+}
+
+func (e *ResolutionError) Error() string {
+	return string(e.Code) + " at " + e.Path
+}
+
+func (e *ResolutionError) Unwrap() error { return e.cause }
+
+type RuntimeLayer string
+
+const (
+	LayerDefault     RuntimeLayer = "default"
+	LayerWorkflow    RuntimeLayer = "workflow_execution_config"
+	LayerRunLabels   RuntimeLayer = "run_labels"
+	LayerEscalation  RuntimeLayer = "escalation_execution_config"
+	LayerAgentLabels RuntimeLayer = "agent_labels"
+)
+
+// RuntimeFieldOrigin identifies the effective typed layer. Configs is present
+// for label-backed layers only and contains exact immutable refs, never bodies.
+// More than one ref is retained when equal same-layer values deduplicate.
+type RuntimeFieldOrigin struct {
+	Layer   RuntimeLayer `json:"layer"`
+	Configs []Ref        `json:"configs,omitempty"`
+}
+
+type ResolvedRuntimeConfigOrigins struct {
+	LLMGateway       *RuntimeFieldOrigin `json:"llmGateway,omitempty"`
+	LLMCredential    *RuntimeFieldOrigin `json:"llmCredential,omitempty"`
+	WorkerTelemetry  *RuntimeFieldOrigin `json:"workerTelemetry,omitempty"`
+	HTTPProxy        *RuntimeFieldOrigin `json:"httpProxy,omitempty"`
+	Caido            *RuntimeFieldOrigin `json:"caido,omitempty"`
+	Interactsh       *RuntimeFieldOrigin `json:"interactsh,omitempty"`
+	PlannerTelemetry *RuntimeFieldOrigin `json:"plannerTelemetry,omitempty"`
+}
+
+func (o ResolvedRuntimeConfigOrigins) Validate() error {
+	fields := []struct {
+		path   string
+		origin *RuntimeFieldOrigin
+	}{
+		{path: "worker.llmGateway.gateway", origin: o.LLMGateway},
+		{path: "worker.llmGateway.credential", origin: o.LLMCredential},
+		{path: "worker.telemetry", origin: o.WorkerTelemetry},
+		{path: "worker.httpProxy", origin: o.HTTPProxy},
+		{path: "worker.caido", origin: o.Caido},
+		{path: "worker.interactsh", origin: o.Interactsh},
+		{path: "planner.telemetry", origin: o.PlannerTelemetry},
+	}
+	for _, field := range fields {
+		origin := field.origin
+		if origin == nil {
+			continue
+		}
+		if err := origin.validate(); err != nil {
+			return resolutionError(ResolutionInvalid, field.path, ErrInvalid)
+		}
+	}
+	return nil
+}
+
+func (o RuntimeFieldOrigin) validate() error {
+	switch o.Layer {
+	case LayerDefault, LayerRunLabels, LayerAgentLabels:
+		if len(o.Configs) == 0 || len(o.Configs) > runtimesettings.MaxRuntimeLabels {
+			return ErrInvalid
+		}
+	case LayerWorkflow, LayerEscalation:
+		if len(o.Configs) != 0 {
+			return ErrInvalid
+		}
+	default:
+		return ErrInvalid
+	}
+	previous := ""
+	for _, ref := range o.Configs {
+		if validateRef(ref) != nil || ref.String() <= previous {
+			return ErrInvalid
+		}
+		previous = ref.String()
+	}
+	return nil
+}
+
+// PinnedRuntimeConfig is one exact binding observation and its immutable body.
+// Run values come from WorkflowRun.RuntimeConfig; Agent values are read and
+// locked at allocation time by the caller.
+type PinnedRuntimeConfig struct {
+	Label           string
+	BindingRevision uint64
+	Config          Ref
+	Spec            Spec
+}
+
+// WorkerRoutePatch is the executionConfig contribution to the two physical
+// Worker route leaves. Gateway null is not a valid operation; Credential clear
+// is the one supported tri-state.
+type WorkerRoutePatch struct {
+	Gateway    Field[llmgateway.LLMGatewayConfigRef]
+	Credential Field[string]
+}
+
+// LLMCredentialAuthorization is the safe effective Gateway-key policy needed
+// to prove that a candidate route still permits the already selected policy
+// and model alias. It contains no token or remote key identifier.
+type LLMCredentialAuthorization struct {
+	Ref           llmgateway.LLMCredentialRef
+	LLMGateway    llmgateway.LLMGatewayConfigRef
+	ModelPolicies []contracts.ModelPolicyRef
+	Models        []string
+	Unrestricted  bool
+}
+
+type ResolveRuntimeConfigInput struct {
+	ModelFree             bool
+	ModelPolicy           contracts.ResolvedModelPolicy
+	SummarizerModelPolicy *contracts.ResolvedModelPolicy
+	// CompactorModelPolicy is the pinned compact@1 compactor policy; it uses
+	// the effective Worker Gateway and credential (WRK-R186).
+	CompactorModelPolicy *contracts.ResolvedModelPolicy
+	Default              PinnedRuntimeConfig
+	Workflow             WorkerRoutePatch
+	RunLabels            []PinnedRuntimeConfig
+	Escalation           WorkerRoutePatch
+	AgentLabels          []PinnedRuntimeConfig
+	Gateways             map[llmgateway.LLMGatewayConfigRef]llmgateway.ResolvedLLMGatewayConfig
+	LLMCredentials       map[string]LLMCredentialAuthorization
+	RuntimeCredentials   map[string]runtimesettings.RuntimeCredentialKind
+}
+
+// ResolvedRuntimeConfig is safe non-secret allocation input. RuntimeSettings
+// secret material is deliberately resolved only after placement by V8-007.
+type ResolvedRuntimeConfig struct {
+	SummarizerModelPolicy    *contracts.ResolvedModelPolicy                  `json:"summarizerModelPolicy,omitempty"`
+	CompactorModelPolicy     *contracts.ResolvedModelPolicy                  `json:"compactorModelPolicy,omitempty"`
+	ModelFree                bool                                            `json:"modelFree,omitempty"`
+	ModelPolicy              contracts.ResolvedModelPolicy                   `json:"modelPolicy,omitzero"`
+	LLMGateway               llmgateway.ResolvedLLMGatewayConfig             `json:"llmGateway,omitzero"`
+	LLMCredential            *llmgateway.LLMCredentialRef                    `json:"llmCredential,omitempty"`
+	WorkerTelemetry          *TelemetryConfig                                `json:"workerTelemetry,omitempty"`
+	HTTPProxy                *HTTPProxyConfig                                `json:"httpProxy,omitempty"`
+	Caido                    *CaidoConfig                                    `json:"caido,omitempty"`
+	Interactsh               *InteractshConfig                               `json:"interactsh,omitempty"`
+	PlannerTelemetry         *TelemetryConfig                                `json:"plannerTelemetry,omitempty"`
+	PlannerRuntimeCredential *runtimesettings.RuntimeCredentialRef           `json:"plannerRuntimeCredential,omitempty"`
+	RequiredRuntimeAdapters  []runtimesettings.RuntimeAdapterRef             `json:"requiredRuntimeAdapters"`
+	Origins                  ResolvedRuntimeConfigOrigins                    `json:"origins"`
+	Provenance               runtimesettings.ResolvedRuntimeConfigProvenance `json:"provenance"`
+}
+
+func (r ResolvedRuntimeConfig) Validate() error {
+	if r.ModelFree {
+		if !r.ModelPolicy.IsZero() || r.SummarizerModelPolicy != nil || r.CompactorModelPolicy != nil || r.LLMGateway != (llmgateway.ResolvedLLMGatewayConfig{}) || r.LLMCredential != nil || r.Origins.LLMGateway != nil || r.Origins.LLMCredential != nil || r.Provenance.LLMGatewayConfig != nil || r.Provenance.LLMCredential != nil {
+			return resolutionError(ResolutionInvalid, "modelFree", ErrInvalid)
+		}
+	} else {
+		if err := r.ModelPolicy.Validate(); err != nil {
+			return resolutionError(ResolutionInvalid, "modelPolicy", ErrInvalid)
+		}
+		if err := r.LLMGateway.Validate(); err != nil || r.LLMGateway.Protocol != llmgateway.OpenAICompatibleProtocol {
+			return resolutionError(ResolutionInvalid, "worker.llmGateway.gateway", ErrInvalid)
+		}
+	}
+	if r.SummarizerModelPolicy != nil {
+		if err := r.SummarizerModelPolicy.ValidateForWorkerSummarizer(); err != nil {
+			return resolutionError(ResolutionInvalid, "summarizerModelPolicy", ErrInvalid)
+		}
+	}
+	if r.CompactorModelPolicy != nil {
+		if err := r.CompactorModelPolicy.ValidateForCompactor(); err != nil || r.SummarizerModelPolicy != nil {
+			return resolutionError(ResolutionInvalid, "compactorModelPolicy", ErrInvalid)
+		}
+	}
+	if err := r.Origins.Validate(); err != nil {
+		return err
+	}
+	if err := r.Provenance.Validate(); err != nil {
+		return resolutionError(ResolutionInvalid, "provenance", ErrInvalid)
+	}
+	if (!r.ModelFree && (r.Provenance.LLMGatewayConfig == nil || *r.Provenance.LLMGatewayConfig != r.LLMGateway.Ref)) ||
+		!sameCredentialRef(r.Provenance.LLMCredential, r.LLMCredential) ||
+		!sameRuntimeAdapters(r.Provenance.RuntimeAdapters, r.RequiredRuntimeAdapters) {
+		return resolutionError(ResolutionInvalid, "provenance", ErrInvalid)
+	}
+	return nil
+}
+
+type effectiveRuntimeConfig struct {
+	gateway          *llmgateway.LLMGatewayConfigRef
+	credential       *llmgateway.LLMCredentialRef
+	workerTelemetry  *TelemetryConfig
+	httpProxy        *HTTPProxyConfig
+	caido            *CaidoConfig
+	interactsh       *InteractshConfig
+	plannerTelemetry *TelemetryConfig
+	origins          ResolvedRuntimeConfigOrigins
+}
+
+type layerOrigins struct {
+	gateway, credential, workerTelemetry, httpProxy, caido, interactsh, plannerTelemetry *RuntimeFieldOrigin
+}
+
+// ResolveRuntimeConfig applies the normative precedence order without I/O.
+// Input maps are immutable catalogs owned by the caller for the duration of
+// the call; the result owns every returned slice and pointer.
+func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfig, error) {
+	if input.ModelFree {
+		if !input.ModelPolicy.IsZero() || input.SummarizerModelPolicy != nil || input.CompactorModelPolicy != nil || input.Workflow != (WorkerRoutePatch{}) || input.Escalation != (WorkerRoutePatch{}) {
+			return ResolvedRuntimeConfig{}, resolutionError(ResolutionInvalid, "modelFree", ErrInvalid)
+		}
+		input.Default = WithoutWorkerModel(input.Default)
+		input.RunLabels = withoutWorkerModels(input.RunLabels)
+		input.AgentLabels = withoutWorkerModels(input.AgentLabels)
+	} else {
+		if err := input.ModelPolicy.Validate(); err != nil {
+			return ResolvedRuntimeConfig{}, resolutionError(ResolutionInvalid, "modelPolicy", ErrInvalid)
+		}
+	}
+	if input.SummarizerModelPolicy != nil {
+		if err := input.SummarizerModelPolicy.ValidateForWorkerSummarizer(); err != nil {
+			return ResolvedRuntimeConfig{}, resolutionError(
+				ResolutionInvalid, "summarizer.modelPolicy", ErrInvalid,
+			)
+		}
+	}
+	if input.CompactorModelPolicy != nil {
+		if err := input.CompactorModelPolicy.ValidateForCompactor(); err != nil || input.SummarizerModelPolicy != nil {
+			return ResolvedRuntimeConfig{}, resolutionError(
+				ResolutionInvalid, "compactorModelPolicy", ErrInvalid,
+			)
+		}
+	}
+	if err := validatePinned(input.Default, DefaultLabel); err != nil {
+		return ResolvedRuntimeConfig{}, err
+	}
+	runSpec, runOrigins, runPins, err := mergePinnedLayer(input.RunLabels, LayerRunLabels, false, input.ModelFree)
+	if err != nil {
+		return ResolvedRuntimeConfig{}, err
+	}
+	agentSpec, agentOrigins, agentPins, err := mergePinnedLayer(input.AgentLabels, LayerAgentLabels, true, input.ModelFree)
+	if err != nil {
+		return ResolvedRuntimeConfig{}, err
+	}
+	if err := validateRoutePatch(input.Workflow, "workflow.executionConfig"); err != nil {
+		return ResolvedRuntimeConfig{}, err
+	}
+	if err := validateRoutePatch(input.Escalation, "escalation.executionConfig"); err != nil {
+		return ResolvedRuntimeConfig{}, err
+	}
+
+	var effective effectiveRuntimeConfig
+	defaultOrigin := originsForPinned(LayerDefault, []PinnedRuntimeConfig{input.Default})
+	applyWorkerSpec(&effective, input.Default.Spec.Worker, defaultOrigin)
+	applyPlannerSpec(&effective, input.Default.Spec.Planner, defaultOrigin)
+	applyRoutePatch(&effective, input.Workflow, RuntimeFieldOrigin{Layer: LayerWorkflow})
+	applyWorkerSpec(&effective, runSpec.Worker, runOrigins)
+	applyPlannerSpec(&effective, runSpec.Planner, runOrigins)
+	applyRoutePatch(&effective, input.Escalation, RuntimeFieldOrigin{Layer: LayerEscalation})
+	applyWorkerSpec(&effective, agentSpec.Worker, agentOrigins)
+
+	var gateway llmgateway.ResolvedLLMGatewayConfig
+	var gatewayRef *llmgateway.LLMGatewayConfigRef
+	if !input.ModelFree {
+		if effective.gateway == nil {
+			return ResolvedRuntimeConfig{}, resolutionError(
+				ResolutionIncomplete, "worker.llmGateway.gateway", ErrInvalid,
+			)
+		}
+		var ok bool
+		gateway, ok = input.Gateways[*effective.gateway]
+		if !ok || gateway.Ref != *effective.gateway {
+			return ResolvedRuntimeConfig{}, resolutionError(
+				ResolutionIncomplete, "worker.llmGateway.gateway", ErrInvalid,
+			)
+		}
+		if err := gateway.Validate(); err != nil || gateway.Protocol != llmgateway.OpenAICompatibleProtocol {
+			return ResolvedRuntimeConfig{}, resolutionError(
+				ResolutionInvalid, "worker.llmGateway.gateway", ErrInvalid,
+			)
+		}
+
+		if err := validateLLMRoute(input, gateway.Ref, effective.credential); err != nil {
+			return ResolvedRuntimeConfig{}, err
+		}
+		gatewayRef = &gateway.Ref
+	}
+	workerCredentials, plannerCredential, adapters, err := validateAdapterSettings(input, effective)
+	if err != nil {
+		return ResolvedRuntimeConfig{}, err
+	}
+	provenance := runtimesettings.ResolvedRuntimeConfigProvenance{
+		Default:               bindingProvenance(input.Default),
+		RunLabels:             bindingProvenanceList(runPins),
+		AgentLabels:           bindingProvenanceList(agentPins),
+		RuntimeAdapters:       append([]runtimesettings.RuntimeAdapterRef{}, adapters...),
+		LLMGatewayConfig:      clone.Pointer(gatewayRef),
+		LLMCredential:         clone.Pointer(effective.credential),
+		RuntimeCredentialRefs: workerCredentials,
+	}
+	if err := provenance.Validate(); err != nil {
+		return ResolvedRuntimeConfig{}, resolutionError(ResolutionInvalid, "provenance", ErrInvalid)
+	}
+	result := ResolvedRuntimeConfig{
+		ModelFree:                input.ModelFree,
+		ModelPolicy:              input.ModelPolicy.Clone(),
+		LLMGateway:               gateway.Clone(),
+		LLMCredential:            clone.Pointer(effective.credential),
+		WorkerTelemetry:          cloneTelemetry(effective.workerTelemetry),
+		HTTPProxy:                cloneHTTPProxy(effective.httpProxy),
+		Caido:                    clone.Pointer(effective.caido),
+		Interactsh:               clone.Pointer(effective.interactsh),
+		PlannerTelemetry:         cloneTelemetry(effective.plannerTelemetry),
+		PlannerRuntimeCredential: plannerCredential,
+		RequiredRuntimeAdapters:  append([]runtimesettings.RuntimeAdapterRef{}, adapters...),
+		Origins:                  cloneOrigins(effective.origins),
+		Provenance:               provenance,
+	}
+	if input.SummarizerModelPolicy != nil {
+		policy := input.SummarizerModelPolicy.Clone()
+		result.SummarizerModelPolicy = &policy
+	}
+	if input.CompactorModelPolicy != nil {
+		policy := input.CompactorModelPolicy.Clone()
+		result.CompactorModelPolicy = &policy
+	}
+	if err := result.Origins.Validate(); err != nil {
+		return ResolvedRuntimeConfig{}, err
+	}
+	return result, nil
+}
+
+func mergePinnedLayer(
+	values []PinnedRuntimeConfig, layer RuntimeLayer, agent bool, modelFree bool,
+) (Spec, layerOrigins, []PinnedRuntimeConfig, error) {
+	ordered := append([]PinnedRuntimeConfig{}, values...)
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Label < ordered[j].Label })
+	labels := make([]string, 0, len(ordered))
+	for _, value := range ordered {
+		labels = append(labels, value.Label)
+	}
+	if runtimesettings.ValidateCanonicalRuntimeLabels(labels) != nil {
+		return Spec{}, layerOrigins{}, nil, resolutionError(ResolutionInvalid, string(layer), ErrInvalid)
+	}
+	entries := make([]LayerEntry, 0, len(ordered))
+	for _, value := range ordered {
+		if err := validatePinned(value, value.Label); err != nil {
+			return Spec{}, layerOrigins{}, nil, err
+		}
+		spec := value.Spec
+		if agent {
+			if !modelFree && !workerApplicable(spec.Worker) {
+				return Spec{}, layerOrigins{}, nil, resolutionError(
+					ResolutionInvalid, "agent_labels.worker", ErrInvalid,
+				)
+			}
+			// Agent labels cannot configure the Server-side Planner.
+			spec.Planner = PlannerPatch{}
+		}
+		entries = append(entries, LayerEntry{Label: value.Label, Ref: value.Config, Spec: spec})
+	}
+	merged, err := MergeSameLayer(entries)
+	if err != nil {
+		var conflict *MergeConflictError
+		path := string(layer)
+		if errors.As(err, &conflict) {
+			path = conflict.Path
+		}
+		return Spec{}, layerOrigins{}, nil, resolutionError(ResolutionConflict, path, err)
+	}
+	return merged, originsForPinned(layer, ordered), ordered, nil
+}
+
+// WithoutWorkerModel keeps immutable provenance while projecting irrelevant
+// model leaves out before merge and catalog/credential lookups for tool Workers.
+func WithoutWorkerModel(value PinnedRuntimeConfig) PinnedRuntimeConfig {
+	value.Spec.Worker.LLMGateway = LLMGatewayPatch{}
+	proxy := value.Spec.Worker.HTTPProxy
+	if proxy.Present && !proxy.Clear {
+		proxy.Value.Targets = nil
+		for _, target := range value.Spec.Worker.HTTPProxy.Value.Targets {
+			if target != string(runtimesettings.ProxyTargetLLMGateway) {
+				proxy.Value.Targets = append(proxy.Value.Targets, target)
+			}
+		}
+		if len(proxy.Value.Targets) == 0 {
+			proxy = AtomicPatch[HTTPProxyConfig]{}
+		}
+		value.Spec.Worker.HTTPProxy = proxy
+	}
+	return value
+}
+
+func withoutWorkerModels(values []PinnedRuntimeConfig) []PinnedRuntimeConfig {
+	result := make([]PinnedRuntimeConfig, len(values))
+	for i, value := range values {
+		result[i] = WithoutWorkerModel(value)
+	}
+	return result
+}
+
+func validatePinned(value PinnedRuntimeConfig, expectedLabel string) error {
+	if value.Label != expectedLabel || value.BindingRevision == 0 ||
+		ValidateLabel(value.Label) != nil || validateRef(value.Config) != nil {
+		return resolutionError(ResolutionInvalid, "label_binding", ErrInvalid)
+	}
+	return nil
+}
+
+func validateRoutePatch(value WorkerRoutePatch, path string) error {
+	if value.Gateway.Clear || !value.Gateway.Present && value.Gateway.Value != (llmgateway.LLMGatewayConfigRef{}) {
+		return resolutionError(ResolutionInvalid, path+".llmGateway.gateway", ErrInvalid)
+	}
+	if value.Gateway.Present && value.Gateway.Value.ValidateRef() != nil {
+		return resolutionError(ResolutionInvalid, path+".llmGateway.gateway", ErrInvalid)
+	}
+	if !value.Credential.Present && (value.Credential.Clear || value.Credential.Value != "") ||
+		value.Credential.Present && value.Credential.Clear && value.Credential.Value != "" {
+		return resolutionError(ResolutionInvalid, path+".llmGateway.credential", ErrInvalid)
+	}
+	if value.Credential.Present && !value.Credential.Clear {
+		if err := (&llmgateway.LLMCredentialRef{CredentialID: value.Credential.Value}).Validate(); err != nil {
+			return resolutionError(ResolutionInvalid, path+".llmGateway.credential", ErrInvalid)
+		}
+	}
+	return nil
+}
+
+func applyRoutePatch(target *effectiveRuntimeConfig, patch WorkerRoutePatch, origin RuntimeFieldOrigin) {
+	if patch.Gateway.Present {
+		value := patch.Gateway.Value
+		target.gateway = &value
+		target.origins.LLMGateway = cloneOrigin(&origin)
+	}
+	if patch.Credential.Present {
+		if patch.Credential.Clear {
+			target.credential = nil
+		} else {
+			target.credential = &llmgateway.LLMCredentialRef{CredentialID: patch.Credential.Value}
+		}
+		target.origins.LLMCredential = cloneOrigin(&origin)
+	}
+}
+
+func applyWorkerSpec(target *effectiveRuntimeConfig, patch WorkerPatch, origins layerOrigins) {
+	if patch.LLMGateway.Gateway.Present {
+		value := patch.LLMGateway.Gateway.Value
+		target.gateway = &value
+		target.origins.LLMGateway = cloneOrigin(origins.gateway)
+	}
+	if patch.LLMGateway.Credential.Present {
+		if patch.LLMGateway.Credential.Clear {
+			target.credential = nil
+		} else {
+			target.credential = &llmgateway.LLMCredentialRef{CredentialID: patch.LLMGateway.Credential.Value}
+		}
+		target.origins.LLMCredential = cloneOrigin(origins.credential)
+	}
+	if patch.Telemetry.Present {
+		if patch.Telemetry.Clear {
+			target.workerTelemetry = nil
+		} else {
+			value := patch.Telemetry.Value
+			target.workerTelemetry = &value
+		}
+		target.origins.WorkerTelemetry = cloneOrigin(origins.workerTelemetry)
+	}
+	if patch.HTTPProxy.Present {
+		if patch.HTTPProxy.Clear {
+			target.httpProxy = nil
+		} else {
+			value := patch.HTTPProxy.Value
+			value.Targets = append([]string{}, value.Targets...)
+			target.httpProxy = &value
+		}
+		target.origins.HTTPProxy = cloneOrigin(origins.httpProxy)
+	}
+	if patch.Caido.Present {
+		if patch.Caido.Clear {
+			target.caido = nil
+		} else {
+			value := patch.Caido.Value
+			target.caido = &value
+		}
+		target.origins.Caido = cloneOrigin(origins.caido)
+	}
+	if patch.Interactsh.Present {
+		if patch.Interactsh.Clear {
+			target.interactsh = nil
+		} else {
+			value := patch.Interactsh.Value
+			target.interactsh = &value
+		}
+		target.origins.Interactsh = cloneOrigin(origins.interactsh)
+	}
+}
+
+func applyPlannerSpec(target *effectiveRuntimeConfig, patch PlannerPatch, origins layerOrigins) {
+	if !patch.Telemetry.Present {
+		return
+	}
+	if patch.Telemetry.Clear {
+		target.plannerTelemetry = nil
+	} else {
+		value := patch.Telemetry.Value
+		target.plannerTelemetry = &value
+	}
+	target.origins.PlannerTelemetry = cloneOrigin(origins.plannerTelemetry)
+}
+
+func validateLLMRoute(
+	input ResolveRuntimeConfigInput,
+	gateway llmgateway.LLMGatewayConfigRef,
+	credential *llmgateway.LLMCredentialRef,
+) error {
+	if credential == nil {
+		return nil
+	}
+	authorization, ok := input.LLMCredentials[credential.CredentialID]
+	if !ok || authorization.Ref != *credential {
+		return resolutionError(ResolutionIncomplete, "worker.llmGateway.credential", ErrInvalid)
+	}
+	if authorization.LLMGateway != gateway {
+		return resolutionError(
+			ResolutionGatewayMismatch, "worker.llmGateway.credential", ErrInvalid,
+		)
+	}
+	if !authorization.Unrestricted &&
+		(!containsModelPolicy(authorization.ModelPolicies, input.ModelPolicy.Ref) ||
+			!slices.Contains(authorization.Models, input.ModelPolicy.Model)) {
+		return resolutionError(
+			ResolutionModelUnauthorized, "worker.llmGateway.credential", ErrInvalid,
+		)
+	}
+	for _, auxiliary := range []*contracts.ResolvedModelPolicy{input.SummarizerModelPolicy, input.CompactorModelPolicy} {
+		if !authorization.Unrestricted && auxiliary != nil &&
+			(!containsModelPolicy(authorization.ModelPolicies, auxiliary.Ref) ||
+				!slices.Contains(authorization.Models, auxiliary.Model)) {
+			return resolutionError(
+				ResolutionModelUnauthorized, "worker.llmGateway.credential", ErrInvalid,
+			)
+		}
+	}
+	return nil
+}
+
+func validateAdapterSettings(
+	input ResolveRuntimeConfigInput,
+	effective effectiveRuntimeConfig,
+) ([]runtimesettings.RuntimeCredentialRef, *runtimesettings.RuntimeCredentialRef, []runtimesettings.RuntimeAdapterRef, error) {
+	workerCredentials := make([]runtimesettings.RuntimeCredentialRef, 0, 3)
+	adapters := make([]runtimesettings.RuntimeAdapterRef, 0, 3)
+	if effective.workerTelemetry != nil {
+		if err := validateTelemetryConfig(*effective.workerTelemetry, "worker.telemetry"); err != nil {
+			return nil, nil, nil, err
+		}
+		adapters = append(adapters, runtimesettings.RuntimeAdapterOTLPHTTP)
+		if effective.workerTelemetry.Credential != "" {
+			ref, err := requireRuntimeCredential(
+				input.RuntimeCredentials, effective.workerTelemetry.Credential,
+				"worker.telemetry.credential", runtimesettings.RuntimeCredentialOTLPHeaders,
+			)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			workerCredentials = append(workerCredentials, ref)
+		}
+	}
+	if effective.httpProxy != nil {
+		if err := validateHTTPProxyConfig(*effective.httpProxy); err != nil {
+			return nil, nil, nil, err
+		}
+		adapters = append(adapters, runtimesettings.RuntimeAdapterHTTPProxy)
+		if effective.httpProxy.Credential != "" {
+			ref, err := requireRuntimeCredential(
+				input.RuntimeCredentials, effective.httpProxy.Credential,
+				"worker.httpProxy.credential",
+				runtimesettings.RuntimeCredentialProxyBasic, runtimesettings.RuntimeCredentialProxyBearer,
+			)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			workerCredentials = append(workerCredentials, ref)
+		}
+	}
+	if effective.caido != nil {
+		if err := validateCaidoConfig(*effective.caido); err != nil {
+			return nil, nil, nil, err
+		}
+		adapters = append(adapters, runtimesettings.RuntimeAdapterCaidoGraphQL)
+		if effective.caido.Credential != "" {
+			ref, err := requireRuntimeCredential(
+				input.RuntimeCredentials, effective.caido.Credential,
+				"worker.caido.credential", runtimesettings.RuntimeCredentialCaidoBearer,
+			)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			workerCredentials = append(workerCredentials, ref)
+		}
+	}
+	if effective.interactsh != nil {
+		if err := validateInteractshConfig(*effective.interactsh); err != nil {
+			return nil, nil, nil, err
+		}
+		adapters = append(adapters, runtimesettings.RuntimeAdapterInteractshHTTP)
+		if effective.interactsh.Credential != "" {
+			ref, err := requireRuntimeCredential(
+				input.RuntimeCredentials, effective.interactsh.Credential,
+				"worker.interactsh.credential", runtimesettings.RuntimeCredentialInteractshToken,
+			)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			workerCredentials = append(workerCredentials, ref)
+		}
+	}
+	var plannerCredential *runtimesettings.RuntimeCredentialRef
+	if effective.plannerTelemetry != nil {
+		if err := validateTelemetryConfig(*effective.plannerTelemetry, "planner.telemetry"); err != nil {
+			return nil, nil, nil, err
+		}
+		if effective.plannerTelemetry.Credential != "" {
+			ref, err := requireRuntimeCredential(
+				input.RuntimeCredentials, effective.plannerTelemetry.Credential,
+				"planner.telemetry.credential", runtimesettings.RuntimeCredentialOTLPHeaders,
+			)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			plannerCredential = &ref
+		}
+	}
+	sort.Slice(adapters, func(i, j int) bool { return adapters[i] < adapters[j] })
+	sort.Slice(workerCredentials, func(i, j int) bool {
+		left := string(workerCredentials[i].Kind) + "\x00" + workerCredentials[i].CredentialID
+		right := string(workerCredentials[j].Kind) + "\x00" + workerCredentials[j].CredentialID
+		return left < right
+	})
+	return workerCredentials, plannerCredential, adapters, nil
+}
+
+func validateTelemetryConfig(value TelemetryConfig, path string) error {
+	if value.Export != nil && (path != "worker.telemetry" || value.Export.Validate() != nil) {
+		return resolutionError(ResolutionInvalid, path+".export", ErrInvalid)
+	}
+	if value.Adapter != string(runtimesettings.RuntimeAdapterOTLPHTTP) ||
+		value.FlushTimeoutSeconds < 1 || value.FlushTimeoutSeconds > 10 {
+		return resolutionError(ResolutionInvalid, path, ErrInvalid)
+	}
+	if _, err := validateURL(path+".endpoint", value.Endpoint); err != nil {
+		return resolutionError(ResolutionInvalid, path, ErrInvalid)
+	}
+	return nil
+}
+
+func validateHTTPProxyConfig(value HTTPProxyConfig) error {
+	if value.Adapter != string(runtimesettings.RuntimeAdapterHTTPProxy) {
+		return resolutionError(ResolutionInvalid, "worker.httpProxy", ErrInvalid)
+	}
+	if _, err := validateURL("worker.httpProxy.proxyUrl", value.ProxyURL); err != nil {
+		return resolutionError(ResolutionInvalid, "worker.httpProxy", ErrInvalid)
+	}
+	if value.CABundlePEM != "" && validateCABundle("worker.httpProxy.caBundlePem", value.CABundlePEM) != nil {
+		return resolutionError(ResolutionInvalid, "worker.httpProxy", ErrInvalid)
+	}
+	if len(value.Targets) == 0 || len(value.Targets) > 3 {
+		return resolutionError(ResolutionInvalid, "worker.httpProxy.targets", ErrInvalid)
+	}
+	previous := ""
+	for _, target := range value.Targets {
+		switch runtimesettings.HTTPProxyTarget(target) {
+		case runtimesettings.ProxyTargetLLMGateway, runtimesettings.ProxyTargetToolHTTP, runtimesettings.ProxyTargetToolSubprocess:
+		default:
+			return resolutionError(ResolutionInvalid, "worker.httpProxy.targets", ErrInvalid)
+		}
+		if target <= previous {
+			return resolutionError(ResolutionInvalid, "worker.httpProxy.targets", ErrInvalid)
+		}
+		previous = target
+	}
+	return nil
+}
+
+func validateCaidoConfig(value CaidoConfig) error {
+	if value.Adapter != string(runtimesettings.RuntimeAdapterCaidoGraphQL) ||
+		value.RequestTimeoutSeconds < 0 || value.RequestTimeoutSeconds > 120 {
+		return resolutionError(ResolutionInvalid, "worker.caido", ErrInvalid)
+	}
+	if _, err := validateURL("worker.caido.endpoint", value.Endpoint); err != nil {
+		return resolutionError(ResolutionInvalid, "worker.caido", ErrInvalid)
+	}
+	if value.CABundlePEM != "" && validateCABundle("worker.caido.caBundlePem", value.CABundlePEM) != nil {
+		return resolutionError(ResolutionInvalid, "worker.caido", ErrInvalid)
+	}
+	return nil
+}
+
+func validateInteractshConfig(value InteractshConfig) error {
+	if value.Adapter != string(runtimesettings.RuntimeAdapterInteractshHTTP) ||
+		value.RequestTimeoutSeconds < 0 || value.RequestTimeoutSeconds > 120 {
+		return resolutionError(ResolutionInvalid, "worker.interactsh", ErrInvalid)
+	}
+	if _, err := validateURL("worker.interactsh.endpoint", value.Endpoint); err != nil {
+		return resolutionError(ResolutionInvalid, "worker.interactsh", ErrInvalid)
+	}
+	if value.CABundlePEM != "" && validateCABundle("worker.interactsh.caBundlePem", value.CABundlePEM) != nil {
+		return resolutionError(ResolutionInvalid, "worker.interactsh", ErrInvalid)
+	}
+	timeout := value.RequestTimeoutSeconds
+	if timeout == 0 {
+		timeout = runtimesettings.MaxInteractshRequestTimeoutSeconds
+	}
+	if err := (runtimesettings.InteractshSettings{Adapter: runtimesettings.RuntimeAdapterInteractshHTTP, Endpoint: value.Endpoint, RequestTimeoutSeconds: timeout}).Validate(); err != nil {
+		return resolutionError(ResolutionInvalid, "worker.interactsh", ErrInvalid)
+	}
+	return nil
+}
+
+func requireRuntimeCredential(
+	catalog map[string]runtimesettings.RuntimeCredentialKind,
+	credentialID, path string,
+	allowed ...runtimesettings.RuntimeCredentialKind,
+) (runtimesettings.RuntimeCredentialRef, error) {
+	kind, ok := catalog[credentialID]
+	if !ok {
+		return runtimesettings.RuntimeCredentialRef{}, resolutionError(ResolutionIncomplete, path, ErrInvalid)
+	}
+	for _, candidate := range allowed {
+		if kind == candidate {
+			return runtimesettings.RuntimeCredentialRef{CredentialID: credentialID, Kind: kind}, nil
+		}
+	}
+	return runtimesettings.RuntimeCredentialRef{}, resolutionError(
+		ResolutionCredentialKindMismatch, path, ErrInvalid,
+	)
+}
+
+func originsForPinned(layer RuntimeLayer, entries []PinnedRuntimeConfig) layerOrigins {
+	selectOrigin := func(selected func(Spec) bool) *RuntimeFieldOrigin {
+		refs := make([]Ref, 0, len(entries))
+		seen := make(map[Ref]struct{}, len(entries))
+		for _, entry := range entries {
+			if !selected(entry.Spec) {
+				continue
+			}
+			if _, exists := seen[entry.Config]; exists {
+				continue
+			}
+			seen[entry.Config] = struct{}{}
+			refs = append(refs, entry.Config)
+		}
+		if len(refs) == 0 {
+			return nil
+		}
+		sort.Slice(refs, func(i, j int) bool { return refs[i].String() < refs[j].String() })
+		return &RuntimeFieldOrigin{Layer: layer, Configs: refs}
+	}
+	return layerOrigins{
+		gateway: selectOrigin(func(spec Spec) bool {
+			return spec.Worker.LLMGateway.Gateway.Present
+		}),
+		credential: selectOrigin(func(spec Spec) bool {
+			return spec.Worker.LLMGateway.Credential.Present
+		}),
+		workerTelemetry: selectOrigin(func(spec Spec) bool {
+			return spec.Worker.Telemetry.Present
+		}),
+		httpProxy: selectOrigin(func(spec Spec) bool {
+			return spec.Worker.HTTPProxy.Present
+		}),
+		caido: selectOrigin(func(spec Spec) bool {
+			return spec.Worker.Caido.Present
+		}),
+		interactsh: selectOrigin(func(spec Spec) bool {
+			return spec.Worker.Interactsh.Present
+		}),
+		plannerTelemetry: selectOrigin(func(spec Spec) bool {
+			return spec.Planner.Telemetry.Present
+		}),
+	}
+}
+
+func bindingProvenance(value PinnedRuntimeConfig) runtimesettings.RuntimeLabelBindingProvenance {
+	return runtimesettings.RuntimeLabelBindingProvenance{
+		Label: value.Label, BindingRevision: value.BindingRevision,
+		Config: runtimesettings.RuntimeConfigRef{
+			Name: value.Config.Name, Version: value.Config.Version, Digest: value.Config.Digest,
+		},
+	}
+}
+
+func bindingProvenanceList(values []PinnedRuntimeConfig) []runtimesettings.RuntimeLabelBindingProvenance {
+	result := make([]runtimesettings.RuntimeLabelBindingProvenance, len(values))
+	for index := range values {
+		result[index] = bindingProvenance(values[index])
+	}
+	return result
+}
+
+func workerApplicable(value WorkerPatch) bool {
+	return value.LLMGateway.Present || value.Telemetry.Present || value.HTTPProxy.Present || value.Caido.Present || value.Interactsh.Present
+}
+
+func containsModelPolicy(values []contracts.ModelPolicyRef, expected contracts.ModelPolicyRef) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+	return false
+}
+
+func resolutionError(code ResolutionErrorCode, path string, cause error) error {
+	return &ResolutionError{Code: code, Path: path, cause: cause}
+}
+
+func sameCredentialRef(left, right *llmgateway.LLMCredentialRef) bool {
+	return left == nil && right == nil ||
+		left != nil && right != nil && *left == *right
+}
+
+func sameRuntimeAdapters(left, right []runtimesettings.RuntimeAdapterRef) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func cloneTelemetry(value *TelemetryConfig) *TelemetryConfig {
+	if value == nil {
+		return nil
+	}
+	result := *value
+	if value.Export != nil {
+		export := *value.Export
+		if value.Export.Retry != nil {
+			retry := *value.Export.Retry
+			export.Retry = &retry
+		}
+		result.Export = &export
+	}
+	return &result
+}
+
+func cloneHTTPProxy(value *HTTPProxyConfig) *HTTPProxyConfig {
+	if value == nil {
+		return nil
+	}
+	result := *value
+	result.Targets = append([]string{}, value.Targets...)
+	return &result
+}
+
+func cloneOrigin(value *RuntimeFieldOrigin) *RuntimeFieldOrigin {
+	if value == nil {
+		return nil
+	}
+	result := *value
+	result.Configs = append([]Ref{}, value.Configs...)
+	return &result
+}
+
+func cloneOrigins(value ResolvedRuntimeConfigOrigins) ResolvedRuntimeConfigOrigins {
+	return ResolvedRuntimeConfigOrigins{
+		LLMGateway:       cloneOrigin(value.LLMGateway),
+		LLMCredential:    cloneOrigin(value.LLMCredential),
+		WorkerTelemetry:  cloneOrigin(value.WorkerTelemetry),
+		HTTPProxy:        cloneOrigin(value.HTTPProxy),
+		Caido:            cloneOrigin(value.Caido),
+		Interactsh:       cloneOrigin(value.Interactsh),
+		PlannerTelemetry: cloneOrigin(value.PlannerTelemetry),
+	}
+}
+
+// Clone returns a detached safe resolution snapshot. It is intentionally
+// explicit so Registry copies cannot share mutable provenance slices with a
+// placement caller.
+func (r ResolvedRuntimeConfig) Clone() ResolvedRuntimeConfig {
+	result := r
+	result.ModelPolicy = r.ModelPolicy.Clone()
+	if r.SummarizerModelPolicy != nil {
+		policy := r.SummarizerModelPolicy.Clone()
+		result.SummarizerModelPolicy = &policy
+	}
+	if r.CompactorModelPolicy != nil {
+		policy := r.CompactorModelPolicy.Clone()
+		result.CompactorModelPolicy = &policy
+	}
+	result.LLMGateway = r.LLMGateway.Clone()
+	result.LLMCredential = clone.Pointer(r.LLMCredential)
+	result.WorkerTelemetry = cloneTelemetry(r.WorkerTelemetry)
+	result.HTTPProxy = cloneHTTPProxy(r.HTTPProxy)
+	result.Caido = clone.Pointer(r.Caido)
+	result.Interactsh = clone.Pointer(r.Interactsh)
+	result.PlannerTelemetry = cloneTelemetry(r.PlannerTelemetry)
+	result.PlannerRuntimeCredential = clone.Pointer(r.PlannerRuntimeCredential)
+	result.RequiredRuntimeAdapters = append([]runtimesettings.RuntimeAdapterRef{}, r.RequiredRuntimeAdapters...)
+	result.Origins = cloneOrigins(r.Origins)
+	result.Provenance.RunLabels = append(
+		[]runtimesettings.RuntimeLabelBindingProvenance{}, r.Provenance.RunLabels...,
+	)
+	result.Provenance.AgentLabels = append(
+		[]runtimesettings.RuntimeLabelBindingProvenance{}, r.Provenance.AgentLabels...,
+	)
+	result.Provenance.RuntimeAdapters = append(
+		[]runtimesettings.RuntimeAdapterRef{}, r.Provenance.RuntimeAdapters...,
+	)
+	result.Provenance.LLMGatewayConfig = clone.Pointer(r.Provenance.LLMGatewayConfig)
+	result.Provenance.LLMCredential = clone.Pointer(r.Provenance.LLMCredential)
+	result.Provenance.RuntimeCredentialRefs = append(
+		[]runtimesettings.RuntimeCredentialRef{}, r.Provenance.RuntimeCredentialRefs...,
+	)
+	return result
+}
+
+func (r ResolvedRuntimeConfig) String() string {
+	return fmt.Sprintf(
+		"ResolvedRuntimeConfig(gateway=%s@%s, adapters=%d)",
+		r.LLMGateway.Ref.GatewayID, r.LLMGateway.Ref.Version, len(r.RequiredRuntimeAdapters),
+	)
+}

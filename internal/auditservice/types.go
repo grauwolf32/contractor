@@ -1,0 +1,162 @@
+package auditservice
+
+import (
+	"context"
+	"encoding/json"
+	"time"
+
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/auditbaseline"
+	"github.com/grauwolf32/contractor/internal/auditstandards"
+	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+const (
+	DraftSelectionSchema = "contractor.audit.draft-selection.v1"
+	BaselineSchema       = auditbaseline.Schema
+	maximumScopeValue    = 64 << 10
+)
+
+type ProfileCatalog interface {
+	AuditProfile(string) (auditprofile.PinnedProgram, error)
+	ResolveAuditProfile(context.Context, string) (auditprofile.PinnedProgram, error)
+	ResolvePinnedAuditProfile(context.Context, auditprofile.PinnedProgram) (auditprofile.PinnedProgram, error)
+	AuditProfiles() []auditprofile.PinnedProgram
+}
+
+// CredentialReferenceGuard must fence both managed LLM and Runtime credential
+// deletion while start validates identities and commits durable Audit holds.
+// The production services share one lifecycle barrier, so the managed guard
+// supplies this combined critical section without nested RWMutex acquisition.
+type CredentialReferenceGuard interface {
+	WithRunCreation(context.Context, func() error) error
+}
+
+type Options struct {
+	Storage *artifactpostgres.Storage
+
+	Pool                      *pgxpool.Pool
+	Profiles                  ProfileCatalog
+	TransactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
+	CredentialGuard           CredentialReferenceGuard
+	Now                       func() time.Time
+}
+
+type Service struct {
+	storage *artifactpostgres.Storage
+
+	pool                      *pgxpool.Pool
+	profiles                  ProfileCatalog
+	transactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
+	credentialGuard           CredentialReferenceGuard
+	findings                  *findingintake.Service
+	standards                 *auditstandards.Catalog
+	now                       func() time.Time
+}
+
+// owners and reads are the owner and query seams of the Audit store on the
+// service's pool; a transaction builds the seams it uses from itself.
+func (s *Service) owners() *ownerstore.Store { return ownerstore.New(s.pool, s.storage) }
+
+func (s *Service) reads() *querystore.Store { return querystore.New(s.pool, s.storage) }
+
+type ProfileSelector struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+type Scope = auditbaseline.Scope
+
+type DraftSelection struct {
+	Parameters              map[string]string                   `json:"parameters,omitempty"`
+	Labels                  runlabels.RunMetadataLabels         `json:"labels"`
+	RequiredPlacementLabels []string                            `json:"requiredPlacementLabels"`
+	Schema                  string                              `json:"schema"`
+	Inputs                  map[string]auditstore.ExactArtifact `json:"inputs"`
+	RuntimeLabels           []string                            `json:"runtimeLabels"`
+	Scope                   Scope                               `json:"scope"`
+}
+
+type BaselineSnapshot = auditbaseline.BaselineSnapshot
+
+type ProfileProjection struct {
+	Profile auditprofile.PinnedProgram
+}
+
+type CreateDraftParams struct {
+	Parameters          map[string]string
+	OperationsPrincipal bool
+	Labels              runlabels.RunMetadataLabels
+	// PinnedProfile is trusted server-side Eval preparation, never a public field.
+	PinnedProfile         *auditprofile.PinnedProgram
+	ExpectedProfileSHA256 string
+	AuditID               string
+	OwnerID               string
+	ProjectID             string
+	Profile               ProfileSelector
+	Inputs                map[string]contracts.ArtifactRef
+	RuntimeLabels         []string
+	Scope                 Scope
+	IdempotencyKey        string
+	RequestDigest         string
+}
+
+type StartParams struct {
+	ExpectedRuntimeSHA256   string
+	ExpectedSkillsSHA256    string
+	ExpectedStandardsSHA256 string
+	OwnerID                 string
+	AuditID                 string
+	ExpectedRevision        uint64
+	IdempotencyKey          string
+	RequestDigest           string
+	DeadlineSeconds         *int
+
+	// OperationsPrincipal reports that the requesting principal holds the
+	// Operations capability and may pin any Runtime credential. Otherwise the
+	// Project HTTP target may pin only a credential OwnerID created.
+	OperationsPrincipal bool
+}
+
+type MutationParams struct {
+	OwnerID          string
+	AuditID          string
+	ExpectedRevision uint64
+	IdempotencyKey   string
+	RequestDigest    string
+	DeadlineSeconds  *int
+}
+
+type MutationResult struct {
+	Audit    auditstore.Audit
+	Replayed bool
+}
+
+type StartedAudit struct {
+	Audit    auditstore.Audit
+	Replayed bool
+}
+
+type ReportStatus string
+
+const (
+	ReportPending     ReportStatus = "pending"
+	ReportReady       ReportStatus = "ready"
+	ReportUnavailable ReportStatus = "unavailable"
+)
+
+type ReportProjection struct {
+	Status          ReportStatus              `json:"status"`
+	MachineArtifact *auditstore.ExactArtifact `json:"machineArtifact,omitempty"`
+	SummaryArtifact *auditstore.ExactArtifact `json:"summaryArtifact,omitempty"`
+	Machine         json.RawMessage           `json:"machine,omitempty"`
+	Summary         string                    `json:"summary,omitempty"`
+}

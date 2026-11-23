@@ -1,0 +1,59 @@
+schema_version: '1.0'
+id: V467-002
+title: Back off paginated UI polling after head and continuation failures
+milestone: ui-journey-usability
+epic: ui
+kind: defect
+priority: P2
+status: completed
+depends_on: []
+languages: [typescript, markdown]
+goal: Preserve visible partial lists while slowing repeated failed reads under the common UI polling policy.
+context:
+  review: tasks/evidence/v467-002-polling-backoff-verification.json
+  authority: User request 2026-11-14 authorizes all hotspot corrections on one separate branch.
+  introduced_commit: c9bae8dda5524316d8f1b203f9a8ac08179f1f20
+  provenance: The introducing cross-project layer has no identifiable task; retain the exact commit without inventing introduced_by.
+  finding: >-
+    ui/src/api/cross-project.ts:106 and routes/projects/overview-data.ts:65 use
+    fixed intervals after failures. loadAllPages returns continuation errors in
+    data.error, so merely using the existing query-error-only pollInterval is insufficient.
+  siblings: >-
+    Cover project, owner Audit, owner Finding and Project overview Finding lists.
+    Existing single-resource polling, revision-pinned reads and Inbox list polling
+    already use the common helper and must retain their behavior.
+  specification:
+    - docs/spec/ui/ui.md
+scope:
+  in:
+    - Extend the existing polling helper to recognize caller-projected partial-result failures.
+    - Apply it to every loadAllPages polling consumer, retaining loaded data, permanent-error stop and reset after recovery.
+    - Add fake-timer regressions for failed head/continuation, permanent refusal and recovery; bump the UI patch version.
+  out:
+    - Changing APIs, page bounds, query keys, list ordering, presentation or successful polling intervals.
+acceptance_criteria:
+  - id: A1
+    text: Head and continuation failures double the polling delay per failed refresh up to the existing cap, preserving partial data and error indicators.
+  - id: A2
+    text: Permanent 4xx refusals stop polling; 408/429 remain retryable; recovery resets the base interval.
+  - id: A3
+    text: Cross-project and Project overview hooks exercise the policy through real paginated readers, and existing polling users pass unchanged.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification_results:
+- '2026-11-14: make ui-verify passed: 223 files, 2527 passing tests, 1 pre-existing expected failure, 17 static-server
+  tests and production build; generated check, ESLint/Prettier and both TypeScript projects passed.'
+- All 33 focused polling/cross-project tests passed. On the original three production modules all 12 new regression
+  checks fail, while 21 existing tests pass.
+- make lint passed. No public API, UI layout, successful polling interval or list cap changed.
+implementation_commit: 814250ae296ca33ade3bb34c409616b086c7f041
+delivery:
+  date: '2026-11-14'
+  branch: codex/graphify-hotspot-fixes
+  merged_into_main: true
+  merge_commit: 609803f7b0bc93628ff1fa74c22aaabb638ddb40
+  integrated_at: '2026-11-14'
+  integration_task: V467-004

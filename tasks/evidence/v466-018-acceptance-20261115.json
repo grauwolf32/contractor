@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "task": "V466-018",
+  "date": "2026-11-15",
+  "implementationCommit": "4fbc2038340b2e523334ac6a7e1aaa51ffdc8d2b",
+  "baseCommit": "ade6800f0d4968bb9bde1b52bbccc1e2da1d652c",
+  "finding": {
+    "report": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/release-final/go-integration.jsonl",
+    "sha256": "sha256:9161aef03c5ec78f55b3bafd3ce10802fa591342b0b9d6fb3ab751cea8fba7cb",
+    "failedEvents": [
+      {
+        "Time": "2026-11-15T15:04:07.263486+03:00",
+        "Action": "fail",
+        "Package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+        "Test": "TestPostgresContinuationConsumesOnlyItsBoundedSelectedSources",
+        "Elapsed": 6.93
+      },
+      {
+        "Time": "2026-11-15T15:04:23.381825+03:00",
+        "Action": "fail",
+        "Package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+        "Elapsed": 32.633
+      }
+    ],
+    "observation": {
+      "schema": "contractor_test_a5d70a6c566c5859",
+      "state": "active",
+      "stopReason": null,
+      "taskCount": 34,
+      "latestOrdinal": 34,
+      "throughOrdinal": "31",
+      "sourceIds": 31,
+      "metadataBytes": 1697563,
+      "firstPageRows": 21
+    }
+  },
+  "verification": [
+    {
+      "command": "go test -race -tags=integration -count=1 ./internal/auditcontroller",
+      "exitCode": 0,
+      "log": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/repair-auditcontroller.log",
+      "result": "complete package passed in34.435s"
+    },
+    {
+      "command": "python3 scripts/check_tasks.py",
+      "exitCode": 0,
+      "result": "1641 records consistent"
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "boundary": {
+    "productionChanged": false,
+    "controllerAndStoreLimitsChanged": false,
+    "liveCalls": false,
+    "fullReleaseAccepted": false
+  },
+  "cleanup": {
+    "diagnosticSchemaDropped": true,
+    "diagnosticOnlyNote": "A read-only schema pin delayed the diagnostic reproduction cleanup; its exact schema was subsequently dropped. The original aggregate failure was captured independently without that pin.",
+    "database": "Reused the active009/010 lane database; its cleanup remains with that lane after all pools/processes stop."
+  }
+}

@@ -1,0 +1,20 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: audit-sqlmap-scan, version: "1"}
+spec:
+  description: Scan one assigned OpenAPI request with explicit SQLMap test parameters.
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  toolsets:
+    - ref: scan@1
+      tools: [scan_sqlmap]
+  execution:
+    tool: scan_sqlmap
+    arguments:
+      request_ref: {source: artifact, name: request}
+      # SQLMap's lowest supported test level and risk; no automatic escalation.
+      level: {source: literal, value: 1}
+      risk: {source: literal, value: 1}
+    resultArtifact: report
+    # One scanner invocation gets at most five minutes.
+    timeoutSeconds: 300

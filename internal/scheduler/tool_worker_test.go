@@ -1,0 +1,33 @@
+package scheduler
+
+import (
+	"context"
+	"path/filepath"
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/runstore"
+)
+
+func TestToolWorkerMaterializesSettingsWithoutGatewayOrCredentialServices(t *testing.T) {
+	snapshot, _, err := configload.LoadUnionReadOnly("../../testdata/configs-scan", filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.Workflow("nuclei-target@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	scheduler := &Scheduler{options: Options{RuntimeTransport: RuntimeTransportSettings{
+		ArtifactAPIURL: "https://artifacts.example", RequestTimeoutSeconds: 30,
+	}}}
+	stage := workflow.Stages["scan"]
+	settings, err := scheduler.workerExecutionSettingsForRun(context.Background(), runstore.WorkflowRun{}, stage, schedulerTestReservations(t, stage))
+	if err != nil {
+		t.Fatal(err)
+	}
+	value := settings["scanner"]
+	if !value.ModelPolicy.IsZero() || value.RuntimeSettings.LLMGatewayURL != "" || value.RuntimeSettings.LLMGatewayToken != nil || value.ResolvedRuntimeConfigProvenance.LLMGatewayConfig != nil {
+		t.Fatalf("model dependency: %+v", value)
+	}
+}

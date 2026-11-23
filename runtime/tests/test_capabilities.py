@@ -1,0 +1,759 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import time
+from pathlib import Path
+from types import MappingProxyType
+from typing import Literal
+
+import pytest
+from fakes.worker_runtime import StubADKWorkerRuntimeFactory
+
+import contractor_runtime.toolsets.common.source_languages as code_analysis_languages
+import contractor_runtime.toolsets.likec4.tools as likec4
+import contractor_runtime.toolsets.openapi.tools as openapi
+import contractor_runtime.toolsets.taint_annotations.tools as taint_annotations
+from contractor_runtime.capabilities import (
+    CapabilityDiscoveryError,
+    CapabilitySnapshot,
+    discover_capabilities,
+)
+from contractor_runtime.factories import (
+    FactoryRegistry,
+    built_in_factories,
+)
+from contractor_runtime.projectfs.config import WorkspaceLimits, WorkspaceSettings
+from contractor_runtime.sandbox.contracts import EXECUTION_TOOLSET, TOOLSET_SANDBOX_REQUIREMENTS
+from contractor_runtime.settings import Settings
+from contractor_runtime.state import RuntimeState
+from contractor_runtime.toolsets.code_analysis.tools import (
+    CODE_ANALYSIS_REF,
+    CORE_GRAPH_TOOLS,
+    EXPORTED_TOOLS,
+    GRAPH_TOOLS,
+    SHALLOW_TOOLS,
+    dependency_versions_match,
+)
+from contractor_runtime.toolsets.code_execution.tools import CodeExecutionToolsetFactory
+from contractor_runtime.worker.tool_runtime import ToolWorkerRuntimeFactory
+from contractor_runtime.workspace import LocalWorkdirFactory
+
+SHARED_DESCRIPTOR_FIELDS = frozenset(
+    {
+        "tools",
+        "infrastructureChannels",
+        "requiresWorkspace",
+        "workspaceObservationTools",
+        "requiredSandboxProfiles",
+        "activeCheckTools",
+        "sandboxActiveCheckTools",
+        "findingProposalTools",
+        "requiredWorkflowInputs",
+    }
+)
+
+
+def test_shared_toolset_descriptor_parity(tmp_path: Path) -> None:
+    """Every Runtime ToolsetFactory matches api/testdata/toolset-descriptors.json.
+
+    The Server's descriptors are held to the same fixture (internal/config/resolved
+    TestSharedToolsetDescriptorParity), so a tool, a Toolset or a workspace
+    observation tool added on one side only fails. activeCheckTools, findingProposalTools and
+    requiredWorkflowInputs are classifications only the Server reads.
+    """
+    path = Path(__file__).resolve().parents[2] / "api" / "testdata" / "toolset-descriptors.json"
+    fixture = json.loads(path.read_text(encoding="utf-8"))
+    assert set(fixture) == {"description", "toolsets"}
+    factories = dict(built_in_factories(tmp_path).toolsets)
+    # The execution factory is installed only with an execution lifecycle and
+    # advertised only after its probe; its class carries the contract.
+    assert EXECUTION_TOOLSET not in factories
+    factories[EXECUTION_TOOLSET] = CodeExecutionToolsetFactory()
+    assert "audit-results@2" in factories
+    assert "audit-results@1" not in factories
+    assert sorted(factories) == sorted(fixture["toolsets"])
+    for ref, factory in factories.items():
+        shared = fixture["toolsets"][ref]
+        assert set(shared) == SHARED_DESCRIPTOR_FIELDS, ref
+        actual = {
+            "tools": sorted(factory.exported_tools),
+            "infrastructureChannels": {
+                tool: sorted(channels) for tool, channels in factory.infrastructure_channels.items()
+            },
+            # Allocation validation reads the attribute the same way.
+            "requiresWorkspace": getattr(factory, "requires_workspace", False),
+            # Allocation preparation holds each created tool's extractor to it.
+            "workspaceObservationTools": sorted(
+                getattr(factory, "workspace_observation_tools", frozenset())
+            ),
+            "requiredSandboxProfiles": sorted(TOOLSET_SANDBOX_REQUIREMENTS.get(ref, ())),
+        }
+        assert actual == {field: shared[field] for field in actual}, ref
+
+
+def test_code_analysis_static_contract_and_shallow_factory_are_exact(
+    tmp_path: Path,
+) -> None:
+    assert {"list_symbols", "search_def"} == SHALLOW_TOOLS
+    assert {
+        "attack_surface",
+        "complexity_hotspots",
+        "entrypoint_paths_to",
+        "find_callees",
+        "find_callers",
+        "find_symbol",
+        "functions_that_raise",
+        "graph_summary",
+        "paths_between",
+    } == GRAPH_TOOLS
+    assert {
+        "find_callees",
+        "find_callers",
+        "find_symbol",
+        "graph_summary",
+    } == CORE_GRAPH_TOOLS
+    assert EXPORTED_TOOLS == SHALLOW_TOOLS | GRAPH_TOOLS
+    assert dependency_versions_match()
+    factory = built_in_factories(tmp_path).toolsets[CODE_ANALYSIS_REF]
+    assert factory.exported_tools == EXPORTED_TOOLS
+    assert factory.infrastructure_channels == {}
+    assert factory.requires_workspace is True  # type: ignore[attr-defined]
+    assert factory.workspace_access == "read"  # type: ignore[attr-defined]
+
+
+def test_taint_annotation_static_contract_and_factory_are_exact(
+    tmp_path: Path,
+) -> None:
+    assert taint_annotations.TAINT_ANNOTATIONS_REF == "taint-annotations@1"
+    assert {
+        "annotate_trace",
+        "annotate_validate",
+        "annotate_sink",
+    } == taint_annotations.EXPORTED_TOOLS
+    assert dict(taint_annotations.PINNED_DEPENDENCIES) == {
+        "tree-sitter": "0.25.2",
+        "tree-sitter-language-pack": "1.14.3",
+    }
+    factory = built_in_factories(tmp_path).toolsets[taint_annotations.TAINT_ANNOTATIONS_REF]
+    assert factory.exported_tools == taint_annotations.EXPORTED_TOOLS
+    assert factory.infrastructure_channels == {}
+    assert factory.requires_workspace is True  # type: ignore[attr-defined]
+    assert factory.workspace_access == "write"  # type: ignore[attr-defined]
+
+
+def test_builtin_discovery_keeps_editing_tools_without_optional_validators(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probes: list[tuple[str, tuple[str, ...]]] = []
+
+    async def unavailable(name: str, arguments: tuple[str, ...]) -> bool:
+        probes.append((name, arguments))
+        return False
+
+    monkeypatch.setattr(likec4, "executable_responds", unavailable)
+    monkeypatch.setattr(openapi, "executable_responds", unavailable)
+
+    async def scenario() -> None:
+        work_root = tmp_path / "work"
+        snapshot = await discover_capabilities(built_in_factories(work_root))
+
+        assert snapshot.runtimes == ("adk@1", "tool@1")
+        assert snapshot.sandbox_profiles == ("local-workdir@1",)
+        assert snapshot.runtime_adapters == (
+            "caido-graphql@1",
+            "http-proxy@1",
+            "interactsh-http@1",
+            "otlp-http@1",
+        )
+        assert snapshot.workspace is None
+        toolsets = {item.ref: item.tools for item in snapshot.toolsets}
+        assert CODE_ANALYSIS_REF not in toolsets
+        assert "write_likec4" in toolsets["likec4@1"]
+        assert "validate_likec4" not in toolsets["likec4@1"]
+        assert "openapi@1" not in toolsets
+        assert probes == [("likec4", ("version",))]
+        assert list(work_root.iterdir()) == []
+
+        state = RuntimeState(instance_id="stable-runtime", capabilities=snapshot)
+        first = await state.registration(make_settings(tmp_path))
+        second = await state.registration(make_settings(tmp_path))
+        assert snapshot.performance_metrics_versions == (1,)
+        assert first.supported_performance_metrics_versions == [1]
+        assert first.model_dump(mode="json", by_alias=True)[
+            "supportedPerformanceMetricsVersions"
+        ] == [1]
+        assert first.model_dump_json(by_alias=True) == second.model_dump_json(by_alias=True)
+
+        await state.mark_registered()
+        with pytest.raises(RuntimeError, match="only while starting"):
+            await state.install_capabilities(snapshot)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("storage", ["local", "memory"])
+def test_workspace_capability_is_probed_frozen_and_registered(
+    tmp_path: Path, storage: Literal["local", "memory"]
+) -> None:
+    async def scenario() -> None:
+        workspace_settings = WorkspaceSettings(
+            storage=storage,
+            work_root=tmp_path / "project-workspaces" if storage == "local" else None,
+            limits=WorkspaceLimits(
+                max_files=123,
+                max_expanded_bytes=4096,
+                max_managed_text_bytes=2048,
+                max_file_bytes=1024,
+            ),
+        )
+        factories = built_in_factories(tmp_path / "sandbox", workspace_settings=workspace_settings)
+        snapshot = await discover_capabilities(factories)
+        assert snapshot.workspace is not None
+        assert snapshot.workspace.storage == storage
+        assert snapshot.workspace.modes == ("direct", "overlay")
+        assert snapshot.workspace.limits.max_files == 123
+        toolsets = {item.ref: item.tools for item in snapshot.toolsets}
+        expected_code_tools = SHALLOW_TOOLS | (GRAPH_TOOLS if storage == "local" else set())
+        assert toolsets[CODE_ANALYSIS_REF] == tuple(sorted(expected_code_tools))
+        assert toolsets[taint_annotations.TAINT_ANNOTATIONS_REF] == tuple(
+            sorted(taint_annotations.EXPORTED_TOOLS)
+        )
+
+        registration = await RuntimeState(
+            instance_id=f"workspace-{storage}", capabilities=snapshot
+        ).registration(make_settings(tmp_path))
+        assert registration.workspace_capabilities is not None
+        assert registration.workspace_capabilities.storage == storage
+        assert registration.workspace_capabilities.modes == ["direct", "overlay"]
+        assert registration.workspace_capabilities.limits.max_files == 123
+        assert str(tmp_path / "project-workspaces") not in registration.model_dump_json(
+            by_alias=True
+        )
+
+    asyncio.run(scenario())
+
+
+def test_broken_code_analysis_parser_probe_omits_only_that_toolset(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(code_analysis_languages, "probe_all_parsers", lambda: False)
+
+    async def scenario() -> None:
+        factories = built_in_factories(
+            tmp_path / "sandbox",
+            workspace_settings=WorkspaceSettings(
+                storage="memory",
+                limits=WorkspaceLimits(
+                    max_files=100,
+                    max_expanded_bytes=4096,
+                    max_managed_text_bytes=2048,
+                    max_file_bytes=1024,
+                ),
+            ),
+        )
+        snapshot = await discover_capabilities(factories)
+        toolsets = {item.ref: item.tools for item in snapshot.toolsets}
+        assert CODE_ANALYSIS_REF not in toolsets
+        assert taint_annotations.TAINT_ANNOTATIONS_REF not in toolsets
+        assert "filesystem@1" in toolsets
+
+    asyncio.run(scenario())
+
+
+def test_workspace_required_toolset_probe_is_gated_by_provider() -> None:
+    toolset = WorkspaceRequiredToolset()
+    factories = FactoryRegistry(
+        worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+        sandbox_profiles={"local-workdir@1": PassingSandbox()},
+        toolsets={toolset.ref: toolset},
+    )
+
+    async def scenario() -> None:
+        snapshot = await discover_capabilities(factories)
+        assert snapshot.workspace is None
+        assert snapshot.toolsets == ()
+        assert toolset.probes == 0
+
+    asyncio.run(scenario())
+
+
+def test_builtin_runtime_adapter_subset_is_the_only_probed_capability(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        factories = built_in_factories(
+            tmp_path / "work", enabled_runtime_adapters=("http-proxy@1",)
+        )
+        snapshot = await discover_capabilities(factories)
+        assert tuple(factories.runtime_adapters) == ("http-proxy@1",)
+        assert snapshot.runtime_adapters == ("http-proxy@1",)
+
+    asyncio.run(scenario())
+
+
+def test_builtin_runtime_adapter_subset_rejects_unknown_ref(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="not built in"):
+        built_in_factories(tmp_path, enabled_runtime_adapters=("unknown@1",))
+
+
+def test_optional_probe_timeout_and_failure_are_omitted_without_leaking_details(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    secret = "probe-secret-canary"
+    local_path = "/recognizable/private/probe/path"
+    factories = FactoryRegistry(
+        worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+        sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(tmp_path / "work")},
+        toolsets={
+            "failed@1": FailedToolset(secret, local_path),
+            "hanging@1": HangingToolset(),
+        },
+        runtime_adapters={
+            "http-proxy@1": PassingAdapter("http-proxy@1"),
+            "otlp-http@1": FailedAdapter("otlp-http@1", secret),
+        },
+    )
+
+    async def scenario() -> None:
+        with caplog.at_level(logging.INFO, logger="contractor_runtime.capabilities"):
+            snapshot = await discover_capabilities(
+                factories,
+                per_factory_timeout_seconds=PROBE_BUDGET_SECONDS,
+                total_timeout_seconds=TOTAL_PROBE_BUDGET_SECONDS,
+            )
+        assert snapshot.runtimes == ("adk@1",)
+        assert snapshot.sandbox_profiles == ("local-workdir@1",)
+        assert snapshot.toolsets == ()
+        assert snapshot.runtime_adapters == ("http-proxy@1",)
+
+    asyncio.run(scenario(), loop_factory=JumpingClockLoop)
+    assert probe_outcomes(caplog) == {
+        ("runtime", "adk@1"): "available",
+        ("sandbox", "local-workdir@1"): "available",
+        ("toolset", "failed@1"): "failed",
+        ("toolset", "hanging@1"): "timeout",
+        ("runtime_adapter", "http-proxy@1"): "available",
+        ("runtime_adapter", "otlp-http@1"): "failed",
+    }
+    rendered = "\n".join(record.getMessage() for record in caplog.records)
+    assert secret not in rendered
+    assert local_path not in rendered
+    assert "synthetic command output" not in rendered
+
+
+def test_negative_probe_results_are_logged_as_unavailable(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class NegativeRuntime(StubADKWorkerRuntimeFactory):
+        ref = "negative@1"
+
+        async def probe(self) -> bool:
+            return False
+
+    factories = FactoryRegistry(
+        worker_runtimes={
+            "adk@1": StubADKWorkerRuntimeFactory(),
+            "negative@1": NegativeRuntime(),
+        },
+        sandbox_profiles={"local-workdir@1": PassingSandbox()},
+        toolsets={"empty@1": EmptyToolset()},
+    )
+
+    async def scenario() -> None:
+        with caplog.at_level(logging.INFO, logger="contractor_runtime.capabilities"):
+            snapshot = await discover_capabilities(factories)
+        assert snapshot.runtimes == ("adk@1",)
+        assert snapshot.toolsets == ()
+
+    asyncio.run(scenario())
+    assert probe_outcomes(caplog) == {
+        ("runtime", "adk@1"): "available",
+        ("runtime", "negative@1"): "unavailable",
+        ("sandbox", "local-workdir@1"): "available",
+        ("toolset", "empty@1"): "unavailable",
+    }
+
+
+def test_missing_core_capability_stops_registration_with_safe_error(tmp_path: Path) -> None:
+    secret = "sandbox-probe-secret"
+    factories = FactoryRegistry(
+        worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+        sandbox_profiles={"broken@1": FailedSandbox(secret)},
+        toolsets={"empty@1": EmptyToolset()},
+    )
+
+    async def scenario() -> None:
+        with pytest.raises(CapabilityDiscoveryError) as failure:
+            await discover_capabilities(factories)
+        assert str(failure.value) == "no usable SandboxProfile capability"
+        assert secret not in str(failure.value)
+
+        state = RuntimeState(instance_id="unprobed-runtime")
+        with pytest.raises(RuntimeError, match="have not been discovered"):
+            await state.registration(make_settings(tmp_path))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "tools",
+    [
+        ["server:tool"],
+        ["a" * 129],
+        [f"tool_{index:03d}" for index in range(257)],
+    ],
+)
+def test_unregistrable_toolset_capability_stops_startup(tools: list[str]) -> None:
+    # A tool name or count the Server could not show in Operations would make
+    # every registration fail permanently, so discovery refuses the snapshot.
+    with pytest.raises(CapabilityDiscoveryError) as failure:
+        CapabilitySnapshot.create(
+            runtimes=["adk@1"],
+            toolsets={"run-artifacts@1": tools},
+            sandbox_profiles=["local-workdir@1"],
+        )
+    assert str(failure.value) == "invalid Toolset capability snapshot"
+    largest = CapabilitySnapshot.create(
+        runtimes=["adk@1"],
+        toolsets={"run-artifacts@1": [f"tool_{index:03d}" for index in range(256)]},
+        sandbox_profiles=["local-workdir@1"],
+    )
+    assert len(largest.toolsets[0].tools) == 256
+
+
+def test_runtime_adapter_probe_timeout_is_omitted(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    factories = FactoryRegistry(
+        worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+        sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(tmp_path / "work")},
+        toolsets={"empty@1": EmptyToolset()},
+        runtime_adapters={"http-proxy@1": HangingAdapter("http-proxy@1")},
+    )
+
+    async def scenario() -> None:
+        with caplog.at_level(logging.INFO, logger="contractor_runtime.capabilities"):
+            snapshot = await discover_capabilities(
+                factories,
+                per_factory_timeout_seconds=PROBE_BUDGET_SECONDS,
+                total_timeout_seconds=TOTAL_PROBE_BUDGET_SECONDS,
+            )
+        assert snapshot.runtimes == ("adk@1",)
+        assert snapshot.sandbox_profiles == ("local-workdir@1",)
+        assert snapshot.runtime_adapters == ()
+
+    asyncio.run(scenario(), loop_factory=JumpingClockLoop)
+    assert probe_outcomes(caplog)[("runtime_adapter", "http-proxy@1")] == "timeout"
+
+
+# Every probe gets a budget machine load cannot exhaust; a hanging probe ends
+# its own budget by moving the loop clock past it (hang_past_probe_budget), so
+# only that probe times out and no test waits for wall time.
+PROBE_BUDGET_SECONDS = 60.0
+TOTAL_PROBE_BUDGET_SECONDS = 600.0
+
+
+class JumpingClockLoop(asyncio.SelectorEventLoop):
+    """An event loop whose clock a hanging probe moves forward."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.offset = 0.0
+
+    def time(self) -> float:
+        return super().time() + self.offset
+
+
+async def hang_past_probe_budget() -> None:
+    """Hang after moving the loop clock past the per-factory probe budget.
+
+    discover_capabilities bounds each probe with asyncio.wait_for on the loop
+    clock, so the probe's timeout fires on the next loop iteration while the
+    total deadline, which reads time.monotonic(), and every other probe's
+    budget are untouched.
+    """
+    loop = asyncio.get_running_loop()
+    if not isinstance(loop, JumpingClockLoop):
+        raise AssertionError("a hanging probe needs the JumpingClockLoop")
+    loop.offset += PROBE_BUDGET_SECONDS + 1
+    await asyncio.Event().wait()
+
+
+def probe_outcomes(caplog: pytest.LogCaptureFixture) -> dict[tuple[str, str], str]:
+    return {
+        (record.capabilityKind, record.capabilityRef): record.probeOutcome
+        for record in caplog.records
+        if hasattr(record, "probeOutcome")
+    }
+
+
+COMPLETION_TOOLS = frozenset({"read_audit_task", "submit_result", "submit_results", "evidence"})
+
+
+@pytest.mark.parametrize(
+    ("runtime", "audit_tools", "expected"),
+    [
+        # The factory's declaration decides support, not the runtime's name.
+        ("completing", COMPLETION_TOOLS, ("audit-check-results@1",)),
+        # tool@1 never carries a completion contract (SCN-R2).
+        ("tool", COMPLETION_TOOLS, ()),
+        # A runtime that declares no support advertises nothing.
+        ("stub-adk", COMPLETION_TOOLS, ()),
+        # A declaring runtime whose probe fails is not available.
+        ("unavailable", COMPLETION_TOOLS, ()),
+        # Every collection tool must be probed, and the Toolset must exist.
+        ("completing", frozenset({"read_audit_task"}), ()),
+        ("completing", None, ()),
+    ],
+)
+def test_completion_contract_follows_worker_runtime_support(
+    tmp_path: Path, runtime: str, audit_tools: frozenset[str] | None, expected: tuple[str, ...]
+) -> None:
+    worker_runtimes = {
+        "completing": {"completing@1": CompletingRuntime()},
+        "tool": {"tool@1": ToolWorkerRuntimeFactory()},
+        "stub-adk": {"adk@1": StubADKWorkerRuntimeFactory()},
+        "unavailable": {
+            "adk@1": StubADKWorkerRuntimeFactory(),
+            "completing@1": CompletingRuntime(available=False),
+        },
+    }[runtime]
+    factories = FactoryRegistry(
+        worker_runtimes=worker_runtimes,
+        sandbox_profiles={"local-workdir@1": PassingSandbox()},
+        toolsets={"empty@1": EmptyToolset()}
+        if audit_tools is None
+        else {"audit-results@2": AuditResultsToolset(audit_tools)},
+    )
+
+    async def scenario() -> None:
+        snapshot = await discover_capabilities(factories)
+        assert snapshot.completion_contracts == expected
+        registration = await RuntimeState(capabilities=snapshot).registration(
+            make_settings(tmp_path)
+        )
+        advertised = registration.capabilities
+        assert (advertised.completion_contracts if advertised else []) == list(expected)
+
+    asyncio.run(scenario())
+
+
+def test_snapshot_normalizes_and_rejects_replacement_for_one_instance() -> None:
+    async def scenario() -> None:
+        original = CapabilitySnapshot.create(
+            runtimes=["adk@1", "adk@1"],
+            toolsets={"tools@1": ["write", "read", "write"], "empty@1": []},
+            sandbox_profiles=["local@1", "local@1"],
+            runtime_adapters=["otlp-http@1", "http-proxy@1", "otlp-http@1"],
+        )
+        replacement = CapabilitySnapshot.create(
+            runtimes=["other@1"],
+            toolsets={},
+            sandbox_profiles=["local@1"],
+            runtime_adapters=[],
+        )
+        assert original.runtimes == ("adk@1",)
+        assert original.toolsets[0].tools == ("read", "write")
+        assert original.runtime_adapters == ("http-proxy@1", "otlp-http@1")
+
+        state = RuntimeState(instance_id="immutable-runtime")
+        await state.install_capabilities(original)
+        await state.install_capabilities(original)
+        with pytest.raises(RuntimeError, match="immutable"):
+            await state.install_capabilities(replacement)
+
+    asyncio.run(scenario())
+
+
+class HangingToolset:
+    ref = "hanging@1"
+    exported_tools = frozenset({"hang"})
+    infrastructure_channels = MappingProxyType({})
+
+    async def probe(self) -> frozenset[str]:
+        await hang_past_probe_budget()
+        return self.exported_tools
+
+    async def create_selected(self, **_: object) -> dict[str, object]:
+        raise AssertionError("probe must not construct tools")
+
+
+class FailedToolset:
+    ref = "failed@1"
+    exported_tools = frozenset({"fail"})
+    infrastructure_channels = MappingProxyType({})
+
+    def __init__(self, secret: str, local_path: str) -> None:
+        self._secret = secret
+        self._local_path = local_path
+
+    async def probe(self) -> frozenset[str]:
+        raise RuntimeError(f"{self._secret} {self._local_path} synthetic command output")
+
+    async def create_selected(self, **_: object) -> dict[str, object]:
+        raise AssertionError("probe must not construct tools")
+
+
+def test_discovery_deadline_uses_the_monotonic_clock(tmp_path: Path) -> None:
+    lifecycle = RecordingRecovery()
+    factories = FactoryRegistry(
+        worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+        sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(tmp_path / "work")},
+        toolsets={"empty@1": EmptyToolset()},
+        execution_lifecycle=lifecycle,  # type: ignore[arg-type]
+    )
+
+    async def scenario() -> None:
+        before = time.monotonic()
+        snapshot = await discover_capabilities(factories, total_timeout_seconds=30)
+        assert snapshot.runtimes == ("adk@1",)
+        assert lifecycle.deadlines
+        assert before + 30 <= lifecycle.deadlines[0] <= time.monotonic() + 30
+
+    asyncio.run(scenario(), loop_factory=SkewedClockLoop)
+
+
+class SkewedClockLoop(asyncio.SelectorEventLoop):
+    """An event loop whose clock is not time.monotonic()."""
+
+    def time(self) -> float:
+        return super().time() + 1_000_000
+
+
+class RecordingRecovery:
+    probe_available = False
+
+    def __init__(self) -> None:
+        self.deadlines: list[float] = []
+
+    async def recover(self, *, deadline: float) -> None:
+        self.deadlines.append(deadline)
+
+
+class EmptyToolset:
+    ref = "empty@1"
+    exported_tools = frozenset({"optional"})
+    infrastructure_channels = MappingProxyType({})
+
+    async def probe(self) -> frozenset[str]:
+        return frozenset()
+
+    async def create_selected(self, **_: object) -> dict[str, object]:
+        raise AssertionError("probe must not construct tools")
+
+
+class WorkspaceRequiredToolset:
+    ref = "filesystem@1"
+    exported_tools = frozenset({"read_file"})
+    infrastructure_channels = MappingProxyType({})
+    requires_workspace = True
+
+    def __init__(self) -> None:
+        self.probes = 0
+
+    async def probe(self) -> frozenset[str]:
+        self.probes += 1
+        return self.exported_tools
+
+    async def create_selected(self, **_: object) -> dict[str, object]:
+        raise AssertionError("probe must not construct tools")
+
+
+class CompletingRuntime(StubADKWorkerRuntimeFactory):
+    """A WorkerRuntime other than adk@1 that implements Worker completion."""
+
+    ref = "completing@1"
+    supports_worker_completion = True
+
+    def __init__(self, *, available: bool = True) -> None:
+        self._available = available
+
+    async def probe(self) -> bool:
+        return self._available
+
+
+class AuditResultsToolset:
+    ref = "audit-results@2"
+    exported_tools = COMPLETION_TOOLS
+    infrastructure_channels = MappingProxyType({})
+
+    def __init__(self, available: frozenset[str]) -> None:
+        self._available = available
+
+    async def probe(self) -> frozenset[str]:
+        return self._available
+
+    async def create_selected(self, **_: object) -> dict[str, object]:
+        raise AssertionError("probe must not construct tools")
+
+
+class PassingSandbox:
+    ref = "local-workdir@1"
+
+    async def probe(self) -> bool:
+        return True
+
+    async def prepare(self) -> object:
+        raise AssertionError("probe must not prepare an allocation")
+
+    async def cleanup(self, workspace: object) -> None:
+        del workspace
+
+
+class FailedSandbox:
+    ref = "broken@1"
+
+    def __init__(self, secret: str) -> None:
+        self._secret = secret
+
+    async def probe(self) -> bool:
+        raise RuntimeError(self._secret)
+
+    async def prepare(self) -> object:
+        raise AssertionError("probe must not prepare an allocation")
+
+    async def cleanup(self, workspace: object) -> None:
+        del workspace
+
+
+class PassingAdapter:
+    def __init__(self, ref: str) -> None:
+        self.ref = ref
+
+    async def probe(self) -> bool:
+        return True
+
+
+class FailedAdapter:
+    def __init__(self, ref: str, secret: str) -> None:
+        self.ref = ref
+        self._secret = secret
+
+    async def probe(self) -> bool:
+        raise RuntimeError(self._secret)
+
+
+class HangingAdapter:
+    def __init__(self, ref: str) -> None:
+        self.ref = ref
+
+    async def probe(self) -> bool:
+        await hang_past_probe_budget()
+        return True
+
+
+def make_settings(tmp_path: Path) -> Settings:
+    placeholder = tmp_path / "unused-pki"
+    return Settings(
+        control_plane_url="https://control.example",
+        advertised_control_url="https://runtime.example:9443",
+        advertised_a2a_url="https://runtime.example:9444",
+        ca_file=placeholder,
+        certificate_file=placeholder,
+        private_key_file=placeholder,
+    )

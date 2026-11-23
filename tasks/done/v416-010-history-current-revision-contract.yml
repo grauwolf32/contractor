@@ -1,0 +1,92 @@
+schema_version: "1.0"
+id: V416-010
+title: "Clarify current-revision protection during history admission"
+milestone: main-review-2026-10-25
+epic: projects-artifacts
+kind: chore
+introduced_by: V410-010
+priority: P3
+status: completed
+depends_on: []
+languages: [markdown]
+goal: >-
+  Make the normative retention contract describe the implemented and accepted
+  post-publication state, including the distinct failed-write maintenance case.
+context:
+  review: "2026-10-25 main review at f9fda28f1c9ffa4baaf3052c141e652c8593a080; retention wording ambiguity, not a confirmed retention implementation defect."
+  specification:
+    - docs/spec/artifacts/artifact-store.md#ART-R124
+    - docs/spec/artifacts/artifact-store.md#ART-R126
+    - docs/spec/artifacts/artifact-store.md#ART-R127
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R62
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R65
+    - docs/spec/platform/failure-model.md
+  finding: >-
+    docs/spec/artifacts/artifact-store.md:733-755 says both current and new
+    revisions are protected and both count in the protected-only refusal.
+    internal/artifacts/history.go:87 plans admission without preserving the
+    former current, publishes the new current and then removes victims in the
+    same transaction. TestPostgresHistoryPreservesHoldsAndReseeksAReleasedHold
+    in internal/artifacts/history_postgres_test.go:223 explicitly verifies that
+    publishing r5 may remove unheld former-current r4. This agrees with the
+    accepted R5 in tasks/done/v410-010-artifact-history-retention.yml:151-154:
+    fit the post-publication state, preserve the prior current before commit,
+    and roll back removals if publication fails. FAIL-ART-8 repeats the
+    ambiguous current-plus-new wording. The separate maintenance pass really
+    must preserve the pre-existing current because no publication commits.
+  siblings: >-
+    Reconcile ART-R124/R126/R127, DEL-R62/R63/R65 and FAIL-ART-8 together;
+    verify LIM-ART-9/10/11 and examples still describe the same accounting.
+    Generic UserScope, ProjectScope and RunScope writes, Memory, Git import,
+    nested caller-owned transactions and frozen bindings share this contract.
+scope:
+  in:
+    - Define current in successful admission as the post-publication current; the former current becomes removable only if no independent exact holder protects it.
+    - Clarify that readers see the old current before commit, and failed publication rolls back pointer, holds, accounting and same-transaction eviction together.
+    - Distinguish ART-R127's separately committed bounded maintenance pass, which may remove only unprotected history and never the current of its unchanged binding.
+    - Correct the protected-only capacity explanation and matching failure registry wording without renumbering requirements or citing task files from normative specs.
+    - Verify the existing real-store history tests against the clarified text and add a scenario only if an accepted boundary lacks coverage.
+  out:
+    - Changing retention algorithms, limits, SQL, schema, holder lifecycles or failure classification.
+    - Pinning every predecessor or retaining an extra current revision after successful publication.
+acceptance_criteria:
+  - id: A1
+    given: A successful CAS that needs space and whose former current has no independent holder
+    when: The owning spec and failure registry are read
+    then: They unambiguously permit removal of that former current in the publication transaction and protect the new current, matching the existing r4-to-r5 PostgreSQL test.
+  - id: A2
+    given: A held former current, failed CAS, failed publication or separately committed maintenance pass
+    when: The spec is applied to the existing real-store scenarios
+    then: Holds remain protected, failed publication is atomic, and maintenance preserves the unchanged current; no text implies that a failed write always prevents an explicitly separate maintenance commit.
+  - id: A3
+    given: The revised requirements and their sibling references
+    when: Specification validation and the full artifacts package suite run
+    then: Existing behavior passes unchanged, requirements keep their IDs and all references resolve.
+tests:
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2, A3]
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" go test -count=1 ./internal/artifacts'
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A3]
+verification:
+  date: "2026-10-25"
+  passed:
+    - python3 scripts/check_spec.py; 47 owning documents consistent.
+    - go test -count=1 ./internal/artifacts with disposable UTF-8 PostgreSQL; passed.
+    - make lint on the integrated V416 tree; passed all Go, UI, Runtime, deployment, task and specification checks.
+  evidence: >-
+    The existing TestPostgresHistoryPreservesHoldsAndReseeksAReleasedHold
+    proves former-current r4 eviction during publication of r5, held-revision
+    refusal and rollback. Other package tests cover failed CAS, bounded
+    independent maintenance and caller-owned transaction limits. No algorithm,
+    SQL, limits or test assertions changed; wording now names the same
+    post-publication state and the ART-R127 exception.
+
+implementation_commit: 4923b9000d57cfa042733c6f5bf512f5e01444f5
+integration_verification:
+  date: "2026-10-25"
+  revision: 4923b9000d57cfa042733c6f5bf512f5e01444f5
+  command: make lint
+  result: passed
+  scope: Integrated implementation and required task-specific suites passed; no platform-limited full Runtime result is substituted for this task's required checks.

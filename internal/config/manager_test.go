@@ -1,0 +1,710 @@
+package config
+
+import (
+	"bytes"
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+
+	"golang.org/x/sys/unix"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+)
+
+func TestManagerPublishesDurableModelPolicyAndRecoversOnRestart(t *testing.T) {
+	operator := copyCoreFixture(t)
+	managed := filepath.Join(t.TempDir(), "managed")
+	manager := newTestManager(t, operator, managed, ManagerOptions{})
+	before := manager.Snapshot().Counts().ModelPolicies
+
+	request := validPolicyPublication("publish-policy")
+	result, err := manager.Publish(t.Context(), request)
+	if err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	if result.Replayed || result.Resource.Source != ConfigurationSourceManaged {
+		t.Fatalf("publication result = %+v", result)
+	}
+	assertDigest(t, result.Resource.Ref.Digest)
+	if got := manager.Snapshot().Counts().ModelPolicies; got != before+1 {
+		t.Fatalf("current ModelPolicy count = %d, want baseline+1 (%d)", got, before+1)
+	}
+
+	path := filepath.Join(managed, "model-policies", "ui-worker@2.yaml")
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatalf("published file: %v", err)
+	}
+	if !info.Mode().IsRegular() || info.Mode().Perm()&0o022 != 0 {
+		t.Fatalf("published mode = %v", info.Mode())
+	}
+	entries, err := os.ReadDir(filepath.Dir(path))
+	if err != nil || len(entries) != 1 || entries[0].Name() != filepath.Base(path) {
+		t.Fatalf("publication left unexpected files: %v, error %v", entries, err)
+	}
+
+	restarted := newTestManager(t, operator, managed, ManagerOptions{})
+	recovered, err := restarted.Configuration(ConfigurationModelPolicies, "ui-worker@2")
+	if err != nil {
+		t.Fatalf("recover published policy: %v", err)
+	}
+	if recovered.Ref != result.Resource.Ref || recovered.Source != ConfigurationSourceManaged {
+		t.Fatalf("recovered = %+v, want %+v", recovered, result.Resource)
+	}
+}
+
+func TestManagerPublishesNormalizedGateway(t *testing.T) {
+	operator := copyCoreFixture(t)
+	managed := filepath.Join(t.TempDir(), "managed")
+	manager := newTestManager(t, operator, managed, ManagerOptions{})
+
+	result, err := manager.Publish(t.Context(), PublicationRequest{
+		Kind: ConfigurationLLMGateways, Name: "remote", Version: "1",
+		IdempotencyKey: "publish-gateway", ActorID: "user-1",
+		LLMGateway: &LLMGatewayPublication{
+			Protocol: llmgateway.OpenAICompatibleProtocol,
+			URL:      "https://gateway.example.test/v1/",
+			CredentialManager: &CredentialManagerPublication{
+				Implementation: llmgateway.LiteLLMVirtualKeysManager,
+				ManagementURL:  "https://gateway.example.test/",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	body := result.Resource.Body.(map[string]any)
+	managerBody := body["credentialManager"].(map[string]any)
+	if managerBody["managementUrl"] != "https://gateway.example.test" {
+		t.Fatalf("normalized credential manager = %#v", managerBody)
+	}
+	restarted := newTestManager(t, operator, managed, ManagerOptions{})
+	gateway, err := restarted.Snapshot().LLMGateway("remote@1")
+	if err != nil || gateway.Ref.Digest != result.Resource.Ref.Digest {
+		t.Fatalf("restarted Gateway = %+v, error %v", gateway, err)
+	}
+}
+
+func TestManagerPublicationIdempotencyAndConflicts(t *testing.T) {
+	managed := filepath.Join(t.TempDir(), "managed")
+	manager := newTestManager(t, copyCoreFixture(t), managed, ManagerOptions{})
+	request := validPolicyPublication("stable-key")
+	created, err := manager.Publish(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayed, err := manager.Publish(t.Context(), request)
+	if err != nil || !replayed.Replayed || replayed.Resource.Ref != created.Resource.Ref {
+		t.Fatalf("same-key replay = %+v, error %v", replayed, err)
+	}
+
+	different := request
+	different.Name = "another-policy"
+	if _, err := manager.Publish(t.Context(), different); !errors.Is(err, contracts.ErrIdempotencyConflict) ||
+		errors.Is(err, ErrPublicationConflict) {
+		t.Fatalf("same key with another request error = %v", err)
+	}
+
+	differentKey := request
+	differentKey.IdempotencyKey = "another-key"
+	replayed, err = manager.Publish(t.Context(), differentKey)
+	if err != nil || !replayed.Replayed {
+		t.Fatalf("same durable identity/body replay = %+v, error %v", replayed, err)
+	}
+
+	differentBody := request
+	differentBody.IdempotencyKey = "different-body"
+	differentBody.ModelPolicy = &ModelPolicyPublication{Model: "another-model"}
+	if _, err := manager.Publish(t.Context(), differentBody); !errors.Is(err, ErrPublicationConflict) {
+		t.Fatalf("immutable identity overwrite error = %v", err)
+	}
+
+	if err := os.Remove(filepath.Join(managed, "model-policies", "ui-worker@2.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Publish(t.Context(), request); err == nil {
+		t.Fatal("same-key replay succeeded after the durable manifest was removed")
+	}
+}
+
+func TestManagerCrashAfterPublicationIsRecovered(t *testing.T) {
+	operator := copyCoreFixture(t)
+	managed := filepath.Join(t.TempDir(), "managed")
+	crash := errors.New("simulated crash")
+	manager := newTestManager(t, operator, managed, ManagerOptions{
+		AfterDurablePublish: func(ConfigurationResource) error { return crash },
+	})
+	request := validPolicyPublication("crash-window")
+	if _, err := manager.Publish(t.Context(), request); !errors.Is(err, crash) {
+		t.Fatalf("Publish error = %v", err)
+	}
+	if _, err := manager.Configuration(ConfigurationModelPolicies, "ui-worker@2"); !errors.Is(err, ErrConfigurationNotFound) {
+		t.Fatalf("old in-memory snapshot changed: %v", err)
+	}
+
+	// Reproduce the directory state of a crash between publishing the final name
+	// and removing the temporary name. Startup must load the manifest only once.
+	directory := filepath.Join(managed, "model-policies")
+	if err := os.Link(filepath.Join(directory, "ui-worker@2.yaml"), filepath.Join(directory, ".contractor-publish-interrupted.tmp")); err != nil {
+		t.Fatal(err)
+	}
+	restarted := newTestManager(t, operator, managed, ManagerOptions{})
+	if _, err := restarted.Configuration(ConfigurationModelPolicies, "ui-worker@2"); err != nil {
+		t.Fatalf("restart did not recover durable version: %v", err)
+	}
+}
+
+func TestManagerDurablePublicationPreservesExistingEntries(t *testing.T) {
+	for _, kind := range []string{"file", "directory", "symlink", "dangling-symlink"} {
+		t.Run(kind, func(t *testing.T) {
+			managed := filepath.Join(t.TempDir(), "managed")
+			manager := newTestManager(t, copyCoreFixture(t), managed, ManagerOptions{})
+			candidate, err := preparePublication(validPolicyPublication("existing-entry"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			destination := filepath.Join(managed, "model-policies", "ui-worker@2.yaml")
+			target := filepath.Join(t.TempDir(), "target")
+			original := []byte("original content\n")
+			switch kind {
+			case "file":
+				writeFile(t, destination, original)
+			case "directory":
+				if err := os.Mkdir(destination, 0o750); err != nil {
+					t.Fatal(err)
+				}
+			case "symlink", "dangling-symlink":
+				if kind == "symlink" {
+					writeFile(t, target, original)
+				}
+				if err := os.Symlink(target, destination); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before, err := os.Lstat(destination)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Bypass Publish's snapshot precheck to exercise a destination created
+			// by another writer just before the filesystem publication.
+			if err := manager.writeDurableManifest(candidate); !errors.Is(err, ErrPublicationConflict) {
+				t.Fatalf("existing %s: expected publication conflict, got %v", kind, err)
+			}
+			after, err := os.Lstat(destination)
+			if err != nil || !os.SameFile(before, after) || before.Mode() != after.Mode() {
+				t.Fatalf("existing %s was replaced: %v", kind, err)
+			}
+			if kind == "file" || kind == "symlink" {
+				if got := readFile(t, destination); !bytes.Equal(got, original) {
+					t.Fatalf("existing content changed: %q", got)
+				}
+			}
+			if kind == "dangling-symlink" {
+				if _, err := os.Lstat(target); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("dangling symlink target was created: %v", err)
+				}
+			}
+			entries, err := os.ReadDir(filepath.Dir(destination))
+			if err != nil || len(entries) != 1 {
+				t.Fatalf("conflict left unexpected files: %v, error %v", entries, err)
+			}
+		})
+	}
+}
+
+func TestManagerConcurrentDurablePublicationsHaveOneWinner(t *testing.T) {
+	managed := filepath.Join(t.TempDir(), "managed")
+	manager := newTestManager(t, copyCoreFixture(t), managed, ManagerOptions{})
+	const writers = 8
+	candidates := make([]publicationCandidate, writers)
+	for index := range candidates {
+		request := validPolicyPublication(fmt.Sprintf("writer-%d", index))
+		request.ModelPolicy.Model = fmt.Sprintf("model-%d", index)
+		candidate, err := preparePublication(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		candidates[index] = candidate
+	}
+	type publicationOutcome struct {
+		manifest []byte
+		err      error
+	}
+	start := make(chan struct{})
+	outcomes := make(chan publicationOutcome, writers)
+	for _, candidate := range candidates {
+		go func() {
+			<-start
+			outcomes <- publicationOutcome{candidate.canonicalYAML, manager.writeDurableManifest(candidate)}
+		}()
+	}
+	close(start)
+	var winner []byte
+	successes := 0
+	for range writers {
+		outcome := <-outcomes
+		if outcome.err == nil {
+			successes++
+			winner = outcome.manifest
+		} else if !errors.Is(outcome.err, ErrPublicationConflict) {
+			t.Errorf("unexpected publication error: %v", outcome.err)
+		}
+	}
+	if successes != 1 {
+		t.Fatalf("successful publications = %d, want 1", successes)
+	}
+	destination := filepath.Join(managed, "model-policies", "ui-worker@2.yaml")
+	if got := readFile(t, destination); !bytes.Equal(got, winner) {
+		t.Fatal("published manifest differs from the successful writer's complete content")
+	}
+	entries, err := os.ReadDir(filepath.Dir(destination))
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("concurrent publications left unexpected files: %v, error %v", entries, err)
+	}
+}
+
+func TestManagerPublicationIsAtomicForConcurrentReaders(t *testing.T) {
+	manager := newTestManager(t, copyCoreFixture(t), filepath.Join(t.TempDir(), "managed"), ManagerOptions{})
+	before := manager.Snapshot().Counts().ModelPolicies
+	start := make(chan struct{})
+	var wait sync.WaitGroup
+	for range 16 {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			<-start
+			for range 100 {
+				snapshot := manager.Snapshot()
+				count := snapshot.Counts().ModelPolicies
+				if count != before && count != before+1 {
+					t.Errorf("reader observed partial count %d", count)
+					return
+				}
+				_, err := snapshot.ModelPolicy("ui-worker@2")
+				if count == before && err == nil || count == before+1 && err != nil {
+					t.Errorf("reader observed inconsistent snapshot count=%d err=%v", count, err)
+					return
+				}
+			}
+		}()
+	}
+	close(start)
+	if _, err := manager.Publish(t.Context(), validPolicyPublication("concurrent")); err != nil {
+		t.Fatal(err)
+	}
+	wait.Wait()
+}
+
+func TestManagerRejectsInvalidPublicationBeforeFilesystemChange(t *testing.T) {
+	managed := filepath.Join(t.TempDir(), "managed")
+	manager := newTestManager(t, copyCoreFixture(t), managed, ManagerOptions{})
+	tests := []PublicationRequest{
+		{Kind: ConfigurationAgentTemplates, Name: "worker", Version: "2", IdempotencyKey: "readonly"},
+		{Kind: ConfigurationModelPolicies, Name: "../escape", Version: "1", IdempotencyKey: "escape", ModelPolicy: &ModelPolicyPublication{Model: "m"}},
+		{Kind: ConfigurationModelPolicies, Name: "zero", Version: "1", IdempotencyKey: "zero", ModelPolicy: &ModelPolicyPublication{Model: "m", MaxModelCalls: intPointer(0)}},
+		{Kind: ConfigurationModelPolicies, Name: "no-output-reserve", Version: "1", IdempotencyKey: "no-output-reserve", ModelPolicy: &ModelPolicyPublication{Model: "m", ContextWindowTokens: intPointer(4096), MaxOutputTokens: intPointer(4096)}},
+		{Kind: ConfigurationModelPolicies, Name: "hot", Version: "1", IdempotencyKey: "hot", ModelPolicy: &ModelPolicyPublication{Model: "m", Temperature: floatPointer(-0.1)}},
+		{Kind: ConfigurationModelPolicies, Name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Version: "1", IdempotencyKey: "long-name", ModelPolicy: &ModelPolicyPublication{Model: "m"}},
+	}
+	for _, request := range tests {
+		if _, err := manager.Publish(t.Context(), request); err == nil {
+			t.Errorf("invalid publication %+v succeeded", request)
+		}
+	}
+	entries, err := filepath.Glob(filepath.Join(managed, "model-policies", "*.yaml"))
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("invalid requests created files %v, error %v", entries, err)
+	}
+}
+
+func TestLoadUnionRejectsDuplicatesAndSymlinks(t *testing.T) {
+	operator := copyCoreFixture(t)
+	managed := filepath.Join(t.TempDir(), "managed")
+	if _, err := requireStrictRoot(managed, true); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(managed, "model-policies", "duplicate.yaml"), readFile(t, filepath.Join(operator, "model-policies", "worker.yaml")))
+	if _, err := LoadUnion(operator, managed); err == nil {
+		t.Fatal("duplicate identity across roots was accepted")
+	}
+	if err := os.Remove(filepath.Join(managed, "model-policies", "duplicate.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(operator, "model-policies", "worker.yaml"), filepath.Join(managed, "model-policies", "linked.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadUnion(operator, managed); err == nil {
+		t.Fatal("symlink in union root was accepted")
+	}
+}
+
+func TestManagerPublishFailsWhenManagedSubtreeIsMissing(t *testing.T) {
+	managed := filepath.Join(t.TempDir(), "managed")
+	manager := newTestManager(t, copyCoreFixture(t), managed, ManagerOptions{})
+	current := manager.Snapshot()
+	workflows := filepath.Join(managed, "workflows")
+	if err := os.Remove(workflows); err != nil {
+		t.Fatal(err)
+	}
+	request := validPolicyPublication("missing-subtree")
+	if _, err := manager.Publish(t.Context(), request); !errors.Is(err, ErrConfigurationDrift) ||
+		!strings.Contains(err.Error(), "configuration subtree workflows") {
+		t.Fatalf("Publish with a missing managed subtree = %v, want a drift reload error", err)
+	}
+	if manager.Snapshot() != current {
+		t.Fatal("failed reload replaced the current snapshot")
+	}
+	if entries, err := os.ReadDir(filepath.Join(managed, "model-policies")); err != nil || len(entries) != 0 {
+		t.Fatalf("failed reload published files %v, error %v", entries, err)
+	}
+	if err := os.Mkdir(workflows, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Publish(t.Context(), request); err != nil {
+		t.Fatalf("Publish after restoring the managed subtree: %v", err)
+	}
+}
+
+func TestManagerRejectsSymlinkRootAndSubtree(t *testing.T) {
+	operator := copyCoreFixture(t)
+	parent := t.TempDir()
+	realManaged := filepath.Join(parent, "real")
+	if _, err := requireStrictRoot(realManaged, true); err != nil {
+		t.Fatal(err)
+	}
+	linkedManaged := filepath.Join(parent, "linked")
+	if err := os.Symlink(realManaged, linkedManaged); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewManager(ManagerOptions{OperatorRoot: operator, ManagedRoot: linkedManaged}); err == nil {
+		t.Fatal("symlink managed root was accepted")
+	}
+
+	other := filepath.Join(t.TempDir(), "managed")
+	if err := os.MkdirAll(other, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, subtree := range configurationSubtrees {
+		if subtree == "model-policies" {
+			if err := os.Symlink(filepath.Join(operator, subtree), filepath.Join(other, subtree)); err != nil {
+				t.Fatal(err)
+			}
+			continue
+		}
+		if err := os.Mkdir(filepath.Join(other, subtree), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := NewManager(ManagerOptions{OperatorRoot: operator, ManagedRoot: other}); err == nil || !strings.Contains(err.Error(), "configuration subtree model-policies must be a real directory") {
+		t.Fatalf("symlink managed subtree was accepted or misreported: %v", err)
+	}
+}
+
+func TestManagerRejectsOverlappingManagedRootBeforeCreatingIt(t *testing.T) {
+	operator := copyCoreFixture(t)
+	parent := filepath.Dir(operator)
+	for _, managed := range []string{
+		filepath.Join(operator, "managed-configs"),
+		filepath.Join(operator, "nested", "managed-configs") + "/",
+		parent,
+	} {
+		_, err := NewManager(ManagerOptions{OperatorRoot: operator, ManagedRoot: managed})
+		if err == nil || !strings.Contains(err.Error(), "roots must not overlap") {
+			t.Fatalf("overlapping managed root %s = %v", managed, err)
+		}
+	}
+	for _, created := range []string{filepath.Join(operator, "managed-configs"), filepath.Join(operator, "nested")} {
+		if _, err := os.Lstat(created); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("rejected managed root created %s: %v", created, err)
+		}
+	}
+	if entries, err := os.ReadDir(parent); err != nil || len(entries) != 1 {
+		t.Fatalf("rejected managed root changed its parent: %v, error %v", entries, err)
+	}
+}
+
+func TestRequireStrictRootConcurrentCreation(t *testing.T) {
+	parent := t.TempDir()
+	for attempt := range 100 {
+		root := filepath.Join(parent, fmt.Sprintf("managed-%d", attempt))
+		start := make(chan struct{})
+		var wait sync.WaitGroup
+		errorsFound := make(chan error, 8)
+		for range 8 {
+			wait.Add(1)
+			go func() {
+				defer wait.Done()
+				<-start
+				got, err := requireStrictRoot(root, true)
+				if err == nil && got != root {
+					err = fmt.Errorf("root = %q, want %q", got, root)
+				}
+				errorsFound <- err
+			}()
+		}
+		close(start)
+		wait.Wait()
+		close(errorsFound)
+		for err := range errorsFound {
+			if err != nil {
+				t.Fatalf("concurrent root creation attempt %d: %v", attempt, err)
+			}
+		}
+	}
+}
+
+func TestRequireStrictRootRejectsExistingRegularFileSubtree(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "managed")
+	if err := os.Mkdir(root, managedDirectoryMode); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "workflows"), []byte("not a directory"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := requireStrictRoot(root, true); err == nil || !strings.Contains(err.Error(), "configuration subtree workflows must be a real directory") {
+		t.Fatalf("regular file managed subtree was accepted or misreported: %v", err)
+	}
+}
+
+func TestManagerFailsClosedOnExternalFilesystemChange(t *testing.T) {
+	operator := copyCoreFixture(t)
+	managed := filepath.Join(t.TempDir(), "managed")
+	manager := newTestManager(t, operator, managed, ManagerOptions{})
+	writeFile(t, filepath.Join(managed, "model-policies", "external@1.yaml"), []byte(`apiVersion: contractor/v1alpha1
+kind: ModelPolicy
+metadata: {name: external, version: "1"}
+spec: {model: external-model}
+`))
+	request := validPolicyPublication("after-external-change")
+	if _, err := manager.Publish(t.Context(), request); !errors.Is(err, ErrConfigurationDrift) {
+		t.Fatalf("publication after uncoordinated filesystem drift = %v", err)
+	}
+	if _, err := manager.Configuration(ConfigurationModelPolicies, "external@1"); !errors.Is(err, ErrConfigurationNotFound) {
+		t.Fatalf("external change leaked into current snapshot: %v", err)
+	}
+}
+
+// Operator-root drift is permanent for every publication until the roots
+// match the loaded snapshot again; then publication resumes without a restart
+// (CAT-R75, FAIL-CAT-2).
+func TestManagerRefusesOperatorRootDriftUntilRestored(t *testing.T) {
+	operator := copyCoreFixture(t)
+	spare := filepath.Join(operator, "model-policies", "spare.yaml")
+	spareManifest := []byte("apiVersion: contractor/v1alpha1\nkind: ModelPolicy\n" +
+		"metadata: {name: spare, version: \"1\"}\nspec: {model: spare-model}\n")
+	writeFile(t, spare, spareManifest)
+	managed := filepath.Join(t.TempDir(), "managed")
+	manager := newTestManager(t, operator, managed, ManagerOptions{})
+	before := manager.Snapshot()
+	policyPath := filepath.Join(operator, "model-policies", "worker.yaml")
+	original := readFile(t, policyPath)
+	added := filepath.Join(operator, "model-policies", "operator-added.yaml")
+	remove := func(t *testing.T, path string) {
+		t.Helper()
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, test := range []struct {
+		name           string
+		drift, restore func(*testing.T)
+	}{
+		{
+			// The edited union is still valid but differs from the snapshot.
+			name: "in-place-edit",
+			drift: func(t *testing.T) {
+				writeFile(t, policyPath, bytes.Replace(original, []byte("temperature: 0.1"), []byte("temperature: 0.7"), 1))
+			},
+			restore: func(t *testing.T) { writeFile(t, policyPath, original) },
+		},
+		{
+			name: "added-manifest",
+			drift: func(t *testing.T) {
+				writeFile(t, added, []byte("apiVersion: contractor/v1alpha1\nkind: ModelPolicy\n"+
+					"metadata: {name: operator-added, version: \"1\"}\nspec: {model: added-model}\n"))
+			},
+			restore: func(t *testing.T) { remove(t, added) },
+		},
+		{
+			name:    "removed-manifest",
+			drift:   func(t *testing.T) { remove(t, spare) },
+			restore: func(t *testing.T) { writeFile(t, spare, spareManifest) },
+		},
+		{
+			// Removing a referenced manifest leaves a union that no longer loads.
+			name:    "removed-referenced-manifest",
+			drift:   func(t *testing.T) { remove(t, policyPath) },
+			restore: func(t *testing.T) { writeFile(t, policyPath, original) },
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			test.drift(t)
+			defer test.restore(t)
+			for attempt := range 2 {
+				_, err := manager.Publish(t.Context(), validPolicyPublication(fmt.Sprintf("drift-%s-%d", test.name, attempt)))
+				if !errors.Is(err, ErrConfigurationDrift) {
+					t.Fatalf("publication attempt %d during drift = %v", attempt, err)
+				}
+			}
+			if manager.Snapshot() != before {
+				t.Fatal("drift changed the current snapshot")
+			}
+			if entries, err := os.ReadDir(filepath.Join(managed, "model-policies")); err != nil || len(entries) != 0 {
+				t.Fatalf("drift published a manifest: %v, error %v", entries, err)
+			}
+		})
+	}
+
+	result, err := manager.Publish(t.Context(), validPolicyPublication("after-restore"))
+	if err != nil || result.Replayed {
+		t.Fatalf("publication after restoring the roots = %+v, error %v", result, err)
+	}
+	if _, err := manager.Configuration(ConfigurationModelPolicies, "ui-worker@2"); err != nil {
+		t.Fatalf("restored manager did not publish: %v", err)
+	}
+}
+
+// A publication that fails after its durable link leaves the version in the
+// managed root but not in the snapshot. The next publication adopts it as a
+// restart would, instead of reporting drift, and binds the original key.
+func TestManagerRecoversPartialPublicationWithoutRestart(t *testing.T) {
+	operator := copyCoreFixture(t)
+	managed := filepath.Join(t.TempDir(), "managed")
+	crash := errors.New("simulated failure after the durable link")
+	failures := 1
+	manager := newTestManager(t, operator, managed, ManagerOptions{
+		AfterDurablePublish: func(ConfigurationResource) error {
+			if failures == 0 {
+				return nil
+			}
+			failures--
+			return crash
+		},
+	})
+	partial := validPolicyPublication("partial")
+	if _, err := manager.Publish(t.Context(), partial); !errors.Is(err, crash) {
+		t.Fatalf("partial publication error = %v", err)
+	}
+	if _, err := manager.Configuration(ConfigurationModelPolicies, "ui-worker@2"); !errors.Is(err, ErrConfigurationNotFound) {
+		t.Fatalf("failed publication changed the snapshot: %v", err)
+	}
+
+	next := validPolicyPublication("next")
+	next.Name = "next-policy"
+	if result, err := manager.Publish(t.Context(), next); err != nil || result.Replayed {
+		t.Fatalf("publication after a partial publication = %+v, error %v", result, err)
+	}
+	for _, selector := range []string{"ui-worker@2", "next-policy@2"} {
+		if _, err := manager.Configuration(ConfigurationModelPolicies, selector); err != nil {
+			t.Fatalf("%s after recovery: %v", selector, err)
+		}
+	}
+	reused := validPolicyPublication("partial")
+	reused.ModelPolicy = &ModelPolicyPublication{Model: "another-model"}
+	if _, err := manager.Publish(t.Context(), reused); !errors.Is(err, contracts.ErrIdempotencyConflict) {
+		t.Fatalf("recovered key reused for another body = %v", err)
+	}
+	if replayed, err := manager.Publish(t.Context(), partial); err != nil || !replayed.Replayed {
+		t.Fatalf("recovered key replay = %+v, error %v", replayed, err)
+	}
+
+	restarted := newTestManager(t, operator, managed, ManagerOptions{})
+	if !snapshotsEqual(restarted.Snapshot(), manager.Snapshot()) {
+		t.Fatal("recovered snapshot differs from a restart's startup load")
+	}
+}
+
+// A failed publication whose manifest is gone before the next publication is
+// dropped rather than adopted or reported as drift.
+func TestManagerDropsFailedPublicationThatLeftNoManifest(t *testing.T) {
+	operator := copyCoreFixture(t)
+	managed := filepath.Join(t.TempDir(), "managed")
+	crash := errors.New("simulated failure after the durable link")
+	failed := false
+	manager := newTestManager(t, operator, managed, ManagerOptions{
+		AfterDurablePublish: func(ConfigurationResource) error {
+			if failed {
+				return nil
+			}
+			failed = true
+			return crash
+		},
+	})
+	if _, err := manager.Publish(t.Context(), validPolicyPublication("lost")); !errors.Is(err, crash) {
+		t.Fatalf("failed publication error = %v", err)
+	}
+	if err := os.Remove(filepath.Join(managed, "model-policies", "ui-worker@2.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	next := validPolicyPublication("after-loss")
+	next.Name = "next-policy"
+	if _, err := manager.Publish(t.Context(), next); err != nil {
+		t.Fatalf("publication after a lost manifest = %v", err)
+	}
+	if _, err := manager.Configuration(ConfigurationModelPolicies, "ui-worker@2"); !errors.Is(err, ErrConfigurationNotFound) {
+		t.Fatalf("absent manifest was adopted: %v", err)
+	}
+	// The key of a publication that left nothing durable is not bound.
+	other := validPolicyPublication("lost")
+	other.Name = "other-policy"
+	if _, err := manager.Publish(t.Context(), other); err != nil {
+		t.Fatalf("unbound key reuse = %v", err)
+	}
+}
+
+func newTestManager(t *testing.T, operator, managed string, overrides ManagerOptions) *Manager {
+	t.Helper()
+	overrides.OperatorRoot = operator
+	overrides.ManagedRoot = managed
+	manager, err := NewManager(overrides)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	return manager
+}
+
+func validPolicyPublication(key string) PublicationRequest {
+	return PublicationRequest{
+		Kind: ConfigurationModelPolicies, Name: "ui-worker", Version: "2",
+		IdempotencyKey: key,
+		ModelPolicy: &ModelPolicyPublication{
+			Model: "qwen/new-model", ContextWindowTokens: intPointer(131_072),
+			MaxOutputTokens: intPointer(4096),
+			MaxModelCalls:   intPointer(8), MaxToolCalls: intPointer(16),
+			MaxTotalTokens: intPointer(32768), Temperature: floatPointer(0.2),
+		},
+	}
+}
+
+func intPointer(value int) *int           { return &value }
+func floatPointer(value float64) *float64 { return &value }
+
+// A reload that no longer yields a valid set is drift; an operating-system
+// failure that may not be a change to the roots stays unclassified.
+func TestReloadFailureClassification(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		err   error
+		drift bool
+	}{
+		{"invalid manifest", errors.New("model-policies/worker.yaml: spec.model is required"), true},
+		{"missing file", &fs.PathError{Op: "lstat", Path: "instructions/a.md", Err: unix.ENOENT}, true},
+		{"replaced directory", &fs.PathError{Op: "open", Path: "workflows", Err: unix.ENOTDIR}, true},
+		{"I/O failure", &fs.PathError{Op: "read", Path: "workflows/a.yaml", Err: unix.EIO}, false},
+		{"descriptor exhaustion", &fs.PathError{Op: "open", Path: "workflows", Err: unix.EMFILE}, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := classifyReloadFailure(test.err)
+			if errors.Is(err, ErrConfigurationDrift) != test.drift || !errors.Is(err, test.err) ||
+				!strings.HasPrefix(err.Error(), "reload configuration roots before publication: ") {
+				t.Fatalf("classifyReloadFailure(%v) = %v, drift %t", test.err, err, errors.Is(err, ErrConfigurationDrift))
+			}
+		})
+	}
+}

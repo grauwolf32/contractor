@@ -1,0 +1,674 @@
+import { describe, expect, it, vi } from "vitest";
+
+import performanceCases from "../../../api/testdata/v1alpha1/performance-cases.json";
+import type { RuntimeConfig } from "../config/runtime-config";
+import { PublicAPI } from "./client";
+import { conformsTo } from "./contract";
+import {
+  consistentAllocationResourceSummary,
+  getPerformance,
+  getPerformanceHistory,
+  histogramQuantileUpperBound,
+  listAllocationResourceHistory,
+  PERFORMANCE_RANGES,
+  performanceHistoryWindow,
+  type PerformanceHistoryPoint,
+} from "./performance";
+
+const runtimeConfig: RuntimeConfig = {
+  uiVersion: "0.1.0",
+  supportedApiVersions: ["contractor.public.v1"],
+  apiBaseUrl: "http://127.0.0.1:8080",
+};
+
+function response(value: unknown, status = 200): Response {
+  return new Response(JSON.stringify(value), {
+    status,
+    headers: {
+      "content-type": "application/json",
+      "X-Contractor-API-Version": "contractor.public.v1",
+    },
+  });
+}
+
+const disabledSnapshot = {
+  enabled: false,
+  generation: "generation-1",
+  observedAt: "2026-09-06T12:00:00Z",
+  sampleIntervalSeconds: 15,
+  databaseIntervalSeconds: 60,
+  databaseSizeIntervalSeconds: 300,
+  diagnostics: {
+    skippedSamples: 0,
+    rejectedSamples: 0,
+    skippedMinutes: 0,
+    droppedMinutes: 0,
+    pendingMinutes: 0,
+  },
+};
+
+function aggregate(
+  minuteStart: string,
+  stepSeconds: 60 | 300 | 3600,
+): PerformanceHistoryPoint {
+  return {
+    kind: "aggregate",
+    version: 1,
+    generation: "generation-1",
+    minuteStart,
+    status: "partial",
+    omittedWindows: 0,
+    coverageSeconds: 30,
+    process: {},
+    pool: {},
+    droppedMinutes: 0,
+    stepSeconds,
+    observedMinutes: 1,
+    expectedMinutes: stepSeconds / 60,
+  };
+}
+
+describe("performance API", () => {
+  it("accepts durable GPU gauges and rejects invalid aggregate summaries", async () => {
+    const at = "2026-09-06T11:59:45Z";
+    const request = performanceHistoryWindow(
+      "24h",
+      new Date(disabledSnapshot.observedAt),
+    );
+    const gauge = { last: 40, min: 0, max: 90, samples: 3, observedAt: at };
+    const read = (metric: unknown) =>
+      getPerformanceHistory(
+        new PublicAPI(
+          runtimeConfig,
+          vi.fn(async () =>
+            response({
+              ...request,
+              points: [
+                {
+                  ...aggregate("2026-09-06T11:55:00Z", 300),
+                  gpu: {
+                    freshness: {
+                      status: "ok",
+                      observedAt: at,
+                      lastAttemptAt: at,
+                      intervalSeconds: 15,
+                      coverage: {
+                        startedAt: at,
+                        endedAt: at,
+                        durationSeconds: 0,
+                        expectedSamples: 1,
+                        observedSamples: 1,
+                      },
+                    },
+                    devices: [
+                      {
+                        id: "GPU-aa",
+                        name: "NVIDIA GPU",
+                        utilizationPercent: metric,
+                      },
+                    ],
+                  },
+                },
+              ],
+            }),
+          ),
+        ),
+        request,
+      );
+    const history = await read(gauge);
+    expect(history.points[0]?.gpu?.devices[0]?.utilizationPercent).toEqual(
+      gauge,
+    );
+    for (const metric of [
+      null,
+      0,
+      { ...gauge, min: 41 },
+      { ...gauge, max: 39 },
+    ]) {
+      await expect(read(metric)).rejects.toMatchObject({
+        code: "invalid_api_response",
+      });
+    }
+  });
+
+  it("accepts optional GPU measurements and rejects malformed device data", async () => {
+    const at = disabledSnapshot.observedAt;
+    const freshness = {
+      status: "ok",
+      observedAt: at,
+      lastAttemptAt: at,
+      intervalSeconds: 15,
+      coverage: {
+        startedAt: at,
+        endedAt: at,
+        durationSeconds: 0,
+        expectedSamples: 1,
+        observedSamples: 1,
+      },
+    };
+    const device = {
+      id: "GPU-aa",
+      name: "NVIDIA GPU",
+      utilizationPercent: 0,
+      memoryUsedBytes: 1024,
+      memoryTotalBytes: 2048,
+    };
+    const read = (gpu: unknown) =>
+      getPerformance(
+        new PublicAPI(
+          runtimeConfig,
+          vi.fn(async () =>
+            response({
+              ...disabledSnapshot,
+              enabled: true,
+              current: {
+                version: 1,
+                generation: disabledSnapshot.generation,
+                observedAt: at,
+                ...(gpu === undefined ? {} : { gpu }),
+              },
+            }),
+          ),
+        ),
+      );
+    expect((await read(undefined)).current?.gpu).toBeUndefined();
+    expect(
+      (await read({ freshness, devices: [device] })).current?.gpu?.devices[0]
+        ?.utilizationPercent,
+    ).toBe(0);
+    const unavailable = {
+      ...freshness,
+      status: "unavailable",
+      observedAt: undefined,
+      reason: "gpu_not_available",
+    };
+    expect(
+      (await read({ freshness: unavailable, devices: [] })).current?.gpu
+        ?.devices,
+    ).toEqual([]);
+    for (const gpu of [
+      null,
+      {},
+      { freshness, devices: null },
+      { freshness, devices: [device, device] },
+      { freshness, devices: [{ ...device, utilizationPercent: 101 }] },
+      { freshness, devices: [{ ...device, powerWatts: null }] },
+      { freshness, devices: [{ ...device, memoryUsedBytes: 4096 }] },
+      { freshness, devices: [{ ...device, memoryUsedBytes: 1.5 }] },
+      { freshness, devices: [{ ...device, id: "bad-id" }] },
+      { freshness, devices: [null] },
+      { freshness: unavailable, devices: [device] },
+      {
+        freshness,
+        devices: Array.from({ length: 9 }, (_, i) => ({
+          ...device,
+          id: `GPU-${i}`,
+        })),
+      },
+    ])
+      await expect(read(gpu)).rejects.toMatchObject({
+        code: "invalid_api_response",
+      });
+  });
+
+  it("reads the independent current snapshot and rejects fabricated disabled data", async () => {
+    const requests: Request[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request);
+        return response(disabledSnapshot);
+      }),
+    );
+    const result = await getPerformance(api);
+    expect(result.enabled).toBe(false);
+    expect(result.current).toBeUndefined();
+    expect(requests[0]?.url).toBe(
+      "http://127.0.0.1:8080/v1/operations/performance",
+    );
+
+    const invalid = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          ...disabledSnapshot,
+          current: {
+            version: 1,
+            generation: "generation-1",
+            observedAt: "2026-09-06T12:00:00Z",
+          },
+        }),
+      ),
+    );
+    await expect(getPerformance(invalid)).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
+
+    const nullResponse = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () => response(null)),
+    );
+    await expect(getPerformance(nullResponse)).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
+  });
+
+  it("builds bounded range requests and preserves discriminated history points", async () => {
+    const now = new Date("2026-09-06T12:00:00Z");
+    for (const range of Object.keys(PERFORMANCE_RANGES) as Array<
+      keyof typeof PERFORMANCE_RANGES
+    >) {
+      const request = performanceHistoryWindow(range, now);
+      const points =
+        (Date.parse(request.to) - Date.parse(request.from)) /
+        ({ "15s": 15_000, "1m": 60_000, "5m": 300_000, "1h": 3_600_000 }[
+          request.step
+        ] ?? 1);
+      expect(points).toBeLessThanOrEqual(1_000);
+    }
+    const request = performanceHistoryWindow("1h", now);
+    const requests: Request[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const incoming = input instanceof Request ? input : new Request(input);
+        requests.push(incoming);
+        return response({
+          ...request,
+          points: [
+            {
+              kind: "sample",
+              version: 1,
+              generation: "generation-1",
+              observedAt: "2026-09-06T11:59:45Z",
+            },
+          ],
+        });
+      }),
+    );
+    const result = await getPerformanceHistory(api, request);
+    expect(result.points[0]?.kind).toBe("sample");
+    expect(new URL(requests[0]!.url).searchParams).toEqual(
+      new URLSearchParams({
+        from: request.from,
+        to: request.to,
+        step: request.step,
+      }),
+    );
+
+    const malformed = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          ...request,
+          points: [
+            {
+              kind: "aggregate",
+              version: 1,
+              generation: "generation-1",
+              minuteStart: "2026-09-06T11:59:00Z",
+              status: "partial",
+              omittedWindows: 0,
+              coverageSeconds: 30,
+              process: {},
+              pool: {},
+              droppedMinutes: 0,
+              stepSeconds: 60,
+              observedMinutes: 1,
+              expectedMinutes: 1,
+            },
+          ],
+        }),
+      ),
+    );
+    await expect(
+      getPerformanceHistory(malformed, request),
+    ).rejects.toMatchObject({ code: "invalid_api_response" });
+  });
+
+  it.each(["24h", "7d"] as const)(
+    "accepts overlapping and aligned %s intervals without dropping points",
+    async (range) => {
+      for (const time of ["12:01:30", "12:00:00"]) {
+        const request = performanceHistoryWindow(
+          range,
+          new Date(`2026-09-06T${time}Z`),
+        );
+        const stepSeconds = range === "24h" ? 300 : 3600;
+        const first =
+          Math.floor(Date.parse(request.from) / (stepSeconds * 1000)) *
+          stepSeconds *
+          1000;
+        for (const points of [
+          [],
+          [aggregate(new Date(first).toISOString(), stepSeconds)],
+        ]) {
+          const api = new PublicAPI(
+            runtimeConfig,
+            vi.fn(async () => response({ ...request, points })),
+          );
+          await expect(getPerformanceHistory(api, request)).resolves.toEqual({
+            ...request,
+            points,
+          });
+        }
+      }
+    },
+  );
+
+  it.each(["24h", "7d"] as const)(
+    "rejects invalid %s aggregate intervals and envelopes",
+    async (range) => {
+      const request = performanceHistoryWindow(
+        range,
+        new Date("2026-09-06T12:01:30Z"),
+      );
+      const from = Date.parse(request.from);
+      const stepSeconds = range === "24h" ? 300 : 3600;
+      const point = aggregate(new Date(from).toISOString(), stepSeconds);
+      const invalidPoints = [
+        [
+          aggregate(
+            new Date(from - stepSeconds * 1000).toISOString(),
+            stepSeconds,
+          ),
+        ],
+        [
+          aggregate(
+            new Date(from - stepSeconds * 2000).toISOString(),
+            stepSeconds,
+          ),
+        ],
+        [aggregate(request.to, stepSeconds)],
+        [aggregate(request.from, stepSeconds === 300 ? 3600 : 300)],
+        [aggregate("not-a-date", stepSeconds)],
+        [
+          {
+            kind: "sample",
+            version: 1,
+            generation: "generation-1",
+            observedAt: request.from,
+          },
+        ],
+        [
+          aggregate(
+            new Date(from + stepSeconds * 1000).toISOString(),
+            stepSeconds,
+          ),
+          point,
+        ],
+        [{ ...point, version: 2 }],
+        Array.from({ length: 1001 }, () => point),
+      ];
+      for (const points of invalidPoints) {
+        const api = new PublicAPI(
+          runtimeConfig,
+          vi.fn(async () => response({ ...request, points })),
+        );
+        await expect(getPerformanceHistory(api, request)).rejects.toMatchObject(
+          { code: "invalid_api_response" },
+        );
+      }
+      const mismatched = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async () => response({ ...request, step: "1m", points: [] })),
+      );
+      await expect(
+        getPerformanceHistory(mismatched, request),
+      ).rejects.toMatchObject({ code: "invalid_api_response" });
+    },
+  );
+
+  it("keeps fine history bounds point-based and half-open", async () => {
+    const request = performanceHistoryWindow(
+      "1h",
+      new Date("2026-09-06T12:01:30Z"),
+    );
+    for (const [observedAt, valid] of [
+      [request.from, true],
+      [new Date(Date.parse(request.to) - 1).toISOString(), true],
+      [new Date(Date.parse(request.from) - 1).toISOString(), false],
+      [request.to, false],
+    ] as const) {
+      const points = [
+        { kind: "sample", version: 1, generation: "generation-1", observedAt },
+      ];
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async () => response({ ...request, points })),
+      );
+      if (valid)
+        await expect(
+          getPerformanceHistory(api, request),
+        ).resolves.toMatchObject({ points });
+      else
+        await expect(getPerformanceHistory(api, request)).rejects.toMatchObject(
+          { code: "invalid_api_response" },
+        );
+    }
+  });
+
+  it("derives quantile bucket bounds without inventing an empty or overflow value", () => {
+    const histogram = {
+      count: 4,
+      sumSeconds: 61,
+      buckets: [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 2, 3, 4],
+    };
+    expect(histogramQuantileUpperBound(histogram, 0.5)).toBe(30);
+    expect(histogramQuantileUpperBound(histogram, 0.99)).toBe("overflow");
+    expect(
+      histogramQuantileUpperBound(
+        {
+          ...histogram,
+          count: 0,
+          sumSeconds: 0,
+          buckets: histogram.buckets.map(() => 0),
+        },
+        0.5,
+      ),
+    ).toBeUndefined();
+  });
+
+  it("pages only safe terminal allocation summaries for the requested Run", async () => {
+    const requests: Request[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request);
+        return response({
+          items: [
+            {
+              allocationId: "allocation-1",
+              runId: "run-1",
+              stageExecutionId: "stage-1",
+              stage: "analyze",
+              logicalAgent: "builder",
+              outcome: "succeeded",
+              finishedAt: "2026-09-06T12:00:00Z",
+              collectionPolicy: "requested",
+              status: "available",
+              resources: {
+                version: 1,
+                scope: "runtime_process",
+                status: "complete",
+                durationSeconds: 30,
+                cpuUserSeconds: 4,
+                cpuSystemSeconds: 1,
+                rssStartBytes: 100,
+                rssEndBytes: 120,
+                rssPeakObservedBytes: 140,
+                rssSampleCount: 4,
+                maxSampleGapSeconds: 15,
+              },
+            },
+          ],
+          page: { hasMore: true, nextCursor: "next-page" },
+        });
+      }),
+    );
+    const page = await listAllocationResourceHistory(api, {
+      runId: "run-1",
+      cursor: "previous-page",
+    });
+    expect(page.items[0]?.resources?.rssPeakObservedBytes).toBe(140);
+    expect(new URL(requests[0]!.url).searchParams).toEqual(
+      new URLSearchParams({
+        limit: "50",
+        runId: "run-1",
+        cursor: "previous-page",
+      }),
+    );
+
+    const invalid = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          items: [
+            {
+              allocationId: "allocation-1",
+              runId: "run-2",
+              stageExecutionId: "stage-1",
+              stage: "analyze",
+              logicalAgent: "builder",
+              outcome: "running",
+              finishedAt: "2026-09-06T12:00:00Z",
+              collectionPolicy: "disabled",
+              status: "disabled",
+            },
+          ],
+          page: { hasMore: false },
+        }),
+      ),
+    );
+    await expect(
+      listAllocationResourceHistory(invalid, { runId: "run-1" }),
+    ).rejects.toMatchObject({ code: "invalid_api_response" });
+
+    const inconsistentResources = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          items: [
+            {
+              allocationId: "allocation-1",
+              runId: "run-1",
+              stageExecutionId: "stage-1",
+              stage: "analyze",
+              logicalAgent: "builder",
+              outcome: "succeeded",
+              finishedAt: "2026-09-06T12:00:00Z",
+              collectionPolicy: "requested",
+              status: "available",
+              resources: {
+                version: 1,
+                scope: "runtime_process",
+                status: "complete",
+                durationSeconds: 30,
+                cpuUserSeconds: 4,
+                cpuSystemSeconds: 1,
+                rssPeakObservedBytes: 100,
+                rssSampleCount: 1,
+                maxSampleGapSeconds: 15,
+              },
+            },
+          ],
+          page: { hasMore: false },
+        }),
+      ),
+    );
+    await expect(
+      listAllocationResourceHistory(inconsistentResources),
+    ).rejects.toMatchObject({ code: "invalid_api_response" });
+  });
+
+  it.each([
+    { collectionPolicy: "legacy", reason: "legacy" },
+    { collectionPolicy: "requested", reason: "legacy" },
+    { collectionPolicy: undefined, reason: "report_missing" },
+    { collectionPolicy: "unknown", reason: "report_missing" },
+  ])("rejects unsupported allocation authority: %j", async (authority) => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          items: [
+            {
+              allocationId: "allocation-1",
+              runId: "run-1",
+              stageExecutionId: "stage-1",
+              stage: "analyze",
+              logicalAgent: "builder",
+              outcome: "succeeded",
+              finishedAt: "2026-09-06T12:00:00Z",
+              status: "unavailable",
+              ...authority,
+            },
+          ],
+          page: { hasMore: false },
+        }),
+      ),
+    );
+    await expect(listAllocationResourceHistory(api)).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
+  });
+});
+
+describe("shared Runtime resource summary cases", () => {
+  // api/testdata/v1alpha1/performance-cases.json, which Go and the Runtime
+  // also read: the schema rejects the schemaInvalid cases and the
+  // cross-field invariants reject the rest.
+  function summary(resources: unknown) {
+    const resourceStatus =
+      typeof resources === "object" && resources !== null
+        ? (resources as { status?: unknown }).status
+        : undefined;
+    const status =
+      resourceStatus === "complete"
+        ? "available"
+        : resourceStatus === "unavailable"
+          ? "unavailable"
+          : "partial";
+    return {
+      allocationId: "allocation_1",
+      runId: "run_1",
+      stageExecutionId: "stage_1",
+      stage: "execute",
+      logicalAgent: "worker",
+      outcome: "succeeded",
+      finishedAt: "2026-10-05T10:00:00Z",
+      collectionPolicy: "requested",
+      status,
+      resources,
+    };
+  }
+
+  it.each(performanceCases.validResources)("accepts $name", ({ value }) => {
+    const candidate = summary(value);
+    expect(conformsTo("AllocationResourceSummary", candidate)).toBe(true);
+    expect(
+      consistentAllocationResourceSummary(
+        candidate as Parameters<typeof consistentAllocationResourceSummary>[0],
+      ),
+    ).toBe(true);
+  });
+
+  it.each(performanceCases.invalidResources)(
+    "rejects $name",
+    ({ value, schemaInvalid }) => {
+      const candidate = summary(value);
+      const conforms = conformsTo("AllocationResourceSummary", candidate);
+      if (!schemaInvalid) expect(conforms).toBe(true);
+      expect(
+        conforms &&
+          consistentAllocationResourceSummary(
+            candidate as Parameters<
+              typeof consistentAllocationResourceSummary
+            >[0],
+          ),
+      ).toBe(false);
+    },
+  );
+});

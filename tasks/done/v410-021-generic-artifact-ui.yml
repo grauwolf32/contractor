@@ -1,0 +1,79 @@
+schema_version: '1.0'
+id: V410-021
+title: Expose generic JSON previews and truthful artifact update actions
+milestone: project-sitemap-2026-10
+epic: ui
+kind: defect
+introduced_by: V4-009
+priority: P2
+status: completed
+depends_on: [V4-009]
+languages: [go, typescript, yaml, markdown]
+goal: Make ordinary artifact viewing and update controls work for domain-produced JSON without adding sitemap-specific UI behavior.
+context:
+  authority: The 2026-10-28 sitemap modularity review requested ordinary artifact usability and shared fixes; the user approved retaining delta commands over generic CAS.
+  finding: ui/src/api/artifacts.ts:336 allows previews only from a closed MIME list and downloads unknown structured JSON as .bin; artifact-detail-view.tsx:280 offers Upload a new version for every current User/Project artifact even when frozen or reserved for a domain publisher.
+  siblings: Generic User, Project and Run metadata/list/history projections, both generated public clients and CLI metadata validation, artifact preview/download adapters, current versus historical revision controls and shared namespace write policy.
+  specification:
+  - docs/spec/ui/journeys.md
+  - docs/spec/artifacts/artifact-store.md
+scope:
+  in:
+  - Recognize valid structured JSON media types generically for bounded escaped text preview and a .json download extension, preserving specialized renderers and existing byte/UTF-8 bounds.
+  - Expose Server-derived availability of ordinary owner upload through common artifact metadata and use it for update controls without a sitemap namespace or media-type branch in UI.
+  - Keep update admission authoritative on the Server; metadata capability is a current read result, not a write grant or substitute for CAS.
+  - Update the public schema, generate both clients, align fixtures and normative UI/artifact guarantees, and bump the UI patch version.
+  out:
+  - Dedicated sitemap editor or renderer, changing domain write authority, arbitrary JSON merge, new storage or Runtime wire fields.
+failure_outcomes:
+- operation: Preview and owner update
+  permanent: Invalid media types, malformed UTF-8 and oversized content retain existing preview errors and original-byte download. Frozen, managed and historical bindings expose no upload action; write admission still rejects stale or newly forbidden requests.
+  retryable: Existing query retry and refetch policies remain unchanged.
+  ambiguous: Preserve existing rejected/unknown upload reconciliation and exact revision handling.
+cardinality:
+- collection: Artifact pages and preview content
+  maximum: Existing page, metadata and preview byte bounds.
+  bound: Write availability is computed without extra per-row queries; JSON suffix recognition reads no payload until the user requests preview.
+lifecycle:
+- entity: Existing artifact binding
+  retention: No new durable state or holds; capability follows current binding state.
+acceptance_criteria:
+- id: A1
+  given: Arbitrary vendor JSON and sitemap or snapshot content within the existing preview limit
+  when: The ordinary artifact UI previews or downloads it
+  then: Escaped JSON text preview works and the filename uses .json without a sitemap-specific branch; unsupported types and above-limit payloads retain existing behavior.
+- id: A2
+  given: Ordinary mutable, frozen, managed, historical and Run artifacts
+  when: The owner reads metadata and opens the detail page
+  then: Server-reported upload availability matches the actual generic endpoint and policy; UI offers only applicable actions with no per-domain namespace checks.
+- id: A3
+  given: Public schemas, generated clients and existing mutation rejection paths
+  when: Contract and complete affected UI/server suites run
+  then: Metadata shapes agree end to end, stale requests still fail with existing errors and all prior ordinary artifact workflows remain valid.
+tests:
+- command: make ui-verify
+  covers: [A1, A2, A3]
+- command: make verify-public-api
+  covers: [A2, A3]
+- command: make test-project-sitemap-postgres
+  covers: [A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+implementation_commit: cbc2f79fa25dda48a828fd2dcd9196649837c768
+verification:
+  date: '2026-10-29'
+  result: passed
+  tested_commit: cbc2f79fa25dda48a828fd2dcd9196649837c768
+  commands:
+  - command: make ui-verify
+    result: Passed generated schema/client checks, lint, typecheck and production build; 204 UI test files, 2525 passed tests and one pre-existing expected failure, plus 17 passed Node server tests. The UI tree is byte-identical to the verified implementation commit fd120a40e7499d97a60a9a042ae65aaab3d1e442.
+  - command: make verify-public-api
+    result: Passed error registry and complete public-operation contract coverage on the integrated branch.
+  - command: make test-project-sitemap-postgres
+    result: Passed 14 complete packages and all 24 mandatory real-store cases with zero mandatory skips, including public upload availability, nested repeat Project lifecycle, strict CLI shared fixtures and public context boundaries.
+  - command: make lint
+    result: Passed generated checks, UI gates, Go vet/staticcheck/testonlyexports, deployment/release graph checks, tasks/specs/fixtures, Ruff and Runtime layer contracts.
+  notes:
+  - Upload availability is a public-only projection over common ArtifactStore admission and already-read endpoint/lifecycle state; stored and private Runtime metadata remain unchanged and no per-row queries were added.
+  - Generic concrete structured JSON types include model/gltf+json; preview remains bounded escaped text with existing UTF-8 checks. No sitemap UI branch was introduced.
+  - The first complete integrated gate caught missing CLI presence validation for the required boolean and an unclassified shared public read model. Both were fixed and the complete gate reran successfully; independent API/UI review found no remaining blockers.

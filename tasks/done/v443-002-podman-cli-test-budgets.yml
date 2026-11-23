@@ -1,0 +1,54 @@
+schema_version: '1.0'
+id: V443-002
+title: Separate Podman CLI output and timeout test budgets
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+introduced_by: V31-002
+priority: P2
+status: completed
+depends_on: []
+languages: [python]
+goal: Verify the CLI output ceiling independently of cold child-process startup while retaining real timeout coverage.
+context:
+  authority: >-
+    Agent-proposed verification repair discovered on 2026-11-04 while completing user-assigned
+    V64-012 after integration with main. This is a test-only prerequisite; no product behavior changes.
+  verification: >-
+    2026-11-04: all three owning test modules pass (64 passed, 13 existing platform skips).
+    The delayed flood returns sandbox_timeout with the former 150 ms budget and
+    sandbox_output_limit with the independent five-second test budget. Whole make test-runtime
+    passes 5708 tests with 135 existing optional platform/environment skips; make lint passes.
+    Logs: /tmp/v443-002-podman.log, /tmp/v443-002-runtime.log, /tmp/v443-002-lint.log.
+  finding: >-
+    runtime/tests/test_podman_engine.py:651-667 gives flood, hang and inherited-pipe the same
+    150 ms deadline. On this macOS host a new Python child can take 198 ms to start, so a
+    working output limiter returns sandbox_timeout before the flood reaches its byte ceiling.
+    The failure reproduced in the full suite and the isolated case. A five-second probe returned
+    sandbox_output_limit on every attempt. The elapsed-under-two-seconds assertion also races host load.
+  siblings: >-
+    The three cases in this transport test are in scope. Concrete exec output tests in
+    test_podman_command_transport.py already separate the three-second capture budget from
+    timeout/revocation cases; operation ownership timing in test_podman_command_coordination.py
+    is a different contract and is unchanged.
+scope:
+  in:
+  - Give output-limit cases the existing five-second test operation budget.
+  - Keep the short deadline for timeout cases and remove the competing wall-clock assertion.
+  - Add a real child that deliberately starts flooding after 250 ms, proving the old deadline cannot test the output ceiling.
+  out:
+  - Production Podman transport, limits, cancellation, ownership or timeout changes.
+acceptance_criteria:
+- id: A1
+  text: Normal and deliberately delayed floods report sandbox_output_limit through the real local CLI.
+- id: A2
+  text: Hanging and inherited-pipe children still report sandbox_timeout under their original short deadline.
+- id: A3
+  text: The delayed flood necessarily exceeds the former 150 ms budget, so the regression fails under that budget without relying on observed host speed.
+tests:
+- command: cd runtime && uv run pytest tests/test_podman_engine.py tests/test_podman_command_transport.py tests/test_podman_command_coordination.py
+  covers: [A1, A2, A3]
+- command: make test-runtime
+  covers: [A1, A2, A3]
+- command: make lint
+implementation_commit: e4839b10ed4151214113ff5975d4d20e56674715

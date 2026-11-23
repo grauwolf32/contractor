@@ -1,0 +1,50 @@
+schema_version: "1.0"
+id: V373-003
+title: "Point the performance matrix quantile case at the read-time quantile test"
+milestone: hub-audit-defects-2026-10
+epic: operations
+kind: defect
+introduced_by: V370-008
+priority: P1
+status: completed
+implementation_commit: "149e9b96d80d6b1d30ca32143dc73d30ccda27d6"
+depends_on: []
+languages: [yaml]
+goal: "The bounded_histogram_quantiles case of the performance metrics matrix names a test that exists and covers the production read-time quantile derivation, so TestPerformanceMetricsMatrixIsComplete passes."
+context:
+  review: "CI run 38250031171 of PR grauwolf32/contractor#546 (head 00f7289), job release-verify-unit, target test-hardening-matrices"
+  specification: "docs/spec/operations/operations.md#OPS-R106"
+  severity: medium
+  finding: >-
+    V370-008 (8c30a0f) deleted performance Histogram.Quantile, which no
+    production code called (the UI derives quantile bounds itself), and
+    renamed internal/performance/aggregate_test.go's
+    TestPerformanceHistogramQuantilesAndMerging to
+    TestPerformanceHistogramMerging. tests/e2e/performance_matrix.yml:107
+    still named the old test as the owner of bounded_histogram_quantiles, so
+    TestPerformanceMetricsMatrixIsComplete fails with "internal/performance/
+    aggregate_test.go does not define go_test owner
+    TestPerformanceHistogramQuantilesAndMerging". OPS-R106 to OPS-R109 still
+    hold: the Server merges histograms as counts
+    (TestPerformanceHistogramMerging) and the UI derives the quantile bucket
+    bound when reading, returning no value for an empty window and an
+    overflow marker instead of a finite latency
+    (ui/src/api/performance.test.ts, histogramQuantileUpperBound).
+  siblings: >-
+    The branch removed three other tests (TestRunMetadataLabelsNormalizeCloneAndSort,
+    TestSharedDecodeStrictRejectsTrailingJSON,
+    TestSharedEvalChartsEmptySingletonEqualAndProgressGaps); no matrix,
+    make target, script or workflow names any of them.
+scope:
+  in:
+    - "Name the UI test that derives quantile bounds at read time as the case's owner and state where each half of the guarantee lives."
+  out:
+    - "The histogram code and the UI derivation, which are correct."
+acceptance_criteria:
+  - id: A1
+    text: "TestPerformanceMetricsMatrixIsComplete passes, and its renamed-owner subtest still fails a missing owner."
+tests:
+  - command: "go test -count=1 ./tests/e2e -run '^TestPerformanceMetricsMatrixIsComplete$'"
+    covers: [A1]
+  - command: make lint
+    covers: [A1]

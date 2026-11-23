@@ -1,0 +1,160 @@
+package projectstore
+
+import (
+	"context"
+	"errors"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func TestProjectValidationBounds(t *testing.T) {
+	t.Parallel()
+	valid := CreateParams{
+		ProjectID: "project-1", OwnerID: "owner-1", Kind: KindProject,
+		Name: "Project", Description: "Description", IdempotencyKey: "request-1",
+		RequestDigest: "sha256:" + strings.Repeat("a", 64),
+	}
+	if err := validateCreate(valid); err != nil {
+		t.Fatalf("valid Project: %v", err)
+	}
+	for name, mutate := range map[string]func(*CreateParams){
+		"kind":        func(value *CreateParams) { value.Kind = "other" },
+		"blank name":  func(value *CreateParams) { value.Name = "  " },
+		"long name":   func(value *CreateParams) { value.Name = strings.Repeat("x", MaxNameBytes+1) },
+		"description": func(value *CreateParams) { value.Description = strings.Repeat("x", MaxDescriptionBytes+1) },
+		"idempotency": func(value *CreateParams) { value.IdempotencyKey = " bad" },
+		"digest":      func(value *CreateParams) { value.RequestDigest = "sha256:no" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			candidate := valid
+			mutate(&candidate)
+			if err := validateCreate(candidate); !errors.Is(err, ErrInvalid) {
+				t.Fatalf("validation error = %v", err)
+			}
+		})
+	}
+}
+
+func TestPostgresProjectIdempotencyOwnershipPaginationAndCAS(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedProjectPool(t, ctx, databaseURL)
+	store := NewPostgresStore(pool)
+	digest := "sha256:" + strings.Repeat("a", 64)
+	created, inserted, err := store.Create(ctx, CreateParams{
+		ProjectID: "project-one", OwnerID: "owner-1", Kind: KindProject,
+		Name: "One", Description: "first", IdempotencyKey: "create-one", RequestDigest: digest,
+	})
+	if err != nil || !inserted || created.Revision != 1 {
+		t.Fatalf("create Project = (%+v, %t, %v)", created, inserted, err)
+	}
+	replayed, inserted, err := store.Create(ctx, CreateParams{
+		ProjectID: "project-unused", OwnerID: "owner-1", Kind: KindProject,
+		Name: "One", Description: "first", IdempotencyKey: "create-one", RequestDigest: digest,
+	})
+	if err != nil || inserted || replayed.ProjectID != created.ProjectID {
+		t.Fatalf("replay Project = (%+v, %t, %v)", replayed, inserted, err)
+	}
+	_, _, err = store.Create(ctx, CreateParams{
+		ProjectID: "project-conflict", OwnerID: "owner-1", Kind: KindEvaluation,
+		Name: "Changed", IdempotencyKey: "create-one",
+		RequestDigest: "sha256:" + strings.Repeat("b", 64),
+	})
+	if !errors.Is(err, contracts.ErrIdempotencyConflict) || errors.Is(err, ErrConflict) {
+		t.Fatalf("changed replay error = %v, want only the permanent idempotency conflict", err)
+	}
+	if _, err := store.Get(ctx, "owner-2", created.ProjectID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("foreign read error = %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO runtime_credentials (
+    credential_id, credential_kind, encryption_schema_version, key_id,
+    nonce, ciphertext, created_by, created_at
+) VALUES ($1, $2, 'contractor.runtime-credentials/v1', $3,
+          decode(repeat('00', 12), 'hex'), decode(repeat('00', 17), 'hex'), $4, clock_timestamp())`,
+		"project-origin", "http-origin-bearer@1", "sha256:"+strings.Repeat("d", 64), "owner-1",
+	); err != nil {
+		t.Fatal(err)
+	}
+	target := &runtimesettings.HTTPOriginTargetRef{
+		URL: "https://app.example.test/api",
+		Credential: &runtimesettings.RuntimeCredentialRef{
+			CredentialID: "project-origin", Kind: runtimesettings.RuntimeCredentialOriginBearer,
+		},
+	}
+	updated, err := store.Update(ctx, UpdateParams{
+		ProjectID: created.ProjectID, OwnerID: "owner-1", ExpectedRevision: 1,
+		Name: "Renamed", Description: "current", HTTPTarget: target,
+	})
+	if err != nil || updated.Revision != 2 || updated.Name != "Renamed" ||
+		updated.HTTPTarget == nil || updated.HTTPTarget.Credential == nil ||
+		updated.HTTPTarget.Credential.CredentialID != "project-origin" || !updated.UpdatedAt.After(created.UpdatedAt) {
+		t.Fatalf("update Project = (%+v, %v)", updated, err)
+	}
+	usage, err := store.ListProjectIDsByHTTPTargetCredential(ctx, "project-origin", 10)
+	if err != nil || len(usage) != 1 || usage[0] != created.ProjectID {
+		t.Fatalf("Project target credential usage = (%v, %v)", usage, err)
+	}
+	if _, err := store.ListProjectIDsByHTTPTargetCredential(ctx, "project-origin", 129); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("unbounded Project credential usage error = %v", err)
+	}
+	if _, err := store.Update(ctx, UpdateParams{
+		ProjectID: created.ProjectID, OwnerID: "owner-1", ExpectedRevision: 1,
+		Name: "Stale", Description: "stale",
+	}); !errors.Is(err, ErrPrecondition) {
+		t.Fatalf("stale update error = %v", err)
+	}
+	if _, _, err := store.Create(ctx, CreateParams{
+		ProjectID: "evaluation-one", OwnerID: "owner-1", Kind: KindEvaluation,
+		Name: "Evaluation", IdempotencyKey: "create-evaluation",
+		RequestDigest: "sha256:" + strings.Repeat("c", 64),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	kind := KindProject
+	projects, err := store.List(ctx, ListParams{OwnerID: "owner-1", Kind: &kind, Limit: 10})
+	if err != nil || len(projects) != 1 || projects[0].ProjectID != created.ProjectID {
+		t.Fatalf("Project page = (%+v, %v)", projects, err)
+	}
+	deleting, accepted, err := store.BeginDeletion(ctx, BeginDeletionParams{
+		ProjectID: created.ProjectID, OwnerID: "owner-1", ExpectedRevision: updated.Revision,
+	})
+	if err != nil || !accepted || deleting.Lifecycle != LifecycleDeleting ||
+		deleting.Deletion == nil || deleting.Deletion.Phase != DeletionCancelling ||
+		deleting.Revision != updated.Revision+1 {
+		t.Fatalf("begin Project deletion = (%+v, %t, %v)", deleting, accepted, err)
+	}
+	replayedDeletion, accepted, err := store.BeginDeletion(ctx, BeginDeletionParams{
+		ProjectID: created.ProjectID, OwnerID: "owner-1", ExpectedRevision: updated.Revision,
+	})
+	if err != nil || accepted || replayedDeletion.Revision != deleting.Revision {
+		t.Fatalf("replay Project deletion = (%+v, %t, %v)", replayedDeletion, accepted, err)
+	}
+	if _, err := store.Update(ctx, UpdateParams{
+		ProjectID: created.ProjectID, OwnerID: "owner-1", ExpectedRevision: deleting.Revision,
+		Name: "Too late", Description: "fenced",
+	}); !errors.Is(err, ErrDeleting) {
+		t.Fatalf("update deleting Project error = %v", err)
+	}
+}
+
+func isolatedProjectPool(t *testing.T, ctx context.Context, databaseURL string) *pgxpool.Pool {
+	t.Helper()
+	pool := postgrestest.NewPool(t, ctx, databaseURL, postgrestest.Options{})
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
+		t.Fatal(err)
+	}
+	return pool
+}

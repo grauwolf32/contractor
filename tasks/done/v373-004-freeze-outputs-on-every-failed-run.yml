@@ -1,0 +1,129 @@
+schema_version: "1.0"
+id: V373-004
+title: "Freeze accepted Run outputs on every failed or cancelled Run transition"
+milestone: hub-audit-defects-2026-10
+epic: execution-core
+kind: defect
+priority: P2
+status: completed
+implementation_commit: "bcedc6405163e62b44a371cb15e3bfaf6758f523"
+depends_on: []
+languages: [go, markdown]
+goal: "Every transition that makes a WorkflowRun failed or cancelled freezes the Run's accepted outputs/<slot> bindings in the same transaction, as ART-R94 and LIFE-ART-2 require, including the FAIL-SCH-13 path and the end of a cancelling Run without an active Stage."
+context:
+  review: "Out-of-scope finding of V372-017 (merged in 120c353), verified on aabaa49"
+  specification: "docs/spec/artifacts/artifact-store.md#ART-R94"
+  severity: medium
+  finding: >-
+    ART-R94 (docs/spec/artifacts/artifact-store.md:880) and LIFE-ART-2
+    (docs/spec/platform/lifecycle.md:148) freeze the output bindings accepted
+    from earlier Stages when a Run becomes failed or cancelled. The terminal
+    commits in internal/scheduler/postgres.go call freezeOutputs (:275, :308,
+    :538), but FailRunWithActiveStages (internal/scheduler/postgres.go:333,
+    runstore internal/runstore/run_failure_store.go:34), which every
+    FAIL-SCH-13 ending uses through failActiveRun
+    (internal/scheduler/run_execution.go:185), never freezes them. A Run that
+    bound outputs and then ends as scheduler_state_invalid or
+    unsupported_workflow_shape, including the refused output mapping that
+    V372-017 now ends this way, keeps those bindings unfrozen. The same holds
+    for finishCancelledRun (internal/scheduler/run_execution.go:160), which
+    moves a cancelling Run without an active Stage to cancelled through a
+    bare TransitionRun.
+  siblings: >-
+    Every other transition into failed or cancelled must be checked and
+    either freeze or be ruled out with evidence: the Run service
+    transitions in internal/runservice/public.go:192 and
+    internal/runservice/audit.go:145 (for example cancelling a pending Run
+    whose outputs a manual continuation unfroze, RUN-R47), and any
+    gatewayrecovery or rundeletion path that ends a Run. A Run without
+    outputs freezes nothing.
+  implementation: >-
+    Verified on da97b32. FailRunWithActiveStages
+    (internal/scheduler/postgres.go) now calls freezeOutputs in its
+    transaction after the runstore operation has locked the Run row and
+    before the gateway cleanup, and finishCancelledRun (run_execution.go)
+    commits through the new AtomicPersistence.FinishCancelledRun, which locks
+    the cancelling Run, freezes its outputs and moves it to cancelled in one
+    transaction. The Scheduler's Store interface no longer has TransitionRun,
+    so every Run transition the Scheduler makes is an AtomicPersistence
+    commit point. Freezing stays in the Scheduler's PostgresPersistence, the
+    one place where RunStore and ArtifactStore share a transaction (ART-R92),
+    and goes through the artifacts Service. runstore and runservice may call
+    that Service (internal/artifacts is platform, below execution and
+    product in internal/archtest, and its SQL stays in internal/artifacts
+    under PER-R23, as runstore's ThawOutputs call already shows), but neither
+    needs to. Every transition into failed or cancelled, found by searching
+    non-test Go code for TransitionRun, FailRunWithActiveStages,
+    RequestRunCancellation and UPDATE workflow_runs: (1) commitTerminalRun of
+    CommitResultProgression and CommitTerminationProgression, a Workflow fail
+    decision: froze already; (2) AcceptResultDuringCancellation, cancelling
+    to cancelled: froze already; (3) CommitTerminationAndFinishRun, whose
+    only caller moves cancelling to cancelled: froze already, and it is the
+    commit that ends a cancelled pending Run whose outputs a manual
+    continuation thawed, because the continuation's new attempt is an active
+    preparing Stage that cancellation aborts; (4) FailRunWithActiveStages,
+    failed or cancelled through FAIL-SCH-13: fixed; (5) finishCancelledRun,
+    a cancelling Run without an active Stage: fixed; (6)
+    runSkillInitializer.failPermanent (internal/app/run_skill_initializer.go),
+    initializing to failed: ruled out, because an initializing Run never held
+    an outputs binding. Only bindOutput in CommitResultProgression creates
+    one (validateCreate refuses outputs in a RunScope for Write and
+    CreateFrozen), it needs a finalizing StageExecution, StageExecutions are
+    created only while the Run is pending or running (stageCreationRunStates;
+    ResumeFailedRun moves the Run to pending in the transaction that creates
+    its attempt), and the Run lifecycle has no edge back into initializing
+    (runLifecycle in internal/runstore/store.go). Not transitions into
+    failed or cancelled: internal/runservice/public.go:192, audit.go:145 and
+    the Skill initializer's success path (initializing to pending),
+    AdmitStage (pending to running), ResumeFailedRun (failed to pending,
+    which thaws outputs, RUN-R47), the waiting operations that
+    gatewayrecovery reaches through its runstore port (running and waiting),
+    RequestRunCancellation from the public API, projectlifecycle,
+    auditcontroller and evalservice (to cancelling; the Scheduler then ends
+    the Run through 2 to 5), and rundeletion, which deletes terminal Runs. A
+    cancelling Run without an active Stage normally never started one, so 5
+    holds outputs only in inconsistent durable state; it freezes anyway so
+    that every transition into cancelled follows ART-R94. Tests:
+    TestPostgresEveryFailedOrCancelledCommitFreezesOutputs drives each
+    commit point 1 to 5 with a bound output and requires it frozen at the
+    same revision; TestPostgresFailedOrCancelledRunFreezesEarlierOutputs
+    drives the Scheduler through a two-Stage Workflow whose first Stage
+    bound the output, ending the Run through FAIL-SCH-13 as failed and as
+    cancelled and through finishCancelledRun; and
+    TestPostgresOutputMappingOntoAnotherRevisionEndsRunOnce now requires the
+    binding frozen. With da97b32's postgres.go, run_execution.go, types.go
+    and test doubles restored, the FAIL-SCH-13 and finishCancelledRun cases,
+    all three two-Stage cases and the output-mapping test fail with
+    frozen=false, while the cases of 1 to 3 pass.
+    TestPostgresCancellationCleanupRetainsRunClaim now gives its lane the
+    PostgreSQL persistence, which finishes its Stage-less Run. SCH-R102,
+    FAIL-SCH-13, the scheduler_state_invalid entry of errors.md and a new
+    Scheduler invariant state the freeze. introduced_by is not knowable:
+    FailRunWithActiveStages and finishCancelledRun both come from the
+    squashed initial import (63496210).
+scope:
+  in:
+    - "Freeze the outputs namespace in the transaction of every failed or cancelled transition listed above."
+    - "PostgreSQL regression tests: a Run with a bound output that ends through FAIL-SCH-13, and one that ends through finishCancelledRun, both leave the binding frozen; each test fails on the unfixed code."
+    - "FAIL-SCH-13 in docs/spec/platform/failure-model.md states that the ending freezes accepted outputs."
+  out:
+    - "Unfreezing by manual continuation (RUN-R47, ART-R97), which stays as it is."
+failure_outcomes:
+  - operation: "FinishCancelledRun: freeze the outputs of a cancelling Run without an active Stage and move it to cancelled"
+    permanent: "None of its own: the Run lock, the freeze and the transition change only the locked Run's rows. A Run that is no longer cancelling is a conflict; finishCancelledRun reads the state and treats cancelled as done, as before."
+    retryable: "A transient database failure commits nothing; the Run stays cancelling and the next claim repeats the commit."
+    ambiguous: "A commit whose response is lost returns its error to the lane; a committed Run is terminal and no claim selects it again."
+    cancelled: "The transaction rolls back with its context and the Run stays cancelling for the next claim."
+    timeout: "The Scheduler's store-operation budget (terminalOperationContext) owns it, as for the transition it replaces."
+acceptance_criteria:
+  - id: A1
+    text: "Given a Run with an accepted output binding, when it ends through FAIL-SCH-13 or through finishCancelledRun, then the binding is frozen in the same transaction."
+  - id: A2
+    text: "Every other transition into failed or cancelled freezes accepted outputs or is ruled out in the task with evidence."
+  - id: A3
+    text: "The regression tests fail on the unfixed code."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/scheduler/... ./internal/runstore/... ./internal/runservice/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

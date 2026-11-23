@@ -1,0 +1,58 @@
+schema_version: '1.0'
+id: V411-030
+title: Align private action handler fixtures with explicit HTTP requests
+milestone: autonomous-http-pentest-2026-10
+epic: http-tools
+kind: chore
+introduced_by: V411-027
+priority: P3
+status: completed
+depends_on: [V411-027]
+languages: [go]
+goal: Exercise authenticated authority, fencing and classified errors with a valid current prepare request instead of failing before the tested boundary.
+context:
+  finding: >-
+    internal/httpapi/privateartifacts/pentest_actions_test.go:45 retains phase
+    seed and omits method, requestBodyBytes, requestFingerprint and targetDigest.
+    The current strict ActionPrepare contract accepts phase request and requires
+    these request facts. Three tests fail with pentest_action_invalid before
+    reaching authority/fencing/error classification. Reproduced on untouched
+    main a753161956297da27a0274b968673d590428646e, before SARIF integration.
+  related: >-
+    V411-029 introduced the shared session foundation; V411-027 added the
+    required explicit request facts and removed the seed phase (git blame on
+    action.go:29-36 and action.go:102). No production validation or protocol compatibility is
+    added by this fixture repair.
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R140
+  - docs/spec/execution/control-plane.md#CTL-R168
+  siblings: >-
+    The shared api/testdata/v1alpha1/valid/pentest-action-prepare.json already
+    uses the current closed shape. All private action tests share the one stale
+    constant; update that fixture and explicitly reject the removed seed phase
+    and missing required request facts. Other prepare consumers use the typed
+    current contract and are covered by the shared wire gate.
+scope:
+  in:
+  - Align the shared private handler fixture with current required fields and phase.
+  - Keep explicit negative cases for removed phase and required request facts.
+  - Run the entire private artifacts package against real PostgreSQL, strict wire consumers and lint.
+  out:
+  - Changes to production actions, credential selection, SARIF behavior or wire compatibility.
+acceptance_criteria:
+- id: A1
+  text: Valid preparation reaches authenticated authority, write-gate and classified service error paths; invalid bodies never call the service.
+- id: A2
+  text: The removed seed phase and missing request facts remain invalid, without a compatibility reader.
+- id: A3
+  text: The full private artifacts package and shared wire/public contracts pass after reproducing the initial failure on clean main.
+tests:
+- command: go test -tags=integration -count=1 -timeout=10m ./internal/httpapi/privateartifacts
+  covers: [A1, A2, A3]
+- command: make test-wire-cross-language verify-public-api
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+
+implementation_evidence: tasks/evidence/v411-030-verification.json
+implementation_commit: 8448b1f6bf3493c5dd4c8435ae49a110303460a4

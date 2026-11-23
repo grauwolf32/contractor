@@ -1,0 +1,5 @@
+# Provision explicitly; allocation prepare must never build or pull this image.
+FROM docker.io/library/python@sha256:bd55e06128e2743d526738dd5cf5db924e49ead66d4fe2ad15f2aac8ad86aae9
+COPY --chmod=0555 init.py /usr/local/lib/contractor-init.py
+LABEL io.contractor.sandbox.supervisor="cgroup-guardian-v1"
+ENTRYPOINT ["/usr/local/bin/python3", "-I", "-B", "/usr/local/lib/contractor-init.py"]

@@ -1,0 +1,131 @@
+package evalservice
+
+import (
+	"context"
+	"errors"
+	"slices"
+	"sort"
+
+	"github.com/grauwolf32/contractor/internal/agentskills"
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditstandards"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/evaldomain"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/jackc/pgx/v5"
+)
+
+const (
+	capabilityInputArtifact  = "input.artifact@1"
+	capabilityOutputArtifact = "output.artifact@1"
+	capabilityWorkflowRun    = "workflow.run@1"
+	capabilityAuditRun       = "audit.run@1"
+	capabilitySourceArchive  = "source.archive@1"
+)
+
+type preflightBinding struct {
+	snapshot  BindingSnapshot
+	workflows map[string]resolved.ResolvedWorkflow
+	inputs    map[string]resolved.ArtifactSlot
+}
+
+func (r *Resolver) resolveBinding(ctx context.Context, owner string, v evaldomain.Variant, lookup resolved.CredentialLookup, service *artifacts.Service) (preflightBinding, error) {
+	b := preflightBinding{
+		snapshot:  BindingSnapshot{Skills: []agentskills.RunSkillSnapshot{}, Standards: []auditstandards.ExactPackage{}},
+		workflows: map[string]resolved.ResolvedWorkflow{},
+		inputs:    map[string]resolved.ArtifactSlot{},
+	}
+	if v.Kind == "workflow" {
+		workflow, err := r.Catalog.ResolveRunWorkflow(ctx, v.Selector, lookup)
+		if err != nil {
+			return b, workflowSelectionError(err)
+		}
+		b.snapshot.Workflow = &workflow
+		b.workflows["workflow"] = workflow
+		b.inputs = workflow.Inputs
+		return b, nil
+	}
+	profile, err := r.Catalog.ResolveAuditProfile(ctx, v.Selector)
+	if err != nil {
+		return b, errors.Join(evaldomain.Failure("eval_not_ready"), err)
+	}
+	b.snapshot.Audit = &profile
+	for name, slot := range profile.Program.Inputs {
+		b.inputs[name] = resolved.ArtifactSlot{Required: slot.Required, MediaTypes: slot.MediaTypes}
+	}
+	for role, binding := range profile.Workflows {
+		b.workflows[role] = binding
+	}
+	return b, nil
+}
+
+func (b *preflightBinding) pinDependencies(ctx context.Context, tx pgx.Tx, service *artifacts.Service, owner string, v evaldomain.Variant, lookup runtimeconfig.TransactionLLMCredentialLookup) error {
+	skillRefs := map[string]contracts.ArtifactRef{}
+	var skillSets [][]string
+	modelFree := true
+	for _, workflow := range b.workflows {
+		if err := resolved.ValidateResolvedWorkflowCredentials(ctx, workflow, lookup); err != nil {
+			return workflowSelectionError(err)
+		}
+		refs, err := resolved.WorkflowSkillRefs(workflow)
+		if err != nil {
+			return errors.Join(evaldomain.Failure("eval_not_ready"), err)
+		}
+		for _, ref := range refs {
+			skillRefs[ref.Name] = ref
+		}
+		skillSets = append(skillSets, resolved.WorkflowSkillSets(workflow)...)
+		modelFree = modelFree && resolved.WorkflowToolWorkersOnly(workflow)
+	}
+	runtime, err := runtimeconfig.PinRunSnapshot(
+		ctx, tx, v.RuntimeLabels, credentials.NewRuntimeCredentialRepository(tx), lookup, modelFree,
+	)
+	if err != nil {
+		return preflightDependencyError(err)
+	}
+	b.snapshot.Runtime = runtime
+	if len(skillRefs) == 0 {
+		return nil
+	}
+	refs := make([]contracts.ArtifactRef, 0, len(skillRefs))
+	for _, ref := range skillRefs {
+		refs = append(refs, ref)
+	}
+	sort.Slice(refs, func(i, j int) bool { return refs[i].Name < refs[j].Name })
+	catalog, err := agentskills.NewCatalog(service)
+	if err != nil {
+		return err
+	}
+	b.snapshot.Skills, err = catalog.SelectRunSources(ctx, owner, refs)
+	if err != nil {
+		return preflightDependencyError(err)
+	}
+	if err := agentskills.ValidateSelectedLimits(b.snapshot.Skills, skillSets); err != nil {
+		return errors.Join(evaldomain.Failure("eval_not_ready"), err)
+	}
+	for _, skill := range b.snapshot.Skills {
+		if skill.Source == nil {
+			return evaldomain.Failure("eval_not_ready")
+		}
+	}
+	return nil
+}
+
+func (b preflightBinding) capabilities() []string {
+	capabilities := []string{capabilityInputArtifact, capabilityOutputArtifact}
+	if b.snapshot.Audit != nil {
+		capabilities = append(capabilities, capabilityAuditRun)
+	} else {
+		capabilities = append(capabilities, capabilityWorkflowRun)
+	}
+	for _, slot := range b.inputs {
+		if slices.Contains(slot.MediaTypes, "application/zip") {
+			capabilities = append(capabilities, capabilitySourceArchive)
+			break
+		}
+	}
+	slices.Sort(capabilities)
+	return capabilities
+}

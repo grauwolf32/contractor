@@ -1,0 +1,111 @@
+schema_version: '1.0'
+id: V407-007
+title: Offload scanner parsing and filesystem preparation with joined cancellation
+milestone: server-runtime-review-2026-10
+epic: scan-tools
+kind: defect
+introduced_by: V55-001
+priority: P3
+status: completed
+implementation_commit: dd5d65645e0c453496e8c93b2ab9d758b6ee8309
+depends_on: []
+languages:
+- python
+goal: Move scanner CPU-heavy parsing and blocking filesystem work off the Runtime event loop without changing
+  observation, publication or cleanup outcomes.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/tools/scanners.md
+  validation: Revalidated against main dc7012e8 on 2026-10-23. Synchronous parsing and filesystem operations
+    are confirmed; no 100 ms loop-gap failure was measured. Katana downloads an existing output payload
+    only on the occupied-name path, while a new output name returns 404.
+  severity: low
+  finding: runtime/src/contractor_runtime/toolsets/scan/tools.py:130-145 calls observation synchronously
+    in the event-loop task; _execute creates and cleans TemporaryDirectory and calls tool.prepare at164-167.
+    ffuf_observation parses/serializes output lines (ffuf.py:100-117), katana_observation is called synchronously
+    at tools.py:1033-1043, and Katana seed/config files are written directly in async prepare at1027-1030.
+    This violates the off-loop rule for blocking I/O and CPU-heavy parsing in AGENTS 3.3. Katana tests
+    output existence with read_artifact(max_bytes=128KiB) at1013-1024; only an existing binding downloads
+    bytes, and metadata is sufficient for that check. Nuclei package paths already offload work at427,445,514
+    and must not be regressed.
+  siblings: Cover scanner observation parsers and synchronous prepare/cleanup operations for ffuf, katana,
+    sqlmap, nuclei and other registered scanners. Async artifact publication/finalization must remain
+    awaited on the event loop; only its synchronous parsing or materialization belongs in a worker thread.
+plan:
+- Move observation parsing and synchronous filesystem preparation/cleanup through threads.to_thread_until_done
+  with a bounded number of thread submissions per invocation. Keep async destination checks, artifact
+  I/O and result publication on the event loop.
+- Keep the scan lock until parsing, publication and cleanup finish. On cancellation join each in-flight
+  thread before removing files or releasing the allocation; preserve scanner process cancellation and
+  deadline error codes.
+- Replace Katana output-existence payload reads with metadata reads, retaining 404 admission, occupied-name
+  refusal and storage-failure classification.
+- Use thread-identity assertions and synchronization gates to prove parsing/preparation runs outside the
+  loop and a loop callback can execute while the gated thread is working. Exercise a bounded 1 MiB output
+  without imposing a wall-clock gap threshold.
+- Add cancellation-at-parse/materialization tests proving no cleanup races or background work survives
+  close. Compare scanner observations, argv and publication results to existing fixtures.
+scope:
+  in:
+  - Off-loop scanner parsing and blocking filesystem work with deterministic scheduling/cancellation regression
+    tests.
+  - Metadata-only Katana output-existence checks and preserved scanner/publication error outcomes.
+  out:
+  - Changing scanner arguments, target policy, output schemas, size limits or scan result interpretation.
+  - Moving async finalizers wholesale into threads or replacing joined cancellation with detached executor
+    work.
+  - Machine-dependent 100 ms loop-gap acceptance tests or speculative edits to already offloaded Nuclei
+    paths.
+acceptance_criteria:
+- id: A1
+  text: Thread-identity and gated-scheduling tests show scanner parsing and synchronous filesystem preparation/cleanup
+    execute outside the event-loop thread, while an independent loop callback progresses before the gated
+    worker is released.
+- id: A2
+  text: Cancelling during parsing/materialization waits for the thread before cleanup or lock release,
+    and close leaves no work or scratch files behind. Existing timeout/process/publication outcomes are
+    preserved.
+- id: A3
+  text: 'Katana prepare makes no payload read for existence checks: 404 permits a new output, existing
+    metadata yields scan_output_exists, and transient metadata failure keeps the existing unavailable
+    outcome.'
+- id: A4
+  text: Bounded 1 MiB parser fixtures produce equivalent observations and truncation flags; the new offload/existence
+    regressions fail before the fix, and all scanner tests and lint pass.
+tests:
+- command: cd runtime && uv run --locked pytest -q tests/test_scan_toolset.py tests/test_scan_error_codes.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64 worktree on fc93f1a5 (branch claude/rv-r4); Python 3.13.16 with uv sync --locked; Go 1.26.9; Node 24.20 with Corepack pnpm; installed katana, nuclei, ffuf, sqlmap and naabu, so the live scanner suites ran. No database test is affected by this Runtime-only change.
+  evidence:
+  - 'Re-verified finding on fc93f1a5: _ScanSession.invocation called the observation synchronously (tools.py:144); _execute created and removed TemporaryDirectory and called tool.prepare on the loop (164-167); ffuf parse_wordlist and the wordlist write, sqlmap parse_http_request and the request.http write, Katana seed/config writes (1027-1030), the Nuclei target.txt write and templates.is_dir check, and the capability probe scratch all ran on the loop. Katana (1013-1024) and the sibling pinned Nuclei template-manifest check (457-467) downloaded an existing payload to learn that the create-only name was taken.'
+  - 'Fix: _Scratch creates and removes the scratch directory in joined threads (a directory created after a cancel is removed by the cancelled entry); tool.prepare, each adapter materialization (parse plus private write in one thread) and the observation use threads.to_thread_until_done; Artifact reads, destination checks, process supervision and Katana publication stay awaited on the loop. _ScanSession.require_output_name_free holds the one metadata-only existence rule for Katana targets and the Nuclei manifest. Already-offloaded Nuclei snapshot, rulepack and manifest-assembly threads are unchanged.'
+  - 'Siblings: all five registered scanners (nuclei, sqlmap URL and request mode, naabu, ffuf, katana) and ScanToolsetFactory.probe are covered; no other payload-read existence check exists in runtime/src.'
+  - 'A1: test_scanner_parsing_and_scratch_files_stay_off_the_event_loop[6 cases] records parser thread identity and audited mkdtemp/mkdir/open/rmtree operations under the workspace (sys.addaudithook) and finds none on the loop thread; Artifact transport calls stay on the loop; thread submissions are a fixed 4-6 per invocation with 1 MiB output. test_held_scanner_thread_leaves_the_event_loop_running[9 stage cases] holds create, prepare, materialize (ffuf, sqlmap request, katana), parse (ffuf, katana, naabu) and remove in a worker thread and runs a loop.call_soon callback before release. test_probe_scratch_stays_off_the_event_loop covers the probe. No loop-gap threshold is asserted.'
+  - 'A2: test_stopped_scanner_joins_held_thread_before_cleanup_and_unlock[18 cases: 9 stages x cancel/close] shows the task and close stay pending with the scan lock held and no rmtree while the thread is held, removal after release, removal of a directory created after the stop, no Katana publication, one cancelled tool error, an empty workspace and scan_closed after close. test_deadline_during_held_materialization_joins_thread_and_times_out returns scan_timeout without launch after joining. Existing process, timeout, output-overflow, publication and lifecycle suites pass unchanged.'
+  - 'A3: test_create_only_scanner_output_is_checked_by_metadata_without_payload[8 cases] uses the real ArtifactClient over the shared ArtifactStore fake (now serving ART-R116 metadata and recording reads): 404 admits and publishes, an existing binding gives scan_output_exists, 503 and a lost response give scan_artifact_unavailable, none launches the scanner and no payload GET of targets or template-manifest occurs. The Katana unit fake now fails any payload read.'
+  - 'A4: the A1 identity test compares each threaded observation with a direct parse of the same near-1 MiB output (stdoutTruncated and, for JSON scanners, resultsTruncated with 100 results; Katana published bytes equal the direct export). With the test files copied onto an unmodified fc93f1a5 worktree all 43 new tests fail (steps on the loop thread, payload reads instead of metadata reads).'
+  - 'Review follow-up (dd5d6564, after 815d6c3e): the rulepack adapter test records every read of the supplied pack and requires the exact revision (a latest-revision metadata read in production now fails all 7 cases, checked by mutation); the deadline test records the scan''s asyncio.timeout_at deadline with an hour-long budget and expires it with Timeout.reschedule only after the worker thread is held, so no real-time deadline is involved; SCN-R255 names both Nuclei manifest paths (pinned installed package and custom rulepack).'
+  - 'Spec: SCN-R254 (off-loop scanner work, fixed thread submissions, joined cancellation) and SCN-R255 (metadata-only create-only output check) added to docs/spec/tools/scanners.md; make docs-dependencies regenerated the graph fingerprint.'
+  commands:
+  - 'cd runtime && uv run --locked pytest -q tests/test_scan_toolset.py tests/test_scan_error_codes.py: passed (146 tests).'
+  - 'cd runtime && uv run --locked pytest tests/test_scan_katana.py tests/test_scan_katana_lifecycle.py tests/test_scan_katana_live.py tests/test_scan_ffuf.py tests/test_scan_ffuf_live.py tests/test_scan_sqlmap_request.py tests/test_scan_sqlmap_live.py tests/test_scan_wordlist.py tests/test_scan_http_request.py tests/test_threads.py tests/test_tool_worker.py: passed (413 tests, none skipped).'
+  - 'make lint: passed.'
+  - 'After the review follow-up: the task command passed (146 tests), the scan suites passed (413 tests), the 50 changed and new off-loop, rulepack and deadline tests passed in 5 consecutive runs, and make lint passed.'
+  - 'make test-runtime: 4360 passed, 39 skipped, 107 failed. 105 of the 107 IDs also fail on an unmodified fc93f1a5 worktree (podman, tool_process, trailmark child, projectfs local direct/io, code analysis: macOS Errno 43, missing pidfd_open). The other two (test_code_analysis_faults malformed-engine and test_podman_engine output flood) passed on the base run and fail intermittently when rerun alone on this branch as well; neither touches the scan toolset.'
+  database_tests_configured: false
+  declined:
+  - 'No change to the registries FAIL-SCN-7/8 and LIFE-SCN-3/4: they still state the joined child cleanup correctly, and SCN-R254 owns the added thread-join rule.'
+  - 'The pinned Nuclei manifest existence check was changed as the sibling of A3 (same payload-read class); its already-offloaded snapshot, rulepack and manifest-assembly paths were not edited.'

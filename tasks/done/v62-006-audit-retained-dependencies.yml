@@ -1,0 +1,317 @@
+schema_version: '1.0'
+id: V62-006
+title: Retain exact item dependencies across Audit rounds
+milestone: audit-iterative-composition-2026-10
+epic: audits
+kind: feature
+priority: P2
+status: completed
+reactivation:
+  date: '2026-10-24'
+  previous_status: deferred
+  reason: Explicit user request to queue the reviewed proposal 0045 tasks as pending.
+  execution_rule: Implementation may start after declared dependencies complete; this update starts no implementation.
+previous_deferral:
+  date: '2026-09-20'
+  previous_status: pending
+  reason: Cross-round item dependencies belong to the later iterative Audit slice.
+  reactivate_when: Explicit user approval of an actual later-round consumer and its exact dependency contract.
+implementation_commit: 97b8fcabcdd4cb87593dd97d804460cf84b7cf77
+depends_on:
+- V62-005
+- V62-004
+- V410-010
+languages:
+- go
+- json
+- sql
+goal: Let accepted later-round work consume precise earlier Audit materials, results and their declared
+  dependency closure through exact retained manifests, independently of how the trusted plan was admitted.
+context:
+  authority: >-
+    On 2026-10-24 the user explicitly requested pending status for the reviewed
+    proposal 0045 plan, including shared V62 prerequisites. The earlier deferral
+    is historical; dependency completion still gates implementation start.
+  proposal:
+  - docs/proposals/0045-audit-hypothesis-search.md
+  - docs/proposals/0033-autonomous-pentest-audits.md
+  design: docs/plans/2026-09-20-audit-workflow-composition.md
+  specification:
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/scans.md
+  - docs/spec/audits/execution.md
+  - docs/spec/audits/review-and-reports.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/lifecycle.md
+  replan_history: Deferred on 2026-09-20 outside the delivered OpenAPI/preparation slice; the original
+    deferral record is preserved. The 2026-10-24 review at b523ae77 confirmed that this iterative capability
+    was still absent. The initial proposal 0045 plan retained deferral; the user subsequently queued this reviewed task as pending. Completed
+    V62 preparation/API/UI/release tasks and their original milestone remain unchanged.
+  ownership: Generic iterative Audit composition owns these contracts. V64-001 defines research contracts,
+    V64-003 owns opt-in research lifecycle, V64-004 consumes exact context, V64-006 owns the base research-to-ordinary-AuditItem
+    adapter, and V64-018 adds only its pentest specialization. These are consumers, not dependencies of
+    generic V62.
+  boundary: The generic source descriptor carries typed accepted origin and exact retained content. Finding
+    receipt/ordinal is required only for a finding-intake origin; a domain adapter must prove every other
+    origin. V411-012 and future research context/admission reuse this transport without a V64 dependency.
+scope:
+  in:
+  - Define strict named retained-dependency manifests for exact Audit baseline, prepare output, accepted
+    item result and explicitly accepted plan/input sources.
+  - Wire manifest validation/retention into the existing accepted item/task-package builder and retained-dependency
+    resolution into actual Run preparation/dispatch, preserving original source mappings.
+  - Resolve all required explicitly declared dependency closure before the consumer becomes schedulable,
+    with bounded work and exact configuration/Skill content digests where those are selected inputs.
+  - Register new holders with V410-010 and existing Audit purge; exercise source deletion, eviction races,
+    restart, cancellation and ambiguous fork outcomes.
+  out:
+  - Cross-owner/cross-Audit lookup, live Project search, latest fallback, arbitrary recursive traversal
+    of references embedded in JSON, or a new hold/receipt service.
+  - Hypothesis semantics, source-mode policy invention, new model authority, role routing (V62-007), pentest
+    recipes/proof (V411-012) or changes to generic same-Round retained-output.
+deliverables:
+- path: internal/auditdomain
+  description: Exact source-origin/dependency manifest validation and canonical fixtures.
+- path: internal/auditservice
+  description: Production accepted-item manifest retention and source ownership validation.
+- path: internal/auditcontroller
+  description: Actual declared retained-dependency resolution and consumer forks.
+- path: internal/auditstore
+  description: Indexed source associations, holder acquisition/release and purge integration.
+- path: internal/config
+  description: Strict retained-dependency mapping compatibility and current-profile regressions.
+- path: docs/spec/audits/scans.md
+  description: New mapping contract with exact closure, failure, limit and lifecycle definitions.
+acceptance_criteria:
+- id: A1
+  given: A later-round item from the existing receipt adapter with exact prepare and accepted first-round
+    result inputs
+  when: The production item builder and Run preparation reader materialize retained-dependency inputs
+  then: The consumer receives precisely those bytes and mappings after producer Run deletion/current binding
+    changes; no arbitrary prior-role lookup or preparation rerun occurs.
+- id: A2
+  given: Registered trusted origin variants, a finding source without its required receipt/ordinal, and
+    self-declared/foreign origins
+  when: Manifest validation runs
+  then: The finding source requires its identity while other valid registered origins are not forced to
+    invent receipts; unsupported or foreign variants are rejected without dispatch.
+- id: A3
+  given: Batches/retries, embedded JSON refs, denied or mixed-provenance context and incomplete required
+    closure
+  when: Inputs are admitted and materialized
+  then: Only explicitly enumerated authorized exact dependencies are supplied; omitted closure, incompatible
+    media and unsupported projection block affected work with precise reasons and no latest fallback.
+- id: A4
+  given: Concurrent history eviction, source deletion, lost retention/fork replies and cancellation
+  when: Real PostgreSQL admission/materialization and cleanup race
+  then: Exactly one valid ordering retains sources or reports unavailable; replay causes no duplicate
+    hold/evidence charge/Run and work joins before release.
+- id: A5
+  given: Maximum manifests and a large unrelated holder population
+  when: Admission, dispatch and populated Audit purge execute with deterministic work counters
+  then: All row/byte/statement/purge bounds hold; complete accepted closure survives until proper release
+    and no orphan reader/hold remains.
+- id: A6
+  given: Ordinary direct Runs and existing Audit mappings without retained-dependency
+  when: Existing preparation, same-Round consumption, retry and cancel scenarios run
+  then: Their mapping semantics and lifecycle outcomes remain unchanged and they require no research entity
+    or new source adapter.
+tests:
+- command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditservice ./internal/auditstore/...
+    ./internal/auditcontroller ./internal/runservice ./internal/auditimport ./internal/artifacts
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: go test ./internal/config/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make test-audit-composition-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+test_prerequisites:
+- Disposable PostgreSQL is mandatory for store cases. Set CONTRACTOR_TEST_DATABASE_URL; absent or unreachable
+  required infrastructure, skipped mandatory cases and zero matched tests fail the dedicated gate.
+- Tests use isolated testdata, not the live configs tree. Process cases use actual Server/Runtime and
+  scripted local model/provider fixtures; no paid models or live targets are needed.
+- Run the complete suites of every touched package. Shared schema changes update every reader, owning
+  numbered specifications, limit/error/lifecycle registries and cross-language fixtures in the same implementation
+  change.
+verification_requirements:
+- Assert exact original/retained/consumer refs and digests, actual production callers, indexed holder
+  acquisition against eviction and absence of current-binding fallback. V410-010 generic retention gates
+  remain mandatory prerequisite evidence.
+- No new source-origin implementation is added only for tests. Exercise existing receipt-origin and baseline/prepare
+  accepted origins; V64-006 introduces the base research origin with its real ordinary-AuditItem caller,
+  and V64-018 adds only pentest-specific validation and proof/replay integration.
+requirements:
+- id: R1
+  text: An accepted manifest binds owner/Audit/baseline, dependency name/kind, exact source and retained
+    refs/digests, source execution/Round/item/attempt where applicable, and a trusted accepted origin.
+    Finding receipt/ordinal is one origin, not a universal required field. Reject self-declared or undeclared
+    origin variants.
+- id: R2
+  text: Validate accepted source membership, exact payload/media type, source classification and consumer
+    authorization before retention/dispatch. Shared metadata is not authority. Domain adapters supply
+    approved source-mode projections; unknown or mixed provenance cannot be relabelled safe by the transport.
+- id: R3
+  text: Enumerate the complete required dependency closure explicitly with bounded descriptors; JSON refs
+    are neither recursive loading instructions nor grants. An accepted plan pins source-to-retained-to-consumer
+    mapping and exact content digests, including selected guides/Skills/config closure rather than name/version
+    alone.
+- id: R4
+  text: Use V410-010 existing protected-binding/holder lifecycle to acquire exact obligations atomically
+    against eviction. Registers and readers of any new JSON-backed authoritative refs ship in this task.
+    Existing Audit retained bindings and lineage own storage; no extra hold table or lease.
+- id: R5
+  text: Add retained-dependency as a strict declared input source and wire the existing item/task-package
+    production path and Run preparation reader in this change. Resolve only from the accepted manifest;
+    never select a current Project binding or arbitrary prior role/batch/attempt. A no-manifest ordinary
+    check keeps existing mappings.
+- id: R6
+  text: Preserve prepare-output reuse and same-Round retained-output contracts. Selected dependencies
+    can survive source Run deletion and cancellation; independent retained copies remain after producer
+    cleanup until their owning Audit lifecycle releases them.
+- id: R7
+  text: Distinct retained exact revisions consume existing evidence accounting once; manifest/closure
+    count and byte limits below apply before acceptance. Partial retained work may be durable under existing
+    staged retention recovery, but cannot publish a successful accepted item or make its Run schedulable
+    before the whole declared closure is valid.
+failure_outcomes:
+- operation: Validate and retain an accepted dependency manifest
+  permanent: Foreign/unaccepted origin, ambiguous attempt, invalid schema/digest/media, unauthorized projection
+    or closure overflow produces a durable permanent rejection or unavailable/blocked disposition. Shared
+    artifact_history_protected is permanent; no new public endpoint is added.
+  retryable: Existing bounded storage_transaction_conflict/503 and V410-010 maintenance-backpressure retries
+    apply within the original admission deadline; no unbounded revalidation loop.
+  ambiguous: Reconcile the same accepted item/manifest and keyed mutation identity; verify exact retained
+    descriptors and finish only missing retention work without repeating an append or evidence charge.
+  cancelled: Owning Audit fences acceptance and joins current retention work before cleanup; accepted
+    holds remain for terminal collection and normal deletion.
+  timeout: Manifest admission and retention use the existing finite admission/collection allowance, independent
+    of target requests and model work.
+- operation: Materialize accepted exact dependencies into a child Run
+  permanent: Missing/evicted/corrupt/denied sources fail input preparation explicitly; never refresh to
+    latest or turn a missing dependency into an empty success.
+  retryable: Ordinary finite Run input preparation/store retries preserve the exact manifest and fork
+    intent; protected-history capacity conflict is not retried automatically.
+  ambiguous: Read/reconcile the existing exact fork/source mapping and child-Run intent. A response lost
+    after commit cannot create another child or replay target activity.
+  cancelled: Join all fetch/fork work before release and use existing cancellation/drain; no orphan work
+    or authority remains.
+  timeout: The input materialization deadline owns storage work; expiration does not reset the target
+    execution budget or mint a new admission identity.
+cardinality:
+- collection: One accepted item dependency manifest and its explicit closure
+  expected: A few named inputs and 1-16 exact dependency descriptors.
+  maximum: Proposed 32 exact descriptors and 256 KiB encoded manifest per item; tighter existing binding
+    mapping, item-package and evidence bounds apply.
+  bound: Validate every descriptor and full closure before acceptance. Source payloads remain separate;
+    consumer reads follow ordinary bounded artifact access. DescribeExact uses at most 32 refs per statement.
+- collection: Dependencies across one admission/materialization slice and its owning Audit
+  expected: One selected item or a small compatible batch, within an Audit with many settled items.
+  maximum: Existing Audit item limits and 1,024 retained-link per-call cap; each slice at most 128 primary
+    records, 512 total descriptors and 1 MiB metadata, whichever is tighter.
+  bound: Indexed selected-item/accepted-source reads only; stage bounded exact retention work under existing
+    identity when necessary. Never split final accepted-item visibility or make a partially materialized
+    child schedulable.
+- collection: Retained payloads and source holder population
+  expected: Shared evidence reused by later items while the containing Project has unrelated artifacts.
+  maximum: Existing profile maxEvidenceBytes, ArtifactStore payload/history limits and ordinary RunScope
+    insert ceiling.
+  bound: Account distinct retained revisions once, use indexed holder checks, and test at least 2,000
+    unrelated bindings plus the maximum manifest. No payload or all-domain-JSON scan determines availability.
+lifecycle:
+- entity: Accepted item dependency manifest, exact retained copies and consumer forks
+  delete: Audit deletion after drain releases owned obligations; producer Run deletion cannot remove accepted
+    retained dependencies.
+  cascade: Audit purge covers every manifest relation and holder acquisition, including incomplete admission;
+    child Run purges its local forks independently. Shared versions remain until their final legitimate
+    reference is removed.
+  retention: Accepted manifests and source mappings are immutable through retries and cancellation; no
+    TTL, no quota refund or latest substitution. Receipt retention is not itself an artifact hold.
+
+integration_dependency:
+  task: V62-005
+  reason: >-
+    Final child input materialization reuses the durable Run initialization fence
+    delivered by V62-005. Contract and source admission work was independent;
+    integrated Run preparation is verified only after that task is complete.
+
+verification:
+  date: '2026-10-26'
+  result: passed
+  actuality: >-
+    The starting implementation had no accepted exact cross-round dependency
+    manifest or production Run materializer. The finding receipt adapter now
+    proves baseline, accepted preparation and accepted producer result origins;
+    exact original-to-retained-to-consumer mappings survive producer deletion.
+    The ordinary durable input fence from V62-005 is reused.
+  commands:
+  - command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditservice ./internal/auditstore/... ./internal/auditcontroller ./internal/runservice ./internal/auditimport ./internal/artifacts
+    result: passed with real PostgreSQL; controller and importer repeated after the V62-014 cancellation correction.
+  - command: go test -count=1 ./internal/config/...
+    result: passed.
+  - command: go test -tags=integration -count=1 ./internal/persistence/...
+    result: passed after the independently completed V62-015 inventory correction.
+  - command: make test-audit-composition-e2e
+    result: passed; 40 mandatory store cases, 10 process cases and the real browser journey, with zero skips.
+  - command: make test-wire-cross-language verify-public-api
+    result: passed; 281 fixtures, 331 Go and 229 Python shared tests, 1287 selected Python tests and complete selected public-operation coverage.
+  - command: CI=true UV_OFFLINE=1 make lint
+    result: passed, including layers, test-only exports, task/specification inventories and release-graph guard.
+  - command: CI=true UV_OFFLINE=1 make ui-verify
+    result: passed, including generated-client check, lint, typecheck, complete UI tests and production build.
+  - command: cd runtime && uv run pytest -W error tests/test_audit_retained_dependencies.py tests/test_audit_result_collector.py tests/test_audit_results_*.py tests/test_audit_completion_*.py tests/test_contracts.py tests/test_performance_contracts.py tests/test_artifacts.py tests/test_run_artifacts_toolset.py tests/test_security_findings_toolset.py tests/test_shared_memory_reservation.py tests/test_shared_round_results.py
+    result: 679 passed; one process-driver test requires its Go harness and is exercised by the mandatory process gate.
+  evidence: >-
+    Real-store coverage includes the maximum 32-descriptor closure, 2000
+    unrelated bindings and links, strict source/consumer pins, metadata bounds,
+    same-child replay, evidence charged once and weighted bounded purge. The
+    production journey accepts prepare and item results, deletes both producer
+    Runs, builds the later Round, materializes all four exact inputs, cancels and
+    collects the consumer, then purges it. Run progress, local revisions and
+    lineage disappear; independent Audit payloads remain readable and their
+    hold counts fall by exactly the consumer's incoming lineage obligations.
+  additional_check_limitation: >-
+    The optional broader make test-runtime run did not pass on this macOS host:
+    105 failures, 5030 passes, 39 skips and one error. Unchanged main reproduced
+    the representative failures: Linux-only SOCK_SEQPACKET/pidfd/proc behavior,
+    Darwin path/normalization/resource-limit assumptions and a 100ms wall-clock
+    parser assertion. All failing modules are unchanged by this task; the full
+    affected Runtime owner suites and actual Server/Runtime process gate pass.
+    No test was weakened or skipped to conceal this result.

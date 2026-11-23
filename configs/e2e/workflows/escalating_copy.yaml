@@ -1,0 +1,72 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: escalating-copy
+  version: '1'
+
+spec:
+  parameters:
+    mode:
+      required: true
+
+  inputs:
+    source:
+      required: true
+      mediaTypes: [text/plain]
+
+  outputs:
+    result:
+      required: true
+      mediaTypes: [text/plain]
+
+  executionConfig:
+    planner:
+      modelPolicy: planner@1
+      llmGateway: local-litellm@1
+      credential: development-planner
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+      modelPolicy: worker@1
+
+  entryStage: copy
+  stages:
+    copy:
+      objective: ESCALATION_E2E_GLOBAL fail base then author a report with stronger settings
+      instructions:
+        ref: instructions/report-planner.md
+      planner: streamline@1
+      agents:
+        builder:
+          template: artifact_builder@1
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+      result:
+        artifacts:
+          copied:
+            required: true
+            mediaTypes: [text/plain]
+            from: {namespace: builder, name: copied}
+      workflowOutputs:
+        result: copied
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          escalate:
+            maxAttempts: 1
+            executionConfig:
+              planner:
+                modelPolicy: strong_planner@1
+              agents:
+                builder:
+                  modelPolicy: strong_worker@1
+            then:
+              fail: {}
+        interrupted:
+          fail: {}

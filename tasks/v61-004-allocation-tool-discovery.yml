@@ -1,0 +1,119 @@
+schema_version: "1.0"
+id: V61-004
+title: Match allocation-discovered toolsets without weakening static capabilities
+milestone: toolset-runtime-configuration
+epic: runtime-config
+kind: feature
+priority: P1
+status: deferred
+deferral:
+  date: "2026-10-11"
+  previous_status: pending
+  reason: >-
+    Implemented and verified on 2026-09-20 on branch
+    feat/v61-toolset-runtime-configuration but never merged; main has since
+    moved about 1,700 commits (contract package split, credential table
+    folds, V3B UI, layer checks). V62 and V64 do not depend on it, so the
+    port is postponed instead of resolving 35 conflicts now.
+  reactivate_when: >-
+    Explicit user decision that external MCP tools are needed (for example
+    for autonomous pentest Audits, proposal 0033); then port the branch onto main
+    rather than reimplementing, renumber its migration and rerun the V61-009
+    release gate.
+  branch_commit: "9d74c38b495fae7638c00e4092ac48ddeafb6df2"
+implementation_commit: null
+depends_on: [V61-001]
+languages: [go, python, yaml, markdown]
+goal: >-
+  Admit exact MCP tool selections whose remote inventory is checked during
+  preparation while preserving truthful startup and placement capabilities.
+context:
+  authority: User requests an arbitrary configured Streamable HTTP endpoint with tool names fixed by AgentTemplate.
+  design: docs/plans/2026-09-19-toolset-runtime-configuration.md
+  specification:
+    - docs/spec/configuration/agent-templates.md
+    - docs/spec/execution/control-plane.md
+    - docs/spec/audits/audits.md
+    - docs/spec/tools/scanners.md
+  reuse: Current descriptor registry, exact ToolsetSelection, CapabilitySnapshot, registration and isBindingCompatible/Runtime validation.
+  revalidated: >-
+    2026-10-24 on b523ae77: still deferred, not superseded; main has no MCP or generic
+    worker.toolsets code or specification. The work remains on the unmerged branch
+    origin/feat/v61-toolset-runtime-configuration (head f6dfd6ed16240574ed3565bc6460f737fd072b49,
+    merge base c41a5989, 18 commits). Main is now 2,850 commits past that merge base and git
+    merge-tree reports 75 conflicting paths (35 at deferral), including modify/delete conflicts on
+    files main removed: docs/spec/01-agent-template.md, 02-runtime-and-a2a.md,
+    06-server-ui-and-operations.md, 07-runtime-labels-and-infrastructure-config.md, 19-audits.md,
+    29-tool-workers.md and ui-user-stories.md (retired for the domain documents by af85cc54),
+    internal/config/descriptors.go (now internal/config/resolved/descriptors.go, c8cbf2e1),
+    internal/contracts/agent.go (now internal/contracts/control/agent.go, ToolsetCapability at line
+    26, 6d277c5c), internal/runtimeconfig/principal.go (Agent principal labels now in
+    internal/agentprincipal, 3ecd3f2f) and
+    api/descriptor-parity/toolset-infrastructure-channels.yaml (replaced by
+    api/testdata/toolset-descriptors.json under TLS-R38, 35f59294). The example in reactivate_when
+    no longer applies: proposal 0033 section 14 says V61 MCP configuration is not a prerequisite of
+    the V411 HTTP/API pentest delivery, its section 4.3 keeps MCP tools out of the controlled-proof
+    path without their own gate, and V411-001 explicitly excludes V61 reactivation, so reactivation
+    needs a user decision that names a concrete MCP consumer. Task-specific: every built-in Toolset
+    is now held to api/testdata/toolset-descriptors.json (TLS-R38), which requires the same exported
+    tools on the Server and Runtime side, so allocation discovery needs a TLS amendment and fixture
+    shape instead of the deleted descriptor-parity file. V398-001 (7be9133f) derives
+    audit-check-results@1 support from each WorkerRuntime factory's declaration, and MCP selection
+    under adk@1 must keep that derivation exact. V380-001 (b8a9e325) made Projects default to
+    automatic active checks with the policy pinned at Audit start, so unknown-effect rejection in
+    internal/auditservice/compatibility.go must hold under automatic as well as approval-required
+    policy. The Runtime import-linter contracts (V366-005, 49a6e22d) require classifying
+    toolsets/mcp in the toolsets layer and adding it to the worker-no-concrete-toolsets forbidden
+    list in runtime/pyproject.toml.
+scope:
+  in:
+    - Register the mcp@1 contract descriptor with required typed configuration, allocation discovery, adk@1 compatibility and a common runtime-http-client channel.
+    - Preserve portable/unique selected names and cross-toolset/reserved-name collision checks while deferring remote membership checks only for declared dynamic descriptors.
+    - Implement typed static/allocation discovery results and wire conversion without remote startup I/O or fabricated tool names.
+    - Update Server and Runtime compatibility checks together, including heterogeneous fleets and missing generic capability diagnostics.
+    - Keep factory output equality/name checks mandatory after preparation and expose dynamic infrastructure channels without per-tool static enumeration.
+    - Classify generic MCP effects as unknown and reject incompatible Audit profiles with a stable compatibility reason using existing admission paths.
+    - Reject generic MCP selection by tool@1 until that execution/result contract is explicitly implemented.
+  out:
+    - Connect to an endpoint, accept wildcard tools, trust MCP annotations as effect authority or automatically enable capabilities for an unfinished production factory.
+    - Rework unrelated capability matching, permit arbitrary descriptor injection or add a new Audit approval workflow.
+deliverables:
+  - path: internal/config/resolved/descriptors.go
+    description: Trusted MCP contract and static/dynamic descriptor validation with exact selected names.
+  - path: internal/controlplane/registry.go
+    description: Allocation-discovery compatibility alongside existing static subset matching.
+  - path: internal/auditservice/compatibility.go
+    description: Explicit unknown-external-effect compatibility reason and regressions for current native policies.
+  - path: runtime/src/contractor_runtime/capabilities.py
+    description: Truthful local discovery snapshots and registration for supported factory modes.
+  - path: runtime/src/contractor_runtime/allocation
+    description: Mirrored compatibility checks and retained exact factory output postconditions.
+requirements:
+  - id: R1
+    text: Allocation discovery must agree with both a trusted Server descriptor and a local factory; an empty native tools array or unrecognized mode never grants arbitrary tools.
+  - id: R2
+    text: An old static-only Runtime is not eligible for mcp@1; unavailable local MCP dependencies suppress its capability without disabling unrelated native tools.
+  - id: R3
+    text: Required configuration is validated in V61-003 and remote membership in V61-006; placement never claims remote readiness merely from a local probe.
+  - id: R4
+    text: Active-check admission is conservative for all generic MCP selections, independent of tool names, descriptions and readOnlyHint-style annotations.
+acceptance_criteria:
+  - id: A1
+    text: Authoring accepts exact MCP tool names under adk@1, rejects invalid/colliding/reserved names and tool@1 selection, and retains all native static membership checks.
+  - id: A2
+    text: Go and Python match the same static/dynamic compatibility matrix, including empty inventories, forged modes, unavailable SDK and a mixed old/new fleet.
+  - id: A3
+    text: Startup probes perform no endpoint network request, advertise no imaginary tools and do not enable MCP until its production implementation is ready.
+  - id: A4
+    text: Generic MCP cannot bypass prohibited/approval-required Audit effect policy; compatibility reasons are safely projected and native Audit fixtures remain valid.
+  - id: A5
+    text: Runtime still rejects a factory that returns extra/missing/mismatched tool names and takes ownership of returned resources before failing validation.
+tests:
+  - command: go test ./internal/config ./internal/contracts ./internal/controlplane ./internal/auditservice ./internal/httpapi/public
+    covers: [A1, A2, A4]
+  - command: cd runtime && uv run --frozen pytest -W error tests/test_capabilities.py tests/test_contracts.py tests/test_allocation.py tests/test_allocation_contracts.py tests/test_tool_worker.py
+    covers: [A1, A2, A3, A5]
+  - command: make test-wire-cross-language verify-public-api
+    covers: [A2, A4]
+verification_requirements:
+  - Use injectable fake dynamic factories for this task; enabling the real MCP factory is owned by V61-006 after lifecycle and ADK integration pass.

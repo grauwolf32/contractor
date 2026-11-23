@@ -1,0 +1,49 @@
+package public
+
+import (
+	"net/http"
+
+	"github.com/grauwolf32/contractor/internal/auditstandards"
+)
+
+type auditStandardPageResponse struct {
+	APIVersion string                             `json:"apiVersion"`
+	Items      []auditstandards.PackageProjection `json:"items"`
+}
+
+type auditStandardResponse struct {
+	APIVersion string                           `json:"apiVersion"`
+	Standard   auditstandards.PackageProjection `json:"standard"`
+}
+
+func (h *auditHandlers) listAuditStandards(w http.ResponseWriter, r *http.Request) error {
+	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		return err
+	}
+	items, err := h.Audits.Standards(r.Context(), principalUserID(r.Context()))
+	if err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, auditStandardPageResponse{
+		APIVersion: "contractor/v1alpha1", Items: items,
+	})
+	return nil
+}
+
+func (h *auditHandlers) getAuditStandard(w http.ResponseWriter, r *http.Request) error {
+	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		return err
+	}
+	standard, err := h.Audits.Standard(
+		r.Context(), principalUserID(r.Context()), auditstandards.Reference{
+			Scheme: r.PathValue("scheme"), Version: r.PathValue("version"),
+		},
+	)
+	if err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, auditStandardResponse{
+		APIVersion: "contractor/v1alpha1", Standard: standard,
+	})
+	return nil
+}

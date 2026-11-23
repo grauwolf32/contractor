@@ -1,0 +1,44 @@
+schema_version: "1.0"
+id: V384-004
+title: Record the Audit baseline wire policy in the kernel importer inventory
+milestone: architecture-layers-2026-10
+epic: quality
+kind: chore
+introduced_by: V380-001
+priority: P2
+status: completed
+implementation_commit: 3095b27c832f5a74f78361b9feb359b95923df25
+depends_on: [V380-001]
+languages: [go]
+goal: Keep the architectural importer inventory consistent with the Audit baseline's published active-check policy contract.
+context:
+  finding: >-
+    internal/auditbaseline/baseline.go:11 adds an internal/contracts import for
+    BaselineSnapshot.ActiveChecks, but internal/archtest/contracts_importers_test.go:33
+    omits auditbaseline from contractsImporters. The complete architecture package
+    fails on main at 90d2c293 before merging Workflow subtask budgets. git blame
+    identifies b8a9e3255d941a9d3ef88aa609f71e193f1a17cb (V380-001) as the introduction.
+scope:
+  in:
+    - Register auditbaseline with the exact ActiveChecksPolicy wire symbol used by its immutable baseline snapshot.
+    - Run the complete architecture package and lint without weakening inventory enforcement.
+  out:
+    - Production code, API behavior, layer boundaries, policy semantics and unrelated importer changes.
+acceptance_criteria:
+  - id: A1
+    text: TestContractsKernelImportersUseWireSymbols passes against all production packages, including auditbaseline's exact retained policy type.
+  - id: A2
+    text: The complete architecture package and lint pass; unlisted importers, stale entries and unused listed symbols remain rejected by the existing regression tests.
+tests:
+  - command: go test -count=1 ./internal/archtest
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A2]
+verification:
+  date: 2026-10-15
+  results:
+    - go test -count=1 ./internal/archtest reproduced the missing importer on main at 90d2c293 before the correction.
+    - go test -count=1 ./internal/archtest passed after recording the baseline's exact ActiveChecksPolicy symbol.
+    - make lint passed after the correction, including layer, importer-source, task and shared-fixture checks.
+  notes:
+    - The existing regression tests still reject unlisted importers, stale inventory entries and listed symbols that are no longer used; no guard or production behavior changed.

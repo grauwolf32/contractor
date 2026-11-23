@@ -1,0 +1,85 @@
+schema_version: "1.0"
+id: V367-010
+title: "Page the private Artifact list and the list_artifacts tool"
+milestone: hub-audit-2026-10
+epic: projects-artifacts
+kind: defect
+introduced_by: V48-002
+priority: P2
+status: completed
+implementation_commit: 9cd58b8669812733da6523dc62ba32d17d1bffd1
+depends_on: []
+languages: [go, python]
+goal: "list_artifacts answers with a bounded page on a Run of any size, and hidden bindings are filtered by the Server before the limit applies."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq), artifacts G1, G2 / F1"
+  specification:
+    - docs/spec/artifacts/artifact-store.md
+    - docs/spec/platform/limits.md
+  finding: >-
+    The unfiltered private List reads the whole scope without LIMIT
+    (artifacts/postgres_read.go:70-105, privateartifacts/artifact_handlers.go:56).
+    The Runtime filters hidden bindings such as http.body.* only after the
+    response arrives (run_artifacts/tools.py:92-97) and rejects responses
+    over 1 MiB (artifacts.py:29, 246-252). About 15,000 HTTP responses with
+    bodies in one Run break list_artifacts entirely. V48-002 fixed the same
+    class only for Memory and kept unfiltered clients unbounded. The tool's
+    docstring promises a revision the versionless list does not return
+    (tools.py:84).
+  decision: >-
+    The paged form of GET /private/v1/allocations/{allocationID}/artifacts
+    (limit, optional namespace and cursor) is always the model-visible
+    listing; there is no separate model-facing switch because
+    run-artifacts@1 list_artifacts is its only caller, and Memory keeps the
+    namePrefix form. limit is now required in both forms and the unbounded
+    listing is removed (no compatibility path, pre-production); LIM-ART-3
+    covers both forms and LIM-ART-5 bounds the opaque cursor. The Server
+    accepts only the exact cursor encoding it issues, bound to the namespace
+    filter. The model-hidden rule is defined once per language
+    (artifactpolicy.IsModelHiddenBinding feeding the SQL exclusion,
+    artifact_visibility.is_model_hidden_binding) and pinned by
+    api/testdata/v1alpha1/artifact-list-cases.json; Python now also treats
+    contractor-system as hidden, which the Server never returned anyway. The
+    Runtime client splits list_artifacts into list_artifact_page and
+    list_artifact_prefix, so Memory changed one call site but its bounded
+    prefix enumeration (V48-002) is unchanged. The list_artifacts tool returns
+    100 refs per page plus nextCursor and rejects a hidden binding from the
+    Server as ArtifactTransportError instead of filtering it. Siblings: the
+    only other caller of the unbounded ScopedStore.List, the audit standards
+    catalog (public API, outside the private API), now reads one bounded page
+    of MaximumPackages; every other binding read (ListPrefix, ReadPrefixBatch,
+    ListMetadata, ListVersions, point reads in scheduler, evalstore, forks and
+    output publication) is already bounded and was ruled out. Accepted cost,
+    recorded in ART-R48: a page is one primary-key range scan from the cursor
+    and hidden rows it passes are filtered, not skipped by index, so rows read
+    per page are bounded by the Run's bindings after the cursor; reopen with a
+    per-Run binding quota or index range skipping if listing latency grows
+    with Run size. Left open: Go artifactpolicy.IsReservedMemoryBinding exempts
+    finding-proposals and contractor-system while Python
+    is_reserved_memory_binding exempts only inputs, outputs and skills (Stage
+    result and config memory reservation, not the listing).
+scope:
+  in:
+    - "The private List takes a limit and an opaque cursor; the Server excludes model-hidden bindings for model-facing listings before applying the limit; a list limit is added to the LIM-ART limits."
+    - "Python client and list_artifacts return one page and a next cursor; the docstring describes the real result."
+    - "Siblings: other unbounded binding reads behind the private API."
+  out:
+    - "Memory's bounded prefix listing (V48-002)."
+acceptance_criteria:
+  - id: A1
+    text: "A PostgreSQL test through the real handler and the Python client lists a Run with 15,000 hidden and 7,000 visible bindings in pages no larger than the limit and under 1 MiB, returning every visible binding exactly once."
+  - id: A2
+    text: "The list_artifacts docstring matches the returned fields."
+tests:
+  - command: make lint
+    covers: [A1, A2]
+  - command: "go test -tags integration ./internal/artifacts ./internal/httpapi/privateartifacts"
+    covers: [A1]
+  - command: "cd runtime && uv run pytest tests -k 'artifacts'"
+    covers: [A1, A2]
+verification:
+  - "go test -tags integration ./internal/artifacts ./internal/httpapi/privateartifacts passed against a disposable PostgreSQL database, including TestPostgresPagedListThroughPythonClientAndTool (15,000 hidden and 7,000 visible bindings; every page within its limit and under 1 MiB; the Python client and list_artifacts each return every visible binding exactly once) and TestPostgresRefPagesExcludeModelHiddenBindingsBeforeTheLimit."
+  - "The A1 test fails without the fix: with the pre-fix unbounded unfiltered listing the Python client raises ArtifactResponseLimitError, and without the storage exclusion list_artifacts raises on a hidden binding."
+  - "The new list_artifacts tests fail against the previous tool (no cursor, hidden bindings filtered client-side, docstring promising a revision)."
+  - "cd runtime && uv run pytest tests -k artifacts: 62 passed; the full Runtime suite passed."
+  - "make lint and make test-wire-cross-language passed; go test for artifactpolicy, contracts, auditstandards, agentskills, scheduler and httpapi/public passed with the database set."

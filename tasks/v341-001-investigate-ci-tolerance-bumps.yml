@@ -1,0 +1,46 @@
+schema_version: '1.0'
+id: V341-001
+title: Investigate tolerances raised to unblock CI
+milestone: review-followups-2026-10-04
+epic: quality
+kind: chore
+introduced_by: V261-001
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python, go]
+goal: Restore tight bounds or justify them with measurements.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: 7ed84493 (V261) raised DEFAULT_FACTORY_PROBE_TIMEOUT_SECONDS from 5 to 12 s (runtime/src/contractor_runtime/capabilities.py:22) and the Trailmark probe from 5 to 10 s (trailmark_host.py:820) and edited spec 02 without finding why probes exceed 5 s on CI; with the 30 s total probe budget only two slow factories now fit. The same commit dropped the idle-plus-confirmed-lease wait in tests/e2e/code_analysis_test.go:218. V253 accepts extra Audit Worker runs whose earlier attempts failed, went missing or were invalid in a deterministic fixture (audit_programs_process_test.go:856,888).
+scope:
+  in:
+    - Measure probe durations on CI.
+    - Restore tight bounds or record the justification.
+    - Restore strict assertions in the deterministic fixture.
+  out:
+    - Changing probe semantics.
+acceptance_criteria:
+  - {id: A1, text: "Probe timeouts are backed by recorded CI measurements."}
+  - {id: A2, text: "The deterministic Audit fixture asserts exact Worker attempts."}
+tests:
+  - {command: "make test-runtime", covers: [A1]}
+  - {command: "make -n release-verify", covers: [A2]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: The 12-second factory timeout and permissive Audit retry assertions are still present; measurements and exact attempt checks remain necessary.
+
+partial_implementation_commit: c28f8cb12352de60d6d55364ae769f7d16fd9f72
+local_verification:
+  date: "2026-10-09"
+  passed:
+    - Deterministic Audit process fixture, 357.29 seconds, exact submitted Run counts 1, 2, 10 and 4 with one accepted attempt per executed item.
+    - Heterogeneous Code Analysis process fixture, 78.24 seconds, both release/reuse boundaries require idle slots and confirmed leases.
+    - Full Runtime suite, 3621 passed and 39 optional skips.
+  remaining:
+    - Successful CI output with factory probe durations, now retained by the process test harness.
+    - Use those CI measurements to justify the current timeouts or reduce them.

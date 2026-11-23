@@ -1,0 +1,37 @@
+{
+  "source_commit": "89083f74db47fcbb837f02cc6a97e55aacd53ae2",
+  "retired_migrations": {
+    "internal/persistence/migrations/000007_finding_optional_task_origin.sql": "a904ba3b5239ef40e9fe03389657e43da03515fc697ddf5a3358c994fb54eb58",
+    "internal/persistence/migrations/000004_llm_cost_fields.sql": "164f2064111e48a88c416602307a6e47d5ef8f1a402800b73b206e7573eb1ec7",
+    "internal/persistence/migrations/000010_audit_receipt_invariants.sql": "d66a0b264f179616009ee482d266539bfc41f868b270b68214092ce143ed59e2",
+    "internal/persistence/migrations/000001_baseline.sql": "f006661601e0a35747e4ac98b41657a9aa819f6dccbaebc4996ab2750cbb5281",
+    "internal/persistence/migrations/000002_execution_origin.sql": "73b7fce2cd14f87b6e22091957ee0bf7e3046c51acb7ea7fed6012da1d722589",
+    "internal/persistence/migrations/000009_audit_partial_results.sql": "7796795351ea298b0ecdb45ba227d5c84dd1d2dc079ce71d510ad497c9c479e3",
+    "internal/persistence/migrations/000008_fact_evidence_correlation.sql": "2dd64c78fd4554c4882574fbc731c63e52bca01694908a69f0f249ffa4544ddf",
+    "internal/persistence/migrations/000005_project_materials_index.sql": "8761ded3a5ea4593dd6b5a15ff268a8d7f5e1e2d97ffa5f3aabd5df661d35948",
+    "internal/persistence/migrations/000003_target_api_keys.sql": "fbf18fcd86aebc3ed29aeca298a38592465b49402213c621942f0b678fc6eaa8",
+    "internal/persistence/migrations/000006_project_material_order.sql": "a887dec357ae289c762c8261c4a1fb84f7a74ab184991fc9022939fb25f93297"
+  },
+  "baseline_sha256": "00efdcd2e53c24e56db52ee3e4c4ff2136b0e29579ae766629634f98cb4e95af",
+  "installed_schema_and_seed_dump_equal": true,
+  "normalization": [
+    "pg_dump random restrict token",
+    "scheduler_settings installation timestamp"
+  ],
+  "first_application": {
+    "time": "2026-11-23T17:39:50.636281+03:00",
+    "level": "INFO",
+    "msg": "database migrations complete",
+    "applied": 1,
+    "current_version": 1
+  },
+  "replay": {
+    "time": "2026-11-23T17:39:50.670242+03:00",
+    "level": "INFO",
+    "msg": "database migrations complete",
+    "applied": 0,
+    "current_version": 1
+  },
+  "retired_ledger_rejected_without_mutation": true,
+  "tables_including_ledger": 61
+}

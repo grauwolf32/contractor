@@ -1,0 +1,353 @@
+{
+  "description": "Boundary cases of the OpenAPI source-document bounds that Server scan preparation (internal/scanplan) the openapi-operations@1 inventory (internal/auditdomain), and the Runtime OpenAPI authoring Toolset openapi@1 all enforce: LIM-SCN-39 UTF-8 source bytes; LIM-SCN-41 depth, with the top-level value at depth 1 and every member name, member value and array element one deeper than its container; and LIM-SCN-42 nodes, counting every object, array, scalar and member name. Each case is generated at test time in both formats, so no large payload is checked in. A document is the format's prefix followed, in this order and only when the case sets them, by x-deep (deep.depth - 2 nested one-member objects {\"a\": ...} or arrays around the number 0, so the 0 is at deep.depth), x-items (an array of elements zeros), x-keys (an object of members members k000000, k000001, ..., each 0) and x-pad (a string of pad.fill repeated, then completed with a, so the document has exactly pad.bytes bytes). JSON is compact; YAML uses block mappings and sequences with two-space indentation and a flow sequence for nested arrays. sha256 pins each generated document so all readers test identical bytes; nodes and depth describe the document; violation names the one bound a rejected document exceeds and is null for an accepted one. String cases replace the prefix with one /bounds GET operation and response 200 description ok; kind value adds operation description of a repeated bytes times, kind name adds operation member x- followed by bytes-2 a characters with value 0, kind path replaces /bounds with / followed by bytes-1 a characters, and kind operationId adds that display field with bytes a characters. JSON is compact. YAML uses the same info mapping, explicit quoted path keys, get and responses block mappings, single-quoted 200, double-quoted string values, and an explicit quoted key for kind name. Verdicts describe source decoding, not consumer readiness: the 65,537-byte path is accepted by every source decoder and by inventory, while the authoring loader keeps its separate 2,048-character path-readiness rejection without writes.",
+  "bounds": {
+    "sourceBytes": 2097152,
+    "depth": 64,
+    "nodes": 100000
+  },
+  "prefix": {
+    "json": "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Bounds\",\"version\":\"1.0.0\"},\"paths\":{}",
+    "yaml": "openapi: 3.0.3\ninfo:\n  title: Bounds\n  version: 1.0.0\npaths: {}\n"
+  },
+  "cases": [
+    {
+      "name": "bytes-at-limit",
+      "pad": {
+        "bytes": 2097152,
+        "fill": "a"
+      },
+      "nodes": 13,
+      "depth": 3,
+      "violation": null,
+      "sha256": {
+        "json": "ce6a16287279bc8940efb0b31c3f6bc33261a9cd4a69f8bb3665515a6078ff7e",
+        "yaml": "6f61b9735a9186e42d53b1d34a73d0abd374346269436160b7a5db3a1912a28d"
+      }
+    },
+    {
+      "name": "bytes-over-limit",
+      "pad": {
+        "bytes": 2097153,
+        "fill": "a"
+      },
+      "nodes": 13,
+      "depth": 3,
+      "violation": "bytes",
+      "sha256": {
+        "json": "59e52fea81bc18a7853b97537859163dd20772c230e3192d1b731417c46dde41",
+        "yaml": "4b47db6917090e86ceb67021f934f839b392641f15fc133ee8bb8f7b16660563"
+      }
+    },
+    {
+      "name": "bytes-reproduced-3MiB",
+      "pad": {
+        "bytes": 3145826,
+        "fill": "a"
+      },
+      "nodes": 13,
+      "depth": 3,
+      "violation": "bytes",
+      "sha256": {
+        "json": "81a35405c9316308d9217d15b0d8fdd2c56b575e5f683dcb87b30ea4585db286",
+        "yaml": "23e4f26011b2c4809f5096b7cef2ffd29638411e7fdf5819c63411dff4eac448"
+      }
+    },
+    {
+      "name": "bytes-multibyte-at-limit",
+      "pad": {
+        "bytes": 2097152,
+        "fill": "é"
+      },
+      "nodes": 13,
+      "depth": 3,
+      "violation": null,
+      "sha256": {
+        "json": "8901b57f81b6c7f5db72a176ce5e3bda600a7d7ffcdb0eaabc54f1c899964cf1",
+        "yaml": "704613a11a9016212b9390733bb55b84ba4a4a56791fbd1dfd3f48dc5cf3ae7a"
+      }
+    },
+    {
+      "name": "bytes-multibyte-over-limit",
+      "pad": {
+        "bytes": 2097153,
+        "fill": "é"
+      },
+      "nodes": 13,
+      "depth": 3,
+      "violation": "bytes",
+      "sha256": {
+        "json": "5b358a9980346448db4ad875630e507874cf9120eb19403040a65daad6d106b5",
+        "yaml": "252598b72e7a83e8178c08916653a63fd1ea364dc27597ff9f00606aad65b34d"
+      }
+    },
+    {
+      "name": "depth-mappings-at-limit",
+      "deep": {
+        "kind": "mapping",
+        "depth": 64
+      },
+      "nodes": 137,
+      "depth": 64,
+      "violation": null,
+      "sha256": {
+        "json": "b4e80a2e3b5df93bafb57f42ca5926d361d5f8a6bbf82b026f34b5964f2c4379",
+        "yaml": "0a88e89448ee6d9761c800754466507c7882be107c31e03eb737a78a4d7be9b3"
+      }
+    },
+    {
+      "name": "depth-mappings-over-limit",
+      "deep": {
+        "kind": "mapping",
+        "depth": 65
+      },
+      "nodes": 139,
+      "depth": 65,
+      "violation": "depth",
+      "sha256": {
+        "json": "7d3b2b37a76f60e13f3a9aaa97d23e8c60e8e24830c7ec7f2f67da00dc3be943",
+        "yaml": "53e0c23adeecac1bbda9065b49ee6e9a6556e5e1fc39bfa7bfcb9d7c00e852b9"
+      }
+    },
+    {
+      "name": "depth-sequences-at-limit",
+      "deep": {
+        "kind": "sequence",
+        "depth": 64
+      },
+      "nodes": 75,
+      "depth": 64,
+      "violation": null,
+      "sha256": {
+        "json": "e5d90696d039f57917509c62ca2ab65cf0ed79fb2d315de80b7167bc243e51fa",
+        "yaml": "3553b3699bed330671a8437fb7bf3ba7d4e12135245d08c3aeda119cfcd09467"
+      }
+    },
+    {
+      "name": "depth-sequences-over-limit",
+      "deep": {
+        "kind": "sequence",
+        "depth": 65
+      },
+      "nodes": 76,
+      "depth": 65,
+      "violation": "depth",
+      "sha256": {
+        "json": "15e7718afa357d3e956820e41d62df95e776025990412f90041e8141a12e82fc",
+        "yaml": "c44a6ffc49776a4337c08f21f3d781a6755447f69b4dc57f0631bd2e35647f1c"
+      }
+    },
+    {
+      "name": "nodes-values-at-limit",
+      "elements": 99987,
+      "nodes": 100000,
+      "depth": 3,
+      "violation": null,
+      "sha256": {
+        "json": "896ad0f673499bc497512ff069027bd575eb4aaab82593858d5b239aba138a6b",
+        "yaml": "e91d579a91642b71e88607d7cfe04d767797cfabc92cf963ca575d45e37f8528"
+      }
+    },
+    {
+      "name": "nodes-values-over-limit",
+      "elements": 99988,
+      "nodes": 100001,
+      "depth": 3,
+      "violation": "nodes",
+      "sha256": {
+        "json": "3653435496cae5a322386cb9a31a0783a804817ae614d31380f816268dc31c14",
+        "yaml": "7b67db6b6a3558566ce328e8d5011aec92052df53ef22f20366a6507b83a7f76"
+      }
+    },
+    {
+      "name": "nodes-keys-at-limit",
+      "members": 49992,
+      "elements": 1,
+      "nodes": 100000,
+      "depth": 3,
+      "violation": null,
+      "sha256": {
+        "json": "945f31224731f37705dd8a3e0a0eb964139766579dcde42ee2f9a7fb42eba441",
+        "yaml": "74d6a9d03e5876f2a1854ea1a1b8823d150a8bc85bbad29afe2eba090533ba26"
+      }
+    },
+    {
+      "name": "nodes-keys-over-limit",
+      "members": 49994,
+      "nodes": 100001,
+      "depth": 3,
+      "violation": "nodes",
+      "sha256": {
+        "json": "68bd11fc12ebbb408ae849c6684ed7094a42c35e5e8e28d10567b7fea0851e0e",
+        "yaml": "fc30e6fcf5590115ffd8634a284edea89137310ac04edd04f17669b4160a0f7d"
+      }
+    },
+    {
+      "name": "string-value-65536",
+      "string": {
+        "kind": "value",
+        "bytes": 65536
+      },
+      "violation": null,
+      "sha256": {
+        "json": "064f043e7994c89ec02a4316d428bea812c2e7e73392d1012e4a95e5929f1cb8",
+        "yaml": "94f20a81a35bdc30b1aebda87767313ae5b85cc1df6915278a94f0847affb729"
+      },
+      "nodes": 23,
+      "depth": 7
+    },
+    {
+      "name": "string-value-65537",
+      "string": {
+        "kind": "value",
+        "bytes": 65537
+      },
+      "violation": null,
+      "sha256": {
+        "json": "f7ed0001a3fcd7e96f8e7cc46430513def0e72711f42a0532a75aa2debaf8eea",
+        "yaml": "84d4f9e18984d2073de17175dc66ae3f44d50c2ca5f823e61b04c18453ffa84b"
+      },
+      "nodes": 23,
+      "depth": 7
+    },
+    {
+      "name": "string-value-65538",
+      "string": {
+        "kind": "value",
+        "bytes": 65538
+      },
+      "violation": null,
+      "sha256": {
+        "json": "e9bb2457ad9220009bb31c480f712d1aa5c5424df345fb874927603541257f9d",
+        "yaml": "b1454f6f7f7c4222167bd3e6f734c3ecf8055cb01fc44855c15fefd742520a69"
+      },
+      "nodes": 23,
+      "depth": 7
+    },
+    {
+      "name": "string-value-2096896",
+      "string": {
+        "kind": "value",
+        "bytes": 2096896
+      },
+      "violation": null,
+      "sha256": {
+        "json": "d36ecfa00cde1362cb1d535978faa89c89b18be12f3cccb1ceaea9c3197b07e6",
+        "yaml": "8af421128fa3446013b5415f579ceda85a9966f993615ff6cb53005b788099e1"
+      },
+      "nodes": 23,
+      "depth": 7
+    },
+    {
+      "name": "string-name-65536",
+      "string": {
+        "kind": "name",
+        "bytes": 65536
+      },
+      "violation": null,
+      "sha256": {
+        "json": "b9b095b6c2831d18ff462116fe9a62e6fbeaab4a9db68b2564b47c760d11007d",
+        "yaml": "483874cebf1c0c51510581990ab0aab0de1dd2a0466046954d77e8bd54cc79d9"
+      },
+      "nodes": 23,
+      "depth": 7
+    },
+    {
+      "name": "string-name-65537",
+      "string": {
+        "kind": "name",
+        "bytes": 65537
+      },
+      "violation": null,
+      "sha256": {
+        "json": "7ac5509c1d25b6689e9523051b9e3db5747586d3c35a499b8b612ed5123d3ea0",
+        "yaml": "7a8b447c6e34baf4442b3138cb04ab2b2d411406d0c5082e6d0d033a31a5f481"
+      },
+      "nodes": 23,
+      "depth": 7
+    },
+    {
+      "name": "string-name-65538",
+      "string": {
+        "kind": "name",
+        "bytes": 65538
+      },
+      "violation": null,
+      "sha256": {
+        "json": "363dd3ece1f33a21cd1c68cb3ab2febb3ff46ed02e48d2acdf127bc1f63f7267",
+        "yaml": "7310372c425afe14a673d5e9e87bb49372056728964d653a3dab3e929b1b8aa1"
+      },
+      "nodes": 23,
+      "depth": 7
+    },
+    {
+      "name": "string-name-2096896",
+      "string": {
+        "kind": "name",
+        "bytes": 2096896
+      },
+      "violation": null,
+      "sha256": {
+        "json": "6a4bca230cecbf5b5352c0946deef2c11e89d1a179776454d4ea23dde91210dc",
+        "yaml": "55f8f0e88a01a8abfd818d250a7bfb6c322f2f2dcb2186a5795b0635b141b70b"
+      },
+      "nodes": 23,
+      "depth": 7
+    },
+    {
+      "name": "string-path-512",
+      "string": {
+        "kind": "path",
+        "bytes": 512
+      },
+      "violation": null,
+      "sha256": {
+        "json": "9b03b2d7348760beaa2e5a22b97c393be23a330c2535d6ad5dfab923453ba537",
+        "yaml": "f4ad4a58505ea0a845cede77fa6eb1ff44d17d9812e6d2ed6de9c9a397bd7280"
+      },
+      "nodes": 21,
+      "depth": 7
+    },
+    {
+      "name": "string-path-513",
+      "string": {
+        "kind": "path",
+        "bytes": 513
+      },
+      "violation": null,
+      "sha256": {
+        "json": "c8850b2a2fcee10fd98db9c1061fbedaf813780375b8864c2427ba1f850306e8",
+        "yaml": "eb2e05c74dfdad916727c540f4cd720612fe5e283ed2dfd1bd6d69b440f211c3"
+      },
+      "nodes": 21,
+      "depth": 7
+    },
+    {
+      "name": "string-path-65537",
+      "string": {
+        "kind": "path",
+        "bytes": 65537
+      },
+      "violation": null,
+      "sha256": {
+        "json": "44817dae4b6896d27d1c3d4c15a40728f00523098078b865441699c8ba94c650",
+        "yaml": "9e862dea3f1fa1de030ef1563c9a9ce476760295c341e40af4d7baa4bc069ab5"
+      },
+      "nodes": 21,
+      "depth": 7
+    },
+    {
+      "name": "string-operationId-65537",
+      "string": {
+        "kind": "operationId",
+        "bytes": 65537
+      },
+      "violation": null,
+      "sha256": {
+        "json": "65a802cbf382ea2aa3de9e89d3d643d8c892b85f8ca55414deb44bb0951b83cc",
+        "yaml": "b68b15c54d1e2818cf62c90db346d7e33b14d53e342d8ca34ef81622bfd9ab1d"
+      },
+      "nodes": 23,
+      "depth": 7
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "description": "One strong entity tag as the Server and the Runtime read and write it (API-R70, ART-R45): DQUOTE, one or more visible ASCII characters other than a double quote, a backslash or a comma, DQUOTE, carrying the revision verbatim. valid pairs each header value with the revision it carries and the Runtime renders that revision as exactly that header; invalidHeaders are not one such tag; invalidRevisions cannot be carried as one.",
+  "valid": [
+    {
+      "header": "\"7\"",
+      "revision": "7"
+    },
+    {
+      "header": "\"rev_01JC8Z3M2Q\"",
+      "revision": "rev_01JC8Z3M2Q"
+    },
+    {
+      "header": "\"2:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"",
+      "revision": "2:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "header": "\"!#$%&'()*+-./09:;<=>?@AZ[]^_`az{|}~\"",
+      "revision": "!#$%&'()*+-./09:;<=>?@AZ[]^_`az{|}~"
+    },
+    {
+      "header": "\"rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr\"",
+      "revision": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+    }
+  ],
+  "invalidHeaders": [
+    "",
+    "\"",
+    "\"\"",
+    "7",
+    "*",
+    "'7'",
+    "`7`",
+    "W/\"7\"",
+    "w/\"7\"",
+    "\"7\", \"8\"",
+    "\"7\",\"8\"",
+    "\"7,8\"",
+    "\"\\x37\"",
+    "\"\\067\"",
+    "\"\\u0037\"",
+    "\"\\U00000037\"",
+    "\"a\\\"b\"",
+    "\"7\\\"",
+    "\"\\\\\"",
+    "\"\\\"",
+    " \"7\"",
+    "\"7\" ",
+    "\t\"7\"",
+    "\"7\"x",
+    "\"7\"8\"",
+    "\"7 8\"",
+    "\"7\t8\"",
+    "\"7\u007f\"",
+    "\"7\u0000\"",
+    "\"\u00e9\"",
+    "\"\u043e\u0442\u0447\u0435\u0442\""
+  ],
+  "invalidRevisions": [
+    "",
+    " ",
+    "7 8",
+    " 7",
+    "7 ",
+    "a\"b",
+    "a\\b",
+    "a,b",
+    "7\t",
+    "7\n",
+    "7\u007f",
+    "\u0000",
+    "\u00e9"
+  ]
+}

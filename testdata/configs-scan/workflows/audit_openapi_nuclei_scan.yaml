@@ -1,0 +1,140 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata:
+  name: audit-openapi-nuclei-scan
+  version: '1'
+spec:
+  parameters:
+    credential_id:
+      required: false
+    template_ids:
+      required: true
+    tags:
+      required: true
+    severity:
+      required: true
+    server:
+      required: true
+    operations:
+      required: true
+  inputs:
+    engagement:
+      required: true
+      mediaTypes:
+      - application/vnd.contractor.engagement+json
+    openapi:
+      required: true
+      mediaTypes:
+      - application/json
+      - application/yaml
+    operation:
+      required: true
+      mediaTypes:
+      - application/json
+    request_values:
+      required: false
+      mediaTypes:
+      - application/json
+  outputs: {}
+  entryStage: scan
+  stages:
+    scan:
+      objective: Check the fixed OpenAPI URL with the pinned Nuclei template selection
+      instructions:
+        ref: instructions/audit-openapi-scan.md
+      planner: scan-plan@1
+      scanPlan:
+        inputArtifact: openapi
+        maxInputs: 1
+        maxJobs: 1
+        maxTotalSeconds: 300
+        tools:
+        - worker: scanner
+          maxJobs: 1
+          maxTotalSeconds: 300
+      agents:
+        scanner:
+          template: audit-nuclei-scan@1
+      context:
+        artifacts:
+          openapi:
+            namespace: inputs
+            name: openapi
+            required: true
+          operation:
+            namespace: inputs
+            name: operation
+            required: true
+          request_values:
+            namespace: inputs
+            name: request_values
+            required: false
+      result:
+        artifacts:
+          report:
+            required: true
+            mediaTypes:
+            - application/json
+            from:
+              namespace: scan-results
+              name: operation-report
+          materials:
+            required: true
+            mediaTypes:
+            - application/json
+            from:
+              namespace: scan-results
+              name: finding-materials
+      'on':
+        succeeded:
+          next: publish
+        failed:
+          next: publish-partial
+        interrupted:
+          next: publish-partial
+      scanPreparation:
+        scanner: nuclei
+        unknownOutcome: retain-gap
+        kind: openapi-operation
+        operationArtifact: operation
+        valuesArtifact: request_values
+    publish:
+      operation:
+        ref: publish-findings@1
+        arguments: {}
+      context:
+        artifacts:
+          materials:
+            namespace: scan-results
+            name: finding-materials
+            required: true
+      result:
+        artifacts: {}
+      'on':
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}
+      objective: Publish the selected evidenced assertions as Project Findings.
+    publish-partial:
+      operation:
+        ref: publish-findings@1
+        arguments: {}
+      context:
+        artifacts:
+          materials:
+            namespace: scan-results
+            name: finding-materials
+            required: true
+      result:
+        artifacts: {}
+      'on':
+        succeeded:
+          fail: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}
+      objective: Publish complete scanner assertions while preserving scan failure.

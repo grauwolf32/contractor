@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "task": "V421-010",
+  "status": "paused_by_user",
+  "source_revision": "485d0e09190902ffc201df97a50ac3eea86bd414",
+  "branch": "codex/data-model-review-tasks",
+  "implementation_complete": [
+    "V421-001",
+    "V421-002",
+    "V421-003",
+    "V421-004",
+    "V421-005",
+    "V421-006",
+    "V421-007",
+    "V421-008",
+    "V421-009",
+    "V421-011",
+    "V421-012"
+  ],
+  "focused_checks": [
+    {
+      "command": "make verify-public-api verify-public-api-postgres",
+      "exit_code": 0,
+      "log_path": "/private/tmp/v421-010-public-api.log",
+      "log_sha256": "6296d066d387ce0ca7a2a20e50848d038a206757e347f0c52c10dc73e6c4301f"
+    },
+    {
+      "command": "make ui-verify ui-browser-mocked",
+      "exit_code": 0,
+      "log_path": "/private/tmp/v421-010-ui.log",
+      "log_sha256": "6962a3e14d71bbece3aead2c6834f492e114cdd3ba49b6419358afc79dbb7c90"
+    }
+  ],
+  "ui": {
+    "files_passed": 204,
+    "tests_passed": 2510,
+    "expected_failures": 1,
+    "server_tests_passed": 17,
+    "browser_tests_passed": 109
+  },
+  "linux_release": {
+    "status": "cancelled_by_user",
+    "revision": "485d0e09190902ffc201df97a50ac3eea86bd414",
+    "setup_exit_code": 0,
+    "gate_exit_code": 130,
+    "gate_elapsed_seconds": 41.885,
+    "source_clean": true,
+    "source_revision_unchanged": true,
+    "owned_processes_remaining": [],
+    "freeze_attempt": "/private/tmp/v421-final-capture-485d0e09-a1",
+    "release_attempt": "/private/tmp/v421-final-release-485d0e09-a1",
+    "frozen_checkout": "/work/v421-integrated-final-485d0e09-a1",
+    "infrastructure_retained": true,
+    "exit_commands_started": false,
+    "setup.log_sha256": "fc5de1720f1a8fba3bbb35a591005f9b8d56391d2ccaf498acbfcb2bf908b996",
+    "gate.log_sha256": "5e984938086df19a7cff2a5a139ebf6b31a8e92df6933a107294da753f3ea495"
+  },
+  "observed_environment_issue": "Early lint encountered an uncached github.com/go-openapi/jsonpointer@v1.0.0 dependency and proxy.golang.org DNS failure. No repair/retry was attempted after the user pause.",
+  "release_pass_claimed": false,
+  "remaining_work": [
+    "Resume only on explicit user instruction.",
+    "Verify current code/main state, prepare a fresh clean integrated source pin and restore/prove dependency DNS or exact module cache in the owned Linux runner.",
+    "Run the complete deterministic release gate, direct exit commands and required evidence validators; close V421-010 only after every required result passes."
+  ],
+  "preserved_infrastructure": "Owned Linux checkout, PostgreSQL volume/network and evidence remain; all owned setup/gate processes have joined.",
+  "merge_status": "All changes committed on the feature branch; not merged into main."
+}

@@ -1,0 +1,273 @@
+schema_version: "1.0"
+id: V414-017
+title: "Reject the NUL escape in Eval JSON so stored documents never break jsonb reads"
+milestone: review-v407-v409-followups-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-006
+priority: P1
+status: completed
+depends_on: []
+languages: [go, sql]
+goal: >-
+  Every Eval JSON document that contains a \u0000 escape is rejected with 422 eval_invalid before
+  side effects, so no stored Eval document can make a later jsonb read fail, and the owner's
+  experiment list and the comparison report stay readable.
+context:
+  review: >-
+    tasks/done/v407-029-eval-reads-plan-metadata.yml, note "Siblings of the NUL class ... A follow-up
+    task should decide whether Eval writes reject the escape or these reads avoid jsonb"; the
+    comparison page it also listed was rewritten without a cast by
+    tasks/done/v409-014-eval-comparison-and-recovery-queries.yml.
+  specification:
+    - docs/spec/evals/format.md#EVF-R15
+    - docs/spec/evals/format.md#EVF-R16
+    - docs/spec/evals/managed-evals.md#EVM-R51
+    - docs/spec/evals/managed-evals.md#EVM-R217
+    - docs/spec/evals/managed-evals.md#EVM-R245
+    - docs/spec/platform/persistence.md#PER-R32
+  severity: high
+  finding: >-
+    evaldomain.StrictJSON (internal/evaldomain/json.go:32-48) rejects lone surrogates through
+    strictjson.ValidUnicodeEscapes (internal/strictjson/strictjson.go:120-149) but accepts \u0000,
+    and evaldomain.Freeze stores the submitted bytes unchanged in bytea columns. PostgreSQL rejects
+    that escape in any jsonb cast with 22P05. Readers that cast stored Eval text to jsonb:
+    internal/evalstore/public_read_sql.go:42 (setup or draft) and :43 (view summary), the statement
+    behind Store.SummaryPage, which lists every experiment of the owner when projectId is empty;
+    internal/evalstore/report_sources_sql.go:17-18 (view pair documents) and :22 (selected result
+    and assessment records), behind Store.ViewSources and the comparison report
+    (internal/evalservice/selected_views.go:167-195).
+    Reproduction (temporary integration test on PostgreSQL 17, removed): the shared fixture
+    create-workflow.json with "parameters": {"note": "x\u0000y"} on variant a passes
+    evaldomain.Freeze and Store.Create; Store.SummaryPage for the owner then fails with
+    "ERROR: unsupported Unicode escape sequence (SQLSTATE 22P05)". internal/httpapi/public/errors.go:22-33
+    answers that unclassified error as the retryable 500 internal_error, so the owner's whole
+    experiment list stays broken on every retry until the experiment is deleted.
+    Write-side sibling, reproduced the same way: dataset.json with "name": "Trace\u0000examples" passes
+    Freeze, and Store.PutDataset fails at the INSERT into the jsonb metadata column
+    (internal/evalstore/datasets.go:29) with 22P05, again a retryable 500 instead of 422.
+    docs/spec/platform/persistence.md (backfill hazards under PER-R32) and migrations 000035 and
+    000038 already state that Eval free strings may hold the escape and rewrite it in backfills;
+    production reads were never aligned.
+  siblings: >-
+    Eval documents stored as bytea from Freeze output or server encoding: eval_experiments.draft,
+    eval_frozen_plans.document and setup, eval_dataset_revisions.document, eval_members.recipe,
+    eval_plan_resources.document, eval_records.document, eval_member_projections.document and
+    observed_document, eval_projection_queue.summary and suites, eval_view_pairs.document,
+    eval_view_charts.document, eval_suboperations.request and response, eval_mutation_receipts.response.
+    jsonb columns written from documents: eval_dataset_revisions.metadata (fails at write, above);
+    eval_experiments/eval_commands.diagnostic hold only a code and recovery (service.go:75-79);
+    eval_progress_observations.counts holds numbers. Server-assembled strings in member and execution
+    views are fixed English reasons (internal/evalservice/member_view.go:32-70,
+    preflight_cases.go:67-69), so every free string that can carry the escape comes from an accepted
+    Eval input: drafts, datasets, registrations, results, assessments, selections and private checks
+    (native_checks.go:56). Already correct: the member and pair pages read typed columns since
+    V409-014 (EVM-R245); migrations 000035 and 000038 rewrite the escape before their casts. Outside
+    Eval: Audit and finding stores cast only request parameters to jsonb, so a NUL escape there fails
+    at write and is never stored; record their unclassified 500 in the exit task V414-027 rather than here.
+    Shared fixture in conflict with strict write: api/testdata/evals/readiness-cases.json case
+    escaped-pin-values (line 581) states "a NUL escape anywhere in the plan ... is accepted" and is read
+    by internal/evaldomain/readiness_test.go, internal/evalstore/readiness_postgres_test.go and
+    internal/persistence/postgres/eval_plan_readiness_migration_test.go; V407-029 recorded that
+    acceptance. The migration test seeds pre-fix rows and may keep NUL values for the backfill.
+  provenance: >-
+    git log -S on the casts: report_sources_sql.go came from 9fc021501ce34389ecc7f35ca65bdf7959a25ce9
+    (V38-006, "complete attributed assessment and selected comparisons"; also listed by V409-014);
+    the summary and setup casts of SummaryPage came from 98ad7b8184c8396b1f65db02a6cc85affa8abea3
+    ("add native setup, comparison review and deterministic release gate"), which no task file
+    records; both were moved unchanged by 16b29c9f (V365-003). StrictJSON's acceptance of \u0000 dates
+    from the V38-002 codecs. V38-006 is the earliest mapped origin of a production cast.
+  decision: >-
+    Chosen: strict write. evaldomain.StrictJSON rejects any \u0000 escape (as it rejects lone
+    surrogates), which makes "a schema the document was validated against excludes it" true for
+    every Eval document and keeps reader SQL simple. This reverses the V407-029 statement that a
+    plan may carry a NUL escape anywhere; the portable format is Contractor's own (EVF) and has no
+    external users yet (pre-production). Alternative: never cast stored text to jsonb in
+    production reads (decode setup, summary and sources in Go or store typed columns); it tolerates
+    the escape but leaves the dataset metadata write failing and keeps a hazard that every new reader
+    must remember. Reverse the choice if the portable format must carry U+0000 in a free string
+    (an EVF change) - then remove every production cast instead. Rows stored before the fix are not
+    repaired (pre-production, AGENTS section 2): before the next demo deployment run the documented
+    detection query over the bytea columns above and record the result in the release manifest;
+    reopen with a data migration only if it finds a row.
+scope:
+  in:
+    - "Reject \\u0000 in every Eval JSON string (keys and values) in evaldomain.StrictJSON, mapped to
+      422 eval_invalid with no receipt and no side effect, on every public Eval write that freezes
+      or strictly decodes a document."
+    - "Add api/testdata/evals/invalid/nul-escape.json (and its cases.json row) beside lone-surrogate.json
+      so every codec that consumes the shared cases rejects it."
+    - "Rewrite the readiness-cases.json escaped-pin-values case: drop the NUL parts from the accepted
+      plan (keep backslash, non-ASCII, surrogate-pair and quote spellings) and add a rejected case for
+      a NUL in a plan; keep NUL rows only in the 000035 backfill test, which seeds pre-fix data."
+    - "State the rule in EVF-R15/EVF-R16 or a new EVF requirement, in EVM-R51, and point the
+      persistence backfill hazard at it."
+    - "Real PostgreSQL regressions: the experiment create, draft update, dataset, result and
+      assessment writes reject the escape with 422; the owner list and the report read stay 200 for
+      every other document."
+    - "Add a test that lists every production Eval statement casting a stored column to jsonb, so a new
+      cast is a visible decision."
+  out:
+    - "Repairing rows stored before the fix (see decision)."
+    - "Audit, finding and other non-Eval stores, which fail at write without storing the escape."
+    - "The comparison member and pair pages, already cast-free (V409-014)."
+failure_outcomes:
+  - operation: "Public Eval write whose document holds \\u0000"
+    permanent: "422 eval_invalid before side effects; no mutation receipt, so the same key with a
+      corrected body is a new request."
+    retryable: "none"
+    ambiguous: "not applicable: nothing is written"
+    cancelled: "not applicable"
+    timeout: "not applicable"
+  - operation: "Experiment list and comparison report reads"
+    permanent: "unchanged classified errors only; no unclassified 22P05 from a stored document"
+    retryable: "503 storage_transaction_conflict as before"
+    ambiguous: "not applicable (read)"
+    cancelled: "request context cancellation as before"
+    timeout: "operation budget as before"
+acceptance_criteria:
+  - id: A1
+    given: "A CreateExperiment, draft update, DatasetInput, ResultInput or AssessmentInput body whose
+      free string or key holds \\u0000"
+    when: "it is sent through the public API on PostgreSQL"
+    then: "the answer is 422 eval_invalid and no row or receipt is written"
+  - id: A2
+    given: "The shared invalid fixture nul-escape.json"
+    when: "every consumer of api/testdata/evals/cases.json runs"
+    then: "each rejects it with the same outcome as lone-surrogate.json"
+  - id: A3
+    given: "An owner with experiments, selected views and records built from valid documents"
+    when: "the experiment list without projectId and the comparison report are read"
+    then: "both answer 200; the guard test names every remaining production jsonb cast of a stored
+      Eval column"
+  - id: A4
+    given: "The unfixed code"
+    when: "the regression tests run"
+    then: "the create test stores the escape and the list read fails with 22P05 (500), and the dataset
+      test gets 22P05 at write"
+tests:
+  - command: "go test -count=1 ./internal/evaldomain/... ./internal/strictjson/..."
+    covers: [A2, A4]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1
+      ./internal/evalstore/... ./internal/evalservice/... ./internal/httpapi/public/...
+      ./internal/persistence/postgres/..."
+    covers: [A1, A3, A4]
+  - command: "go test -count=1 ./internal/persistence"
+    covers: [A3]
+  - command: make test-wire-cross-language
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+implementation_commit: 35d1180344a4a3371c399d708739abdbacec086c
+decisions:
+  - >-
+    Strict write as context.decision chose: evaldomain.StrictJSON rejects \u0000 in any string or
+    member name through the shared strictjson.HasNULEscape (an escaped backslash before "u0000" is
+    text and stays valid), next to the lone-surrogate check, so every public Eval write (all go
+    through evalBody: Freeze, then IdentifyMutation, then the store) answers 422 eval_invalid before
+    the store is called and records no receipt. Stated as EVF-R236, listed in EVM-R51, and the
+    PER-R32 backfill hazard points at it.
+  - >-
+    The json@1 native check of a Run output does not take the new rule: it now calls
+    evaldomain.StrictOutputJSON, StrictJSON without the NUL rule. An output is an artifact that no
+    Eval document embeds and no Eval read casts, and nativePolicyV1SHA256 pins the verdicts json@1
+    gave, so changing them would have needed a new pin and made every pinned experiment's check
+    unavailable. Evidence: TestEvalNativeStructuralChecksAndPinnedFailures gains a NUL output that
+    still passes json@1. Reopen if json@1 outputs are ever stored or cast as Eval documents.
+  - >-
+    Server-built Eval documents (projections, readiness, suboperation requests and responses,
+    native results and assessments) are now held to the same rule by Validate. Ruled out as a new
+    failure path: their free strings come from accepted Eval inputs, from PostgreSQL text columns
+    (which cannot hold U+0000) or are fixed English reasons (member_view.go, native check reasons).
+  - >-
+    Shared fixture shape: readiness-cases.json keeps escaped-pin-values without NULs (backslash,
+    the escape text "\u0000" as six characters against its \u005c spelling, e-acute, a surrogate
+    pair, a quote, a doubled backslash and an absent text) and adds nul-escape-in-plan with
+    errorCode eval_invalid and backfillReadiness, the readiness migration 000035 derives for that
+    plan stored before the rule. evaldomain checks Freeze rejects it and that NativeReadiness of the
+    stored bytes equals backfillReadiness; evalstore checks Freeze rejects it; the 000035 migration
+    test seeds it as a pre-rule row and checks the backfill. NUL rows remain only in migration tests.
+  - >-
+    The cast guard is TestEvalSQLCastsStoredValuesToJSONBOnlyWhereListed in internal/persistence: it
+    scans the SQL of every Go package (string literals and constant concatenations, as the
+    ownership scan reads them), counts casts to json or jsonb of anything but a string constant or a
+    bind parameter in declarations that read a table internal/evalstore owns, and requires exactly
+    summaryPageSQL (2 casts) and viewSourcesSQL (3 casts). Migration backfills are not production
+    reads and are not scanned; the baseline has no trigger or function that casts an Eval document,
+    and the 000035 and 000038 backfills rewrite the escape before their casts.
+  - >-
+    Rows stored before the fix are not repaired (context.decision). Before the next demo deployment
+    run detection_query and record its result in the release manifest; reopen with a data migration
+    only if it returns a row. eval_mutation_receipts named in context.siblings is now
+    mutation_receipts with key_scope[1] = 'eval' (migration 000013).
+detection_query: |-
+    WITH stored(source, document) AS (
+      SELECT 'eval_experiments.draft', draft FROM eval_experiments WHERE draft IS NOT NULL
+      UNION ALL SELECT 'eval_frozen_plans.document', document FROM eval_frozen_plans
+      UNION ALL SELECT 'eval_frozen_plans.setup', setup FROM eval_frozen_plans
+      UNION ALL SELECT 'eval_dataset_revisions.document', document FROM eval_dataset_revisions
+      UNION ALL SELECT 'eval_members.recipe', recipe FROM eval_members
+      UNION ALL SELECT 'eval_plan_resources.document', document FROM eval_plan_resources
+      UNION ALL SELECT 'eval_records.document', document FROM eval_records
+      UNION ALL SELECT 'eval_member_projections.document', document FROM eval_member_projections WHERE document IS NOT NULL
+      UNION ALL SELECT 'eval_member_projections.observed_document', observed_document FROM eval_member_projections WHERE observed_document IS NOT NULL
+      UNION ALL SELECT 'eval_projection_queue.summary', summary FROM eval_projection_queue WHERE summary IS NOT NULL
+      UNION ALL SELECT 'eval_projection_queue.suites', suites FROM eval_projection_queue WHERE suites IS NOT NULL
+      UNION ALL SELECT 'eval_view_pairs.document', document FROM eval_view_pairs
+      UNION ALL SELECT 'eval_view_charts.document', document FROM eval_view_charts
+      UNION ALL SELECT 'eval_suboperations.request', request FROM eval_suboperations
+      UNION ALL SELECT 'eval_suboperations.response', response FROM eval_suboperations WHERE response IS NOT NULL
+      UNION ALL SELECT 'mutation_receipts.response', response FROM mutation_receipts WHERE key_scope[1] = 'eval'
+    )
+    SELECT source, count(*) AS rows FROM stored
+    WHERE convert_from(document, 'UTF8') ~ '(^|[^\\])(\\\\)*\\u0000'
+    GROUP BY source ORDER BY source;
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with pnpm, the locked Runtime venv;
+    local PostgreSQL 17.11 database contractor_test_v414_evals with per-test schemas and all 39
+    migrations; branch claude/v414-evals with main 030e195a merged (8f5d1156).
+  commands:
+    - >-
+      The detection_query ran on a schema migrated with all 39 migrations in
+      contractor_test_v414_evals (scratch schema, dropped afterwards): every listed column exists and
+      it returned 0 rows.
+    - >-
+      go test -count=1 ./internal/evaldomain/... ./internal/strictjson/... ./internal/persistence
+      passed, including TestStrictJSONVerdictsAndCodes (NUL in a value, a member name, after an
+      escaped backslash and too deep: eval_invalid; escape text and \u0001: valid),
+      TestStrictOutputJSONAcceptsOnlyTheNULEscapeBeyondStrictJSON, TestHasNULEscape,
+      TestSharedEvalConformanceFixtures/nul-escape (same outcome as lone-surrogate),
+      TestSharedEvalNULEscapeIsTheOnlyDefectOfItsFixture, TestSharedEvalNativeReadinessMatchesFixtures
+      and the cast guard with its scanner test.
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://localhost/contractor_test_v414_evals go test
+      -tags=integration -count=1 ./internal/evalstore/... ./internal/evalservice/...
+      ./internal/httpapi/public/... ./internal/persistence/postgres/... passed (evalstore 161 s, evalservice 179 s, httpapi/public 213 s, public/events 7 s, persistence/postgres 118 s), including
+      TestSharedEvalPostgresNULEscapesAreRejectedBeforeSideEffects (dataset name and parameter name,
+      create parameter value and name and experiment name, draft update name and parameter: 422
+      eval_invalid, retryable false, no row, no draft change and no mutation receipt; the same keys
+      with corrected bodies then answer 201/200; the owner list without projectId answers 200),
+      TestSharedEvalPostgresNULEscapesAreRejectedInExternalRecords (result gap and assessment reason:
+      422 without rows; valid records with the escape text and \u0001 are selected and the report and
+      owner list answer 200), TestSharedPostgresFreezeStoresNativeReadinessForTheView,
+      TestSharedPostgresEvalPlanReadinessMigrationBackfillsNativePlans and
+      TestEvalNativeStructuralChecksAndPinnedFailures.
+    - >-
+      A4 with the NUL rule disabled (temporary edit, reverted): the dataset subtest got 500
+      internal_error retryable instead of 422, the create subtest stored the NUL parameter (201) and
+      the owner list answered 500; the external records test stored the NUL result (201). A temporary
+      store probe (removed) showed the causes: Store.PutDataset failed with "unsupported Unicode escape
+      sequence (SQLSTATE 22P05)", Store.Create stored the draft and Store.SummaryPage then failed with
+      22P05. Changing the guard's summaryPageSQL count to 1 failed the guard test (reverted).
+    - make test-wire-cross-language passed: 262 fixtures, 296 Go and 198 Python shared tests (Runtime pytest 1189 passed). An earlier run at the checkpoint, concurrent with make lint, failed only runtime/tests/test_adapter_host.py::test_shared_hanging_flush_is_metrics_only_and_replayed_lifecycle_is_idempotent (adapter close could not be guaranteed), a Runtime test this task does not touch; it passed in this run.
+    - make lint passed (gofmt, go vet, staticcheck U1000, testonlyexports, task, spec, shared fixture source and ERD checks, ruff, import-linter), before the close commit; scripts/check_tasks.py rerun after it.
+notes:
+  - >-
+    For V414-027 open question (2), found while verifying: non-Eval public JSON bodies mostly go
+    through decodeJSONBounded/readJSONBody in internal/httpapi/public/request.go (29 call sites), one
+    place where strictjson.HasNULEscape could answer 400 before any store call;
+    auditdomain.parseStrictJSONNumbers (canonical.go:65) rejects a raw NUL byte but not the escape; a
+    Go string holding U+0000 also fails a text parameter with SQLSTATE 22021, answered as the same
+    retryable 500; Worker and Runtime writes through the private API need their own check.

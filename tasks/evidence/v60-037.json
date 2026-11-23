@@ -1,0 +1,167 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-037",
+  "verified_on": "2026-09-20",
+  "implementation_commit": "ab5aca11503267d028ddc208ca5ee5c54eeb3e9c",
+  "report": "docs/research/2026-09-20-v60-037-agent-skills-gateway-review.md",
+  "status": "All required focused and actual Agent Skills process checks passed without skips.",
+  "finding": {
+    "priority": "P2",
+    "history": "Agent Skills fixture originated in66866564; b76f1de4 preserves Gateway status retryability. be33cebb retains that classification after HTTPX migration.",
+    "normative_basis": "spec05 bounded retries create a new StageExecution only for retryable failures; spec09 requires exact Skill identity across retries. Runtime test_transport_retry_suppression_keeps_final_failure_classification separates physical-request retry suppression from Stage failure classification.",
+    "cause": "Intentional scripted modelFail emits HTTP400, which is not retryable, despite test expecting a second StageExecution. Empty gatewayFailures is expected for deliberate scripted failures.",
+    "correction": "Only scripted modelFail returns503 with X-Should-Retry:false. This creates one retryable failed model call for Scheduler; all ordinary invalid requests/fixture validation errors remain400.",
+    "consumer_audit": "Only failedAgentSkillGatewayStage and the dedicated retry-probe unit set modelFail=true; both require the new-StageExecution retry behavior.",
+    "production_changed": false
+  },
+  "checks": [
+    {
+      "command": [
+        "make",
+        "test-agent-skills-mvp"
+      ],
+      "invoked_as": [
+        "make",
+        "--trace",
+        "-k",
+        "release-verify",
+        "verify-public-api",
+        "test-audits-hardening",
+        "test-findings-e2e",
+        "test-audits-browser",
+        "test-lifecycle-controls-browser"
+      ],
+      "source_commit": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+      "exit_code": 2,
+      "process_test_seconds": 36.36,
+      "elapsed_seconds": null,
+      "timing_note": "Extracted completed failed target from ongoing release; no invented target wall time.",
+      "log": ".local/v60-review/v60-037-release-failure.log",
+      "log_sha256": "8384b7b4d91d172ccc7dd0a994c3c0ad1e2a4e5a5296890911fd43f46d66e965",
+      "go_passing_events": 0,
+      "go_failed_events": 1,
+      "go_skips": []
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-overlay",
+        ".local/v60-review/v60-037-http-before.overlay.json",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure$"
+      ],
+      "source_commit": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+      "source_overlay": ".local/v60-review/v60-037-before-http_test.go",
+      "overlay_sha256": "439ba3ca72ecb511fccf9ff92467308b4681337efcafde000e9565520d84d3b1",
+      "duration_seconds": 3.375,
+      "exit_code": 1,
+      "log": ".local/v60-review/v60-037-http-before.log",
+      "log_sha256": "6ef2a865064c88be9ce6ee3e6182812632652408afa745d92e52ed9c2330d93f",
+      "go_passing_events": 0,
+      "go_failed_events": 1,
+      "required_skips": []
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-overlay",
+        ".local/v60-review/v60-037-http-after.overlay.json",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure$"
+      ],
+      "source_commit": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+      "source_overlay": ".local/v60-review/v60-037-fake-domain-gateway_test.go",
+      "overlay_sha256": "e0dbd31b3a40a84226eb206800f11961f0d38e6dcc0dcdef381b2d6ebc400f86",
+      "duration_seconds": 3.312,
+      "exit_code": 0,
+      "log": ".local/v60-review/v60-037-http-after.log",
+      "log_sha256": "4b7526b0b555d0fac16808ce64b0d0068398d188ac4ca1d189100c9f4d836978",
+      "go_passing_events": 1,
+      "go_failed_events": 0,
+      "required_skips": []
+    },
+    {
+      "command": [
+        "../runtime/.venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_gateway_client.py::test_transport_retry_suppression_keeps_final_failure_classification"
+      ],
+      "cwd": "runtime",
+      "source_commit": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+      "duration_seconds": 1.396,
+      "exit_code": 0,
+      "log": ".local/v60-review/v60-037-runtime-classification.log",
+      "log_sha256": "61ca266d920fafef052343603b50fecd4732b9b475dffd38709cbf8c33c80949",
+      "python_passing_cases": 3,
+      "required_skips": []
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure$"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2.96,
+      "log": ".local/v60-review/v60-037-focused-source.log",
+      "go_passing_events": 1,
+      "go_skips": [],
+      "summaries": [],
+      "source_commit": "747839c255fc3eef800281d837b1c57ab87f892d",
+      "log_sha256": "86f6b30194312b3e4caeba85c749be71765343c49ca804a2e94d21e03db3ec82"
+    },
+    {
+      "source_commit": "747839c255fc3eef800281d837b1c57ab87f892d",
+      "target": "test-agent-skills-mvp",
+      "result": "passed",
+      "log": ".local/v60-review/v60-037-integrated-target.log",
+      "log_sha256": "a1f31a70cc27e100dad033a90575d983870649c37befe0d94b68ff67f48f7262",
+      "go_passing_events": 1,
+      "go_failed_events": 0,
+      "go_skip_events": 0,
+      "command": [
+        "make",
+        "test-agent-skills-mvp"
+      ],
+      "invoked_as": [
+        "make",
+        "--trace",
+        "test-code-analysis-e2e",
+        "test-agent-skills-mvp",
+        "test-worker-summarizer-e2e",
+        "test-project-workspaces-e2e",
+        "test-audits-process",
+        "release-verify",
+        "verify-public-api",
+        "test-audits-hardening",
+        "test-findings-e2e",
+        "test-audits-browser",
+        "test-lifecycle-controls-browser"
+      ],
+      "exit_code": 0,
+      "go_test_seconds": 146.95,
+      "go_package_seconds": 146.964,
+      "elapsed_seconds": null,
+      "timing_note": "Target completed successfully and make advanced to the next prerequisite. Go timings are reported separately; full shared release was still running when the immutable segment was extracted.",
+      "shared_log": ".local/v60-review/v60-release-integrated.log"
+    }
+  ],
+  "required_remaining": [],
+  "evidence_limits": [
+    "Original overlays are isolated HTTP fixture evidence. The final committed-source process target independently passed all original Skill pinning, Stage retry, A/B package, Runtime reuse and redaction assertions.",
+    "No live model or production data used."
+  ]
+}

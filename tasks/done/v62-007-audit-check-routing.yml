@@ -1,0 +1,355 @@
+schema_version: '1.0'
+id: V62-007
+title: Route trusted typed check plans through explicit profile bindings
+milestone: audit-iterative-composition-2026-10
+epic: audits
+kind: feature
+priority: P2
+status: completed
+reactivation:
+  date: '2026-10-24'
+  previous_status: deferred
+  reason: Explicit user request to queue the reviewed proposal 0045 tasks as pending.
+  execution_rule: Implementation may start after declared dependencies complete; this update starts no implementation.
+previous_deferral:
+  date: '2026-09-20'
+  previous_status: pending
+  reason: Verify/replay routing is independent of the first OpenAPI scan and preparation release.
+  reactivate_when: Explicit user approval of iterative checks after dependency and snapshot contracts
+    are reviewed.
+implementation_commit: eb8ae076d88fd0524e342ef05fd3a3f26c1e8d8a
+depends_on:
+- V62-005
+- V62-006
+languages:
+- go
+- json
+- yaml
+- python
+- sql
+- typescript
+- markdown
+goal: Route accepted typed check plans through profile-owned exact Workflow bindings and immutable next-Round
+  admission, preserving the existing finding receipt adapter and deterministic default paths.
+context:
+  authority: >-
+    On 2026-10-24 the user explicitly requested pending status for the reviewed
+    proposal 0045 plan, including shared V62 prerequisites. The earlier deferral
+    is historical; dependency completion still gates implementation start.
+  proposal:
+  - docs/proposals/0045-audit-hypothesis-search.md
+  - docs/proposals/0033-autonomous-pentest-audits.md
+  design: docs/plans/2026-09-20-audit-workflow-composition.md
+  specification:
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/scans.md
+  - docs/spec/audits/execution.md
+  - docs/spec/audits/review-and-reports.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/lifecycle.md
+  replan_history: Deferred on 2026-09-20 outside the delivered OpenAPI/preparation slice; the original
+    deferral record is preserved. The 2026-10-24 review at b523ae77 confirmed that this iterative capability
+    was still absent. The initial proposal 0045 plan retained deferral; the user subsequently queued this reviewed task as pending. Completed
+    V62 preparation/API/UI/release tasks and their original milestone remain unchanged.
+  follow_up_ordinary_task_mode: >-
+    The pre-existing AUD-R118 legacy allowance remains outside this typed-path change.
+    Its owning sources are docs/spec/audits/audits.md#AUD-R118,
+    internal/auditdomain/types.go ItemTask.ProfileMode, codec.go validateItemTask,
+    inventory.go validateInventoryOptions and Runtime toolsets/audit_results/packages.py
+    profile_mode validation (V77-001, commit 4d432c1324d8b790dcc74a66753b5758a06c6ac2).
+    Propose a separate tracked removal:
+    require an explicit current profile mode for every ordinary task and inventory factory,
+    remove the Go empty/omitempty and Runtime None allowance, update old fixtures and
+    delete AUD-R118 compatibility wording. No old-record fallback or data migration is needed.
+    V62-007 requires explicit mode now for every accepted_plan task without broadening
+    unrelated ordinary-task behavior.
+  ownership: Generic iterative Audit composition owns these contracts. V64-001 defines research contracts,
+    V64-003 owns opt-in research lifecycle, V64-004 consumes exact context, V64-006 owns the base research-to-ordinary-AuditItem
+    adapter, and V64-018 adds only its pentest specialization. These are consumers, not dependencies of
+    generic V62.
+  boundary: The plan routing boundary is source-neutral, but every admitted source requires a production
+    trusted adapter. This task wires the existing finding receipt/ordinal adapter. V64-006 adds the base
+    research-to-ordinary-AuditItem adapter with exact origin and membership tests; V64-018 specializes
+    it for pentest without making generic routing depend on V64.
+scope:
+  in:
+  - Define strict registered plan schema/method/phase to Workflow binding/capability mappings and persist
+    the selected exact route with accepted items.
+  - Adapt existing finding receipt/ordinal next-Round admission to the common trusted plan descriptor
+    and V62-006 dependencies; preserve its consume-once identity.
+  - Perform deterministic ownership, dependency, capability, approval and budget checks before atomically
+    accepting a new immutable Round.
+  - Publish bounded admitted/rejected/deferred dispositions with exact source, route and decision provenance;
+    use the V62-005 settled input barrier when required by a declared consumer.
+  - Exercise actual next-Round production calls and current standard/default routing, including ordinary
+    typed alternatives without adding special execution role kinds.
+  out:
+  - Hypothesis registry/search selection and the base research-to-ordinary-AuditItem source adapter V64-006;
+    pentest recipe/proof/replay policy V411-012 and research pentest specialization V64-018; arbitrary
+    Workflow refs from models.
+  - New Scheduler phases, verification/replay role kinds, changing accepted worklists, model scoring authority
+    or a second receipt/lease store.
+deliverables:
+- path: internal/config
+  description: Strict registered method map and exact closure validation with shared fixtures.
+- path: internal/auditservice
+  description: Actual finding source adapter and source-neutral next-Round admission boundary.
+- path: internal/auditstore
+  description: Durable bounded admission provenance, consume-once identities and purge integration.
+- path: internal/auditdomain
+  description: Accepted plan/source/route descriptors and deterministic validation.
+- path: tests/e2e
+  description: Real routed later-round fixture consumers and direct-route regressions.
+acceptance_criteria:
+- id: A1
+  given: Trusted finding receipts with several proposed-check ordinals and registered typed method maps
+  when: The actual next-Round builder admits and dispatches ordinary check Roles
+  then: Each item has the exact source/ordinal, selected binding and V62-006 input mapping; verify/replay
+    are distinct ordinary routes without research or proof authority.
+- id: A2
+  given: Renamed roles, an ambiguous/unknown method, invalid capability and forged source identity
+  when: Strict configuration/admission validation runs
+  then: Names do not change method classification; invalid/foreign inputs produce explicit decisions and
+    no arbitrary fallback item/Run.
+- id: A3
+  given: Duplicate receipt delivery, competing claims, restart and a lost accepted-Round reply
+  when: Admission/dispatch recovery repeats
+  then: One accepted immutable Round/item association and one budget debit exist per exact source plan;
+    current accepted membership cannot be extended.
+- id: A4
+  given: An expired approval, pause, Audit deadline, cancel and non-time budget exhaustion
+  when: Controller admission and owned work progress
+  then: Existing approval, paused-deadline and safe drain/finalization semantics are preserved, with no
+    target retry caused by bookkeeping recovery.
+- id: A5
+  given: Maximum indexed candidate populations and bounded selected dependency closures
+  when: Admission advances across pages with injected work counters
+  then: Per-slice rows/bytes, existing item/batch limits and exact mapping checks hold without a whole-history
+    scan or repeated rejection append.
+- id: A6
+  given: Current default-route/standard profiles and standalone deterministic Runs without typed mappings
+  when: Existing membership, coverage, retry and cancellation scenarios execute
+  then: They remain unchanged and invoke no generator/ranker or research record creation; obsolete schemas
+    still fail strictly.
+tests:
+- command: go test -tags=integration -count=1 ./internal/config/... ./internal/auditdomain ./internal/auditservice
+    ./internal/auditstore/... ./internal/auditcontroller
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make test-audit-composition-e2e test-audit-completion-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make test-wire-cross-language verify-public-api
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+test_prerequisites:
+- Disposable PostgreSQL is mandatory for store cases. Set CONTRACTOR_TEST_DATABASE_URL; absent or unreachable
+  required infrastructure, skipped mandatory cases and zero matched tests fail the dedicated gate.
+- Tests use isolated testdata, not the live configs tree. Process cases use actual Server/Runtime and
+  scripted local model/provider fixtures; no paid models or live targets are needed.
+- Run the complete suites of every touched package. Shared schema changes update every reader, owning
+  numbered specifications, limit/error/lifecycle registries and cross-language fixtures in the same implementation
+  change.
+verification_requirements:
+- Use registered production schemas and actual finding receipt admission; model text or a test-only origin
+  must not establish trusted authority. V64-006 owns the future base research-to-ordinary-AuditItem source
+  implementation, and V64-018 owns only its pentest specialization.
+- Preserve V209-001 unsupported-executor rejection and current ordinary finding-verification acceptance;
+  verify complete touched package suites and real store/process paths.
+requirements:
+- id: R1
+  text: Profile mappings use a strict registered plan schema and declared method/phase semantics to select
+    one compatible exact named check binding. Generic routing is not globally restricted to verify/replay;
+    schema owners declare supported methods such as applicability or alternative testing. Free text alone
+    cannot register a method or acquire authority.
+- id: R2
+  text: The common accepted-plan descriptor carries trusted origin identity, exact plan digest, dependencies
+    and authorization. Wire the existing finding receipt/ordinal adapter in production now; an unknown
+    origin is rejected, never treated as a finding with fabricated receipt fields. The base research adapter
+    in V64-006 must prove its exact source and membership; V64-018 adds only pentest-specific validation
+    and proof/replay integration.
+- id: R3
+  text: Before acceptance revalidate owner/Audit/baseline, source acceptance, V62-006 exact closure, configured
+    required capabilities, Project active-check/approval policy and cumulative item/Run/budget bounds.
+    The selected route cannot union permissions across incompatible items or broaden authority.
+- id: R4
+  text: Persist deterministic decisions and source-to-item attribution under existing keyed mutations,
+    natural identities and ControllerClaims. Freeze next-Round membership/ordinals and exact role closure
+    atomically. Retry of storage/collection is not a new target action or changed plan.
+- id: R5
+  text: Use bounded indexed intake selection and retained decisions with stable tie-breaking; no model
+    ranking is required. Unsupported methods/capabilities/dependencies produce explicit rejection/defer/block
+    results and cannot select arbitrary default work.
+- id: R6
+  text: Without declared typed mappings preserve inventory.itemWorkflowRole and standard-mapping routing
+    for current valid schemas. Obsolete schemas still fail strictly. Direct Runs and deterministic inventories
+    must require no hypothesis, search cycle, generation or ranking.
+- id: R7
+  text: Wire actual finding next-Round admission and dispatch in this task. Schema fixtures alone, a callable
+    helper without a production caller or a future V411/V64 consumer does not satisfy completion. Generic
+    verify/replay fixtures exercise separate ordinary roles without claiming pentest proof.
+failure_outcomes:
+- operation: Validate profile method routing and trusted plan source
+  permanent: Unknown/ambiguous mapping, unsupported source/schema, capability mismatch or invalid exact
+    dependency produces the owning stable validation/rejection outcome with no item, child Run or fallback
+    route.
+  retryable: Transient storage errors retain existing storage_transaction_conflict 503/bounded retry classification;
+    deterministic store rejection is never retried indefinitely.
+  ambiguous: Use exact immutable profile/source descriptors and accepted source identity to reconcile;
+    an earlier rejection/decision cannot be replaced by guessed current data.
+  cancelled: Owner fence stops new admission and joins active validation/materialization before cleanup.
+  timeout: Finite admission/validation deadline applies independently from later check execution and target
+    deadlines.
+- operation: Accept next-Round decisions and dispatch routed items
+  permanent: Stale authority, exhausted non-time budgets, invalid generation or expired exact approval
+    prevents new dispatch with explicit dispositions; existing Audit deadline exhaustion pauses instead
+    of finalizing.
+  retryable: Existing bounded transaction-conflict and shared retention backpressure retries retain the
+    same plan/decision key; capacity waiting stays distinct from missing capability.
+  ambiguous: Reconcile accepted Round/item/decision and existing child intent/collection receipts; no
+    duplicate item, budget debit or target execution.
+  cancelled: Fence new Round/Run admission, allow existing lifecycle-authorized terminal collection during
+    drain, and retain accepted decisions.
+  timeout: Current Audit admission clock, item/Run deadlines and collection allowances retain separate
+    ownership; waiting reasons have an explicit trigger rather than per-tick repeated work.
+cardinality:
+- collection: Profile method routing map and exact binding closure
+  expected: A few plan schema/method/phase combinations.
+  maximum: Proposed 128 unique mapping entries, subject to tighter existing Workflow role/mapping and
+    config payload limits.
+  bound: Validate once per exact profile closure and use indexed/canonical lookup for each candidate;
+    reject duplicate ambiguous keys before child creation.
+- collection: Candidate admission and decision descriptors within an Audit
+  expected: A few selected receipts/plans for the next immutable Round.
+  maximum: Existing per-Round/remaining total-item ceilings; at most 128 primary candidate/decision records,
+    512 related descriptors and 1 MiB metadata per slice.
+  bound: Use indexed keyset intake and bounded continuation; final accepted membership is atomic even
+    when immutable prepared work is paged. Existing 64-item execution batch and tighter dependency/retained-link
+    caps still apply.
+- collection: Retained decision history and next-Round membership
+  expected: Several Rounds with bounded admitted/rejected/deferred reasons.
+  maximum: Existing Audit lifetime item/Run/round and typed proposal limits; a unique source/plan/decision
+    generation can be accepted once.
+  bound: Do not append another rejection on every controller tick. Page history through existing bounded
+    report/list readers and purge with owning Audit limits.
+lifecycle:
+- entity: Routing/admission decision and accepted next-Round item
+  delete: Audit deletion after drain removes owned decisions/items; withdrawing an unadmitted source does
+    not rewrite accepted work.
+  cascade: Existing Audit item/source relation and purge lifecycle release exact dependencies; pending
+    approvals follow their existing owner close/cancel rules.
+  retention: Accepted source, policy, route, approval and role closure stay exact through restart; pause/resume
+    rechecks current authority without changing accepted bytes. No automatic resurrection of rejected/skipped
+    accepted worklists.
+verification:
+  date: '2026-10-26'
+  result: passed
+  actuality: >-
+    After V62-005/006, the finding receipt adapter still had no registered
+    profile method map or accepted typed route. FindingProposal already carried
+    proposed_checks, but the actual Runtime finding facades could not publish
+    them. Both missing production boundaries are now implemented. Profiles
+    without method mappings retain their existing deterministic default path.
+  commands:
+  - command: go test -tags=integration -count=1 ./internal/config/... ./internal/auditdomain ./internal/auditservice ./internal/auditstore/... ./internal/auditcontroller
+    result: >-
+      Passed on the merged implementation with real PostgreSQL. The complete
+      domain/configuration suites passed again after removing test-only exports;
+      the complete service suite passed again after removing an unused digest wrapper.
+  - command: go test -tags=integration -count=1 ./internal/config/... ./internal/auditdomain ./internal/auditservice ./internal/auditstore/... ./internal/auditcontroller ./internal/auditbaseline ./internal/contracts ./internal/findingintake ./internal/app ./internal/persistence/... ./internal/httpapi/public
+    result: >-
+      All package results except app passed. This initial extended invocation
+      shared a database with the production-process gate, so app's single-active
+      Server lease tests collided with its live Server. The complete app suite
+      was repeated successfully in a separate disposable database below.
+  - command: go test -tags=integration -count=1 ./internal/app
+    result: Passed in 21.801 seconds in an isolated disposable PostgreSQL database.
+  - command: go test -race -tags=integration -count=1 ./internal/auditimport
+    result: >-
+      Passed the complete owner suite in 57.151 seconds with real PostgreSQL
+      and Runtime processes. Immutable receipt identity remains checked, while
+      both discarded check-index tombstones have explicit strict assertions.
+  - command: make test-audit-composition-e2e
+    result: >-
+      Passed in the combined composition/completion invocation: 58 mandatory
+      store cases, 11 production-process cases and the real browser journey,
+      with zero mandatory skips.
+  - command: make test-audit-completion-e2e
+    result: >-
+      Passed after correcting the receipt deletion test's derived-cache snapshot:
+      250 selected Go cases with race detection and 469 Runtime cases, with no
+      selected skips. Only the failed completion target needed repeating.
+  - command: make test-wire-cross-language verify-public-api
+    result: >-
+      Passed after integration with main: 282 shared fixtures, 336 Go and 234
+      Python shared reader functions; 1336 selected shared Runtime cases and
+      323 Runtime contract/performance cases. Public operation coverage passed,
+      including the independent resolved Worker session contract from main.
+  - command: cd runtime && uv run --no-sync pytest -ra tests/test_audit_accepted_plans.py tests/test_audit_retained_dependencies.py tests/test_audit_results_toolset.py tests/test_audit_result_collector.py tests/test_audit_result_publication.py tests/test_security_findings_toolset.py tests/test_finding_facades.py tests/test_finding_anchors.py tests/test_finding_tool_contracts.py tests/test_findings_reader_toolset.py tests/test_shared_round_results.py tests/test_shared_text_rules.py
+    result: Passed all 456 affected Runtime owner cases after strict typed profile-mode validation, with zero skips.
+  - command: CI=true UV_OFFLINE=1 make ui-verify
+    result: >-
+      Passed on the merged API and UI 0.10.7: generation check, lint, typecheck,
+      196 Vitest files with 2433 passes and one expected failure, 17 static
+      Server tests, and production build. Used the existing offline pnpm store.
+  - command: CI=true UV_OFFLINE=1 make lint
+    result: >-
+      Passed all generated-client, graph, model configuration, formatting,
+      vet/staticcheck, production-export, script/deployment, release graph,
+      task/specification, fixture/ERD and Runtime layer checks. No allowlist or
+      gate was widened. Removed unused convenience functions and tested limits
+      through production validators instead of keeping test-only exports.
+  - command: go run ./cmd/contractor-server config validate --root ./configs
+    result: Passed the merged shipped catalog.
+  evidence: >-
+    The actual Runtime finding tool publishes verify, replay and an unknown
+    method. After the first Round closes, the process fixture pauses, deletes
+    the released producer through the public API, restarts Server and resumes.
+    Verify and replay select differently named ordinary roles; both read the
+    exact retained proposal and accepted producer result through local inputs.
+    Downloads match retained bytes, size, digest and media type. The unknown
+    method receives one explicit rejection; another restart creates no duplicate
+    Round, item, source association, decision or Run.
+    Real-store coverage includes 130 selected checks across bounded admission
+    and private staging slices, lost acceptance replies, explicit projection
+    rebuild waiting, original deadlines, pause/cancel and non-time budget
+    deferral, single-connection access, hidden unaccepted membership, immutable
+    sealed authority and fully populated prepared/accepted Audit purge. Shared
+    tests exercise all registered methods and all five explicit profile modes.
+    Domain continuation tests reach 4096 selections; accepted item counting
+    reads parent counters at 100000 items. Existing comparison scale fixtures
+    retain 100000 receipts and 1000000 findings with generated-column-safe copies.
+  additional_check_limitation: >-
+    The optional broad make test-runtime run during V62-006 did not pass on this
+    macOS host; its Linux/Podman and Darwin-specific failures and unchanged-main
+    reproductions are recorded in tasks/done/v62-006-audit-retained-dependencies.yml.
+    The current affected Runtime suites, shared readers and required real-process
+    gates pass. No complete release-verify or Linux-wide Runtime pass is claimed.

@@ -1,0 +1,17 @@
+{
+  "task_id": "V60-018",
+  "verified_on": "2026-09-20",
+  "base_commit": "5856beb5c13429f4be54856015ad7e86bd8b573d",
+  "implementation_commit": "c7018285cc89f5d2e55c6d5835bd6c96a541dbea",
+  "reproduction": "Before fix five stale session API/Provider cases failed; late 200/401 and post-logout responses are now fenced.",
+  "commands": [
+    "cd ui && corepack pnpm test --run src/api/client.test.ts src/auth/session.test.tsx",
+    "cd ui && corepack pnpm typecheck"
+  ],
+  "results": [
+    "19 client/session tests passed; application and E2E TypeScript checks passed.",
+    "Initial focused run used Node26.7.0; pinned Node24.20.0 is used by the later integration task."
+  ],
+  "logs": ".local/review-fixes/",
+  "scope": "Local source and regression checks; no deployment, real models or external security targets."
+}

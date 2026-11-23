@@ -1,0 +1,332 @@
+schema_version: "1.0"
+id: V414-008
+title: "Classify stored-size CHECK rejections as invalid input at every store writer"
+milestone: review-v407-v409-followups-2026-10
+epic: persistence
+kind: defect
+introduced_by: V3-009
+priority: P2
+status: completed
+implementation_commit: 74d2283ab828bc70fff2a28fd5c5a6bfa1e36cfa
+depends_on: []
+languages: [go, markdown]
+goal: >-
+  A write that a stored-size CHECK rejects returns the store's ErrInvalid, as the
+  same store's pre-check does, and the Planner reports a session-size rejection
+  under its own code with a decided retryability instead of
+  planner_session_unavailable.
+context:
+  review: >-
+    tasks/done/v409-010-byte-bounded-run-reads.yml (verification.review_follow_up:
+    "The store returns that rejection unwrapped, not as ErrInvalid like the
+    pre-check, but no caller distinguishes them"). The request named V407-027 as
+    the origin; tasks/done/v407-027-shared-controller-claim-loop.yml does not
+    mention it.
+  specification:
+    - docs/spec/platform/persistence.md#PER-R13
+    - docs/spec/platform/persistence.md#PER-R14
+    - docs/spec/api/public-api.md#API-R110
+    - docs/spec/execution/planners.md#PLN-R106
+    - docs/spec/platform/failure-model.md
+  severity: low
+  finding: >-
+    internal/runstore/stage_store.go:228-230 (StartPlanner) and
+    internal/runstore/planner_store.go:42-44 (AppendPlannerEvent) pre-check the
+    submitted compact JSON against maxRunEventDataBytes and return
+    runstore.ErrInvalid, but the stored bounds planner_session_state_size and
+    workflow_run_events_data_check (internal/persistence/migrations/000001_baseline.sql:1995,
+    :2223) measure octet_length(value::text) after jsonb re-serialisation, which
+    adds a space after every ':' and ','. A CHECK rejection then returns the raw
+    pgconn error (stage_store.go:263-264, planner_store.go:69), not ErrInvalid.
+    Reproduced on 19f7477f against PostgreSQL 17 (contractor_test_fu) with a
+    temporary runstore test: StartPlanner with InitialState {"a":[0,0,...]}
+    of 2,000,007 submitted bytes (limit 2,097,152) stored as 3,000,007 jsonb text
+    bytes failed with SQLSTATE 23514 planner_session_state_size; errors.Is(err,
+    ErrInvalid) was false (Classify = ClassInvalid, not transient). The Planner
+    then reports either rejection as an outage: SessionError
+    (internal/planner/session_lifecycle.go:167-182) returns retryable
+    planner_session_unavailable ("durable session is unavailable") for Begin,
+    RecordRequest and Complete, and Streamline's planPersistenceFailure
+    (internal/planner/streamline/tools.go:631-643) returns retryable
+    planner_plan_persistence_failed for every RecordPlan/RecordFact error, so a
+    size limit is reported as an unavailable session and retried as if the
+    database were down. internal/persistence/postgres/sqlstate.go:194
+    (ConstraintError) is the existing helper that credentials, runtimeconfig and
+    agentprincipal use for this mapping.
+  siblings: >-
+    Planner writers: StartPlanner, AppendPlannerEvent (both the session state and
+    the Run event data in the same statement) and their callers in
+    internal/planner/session/service.go (:105 Begin, :451 append) and scan.go:315.
+    Every other jsonb-text size CHECK in the migrations and its writer, to be
+    classified as already mapped (ConstraintError or an equivalent such as
+    auditstore reviewWriteError, credentials classifyRepositoryWrite), pre-checked
+    on the stored measure, or fixed here: credential_operations_request_check,
+    llm_credentials_gateway_policy_check (already ConstraintError),
+    runtime_management_operations_result_check, audit_artifact_links_*,
+    audit_events_summary_check, audit_execution_items_*, audit_executions_*
+    (collection_retained_refs, manifest_ref, preparation_outputs_shape,
+    preparation_shape, run_provenance_shape), audit_idempotency_response_snapshot_check,
+    audit_items_* (coverage_*, origin_shape, *_ref), audit_rounds_manifest_ref_check,
+    audits_baseline_snapshot_check, audits_input_selection_check,
+    audits_profile_snapshot_check, audit_finding_*_ref checks,
+    audit_review_requests_* and finding_proposal_* evidence and ref checks. A raw
+    ClassInvalid error reaching a public handler is answered as 500 (diagnostic
+    storage_constraint_failed in internal/httpapi/public/error_diagnostics.go:68-72);
+    registering these bounds in limits.md is V414-007.
+  provenance: >-
+    git log -S planner_session_state_size: the CHECK and AppendPlannerEvent's
+    unclassified return came with 2fbac4ddcf61709d01fd57025c8aa52d477b44a6
+    ("persist typed plan events"), the implementation_commit of V3-009.
+scope:
+  in:
+    - "StartPlanner and AppendPlannerEvent map a named CHECK violation (ClassInvalid, and ClassRejected where a trigger applies) to runstore.ErrInvalid through persistencepostgres.ConstraintError, keeping the cause wrapped (PER-R13)."
+    - "Planner session callers report runstore.ErrInvalid under a distinct registered code (for example planner_session_state_limit) instead of planner_session_unavailable or planner_plan_persistence_failed. Decide its retryability and record the decision in PLN-R106: non-retryable like other deterministic store rejections (V280), or retryable like the budget stop codes of PLN-R85 because a fresh invocation may build a smaller plan; record the evidence and the reversal condition."
+    - "The inventory of the sibling writers in context.siblings with a disposition for each; every writer that returns a raw ClassInvalid error for a size CHECK is fixed the same way."
+    - "Fake stores used by planner tests (runstoretest and session fakes) reject the same oversized values as the real store."
+  out:
+    - "Changing any bound, the measure of a CHECK, or pre-checking the jsonb text in Go (the CHECK stays authoritative, LIM-API-25)."
+    - "Registering the bounds in limits.md (V414-007)."
+    - "Retry rules for an unwritten Planner outcome (V414-006); both tasks touch SessionError and the second to land rebases."
+failure_outcomes:
+  - operation: "StartPlanner / AppendPlannerEvent insert or update rejected by a size CHECK"
+    permanent: "runstore.ErrInvalid wrapping the PostgreSQL cause; nothing is written (single statement)"
+    retryable: "unchanged: transient classes stay retryable inside writeCompletion's budget; ErrInvalid is never retried there"
+    ambiguous: "none: a CHECK rejection is definite"
+    cancelled: "unchanged"
+    timeout: "unchanged"
+  - operation: "Planner session write that returns runstore.ErrInvalid"
+    permanent: "the new registered code with the decided retryability; the Planner never reports it as planner_session_unavailable"
+    retryable: "per the recorded decision"
+    ambiguous: "none"
+    cancelled: "unchanged"
+    timeout: "unchanged"
+acceptance_criteria:
+  - id: A1
+    given: "a migrated PostgreSQL schema and a Planner state or Run event payload whose submitted JSON is at most 2,097,152 bytes but whose jsonb text exceeds it"
+    when: "StartPlanner and AppendPlannerEvent write it"
+    then: "each returns an error that satisfies errors.Is(err, runstore.ErrInvalid), keeps Classify(err) == ClassInvalid, and writes nothing (Run event cursor and session row unchanged)"
+  - id: A2
+    given: "the Planner session service over that store"
+    when: "Begin, RecordRequest, RecordPlan, RecordFact and Complete hit the rejection"
+    then: "Passthrough and Streamline return the new code with the recorded retryability, never planner_session_unavailable or planner_plan_persistence_failed"
+  - id: A3
+    given: "each sibling writer in context.siblings"
+    when: "its size CHECK rejects a write"
+    then: "it returns its store's ErrInvalid (or the inventory records why the CHECK cannot be reached past the pre-check), and no public handler answers 500 for it"
+  - id: A4
+    given: "the unfixed code at 19f7477f"
+    when: "the A1 regression runs"
+    then: "it fails: the error is the raw 23514 and errors.Is(err, runstore.ErrInvalid) is false"
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=\"${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}\" go test -tags=integration -count=1 ./internal/runstore/... ./internal/planner/... ./internal/auditstore/... ./internal/credentials/... ./internal/runtimeconfig/..."
+    covers: [A1, A2, A3, A4]
+  - command: "go test -count=1 ./internal/planner/... ./internal/httpapi/public/..."
+    covers: [A2, A3]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=\"${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}\" go test -tags=integration -count=1 -run 'TestPostgresReceiptRefusedByAStoredBoundIsInvalid|TestPostgresAuditInboxServicePagesKeepOrderAndProjections' ./internal/findingintake/"
+    covers: [A3]
+  - command: make lint
+    covers: [A2]
+decisions:
+  code_name: >-
+    The Planner code is planner_session_rejected, not the example
+    planner_session_state_limit (accepted by the coordinator). Evidence: the
+    session sees one signal, runstore.ErrInvalid, which covers every refused
+    session write: a named CHECK or a trigger rejection of StartPlanner or
+    AppendPlannerEvent (planner_session_state_size, workflow_run_events_data_check
+    or any other), the session's own 2 MiB pre-check (encodeBounded) and its
+    recorded-fact limit. A size-specific name would be wrong for every rejection
+    that is not the size, and telling them apart would need SQLSTATE or constraint
+    names above the store, which PER-R13 forbids.
+  store_mapping: >-
+    runstore StartPlanner and AppendPlannerEvent map only the invalid and rejected
+    classes (plannerWriteRejected, Classify ClassInvalid or ClassRejected) to
+    ErrInvalid, not persistencepostgres.ConstraintError as the scope suggested
+    (accepted by the coordinator). Evidence: ConstraintError also maps a
+    duplicate to conflict and a reference violation to invalid, which these
+    writers already map to ErrConflict (a reused session or event identity) and
+    ErrNotFound (a missing session); ConstraintError also drops the cause, and A1
+    requires Classify(err) == ClassInvalid on the returned error. The Audit store
+    helper writeError and the finding receipt insert map ClassInvalid only,
+    because their callers already give ClassRejected its own meaning (Collect:
+    ErrPrecondition) or have none.
+  retryability: >-
+    planner_session_rejected is non-retryable, recorded in PLN-R106 with the
+    evidence (a fresh StageExecution gets the same request, Workflow and
+    AgentTemplate and nothing bounds what it builds below the refused size) and
+    the reversal condition (a retried invocation gets a smaller state budget).
+    Alternative rejected: retryable like the PLN-R85 budget stops.
+  session_pre_checks: >-
+    Extension of scope.in, same rule: the session service's own pre-check of the
+    same 2 MiB session JSON bound (encodeBounded) and its 256 recorded-fact limit
+    returned plain errors, so a state over the bound measured on compact JSON was
+    still a retryable planner_session_unavailable or planner_plan_persistence_failed
+    while one over it only as jsonb text would have been planner_session_rejected.
+    Both now wrap runstore.ErrInvalid. A redacted ADK event refused by the store
+    (recordADKEvent through the ADK runner) became the retryable
+    planner_execution_failed and is now planner_session_rejected too.
+  test_technique: >-
+    The A1 regression uses a real oversized state (2,000,007 submitted bytes,
+    3,000,007 stored) against the production bound. Session, Streamline, Audit
+    store and finding intake tests that need a write past a bound their fixtures
+    cannot reach replace the production constraint with the same name and
+    measure (octet_length(column::text)) and a lowered bound, NOT VALID so stored
+    rows stay. The Audit store table test reaches all eight writers from one
+    fixture with a statement trigger that raises 23514 naming the real
+    constraint, because AcceptInitialRound, StartPreparation and
+    SettleUndispatched need Audit phases the fixture does not reach.
+  planner_plan_persistence_failed: >-
+    The Streamline code planner_plan_persistence_failed was used but not
+    registered; it now means only an unavailable session for plan progress or a
+    fact and is registered in errors.md and the PLN error list.
+sibling_inventory:
+  planner: >-
+    Fixed: runstore StartPlanner and AppendPlannerEvent (state and Run event of
+    the same statement, A1); planner.SessionError for Begin, RecordRequest and
+    the completion (Passthrough, Streamline, Router through the Streamline
+    engine); Streamline planPersistenceFailure for RecordPlan and RecordFact; the
+    Streamline ADK runner error of a refused redacted ADK event; the session
+    service's encodeBounded and fact-limit pre-checks; the session memoryStore
+    fake, which measures the stored jsonb text (cross-checked against
+    PostgreSQL). Ruled out: the scan planner (internal/planner/scan) writes the
+    same session through BeginScan, InitializeScan, ClaimScanJob, FinishScanJob
+    and CompleteScan (scan.go appendScanPayload) and its errors now carry
+    ErrInvalid, but scanError makes every scan session failure non-retryable
+    (scan_session_unavailable, scan_plan_record_failed, scan_job_result_unavailable,
+    scan_completion_write_failed), so no rejection is retried as an outage;
+    lifecycle Run events are written by database triggers with a closed schema
+    of bounded identifiers and cannot reach workflow_run_events_data_check.
+  audit_store_fixed: >-
+    Raw ClassInvalid returns of reachable bounds, now auditstore.ErrInvalid with
+    the cause through pgstore.writeError: ClaimStore.Collect
+    (audit_executions_collection_retained_refs_check: up to 1024 links with
+    model-written provenance under a compact 8 MiB check; audit_items_coverage_gaps_check),
+    OwnerStore.MaterializeRound (audit_items_coverage_gaps_check: up to 4096 gap
+    values under a compact 1 MiB check, jsonb adds a byte per element;
+    audits_baseline_snapshot_check: the baseline embeds the inventory manifest of
+    up to 4096 items), ClaimStore.AcceptNextRound and AcceptInitialRound
+    (coverage_gaps), and the conditional ones ClaimStore.CreateExecutionIntent
+    (audit_executions_preparation_shape, a profile with many parameters),
+    OwnerStore.CreateDraft (audits_profile_snapshot_check, operator catalog
+    content), ClaimStore.SettleUndispatched (a gap appended to a full
+    coverage_gaps) and OwnerStore.StartPreparation (audits_baseline_snapshot_check).
+    Effect: the public Start and Create answer 400 invalid_request instead of 500,
+    the importer turns a refused collection into its contract-invalid receipt
+    (ErrInvalid to ErrPermanent) instead of leaving the execution collecting, and
+    AcceptNextRound closes the Audit through closeInvalidNextRound.
+  finding_intake_fixed: >-
+    findingintake insertReceipt: finding_comparison_projection_shape (32768 on
+    jsonb text) is computed by a trigger from up to 32 standard refs with
+    escaped versions, about 42 KB, with no Go check; it returned the raw error,
+    answered retryable 500 by the private Artifact API, and now returns
+    findingintake.ErrInvalid, answered 400 invalid_finding_request.
+  already_mapped: >-
+    credential_operations_request_check and llm_credentials_gateway_policy_check
+    (credentials classifyRepositoryWrite through ConstraintError);
+    audit_review_requests_requested_actions_check on InsertFindingReviewRequest
+    (reviewWriteError).
+  dropped: >-
+    runtime_management_operations_result_check and
+    audit_idempotency_response_snapshot_check: their tables were dropped by
+    migration 000013; mutation_receipts.response is bytea, measured without
+    re-serialisation.
+  unreachable: >-
+    The jsonb text exceeds the compact JSON by one byte per ':' and ','; these
+    values stay far below their bound at every Go bound: every 4096-byte artifact
+    ref CHECK (audit_artifact_links_artifact_ref_check, audit_execution_items_result_ref_check
+    and task_ref, audit_executions_collection_source_output_ref_check and
+    manifest_ref, audit_items_accepted_result_ref, proposal_ref, task_ref and
+    coverage_result_shape, audit_rounds_manifest_ref_check, audit_finding_assessments_contract_shape
+    and result_ref, finding_proposal_audit_holds_proposal_ref_check,
+    finding_proposal_receipts proposal_ref and workflow_configuration_ref: a ref
+    of names of at most 128 characters and a fixed rev_ revision is at most 337
+    bytes as jsonb); audit_artifact_links_source_provenance_check (largest
+    producer about 0.85 MB of 1 MiB); audit_events_summary_check (fixed-shape
+    summaries, largest about 25 KB of 64 KiB); audit_execution_items_input_refs_check
+    (128 inputs, about 575 KB of 1 MiB); audit_executions_preparation_outputs_shape
+    (128 outputs, about 300 KB); audit_executions_run_provenance_shape
+    (identifiers built in SQL, under 1 KB); audit_items_coverage_completed and
+    coverage_requested (identifier values, about 84 KB); audit_items_origin_shape
+    (about 12 KB of 16 KiB); audits_input_selection_check (about 1.2 MB of 8 MiB);
+    audit_finding_contributions_proposal_ref_check and audit_findings_first_proposal_ref_check
+    (copied by a trigger from a hold ref that passed the same check);
+    audit_review_requests_report_machine_link and report_summary_link (fixed
+    producer, about 2 KB of 16 KiB) and requested_actions on the other writers
+    (constant arrays); finding_proposal_audit_holds_evidence_check and
+    finding_proposal_receipts_evidence_check (256 refs, about 187 KB of 1 MiB).
+    Text and bytea size CHECKs measure the stored bytes themselves and are not
+    affected.
+  follow_up: >-
+    Not changed here: the Audit controller retries every error of
+    AcceptInitialRound, CreateExecutionIntent and SettleUndispatched, so a store
+    ErrInvalid from them, now including a refused stored bound, is retried at
+    each reconcile instead of closing the Audit as AcceptNextRound does
+    (closeInvalidNextRound). The same holds for those writers' own Go
+    validation errors before this change. Scan planner codes and several
+    Streamline codes (planner_execution_failed, planner_initialization_failed)
+    are not registered in errors.md.
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9; locked Runtime venv and pnpm UI install for make lint;
+    local PostgreSQL 17 database contractor_test_v414_plan with per-test schemas;
+    TMPDIR=/private/tmp. Tests ran on fe5763d9 (74d2283a with main e92c0272
+    merged).
+  spec: >-
+    PLN-R106 (refused session writes return non-retryable planner_session_rejected,
+    with evidence and reversal condition), planners.md error list
+    (planner_session_rejected, planner_plan_persistence_failed), errors.md rows
+    for both codes, FAIL-PLN-9; docs/spec/audit-workflow-dependencies.html
+    regenerated with make docs-dependencies.
+  tests_added: >-
+    internal/runstore/planner_size_check_postgres_test.go (A1 on the state and
+    the Run event, A4), internal/planner/session/rejected_write_postgres_test.go
+    (A2 start, request and Passthrough completion on the real session service;
+    fake measure cross-checked with PostgreSQL), internal/planner/session/bounds_test.go
+    (session pre-check and fact limit, fake), internal/planner/streamline/session_rejection_postgres_test.go
+    (A2 plan transition, fact and ADK event through Streamline on the real
+    session service), internal/planner/session_write_test.go and
+    internal/planner/streamline/session_write_test.go (code mapping),
+    internal/auditstore/internal/pgstore/stored_constraint_postgres_test.go and
+    internal/findingintake/receipt_bound_integration_test.go (A3).
+  can_fail: >-
+    A4: TestPostgresPlannerSizeCheckRejectionIsInvalid on a git archive of
+    19f7477f failed with the raw "violates check constraint
+    planner_session_state_size (SQLSTATE 23514)" and errors.Is(err,
+    runstore.ErrInvalid) false. On a copy of the branch with the Streamline
+    mappings disabled, all three TestPostgresStreamlineRejectedSessionWritesAreNotRetryable
+    cases failed (planner_plan_persistence_failed, planner_execution_failed in the
+    report); with pgstore.writeError and the insertReceipt mapping disabled, all
+    eight store subtests, TestPostgresStoredSizeBoundsRefuseAuditWritesAsInvalid
+    and TestPostgresReceiptRefusedByAStoredBoundIsInvalid failed.
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://localhost/contractor_test_v414_plan
+      go test -tags=integration -count=1 ./internal/runstore/... ./internal/planner/...
+      ./internal/auditstore/... ./internal/credentials/... ./internal/runtimeconfig/...
+      passed (runstore 62.5s, planner packages, pgstore 244.0s, credentials,
+      litellm, runtimeconfig).
+    - >-
+      The same URL with go test -count=1 ./internal/planner/... ./internal/httpapi/public/...
+      ./internal/httpapi/privateartifacts/... ./internal/auditcontroller/...
+      ./internal/auditservice/... ./internal/auditimport/... ./internal/runstore/...
+      ./internal/findingintake/... passed (public 148.8s, privateartifacts,
+      auditservice 95.5s, runstore 95.9s). ./internal/auditstore/... in that
+      concurrent run failed the V414-028 and V414-029 scale tests
+      TestPostgresAuditClaimReadsOnlyTheReconcilableAudits and
+      TestPostgresAuditDeletionProbesReadOnlyTheLiveRuns under the load of a
+      second suite on the same server; alone, both and then go test -count=1
+      ./internal/auditstore/... passed (pgstore 276.6s).
+    - >-
+      go test -tags=integration -count=1 -v with the same URL for every new test
+      (the A1 regression, the session, Streamline and planner tests, the two
+      pgstore tests, TestPostgresReceiptRefusedByAStoredBoundIsInvalid and the
+      inbox test whose helper changed) passed with no skip.
+    - >-
+      go test -tags=integration -count=1 ./internal/findingintake/... passed
+      except TestPostgresFindingRunDeletionSerializesWithAuditPurge
+      (run_deletion_commits_first waits at another lock stage than "FOR UPDATE OF
+      audit, claim"). It fails the same way on a git archive of main e92c0272
+      and passes on c73ec319: main's V414-029 deletion probe changed it, not
+      this task.
+    - make lint passed (exit 0) after make docs-dependencies.
+  skipped: none; no environment-limited test.

@@ -1,0 +1,91 @@
+{
+  "method": "real controlled HTTP tools/native bridge/local socket; injected clock for waits; no LLM",
+  "source_revision": "80d8336e3",
+  "limit_no_delay": {
+    "bridge_delay_seconds": 0,
+    "physical_requests": 2,
+    "rejected_tool_calls": 79,
+    "bridge_entries_for_rejected_calls": 0,
+    "waits_for_rejected_calls": 0,
+    "model_error": {
+      "code": "http_request_failed",
+      "message": "http_request failed (ControlledHTTPError)",
+      "retryable": false
+    },
+    "transport_reason_after_30_seconds": "http_limit_exceeded",
+    "history_records": 2
+  },
+  "limit_bridge_delay_one_second": {
+    "bridge_delay_seconds": 1,
+    "physical_requests": 2,
+    "rejected_tool_calls": 79,
+    "bridge_entries_for_rejected_calls": 0,
+    "waits_for_rejected_calls": 0,
+    "model_error": {
+      "code": "http_request_failed",
+      "message": "http_request failed (ControlledHTTPError)",
+      "retryable": false
+    },
+    "transport_reason_after_30_seconds": "http_limit_exceeded",
+    "history_records": 2
+  },
+  "configured_rate": {
+    "physical_requests": 3,
+    "transport_waits_seconds": [
+      0.5,
+      0.5
+    ],
+    "bridge_entry_intervals_seconds": [
+      0.5,
+      0.5
+    ]
+  },
+  "retry_after": {
+    "statuses_of_two_explicit_calls": [
+      429,
+      200
+    ],
+    "sends_in_first_call": 1,
+    "transport_waits_seconds": [],
+    "retry_after_returned": "2"
+  },
+  "safe_pre_send_retry": {
+    "fault": "one injected pre-send connect_failed at native engine entry",
+    "bridge_attempts": 2,
+    "physical_requests_received": 1,
+    "transport_waits_seconds": [],
+    "reported_retries": 1
+  },
+  "cancellation": {
+    "cancelled_while": "transport admission pacing",
+    "physical_requests": 1,
+    "remaining_owned_tasks": 0
+  },
+  "same_as_deployed_files": [
+    "adapters/http_transport.py",
+    "toolsets/http/controlled.py",
+    "worker/instrumentation.py",
+    "adapters/bridge/mitmproxy/engine.py",
+    "adapters/bridge/mitmproxy/ingress.py"
+  ],
+  "historical_run_timing": {
+    "failed_calls": 79,
+    "first_to_last_seconds": 332.829,
+    "gap_between_failed_call_starts_seconds": {
+      "min": 1.031,
+      "median": 3.708,
+      "max": 27.075
+    }
+  },
+  "checks": {
+    "local_probe_cases": 6,
+    "local_probe_result": "passed",
+    "existing_pytest_modules": [
+      "test_engagement_target.py",
+      "test_audit_http_credentials.py",
+      "test_engagement_socket_conformance.py"
+    ],
+    "existing_pytest_exit_code": 0,
+    "initial_documentation_make_lint_exit_code": 0
+  }
+}

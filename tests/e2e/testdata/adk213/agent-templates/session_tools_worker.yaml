@@ -1,0 +1,16 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: session_tools_worker
+  version: "1"
+spec:
+  description: Deterministic ADK process contract probe with bounded artifact tools
+  runtime: adk@1
+  instructions:
+    ref: instructions/session-tools-worker.md
+  toolsets:
+    - ref: run-artifacts@1
+      tools: [read_artifact]
+    - ref: text-artifacts@1
+      tools: [write_text_artifact]
+  sandboxProfile: local-workdir@1

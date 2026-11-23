@@ -1,0 +1,991 @@
+/*
+ * Start a check (/checks/new). Every class starts with start-; colours come
+ * only from theme.css tokens. Sizes follow docs/design/ui/mockups/v3b/start.html.
+ * The panes, rows and buttons are the shared primitives in src/ui.
+ */
+
+/* ---------- Shared text ---------- */
+
+.start-web-fields {
+  display: grid;
+  gap: var(--space-4);
+  border: 0;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.start-rule-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: var(--space-3);
+  margin-block: var(--space-3);
+}
+
+.start-rule-option {
+  display: flex;
+  align-items: start;
+  gap: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  cursor: pointer;
+}
+
+.start-rule-option[data-selected="true"] {
+  background: var(--sel);
+  border-color: var(--sel-line);
+}
+
+.start-rule-option span {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.start-tight {
+  margin: 0;
+}
+
+.start-stack {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+}
+
+.start-stack > .notice {
+  justify-self: stretch;
+  margin: 0;
+}
+
+/* Blocks in the list pane line up with the rows. */
+.start-pane-block {
+  margin: var(--space-3) 0;
+  padding-inline: var(--ui-pad-start, 1.25rem) var(--ui-pad-end, 1rem);
+}
+
+.start-pane-block > .notice {
+  margin: 0 0 var(--space-2);
+}
+
+.start-notice {
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+.start-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-0-5) var(--space-2);
+  border: 1px solid var(--sel-line);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--accent);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+/* ---------- List pane ---------- */
+
+/* Description and needs on lines of their own under the title. */
+.start-row-meta {
+  display: grid;
+  flex: 1 1 100%;
+  gap: var(--space-0-5);
+  min-width: 0;
+}
+
+.start-row-meta > span:empty {
+  display: none;
+}
+
+.start-row-missing {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.start-row-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3-5);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.start-list-note {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.start-list-note a,
+.start-row-links a {
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Detail pane: header ---------- */
+
+.start-detail-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: 0;
+}
+
+.start-breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+
+.start-breadcrumb li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.start-breadcrumb li > svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.start-breadcrumb a {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.start-breadcrumb a:hover {
+  color: var(--text);
+}
+
+.start-breadcrumb [aria-current="page"] {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* ---------- Objective ---------- */
+
+.start-objective {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.start-objective-label {
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.start-objective-field {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--sunken);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.start-objective-field::placeholder {
+  color: var(--faint);
+  font-weight: 500;
+  opacity: 1;
+}
+
+.start-suggestion-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1-5);
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.start-suggestion-line > svg {
+  flex: none;
+  margin-top: var(--space-0-5);
+}
+
+/* ---------- Chosen check type ---------- */
+.start-type {
+  display: grid;
+  gap: var(--space-3);
+}
+.start-selection-head {
+  display: flex;
+  align-items: start;
+  gap: var(--space-3-5);
+}
+.start-selection-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+  color: var(--accent);
+}
+.start-selection-copy {
+  min-width: 0;
+}
+.start-selection-copy h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.start-type-description {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.65;
+}
+/* Notices in the setup read at body size, not the global 16 px. */
+.start-type > .notice,
+.start-card > .notice {
+  font-size: var(--text-md);
+  line-height: 1.5;
+}
+
+.start-type > .notice {
+  max-width: 78ch;
+  margin: 0;
+}
+
+.start-card > .notice {
+  margin: 0;
+  padding: var(--space-2-5) var(--space-3);
+}
+
+/* ---------- Cards: materials, scope, live target ---------- */
+
+.start-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2-5);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-5) 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.start-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+
+.start-card-head h3 {
+  margin: 0;
+  padding: 0;
+  color: var(--text);
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+
+.start-material-list {
+  margin: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--line);
+  list-style: none;
+}
+
+.start-material {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2-5);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--line);
+}
+
+.start-material-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--radius-full);
+}
+
+.start-material[data-state="attached"] .start-material-mark {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.start-material[data-state="open"] .start-material-mark {
+  border: 1.5px dashed var(--line-strong);
+}
+
+.start-material-main {
+  display: grid;
+  flex: 1 1 auto;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.start-material-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-0-5) var(--space-2);
+}
+
+.start-material-label {
+  color: var(--text);
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.start-material-ref {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-0-5) var(--space-2);
+  min-width: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.start-material-ref code {
+  color: var(--text);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.start-material > .ui-btn {
+  flex: none;
+}
+
+.start-scope-size {
+  display: block;
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.start-scope-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2-5);
+  cursor: pointer;
+}
+
+.start-scope-option input {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  margin: var(--space-1) 0 0;
+  accent-color: var(--accent);
+}
+
+.start-scope-option input:disabled + span {
+  opacity: 0.6;
+}
+
+.start-scope-detail {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Fields ---------- */
+
+.start-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
+  gap: var(--space-3-5) var(--space-5);
+}
+
+/* A material choice (.ui-control) inside a materials card; its label is
+   the slot name. Room for the arrow on the right. */
+.start-material-select {
+  padding-right: var(--space-8);
+}
+
+.start-textarea {
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.start-objective-field:focus-visible {
+  border-color: var(--focus);
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* ---------- Time limit ---------- */
+
+.start-time {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.start-time-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-4);
+}
+
+.start-time-fields > .ui-field {
+  flex: 0 1 14rem;
+}
+
+/* ---------- Advanced options ---------- */
+
+.start-advanced {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+}
+
+.start-advanced > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-xl);
+  cursor: pointer;
+  list-style: none;
+}
+
+.start-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.start-advanced > summary:hover {
+  background: var(--row-hover);
+}
+
+.start-advanced-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text);
+  font-size: var(--text-md);
+  font-weight: 800;
+}
+
+.start-advanced-title > svg {
+  flex: none;
+  transition: transform 140ms ease;
+}
+
+.start-advanced[open] .start-advanced-title > svg {
+  transform: rotate(90deg);
+}
+
+.start-advanced-body {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-1) var(--space-4) var(--space-4) 2.4375rem;
+  font-size: var(--text-md);
+}
+
+.start-preparation-plan {
+  padding: var(--space-4);
+  margin-block: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-subtle);
+}
+.start-preparation-plan h3 {
+  margin-top: 0;
+  font-size: var(--text-md);
+}
+.start-preparation-plan ol {
+  padding-left: var(--space-5);
+}
+.start-preparation-plan li + li {
+  margin-top: var(--space-2);
+}
+
+/* Approved OpenDesign workspace, using the application font and theme tokens. */
+.start-workspace {
+  max-width: 1600px;
+  margin-inline: auto;
+  padding: var(--space-6) var(--space-8);
+  min-width: 0;
+}
+.start-page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  margin: var(--space-5) 0;
+}
+.start-page-heading h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.start-page-heading p {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.start-project-badge {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+.start-objective-wrap {
+  min-width: 0;
+  padding: var(--space-5);
+  margin: var(--space-6) 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.start-suggestion-line {
+  font-size: var(--text-xs);
+}
+.start-workbench {
+  display: grid;
+  grid-template-columns: minmax(230px, 280px) minmax(0, 1fr) 312px;
+  gap: var(--space-6);
+  align-items: start;
+}
+.start-type-picker {
+  min-width: 0;
+}
+.start-type-picker > summary {
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.start-type-picker > summary span {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--muted);
+  margin-top: var(--space-1);
+}
+.start-type-picker > summary {
+  display: none;
+}
+.start-type-picker .ui-list-pane {
+  min-height: 0;
+  background: transparent;
+  --ui-pad-start: 0.875rem;
+  --ui-pad-end: 0.875rem;
+}
+.start-type-picker .ui-list-pane-title {
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+.start-type-picker .ui-list-pane-body {
+  flex-grow: 0;
+}
+.start-type-picker .ui-list-section-heading {
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.start-type-picker .ui-list-section-title {
+  font-weight: 500;
+}
+.start-type-picker .ui-row-title {
+  font-weight: 500;
+}
+.start-type-picker .ui-list-section-aside {
+  display: none;
+}
+.start-type-picker .ui-row {
+  --ui-row-min-height: auto;
+}
+.start-type-picker .ui-row-trailing {
+  align-self: start;
+}
+.start-badge {
+  font-size: var(--text-2xs);
+  font-weight: 500;
+}
+.start-setup {
+  min-width: 0;
+  padding: var(--space-6);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.start-setup-fields {
+  display: grid;
+  gap: var(--space-5);
+  padding: 0;
+  margin: 0;
+  border: 0;
+  min-width: 0;
+}
+.start-material-label {
+  font-weight: 500;
+  font-size: var(--text-sm);
+}
+.start-material-ref .ui-btn {
+  justify-self: start;
+}
+.start-review-coverage {
+  display: grid;
+  gap: var(--space-3);
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.start-review-coverage legend {
+  padding: 0;
+  margin-bottom: var(--space-3);
+  font-weight: 500;
+}
+.start-scope-size {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.start-time {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-5);
+}
+.start-advanced-title {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.start-advanced-body {
+  padding-left: var(--space-4);
+}
+
+.start-summary-card {
+  position: sticky;
+  top: var(--space-5);
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  min-width: 0;
+}
+.start-summary-card h3 {
+  margin: 0;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: var(--text-2xs);
+  font-weight: 500;
+}
+.start-summary-name {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: 1.45;
+  font-weight: 500;
+}
+.start-summary-facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.start-summary-facts div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--space-3);
+  font-size: var(--text-xs);
+}
+.start-summary-facts dt {
+  color: var(--muted);
+}
+.start-summary-facts dd {
+  margin: 0;
+  text-align: right;
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+.start-readiness {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.start-readiness > span {
+  display: flex;
+  min-height: var(--control-sm);
+  align-items: center;
+  border: 1px solid var(--warning-line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: var(--text-2xs);
+}
+.start-readiness[data-tone="ready"] > span {
+  border-color: var(--success-line);
+  background: var(--success-bg);
+  color: var(--success);
+}
+.start-readiness[data-tone="blocked"] > span {
+  border-color: var(--danger-line);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.start-readiness p {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.start-actions {
+  display: grid;
+  gap: var(--space-2);
+}
+.start-actions .ui-btn {
+  width: 100%;
+  height: auto;
+  min-height: var(--control-md);
+  padding-block: var(--space-2);
+  white-space: normal;
+}
+.start-summary-card > .notice {
+  margin: 0;
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.start-type-picker .ui-list-pane-header {
+  padding: 0 0 var(--space-3);
+  border-bottom: 0;
+}
+.start-type-picker .ui-list-pane-toolbar {
+  padding: var(--space-3) 0;
+  border-bottom: 0;
+}
+.start-type-picker .ui-list-section-heading {
+  padding-inline: 0;
+}
+.start-type-picker .ui-row {
+  margin-bottom: var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+}
+.start-type-picker .ui-row[data-selected] {
+  border-color: var(--sel-line);
+}
+.start-type-picker .ui-row[data-selected]::before {
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+.start-type-picker .ui-list-pane-footer {
+  padding-inline: 0;
+}
+.start-material-list {
+  display: grid;
+  gap: var(--space-2);
+  border-bottom: 0;
+}
+.start-material {
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+}
+.start-material-head {
+  justify-content: space-between;
+}
+.start-card-head h3 {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-strong);
+}
+.start-time > .ui-field .ui-field-label {
+  font-size: var(--text-xs);
+}
+.start-advanced {
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  padding-top: var(--space-3);
+  background: transparent;
+}
+.start-advanced > summary {
+  padding-inline: 0;
+}
+
+@media (max-width: 1100px) {
+  .start-workbench {
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: var(--space-5);
+  }
+  .start-summary-card {
+    grid-column: 2;
+    position: static;
+  }
+}
+@media (max-width: 820px) {
+  .start-workspace {
+    padding: var(--space-4);
+  }
+  .start-workbench {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-5);
+  }
+  .start-summary-card {
+    grid-column: 1;
+  }
+  .start-setup {
+    padding: var(--space-4);
+  }
+  .start-type-picker {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+  .start-type-picker .ui-list-pane {
+    padding: var(--space-3);
+  }
+  .start-type-picker > summary {
+    display: list-item;
+    list-style-position: inside;
+  }
+  .start-type-picker .ui-list-pane-header {
+    display: none;
+  }
+  .start-type-picker .ui-list-pane-footer {
+    display: none;
+  }
+  .start-project-badge {
+    display: none;
+  }
+  .start-objective-wrap {
+    padding: var(--space-3);
+  }
+  .start-page-heading h1 {
+    font-size: 1.5rem;
+  }
+}
+
+/* Common-assertion checklist: one row first, details on demand. */
+.start-checklist {
+  min-width: 0;
+  margin-top: var(--space-2);
+}
+.start-checklist-editor {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  padding: var(--space-4) 0 0;
+  margin: var(--space-3) 0 0;
+}
+.start-checklist-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.start-checklist-heading h4 {
+  margin: 0;
+  font-size: var(--text-md);
+}
+.start-checklist-heading p {
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.start-checklist-count {
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.start-checklist-items {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.start-checklist-items > li {
+  display: grid;
+  grid-template-columns: var(--space-6) minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.start-checklist-number {
+  display: grid;
+  place-items: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  margin-top: var(--space-6);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  color: var(--muted-strong);
+  font-size: var(--text-xs);
+}
+.start-checklist-items textarea {
+  min-height: 4.5rem;
+}
+.start-checklist-items > li > .ui-btn {
+  margin-top: var(--space-6);
+}
+.start-checklist-editor > .ui-btn {
+  justify-self: start;
+}
+.start-checklist-options {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.start-checklist-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+}
+.start-checklist-footer > .ui-caption {
+  flex: 1 1 12rem;
+}
+.start-scope-material {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+@media (max-width: 480px) {
+  .start-checklist-footer > .ui-btn {
+    width: 100%;
+  }
+}

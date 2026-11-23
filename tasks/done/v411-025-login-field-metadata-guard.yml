@@ -1,0 +1,65 @@
+schema_version: '1.0'
+id: V411-025
+title: Classify login recipe variable names precisely in the secret-holder guard
+milestone: autonomous-http-pentest-2026-10
+epic: http-tools
+kind: chore
+introduced_by: V411-005
+priority: P3
+status: completed
+depends_on:
+- V411-005
+languages:
+- go
+goal: Remove the secret-holder gate's false positive for validated login variable names while retaining checks for actual secret values.
+context:
+  review: The clean merged-main verification after sitemap imports failed only TestSecretHoldersRedactForEveryVerb on engagementSelection.loginRecipes[].SecretFields.
+  finding: >-
+    internal/contracts/pentestcontract/login_recipe.go:25 declares SecretFields as login variable names;
+    Validate checks each name against loginVariablePattern at lines 85-89. The traversal in
+    internal/archtest/secret_holders_test.go:610 classifies the field name as secret material when
+    reached through the unexported engagement selection. This is metadata, not resolved credentials,
+    and the existing precise plainFields table is the owning exception mechanism.
+  specification:
+  - docs/spec/platform/security.md#SEC-R88
+  code:
+  - internal/archtest/secret_holders_test.go
+  - internal/archtest/testdata/secretholders/holders.go
+  - internal/contracts/pentestcontract/login_recipe.go
+scope:
+  in:
+  - Add one reasoned plainFields entry for internal/contracts/pentestcontract.LoginRecipe.SecretFields.
+  - Extend the typed guard fixture to accept the actual LoginRecipe metadata through an unexported holder and still reject a different holder with a plain SecretFields value.
+  out:
+  - Changes to credentials, login execution, production data, recipe validation or logging behavior.
+  - Broad keyword/suffix exceptions, exemptions for whole holders, or redaction of valid variable-name metadata.
+acceptance_criteria:
+- id: A1
+  text: The production secret-holder guard accepts LoginRecipe.SecretFields through engagement selection using only the exact type-and-field exception with a reason explaining validated variable names.
+- id: A2
+  text: The typed fixture regression still reports a different holder's real SecretFields value and all existing secret-holder rule findings; it accepts the nested LoginRecipe metadata.
+- id: A3
+  text: Full archtest and pentestcontract package suites and make lint pass without changing login behavior or weakening general secret-field detection.
+tests:
+- command: make lint
+  covers: [A1, A2, A3]
+- command: go test ./internal/archtest
+  covers: [A1, A2, A3]
+- command: go test ./internal/contracts/pentestcontract
+  covers: [A3]
+execution:
+  branch: codex/v411-025-login-field-metadata
+  claimed_on: '2026-10-29'
+  note: Root assigned this bounded guard repair after the merged-main verification; the integrated lint gate and the complete affected Go packages passed before closure.
+
+implementation_commit: ad86f8f2bbc4b8708d4d6494c20fa69d7b8c7b4c
+verification:
+  date: '2026-10-29'
+  result: passed
+  commands:
+  - command: go test ./internal/archtest ./internal/contracts/pentestcontract -count=1
+    result: Passed both complete packages on the isolated implementation; the integrated PostgreSQL gate repeated the full archtest package successfully.
+  - command: make lint
+    result: Passed on the integrated branch, including the exact-field regression, typed secret-holder guard, static checks, spec/task checks and release graph.
+  notes:
+  - Only validated variable-name metadata is exempted; the typed fixture still reports a different holder with actual secret values under the same field name.

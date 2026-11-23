@@ -1,0 +1,729 @@
+"""Bounded descriptor-relative access to one private local content directory.
+
+These synchronous primitives belong behind WorkspaceOperationGuard. They never
+follow symlinks, accept special files or trust a previous hydration snapshot.
+A complete scan records such entries as opaque leaves instead of failing: they
+are listed, counted and never opened, and every operation touching them fails.
+"""
+
+from __future__ import annotations
+
+import codecs
+import errno
+import math
+import os
+import secrets
+import stat
+import time
+import unicodedata
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
+from dataclasses import dataclass, field, replace
+from pathlib import Path
+from typing import BinaryIO
+
+from contractor_runtime.projectfs.config import WorkspaceLimits
+from contractor_runtime.projectfs.errors import WorkspaceStorageError
+from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
+
+_DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+_FILE_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+_CHUNK = 64 * 1024
+_REPLACEMENT = "\ufffd"
+_NO_EFFECT_ERRNOS = {errno.EACCES, errno.EPERM, errno.ENOSPC, errno.EDQUOT, errno.EROFS}
+
+
+class _NoEffectMutation(WorkspaceStorageError):
+    """An operation failed before changing the managed tree, with cleanup complete."""
+
+
+@dataclass(frozen=True, slots=True)
+class LocalEntry:
+    path: str
+    directory: bool
+    size: int
+    mode: int
+    identity: tuple[int, int]
+    version: tuple[int, int, int]
+    # A leaf the Runtime never opens or follows: symlink, multiply linked or
+    # special file, oversize or unreadable entry, or a non-canonical name.
+    opaque: bool = False
+
+
+@dataclass(slots=True)
+class LocalTree:
+    entries: dict[str, LocalEntry] = field(default_factory=dict)
+    texts: dict[str, str] = field(default_factory=dict, repr=False)
+    binary_paths: set[str] = field(default_factory=set)
+    opaque_paths: set[str] = field(default_factory=set)
+    expanded_bytes: int = 0
+
+
+class RootedLocalFilesystem:
+    def __init__(self, root: Path, limits: WorkspaceLimits) -> None:
+        if not root.is_absolute() or root == Path(root.anchor) or ".." in root.parts:
+            raise WorkspaceStorageError("workspace_path_invalid")
+        if any(
+            value <= 0
+            for value in (
+                limits.max_files,
+                limits.max_file_bytes,
+                limits.max_expanded_bytes,
+                limits.max_managed_text_bytes,
+            )
+        ):
+            raise ValueError("workspace limits must be positive")
+        self._root = root
+        self.limits = limits
+        self._identity: tuple[int, int] | None = None
+        with self._opened_root() as descriptor:
+            self._identity = _identity(os.fstat(descriptor))
+
+    def stat(self, path: str, *, deadline: float) -> LocalEntry:
+        path = _path(path, allow_root=True)
+        with _safe_errors(), self._opened_root() as root:
+            _check_deadline(deadline)
+            if not path:
+                return _entry(path, os.fstat(root))
+            with _parent(root, path) as (parent, name):
+                return _entry(path, os.stat(name, dir_fd=parent, follow_symlinks=False))
+
+    @contextmanager
+    def create_output(self, path: str, *, deadline: float) -> Iterator[BinaryIO]:
+        """Stream a new private hydration member without following links."""
+        path = _path(path)
+        with _safe_errors(), self._opened_root() as root, _parent(root, path) as (parent, name):
+            _check_deadline(deadline)
+            descriptor = os.open(
+                name,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                0o666,
+                dir_fd=parent,
+            )
+            with os.fdopen(descriptor, "wb") as output:
+                yield output
+
+    def read(self, path: str, *, deadline: float) -> bytes:
+        path = _path(path)
+        with _safe_errors(), self._opened_root() as root:
+            data = self._read(root, path, deadline)
+            if data is None:
+                raise RuntimeError("unclassified local read returned no content")
+            return data
+
+    def read_classified(
+        self, path: str, *, deadline: float, expected: LocalEntry
+    ) -> tuple[str | None, bool]:
+        """Read one current file as text, stopping when it is known to be binary."""
+        path = _path(path)
+        with _safe_errors(), self._opened_root() as root:
+            try:
+                data = self._read(root, path, deadline, expected=expected, classify_text=True)
+            except PermissionError:
+                return None, True
+        return (None if data is None else data.decode("utf-8")), False
+
+    def scan(self, *, deadline: float, path: str = "", contents: bool = True) -> LocalTree:
+        path = _path(path, allow_root=True)
+        with _safe_errors(), self._opened_root() as root:
+            return self._scan(root, path, deadline, contents=contents)
+
+    def file_paths(self, *, deadline: float) -> frozenset[str]:
+        """Project current readable file paths without loading or hashing their content."""
+
+        with _safe_errors(), self._opened_root() as root:
+            tree = self._scan(root, "", deadline, contents=False, verify_readable=True)
+            if tree.expanded_bytes > self.limits.max_managed_text_bytes:
+                # Metadata is a conservative text-size upper bound. Only when
+                # it cannot prove the quota do the existing bounded classifiers
+                # distinguish binary leaves from managed text. No digest is needed.
+                tree = self._scan(root, "", deadline, contents=True)
+            return frozenset(
+                item.path
+                for item in tree.entries.values()
+                if not item.directory and not item.opaque
+            )
+
+    def _probe_readable(self, root: int, item: LocalEntry, deadline: float) -> None:
+        _check_deadline(deadline)
+        with _parent(root, item.path) as (parent, name):
+            descriptor = os.open(name, _FILE_FLAGS, dir_fd=parent)
+            try:
+                _verify(item, _entry(item.path, os.fstat(descriptor)), version=True)
+            finally:
+                os.close(descriptor)
+
+    def write(self, path: str, data: bytes, *, deadline: float) -> None:
+        path = _path(path)
+        if len(data) > self.limits.max_file_bytes:
+            raise WorkspaceStorageError("workspace_limit_exceeded")
+        with _safe_errors(), self._opened_root() as root:
+            self._write(root, path, data, deadline)
+
+    def mkdir(self, path: str, *, deadline: float, parents: bool = False) -> None:
+        path = _path(path)
+        with _safe_errors(), self._opened_root() as root:
+            # Validate every existing component before creating any directory.
+            missing = False
+            parts = path.split("/")
+            for index in range(len(parts)):
+                _check_deadline(deadline)
+                current = "/".join(parts[: index + 1])
+                if not missing:
+                    with _parent(root, current) as (parent, name):
+                        entry = _optional_entry(parent, name, current)
+                    if entry is not None and not entry.directory:
+                        raise WorkspaceStorageError("workspace_type_conflict")
+                    missing = entry is None
+                    if missing and index < len(parts) - 1 and not parents:
+                        raise WorkspaceStorageError("workspace_not_found")
+            created = False
+            for index in range(len(parts)):
+                _check_deadline(deadline)
+                current = "/".join(parts[: index + 1])
+                with _parent(root, current) as (parent, name):
+                    entry = _optional_entry(parent, name, current)
+                    if entry is None:
+                        try:
+                            os.mkdir(name, mode=0o700, dir_fd=parent)
+                        except OSError as error:
+                            if (
+                                not created
+                                and error.errno in _NO_EFFECT_ERRNOS
+                                and _absent(parent, name, current)
+                            ):
+                                raise _NoEffectMutation("workspace_unavailable") from None
+                            raise
+                        created = True
+                    elif not entry.directory:
+                        raise WorkspaceStorageError("workspace_type_conflict")
+
+    def remove(self, path: str, *, deadline: float, recursive: bool = False) -> None:
+        path = _path(path)
+        with _safe_errors(), self._opened_root() as root:
+            tree = self._scan(root, path, deadline, contents=False)
+            _refuse_opaque(tree)
+            if len(tree.entries) > 1 and not recursive:
+                raise WorkspaceStorageError("workspace_type_conflict")
+            removed = False
+            for item in sorted(
+                tree.entries.values(), key=lambda e: e.path.count("/"), reverse=True
+            ):
+                _check_deadline(deadline)
+                with _parent(root, item.path) as (parent, name):
+                    _verify(
+                        item, _entry(item.path, os.stat(name, dir_fd=parent, follow_symlinks=False))
+                    )
+                    try:
+                        if item.directory:
+                            os.rmdir(name, dir_fd=parent)
+                        else:
+                            os.unlink(name, dir_fd=parent)
+                    except OSError as error:
+                        if (
+                            not removed
+                            and error.errno in _NO_EFFECT_ERRNOS
+                            and _unchanged(parent, name, item)
+                        ):
+                            raise _NoEffectMutation("workspace_unavailable") from None
+                        raise
+                    removed = True
+
+    def copy(
+        self, source: str, destination: str, *, deadline: float, recursive: bool = False
+    ) -> None:
+        source, destination = _copy_paths(source, destination)
+        with _safe_errors(), self._opened_root() as root:
+            tree = self._scan(root, source, deadline, contents=False)
+            _refuse_opaque(tree)
+            if tree.entries[source].directory and not recursive:
+                raise WorkspaceStorageError("workspace_type_conflict")
+            with _parent(root, destination) as (parent, name):
+                if _optional_entry(parent, name, destination) is not None:
+                    raise WorkspaceStorageError("workspace_type_conflict")
+            copied = False
+            for item in sorted(tree.entries.values(), key=lambda e: (e.path.count("/"), e.path)):
+                _check_deadline(deadline)
+                target = destination + item.path[len(source) :]
+                if item.directory:
+                    with _parent(root, target) as (parent, name):
+                        try:
+                            os.mkdir(name, mode=0o700, dir_fd=parent)
+                        except OSError as error:
+                            if (
+                                not copied
+                                and error.errno in _NO_EFFECT_ERRNOS
+                                and _absent(parent, name, target)
+                            ):
+                                raise _NoEffectMutation("workspace_unavailable") from None
+                            raise
+                else:
+                    data = self._read(root, item.path, deadline, expected=item)
+                    if data is None:
+                        raise RuntimeError("unclassified local read returned no content")
+                    # Keep permission bits (e.g. executables), never set-id.
+                    try:
+                        self._write(
+                            root,
+                            target,
+                            data,
+                            deadline,
+                            must_create=True,
+                            mode=stat.S_IMODE(item.mode) & 0o777,
+                        )
+                    except _NoEffectMutation:
+                        if copied:
+                            raise WorkspaceStorageError("workspace_unavailable") from None
+                        raise
+                copied = True
+
+    def move(self, source: str, destination: str, *, deadline: float) -> None:
+        source, destination = _copy_paths(source, destination)
+        with _safe_errors(), self._opened_root() as root:
+            tree = self._scan(root, source, deadline, contents=False)
+            _refuse_opaque(tree)
+            with (
+                _parent(root, source) as (src_parent, src_name),
+                _parent(root, destination) as (dst_parent, dst_name),
+            ):
+                if _optional_entry(dst_parent, dst_name, destination) is not None:
+                    raise WorkspaceStorageError("workspace_type_conflict")
+                _verify(
+                    tree.entries[source],
+                    _entry(
+                        source,
+                        os.stat(
+                            src_name,
+                            dir_fd=src_parent,
+                            follow_symlinks=False,
+                        ),
+                    ),
+                )
+                _check_deadline(deadline)
+                try:
+                    os.rename(src_name, dst_name, src_dir_fd=src_parent, dst_dir_fd=dst_parent)
+                except OSError as error:
+                    if (
+                        error.errno in _NO_EFFECT_ERRNOS
+                        and _unchanged(src_parent, src_name, tree.entries[source])
+                        and _absent(dst_parent, dst_name, destination)
+                    ):
+                        raise _NoEffectMutation("workspace_unavailable") from None
+                    raise
+
+    def _read(
+        self,
+        root: int,
+        path: str,
+        deadline: float,
+        *,
+        expected: LocalEntry | None = None,
+        classify_text: bool = False,
+    ) -> bytes | None:
+        _check_deadline(deadline)
+        with _parent(root, path) as (parent, name):
+            before = _entry(path, os.stat(name, dir_fd=parent, follow_symlinks=False))
+            if before.directory:
+                raise WorkspaceStorageError("workspace_type_conflict")
+            if expected is not None:
+                _verify(expected, before, version=True)
+            if before.size > self.limits.max_file_bytes:
+                raise WorkspaceStorageError("workspace_limit_exceeded")
+            descriptor = os.open(name, _FILE_FLAGS, dir_fd=parent)
+            try:
+                _verify(before, _entry(path, os.fstat(descriptor)), version=True)
+                data = bytearray()
+                decoder = codecs.getincrementaldecoder("utf-8")() if classify_text else None
+                binary = False
+                while True:
+                    _check_deadline(deadline)
+                    chunk = os.read(
+                        descriptor, min(_CHUNK, self.limits.max_file_bytes + 1 - len(data))
+                    )
+                    if not chunk:
+                        break
+                    if decoder is not None:
+                        if b"\x00" in chunk:
+                            binary = True
+                            break
+                        try:
+                            decoder.decode(chunk)
+                        except UnicodeDecodeError:
+                            binary = True
+                            break
+                    data.extend(chunk)
+                    if len(data) > self.limits.max_file_bytes:
+                        raise WorkspaceStorageError("workspace_limit_exceeded")
+                if decoder is not None and not binary:
+                    try:
+                        decoder.decode(b"", final=True)
+                    except UnicodeDecodeError:
+                        binary = True
+                _verify(before, _entry(path, os.fstat(descriptor)), version=True)
+                _verify(
+                    before,
+                    _entry(path, os.stat(name, dir_fd=parent, follow_symlinks=False)),
+                    version=True,
+                )
+                return None if binary else bytes(data)
+            finally:
+                os.close(descriptor)
+
+    def _scan(
+        self,
+        root: int,
+        path: str,
+        deadline: float,
+        *,
+        contents: bool,
+        verify_readable: bool = False,
+    ) -> LocalTree:
+        tree = LocalTree()
+        managed_bytes = 0
+
+        def add(item: LocalEntry) -> None:
+            nonlocal managed_bytes
+            _check_deadline(deadline)
+            if item.path in tree.entries:
+                # Two on-disk names project onto one path (e.g. NFC and NFD).
+                raise WorkspaceStorageError("workspace_path_invalid")
+            tree.entries[item.path] = item
+            if len(tree.entries) > self.limits.max_files:
+                raise WorkspaceStorageError("workspace_limit_exceeded")
+            if item.opaque:
+                tree.opaque_paths.add(item.path)
+                return
+            if item.directory:
+                return
+            tree.expanded_bytes += item.size
+            if tree.expanded_bytes > self.limits.max_expanded_bytes:
+                raise WorkspaceStorageError("workspace_limit_exceeded")
+            if contents or verify_readable:
+                try:
+                    if contents:
+                        data = self._read(
+                            root, item.path, deadline, expected=item, classify_text=True
+                        )
+                    else:
+                        self._probe_readable(root, item, deadline)
+                        return
+                except PermissionError:
+                    # A sandbox command may chmod its own files; nothing was read.
+                    tree.expanded_bytes -= item.size
+                    tree.entries[item.path] = replace(item, opaque=True)
+                    tree.opaque_paths.add(item.path)
+                    return
+                if data is None:
+                    tree.binary_paths.add(item.path)
+                    return
+                text = data.decode("utf-8")
+                managed_bytes += len(data)
+                if managed_bytes > self.limits.max_managed_text_bytes:
+                    raise WorkspaceStorageError("workspace_limit_exceeded")
+                tree.texts[item.path] = text
+
+        def walk(descriptor: int, prefix: str) -> None:
+            _check_deadline(deadline)
+            before = os.fstat(descriptor)
+            # scandir is incremental; never allocate an unbounded listdir.
+            with os.scandir(descriptor) as entries:
+                for child in entries:
+                    _check_deadline(deadline)
+                    relative, canonical = _child_path(prefix, child.name)
+                    item = _scan_entry(relative, child.stat(follow_symlinks=False), self.limits)
+                    if not canonical:
+                        # Never followed: its listed path cannot address it on disk.
+                        item = replace(item, directory=False, opaque=True)
+                    nested = None
+                    if item.directory:
+                        nested = _open_scannable(descriptor, child.name)
+                        if nested is None:
+                            item = replace(item, directory=False, opaque=True)
+                    try:
+                        add(item)
+                        if nested is not None:
+                            _verify(item, _entry(relative, os.fstat(nested)))
+                            walk(nested, relative)
+                    finally:
+                        if nested is not None:
+                            os.close(nested)
+            if (before.st_mtime_ns, before.st_ctime_ns) != (
+                os.fstat(descriptor).st_mtime_ns,
+                os.fstat(descriptor).st_ctime_ns,
+            ):
+                raise WorkspaceStorageError("workspace_unavailable")
+
+        if path:
+            with _parent(root, path) as (parent, name):
+                item = _scan_entry(
+                    path, os.stat(name, dir_fd=parent, follow_symlinks=False), self.limits
+                )
+                descriptor = None
+                if item.directory:
+                    descriptor = _open_scannable(parent, name)
+                    if descriptor is None:
+                        item = replace(item, directory=False, opaque=True)
+                try:
+                    add(item)
+                    if descriptor is not None:
+                        _verify(item, _entry(path, os.fstat(descriptor)))
+                        walk(descriptor, path)
+                finally:
+                    if descriptor is not None:
+                        os.close(descriptor)
+        else:
+            walk(root, "")
+        return tree
+
+    def _write(
+        self,
+        root: int,
+        path: str,
+        data: bytes,
+        deadline: float,
+        *,
+        must_create: bool = False,
+        mode: int | None = None,
+    ) -> None:
+        with _parent(root, path) as (parent, name):
+            before = _optional_entry(parent, name, path)
+            if before is not None and (before.directory or must_create):
+                raise _NoEffectMutation("workspace_type_conflict")
+            _check_deadline(deadline)
+            temporary = f".contractor-write-{secrets.token_hex(16)}"
+            descriptor = None
+            commit_started = False
+            cleaned = False
+            try:
+                descriptor = os.open(
+                    temporary,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                    0o600,
+                    dir_fd=parent,
+                )
+                try:
+                    view = memoryview(data)
+                    while view:
+                        _check_deadline(deadline)
+                        written = os.write(descriptor, view[:_CHUNK])
+                        if written <= 0:
+                            raise WorkspaceStorageError("workspace_unavailable")
+                        view = view[written:]
+                    if before is not None:
+                        os.fchmod(descriptor, stat.S_IMODE(before.mode) & 0o777)
+                    elif mode is not None:
+                        os.fchmod(descriptor, mode & 0o777)
+                    os.fsync(descriptor)
+                    _check_deadline(deadline)
+                    current = _optional_entry(parent, name, path)
+                    if before is None:
+                        if current is not None:
+                            raise WorkspaceStorageError("workspace_unavailable")
+                    elif current is None:
+                        raise WorkspaceStorageError("workspace_unavailable")
+                    else:
+                        _verify(before, current, version=True)
+                    # A failing replace is conservatively uncertain, even if
+                    # the kernel normally makes rename atomic.
+                    commit_started = True
+                    os.replace(temporary, name, src_dir_fd=parent, dst_dir_fd=parent)
+                finally:
+                    os.close(descriptor)
+                    with suppress(FileNotFoundError):
+                        os.unlink(temporary, dir_fd=parent)
+                    cleaned = True
+            except Exception as error:
+                if not commit_started and (
+                    cleaned
+                    or (
+                        descriptor is None
+                        and isinstance(error, OSError)
+                        and error.errno in _NO_EFFECT_ERRNOS
+                        and _absent(parent, temporary, temporary)
+                    )
+                ):
+                    code = (
+                        error.args[0]
+                        if isinstance(error, WorkspaceStorageError)
+                        else "workspace_unavailable"
+                    )
+                    raise _NoEffectMutation(code) from None
+                raise
+
+    @contextmanager
+    def _opened_root(self) -> Iterator[int]:
+        with _safe_errors():
+            descriptor = os.open(self._root.anchor, _DIRECTORY_FLAGS)
+            try:
+                for component in self._root.parts[1:]:
+                    nested = os.open(component, _DIRECTORY_FLAGS, dir_fd=descriptor)
+                    os.close(descriptor)
+                    descriptor = nested
+                if self._identity is not None and _identity(os.fstat(descriptor)) != self._identity:
+                    raise WorkspaceStorageError("workspace_unavailable")
+                yield descriptor
+            finally:
+                os.close(descriptor)
+
+
+@contextmanager
+def _parent(root: int, path: str) -> Iterator[tuple[int, str]]:
+    descriptor = os.dup(root)
+    try:
+        parts = path.split("/")
+        for component in parts[:-1]:
+            nested = os.open(component, _DIRECTORY_FLAGS, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = nested
+        yield descriptor, parts[-1]
+    finally:
+        os.close(descriptor)
+
+
+def _entry(path: str, info: os.stat_result) -> LocalEntry:
+    directory = stat.S_ISDIR(info.st_mode)
+    if not directory and (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1):
+        raise WorkspaceStorageError("workspace_type_conflict")
+    return LocalEntry(
+        path,
+        directory,
+        info.st_size if not directory else 0,
+        info.st_mode,
+        _identity(info),
+        (info.st_size, info.st_mtime_ns, info.st_ctime_ns),
+    )
+
+
+def _scan_entry(path: str, info: os.stat_result, limits: WorkspaceLimits) -> LocalEntry:
+    """Like ``_entry``, but an unsupported leaf is recorded instead of failing."""
+    directory = stat.S_ISDIR(info.st_mode)
+    regular = stat.S_ISREG(info.st_mode) and info.st_nlink == 1
+    return LocalEntry(
+        path,
+        directory,
+        info.st_size if not directory else 0,
+        info.st_mode,
+        _identity(info),
+        (info.st_size, info.st_mtime_ns, info.st_ctime_ns),
+        opaque=not directory and (not regular or info.st_size > limits.max_file_bytes),
+    )
+
+
+def _child_path(prefix: str, name: str) -> tuple[str, bool]:
+    """Project an on-disk name to its listed path and whether that path addresses it.
+
+    A non-canonical name (not NFC, control or other invalid characters) is
+    listed under a sanitized display path so the entry stays visible as opaque.
+    """
+    relative = f"{prefix}/{name}" if prefix else name
+    try:
+        if normalize_project_path(relative, allow_root=False) == relative:
+            return relative, True
+    except ProjectPathError:
+        pass
+    display = unicodedata.normalize(
+        "NFC",
+        "".join(
+            _REPLACEMENT
+            if ord(character) < 0x20
+            or character in {"\x7f", "\\"}
+            or 0xD800 <= ord(character) <= 0xDFFF
+            else character
+            for character in name
+        ),
+    )
+    if not prefix and len(display) > 1 and display[1] == ":":
+        display = display[0] + _REPLACEMENT + display[2:]  # not a drive prefix
+    return _path(f"{prefix}/{display}" if prefix else display), False
+
+
+def _open_scannable(parent: int, name: str) -> int | None:
+    """Open a directory for listing, or ``None`` if its owner revoked access."""
+    try:
+        descriptor = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent)
+    except PermissionError:
+        return None
+    if not os.access(".", os.X_OK, dir_fd=descriptor):
+        os.close(descriptor)
+        return None
+    return descriptor
+
+
+def _refuse_opaque(tree: LocalTree) -> None:
+    if tree.opaque_paths:
+        raise WorkspaceStorageError("workspace_type_conflict")
+
+
+def _optional_entry(parent: int, name: str, path: str) -> LocalEntry | None:
+    try:
+        return _entry(path, os.stat(name, dir_fd=parent, follow_symlinks=False))
+    except FileNotFoundError:
+        return None
+
+
+def _absent(parent: int, name: str, path: str) -> bool:
+    try:
+        return _optional_entry(parent, name, path) is None
+    except (OSError, WorkspaceStorageError):
+        return False
+
+
+def _unchanged(parent: int, name: str, expected: LocalEntry) -> bool:
+    try:
+        return (
+            _entry(expected.path, os.stat(name, dir_fd=parent, follow_symlinks=False)) == expected
+        )
+    except (OSError, WorkspaceStorageError):
+        return False
+
+
+def _identity(info: os.stat_result) -> tuple[int, int]:
+    return info.st_dev, info.st_ino
+
+
+def _verify(expected: LocalEntry, actual: LocalEntry, *, version: bool = False) -> None:
+    if (
+        expected.identity != actual.identity
+        or expected.directory != actual.directory
+        or (version and expected.version != actual.version)
+    ):
+        raise WorkspaceStorageError("workspace_unavailable")
+
+
+def _path(value: str, *, allow_root: bool = False) -> str:
+    try:
+        return normalize_project_path(value, allow_root=allow_root)
+    except ProjectPathError:
+        raise WorkspaceStorageError("workspace_path_invalid") from None
+
+
+def _copy_paths(source: str, destination: str) -> tuple[str, str]:
+    source, destination = _path(source), _path(destination)
+    if destination == source or destination.startswith(source + "/"):
+        raise WorkspaceStorageError("workspace_type_conflict")
+    return source, destination
+
+
+def _check_deadline(deadline: float) -> None:
+    if not math.isfinite(deadline) or time.monotonic() >= deadline:
+        raise WorkspaceStorageError("workspace_unavailable")
+
+
+@contextmanager
+def _safe_errors() -> Iterator[None]:
+    try:
+        yield
+    except OSError as error:
+        if error.errno == errno.ENOENT:
+            code = "workspace_not_found"
+        elif error.errno in {
+            errno.ELOOP,
+            errno.ENOTDIR,
+            errno.EISDIR,
+            errno.EEXIST,
+            errno.ENOTEMPTY,
+        }:
+            code = "workspace_type_conflict"
+        else:
+            code = "workspace_unavailable"
+        raise WorkspaceStorageError(code) from None

@@ -1,0 +1,83 @@
+schema_version: "1.0"
+id: V370-007
+title: "Use one receipt and claim mechanism"
+milestone: hub-audit-structure-2026-10
+epic: persistence
+kind: chore
+priority: P2
+status: completed
+implementation_commit: "bce4dba40fd96d8aed9dd0e30a5a9c881997b19e"
+depends_on: []
+languages: [go]
+goal: "Every keyed mutation uses the shared helper."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), persistence C7, F5; audits D 3.2; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    At least 16 idempotency, receipt and lease mechanisms exist (AGENTS.md
+    says nine); audit_idempotency, eval_mutation_receipts and
+    runtime_management_operations are the same idea; advisory lock keys are
+    built five ways; audit_controller_claims and eval_controller_claims are
+    near copies.
+  specification:
+    - docs/spec/platform/persistence.md#PER-R24
+    - docs/spec/platform/persistence.md#PER-R25
+  decision: >-
+    Guarantee: a keyed mutation is a request repeated under an idempotency
+    key whose receipt is kept apart from the entity it changes: the owner's
+    Audit create, start, pause, cancel, resume and delete, every managed
+    Eval mutation, and the Runtime label binding and Agent label set
+    operations. All of them run persistencepostgres.KeyedMutation in the
+    transaction of their effect (the key's advisory lock, the replay of a
+    stored receipt, then the mutation and the claim) and record one row in
+    mutation_receipts (migration 000013), keyed by (key_scope,
+    idempotency_key). The scope keeps each family's key space: ['audit',
+    owner, operation], ['eval', owner, Project, resource, operation] and
+    ['runtime-management'] for the digest of the operator's key; a CHECK
+    ties each scope to its columns, so the Go key builders and the stored
+    rows cannot disagree. Each family keeps its replay semantics: the Audit
+    replays the Audit as it is now, the Eval store the stored response bytes,
+    Runtime management the stored result after comparing operation and
+    resource. Audit mutations now take the key's lock first, on a pool in
+    their own transaction and in a caller's transaction inline, so a second
+    request under a key waits for the first and replays it instead of
+    recovering from a unique violation; the claim left the mutation
+    statements. Every advisory lock key comes from
+    persistencepostgres.NewAdvisoryKey (length-prefixed parts); the session
+    lease and the per-schema migration lock keep their keys, because every
+    Server version must agree on the lease and the migration lock is scoped
+    by the schema it migrates. Both controller claim tables have one shape
+    (migration 000014 gives eval_controller_claims a lease start and the
+    holder bound, and releases held Eval leases with their epochs) and are
+    leased, proven and released through persistencepostgres.ControllerClaims.
+    Out of the receipt table on purpose: keys stored on the row a request
+    creates (Runs, Projects, RuntimeConfig versions, Runtime credentials,
+    Audit executions, Eval members, Audit review requests and decisions),
+    natural-key receipts, the journals of outbound calls
+    (credential_operations, eval_suboperations) and the finding collection
+    receipt Artifact; AGENTS.md 3.2 lists the ten mechanisms that remain.
+    Alternatives: a partial unique index per family on the receipt table
+    (rejected: three lookups and three key rules again)
+    and one claim table for every controller (rejected: a claim row needs the
+    foreign key and cascade of its subject, and each controller's candidate
+    query and plan tests depend on its own table). Evidence: PostgreSQL tests
+    of lock, replay and claim per family, of a second request waiting and
+    replaying (it fails without the lock), of the table's shape and
+    retention, of the claim helper on both claim tables, and of the fold
+    migration; a static test that keeps advisory locks and receipt SQL in the
+    helpers. Reversal: if a family needs a replay that a stored response
+    cannot carry, give it a column in mutation_receipts and its family CHECK,
+    not a new receipt table; if a controller needs a lease rule of its own,
+    add it to ControllerClaims.
+scope:
+  in:
+    - "One receipts table and helper (lock -> replay -> claim), one advisory key builder, one controller claim helper; AGENTS.md section 3.2 updated with the real count. Do it before V64-002 adds more."
+  out:
+    - "Replay semantics of each operation."
+acceptance_criteria:
+  - id: A1
+    text: "Every keyed mutation uses the shared helper."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/auditstore/... ./internal/evalstore ./internal/runtimeconfig"
+    covers: [A1]

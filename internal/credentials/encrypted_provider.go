@@ -1,0 +1,103 @@
+package credentials
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+)
+
+type RecordReader interface {
+	GetCredential(context.Context, string) (Record, error)
+}
+
+// PreparedDeleteReader is implemented by record readers that can report a
+// prepared, uncompleted credential deletion.
+type PreparedDeleteReader interface {
+	HasPreparedDelete(context.Context, string) (bool, error)
+}
+
+type EncryptedProvider struct {
+	records RecordReader
+	cipher  *TokenCipher
+}
+
+// Format redacts the provider as a whole for every verb (SEC-R88): through
+// its unexported cipher field fmt would print the cipher's key bytes.
+func (p EncryptedProvider) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "credentials.EncryptedProvider([REDACTED])")
+}
+
+func NewEncryptedProvider(records RecordReader, cipher *TokenCipher) (*EncryptedProvider, error) {
+	if records == nil {
+		return nil, errors.New("encrypted credential record reader is required")
+	}
+	return &EncryptedProvider{records: records, cipher: cipher}, nil
+}
+
+func (p *EncryptedProvider) LookupLLMCredential(
+	ctx context.Context, id string,
+) (resolved.CredentialMetadata, error) {
+	if p == nil || p.records == nil {
+		return resolved.CredentialMetadata{}, ErrNotFound
+	}
+	record, err := p.records.GetCredential(ctx, id)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return resolved.CredentialMetadata{}, ErrNotFound
+		}
+		return resolved.CredentialMetadata{}, persistencepostgres.WrapError("lookup encrypted credential metadata", err)
+	}
+	// A prepared delete may already have removed the remote key. New Run and
+	// allocation references must not pin it until the delete is recovered.
+	if deletions, ok := p.records.(PreparedDeleteReader); ok {
+		prepared, err := deletions.HasPreparedDelete(ctx, id)
+		if err != nil {
+			return resolved.CredentialMetadata{}, persistencepostgres.WrapError("lookup encrypted credential metadata", err)
+		}
+		if prepared {
+			return resolved.CredentialMetadata{}, ErrRecoveryRequired
+		}
+	}
+	return resolved.CredentialMetadata{
+		Ref:           llmgateway.LLMCredentialRef{CredentialID: record.CredentialID},
+		LLMGateway:    record.LLMGateway,
+		ModelPolicies: append([]contracts.ModelPolicyRef(nil), record.EffectivePolicy.ModelPolicies...),
+		Models:        append([]string(nil), record.EffectivePolicy.Models...),
+	}, nil
+}
+
+func (p *EncryptedProvider) ResolveLLMCredential(
+	ctx context.Context,
+	ref llmgateway.LLMCredentialRef,
+	gateway llmgateway.LLMGatewayConfigRef,
+) (contracts.SecretString, error) {
+	if p == nil || p.records == nil {
+		return contracts.SecretString{}, ErrNotFound
+	}
+	record, err := p.records.GetCredential(ctx, ref.CredentialID)
+	if errors.Is(err, ErrNotFound) {
+		return contracts.SecretString{}, ErrNotFound
+	}
+	if err != nil {
+		return contracts.SecretString{}, persistencepostgres.WrapError("resolve encrypted credential", err)
+	}
+	if record.CredentialID != ref.CredentialID || record.LLMGateway != gateway {
+		return contracts.SecretString{}, ErrNotFound
+	}
+	if p.cipher == nil {
+		return contracts.SecretString{}, ErrCredentialKeyUnavailable
+	}
+	token, err := p.cipher.Open(record.CredentialID, record.LLMGateway, record.Envelope)
+	if err != nil {
+		return contracts.SecretString{}, ErrCrypto
+	}
+	return contracts.NewSecretString(token.value), nil
+}
+
+var _ Resolver = (*EncryptedProvider)(nil)

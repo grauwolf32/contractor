@@ -1,0 +1,976 @@
+"""Private Runtime protocol settings models and validation."""
+
+from __future__ import annotations
+
+import base64
+import math
+import re
+import ssl
+import unicodedata
+from typing import Annotated, Literal, Self
+from urllib.parse import urlsplit
+
+from pydantic import (
+    Field,
+    SecretStr,
+    StrictBool,
+    field_serializer,
+    model_validator,
+)
+
+from contractor_runtime.contracts.artifacts import ArtifactRef
+from contractor_runtime.contracts.base import (
+    _CA_BUNDLE_PATTERN,
+    _CERTIFICATE_BLOCK_PATTERN,
+    _FORBIDDEN_RUNTIME_HEADERS,
+    _HEADER_NAME_PATTERN,
+    DEFAULT_RUNTIME_LABEL,
+    ID_PATTERN,
+    MAX_RUNTIME_LABELS,
+    NATIVE_SKILL_TOOL_NAMES,
+    SKILL_NAME_PATTERN,
+    HTTPProxyTarget,
+    RuntimeAdapterRef,
+    RuntimeCredentialKind,
+    StrictWireModel,
+    WireModel,
+    _require_digest,
+    _require_runtime_endpoint,
+    _require_runtime_labels,
+    _require_selector,
+    _require_sorted_unique,
+    _require_text,
+    _require_url,
+    trim_whitespace,
+)
+from contractor_runtime.contracts.fields import (
+    is_credential_field_value,
+    valid_cookie_name,
+    valid_cookie_value,
+)
+from contractor_runtime.contracts.sitemap import ProjectSitemapPolicy
+from contractor_runtime.contracts.tool_execution import ToolExecutionConfig
+
+# Byte bounds of the secret field values RuntimeSettings carries: a bearer or
+# Interactsh token (LIM-RCF-24) and one OTLP header value (LIM-RCF-21).
+_MAX_BEARER_TOKEN_BYTES = 8192
+_MAX_TELEMETRY_HEADER_VALUE_BYTES = 4096
+
+
+def _is_bounded_field_value(value: str, maximum: int) -> bool:
+    # A credential field value is ASCII, so its length is its byte count.
+    return len(value) <= maximum and is_credential_field_value(value)
+
+
+class AgentTemplateRef(WireModel):
+    template_id: str
+    version: str
+    digest: str
+
+    @model_validator(mode="after")
+    def validate_ref(self) -> Self:
+        _require_selector("agentTemplateRef", f"{self.template_id}@{self.version}")
+        _require_digest("agentTemplateRef.digest", self.digest)
+        return self
+
+
+class WorkerRuntimeRef(WireModel):
+    runtime_id: str
+    version: str
+
+    @model_validator(mode="after")
+    def validate_ref(self) -> Self:
+        _require_selector("workerRuntimeRef", f"{self.runtime_id}@{self.version}")
+        return self
+
+
+class ModelPolicyRef(WireModel):
+    policy_id: str
+    version: str
+    digest: str
+
+    @model_validator(mode="after")
+    def validate_ref(self) -> Self:
+        _require_selector("modelPolicyRef", f"{self.policy_id}@{self.version}")
+        _require_digest("modelPolicyRef.digest", self.digest)
+        return self
+
+
+class LLMGatewayConfigRef(WireModel):
+    gateway_id: str
+    version: str
+    digest: str
+
+    @model_validator(mode="after")
+    def validate_ref(self) -> Self:
+        _require_selector("llmGatewayConfigRef", f"{self.gateway_id}@{self.version}")
+        _require_digest("llmGatewayConfigRef.digest", self.digest)
+        return self
+
+
+class ToolsetRef(WireModel):
+    toolset_id: str
+    version: str
+
+    @model_validator(mode="after")
+    def validate_ref(self) -> Self:
+        _require_selector("toolsetRef", f"{self.toolset_id}@{self.version}")
+        return self
+
+
+class SandboxProfileRef(WireModel):
+    sandbox_profile_id: str
+    version: str
+
+    @model_validator(mode="after")
+    def validate_ref(self) -> Self:
+        _require_selector("sandboxProfileRef", f"{self.sandbox_profile_id}@{self.version}")
+        return self
+
+
+class ResolvedInstructions(WireModel):
+    ref: str
+    digest: str
+    text: str
+
+    @model_validator(mode="after")
+    def validate_instructions(self) -> Self:
+        _require_text("instructions.ref", self.ref)
+        _require_digest("instructions.digest", self.digest)
+        _require_text("instructions.text", self.text)
+        return self
+
+
+GATEWAY_FAILURE_SIGNATURE_STATUSES = frozenset({400, 404, 409, 422})
+MAX_GATEWAY_FAILURE_SIGNATURES = 32
+MAX_GATEWAY_FAILURE_SIGNATURE_TEXT = 512
+_GATEWAY_FAILURE_CODE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+
+
+class GatewayFailureSignature(WireModel):
+    """One exact provider response meaning the model is temporarily unavailable.
+
+    Exactly one of ``message_equals`` (whole error message or bare error string)
+    or ``litellm_wrapped`` (the same upstream message inside LiteLLM's observed
+    BadRequest wrapper) is set. Only exact matches exist so arbitrary 4xx text can
+    never become a transient availability failure.
+    """
+
+    status: int
+    message_equals: str | None = None
+    litellm_wrapped: str | None = None
+
+    @model_validator(mode="after")
+    def validate_signature(self) -> Self:
+        if self.status not in GATEWAY_FAILURE_SIGNATURE_STATUSES:
+            raise ValueError(
+                "failureSignatures.modelUnavailable status must be 400, 404, 409, or 422"
+            )
+        if (self.message_equals is None) == (self.litellm_wrapped is None):
+            raise ValueError(
+                "failureSignatures.modelUnavailable needs exactly one of "
+                "messageEquals or litellmWrapped"
+            )
+        text = self.message_equals if self.message_equals is not None else self.litellm_wrapped
+        if (
+            text is None
+            or not text
+            or any(unicodedata.category(char) in {"Cc", "Cf", "Co", "Cs"} for char in text)
+            or len(text.encode("utf-8")) > MAX_GATEWAY_FAILURE_SIGNATURE_TEXT
+            or trim_whitespace(text) != text
+        ):
+            raise ValueError("failureSignatures.modelUnavailable text is invalid")
+        return self
+
+
+class GatewayFailureSignatures(WireModel):
+    """Provider-specific failure classification; status rules stay in code."""
+
+    model_unavailable: list[GatewayFailureSignature] = Field(
+        default_factory=list, max_length=MAX_GATEWAY_FAILURE_SIGNATURES
+    )
+    permanent_codes: list[str] = Field(
+        default_factory=list, max_length=MAX_GATEWAY_FAILURE_SIGNATURES
+    )
+
+    @model_validator(mode="after")
+    def validate_signatures(self) -> Self:
+        seen = {
+            (item.status, item.message_equals, item.litellm_wrapped)
+            for item in self.model_unavailable
+        }
+        if len(seen) != len(self.model_unavailable):
+            raise ValueError("failureSignatures.modelUnavailable repeats a signature")
+        for code in self.permanent_codes:
+            if not _GATEWAY_FAILURE_CODE.fullmatch(code):
+                raise ValueError(
+                    "failureSignatures.permanentCodes must be snake_case provider codes"
+                )
+        if len(set(self.permanent_codes)) != len(self.permanent_codes):
+            raise ValueError("failureSignatures.permanentCodes repeats a code")
+        return self
+
+
+# LM Studio's answer when its inference engine process died (2026-10-04 OOM).
+_ENGINE_LOST = "Engine protocol predict request failed: fetch failed"
+# LM Studio's answer after a GPU watchdog ended llama-server (2026-10-13).
+_ENGINE_TERMINATED = "terminated"
+
+
+def default_gateway_failure_signatures() -> GatewayFailureSignatures:
+    """The openai-compatible@1 baseline: LM Studio unloads and engine process
+    loss observed through LiteLLM.
+
+    Mirrors llmgateway.DefaultGatewayFailureSignatures on the Go side.
+    """
+    return GatewayFailureSignatures(
+        model_unavailable=[
+            GatewayFailureSignature(status=400, message_equals="Model is unloaded."),
+            GatewayFailureSignature(
+                status=400, message_equals="Model unloaded by user or API request."
+            ),
+            GatewayFailureSignature(status=400, message_equals=_ENGINE_LOST),
+            GatewayFailureSignature(status=400, message_equals=_ENGINE_TERMINATED),
+            GatewayFailureSignature(status=400, litellm_wrapped="Model is unloaded."),
+            GatewayFailureSignature(
+                status=400, litellm_wrapped="Model unloaded by user or API request."
+            ),
+            GatewayFailureSignature(status=400, litellm_wrapped=_ENGINE_LOST),
+            GatewayFailureSignature(status=400, litellm_wrapped=_ENGINE_TERMINATED),
+        ],
+        permanent_codes=["insufficient_quota", "budget_exceeded", "context_length_exceeded"],
+    )
+
+
+class ResolvedSkill(WireModel):
+    name: str
+    artifact: ArtifactRef
+    package_digest: str
+
+    @model_validator(mode="after")
+    def validate_skill(self) -> Self:
+        if SKILL_NAME_PATTERN.fullmatch(self.name) is None or len(self.name) > 64:
+            raise ValueError("resolved Skill name is invalid")
+        if self.artifact.namespace != "skills" or self.artifact.name != self.name:
+            raise ValueError("resolved Skill artifact must identify skills/<name>")
+        self.artifact.require_exact()
+        _require_digest("resolved Skill packageDigest", self.package_digest)
+        return self
+
+
+class TelemetryRetrySettings(WireModel):
+    initial_backoff_milliseconds: int = Field(strict=True, ge=1, le=60_000)
+    max_backoff_milliseconds: int = Field(strict=True, ge=1, le=60_000)
+
+    @model_validator(mode="after")
+    def validate_backoff(self) -> Self:
+        if self.initial_backoff_milliseconds > self.max_backoff_milliseconds:
+            raise ValueError("telemetry retry initial backoff exceeds maximum")
+        return self
+
+
+class TelemetryExportSettings(WireModel):
+    """The Worker's OTLP export settings, which the Server always sends complete.
+
+    The Server pins every value (RCF-R102), including its defaults for a
+    RuntimeConfig without an export or retry block, so the Runtime has none.
+    """
+
+    batch_size_bytes: int = Field(strict=True, ge=1024 * 1024, le=64 * 1024 * 1024)
+    max_attempts: int = Field(strict=True, ge=1, le=10)
+    max_pending_spans: int = Field(strict=True, ge=1, le=2048)
+    max_pending_bytes: int = Field(strict=True, ge=1024 * 1024, le=64 * 1024 * 1024)
+    retry: TelemetryRetrySettings
+
+    @model_validator(mode="after")
+    def validate_queue_capacity(self) -> Self:
+        if self.max_pending_bytes < self.batch_size_bytes:
+            raise ValueError("telemetry export maxPendingBytes must cover batchSizeBytes")
+        return self
+
+
+class HTTPProxyBasicAuth(WireModel):
+    username: SecretStr
+    password: SecretStr
+
+    @model_validator(mode="after")
+    def validate_auth(self) -> Self:
+        username = self.username.get_secret_value()
+        password = self.password.get_secret_value()
+        if not 1 <= len(username.encode("utf-8")) <= 256:
+            raise ValueError("HTTP proxy username is outside its size bound")
+        if not 1 <= len(password.encode("utf-8")) <= 8192:
+            raise ValueError("HTTP proxy password is outside its size bound")
+        return self
+
+    @field_serializer("username", "password", when_used="json")
+    def serialize_secret(self, value: SecretStr) -> str:
+        return value.get_secret_value()
+
+
+def _validate_ca_bundle(owner: str, value: str) -> None:
+    """Apply the CA bundle grammar shared with Server ``cabundle.Validate``.
+
+    One to eight ``CERTIFICATE`` blocks whose markers each start a line, whose
+    bodies are non-empty LF/CRLF-terminated base64 lines, separated only by
+    ASCII whitespace; each body must decode with padding and load in OpenSSL.
+    """
+
+    if (
+        not 1 <= len(value.encode("utf-8")) <= 64 * 1024
+        or "PRIVATE KEY" in value
+        or _CA_BUNDLE_PATTERN.fullmatch(value) is None
+    ):
+        raise ValueError(f"{owner} CA bundle is invalid")
+    blocks = list(_CERTIFICATE_BLOCK_PATTERN.finditer(value))
+    if not 1 <= len(blocks) <= 8:
+        raise ValueError(f"{owner} CA bundle is invalid")
+    try:
+        trust = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        for block in blocks:
+            base64.b64decode(block[1].replace("\r", "").replace("\n", ""), validate=True)
+            trust.load_verify_locations(cadata=block[0])
+    except (ValueError, ssl.SSLError):
+        raise ValueError(f"{owner} CA bundle is invalid") from None
+
+
+class RuntimeConfigRef(WireModel):
+    name: str
+    version: str
+    digest: str
+
+    @model_validator(mode="after")
+    def validate_ref(self) -> Self:
+        if not 1 <= len(self.name) <= 63:
+            raise ValueError("RuntimeConfig ref name is invalid")
+        _require_selector("RuntimeConfig ref", f"{self.name}@{self.version}")
+        if len(self.version) > 128:
+            raise ValueError("RuntimeConfig ref version is invalid")
+        _require_digest("RuntimeConfig ref digest", self.digest)
+        return self
+
+
+class RuntimeCredentialRef(WireModel):
+    credential_id: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN.pattern)
+    kind: RuntimeCredentialKind
+
+
+class LLMCredentialRef(WireModel):
+    credential_id: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN.pattern)
+
+
+class ResolvedModelPolicy(WireModel):
+    nullable_fields = frozenset({"supports_images"})
+    ref: ModelPolicyRef
+    model: str
+    supports_images: StrictBool | None = None
+    context_window_tokens: int | None = Field(default=None, gt=0, le=100_000_000)
+    max_output_tokens: int | None = Field(default=None, gt=0)
+    max_model_calls: int | None = Field(default=None, gt=0, le=1000)
+    max_tool_calls: int | None = Field(default=None, gt=0, le=10_000)
+    max_worker_calls: int | None = Field(default=None, gt=0, le=10_000)
+    max_total_tokens: int | None = Field(default=None, gt=0, le=100_000_000)
+    temperature: float | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def validate_policy(self) -> Self:
+        _require_text("model", self.model)
+        if self.temperature is not None and not math.isfinite(self.temperature):
+            raise ValueError("temperature must be finite")
+        if (
+            self.context_window_tokens is not None
+            and self.max_output_tokens is not None
+            and self.max_output_tokens >= self.context_window_tokens
+        ):
+            raise ValueError("maxOutputTokens must be below contextWindowTokens")
+        return self
+
+
+class ToolsetSelection(WireModel):
+    ref: ToolsetRef
+    tools: list[str]
+
+    @model_validator(mode="after")
+    def validate_selection(self) -> Self:
+        if not self.tools or len(self.tools) != len(set(self.tools)):
+            raise ValueError("selected tools must be non-empty and unique")
+        for tool in self.tools:
+            _require_text("selected tool", tool)
+        return self
+
+
+class TelemetrySettings(WireModel):
+    adapter: RuntimeAdapterRef
+    endpoint: str
+    headers: dict[str, SecretStr]
+    flush_timeout_seconds: int = Field(ge=1, le=10)
+    export: TelemetryExportSettings
+
+    @model_validator(mode="after")
+    def validate_telemetry(self) -> Self:
+        if self.adapter != "otlp-http@1":
+            raise ValueError("telemetry adapter must be otlp-http@1")
+        _require_runtime_endpoint("telemetry.endpoint", self.endpoint)
+        if len(self.headers) > 32:
+            raise ValueError("telemetry headers exceed 32 entries")
+        total = 0
+        for name, wrapped in self.headers.items():
+            value = wrapped.get_secret_value()
+            if (
+                not 1 <= len(name) <= 64
+                or _HEADER_NAME_PATTERN.fullmatch(name) is None
+                or name.lower() in _FORBIDDEN_RUNTIME_HEADERS
+                or "\r" in name
+                or "\n" in name
+            ):
+                raise ValueError("telemetry header name is invalid")
+            if not _is_bounded_field_value(value, _MAX_TELEMETRY_HEADER_VALUE_BYTES):
+                raise ValueError("telemetry header value is invalid")
+            total += len(value.encode("utf-8"))
+        if total > 16 * 1024:
+            raise ValueError("telemetry header values exceed 16 KiB")
+        return self
+
+    @field_serializer("headers", when_used="json")
+    def serialize_headers(self, value: dict[str, SecretStr]) -> dict[str, str]:
+        return {name: secret.get_secret_value() for name, secret in value.items()}
+
+
+class HTTPOriginTargetSettings(WireModel):
+    nullable_fields = frozenset({"basic_auth", "bearer_token"})
+
+    url: str
+    basic_auth: HTTPProxyBasicAuth | None = None
+    bearer_token: SecretStr | None = None
+
+    @model_validator(mode="after")
+    def validate_target(self) -> Self:
+        _require_runtime_endpoint("httpOriginTarget.url", self.url)
+        if self.basic_auth is not None and self.bearer_token is not None:
+            raise ValueError("HTTP origin target basicAuth and bearerToken are mutually exclusive")
+        if self.basic_auth is not None and ":" in self.basic_auth.username.get_secret_value():
+            raise ValueError("HTTP origin target username cannot contain a colon")
+        if self.bearer_token is not None and not _is_bounded_field_value(
+            self.bearer_token.get_secret_value(), _MAX_BEARER_TOKEN_BYTES
+        ):
+            raise ValueError("HTTP origin target bearerToken is invalid")
+        return self
+
+    @field_serializer("bearer_token", when_used="json")
+    def serialize_bearer(self, value: SecretStr | None) -> str | None:
+        return None if value is None else value.get_secret_value()
+
+
+class HTTPProxySettings(WireModel):
+    nullable_fields = frozenset({"basic_auth", "bearer_token", "ca_bundle_pem"})
+
+    adapter: RuntimeAdapterRef
+    proxy_url: str
+    basic_auth: HTTPProxyBasicAuth | None = None
+    bearer_token: SecretStr | None = None
+    ca_bundle_pem: str | None = None
+    targets: list[HTTPProxyTarget] = Field(min_length=1, max_length=3)
+
+    @model_validator(mode="after")
+    def validate_proxy(self) -> Self:
+        if self.adapter != "http-proxy@1":
+            raise ValueError("HTTP proxy adapter must be http-proxy@1")
+        _require_runtime_endpoint("httpProxy.proxyUrl", self.proxy_url)
+        if self.basic_auth is not None and self.bearer_token is not None:
+            raise ValueError("HTTP proxy basicAuth and bearerToken are mutually exclusive")
+        if self.bearer_token is not None and not _is_bounded_field_value(
+            self.bearer_token.get_secret_value(), _MAX_BEARER_TOKEN_BYTES
+        ):
+            raise ValueError("HTTP proxy bearerToken is invalid")
+        if self.ca_bundle_pem is not None:
+            _validate_ca_bundle("HTTP proxy", self.ca_bundle_pem)
+        _require_sorted_unique("httpProxy.targets", self.targets, maximum=3)
+        return self
+
+    @field_serializer("bearer_token", when_used="json")
+    def serialize_bearer(self, value: SecretStr | None) -> str | None:
+        return None if value is None else value.get_secret_value()
+
+
+class CaidoSettings(WireModel):
+    nullable_fields = frozenset({"bearer_token", "ca_bundle_pem"})
+
+    adapter: RuntimeAdapterRef
+    endpoint: str
+    bearer_token: SecretStr | None = None
+    ca_bundle_pem: str | None = None
+    request_timeout_seconds: int
+
+    @model_validator(mode="after")
+    def validate_caido(self) -> Self:
+        if self.adapter != "caido-graphql@1":
+            raise ValueError("Caido adapter must be caido-graphql@1")
+        _require_runtime_endpoint("caido.endpoint", self.endpoint)
+        if self.bearer_token is not None and not _is_bounded_field_value(
+            self.bearer_token.get_secret_value(), _MAX_BEARER_TOKEN_BYTES
+        ):
+            raise ValueError("Caido bearerToken is invalid")
+        if self.ca_bundle_pem is not None:
+            _validate_ca_bundle("Caido", self.ca_bundle_pem)
+        if not 1 <= self.request_timeout_seconds <= 120:
+            raise ValueError("Caido requestTimeoutSeconds must be from 1 through 120")
+        return self
+
+    @field_serializer("bearer_token", when_used="json")
+    def serialize_bearer(self, value: SecretStr | None) -> str | None:
+        return None if value is None else value.get_secret_value()
+
+
+class InteractshSettings(WireModel):
+    nullable_fields = frozenset({"token", "ca_bundle_pem"})
+
+    adapter: RuntimeAdapterRef
+    endpoint: str
+    token: SecretStr | None = None
+    ca_bundle_pem: str | None = None
+    request_timeout_seconds: int
+
+    @model_validator(mode="after")
+    def validate_interactsh(self) -> Self:
+        if self.adapter != "interactsh-http@1":
+            raise ValueError("Interactsh adapter must be interactsh-http@1")
+        _require_runtime_endpoint("interactsh.endpoint", self.endpoint)
+        host = urlsplit(self.endpoint).hostname or ""
+        labels = host.split(".")
+        if (
+            len(host) > 219
+            or re.fullmatch(r"[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?", host) is None
+            or all(label.isdecimal() for label in labels)
+            or any(
+                not 1 <= len(label) <= 63 or label.startswith("-") or label.endswith("-")
+                for label in labels
+            )
+        ):
+            raise ValueError("Interactsh endpoint requires a callback DNS hostname")
+        if self.token is not None and not _is_bounded_field_value(
+            self.token.get_secret_value(), _MAX_BEARER_TOKEN_BYTES
+        ):
+            raise ValueError("Interactsh token is invalid")
+        if self.ca_bundle_pem is not None:
+            _validate_ca_bundle("Interactsh", self.ca_bundle_pem)
+        if not 1 <= self.request_timeout_seconds <= 120:
+            raise ValueError("Interactsh requestTimeoutSeconds must be from 1 through 120")
+        return self
+
+    @field_serializer("token", when_used="json")
+    def serialize_bearer(self, value: SecretStr | None) -> str | None:
+        return None if value is None else value.get_secret_value()
+
+
+class RuntimeLabelBindingProvenance(WireModel):
+    label: str
+    binding_revision: int = Field(gt=0, le=2**64 - 1)
+    config: RuntimeConfigRef
+
+
+def _require_worker_policy(policy: ResolvedModelPolicy, *, has_tools: bool) -> None:
+    if (
+        policy.max_output_tokens is None
+        or policy.max_model_calls is None
+        or policy.max_total_tokens is None
+        or (has_tools and policy.max_tool_calls is None)
+        or policy.max_worker_calls is not None
+    ):
+        raise ValueError("modelPolicy is incompatible with adk@1 Worker")
+
+
+def _require_worker_summarizer_policy(policy: ResolvedModelPolicy) -> None:
+    if (
+        policy.context_window_tokens is None
+        or policy.max_output_tokens is None
+        or policy.max_model_calls != 1
+        or policy.max_tool_calls is not None
+        or policy.max_worker_calls is not None
+    ):
+        raise ValueError("modelPolicy is incompatible with the Worker terminal summarizer")
+
+
+class SourceArchiveLimits(WireModel):
+    """Server-selected expanded source budgets; compressed Artifact bytes stay separate."""
+
+    max_expanded_bytes: int = Field(ge=1, le=1024 * 1024 * 1024)
+    max_file_bytes: int = Field(ge=1, le=64 * 1024 * 1024)
+    max_entries: int = Field(ge=1, le=50_000)
+
+    @model_validator(mode="after")
+    def validate_limits(self) -> Self:
+        if self.max_file_bytes > self.max_expanded_bytes:
+            raise ValueError("source file limit exceeds expanded source limit")
+        return self
+
+
+def default_source_archive_limits() -> SourceArchiveLimits:
+    return SourceArchiveLimits(
+        max_expanded_bytes=64 * 1024 * 1024,
+        max_file_bytes=4 * 1024 * 1024,
+        max_entries=10_000,
+    )
+
+
+def _validate_api_key_fields(values: dict[str, str]) -> None:
+    headers = set()
+    total = 0
+    for qualified, value in values.items():
+        location, separator, name = qualified.partition(":")
+        if (
+            not separator
+            or not 1 <= len(name.encode()) <= 256
+            or not 1 <= len(value.encode()) <= 8192
+        ):
+            raise ValueError("engagement API key material is invalid")
+        total += len(qualified.encode()) + len(value.encode())
+        if total > 16384:
+            raise ValueError("engagement API key material exceeds its byte bound")
+        if location == "header":
+            lower = name.lower()
+            if (
+                _HEADER_NAME_PATTERN.fullmatch(name) is None
+                or lower in _FORBIDDEN_RUNTIME_HEADERS | {"cookie", "set-cookie"}
+                or lower in headers
+                or not is_credential_field_value(value)
+            ):
+                raise ValueError("engagement API key header is invalid")
+            headers.add(lower)
+        elif location == "cookie":
+            if not valid_cookie_name(name) or not valid_cookie_value(value):
+                raise ValueError("engagement API key cookie is invalid")
+        elif location == "query":
+            if any(ord(c) < 32 or ord(c) == 127 for c in name + value):
+                raise ValueError("engagement API key query field is invalid")
+        else:
+            raise ValueError("engagement API key location is invalid")
+
+
+class HTTPIdentityMaterial(WireModel):
+    credential: RuntimeCredentialRef
+    fields: dict[str, SecretStr] = Field(min_length=1, max_length=128)
+
+    @model_validator(mode="after")
+    def validate_material(self) -> Self:
+        values = {name: field.get_secret_value() for name, field in self.fields.items()}
+        if self.credential.kind == "target-api-keys@1":
+            _validate_api_key_fields(values)
+            return self
+        if self.credential.kind == "target-cookies@1":
+            if (
+                any(
+                    not valid_cookie_name(name)
+                    or not valid_cookie_value(value)
+                    or len(value) > 8192
+                    for name, value in values.items()
+                )
+                or sum(len(name) + len(value) for name, value in values.items()) > 16384
+            ):
+                raise ValueError("engagement cookie material is invalid")
+            return self
+        if (
+            any(
+                re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", name) is None
+                or not 1 <= len(value.encode()) <= 8192
+                or any(ord(c) < 32 or ord(c) == 127 for c in value)
+                for name, value in values.items()
+            )
+            or sum(len(v.encode()) for v in values.values()) > 16384
+        ):
+            raise ValueError("engagement identity material is invalid")
+        if self.credential.kind == "target-basic@1":
+            if (
+                set(values) != {"username", "password"}
+                or len(values["username"].encode()) > 256
+                or ":" in values["username"]
+            ):
+                raise ValueError("engagement basic material is invalid")
+        elif self.credential.kind == "target-bearer@1":
+            if set(values) != {"token"} or not is_credential_field_value(values["token"]):
+                raise ValueError("engagement bearer material is invalid")
+        else:
+            raise ValueError("engagement credential kind is invalid")
+        return self
+
+    @field_serializer("fields", when_used="json")
+    def serialize_fields(self, values: dict[str, SecretStr]) -> dict[str, str]:
+        return {name: value.get_secret_value() for name, value in values.items()}
+
+
+class RuntimeSettings(WireModel):
+    nullable_fields = frozenset(
+        {
+            "source_archive_limits",
+            "llm_gateway_token",
+            "llm_gateway_failure_signatures",
+            "telemetry",
+            "http_proxy",
+            "caido",
+            "interactsh",
+            "http_origin_target",
+        }
+    )
+
+    source_archive_limits: SourceArchiveLimits | None = None
+    llm_recovery: bool = Field(default=False, strict=True, exclude_if=lambda value: not value)
+    llm_gateway_url: str | None = Field(default=None, exclude_if=lambda value: value is None)
+    llm_gateway_token: SecretStr | None = None
+    llm_gateway_failure_signatures: GatewayFailureSignatures | None = None
+    artifact_api_url: str
+    telemetry: TelemetrySettings | None = None
+    http_proxy: HTTPProxySettings | None = None
+    caido: CaidoSettings | None = None
+    interactsh: InteractshSettings | None = None
+    http_origin_target: HTTPOriginTargetSettings | None = None
+    http_identities: dict[str, HTTPIdentityMaterial] | None = Field(
+        default=None, min_length=1, max_length=7, exclude_if=lambda value: value is None
+    )
+    request_timeout_seconds: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def validate_settings(self) -> Self:
+        if self.http_identities is not None and any(
+            re.fullmatch(r"[a-z][a-z0-9-]{0,63}", name) is None or name == "anonymous"
+            for name in self.http_identities
+        ):
+            raise ValueError("engagement material identity is invalid")
+        if self.llm_gateway_url is not None:
+            _require_runtime_endpoint("runtimeSettings.llmGatewayUrl", self.llm_gateway_url)
+        elif self.llm_gateway_token is not None or self.llm_gateway_failure_signatures is not None:
+            raise ValueError("LLM token and failure signatures require a Gateway URL")
+        if self.llm_gateway_token is not None and not self.llm_gateway_token.get_secret_value():
+            raise ValueError("an unauthenticated Gateway omits llmGatewayToken")
+        if self.llm_gateway_token is not None and not is_credential_field_value(
+            self.llm_gateway_token.get_secret_value()
+        ):
+            raise ValueError("llmGatewayToken is not an HTTP field value")
+        if len(self.artifact_api_url.encode("utf-8")) > 2048:
+            raise ValueError("runtimeSettings.artifactApiUrl exceeds 2048 bytes")
+        _require_url("runtimeSettings.artifactApiUrl", self.artifact_api_url)
+        return self
+
+    @field_serializer("llm_gateway_token", when_used="json")
+    def serialize_token(self, value: SecretStr | None) -> str | None:
+        return None if value is None else value.get_secret_value()
+
+
+class ResolvedRuntimeConfigProvenance(WireModel):
+    nullable_fields = frozenset({"llm_gateway_config", "llm_credential"})
+
+    default: RuntimeLabelBindingProvenance
+    run_labels: list[RuntimeLabelBindingProvenance] = Field(max_length=MAX_RUNTIME_LABELS)
+    agent_labels: list[RuntimeLabelBindingProvenance] = Field(max_length=MAX_RUNTIME_LABELS)
+    runtime_adapters: list[RuntimeAdapterRef] = Field(max_length=64)
+    llm_gateway_config: LLMGatewayConfigRef | None = None
+    llm_credential: LLMCredentialRef | None = None
+    runtime_credential_refs: list[RuntimeCredentialRef] = Field(max_length=64)
+
+    @model_validator(mode="after")
+    def validate_provenance(self) -> Self:
+        if self.default.label != DEFAULT_RUNTIME_LABEL:
+            raise ValueError("provenance default binding is invalid")
+        for field, values in (
+            ("runLabels", self.run_labels),
+            ("agentLabels", self.agent_labels),
+        ):
+            _require_runtime_labels(field, [value.label for value in values])
+        _require_sorted_unique("runtimeAdapters", self.runtime_adapters, maximum=64)
+        if self.llm_credential is not None and self.llm_gateway_config is None:
+            raise ValueError("LLM credential provenance requires a Gateway config ref")
+        credential_keys = [
+            f"{value.kind}\0{value.credential_id}" for value in self.runtime_credential_refs
+        ]
+        _require_sorted_unique("runtimeCredentialRefs", credential_keys, maximum=64)
+        return self
+
+
+class WorkerSummarizerSettings(StrictWireModel):
+    instructions: ResolvedInstructions | None = None
+    cumulative_budget: int | None = Field(default=None, gt=0, le=100_000_000)
+    context_window_ratio: float = Field(gt=0, lt=1)
+    # Required below authoring, including when false (TPL-R116).
+    include_reasoning: bool
+
+    @model_validator(mode="after")
+    def validate_summarizer(self) -> Self:
+        if self.instructions is not None and len(self.instructions.text) > 8000:
+            raise ValueError(
+                "Worker summarizer instructions must contain at most 8000 Unicode characters"
+            )
+        if not math.isfinite(self.context_window_ratio):
+            raise ValueError("Worker summarizer contextWindowRatio must be finite")
+        return self
+
+
+class WorkerSummarizerConfig(WorkerSummarizerSettings):
+    """Effective internal summary consumer assembled from an allocation's policy."""
+
+    model_policy: ResolvedModelPolicy
+
+    @model_validator(mode="after")
+    def validate_effective_policy(self) -> Self:
+        _require_worker_summarizer_policy(self.model_policy)
+        return self
+
+
+# compact@1 bounds, LIM-WFL-9 to LIM-WFL-12.
+MAX_WORKER_COMPACTIONS = 16
+MAX_WORKER_COMPACTION_RECENT_GROUPS = 16
+MAX_WORKER_CONTEXT_INSTRUCTIONS_CHARACTERS = 8000
+
+
+def _require_worker_compactor_policy(policy: ResolvedModelPolicy) -> None:
+    if (
+        policy.context_window_tokens is None
+        or policy.max_output_tokens is None
+        or policy.max_total_tokens is None
+        or policy.max_model_calls != 1
+        or policy.max_tool_calls is not None
+        or policy.max_worker_calls is not None
+    ):
+        raise ValueError("modelPolicy is incompatible with the Worker context compactor")
+
+
+class NoWorkerContextManagement(WireModel):
+    """The allocation has no context branch: no summarizer, hard budgets only."""
+
+    strategy: Literal["none"]
+
+
+class TerminalWorkerContextManagement(WireModel):
+    """The AgentTemplate terminal summarizer is the effective branch."""
+
+    strategy: Literal["terminal@1"]
+
+
+class CompactWorkerContextManagement(WireModel):
+    """The Workflow-selected compact@1 branch; it wholly replaces the summarizer."""
+
+    strategy: Literal["compact@1"]
+    instructions: ResolvedInstructions
+    include_reasoning: bool
+    context_window_ratio: float = Field(gt=0, lt=1)
+    keep_recent_groups: int = Field(ge=1, le=MAX_WORKER_COMPACTION_RECENT_GROUPS)
+    max_compactions: int = Field(ge=1, le=MAX_WORKER_COMPACTIONS)
+
+    @model_validator(mode="after")
+    def validate_compaction(self) -> Self:
+        if len(self.instructions.text) > MAX_WORKER_CONTEXT_INSTRUCTIONS_CHARACTERS:
+            raise ValueError("compact@1 instructions must contain at most 8000 Unicode characters")
+        if not math.isfinite(self.context_window_ratio):
+            raise ValueError("compact@1 contextWindowRatio must be finite")
+        return self
+
+
+WorkerContextManagement = Annotated[
+    NoWorkerContextManagement | TerminalWorkerContextManagement | CompactWorkerContextManagement,
+    Field(discriminator="strategy"),
+]
+
+
+class ResolvedAgentTemplate(WireModel):
+    response_recovery: Literal["document@1"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    ref: AgentTemplateRef
+    description: str
+    runtime: WorkerRuntimeRef
+    instructions: ResolvedInstructions | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    execution: ToolExecutionConfig | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    summarizer: WorkerSummarizerSettings | None = None
+    sitemap: ProjectSitemapPolicy | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    toolsets: list[ToolsetSelection]
+    skills: list[ArtifactRef] = Field(
+        default_factory=list, max_length=32, exclude_if=lambda value: not value
+    )
+    sandbox_profile: SandboxProfileRef
+
+    @property
+    def is_tool_worker(self) -> bool:
+        return self.runtime.runtime_id == "tool" and self.runtime.version == "1"
+
+    @model_validator(mode="after")
+    def validate_template(self) -> Self:
+        _require_text("description", self.description)
+        if "response_recovery" in self.model_fields_set and self.response_recovery is None:
+            raise ValueError("responseRecovery must be omitted, not null")
+        if self.response_recovery is not None:
+            allowed = {
+                "memory-tools": {
+                    "list_memories",
+                    "read_memory",
+                    "write_memory",
+                    "append_memory",
+                    "search_memory",
+                    "list_memory_tags",
+                },
+                "run-artifacts": {"read_artifact"},
+                "text-artifacts": {"write_text_artifact"},
+                "security-findings": {
+                    "list_project_findings",
+                    "read_project_finding",
+                    "select_project_findings",
+                    "read_finding_selection",
+                },
+            }
+            if (
+                self.runtime.runtime_id != "adk"
+                or self.runtime.version != "1"
+                or self.skills
+                or not self.toolsets
+            ):
+                raise ValueError("document@1 requires an ADK document tool selection")
+            for selection in self.toolsets:
+                if selection.ref.version != "1" or not set(selection.tools) <= allowed.get(
+                    selection.ref.toolset_id, set()
+                ):
+                    raise ValueError("document@1 requires document-only tools")
+        for selection in self.toolsets:
+            if selection.ref.toolset_id == "sitemap" and (
+                selection.ref.version != "1" or self.sitemap is None
+            ):
+                raise ValueError("sitemap@1 selection requires a pinned sitemap policy")
+        refs = [f"{item.ref.toolset_id}@{item.ref.version}" for item in self.toolsets]
+        if len(refs) != len(set(refs)):
+            raise ValueError("toolset refs must be unique")
+        visible = [tool for selection in self.toolsets for tool in selection.tools]
+        if len(visible) != len(set(visible)):
+            raise ValueError("model-visible tool names must be unique across Toolsets")
+        skill_names: list[str] = []
+        for skill in self.skills:
+            if (
+                skill.namespace != "skills"
+                or skill.revision is not None
+                or SKILL_NAME_PATTERN.fullmatch(skill.name) is None
+                or len(skill.name) > 64
+            ):
+                raise ValueError("skills must be sorted versionless skills/<portable-name> refs")
+            skill_names.append(skill.name)
+        if skill_names != sorted(set(skill_names)):
+            raise ValueError("skills must be sorted and unique")
+        if self.skills and NATIVE_SKILL_TOOL_NAMES.intersection(visible):
+            raise ValueError("model-visible tool name is reserved by Agent Skills")
+        if self.is_tool_worker:
+            if (
+                self.execution is None
+                or self.model_fields_set.intersection({"instructions", "summarizer"})
+                or self.instructions is not None
+                or self.summarizer is not None
+                or self.skills
+                or visible != [self.execution.tool]
+                or self.sandbox_profile.sandbox_profile_id != "local-workdir"
+                or self.sandbox_profile.version != "1"
+            ):
+                raise ValueError(
+                    "tool@1 requires one tool/execution and forbids model fields or skills"
+                )
+            return self
+        if "execution" in self.model_fields_set or self.instructions is None:
+            raise ValueError("modeled Worker requires instructions and forbids execution")
+        return self

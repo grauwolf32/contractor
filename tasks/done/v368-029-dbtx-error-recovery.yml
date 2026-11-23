@@ -1,0 +1,69 @@
+schema_version: "1.0"
+id: V368-029
+title: "Do not continue on a DBTX after a failed statement inside a transaction"
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: defect
+priority: P3
+status: completed
+implementation_commit: a83c1b87991bcf6675a4d750369710898de5db67
+depends_on: []
+languages: [go]
+goal: "Each recovery path succeeds when the store is transaction-backed."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), persistence G6; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    auditstore/store.go:124-125, execution.go:43-57, collection.go:45-66 and
+    initial_round.go:113-121 recover from a SQL error by issuing another
+    statement on the same DBTX; inside a transaction that gets 25P02. No
+    caller uses a transaction today.
+  siblings: >-
+    Every auditstore method that issues statements after a failed one (not
+    after pgx.ErrNoRows, which does not abort a transaction): CreateDraft,
+    MaterializeRound, StartPreparation, Transition, Resume, RequestDelete,
+    CreateExecutionIntent, Collect, AcceptInitialRound, AcceptNextRound and
+    ProposeReport. The finding's "no caller uses a transaction" no longer
+    held: auditservice Start runs MaterializeRound or StartPreparation and
+    auditservice Resume runs Resume inside their transactions. Ruled out:
+    TransitionClaimed, TransitionTrusted, CompletePreparation, BindRun and
+    the review writes return after a database error and recover only after
+    no rows; projectstore Create uses ON CONFLICT DO NOTHING; runstore,
+    artifacts, findingintake, evalstore, credentials and runtimeconfig only
+    map the error; scheduler output publication and the Run detail metrics
+    already use their own savepoints.
+  decision: >-
+    Guarantee (PER-R20): a store statement with a recovery path runs through
+    persistencepostgres.SavepointQueryRow, which on a transaction-backed
+    store executes it under a savepoint; a database error rolls back to the
+    savepoint, so only the failed statement's writes are undone and the
+    recovery reads and the caller's transaction continue, while no rows or a
+    scan error release it and keep the writes as a pool would. Pool-backed
+    stores run exactly as before. Alternatives: rewriting the eleven CTE
+    statements to avoid errors (ON CONFLICT DO NOTHING everywhere) changes
+    every statement's semantics and still leaves trigger errors; a savepoint
+    around every store call costs two round trips on statements without
+    recovery. A REPEATABLE READ recovery cannot see a winner that committed
+    after its snapshot; Audit start already replays after its rollback
+    (FAIL-AUD-4). Evidence: TestPostgresRecoveryPathsRunInsideACallerTransaction
+    drives all ten auditstore paths into recovery through an injected
+    unique violation (StartPreparation in
+    TestPostgresAuditPreparationStartRecoversInsideACallerTransaction), and
+    TestPostgresCreateDraftReplaysAConcurrentWinnerInsideATransaction races
+    two transactions into a real replay; each fails with 25P02 without the
+    savepoint. Reversal condition: a recovery path that must see writes
+    committed after its transaction's snapshot needs to leave the
+    transaction, not a savepoint. introduced_by is not recorded: the
+    recovery paths predate this shallow clone.
+scope:
+  in:
+    - "Use savepoints or restructure so recovery works on both pool and transaction stores; a test runs each path inside a transaction."
+  out:
+    - "Pool behaviour."
+acceptance_criteria:
+  - id: A1
+    text: "Each recovery path succeeds when the store is transaction-backed."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/auditstore"
+    covers: [A1]

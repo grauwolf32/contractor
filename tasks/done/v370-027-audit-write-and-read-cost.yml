@@ -1,0 +1,62 @@
+schema_version: "1.0"
+id: V370-027
+title: "Reduce Audit start and event listing costs"
+milestone: hub-audit-structure-2026-10
+epic: audits
+kind: defect
+priority: P3
+status: completed
+implementation_commit: 52ab33c9d14d40fe26ac676c9149d9a0ce8d6bbe
+depends_on: [V370-003]
+languages: [go]
+goal: "A start retry does not rewrite packages; listing N events costs O(N)."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), audits I3, I5; public API I4; persistence I2; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Audit start writes up to 4096 task packages (64 MiB) inside one
+    REPEATABLE READ transaction holding Project FOR SHARE and retries all of
+    it on serialization failure (start.go:47-49, 109, 255); ListEventsPage
+    counts all events on every page (events.go:67); coverage reads have no
+    auditRevision pin (audit_handlers.go:492).
+  specification:
+    - docs/spec/audits/audits.md#AUD-R225
+    - docs/spec/audits/audits.md#AUD-R211
+    - docs/spec/audits/review-and-reports.md#REV-R172
+  decision: >-
+    Start stages its content-named artifacts (retained standards, task
+    packages, worklist) through the frozen writer of V368-006 before the
+    REPEATABLE READ start transaction, which now writes only rows and accepts
+    the staged plan only for the same draft revision (the revision proves the
+    profile snapshot and input selection unchanged). Staging runs in one READ
+    COMMITTED transaction that holds FOR KEY SHARE on the draft row: Audit
+    purge locks the row FOR UPDATE before it purges the namespace, so it
+    either removes what was staged or has already deleted the Audit, and no
+    staged binding outlives its Audit; draft edits are not blocked. A start
+    that never commits leaves its staging, bounded by one start per draft
+    revision, reused by a retry and purged with the Audit. Alternatives:
+    per-artifact transactions (rejected: about six round trips per package
+    and the same fence needed in each), writing without the fence (rejected:
+    a racing purge would orphan bindings forever), keeping the writes in the
+    start transaction (the defect). The expected-standards pin is checked
+    while staging, before any package is written. Event pages derive total
+    from throughSequence because AUD-R223 guarantees density; the test
+    traces the SQL and fails on any count. Coverage pages are always read at
+    one revision (the handler's own read when unpinned, so the current Round
+    and the rows agree), report auditRevision, accept an additive pin and
+    bind it in two-part cursors through the shared decodeAuditPageCursor; the
+    UI pins each batch to its first Audit read and drops the second read.
+    Reopen if a draft revision can change its profile or inputs without a
+    revision bump, or if events ever become prunable.
+scope:
+  in:
+    - "Write content-addressed artifacts before the transaction; derive Total from the dense sequence; additive auditRevision for coverage."
+  out:
+    - "Results."
+acceptance_criteria:
+  - id: A1
+    text: "A start retry does not rewrite packages; listing N events costs O(N)."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/auditservice ./internal/httpapi/public"
+    covers: [A1]

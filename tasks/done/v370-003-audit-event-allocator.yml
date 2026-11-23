@@ -1,0 +1,63 @@
+schema_version: "1.0"
+id: V370-003
+title: "Allocate Audit events in one place"
+milestone: hub-audit-structure-2026-10
+epic: audits
+kind: chore
+priority: P1
+status: completed
+implementation_commit: 06735f74f04797ec3581389e669feb4c7500da70
+depends_on: []
+languages: [go, sql]
+goal: "Every Audit mutation appends events only through the allocator and sequences stay dense."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), audits D 3.1, F2; file:line as of 02bbdcbf, re-verify on current main"
+  specification:
+    - docs/spec/audits/audits.md#AUD-R223
+  finding: >-
+    30 hand-written INSERT INTO audit_events with manual revision and
+    next_event_sequence arithmetic in 16 auditstore files, plus the plpgsql
+    in the baseline (from 000062); V279-001 came from this. Sequence density
+    is unchecked.
+  decision: >-
+    The allocator is the PL/pgSQL function contractor_append_audit_events
+    (migration 000003), the only statement that inserts into audit_events.
+    A statement reserves its events in the one UPDATE of its audits row,
+    where revision and next_event_sequence advance once per event, and hands
+    the same events to the function in that UPDATE's RETURNING. PostgreSQL
+    evaluates RETURNING once per updated row after the update, also when READ
+    COMMITTED re-evaluates the row, so the function sees the locked,
+    reserved row; it numbers the events directly after the Audit's last
+    event and raises assert_failure (P0004) when the reservation does not
+    continue the sequence. Density is therefore enforced on every append in
+    the database. Go statements reach the function only through
+    auditEventBatch (advance, created, appended), whose count and events come
+    from the same sources; the finding-admission trigger calls it too.
+    Alternatives: a Go CTE builder keeping one INSERT in Go (rejected: the
+    trigger would stay a second writer and nothing would check density at
+    runtime); a function that also advances next_event_sequence (rejected: a
+    second UPDATE of the same audits row in one statement is unsupported and
+    would leave the statement's RETURNING with a stale eventSequence); a
+    deferred constraint trigger checking density at commit (rejected: cost on
+    every Audit transaction for a property the allocator already checks).
+    Event content and order are unchanged; round.accepted counts the opened
+    reviews from the accepted items instead of the inserted review rows,
+    which is equal by construction and pinned by tests. The source scan
+    counts INSERT INTO audit_events in Go sources and in the last definition
+    of each migration function, because the superseded trigger body in
+    000001_baseline.sql cannot be edited. A micro-benchmark under load showed
+    about 5% more time per appending transaction. Reopen if a mutation needs
+    events whose content depends on rows written after its audits UPDATE.
+scope:
+  in:
+    - "One SQL function or Go CTE builder for appending events; a test that event sequences are dense; a grep test that INSERT INTO audit_events appears once."
+  out:
+    - "Event content and order."
+acceptance_criteria:
+  - id: A1
+    text: "Every Audit mutation appends events only through the allocator and sequences stay dense."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/auditstore ./internal/auditservice"
+    covers: [A1]

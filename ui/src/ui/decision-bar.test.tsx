@@ -1,0 +1,366 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { useState, type ComponentProps } from "react";
+import { describe, expect, it, vi } from "vitest";
+
+import { DecisionBar } from "./decision-bar";
+
+type DecisionBarProps = ComponentProps<typeof DecisionBar>;
+
+const OPTIONS: DecisionBarProps["options"] = [
+  { id: "confirm", label: "Confirm issue", shortcut: "c", tone: "primary" },
+  { id: "reject", label: "Not an issue", shortcut: "r" },
+  { id: "evidence", label: "Needs evidence", shortcut: "e" },
+];
+
+const SEVERITIES = [
+  { value: "low", label: "Low" },
+  { value: "high", label: "High" },
+];
+
+type HarnessProps = Partial<
+  Omit<DecisionBarProps, "rationale" | "severity" | "selected">
+> & {
+  withSeverity?: boolean;
+  initialReason?: string;
+  initialSelected?: string;
+};
+
+function Harness({
+  withSeverity = false,
+  initialReason = "",
+  initialSelected,
+  onSelect,
+  ...props
+}: HarnessProps) {
+  const [selected, setSelected] = useState(initialSelected);
+  const [reason, setReason] = useState(initialReason);
+  const [severity, setSeverity] = useState<string | undefined>(undefined);
+  return (
+    <DecisionBar
+      options={OPTIONS}
+      selected={selected}
+      onSelect={(id) => {
+        onSelect?.(id);
+        setSelected(id);
+      }}
+      severity={
+        withSeverity
+          ? {
+              options: SEVERITIES,
+              value: severity,
+              onChange: setSeverity,
+              required: selected === "confirm",
+              hint: "Pick one when you confirm.",
+            }
+          : undefined
+      }
+      rationale={{ value: reason, onChange: setReason, maxLength: 500 }}
+      onSubmit={vi.fn()}
+      {...props}
+    />
+  );
+}
+
+function recordButton() {
+  return screen.getByRole("button", { name: "Record decision" });
+}
+
+function reasonField() {
+  return screen.getByRole("textbox", { name: "Why" });
+}
+
+describe("DecisionBar", () => {
+  it("chooses a verdict by its key and focuses the reason", async () => {
+    const onSelect = vi.fn();
+    render(<Harness onSelect={onSelect} />);
+    expect(screen.getByRole("region", { name: "Your decision" })).toBeVisible();
+    const reject = screen.getByRole("button", { name: "Not an issue" });
+    expect(reject).toHaveAttribute("aria-keyshortcuts", "R");
+    expect(reject).toHaveAttribute("aria-pressed", "false");
+
+    await userEvent.setup().keyboard("r");
+    expect(onSelect).toHaveBeenCalledWith("reject");
+    expect(reject).toHaveAttribute("aria-pressed", "true");
+    expect(reasonField()).toHaveFocus();
+    expect(reasonField()).toHaveValue("");
+  });
+
+  it("chooses a verdict by click and types keys into the reason", async () => {
+    render(<Harness />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Needs evidence" }));
+    expect(reasonField()).toHaveFocus();
+    await user.keyboard("crej");
+    expect(reasonField()).toHaveValue("crej");
+    expect(
+      screen.getByRole("button", { name: "Needs evidence" }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("records only with a verdict, a reason and a required severity", async () => {
+    const onSubmit = vi.fn();
+    render(<Harness withSeverity onSubmit={onSubmit} />);
+    const user = userEvent.setup();
+    expect(recordButton()).toBeDisabled();
+    expect(recordButton()).toHaveAccessibleDescription("Choose a decision.");
+
+    await user.keyboard("c");
+    expect(recordButton()).toBeDisabled();
+    expect(recordButton()).toHaveAccessibleDescription("Choose severity.");
+    await user.click(screen.getByRole("radio", { name: "High" }));
+    expect(
+      screen.getByRole("radiogroup", { name: "Severity" }),
+    ).toHaveAttribute("aria-required", "true");
+    expect(recordButton()).toHaveAccessibleDescription("Write a short reason.");
+
+    await user.click(reasonField());
+    await user.keyboard("   ");
+    expect(recordButton()).toBeDisabled();
+    await user.keyboard("Scoped by owner");
+    expect(recordButton()).toBeEnabled();
+    expect(recordButton()).not.toHaveAccessibleDescription();
+    await user.click(recordButton());
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not need a severity for verdicts that do not ask for one", async () => {
+    render(<Harness withSeverity initialReason="Not reachable" />);
+    await userEvent.setup().keyboard("r");
+    expect(recordButton()).toBeEnabled();
+  });
+
+  it("records with Ctrl+Enter or ⌘+Enter from the reason", async () => {
+    const onSubmit = vi.fn();
+    render(<Harness onSubmit={onSubmit} />);
+    const user = userEvent.setup();
+    await user.click(reasonField());
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    await user.keyboard("e");
+    expect(reasonField()).toHaveValue("e");
+    await user.click(screen.getByRole("button", { name: "Not an issue" }));
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    await user.keyboard("{Meta>}{Enter}{/Meta}");
+    expect(onSubmit).toHaveBeenCalledTimes(2);
+    expect(reasonField()).toHaveValue("e");
+    expect(reasonField()).toHaveAttribute(
+      "aria-keyshortcuts",
+      "Control+Enter Meta+Enter",
+    );
+  });
+
+  it("locks everything while pending, Record decision only for assistive technology", async () => {
+    const onSelect = vi.fn();
+    const onSubmit = vi.fn();
+    const onNext = vi.fn();
+    render(
+      <Harness
+        pending
+        initialSelected="reject"
+        initialReason="Duplicate of the login flaw"
+        onSelect={onSelect}
+        onSubmit={onSubmit}
+        next={{ label: "Next item", shortcut: "j", onNext }}
+        more={<button type="button">More</button>}
+      />,
+    );
+    const user = userEvent.setup();
+    for (const option of OPTIONS) {
+      expect(screen.getByRole("button", { name: option.label })).toBeDisabled();
+    }
+    // It keeps focus: a browser moves focus off a disabled button.
+    expect(recordButton()).toBeEnabled();
+    expect(recordButton()).toHaveAttribute("aria-disabled", "true");
+    expect(recordButton()).toHaveAttribute("aria-busy", "true");
+    expect(recordButton()).toHaveAccessibleDescription("Recording…");
+    expect(screen.getByRole("button", { name: "Next item" })).toBeDisabled();
+    expect(reasonField()).toHaveAttribute("readonly");
+    expect(
+      screen.getByRole("region", { name: "Your decision" }),
+    ).toHaveAttribute("aria-busy", "true");
+    expect(
+      screen.getByRole("button", { name: "More" }).closest("[inert]"),
+    ).not.toBeNull();
+
+    await user.keyboard("cj");
+    await user.click(reasonField());
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    await user.click(recordButton());
+    expect(recordButton()).toHaveFocus();
+    await user.keyboard("{Enter} ");
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onNext).not.toHaveBeenCalled();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("keeps focus where recording started from", async () => {
+    const onSubmit = vi.fn();
+    const { rerender } = render(
+      <Harness initialSelected="reject" onSubmit={onSubmit} />,
+    );
+    const user = userEvent.setup();
+    await user.click(reasonField());
+    await user.keyboard("Only administrators reach this view.");
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    rerender(<Harness pending onSubmit={onSubmit} />);
+    expect(reasonField()).toHaveFocus();
+
+    rerender(<Harness onSubmit={onSubmit} />);
+    await user.click(recordButton());
+    rerender(<Harness pending onSubmit={onSubmit} />);
+    expect(recordButton()).toHaveFocus();
+    expect(onSubmit).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ["a verdict", () => screen.getByRole("button", { name: "Not an issue" })],
+    ["the next item", () => screen.getByRole("button", { name: "Next item" })],
+    ["a control in more", () => screen.getByRole("button", { name: "More" })],
+    [
+      "a control above the reason",
+      () => screen.getByRole("button", { name: "Use AI summary" }),
+    ],
+    ["the page body", () => document.body],
+  ])(
+    "moves focus from %s to Record decision when recording starts",
+    (_, focused) => {
+      const props: HarnessProps = {
+        initialSelected: "reject",
+        initialReason: "Only administrators reach this view.",
+        next: { label: "Next item", onNext: vi.fn() },
+        more: <button type="button">More</button>,
+        extra: <button type="button">Use AI summary</button>,
+      };
+      const { rerender } = render(<Harness {...props} />);
+      // As a click on Record decision leaves it in Safari: focus stays.
+      const element = focused();
+      element.focus();
+      expect(document.activeElement).toBe(element);
+      fireEvent.click(recordButton());
+      rerender(<Harness {...props} pending />);
+      expect(recordButton()).toHaveFocus();
+    },
+  );
+
+  it("leaves focus outside the bar, and on a bar shown while recording, alone", () => {
+    const { rerender, unmount } = render(
+      <>
+        <button type="button">Elsewhere</button>
+        <Harness initialSelected="reject" initialReason="Not reachable" />
+      </>,
+    );
+    const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
+    elsewhere.focus();
+    rerender(
+      <>
+        <button type="button">Elsewhere</button>
+        <Harness pending initialSelected="reject" />
+      </>,
+    );
+    expect(elsewhere).toHaveFocus();
+    unmount();
+
+    // Focus on the page body is not taken by a bar that never was idle.
+    render(<Harness pending initialSelected="reject" />);
+    expect(document.body).toHaveFocus();
+  });
+
+  it("shows the error as an alert and the disabled reason as a description", () => {
+    const onNext = vi.fn();
+    const { rerender } = render(
+      <Harness error="The decision was not recorded: conflict." />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The decision was not recorded: conflict.",
+    );
+    rerender(
+      <Harness
+        disabledReason="Only reviewers can decide."
+        next={{ label: "Next item", onNext }}
+      />,
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Confirm issue" }),
+    ).toBeDisabled();
+    expect(reasonField()).toBeDisabled();
+    expect(recordButton()).toHaveAccessibleDescription(
+      "Only reviewers can decide.",
+    );
+    expect(screen.getByRole("button", { name: "Next item" })).toBeEnabled();
+  });
+
+  it("moves to the next item by button or key", async () => {
+    const onNext = vi.fn();
+    render(
+      <Harness
+        next={{
+          label: "Next in inbox: blocked endpoint",
+          shortcut: "j",
+          onNext,
+        }}
+      />,
+    );
+    const user = userEvent.setup();
+    const next = screen.getByRole("button", {
+      name: "Next in inbox: blocked endpoint",
+    });
+    expect(next).toHaveAttribute("aria-keyshortcuts", "J");
+    await user.click(next);
+    await user.keyboard("j");
+    expect(onNext).toHaveBeenCalledTimes(2);
+  });
+
+  it("links the standing reason hint to the field with the live hint", () => {
+    render(
+      <DecisionBar
+        options={OPTIONS}
+        onSelect={vi.fn()}
+        rationale={{
+          value: "",
+          onChange: vi.fn(),
+          hint: "Required. Saved with the decision.",
+        }}
+        onSubmit={vi.fn()}
+      />,
+    );
+    const field = reasonField();
+    expect(field).toHaveAccessibleDescription(
+      "Required. Saved with the decision. Choose a decision.",
+    );
+  });
+});
+
+it("defers a compact draft until a verdict is chosen and focuses the newly mounted rationale", async () => {
+  render(<Harness deferDraft withSeverity />);
+  expect(screen.queryByRole("textbox", { name: "Why" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Record decision" })).toBeNull();
+  const user = userEvent.setup();
+  await user.keyboard("c");
+  expect(reasonField()).toHaveFocus();
+  expect(recordButton()).toBeDisabled();
+  await user.type(reasonField(), "The request reaches this path.");
+  expect(recordButton()).toBeDisabled();
+  await user.click(screen.getByRole("radio", { name: "High" }));
+  expect(recordButton()).toBeEnabled();
+});
+
+it("keeps an incomplete draft editable while a validation problem prevents recording", async () => {
+  const user = userEvent.setup();
+  const onSubmit = vi.fn();
+  render(
+    <Harness
+      initialSelected="evidence"
+      validationProblem="Choose an exact target."
+      onSubmit={onSubmit}
+    />,
+  );
+  await user.type(reasonField(), "A reason that can still be edited.");
+  expect(reasonField()).toHaveValue("A reason that can still be edited.");
+  expect(recordButton()).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Confirm issue" })).toBeEnabled();
+  expect(onSubmit).not.toHaveBeenCalled();
+});

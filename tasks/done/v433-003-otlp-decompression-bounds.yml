@@ -1,0 +1,107 @@
+schema_version: "1.0"
+id: V433-003
+title: Enforce OTLP acknowledgement limits before decompression allocates the body
+milestone: runtime-resource-bounds-2026-11
+epic: operations
+kind: defect
+introduced_by: V51-001
+priority: P2
+status: completed
+depends_on: []
+languages: [python, markdown]
+goal: Worker OTLP acknowledgement parsing never expands a compressed response beyond its existing 64-KiB byte budget.
+context:
+  authority: >-
+    User request 2026-11-02: recheck OTLP decompression before the size check
+    and create a fix task using the existing limited-body reader.
+    User request 2026-11-03 assigns implementation of V433-003.
+  specification:
+    - docs/spec/platform/observability.md#OBS-R74
+    - docs/spec/platform/observability.md#OBS-R76
+    - docs/spec/platform/observability.md#OBS-R77
+    - docs/spec/platform/observability.md#OBS-R78
+    - docs/spec/platform/failure-model.md
+  finding: >-
+    On main 57634940d40862fb638d4beea212e53a5107994a,
+    adapters/otlp_retry.py:68 iterates response.aiter_bytes(). HTTPX decodes
+    each complete incoming chunk before :69 checks MAX_RESPONSE_BYTES.
+    A real HTTPX GZipDecoder probe expanded 4,099 wire bytes into one
+    4,194,304-byte chunk with a 65,536-byte limit. The response is rejected,
+    but the oversized decoded allocation has already happened.
+  origin: git blame attributes this reader to V51-001 implementation b763e6ab93ec30e9b09c5280fc36f326234880e3.
+  siblings: >-
+    Cover protobuf and OTLP/JSON acknowledgements, identity/gzip/deflate and
+    layered encodings supported by http_body.read_limited_body, malformed
+    compression, received-byte overflow and decoded-byte overflow. The Worker
+    exporter opens a streamed response in otlp_http.py:605. HTTP and Caido
+    already use the shared bounded decoder. Planner OTLP is a separate Go
+    exporter: inspect its admission once, and document its disposition without
+    changing its protocol behavior under this Runtime task.
+  boundary: >-
+    Reuse http_body.read_limited_body with MAX_RESPONSE_BYTES; keep the
+    exporter responsible for response closure, retry budget and dropped-span
+    accounting. This task changes no limits, telemetry payload or wire schema.
+  sibling_review: >-
+    Worker protobuf and JSON acknowledgements share classify_response and now
+    share http_body.read_limited_body with HTTP/Caido. The exporter retains
+    response closure, status/Retry-After classification, deadlines and loss
+    accounting. Planner admission was inspected in
+    internal/telemetry/planner_otlp.go:354: io.ReadAll wraps the streaming
+    response reader in io.LimitReader(maxPlannerResponseBytes+1), with a
+    64-KiB ceiling. Go's incremental reader does not expose the HTTPX
+    whole-chunk decoding defect; its protocol and retry behavior are unchanged.
+scope:
+  in:
+    - Replace post-decode iteration with the existing reader that caps received and incrementally decoded bytes before accumulation.
+    - Treat BodyTooLarge and malformed compressed acknowledgements as existing terminal acknowledgement failures, preserving status/Retry-After and partial-success rules.
+    - Exercise streamed responses through the actual exporter, including a single small compressed chunk that expands far beyond 64 KiB, and prove early bounded decoding.
+    - Clarify the received/decoded byte guarantee in OBS-R77 and the owning limits documentation without changing the existing ceiling.
+  out:
+    - A new decompressor, larger acknowledgement limits, new retry or queue mechanism, provider error text retention and Planner exporter redesign.
+failure_outcomes:
+  success: Valid in-bound protobuf/JSON receipts and partial-success counts retain their current behavior.
+  permanent: Wire/decoded overflow, corrupt compression and malformed receipts reject terminally and count the affected batch once; never log or retain response text.
+  retryable: Existing retryable HTTP statuses and Retry-After behavior remain bounded by the same attempt and batch budgets.
+  ambiguous: Preserve existing batch delivery semantics and span identities; do not reinterpret an invalid acknowledgement as proof of provider non-receipt.
+  cancelled: Close the response on interruption and preserve existing cancellation and dropped-span accounting without duplicate sends or double counts.
+  timeout: All reads use the remaining existing delivery deadline, including shutdown flush; no additional budget is introduced.
+cardinality: One acknowledgement per batch attempt; at most 64 KiB received and decoded, with at most the shared decoder's one-byte overflow probe, regardless of compression ratio.
+acceptance_criteria:
+  - id: A1
+    given: A streamed compressed receipt is small on the wire but expands to multiple MiB, or raw bytes exceed 64 KiB.
+    when: The real OTLP exporter classifies the response.
+    then: It rejects before producing an unbounded decoded chunk, closes the stream and records one terminal delivery failure without retrying the malformed acknowledgement.
+  - id: A2
+    given: In-bound protobuf/JSON receipts, gzip/deflate/layered encodings, corrupt compression, partial success and retryable HTTP statuses.
+    when: Delivery completes, is cancelled, or exhausts its shared deadline.
+    then: Existing acceptance, Retry-After, content-free diagnostics and exactly-once dropped-span accounting remain intact.
+  - id: A3
+    text: New streamed compression regressions fail on the current aiter_bytes implementation, use bounded decoder/work counters or the existing deterministic allocation probe, and pass with all shared HTTP-body and exporter suites.
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_otlp_adapter.py tests/test_otlp_streaming.py tests/test_otlp_retries.py tests/test_http_body.py tests/test_telemetry_content.py tests/test_adapter_host.py
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification: >-
+  The new compression/received-byte selection on the original reader produced
+  9 failures and 1 pass: all eight protobuf/JSON gzip, deflate, raw-deflate
+  and layered expansion cases exposed unbounded zlib output, and the padded
+  gzip receipt wrongly accepted more than 64 KiB of wire data. After the fix,
+  the exact required six-file Runtime selection passed all 228 tests with
+  warnings treated as errors. The real exporter tests count zlib output and
+  requested max_length (at most 65,537 bytes per layer), early stream stops,
+  closure, one terminal loss count, valid/partial receipts, exact-boundary
+  success, corrupt compression, status precedence, cancellation, shutdown,
+  batch expiry and the enclosing flush deadline. No live collector or
+  database was needed.
+  make lint passed with cached pinned Go 1.26.9, Node 24.20.0 and pnpm
+  11.24.0, including all four Runtime import contracts. The script suite's
+  optional PostgreSQL generator test was skipped because
+  CONTRACTOR_TEST_DATABASE_URL was unset; no PostgreSQL execution is claimed.
+  Full lint output: /private/tmp/v433-003-lint.log.
+landing: >-
+  Merged into main with --no-ff on 2026-11-03 at the user's request.
+  main had not advanced from the branch base; implementation and test files
+  match the verified branch exactly. Task and specification checks passed
+  again during integration.
+implementation_commit: b6999679f6ad38b5bb700411fbd7ca3badc75402

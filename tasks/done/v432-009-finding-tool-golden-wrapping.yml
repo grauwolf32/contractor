@@ -1,0 +1,51 @@
+schema_version: "1.0"
+id: V432-009
+title: Align the Finding reader contract snapshot with its authoritative docstring
+milestone: audit-check-prioritization
+epic: findings
+kind: chore
+introduced_by: V64-014
+priority: P3
+status: completed
+depends_on: []
+languages: [python]
+goal: Restore the complete model-facing Finding contract guard after a whitespace-only reader description change on main.
+context:
+  authority: >-
+    Agent proposal 2026-11-02: necessary prerequisite discovered during the
+    user-requested Runtime merge. Do not start or close the separate in-progress
+    V64-014 task; this chore only repairs the already-landed golden fixture.
+  specification:
+    - docs/spec/findings/findings.md#FND-R210
+  finding: >-
+    runtime/tests/test_finding_tool_contracts.py:37 fails on the current main
+    reader and fixture, both unchanged by the Runtime merge. In e4b6df107,
+    reader.py:175-176 wraps the phrase captured Project Finding across a
+    newline while testdata/finding-tool-contracts.json retains it on one line.
+    Fresh provider_contracts() differs only in that reader description newline;
+    all schemas and other descriptions are identical.
+  boundary: >-
+    Keep the production description and every schema/value. Update only the
+    golden reader description from the actual ADK provider declaration. The
+    full snapshot equality test remains intact and still catches contract drift.
+scope:
+  in:
+    - Correct the golden reader description newline using the actual provider declaration.
+    - Verify complete Finding declarations and the full reader tool suite.
+  out:
+    - Runtime/Server behavior changes, schema field changes, test bypasses, and V64-014 implementation or status changes.
+acceptance_criteria:
+  - id: A1
+    text: The sole fixture delta is the reader description newline; the full model-facing contract equality check passes unchanged.
+  - id: A2
+    text: Complete contract and reader tool suites pass, including the same bounded reader and input-error cases.
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_finding_tool_contracts.py tests/test_findings_reader_toolset.py
+    covers: [A1, A2]
+  - command: git diff --check
+    covers: [A1]
+implementation_commit: b0e0463843486df61bc9bf88b521edfb1b388816
+verification: >-
+  Complete Finding declaration and reader suites: 72 passed. The JSON fixture
+  diff is one line: only the description newline changes. The exact contract
+  equality guard and every schema remain unchanged. git diff --check passes.

@@ -1,0 +1,288 @@
+{
+  "schemaVersion": 1,
+  "task": "V417-009",
+  "date": "2026-11-15",
+  "implementationCommit": "7ef5d58deb5ff42cec9175fa4261d169047c1d22",
+  "runtime": {
+    "sourceCommit": "7ef5d58deb5ff42cec9175fa4261d169047c1d22",
+    "runtimeSourceTree": "db066561a9c56f7014f76caf301eef331847d1e8",
+    "runtimeLockSha256": "sha256:945f997f38cabe445f1f05a559a26089fdf3bf44c95b523a6d8eb71c8e235c65",
+    "runtimeVersions": {
+      "python": "3.13.16",
+      "adk": "2.13.0"
+    },
+    "reports": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/release-repaired",
+    "heavyIOEnabled": false
+  },
+  "verification": [
+    {
+      "command": "make test-worker-compaction-e2e",
+      "exitCode": 0,
+      "selectedGoEvents": 57,
+      "runtimeTests": 561,
+      "selectedProcessEvents": 7,
+      "path": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/compaction-focused.log",
+      "sha256": "sha256:3be502132cb71cd0bcd551fdbb10cfee00d611ecf2266d6e6a1281ff4b9b74d3"
+    },
+    {
+      "command": "make test-wire-cross-language verify-public-api test-postgres",
+      "exitCode": 0,
+      "revision": "7ef5d58deb5ff42cec9175fa4261d169047c1d22",
+      "path": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/standalone-repaired.log",
+      "sha256": "sha256:be3396ed27a68c34675f45eba55000ec4347afb105c0d63ea5780cfcb67aa49d"
+    },
+    {
+      "command": "GOFLAGS=-p=1 RACE_PACKAGE_PARALLELISM=1 make -k release-verify RELEASE_REPORTS=/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/release-repaired",
+      "exitCode": 0,
+      "revision": "7ef5d58deb5ff42cec9175fa4261d169047c1d22",
+      "racePackagesByStage": [
+        52,
+        67
+      ],
+      "processRoots": 52,
+      "uiTestsPassed": 2531,
+      "uiExpectedFailure": 1,
+      "mockedBrowserCasesPassed": 239,
+      "path": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/release-verify-repaired.log",
+      "sha256": "sha256:24f4911fb699b5cb029ee88d84e238cf5a26582e33a8d8eba38097f766249d99"
+    }
+  ],
+  "reports": [
+    {
+      "path": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/focused/worker-compaction-go.jsonl",
+      "bytes": 2482361,
+      "sha256": "sha256:46f9ca8c354c532d779f3b7723ed2ae5217aebeb62c936c5c91042e779efc4d3",
+      "counts": {
+        "tests.pass": 1948,
+        "roots.pass": 495,
+        "tests.skip": 1,
+        "roots.skip": 1,
+        "packages.pass": 5
+      },
+      "unfinishedTestEvents": 0
+    },
+    {
+      "path": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/focused/worker-compaction-process.jsonl",
+      "bytes": 72140,
+      "sha256": "sha256:f7e3b4349996b851da86b422a4136626a31e8a481b4316dd47375e3c2f9b1be3",
+      "counts": {
+        "tests.pass": 7,
+        "roots.pass": 3,
+        "packages.pass": 1
+      },
+      "unfinishedTestEvents": 0
+    },
+    {
+      "path": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/focused/worker-compaction-runtime.xml",
+      "bytes": 89837,
+      "sha256": "sha256:110864e839461f19ee1ef32cb6d5ad49fd44e5f2b2f3813ea7d0fbe2190096c8",
+      "counts": {
+        "tests.pass": 561
+      },
+      "unfinishedTestEvents": 0
+    },
+    {
+      "path": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/release-repaired/audit-research-ui.jsonl",
+      "bytes": 27295,
+      "sha256": "sha256:b883da9bd1a1f76ff5f6cac189d252f04be6541807726836f31e18241eda94f8",
+      "counts": {
+        "tests.pass": 1,
+        "roots.pass": 1,
+        "packages.pass": 1
+      },
+      "unfinishedTestEvents": 0
+    },
+    {
+      "path": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/release-repaired/go-integration.jsonl",
+      "bytes": 923964,
+      "sha256": "sha256:744b99eed4f97b0fd7a6d10bfdcde51e6e46fe29ad741e72f2fb5a8701b7cfe4",
+      "counts": {
+        "tests.skip": 4,
+        "roots.skip": 4,
+        "packages.pass": 19,
+        "tests.pass": 461,
+        "roots.pass": 152
+      },
+      "unfinishedTestEvents": 0
+    },
+    {
+      "path": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/release-repaired/go-process-a.jsonl",
+      "bytes": 261010,
+      "sha256": "sha256:602152a7f387c41e99a4ace9242207cb6d6c36bbeccaf719c314bf56177b3571",
+      "counts": {
+        "tests.pass": 36,
+        "roots.pass": 19,
+        "packages.pass": 1
+      },
+      "unfinishedTestEvents": 0
+    },
+    {
+      "path": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/release-repaired/go-process-b.jsonl",
+      "bytes": 310968,
+      "sha256": "sha256:f4c3974476817b70c6ab5c78cb9f39e1665802ac2e9fb8d0fcbd54c755fbac6a",
+      "counts": {
+        "tests.pass": 66,
+        "roots.pass": 16,
+        "packages.pass": 1
+      },
+      "unfinishedTestEvents": 0
+    },
+    {
+      "path": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/release-repaired/go-process-c.jsonl",
+      "bytes": 326204,
+      "sha256": "sha256:603061b25b936d8dd87040d7195e0e93493fbaba95b84905d65bcccd847308f3",
+      "counts": {
+        "tests.pass": 58,
+        "roots.pass": 17,
+        "packages.pass": 1
+      },
+      "unfinishedTestEvents": 0
+    },
+    {
+      "path": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/release-repaired/go-unit.jsonl",
+      "bytes": 12438865,
+      "sha256": "sha256:bd1ab0c1f0a4c07d484eb05d56db03c873bdd3dd5db6546125845d92e185e2c1",
+      "counts": {
+        "packages.skip": 30,
+        "tests.pass": 10978,
+        "roots.pass": 3156,
+        "packages.pass": 119,
+        "tests.skip": 17,
+        "roots.skip": 15
+      },
+      "unfinishedTestEvents": 0
+    },
+    {
+      "path": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/release-repaired/runtime.xml",
+      "bytes": 20738515,
+      "sha256": "sha256:35b50b374848feec6a2ff20aee5c81f4205feaef2e68d0c6e179914c4c260b56",
+      "counts": {
+        "tests.pass": 6268,
+        "tests.skipped": 135
+      },
+      "unfinishedTestEvents": 0
+    }
+  ],
+  "exclusions": {
+    "heavyIOEnabled": false,
+    "goSkippedCases": {
+      "go-unit.jsonl": [
+        "github.com/grauwolf32/contractor/internal/artifacts/postgres/TestPostgresIntegration64MiBPayloadBoundary",
+        "github.com/grauwolf32/contractor/internal/artifacts/postgres/TestPostgresArtifactSelectiveQueryPlans",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestPostgresAuditClaimReadsOnlyTheReconcilableAudits",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestPostgresAuditReadsAtFindingScale",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestSharedPostgresCommonTaskPagesAndPurgeAtCeiling",
+        "github.com/grauwolf32/contractor/internal/cli/TestSourcePushRejectsRuntimeUnopenableBundleBeforeArtifactRequest/file_and_directory_collide_after_NFC",
+        "github.com/grauwolf32/contractor/internal/credentials/litellm/TestPinnedLiteLLMContract",
+        "github.com/grauwolf32/contractor/internal/helpers/securefile/TestReadRejectsFileOwnedByAnotherUser",
+        "github.com/grauwolf32/contractor/internal/performance/TestLocalNVIDIAGPU",
+        "github.com/grauwolf32/contractor/internal/projectsitemap/TestPostgresSitemapSingleRunExceedsRemovedPublicationCaps",
+        "github.com/grauwolf32/contractor/internal/sourcebundle/TestSharedBuildAcceptsOnlyRuntimeOpenableFixtureBundles/file_and_directory_names_collide_after_NFC_normalization",
+        "github.com/grauwolf32/contractor/internal/sourcebundle/TestBuildStillRejectsDistinctUnicodeNamesThatNormalizeTogether",
+        "github.com/grauwolf32/contractor/internal/telemetry/TestPlannerOTLPCollectorProjection",
+        "github.com/grauwolf32/contractor/tests/eval/project_workflows/TestLiveProjectWorkflows",
+        "github.com/grauwolf32/contractor/tests/integration/streamline/TestLiveGatewayToolCall",
+        "github.com/grauwolf32/contractor/tests/integration/streamline/TestLiveRouterWorkflow"
+      ],
+      "go-integration.jsonl": [
+        "github.com/grauwolf32/contractor/internal/artifacts/postgres/TestPostgresRunRevisionLimitAndBoundedPurge",
+        "github.com/grauwolf32/contractor/internal/artifacts/postgres/TestPostgresRunRevisionLimitIsNotRefundedByHistoryRetention",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestSharedPostgresCommonTaskPagesAndPurgeAtCeiling",
+        "github.com/grauwolf32/contractor/internal/findingintake/TestPostgresHydratesNineMaximumSizeProposalsAcrossBatches"
+      ]
+    },
+    "runtimeSkippedByModule": {
+      "tests.test_audit_completion_e2e": 1,
+      "tests.test_code_analysis_graph": 1,
+      "tests.test_interactsh_protocol": 1,
+      "tests.test_live_gateway": 3,
+      "tests.test_podman_allocation": 15,
+      "tests.test_podman_capabilities": 34,
+      "tests.test_podman_command_coordination": 13,
+      "tests.test_podman_deployment_integration": 1,
+      "tests.test_podman_execution_integration": 12,
+      "tests.test_podman_network": 9,
+      "tests.test_podman_owner_integration": 3,
+      "tests.test_podman_recovery": 5,
+      "tests.test_podman_release_integration": 5,
+      "tests.test_podman_supervisor": 18,
+      "tests.test_podman_supervisor_integration": 11,
+      "tests.test_podman_workflow": 2,
+      "tests.test_projectfs_local_io": 1
+    },
+    "mandatoryCompactionCasesSkipped": 0,
+    "policy": "Declared platform, external/live and optional disk-heavy exclusions are not passing coverage; all required database and compaction cases executed."
+  },
+  "priorAggregate": {
+    "revision": "ade6800f0d4968bb9bde1b52bbccc1e2da1d652c",
+    "exitCode": 2,
+    "finding": "Bounded first Task page was mistaken for the newest continuation by one test; production selection was correct. V466-018 repairs the test and the complete aggregate is now repeated successfully.",
+    "evidence": "tasks/evidence/v466-018-acceptance-20261115.json"
+  },
+  "downstreamTestPreparation": {
+    "revision": "c133e18c2766977dad4e0cbe1b60b16857f5c0ed",
+    "task": "V466-020",
+    "verification": "Independent 35-test offline fixture gate and full lint, including non-vacuous limit regression; no production/gate changes.",
+    "unchangedProductionAndGateTrees": [
+      {
+        "path": "api",
+        "tree": "ff5fa0d29d93cfb391a74826260d1c226a6ea25b",
+        "unchanged": true
+      },
+      {
+        "path": "cmd",
+        "tree": "63773268ec7503f874d1abd979ac831dfd11df96",
+        "unchanged": true
+      },
+      {
+        "path": "internal",
+        "tree": "b018c11d12533e081c7533bad9aea13ffa071f2e",
+        "unchanged": true
+      },
+      {
+        "path": "runtime",
+        "tree": "f365df1b7af5250ba282e89082e308664539b138",
+        "unchanged": true
+      },
+      {
+        "path": "configs",
+        "tree": "ac12247d18abab02a045dde33b485ad5b95d7b90",
+        "unchanged": true
+      },
+      {
+        "path": "ui",
+        "tree": "26e52d33cc8662ed51e383cdaf628002f78bd3bd",
+        "unchanged": true
+      },
+      {
+        "path": "make",
+        "tree": "1a4ec3835006b9df05768fa2959f9b63df89c79e",
+        "unchanged": true
+      },
+      {
+        "path": "scripts",
+        "tree": "ff749e8dcef94b38e53298d89c2673bd2a00e869",
+        "unchanged": true
+      }
+    ]
+  },
+  "cleanup": {
+    "originalTestDatabaseDropped": "contractor_test_v417_009_010_20261115_6e3c53",
+    "standaloneTestDatabaseDropped": "contractor_test_v417_standalone_20261115_f391b8d50d",
+    "activeOwnedDatabase": "contractor_test_v417_gate_20261115_ab0340cb9d49",
+    "activeDatabaseDisposition": "Full gate pools/processes stopped; reuse for already assigned V417-010, then explicitly drop. No demo data was changed."
+  },
+  "outcome": {
+    "isolatedOrdinaryAndAuditConformance": "accepted",
+    "liveQuality": "not measured yet; V417-010 is independent",
+    "realGatewayCalls": 0,
+    "shared004": "reserved in_progress and executes last",
+    "mergedIntoMain": false
+  },
+  "focusedSource": {
+    "functionalCommit": "03902f849184098caf621a8e82ccbdc4aff3e43f",
+    "headAtEntireRun": "unavailable: the initial Go stage began before the functional commit was created; Runtime/process stages followed it",
+    "acceptanceBasis": "The complete clean aggregate at implementationCommit repeats all mandatory owning cases. The focused result is additional execution evidence, not a clean-revision substitute."
+  }
+}

@@ -1,0 +1,75 @@
+schema_version: "1.0"
+id: V445-002
+title: "Validate Runtime snapshot credential order independently of database locale"
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: defect
+introduced_by: V428-002
+priority: P2
+status: completed
+depends_on: []
+languages: [go, sql]
+goal: "A valid Go RuntimeConfig snapshot is accepted by PostgreSQL under every database collation."
+context:
+  authority:
+    - date: "2026-11-04"
+      decision: "User authorized fixing the reviewed SQL/Go credential-order discrepancy alongside the test optimizations."
+  specification:
+    - docs/spec/configuration/runtime-config.md
+    - docs/spec/platform/persistence.md
+  finding: >-
+    internal/persistence/migrations/000001_baseline.sql:2886 compares credential IDs
+    using database collation. Go sorts and validates bytewise. The valid list
+    [a-1, a_2] is accepted under C and rejected under en_US.UTF-8, while
+    runtime_snapshot_validation_postgres_test.go:128 incorrectly expects rejection.
+  siblings: >-
+    Both llmCredentialIds and runtimeCredentialIds use the same SQL function and
+    Go validateCredentialIDSet. Runtime Agent label validation already uses C;
+    pinned label/JSON member comparisons are inspected for related order drift.
+    These credential index lists are Server-owned and not sent to Runtime/UI.
+  boundary: "An additive migration repairs the installed validator without rewriting applied baseline files or business data."
+  provenance: >-
+    The current validator and incorrect boundary expectations were retained by
+    V428-002. The SQL predecessor is the Runtime label pinning commit
+    61dd24c5d9191e96296db6cd7b6b8d7833712d6b, which names no task.
+  decision: >-
+    Canonical credential sets use strict ascending ASCII byte order in both owners.
+    Force C at the SQL comparison and share boundary cases between Go and real SQL
+    tests. Assuming a database locale would preserve deployment-dependent behavior
+    and contradict the Go writer. No compatibility reader or data rewrite is added.
+    The C collation also keeps the existing ASCII regex independent of locale;
+    accented identifiers remain invalid. Separate C and ICU en-US databases use
+    the existing CREATEDB test-role requirement; test prerequisites are documented.
+scope:
+  in:
+    - "Add the next migration replacing the Runtime snapshot validator with explicit byte ordering."
+    - "Correct existing expectations and share punctuation/order/duplicate cases across Go and PostgreSQL."
+    - "Verify installed and upgraded validators under C and a non-C collation, retaining exact stored snapshots."
+    - "Document canonical credential-set order in the owning RuntimeConfig specification."
+  out:
+    - "Credential identity grammar changes, rewriting business data, demo deployment or unrelated SQL cleanup."
+acceptance_criteria:
+  - id: A1
+    text: "Both credential lists accept canonical punctuation-containing IDs and reject duplicates/descending lists independently of database collation."
+  - id: A2
+    text: "Go and real PostgreSQL consume the same boundary fixture; a non-C SQL regression fails against the previous validator."
+  - id: A3
+    text: "Upgrade and fresh installation preserve stored snapshot bytes, constraints and migration verification."
+  - id: A4
+    text: "Full persistence and RuntimeConfig package tests, shared fixture checks and lint pass."
+tests:
+  - command: "go test -tags=integration -count=1 ./internal/persistence/... ./internal/runtimeconfig/..."
+    covers: [A1, A2, A3, A4]
+  - command: "make lint"
+    covers: [A4]
+implementation_commit: 6932cafb0cb331fb4b56d54afea106807464a945
+verification:
+  date: "2026-11-05"
+  result: >-
+    Full persistence and RuntimeConfig packages passed with integration-tagged tests against
+    disposable PostgreSQL 17. Shared cases exercise RunSnapshot.Validate and both installed SQL
+    credential lists under C and ICU en-US. The migration regression proves the previous non-C
+    validator rejects the canonical punctuation case, then accepts it after upgrade, checks stored
+    snapshot preservation and an actual workflow_runs constraint, and verifies the complete
+    migration ledger. make lint passed, including shared fixture sources and rebuilt
+    dependency/ERD pages; ERD reports schemaVersion 000008. No demo deployment was performed.

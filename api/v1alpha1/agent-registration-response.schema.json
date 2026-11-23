@@ -1,0 +1,29 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "const": "contractor/v1alpha1",
+      "title": "Apiversion",
+      "type": "string"
+    },
+    "heartbeatIntervalSeconds": {
+      "exclusiveMinimum": 0,
+      "title": "Heartbeatintervalseconds",
+      "type": "integer"
+    },
+    "confirmedLeaseSeconds": {
+      "exclusiveMinimum": 1,
+      "title": "Confirmedleaseseconds",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "apiVersion",
+    "heartbeatIntervalSeconds",
+    "confirmedLeaseSeconds"
+  ],
+  "title": "AgentRegistrationResponse",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/agent-registration-response.schema.json"
+}

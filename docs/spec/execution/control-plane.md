@@ -1,0 +1,1827 @@
+# Control Plane
+
+Requirement prefix: `CTL` · [Specification index](../README.md)
+
+## Purpose and scope
+
+The Control Plane is the Server component that owns Runtime Agent
+registration, availability and allocation. This document owns:
+
+- the private Server/Runtime wire contract and the private control protocol;
+- Runtime Agent registration, the process-scoped `instance_id` and the
+  certificate-derived Runtime Agent principal;
+- the registered startup capability snapshot and how placement checks it;
+- heartbeat, the confirmed control lease and observed/authoritative
+  reconciliation;
+- the in-memory Runtime Agent Registry;
+- capability-aware placement, atomic Stage reservation and allocation pinning;
+- `AllocationSpec`, `WorkerHandle` and the Agent Card secret scan;
+- slot capacity and the scope of one allocation;
+- the private finalize, abort and release commands and two-phase release.
+
+It leaves to other documents:
+
+- StageExecution states, StageContext pinning, StageTermination, retry,
+  escalation, capacity backoff, queue pause, Scheduler lanes, finalize and
+  abort budgets, recovery of incomplete terminal releases and the Scheduler
+  steps that call the Control Plane: [scheduler](scheduler.md).
+- The WorkflowRun resource and its metadata labels: [runs](runs.md).
+- The Runtime process, its startup capability probes, the Runtime-side
+  watchdog and fencing actions, Worker creation and teardown inside the
+  Runtime: [runtime-agent](runtime-agent.md).
+- Planner construction and Planner non-goals: [planners](planners.md).
+- The Worker State schema, Worker session modes and Worker results:
+  [worker](worker.md).
+- The deployment CA, mutual TLS and the reserved Control Plane URI SAN:
+  [security](../platform/security.md).
+- The single active Control Plane instance and its advisory lease:
+  [persistence](../platform/persistence.md).
+- AgentTemplate, ModelPolicy and ExecutionConfig layering:
+  [agent-templates](../configuration/agent-templates.md).
+- Runtime labels, RuntimeConfig resolution and merge, the content of
+  `RuntimeSettings`, credentials and Gateways:
+  [runtime-config](../configuration/runtime-config.md).
+- Toolset capability granularity: [toolsets](../tools/toolsets.md); workspace
+  capabilities and the `workspace` allocation value:
+  [workspace](../tools/workspace.md); code-analysis capability levels:
+  [code-analysis](../tools/code-analysis.md); the Caido adapter channel:
+  [http-caido](../tools/http-caido.md); the Podman sandbox:
+  [code-execution](../tools/code-execution.md); Agent Skill pinning:
+  [skills](../tools/skills.md).
+- Audit Worker completion contracts:
+  [worker-completion](../audits/worker-completion.md).
+- The Operations Runtime snapshot and performance-metrics collection:
+  [operations](../operations/operations.md).
+- The private Artifact API grant:
+  [artifact-store](../artifacts/artifact-store.md).
+- Shared registries: [limits](../platform/limits.md),
+  [errors](../platform/errors.md),
+  [failure model](../platform/failure-model.md) and
+  [lifecycle](../platform/lifecycle.md).
+
+## Concepts
+
+Terms are defined once in [the glossary](../glossary.md); the ones this
+document owns are:
+
+- **Control Plane.** The Server component that owns Runtime Agent
+  registration, availability, placement and allocation lifecycle.
+- **Runtime Agent Registry.** The Control Plane's in-memory index of live
+  Runtime Agent processes, their heartbeat state, control leases and slot
+  availability.
+- **`instance_id`.** The fresh random identity a Runtime Agent process
+  generates at start; it correlates and routes, and is never reused after the
+  process restarts.
+- **Runtime Agent principal.** The stable `runtime_agent_id` derived from the
+  authenticated leaf certificate's public key, with its durable Agent labels.
+- **CapabilitySnapshot.** The immutable, positive set of WorkerRuntime,
+  Toolset/tool, SandboxProfile and RuntimeAdapter capabilities a Runtime
+  Agent proves before its first registration.
+- **Slot.** The single unit of Runtime Agent capacity; one Runtime Agent
+  process has exactly one.
+- **Confirmed control lease.** The liveness lease that advances only through a
+  new heartbeat request, acknowledgement and echo round trip.
+- **Observed state.** What a Runtime Agent reports about its slot
+  (`idle`, `allocated`, `draining` or `fenced`), as distinct from the Control
+  Plane's authoritative allocation record.
+- **Reconciliation.** The Control Plane's handling of a mismatch between
+  observed and authoritative allocation state.
+- **Allocation.** The assignment of one resolved Stage Agent binding to one
+  Runtime Agent slot, identified by a globally unique, never reused
+  `allocation_id`.
+- **AllocationSpec.** The complete, Server-generated construction input for one
+  allocation.
+- **WorkerHandle.** The immutable value that lets the Workflow Scheduler and
+  Planner address one prepared Worker.
+- **Placement requirement.** The exact runtime, sandbox, tools, adapters and
+  workspace constraints of one resolved Stage Agent binding.
+- **Complete injective matching.** An assignment of every logical binding of a
+  Stage to a distinct eligible Runtime Agent.
+- **Write fence.** The fence on an allocation's grant that the Control Plane
+  establishes, together with the authoritative terminal phase, before any
+  outbound finalize or abort call; a write-fenced allocation never continues
+  Worker execution.
+- **Two-phase release.** Release in which the Runtime first confirms cleanup
+  while staying `fenced`, and a later heartbeat `release` action lets it become
+  `idle`.
+- **Insufficient compatible capacity.** The temporary placement result
+  returned when no complete matching currently exists.
+- **Model Stage hold.** A process-local mark that keeps model-free placement
+  off a live Runtime Agent for the hold window after a model Stage that could
+  use it failed placement (CTL-R155).
+
+## Model
+
+### Runtime Agent registration
+
+A Runtime Agent registration represents one running process. The minimal
+registration describes:
+
+```text
+RuntimeAgentRegistration
+  instance_id
+  software_version
+  started_at
+  control endpoint
+  A2A endpoint
+  frozen startup WorkerRuntime, Toolset/tool, SandboxProfile and RuntimeAdapter capabilities
+  observed_state
+  allocation_id?
+  apiVersion: contractor/v1alpha1
+```
+
+The capabilities are one immutable `CapabilitySnapshot`, built by the Runtime
+Agent's startup probes ([runtime-agent](runtime-agent.md)), with four
+composable dimensions:
+
+```text
+CapabilitySnapshot
+  supported_runtimes: sorted set of exact WorkerRuntime refs
+  supported_toolsets: sorted map of exact Toolset ref -> sorted non-empty tool set
+  supported_sandbox_profiles: sorted set of exact SandboxProfile refs
+  supported_runtime_adapters: sorted set of exact RuntimeAdapter refs
+```
+
+### Runtime Agent principal
+
+The durable principal record is conceptually:
+
+```text
+RuntimeAgentPrincipal
+  runtime_agent_id
+  sorted labels
+  monotonically increasing uint64 label_revision (starts at 1)
+  created/updated timestamp and audit actor
+```
+
+### Heartbeat
+
+A request contains:
+
+```text
+RuntimeAgentHeartbeat
+  instance_id
+  sequence
+  last_ack_sequence?
+  observed_state       idle | allocated | draining | fenced
+  allocation_id?
+  worker_stopped?
+```
+
+Control Plane responds with:
+
+```text
+RuntimeAgentHeartbeatAck
+  ack_sequence         equal to the accepted request sequence
+  action               continue | drain | release | reregister
+  allocation_id?
+```
+
+```mermaid
+sequenceDiagram
+    participant R as Runtime Agent
+    participant C as Control Plane
+    R->>C: registration (instance_id, CapabilitySnapshot)
+    C-->>R: API version, heartbeat interval, lease duration
+    R->>C: heartbeat (sequence n, last_ack_sequence m)
+    Note over C: last_seen advances on every valid authenticated request
+    C-->>R: ack (ack_sequence n, action)
+    Note over R: new ack for a sequence it sent renews the local lease
+    R->>C: heartbeat (sequence n+1, last_ack_sequence n)
+    Note over C: echo names an ack this entry issued, so the confirmed lease advances
+```
+
+### AllocationSpec
+
+```text
+AllocationSpec
+  globally unique allocation_id
+  run and stage identity
+  logical Agent name and resolved Namespace
+  complete AgentTemplate + exact ref
+  exact resolvedSkills refs and package digests selected by WorkflowRun
+  effective ModelPolicy + exact ref
+  optional independently resolved summarizerModelPolicy + exact ref
+  effective contextManagement branch (none, terminal@1 or compact@1 with
+    its pinned compactor ModelPolicy and instructions; WRK-R184)
+  exact WorkerRuntimeRef
+  RuntimeSettings supplied by Control Plane
+  exact lease_expires_at, deadline and resource limits
+```
+
+The resolved settings travel as two fields; the content of `RuntimeSettings`
+and of the provenance is specified in
+[runtime-config](../configuration/runtime-config.md):
+
+```text
+AllocationSpec
+  ...existing fields...
+  runtimeSettings
+  resolvedRuntimeConfigProvenance    safe refs/revisions/digests only
+```
+
+An AllocationSpec also carries the Stage's pinned `workerSessionMode`
+([worker](worker.md)), the sorted `resolvedSkills` list outside the
+digest-bearing AgentTemplate body ([skills](../tools/skills.md)), an optional
+`workspace` value ([workspace](../tools/workspace.md)), an optional
+Server-pinned completion contract
+([worker-completion](../audits/worker-completion.md)) and the optional
+`performanceMetrics` field (CTL-R133). Optional `projectId` carries immutable
+Run membership to allocation-local telemetry only; validation, replay identity
+and per-span projection are defined by
+[OBS-R104 and OBS-R128](../platform/observability.md).
+
+### WorkerHandle
+
+A ready handle contains only what the Workflow Scheduler and Planner need to
+address the prepared Worker:
+
+- exact AgentTemplate ref;
+- exact WorkerRuntime ref;
+- globally unique `allocation_id`;
+- external Agent Card;
+- lease/deadline information.
+
+### Allocation states
+
+The Control Plane's authoritative view of one allocation and its slot:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle: confirmed round trip, both sides agree no allocation exists
+    Idle --> Reserved: complete matching found, Stage set reserved atomically
+    Reserved --> Idle: pinned revisions changed or recomputed settings no longer fit the selected adapter capabilities; unprepared reservation released, placement retried
+    Reserved --> Ready: this Runtime Agent reports ready with a compatible Agent Card
+    Reserved --> WriteFenced: a batch member failed preparation, batch drained
+    Reserved --> Lost: confirmed control lease expired, or observed fenced or another allocation
+    Ready --> WriteFenced: finalize or abort issued, or another batch member failed preparation
+    Ready --> Lost: confirmed control lease expired, or observed fenced, idle or another allocation
+    WriteFenced --> Lost: abort deadline passed without confirmed shutdown
+    WriteFenced --> Released: StageExecution terminal (or Queue Pause exception), private Runtime cleanup acknowledged, route, grant and lease removed
+    Lost --> Released: Runtime reconnects, reconciliation reissues abort or drain, cleanup acknowledged
+    Released --> Idle: heartbeat release action confirmed, then confirmed idle heartbeat
+```
+
+Readiness is per allocation; the complete `WorkerHandle` map is returned only
+when every allocation of the Stage is `Ready` (CTL-R93).
+
+## Requirements
+
+### Responsibilities and boundaries
+
+**CTL-R1.** Control Plane owns Runtime Agent registration, availability
+and allocation. It checks the WorkerRuntime selected by each AgentTemplate,
+chooses free Runtime Agent capacity and returns ready `WorkerHandle` values to
+the Workflow Scheduler.
+
+**CTL-R2.** Control Plane manages allocation lifecycle, not Planner
+algorithms, Worker objectives or A2A Task semantics.
+
+**CTL-R3.** Physical placement belongs to Control Plane, not to
+the Workflow Scheduler or a Planner. Control Plane sends the resolved template
+of a Stage binding to one free Runtime Agent, and the allocation identity and
+scoped access context are generated for that assignment. Ownership of product
+semantics and of the binding's logical name and Namespace is specified in
+[TPL-R66](../configuration/agent-templates.md).
+
+**CTL-R4.** Control Plane verifies that the deployment supports the
+template's runtime ref and places that ref directly in `AllocationSpec`. The
+selected Runtime Agent validates it against its own build and creates the
+Worker instance ([runtime-agent](runtime-agent.md)).
+
+**CTL-R5.** Workflow YAML, AgentTemplate, Planner and public API input
+cannot supply or select executable paths, modules, images or raw process
+arguments.
+
+### Private wire contract
+
+**CTL-R6.** The private Server/Runtime surface has one current set of
+strict models under `apiVersion: contractor/v1alpha1`. Registration, allocation
+settings, reports and their consumers use the current fields under the
+original model names, with one schema and fixture catalog
+(CTL-R8).
+
+**CTL-R168.** An optional engagement projection on AllocationSpec is
+resolved from the trusted Run/Stage reservation, outside Registry locks.
+Ordinary Runs use the original typed input fork under RUN-R112–115; Audit-managed
+Runs use the immutable Start baseline under AUD-R247–248. The product-layer
+`internal/controlplane/engagementadapter` implements the core's synchronous
+allocation-preparation port. It composes Run/Audit authority, infrastructure denyset
+assembly and private identity material lifetime around the prepare call;
+AuditService retains baseline interpretation and credential-reference authority.
+The Runtime protocol client validates the completed AllocationSpec, rechecks its
+grant immediately before dispatch and checks the returned Agent Card. It does
+not resolve policy Artifacts or Audit data, or interpret engagement network policy. Composition
+connects the adapter; the core package never imports it. It follows [AUD-R248](../audits/audits.md):
+exact immutable attribution, no secret material, and only task-assigned routes
+and identities. Offline preparation omits the typed `http`
+assignment. Selected HTTP-consuming Workflow tools require `http-target@1`
+from the selected Runtime advertisement; this requirement
+is independent of RuntimeConfig adapter provenance. Both wire validators and
+Runtime prepare reject an execution assignment whose enforcement is absent.
+The assignment requires `identities`; non-anonymous entries select exact held
+Basic, Bearer, supplied-cookie or combined API-key credentials.
+The private projection carries no Audit ID; Run/Stage ownership already belongs
+to AllocationSpec. After placement and trusted policy resolution, composition decrypts only the
+exact held references through the existing synchronous credential consumer,
+with its independent LIM-CTL-19 lookup deadline. It sends a secret-typed
+`runtimeSettings.httpIdentities` map keyed by assigned identity, separate
+from non-secret engagement attribution. Every entry's exact credential ID/kind
+must match its assignment; missing, extra or mismatched entries/fields fail
+prepare before target I/O. The grant is checked again after resolution and
+materialization. Materialization failures retain credential, context and storage
+error identity behind static safe messages, so Scheduler can apply SCH-R184;
+raw provider text is never rendered. Plaintext buffers are wiped on every exit, and copied material
+is dropped immediately after checking the prepare response's Agent Card,
+before any later target tool call. The Runtime keeps only allocation-local private state
+under [HTP-R140](../tools/http-caido.md); explicit model credential tools follow HTP-R143.
+
+**CTL-R7.** There is no parallel legacy model, `V2` alias,
+conversion fallback or separate `privateProtocolVersion` negotiation, and the
+registration request and response contain no separate private-protocol version
+field. Missing required current fields, including required arrays, and unknown
+fields fail strict validation rather than selecting another protocol; there is
+no legacy registration fallback.
+
+**CTL-R8.** Canonical JSON schemas live in
+[`api/v1alpha1`](../../../api/v1alpha1/) and shared valid/invalid fixtures in
+[`api/testdata/v1alpha1`](../../../api/testdata/v1alpha1/). Go/Python wire
+parity checks use this single catalog, and strict Go/Python DTOs, JSON schemas
+and fixtures must change together.
+
+**CTL-R149.** The Server decodes every private message it receives
+(registration, heartbeat, lifecycle responses, Worker State and the
+`WorkerCompletion` a Worker returns over A2A) with one strict decoder. Besides
+duplicate keys, case aliases, unknown members and trailing data, it rejects a
+message that omits a member its schema requires wherever the Go type is used,
+or sets any member or typed map value to null where the schema does not allow
+null, instead of reading the member's zero value. Optional members are omitted,
+never null, unless their schema explicitly allows null. Untyped JSON retains
+the nulls its schema permits. Required nullable Worker State members remain
+present and nullable. The Go types declare these members, and a test holds the
+declarations to the schemas' `required` and nullability rules; a member required
+only in some branches or places stays with semantic validation. The generated
+cases in
+[`required-member-cases.json`](../../../api/testdata/v1alpha1/required-member-cases.json)
+omit every required member and set to null every object member and map value
+of every valid fixture whose null the schema rejects, and the
+schema, the Server and the Runtime reject each. The only exceptions are the
+isolated parts of a `RuntimeReport`: malformed adapter metrics
+([OBS-R36](../platform/observability.md)) and a malformed resources block
+(CTL-R136) are discarded as incomplete telemetry instead of failing the report.
+Like the Runtime codec, the decoder classifies a missing or wrong `apiVersion`
+as a version error before any member error. Runtime private JSON and A2A
+readers enforce exact wire names in nested models too; Python field-name
+aliases are not alternate protocol members. Optional positive ModelPolicy
+limits reject an explicit zero instead of reading it as omission.
+
+**CTL-R152.** A private wire text field that must not be blank, such as the
+`StageContentRequest` objective or an error message, is blank when it is empty
+or holds only Unicode White_Space characters, the characters Go's
+`strings.TrimSpace` removes; a field that must be trimmed is compared with the
+same set. The information separators U+001C to U+001F are text. The Server and
+the Runtime apply one definition per language, pinned by
+[`blank-text-cases.json`](../../../api/testdata/v1alpha1/blank-text-cases.json),
+and the Runtime's checks of Audit result text, finding proposals and Skill
+manifests that the Server repeats use it as well, so text one side accepts is
+never refused by the other as blank.
+
+**CTL-R153.** A private wire string that the Server and the Runtime bound in
+UTF-8 bytes states that bound in its schema as `x-maxBytes` beside the
+character bound `maxLength`, so the schema and both implementations reach one
+verdict on the same document. The generated cases in
+[`mutation-cases.json`](../../../api/testdata/v1alpha1/mutation-cases.json)
+replace each `enum` or `const` member of every valid fixture with a value
+outside it, lengthen each bounded string one character past `maxLength`, add a
+member to each closed object and repeat a key of each object. The Server and
+the Runtime reject every such case, and the schema every case but the repeated
+key, which a JSON parser does not report; the isolated parts of a
+`RuntimeReport` named in CTL-R149 are the only exceptions. A string of
+`maxLength` characters that is one UTF-8 byte too long receives the same
+verdict from all three.
+
+**CTL-R9.** The document version does not collapse
+independently versioned Toolsets, completion contracts, workspace packages,
+Audit package formats or A2A envelopes; their own versions remain explicit.
+
+**CTL-R10.** Changes to this private surface require compatible
+Server/Runtime builds rather than a silent downgrade to an older shape.
+
+### Private connection reuse
+
+**CTL-R163.** The Server and the Runtime Agent reuse verified private HTTPS
+connections instead of opening one per request. Every new connection
+completes TLS 1.3 with full certificate verification, without session
+resumption, and passes the caller's peer check before its first request byte:
+the Server's check binds it to the expected Runtime Agent principal (CTL-R19,
+CTL-R20), the Runtime's check requires the Control Plane role
+([security](../platform/security.md)). A connection verified for one expected
+principal is never offered to a request for another principal or another
+endpoint: the Server keeps connections per expected principal and endpoint,
+the Runtime per Control Plane origin. A connection carries no authority of its
+own; the receiver derives the peer principal from each request's verified
+certificate and authorizes the allocation, instance and grant that the
+request names (CTL-R17, CTL-R18).
+
+**CTL-R164.** Each set of reusable connections has one owner, which closes it,
+and no connection outlives its owner. The Server's Runtime control client is
+owned by the Server process: releasing an allocation closes the connections
+of its Runtime principal (CTL-R124), and Server shutdown closes the rest after
+the Scheduler has stopped. An A2A invocation owns the connections of its
+`SendMessage`, its polls and its best-effort `CancelTask` and closes them
+before it returns. The Runtime process owns one set for registration and
+heartbeats and another for Artifact API traffic, so a heartbeat never waits
+behind an Artifact transfer, and closes both at shutdown after its private
+listener has stopped. Closing ends idle connections at once and a connection
+in use when its exchange ends; an exchange started after its owner closed
+fails without opening a connection. Invalidation follows from the keys: a
+request for another principal or endpoint never uses a connection, and the
+connections of a deleted principal or of an endpoint a Runtime left when it
+registered again close at release or after the idle bound. A process
+loads its own certificate, key and trusted CA at startup, so a change to them
+takes effect at restart, which closes every set.
+
+**CTL-R165.** Reuse is bounded on both sides. A private listener closes a
+keep-alive connection that stays idle for LIM-CTL-13; a client keeps an idle
+connection for reuse for at most LIM-CTL-14, which is shorter, so a client
+normally never writes to a connection the listener already closed. No request
+starts on a connection as old as LIM-CTL-15, so a renewed or replaced peer
+certificate is verified within that time even while requests keep a
+connection busy. The Server's transport closes an idle connection when the
+idle bound ends; the Runtime stops reusing it then and closes it at its next
+exchange to that origin, at shutdown or when the listener closes it after
+LIM-CTL-13. One owner keeps at most LIM-CTL-16 connections per peer endpoint;
+a request beyond that waits for a connection within its own deadline. The
+Server's Runtime control client keeps connections for at most LIM-CTL-17
+Runtime principals and the Runtime for at most LIM-CTL-18 Control Plane
+origins, evicting the least recently used; an exchange already waiting on an
+evicted origin still runs, on a connection of its own that is not kept. While
+the requests of a retired Server transport (after the lifetime or an
+eviction) or of an evicted Runtime origin finish, their connections add to
+those of the replacement, so one endpoint can briefly carry up to twice
+LIM-CTL-16; none of them takes a new request. The Server
+(`internal/mtls`) and the Runtime (`contractor_runtime._https`) hold the
+shared values, which
+[`private-connection-reuse.json`](../../../api/testdata/v1alpha1/private-connection-reuse.json)
+pins.
+
+**CTL-R166.** Reuse changes neither request deadlines, error classification
+nor retry semantics (FAIL-CTL-11). A request's deadline covers waiting for a
+connection, connecting, peer verification and the response, and a peer that
+fails verification fails the request before any request byte with the error
+it caused before reuse. A connection is closed instead of reused after a
+timeout, cancellation, transport or parse error, a response without length
+framing, an HTTP/1.0 or `Connection: close` response, or bytes beyond the
+response. The Runtime, whose HTTP/1.1 client is its own, also closes a
+connection after an interim (1xx) response: an interim response carries no
+content and is skipped, at most five per exchange, and a protocol switch
+(101), more interim responses, and a 204 or 304 response that declares
+content (`Transfer-Encoding` or a non-zero `Content-Length`) fail the
+exchange as malformed responses. The Server's transports follow Go
+`net/http` for these responses: it skips interim responses within its
+response-header byte bound and may reuse the connection afterwards, treats
+101 as a final response and ignores declared content on 204 and 304. The connection layer repeats a request only when none of its bytes
+were written, or when it is a read (`GET`) that received no response byte on
+a reused connection, and then on another connection; the Runtime repeats such
+a read once, on a new verified connection. A write whose
+response was lost is never repeated by the connection layer; its caller
+reconciles it as before (heartbeat sequence, finalization and abort
+identities, Artifact expected revisions). A caller's private request carries
+no `Connection` header, and a Server request no `Idempotency-Key` or
+`X-Idempotency-Key` header, which would let net/http repeat a write; the
+connection layer refuses such a request before sending it.
+
+### Registration and process identity
+
+**CTL-R11.** On process start a Runtime Agent generates a fresh random
+`instance_id`. It retains that value in memory across registration retries and
+Control Plane reconnects, but does not reuse it after its own restart.
+
+**CTL-R12.** Registration with the same `instance_id` is idempotent
+(FAIL-CTL-1). The `instance_id` is a correlation and routing identity, not an
+authentication credential; mTLS authenticates the agent and derives its stable
+principal.
+
+**CTL-R151.** Control Plane answers a rejected private request with the JSON
+envelope `code`, `message`, `retryable` and `requestId`. `retryable` is its
+verdict on whether the same request can succeed later: a registration that
+fails strict validation (`invalid_request`) is not retryable; a conflict with the
+current Runtime Agent state and an internal failure are. The Runtime Agent
+follows the flag ahead of the HTTP status and never logs `message`
+([RTA-R113](runtime-agent.md)).
+
+**CTL-R13.** For the live instance, Control Plane records the last
+accepted registration/heartbeat request, the issued and confirmed heartbeat
+sequences, and the observed and authoritative single-slot facts.
+
+**CTL-R14.** `software_version` is a bounded version string reported by
+the Runtime Agent binary itself. It is observation metadata for Operations and
+diagnostics; the Server neither substitutes its own build version nor treats
+this string as a placement capability or trust assertion.
+
+**CTL-R15.** The registration request carries the mandatory
+`supportedRuntimeAdapters`, a sorted unique array that may be empty.
+
+**CTL-R16.** The closed registration response contains only `apiVersion`,
+`heartbeatIntervalSeconds` and `confirmedLeaseSeconds` (CTL-R39). Principal
+identity, authoritative labels and their revision remain Server-owned facts
+used for authentication, placement and allocation provenance; they are not
+echoed to the Runtime. Unknown response fields are rejected.
+
+**CTL-R17.** The accepted registration binds
+`(runtime_agent_id, instance_id)` for the process lifetime. Every later
+registration retry, heartbeat, private Artifact call and final report carrying
+that `instance_id` or allocation must arrive through the same
+certificate-derived principal; a different CA-valid peer is rejected.
+
+**CTL-R144.** Control Plane associates lifecycle messages and final reports
+with the Runtime Agent to which the allocation was issued.
+
+**CTL-R145.** The principal binding (CTL-R17) and the report association
+(CTL-R144) protect execution-state consistency only; they are not per-Agent
+RBAC and give different Runtime Agents no different privileges.
+
+**CTL-R18.** Control Plane and the private Artifact API bind every
+live `instance_id`, allocation and report to that same principal, so a
+different CA-valid Runtime Agent cannot claim the allocation or its
+RuntimeSettings. This is consistency and secret-recipient binding, not a
+label-derived permission model. The private Artifact API grant applies it as
+[ART-R42](../artifacts/artifact-store.md).
+
+**CTL-R19.** The registered control and A2A endpoints must present
+a CA-valid leaf with the same SPKI fingerprint when Control Plane connects to
+them; normal DNS/IP SAN verification still applies. A Runtime Agent therefore
+cannot register another trusted agent's endpoint and cause Control Plane to
+deliver that allocation's RuntimeSettings or A2A traffic to the wrong peer.
+
+**CTL-R20.** A Runtime Agent cannot supersede another agent: only a
+later process of the same certificate principal replaces an earlier
+registration that shares its control or A2A endpoint. An overlapping endpoint
+registered by a different principal leaves the other process, its allocation
+and its control lease untouched.
+
+**CTL-R21.** A restarted Runtime Agent under the same certificate
+principal registers with a new `instance_id` and retains the Control Plane's
+durable Agent labels. It cannot adopt a Worker or allocation belonging to its
+previous process instance. The old registration becomes unavailable after its
+confirmed control lease expires, and any active StageExecution using that
+allocation enters `aborting`: the Workflow Scheduler records an interrupted
+StageTermination, completes the bounded abort path and then applies the
+declared interrupted policy, which is to retry with a new StageExecution, use a
+configured escalation executionConfig or fail the Run
+([scheduler](scheduler.md)).
+
+### Runtime Agent principal and labels
+
+**CTL-R22.** The Server derives the stable `runtime_agent_id` as
+lowercase hex `SHA-256(DER SubjectPublicKeyInfo)` of the authenticated Runtime
+Agent leaf certificate. The Runtime Agent does not claim this value in JSON.
+
+Rationale: labels assigned through Operations need a stable subject, while
+`instance_id` intentionally changes on every process restart.
+
+**CTL-R23.** The principal binds durable Agent-label
+configuration and observed process incarnations to an authenticated, trusted
+peer but grants no different Runtime authorization role.
+
+**CTL-R24.** Each concurrently running logical Runtime Agent must
+use its own certificate/key pair, even on one VM; operators running two agents
+on one VM issue two certificates from the same deployment CA. Two processes
+using the same key are the same principal and cannot concurrently register as
+two slots: a second live `instance_id` is rejected.
+
+**CTL-R25.** Renewing a certificate with the same public key
+retains the principal. Rotating the key creates a new unlabeled principal;
+labels are not copied automatically between
+fingerprints. Operations may assign the same desired label set to the new
+principal before retiring the old certificate.
+
+**CTL-R26.** Registration carries no RuntimeConfig label assignment. On the
+first registration of an unseen principal, Control Plane atomically creates its
+record with an empty label set and label revision 1 (LIFE-CTL-4). Later
+registrations preserve its stored label set, revision and mutation metadata.
+The Control Plane database is authoritative from creation; operators and
+deployment scripts assign labels explicitly through the Operations API.
+
+Rationale: certificate keys identify agents, Runtime startup owns process
+capabilities and placement declarations, and Server owns per-agent infrastructure
+overrides. Startup label seeding created an apparent second configuration owner
+whose changes stopped applying after first registration. A single Server-owned
+set avoids that ambiguity without adding declared/managed label layers. Revisit
+this boundary only for an explicit deployment requirement to change assignment
+authority; environment capabilities remain Runtime-owned.
+
+**CTL-R27.** Durable certificate principals and their label
+assignments are configuration records only; they never imply that a process is
+live, leased or eligible.
+
+**CTL-R28.** A label or configuration change affects only a future
+allocation; an allocated Worker retains its immutable RuntimeSettings snapshot.
+
+**CTL-R139.** The Runtime Agent receives no mutable label-update command, does
+not restart or re-probe its environment on a label change, never interprets the
+label name and never mutates an active RuntimeSettings snapshot. Label-set
+replacement is specified in [runtime-config](../configuration/runtime-config.md).
+
+**CTL-R29.** A mismatch between the adapters a principal's labels
+require and the adapters its live instance advertises is not a label mutation
+error, because the principal may be offline or restart with a different
+immutable environment. It makes that live instance ineligible for placement and
+is visible in Operations.
+
+### Capability snapshot
+
+**CTL-R30.** The `CapabilitySnapshot` maps directly to the
+registration fields; there is no second capability document or Server-side
+environment catalog.
+
+**CTL-R31.** Only positive capabilities are registered. Probe
+failures remain bounded, redacted Runtime Agent startup diagnostics and are not
+sent as placement facts. A Toolset with no usable exported tool is omitted.
+
+**CTL-R32.** If no WorkerRuntime or no SandboxProfile passes its
+probe, the process fails startup readiness and does not register an `idle`
+slot. Empty Toolset and RuntimeAdapter lists are valid and can serve templates
+and resolved settings that require neither.
+
+**CTL-R33.** The RuntimeAdapter list contains at most 64
+sorted unique exact refs (LIM-CTL-3); the complete registration request remains
+subject to the private registration body bound.
+
+**CTL-R148.** Registration and heartbeat validation bound every value that
+Operations shows, so Control Plane rejects a registration Operations could not
+show when it arrives (FAIL-CTL-1) instead of failing every Operations list
+afterwards. `supportedRuntimes`, `supportedToolsets` and
+`supportedSandboxProfiles` each hold at most 128 exact refs of at most 256
+characters; a Toolset capability holds 1 to 256 unique tool names in the
+shared name grammar `[A-Za-z0-9][A-Za-z0-9_.-]*` of at most 128 characters;
+`instance_id` and a reported `allocation_id` use the resource identifier
+grammar `[A-Za-z0-9][A-Za-z0-9_.:-]*` of at most 256 characters (LIM-CTL-9).
+Go registration validation, the private schemas, the Runtime models and the
+public `RuntimeAgentObservation` schema read these rules from one set of shared
+cases, and the Server's Toolset descriptor registry exports only tool names in
+the same grammar.
+
+**CTL-R34.** The computed snapshot is frozen for the lifetime of
+`instance_id` and reused byte-for-byte across registration retries and Control
+Plane reconnects. Control Plane rejects a registration retry that reuses the
+`instance_id` with a different snapshot (FAIL-CTL-1). Heartbeats carry no
+capability update.
+
+**CTL-R35.** The deployment contract requires the process environment,
+enabled factory set, executable resolution and local dependency configuration
+to remain unchanged after registration. Applying an environment change,
+including changed adapter code or local dependencies, requires restarting the
+Runtime Agent, which creates a new `instance_id`, probes again and registers a
+new snapshot.
+
+**CTL-R36.** The `v1alpha1` registration shape treats the four
+capability dimensions as composable sets, so a Runtime Agent must advertise
+only runtimes, Toolsets/tools, sandboxes and Runtime adapters that can be
+combined safely within that process. An environment with combination-specific
+incompatibilities must expose their common safe subset or run separate Runtime
+Agent processes with compatible registries.
+
+**CTL-R37.** Capabilities cover only Runtime-owned prerequisites
+available before an allocation ([runtime-agent](runtime-agent.md)). Availability of an LLM Gateway URL or token,
+OTLP endpoint, HTTP proxy, Artifact API grant or other RuntimeSettings supplied
+later in AllocationSpec is not a physical-agent placement capability; it
+follows the ordinary bounded preparation or execution failure path.
+
+**CTL-R38.** Advertised capabilities grant no different
+authorization role to otherwise equal CA-trusted Runtime Agents. Runtime
+Agents may advertise different execution capabilities because their immutable
+process environments contain different runtime, tool or sandbox dependencies.
+
+### Heartbeat and confirmed control lease
+
+**CTL-R39.** The heartbeat interval is 10 seconds (LIM-CTL-1) and the
+confirmed Runtime Agent control lease is 60 seconds (LIM-CTL-2). Control Plane
+returns both values on registration, not in every acknowledgement, so that the
+Server remains their authority and the agent does not depend on matching local
+configuration.
+
+**CTL-R40.** Each side measures lease expiry with its own monotonic
+clock; no shared wall-clock timestamp is a lease authority.
+
+**CTL-R41.** A Runtime Agent starts a strictly increasing heartbeat
+`sequence` at process start and does not reset it across reconnects. The
+acknowledgement's `ack_sequence` equals the accepted request sequence, and
+`last_ack_sequence` echoes the newest response the Runtime Agent actually
+received.
+
+**CTL-R42.** Registration `last_seen` advances on every valid
+authenticated heartbeat request and serves observation and routing
+diagnostics.
+
+**CTL-R43.** The confirmed control lease on Control Plane advances
+only when `last_ack_sequence` advances and names an ack that the current
+in-memory registration entry previously issued. Repeating the same ack never
+extends the lease again, and receiving heartbeat requests alone does not keep
+an allocation live or a slot eligible for placement.
+
+**CTL-R44.** The Runtime Agent likewise renews its local confirmed
+lease only after receiving a new ack for a heartbeat sequence that it actually
+sent; a duplicate, delayed or unknown ack does not extend its watchdog.
+Requests that reach Control Plane while all responses are lost therefore cannot
+keep the confirmed lease alive indefinitely: the echoed ack stops advancing and
+both sides expire (FAIL-CTL-2).
+
+**CTL-R45.** An active allocation is live only while the confirmed control
+lease is valid and the observed allocation matches Control Plane's
+authoritative record, subject to the preparation transition of
+CTL-R52. An idle process is eligible for placement only after the same
+round trip is confirmed and both sides agree that no allocation exists.
+
+**CTL-R46.** A heartbeat is only an observation: `idle`,
+`fenced` or a different `allocation_id` can trigger reconciliation but can
+never release, adopt or replace the authoritative allocation.
+
+**CTL-R47.** When the confirmed lease expires on Control Plane, it
+excludes the Runtime Agent from placement and irreversibly reports any active
+allocation lost to the Workflow Scheduler, which enters `aborting` with an
+interrupted StageTermination. A late ack cannot revive that allocation; only
+reconciliation and a new allocation may return the slot to service
+(FAIL-CTL-8).
+
+**CTL-R48.** The Runtime Agent maintains the symmetric monotonic
+watchdog over the same 60-second lease (LIM-CTL-2); its expiry actions and its
+fenced state are specified in [runtime-agent](runtime-agent.md). While a fenced
+agent keeps reporting an old allocation after a lost release response, Control
+Plane repeats the idempotent `release` action (FAIL-CTL-7).
+
+**CTL-R49.** An allocation-free re-registration after local
+watchdog expiry starts a fresh Control Plane claim deadline, so the Runtime's
+new local deadline cannot outlive Server authority.
+
+**CTL-R50.** After Registry loss, an echoed ack from the
+former Control Plane process is not recognized because the new in-memory entry
+did not issue it. After re-registration, Control Plane acknowledges the next
+heartbeat, and only echoing that new response establishes the fresh confirmed
+control lease. The `reregister` heartbeat response itself never renews the
+Runtime watchdog: if registration keeps failing, the old local deadline still
+expires (FAIL-CTL-1).
+
+Rationale: the process-monotonic heartbeat sequence avoids collision with a
+delayed response without introducing a durable Server epoch or registration
+generation.
+
+### Observed/authoritative reconciliation
+
+**CTL-R51.** Matching live allocation IDs and a confirmed lease
+allow `continue`.
+
+**CTL-R52.** After reservation and before the private `prepare`
+commits locally, an authoritative allocation may transiently coexist with an
+observed idle slot; this bounded preparation transition receives `continue` and
+is not treated as allocation loss.
+
+**CTL-R53.** Observed `draining` is valid only when Control Plane
+has issued finalization or abort for that allocation.
+
+**CTL-R54.** The write fence is a mandatory liveness signal: an
+authoritative allocation whose grant is write-fenced is never allowed to
+continue Worker execution. While Control Plane still owns it, every matching
+`allocated` heartbeat receives `drain`, never `continue`, until the Worker
+reports `draining`/`fenced` or the Runtime process exits. This is the fail-safe
+when a private finalize or abort request is lost: a Runtime that did not
+receive the explicit call still stops its Worker through reconciliation, or
+exits if stop cannot be guaranteed (FAIL-CTL-5, FAIL-CTL-6).
+
+**CTL-R55.** Terminal recovery need not reopen the Stage or
+invent a new semantic terminal operation: missing reports remain incomplete
+telemetry, while drain plus idempotent release eventually recovers the slot.
+
+**CTL-R56.** Observed `fenced`, `idle` or another allocation while
+Control Plane still owns an active allocation makes that allocation lost and
+starts or resumes the bounded abort path (FAIL-CTL-8).
+
+**CTL-R57.** Registration or a heartbeat that reports an active
+`allocation_id` triggers reconciliation with durable StageExecution state
+before that slot can receive new work. An allocation of a `finalizing`
+StageExecution reissues its recorded finalization, one of an `aborting`
+StageExecution reissues its recorded abort, and a terminal or unknown
+allocation receives an idempotent drain/release action.
+
+**CTL-R58.** Reconnection never adopts a Worker for continued
+Planner execution.
+
+**CTL-R59.** No mismatched process is offered for placement until it
+reports the released state and completes a fresh confirmed round trip.
+
+**CTL-R60.** A late report may be accepted as incomplete telemetry
+that enriches related telemetry, but lease loss cannot be reversed into
+successful completion of the interrupted StageExecution and a late report never
+changes the StageTermination.
+
+**CTL-R61.** A lost allocation is not offered for placement. If its
+Runtime Agent later reconnects, reconciliation reissues the same abort before
+the slot may become idle. If it remains disconnected, the agent's control-lease
+watchdog ultimately destroys the Worker or exits the process.
+
+### Runtime Agent Registry
+
+**CTL-R62.** Control Plane keeps the live Runtime Agent
+Registry in memory. Registrations, last-seen times, issued/confirmed heartbeat
+sequences, control leases and current slot availability are not PostgreSQL
+state, and heartbeat processing does not write one database row every 10
+seconds (LIM-CTL-1).
+
+**CTL-R63.** PostgreSQL retains only the durable execution
+facts that refer to allocations, including their StageExecution association
+and terminal outcome (LIFE-CTL-3).
+
+**CTL-R64.** After a Server restart the in-memory Registry
+starts empty and is not a recovery authority. A Runtime Agent process that
+remained alive registers again with its existing process-scoped `instance_id`;
+an agent process that also restarted uses a new one. Recovery still interrupts
+every affected `preparing` or `running` StageExecution through durable
+`aborting` because its Planner is not resumable, then drains any Worker
+reported by the reconnected agent (FAIL-CTL-9).
+
+**CTL-R65.** The Registry is a current live and reconciliation
+index, not process history. A superseded or control-lease-expired process entry
+is retired from memory as soon as it owns no authoritative allocation; an entry
+that still owns an allocation remains until that allocation is reconciled and
+released (LIFE-CTL-1).
+
+**CTL-R66.** Retirement removes the full entry from the bounded
+in-memory live Registry, not merely from the Operations snapshot: a superseded
+or control-lease-expired process stays visible only while it owns an
+authoritative allocation that still requires reconciliation, and after that
+allocation is released, or immediately when it owned none, it is retired rather
+than shown indefinitely as a fenced slot. Durable Runtime Agent principals
+remain visible through their separate configuration resource.
+
+**CTL-R67.** Registration performs the same expiry/retirement
+sweep before enforcing the Registry's bounded live-index capacity, so
+process-scoped IDs accumulated across Runtime restarts cannot permanently
+exhaust admission and a new process-scoped UUID can register after any number
+of historical restarts.
+
+**CTL-R68.** Historical connection or audit data, if
+introduced, belongs in a separate bounded durable facility.
+
+**CTL-R69.** Multiple active Control Plane replicas, shared
+fleet coordination and durable liveness state must not be approximated by
+sharing an unfenced `runtime_agents` table. The single active Control Plane
+instance per PostgreSQL database, on which the in-memory Registry and its lock
+rely, is specified in [persistence](../platform/persistence.md).
+
+### Runtime placement declarations
+
+**CTL-R156.** A process may advertise an optional non-null `placementLabels`
+array. Its only namespaces are `cloud` and `local`; a label is either the root
+or slash-separated non-empty segments matching `[a-z][a-z0-9_-]*`. Labels
+obey LIM-CTL-11 and LIM-CTL-12, are sorted and unique, and form one ancestor
+chain: each later label begins with the preceding label plus `/`. Disjoint
+provider/site branches and mixed roots are invalid. Omission or an empty
+array declares no location; it never infers `local` from the host or endpoint.
+Wildcards, case aliases, leading/trailing slashes and empty segments are invalid.
+
+**CTL-R157.** Startup arguments own `placementLabels` for one authenticated
+Runtime process incarnation. Placement labels participate in the immutable
+registration fingerprint, so changing them under the same `instanceId` is a
+registration conflict. A new incarnation can declare a new location under the
+same principal once the ordinary registration and lease rules permit it.
+These values never read or mutate the durable principal's RuntimeConfig
+labels (CTL-R26), and require no RuntimeConfig binding. A location is an
+operator declaration from an authenticated deployment peer, not independent
+cloud-provider attestation or a new authorization role.
+
+**CTL-R158.** Operations exposes an incarnation's actual `placementLabels`
+as a detached optional array in its Runtime Agent observation. Observation
+validation uses the same grammar as registration; changing a returned
+registration or observation must not mutate the Registry's stored declaration.
+Declarations follow the existing incarnation retirement lifecycle.
+
+### Runtime location matching
+
+**CTL-R159.** Every placement request carries the Run's pinned
+`requiredPlacementLabels`. A required path matches an actual declaration when
+`actual == required` or `actual` starts with `required + "/"`. Each required
+path must match at least one declared path; all requirements are combined with
+AND. The slash boundary is significant: `cloud` matches `cloud/aws`, while
+`cloud/aws` does not match `cloud/aws-test`. Empty requirements allow every
+otherwise compatible Runtime, including undeclared locations; a non-empty
+requirement never matches an undeclared location.
+
+**CTL-R160.** Control Plane applies location matching while building candidate
+edges, when reserving the complete Worker set under the live Registry lock,
+when pinning allocations against the immutable Run, and when computing model
+Stage holds (CTL-R155). It preserves the complete injective matching contract
+of CTL-R83. A valid requirement without a complete compatible fleet returns
+ordinary insufficient capacity, uses existing backoff and cancellation, and
+never broadens to another location. A matching Runtime that connects later is
+eligible at the next assignment. Existing allocations do not move.
+
+**CTL-R161.** Allocation rows retain each selected incarnation's actual
+`runtime_placement_labels` as a canonical immutable declaration, independent
+of RuntimeConfig provenance and of current fleet liveness. Their API projection
+uses `placementLabels`; no replacement incarnation can reinterpret historical
+placement. A reservation receipt includes the required selection, and cached
+receipt reconciliation rejects a changed placement request before resolving
+mutable dependencies. Retention and purge follow the owning Stage allocation.
+
+### Capability-aware placement
+
+**CTL-R70.** The currently connected fleet is not consulted while
+loading a Workflow, resolving an AgentTemplate or creating a WorkflowRun; those
+steps validate exact refs and tool names against Server descriptors. Physical
+availability is ephemeral and is evaluated only while a StageExecution is in
+`preparing`, so an eligible Runtime Agent may connect after the Run was
+created.
+
+**CTL-R71.** For one resolved Stage Agent binding, the placement
+requirement is exactly:
+
+```text
+required runtime = AgentTemplate.runtime
+required sandbox = AgentTemplate.sandboxProfile
+required tools   = each AgentTemplate.toolsets[ref].tools
+required adapters = RuntimeAdapters referenced by resolved Run + Agent label settings
+required workspace mode = Stage context.workspace.mode, when workspace exists
+required workspace storage = local for podman@1 or podman-network@1; otherwise no storage constraint
+```
+
+**CTL-R72.** For each candidate slot, Control Plane first
+resolves the pinned default and Run-selected Runtime labels plus that
+candidate's Agent Runtime labels and derives the required adapter set
+([runtime-config](../configuration/runtime-config.md)).
+
+**CTL-R73.** A Runtime Agent is a candidate only when it is
+`idle`, has a confirmed control lease, is otherwise placement-eligible,
+advertises the exact runtime and sandbox refs, its advertised tool set is a
+superset of every selected tool for each exact Toolset ref, its advertised
+adapter set contains every adapter required after combining that principal's
+Agent labels with the pinned Run labels, and it satisfies the binding's
+workspace requirements of CTL-R71. Placement checks the explicitly
+reported exact runtime, tool, sandbox and adapter capabilities. For a
+model-free Stage the Agent must also not be held for a waiting model Stage
+(CTL-R155).
+
+**CTL-R74.** Extra capabilities neither activate settings or
+adapters, change Worker behavior nor become model-visible; extra advertised
+tools are never exposed implicitly.
+
+**CTL-R75.** Placement never requires a Run RuntimeConfig label name to appear in
+the candidate's Agent RuntimeConfig label set: these labels are configuration inputs, never an
+equality or affinity predicate between Run and Runtime Agent. A Run `debug`
+configuration applies to an unlabeled Runtime Agent when that process
+advertises the resulting required adapter; Agent labels are only the
+higher-precedence candidate-specific configuration layer defined in
+[runtime-config](../configuration/runtime-config.md).
+
+**CTL-R76.** When a candidate lacks a required adapter, Control Plane
+tries another candidate or reports temporary insufficient compatible capacity.
+
+**CTL-R77.** Placement rejects a selected Caido Toolset when the
+effective labels do not resolve the `caido-graphql@1` adapter, and chooses an
+Agent advertising that adapter ([http-caido](../tools/http-caido.md)).
+
+**CTL-R78.** For a binding selecting `podman@1` or `podman-network@1`, placement requires
+the exact runtime, profile, selected tools and local direct workspace
+capability, as well as the registered profile/tool compatibility. These are
+binding-specific requirements: a different Worker in the Stage may continue to
+use its own compatible profile ([code-execution](../tools/code-execution.md)).
+
+**CTL-R79.** Apart from the Podman profiles' requirement, workspace
+`storage` is operational diagnostics: placement requires the requested
+workspace mode and the exact Toolset/tool capabilities,
+and the Scheduler does not prefer local over memory storage
+([workspace](../tools/workspace.md)).
+
+**CTL-R80.** When a binding pins an Audit completion contract,
+placement requires a Runtime Agent that advertises the contract in
+`capabilities.completionContracts` as well as the selected Toolset capability.
+This capability, unlike resource diagnostics, constrains placement and direct
+preparation and fails closed when unsupported; retry and placement preserve the pinned choice and
+never downgrade silently to ordinary completion on an older Runtime
+([worker-completion](../audits/worker-completion.md)).
+
+**CTL-R81.** The optional resource-diagnostics capability
+(`supportedPerformanceMetricsVersions`) does not constrain placement or change
+the allocation lifecycle: a Server must not filter placement on it.
+
+**CTL-R82.** The Server derives placement requirements from the reserved
+WorkflowRun metadata keys `cloud` and `local` before capability matching
+(CTL-R159). Other metadata labels do not participate in Runtime capability
+matching or RuntimeConfig merge provenance, and a Runtime process does not
+interpret `purpose` or `eval.*` ([runs](runs.md)).
+
+**CTL-R83.** For a multi-Agent Stage, Control Plane must find a
+complete injective matching between logical bindings and eligible single-slot
+Runtime Agents before reserving anything. It must not greedily consume a
+broadly capable agent when that would hide an existing complete assignment. A
+deterministic maximum bipartite matching or an equivalent complete algorithm
+satisfies this contract; the particular equally valid assignment is not
+Workflow semantics.
+
+**CTL-R84.** If no complete matching currently exists,
+Control Plane returns temporary insufficient compatible capacity (FAIL-CTL-3).
+This is not a Stage failure: the StageExecution remains `preparing`, no slot is
+reserved and the Scheduler's bounded capacity backoff applies until capacity
+appears, the execution deadline expires or cancellation is requested
+([scheduler](scheduler.md)). It covers both busy compatible agents and an
+environment capability that is not yet represented in the live fleet, and,
+for a model-free Stage, compatible idle Agents held for a waiting model Stage
+(CTL-R155).
+
+**CTL-R155.** On a Runtime Agent that model and model-free Stages share, a
+model Stage comes first ([SCH-R176](scheduler.md)). A placement request
+states whether its Stage is model-free, that is of lane class `tool`
+(SCH-R175); a model-free request that binds a model Worker is invalid. When
+placement of a Stage that is not model-free returns insufficient compatible
+capacity, Control Plane resolves the Stage's placement requirements against
+every live Runtime Agent, idle or allocated, exactly as placement resolves
+them (CTL-R71 to CTL-R83). If a complete matching exists among those Agents,
+every live Agent that some binding of the Stage could use is held for the
+hold window (LIM-CTL-10); otherwise nothing is held, so a Stage that could not
+be placed even with every allocation released never holds an Agent.
+Placement of a model-free Stage treats a held Agent as unavailable; placement
+of any other Stage, and the replay of a reservation that already exists,
+ignore holds. Only a later failed placement of a model Stage extends a hold,
+and nothing ends it early. A hold is advisory, process-local Registry state
+like a reservation: it reaches no database, Runtime or public API, a Server
+restart clears it, and a failure while computing it holds nothing and never
+changes the placement outcome of the Stage that triggered it.
+
+**CTL-R85.** Planner never chooses, observes or changes physical
+placement.
+
+### Atomic Stage reservation and allocation pinning
+
+**CTL-R86.** Control Plane reserves capacity for the complete
+Stage Worker set as one in-memory operation. Under the single Control Plane
+instance's registry lock it either moves enough `idle` slots to `reserved` or
+changes no slot at all; a Stage requiring three Workers therefore never holds
+two slots while waiting for the third, and the Planner never receives a partial
+`WorkerHandle` map.
+
+**CTL-R87.** No database or network operation occurs while holding the
+in-memory Runtime Registry lock.
+
+**CTL-R88.** Allocation resolution has one durable linearization
+point before any Runtime prepare request. Control Plane first reads candidate
+principal label-set revisions and the current binding revisions for those
+Agent labels; default and Run-selected Runtime-label refs already come from the
+immutable Run snapshot. It then computes a complete compatible matching. After
+reserving the complete slot set in memory, it locks the relevant Agent-label
+binding rows in lexical order and the selected principal rows by
+`runtime_agent_id`, verifies those revisions, re-resolves the settings and
+durably records each exact revision plus the non-secret allocation config
+snapshot. It sends no AllocationSpec before that transaction commits.
+
+**CTL-R89.** All Run creation, binding mutation, Agent-label mutation
+and allocation-pinning transactions use the same binding-then-principal lock
+order. A transaction locks its binding set with one statement and its
+principal set with one more, each in the bytewise order of its keys (label,
+`runtime_agent_id`), which the statement keeps whatever the database
+collation, so overlapping sets cannot deadlock. Run creation, Agent-label
+validation and allocation pinning lock bindings shared, so their sets never
+wait for one another; a binding mutation locks its bindings exclusively and
+so waits for, and excludes, every transaction that holds one of them.
+Principal rows are always locked exclusively. A duplicate or malformed key
+refuses the set before any statement, and a missing row fails the whole set.
+
+**CTL-R90.** If any revision changed or the recomputed settings no
+longer fit the selected adapter capabilities, Control Plane releases the
+unprepared reservation and retries placement for the same StageExecution
+(FAIL-CTL-4). A concurrent Agent-label or binding mutation serializes on those
+rows: if allocation pinning commits first, the mutation affects the next
+allocation; if the mutation commits first, this allocation observes the new set
+or binding. Control Plane likewise drops a committed reservation that no
+Runtime was asked to prepare when Queue Pause defers its Stage's admission
+([SCH-R152](scheduler.md)): no Runtime observed a prepared allocation, so the
+slot needs no reconciliation heartbeat, and unlike the release of a prepared
+allocation no released reservation remains, so placement for the same
+StageExecution can run again. A write-fenced, lost or prepared reservation is
+not dropped this way.
+
+**CTL-R162.** A placement attempt is one evaluation of a placement request:
+its first pass; when that pass returns insufficient compatible capacity, one
+re-read of the durable principals of the location-matching idle candidates
+and, when any principal changed, one more pass; and, for a model Stage that
+still finds no capacity, the hold computation (CTL-R155). Within one attempt
+Control Plane reads each pinned default and Run-label version, each
+Agent-label binding with its version and each LLM or Runtime credential's
+metadata at most once, and resolves each binding for one exact ordered
+Agent-label set at most once, however many candidates or passes share them;
+a candidate-local resolution failure is reused the same way. A candidate first
+considered by a later pass, such as an allocated Agent that only the hold
+sees, is resolved there from the same observations. A principal re-read that
+changed any principal, and a pinning transaction that found a changed
+revision or setting (CTL-R90), prove that a mutation committed after the
+attempt's reads, so the attempt discards every binding, credential and
+resolution observation before its next pass or hold and keeps only the
+immutable pinned versions. A repository or credential backend error in a
+placement pass or the principal re-read still ends the attempt with that
+error; the model Stage hold keeps its own outcome for such an error
+(CTL-R155). No observation outlives the attempt: the
+next attempt, such as the next Scheduler poll of a waiting Stage, reads
+principals, bindings and credentials again, and the pinning transaction
+always re-reads and re-resolves the selected edges under its locks
+(CTL-R88), so a reused observation never becomes a committed allocation.
+
+**CTL-R91.** After reserving the full set, Control Plane creates one
+globally unique `allocation_id` and one complete AllocationSpec per logical
+Stage Agent binding, including that binding's effective ModelPolicy, resolved
+RuntimeSettings, exact label/config provenance, the exact Run-pinned
+`resolvedSkills` manifest and the Stage's pinned `workerSessionMode`, and then
+may initialize those Runtime Agents concurrently.
+
+**CTL-R92.** Reservation replay identity includes the Worker session mode
+and the complete WorkflowRun metadata-label map. A retry of the same
+`stage_execution_id` cannot reinterpret the mode: replay with another mode
+conflicts rather than replacing an existing allocation, and a stale or altered
+replay is rejected before Worker construction.
+
+**CTL-R93.** Infrastructure preparation completes before the Planner
+starts: the Planner starts only after every Runtime Agent reports ready and
+Control Plane can return the complete `WorkerHandle` map.
+
+**CTL-R94.** If any initialization fails, times out or returns an
+incompatible Agent Card, including one incompatible with the required A2A
+protocol, Control Plane drains and releases every allocation from that batch,
+including Runtime Agents that became ready (FAIL-CTL-3).
+
+**CTL-R146.** When any required Worker fails preparation, the Workflow
+Scheduler receives no partial `WorkerHandle` map and no partial Planner
+subagent set.
+
+**CTL-R147.** After a failed preparation the Workflow Scheduler moves the
+StageExecution through `aborting` with an interrupted StageTermination whose
+code and cause-specific retryability follow SCH-R184. When the batch is cleared or
+the abort deadline expires, the execution becomes terminal and Workflow policy
+decides whether to create a new attempt (FAIL-CTL-3).
+
+**CTL-R95.** `prepare_stage` is idempotent for `stage_execution_id`. A
+retry after a lost response observes the same in-memory reservation/preparation
+operation and cannot create a second Worker set. Loss of the Control Plane
+process instead uses the interruption and cleanup recovery path of
+CTL-R64 (FAIL-CTL-3).
+
+### AllocationSpec
+
+**CTL-R96.** AllocationSpec carries the complete resolved AgentTemplate and
+the effective exact ModelPolicy as specified in
+[TPL-R62](../configuration/agent-templates.md); the Runtime's digest checks are
+in [TPL-R63](../configuration/agent-templates.md).
+
+**CTL-R97.** Control Plane includes a resolved `RuntimeSettings`
+snapshot in every AllocationSpec and sends it as one immutable snapshot over
+mTLS; it never sends a RuntimeConfig document. `RuntimeSettings` contains
+resolved connection and execution settings, not Worker semantics; its content,
+precedence, pinning, adapter isolation and credential rules are specified in
+[runtime-config](../configuration/runtime-config.md).
+
+**CTL-R98.** `lease_expires_at` is copied from Control Plane's
+confirmed allocation lease; the Runtime Agent does not derive a later value
+from its local heartbeat settings.
+
+**CTL-R99.** Private wire timestamps are normalized to UTC
+microsecond precision, which Go, Python and PostgreSQL preserve exactly.
+
+**CTL-R100.** Agent Skill packages are allocation data pinned by the
+WorkflowRun, not Runtime environment capabilities or A2A Agent Card operations;
+the Runtime never resolves an owner UserScope current skill binding
+([skills](../tools/skills.md)).
+
+**CTL-R101.** Every AllocationSpec carries the Stage's explicit
+immutable Worker session mode ([worker](worker.md)).
+
+**CTL-R102.** Every allocation receives a globally unique
+`allocation_id` that is never reused. Scheduler-owned retry, configured
+escalation and replacement create new StageExecutions and new allocation IDs.
+This ID is the sole lifecycle, routing and report-correlation key; there is no
+separate allocation generation.
+
+**CTL-R103.** Repeated control commands for an active `allocation_id`
+are idempotent, while commands and A2A requests for a released or unknown ID
+are rejected. Stale, draining or released allocation identities cannot address
+the current or a replacement Worker instance.
+
+**CTL-R104.** Allocation identity is not A2A Task identity: one allocation
+may serve a sequence of Tasks. Allocation, A2A Task/context, Contractor
+invocation and ADK session IDs are distinct, and only the Runtime may create or
+observe the ADK session identity.
+
+### WorkerHandle and Agent Card
+
+**CTL-R105.** One declared Stage Agent name maps to one allocation and
+one handle (LIM-CTL-7), and one Stage binding produces one allocation and one
+in-process Worker instance in one Runtime Agent.
+
+**CTL-R106.** A ready `WorkerHandle` contains only the fields
+listed in the model, and reports the exact template ref, runtime ref and
+allocation identity returned by the prepared Runtime Agent.
+
+**CTL-R107.** The ready handle echoes the exact `lease_expires_at`
+supplied in `AllocationSpec`; it does not renew or reinterpret that
+authoritative Control Plane lease. That timestamp proves that preparation
+happened inside the then-current confirmed lease; it is not a frozen lifetime
+deadline for later Planner calls.
+
+**CTL-R108.** Successful sequenced heartbeat acknowledgements renew
+the live Control Plane and Runtime watchdogs without mutating the immutable
+`WorkerHandle`. Every A2A call keeps the Stage deadline, while authoritative
+lease loss independently cancels the Scheduler invocation and the Runtime Agent
+self-fences its Worker.
+
+**CTL-R109.** A `WorkerHandle` contains no host path,
+tool-sandbox handle or in-process Worker object, and no LLM Gateway token or
+other RuntimeSettings secret.
+
+**CTL-R110.** The Runtime before returning a handle and the Server
+before accepting it scan the Agent Card for those secrets. A card value matches
+a secret of any length exactly, and one of at least 16 UTF-8 bytes (LIM-CTL-5)
+anywhere, except the exact protocol- or Server-fixed value at a trusted path
+(such as the template description or the `stage` skill tag), so that a short
+credential may coincide with fixed vocabulary. Every object key is scanned,
+whatever its path, for secrets of at least 16 UTF-8 bytes.
+
+**CTL-R111.** Both implementations share the trusted path table, the
+Runtime's card shape and the leak cases in
+[`agent-card-secret-scan-cases.json`](../../../api/testdata/v1alpha1/agent-card-secret-scan-cases.json).
+
+### Capacity and execution scope
+
+**CTL-R112.** One Runtime Agent process has one active slot (LIM-CTL-4)
+and at most one in-process Worker instance; it never hosts multiple Workers
+concurrently.
+
+**CTL-R142.** A Runtime Agent process may create its next Worker only after
+the prior allocation is released and fully cleared.
+
+**CTL-R143.** A Stage needs one available Runtime Agent process per declared
+named Worker before the Planner starts, and those processes may all run on the
+same VM: a Stage declaring three named Workers needs three processes.
+
+How slots relate to Scheduler lanes is specified in [scheduler](scheduler.md).
+
+**CTL-R113.** One allocation lasts for the complete Planner
+invocation and its finalization. The Planner may send multiple sequential A2A
+Tasks to its Worker while the allocation is active; a Worker executes at most
+one Task at a time (LIM-CTL-6), while separate Stage allocations may execute
+concurrently.
+
+**CTL-R114.** A draining allocation rejects new A2A work and
+remains reserved until its StageExecution is terminal, except under
+CTL-R123. A fenced slot rejects all work and remains unavailable
+until authoritative reconciliation and release acknowledgement complete.
+
+**CTL-R115.** The Planner cannot expand or replace the prepared set
+during the invocation. Changing the set requires a new StageExecution decision
+by the Workflow Scheduler under the Workflow policy.
+
+### Finalization and abort
+
+**CTL-R116.** Preparation, finalization, abort and acknowledged
+release are always a private control protocol rather than A2A skills.
+
+**CTL-R140.** Transport DTOs are defined by the versioned schemas under
+`api/v1alpha1`.
+
+**CTL-R141.** Finalization and abort enter through the Runtime Agent's
+existing private control endpoint and do not wait for A2A cancellation to reach
+a terminal Task state.
+
+What the Runtime does inside finalization and abort is specified in
+[runtime-agent](runtime-agent.md), the StageExecution lifecycle in
+[scheduler](scheduler.md) and the report contracts in
+[observability](../platform/observability.md).
+
+**CTL-R117.** Finalization follows this flow:
+
+```text
+Workflow Scheduler
+  -> Control Plane: finalize(finalization_id, allocations, deadline)
+  -> Runtime Agent: mark allocation draining and reject new A2A Tasks
+  -> same process: destroy Worker, close Toolsets, flush adapters and build one ExecutionReport
+  -> Runtime Agent: return ExecutionReport plus RuntimeReport
+  -> Workflow Scheduler: accept terminal StageResult
+  -> Control Plane: release route, sandbox, lease and slot
+```
+
+**CTL-R118.** The finalize command is idempotent for
+`finalization_id` (FAIL-CTL-5). When the Runtime Agent cannot guarantee by the
+supplied deadline that its Worker stopped, it exits its own process rather than
+reusing the slot ([runtime-agent](runtime-agent.md)); Control Plane then
+records an incomplete report from the facts it can observe, and the Scheduler
+accepts the already durable candidate.
+
+**CTL-R119.** Abort uses a separate idempotent private control command,
+`abort(abort_id, allocations, deadline)`, issued after the Workflow Scheduler
+has recorded `aborting`, the StageTermination, the `abort_id` and the deadline;
+the full abort flow is specified in [scheduler](scheduler.md). The command
+performs no semantic work and does not depend on A2A `CancelTask` delivery. It
+is idempotent for `abort_id`, and retries return the cached report when
+available (FAIL-CTL-6).
+
+**CTL-R120.** For a multi-Agent Stage, Control Plane establishes the write
+fence and the authoritative terminal phase for every allocation before
+performing any outbound Runtime call, then fans finalize or abort out
+concurrently. Every allocation receives an independent request timeout bounded
+by the same durable Stage deadline, so one unreachable Runtime cannot consume
+another Runtime's opportunity to stop. One failure does not cancel sibling
+calls, and reports and errors are folded back in deterministic logical-Agent
+order.
+
+**CTL-R121.** Control Plane drains aborting allocations through the
+authoritative private control protocol. At the abort deadline, any allocation
+that has not confirmed shutdown is marked lost and fenced and its reports are
+recorded as incomplete (FAIL-CTL-6); the Scheduler then commits the terminal
+state named by the StageTermination ([scheduler](scheduler.md)).
+
+### Release
+
+**CTL-R122.** Normally the allocation remains reserved through
+`draining`/stopped state until the StageExecution becomes terminal, then
+two-phase release begins; the Workflow Scheduler releases allocations only
+after recording the terminal Stage outcome.
+
+**CTL-R123.** The one exception is Queue Pause deferring an atomic
+next/retry/escalation admission ([scheduler](scheduler.md)): drain and release
+may then finish while the StageExecution retains its durable `finalizing`
+candidate or `aborting` termination, immutable operation ID and deadline. This
+does not authorize another Planner invocation or early result or output
+acceptance.
+
+**CTL-R124.** The private Runtime release request idempotently
+confirms Toolset teardown and removes the SandboxProfile workspace and secrets,
+but leaves the old allocation identity `fenced`. After its successful response,
+Control Plane removes the allocation's route, grant and lease. A subsequent
+heartbeat `release` action confirms that authoritative edge and lets the
+Runtime Agent clear its retained identity and report and become `idle`. Control
+Plane does not offer the slot until a confirmed heartbeat reports the matching
+idle state (LIFE-CTL-2).
+
+**CTL-R125.** A lost private release response leaves both sides
+retry-safe, while a cleanup failure keeps that Runtime Agent fenced without
+rewriting the terminal Stage outcome; a failed release retains the allocation
+grant (FAIL-CTL-7).
+
+**CTL-R126.** The outbound Runtime release calls of one batch are
+concurrent and use independent bounded request contexts. Registry authority is
+removed only for a member whose private Runtime cleanup was acknowledged;
+failed members remain fenced and independently retryable (FAIL-CTL-7). The same fence-first
+fan-out rule applies to cleanup after partial batch preparation. The deadlines
+of release batches and failed-prepare cleanup, and the recovery of incomplete
+terminal releases, are specified in [scheduler](scheduler.md).
+
+### Protocol ownership and live Worker state
+
+**CTL-R127.** The private control protocol owns registration,
+heartbeat, reservation, AllocationSpec and RuntimeSettings delivery, readiness,
+lease, idempotent Worker finalization and abort, execution/runtime report
+transport, release and cleanup.
+
+**CTL-R128.** While a Worker is live, the private control protocol
+also owns the read-only allocation-correlated
+`GET /private/v1/allocations/{allocation_id}/agent-state` transport. That route
+returns only bounded Contractor-owned State to Control Plane; it is neither an
+A2A operation nor a public or generic state API. Its schema and lifecycle are
+specified in [worker](worker.md).
+
+**CTL-R129.** The Runtime exposes live Worker State only through
+that read-only endpoint; no private request can write an arbitrary ADK State
+key or replace pinned allocation configuration.
+
+**CTL-R130.** The Go Control Plane provides a bounded Runtime client
+operation behind a narrow framework-neutral `WorkerStateReader`; Planner
+packages do not construct HTTP requests or receive physical Runtime endpoint
+data.
+
+**CTL-R131.** Allocation proxy settings never intercept registration,
+heartbeat, control, A2A or Artifact API traffic.
+
+### Allocation resource diagnostics
+
+**CTL-R132.** Private registration may carry the optional
+`supportedPerformanceMetricsVersions: [1]`; omission or an empty list means
+unsupported. A Runtime advertises version 1 only when it contains the Runtime
+collector.
+
+**CTL-R133.** When collection is enabled and the chosen Runtime supports
+version 1, Control Plane adds this optional top-level field to its
+Server-generated `AllocationSpec`:
+`"performanceMetrics": {"version": 1, "intervalSeconds": 15}`
+([LIM-CTL-8](../platform/limits.md)). The
+interval is the allocation sampling cadence of the collection schedule in
+[OPS-R86](../operations/operations.md). Omission disables sampling.
+
+**CTL-R134.** Control Plane persists its decision (`requested`,
+`disabled` or `unsupported`) alongside the allocation, so that final-report
+attribution and restart recovery do not infer it from current process flags;
+duplicate prepare uses the same decision. The decision is operational
+metadata, not model-visible context or secret-bearing adapter configuration.
+
+**CTL-R135.** Collection policy pinned on a previously prepared allocation
+survives a Server restart as specified in
+[OPS-R83](../operations/operations.md).
+
+**CTL-R136.** The Server trusts allocation identity and policy from its
+own envelope and validates the optional resource block of a final report
+separately. A malformed or unrequested resource block cannot poison an
+otherwise valid report: the Server omits the block, retains a safe diagnostic
+and continues normal finalization (FAIL-CTL-10). Resource data remains within
+the existing 1 MiB final-report limit
+([LIM-OBS-7](../platform/limits.md),
+[OBS-R40](../platform/observability.md)), and no raw samples are returned.
+
+**CTL-R137.** Duplicate finalization or abort returns the same cached
+report, and persistence never double-counts it.
+
+**CTL-R138.** A registration that omits
+`supportedPerformanceMetricsVersions` is valid, and the Server sends no
+`performanceMetrics` request for its allocations. A prepare payload without
+`performanceMetrics` runs with collection off. A Server build that does not
+define the registration field rejects it as unknown (CTL-R7), so Servers are
+upgraded before Runtimes that advertise it and a rollback is coordinated. There
+is no transparent bidirectional compatibility and no fallback that hides a
+protocol error.
+
+**CTL-R154.** AllocationSpec carries the already pinned main ModelPolicy and,
+when independently selected, the complete `summarizerModelPolicy`. The latter
+requires a summary-enabled model Worker and a compatible one-shot policy.
+Runtime verifies its digest and uses it only in a private copy of the Worker
+build context; it must not mutate the digest-bearing AgentTemplate. Neither
+Runtime nor Control Plane consults current deployment defaults. Effective
+summary policy participates in credential authorization and Gateway recovery
+route tracking, alongside the main policy. The `compact@1` compactor policy
+pinned in `contextManagement` (WFL-R94) is resolved into the allocation's
+runtime configuration the same way: the selected credential must authorize
+its model, and its Gateway route is tracked for recovery. It is mutually
+exclusive with `summarizerModelPolicy`.
+
+## Interfaces
+
+The Workflow Scheduler drives the Control Plane through this protocol:
+
+```python
+class ControlPlane(Protocol):
+    async def prepare_stage(
+        self,
+        bindings: Collection[ResolvedStageAgentBinding],
+        context: StageAllocationContext,
+    ) -> Mapping[AgentName, WorkerHandle]: ...
+
+    async def finalize_stage(
+        self,
+        handles: Collection[WorkerHandle],
+        finalization_id: FinalizationId,
+        deadline: datetime,
+    ) -> Mapping[AgentName, AllocationFinalReport]: ...
+
+    async def abort_stage(
+        self,
+        handles: Collection[WorkerHandle],
+        abort_id: AbortId,
+        deadline: datetime,
+    ) -> Mapping[AgentName, AllocationFinalReport]: ...
+
+    async def release_stage(
+        self,
+        handles: Collection[WorkerHandle],
+        reason: ReleaseReason,
+    ) -> Mapping[AgentName, AllocationReleaseAck]: ...
+```
+
+The end-to-end path of one Stage through the Control Plane:
+
+```text
+Workflow Scheduler selects a ready Stage and resolves its AgentTemplates
+  -> Control Plane resolves pinned default/Run-selected Runtime labels plus candidate Agent Runtime labels
+  -> Control Plane matches every template/adapter requirement against frozen capability snapshots
+  -> Control Plane atomically selects a complete set of free Runtime Agents
+  -> Runtime Agents reserve their slots and accept AllocationSpecs
+  -> each Runtime Agent creates one in-process Worker instance
+  -> each Runtime Agent publishes its allocation-scoped Agent Card
+  -> Control Plane returns ready WorkerHandles
+  -> Workflow Scheduler constructs the selected Planner over fixed WorkerHandles
+  -> Planner WorkerInvoker tools <-> A2A <-> allocated Runtime Agents acting as Workers
+  -> Planner returns candidate StageResult
+  -> Workflow Scheduler durably enters finalizing
+  -> Control Plane asks Runtime Agents to finalize their Worker instances
+  -> Workflow Scheduler accepts terminal StageResult
+  -> Control Plane releases allocation contexts, leases and slots
+```
+
+Private wire schemas under [`api/v1alpha1`](../../../api/v1alpha1/) include
+[`agent-registration.schema.json`](../../../api/v1alpha1/agent-registration.schema.json),
+[`agent-registration-response.schema.json`](../../../api/v1alpha1/agent-registration-response.schema.json),
+[`agent-heartbeat.schema.json`](../../../api/v1alpha1/agent-heartbeat.schema.json),
+[`allocation.schema.json`](../../../api/v1alpha1/allocation.schema.json),
+[`runtime-report.schema.json`](../../../api/v1alpha1/runtime-report.schema.json),
+[`agent-state.schema.json`](../../../api/v1alpha1/agent-state.schema.json) and
+[`performance.schema.json`](../../../api/v1alpha1/performance.schema.json);
+fixtures live under
+[`api/testdata/v1alpha1`](../../../api/testdata/v1alpha1/) (CTL-R8).
+
+The private live-state route is
+`GET /private/v1/allocations/{allocation_id}/agent-state` (CTL-R128).
+
+## Limits, failures and errors
+
+- [LIM-CTL-1](../platform/limits.md): heartbeat interval 10 seconds
+  (CTL-R39).
+- [LIM-CTL-2](../platform/limits.md): confirmed control lease 60 seconds
+  (CTL-R39, CTL-R48).
+- [LIM-CTL-3](../platform/limits.md): at most 64 RuntimeAdapter refs per
+  registration (CTL-R33).
+- [LIM-CTL-4](../platform/limits.md): one active slot per Runtime Agent
+  process (CTL-R112).
+- [LIM-CTL-5](../platform/limits.md): 16 UTF-8 bytes, the minimum secret
+  length matched anywhere inside an Agent Card value and scanned for in every
+  object key (CTL-R110).
+- [LIM-CTL-6](../platform/limits.md): one A2A Task at a time per Worker
+  (CTL-R113).
+- [LIM-CTL-7](../platform/limits.md): one allocation and one handle per
+  declared Stage Agent name (CTL-R105).
+- [LIM-CTL-8](../platform/limits.md): 15-second allocation resource sampling
+  interval requested in `AllocationSpec` (CTL-R133).
+- [LIM-CTL-9](../platform/limits.md): Runtime capability and identity bounds
+  of one registration (CTL-R148).
+- [LIM-CTL-10](../platform/limits.md): a hold window of five Scheduler poll
+  intervals, 5 seconds by default (CTL-R155).
+- [LIM-CTL-13](../platform/limits.md) to
+  [LIM-CTL-18](../platform/limits.md): idle, lifetime and count bounds of
+  reusable private connections (CTL-R165).
+- [FAIL-CTL-1](../platform/failure-model.md): Runtime Agent registration and
+  re-registration (CTL-R12, CTL-R34,
+  CTL-R50).
+- [FAIL-CTL-2](../platform/failure-model.md): the heartbeat round trip
+  (CTL-R44).
+- [FAIL-CTL-3](../platform/failure-model.md): Stage preparation
+  (CTL-R84, CTL-R94, CTL-R95, CTL-R147, CTL-R155).
+- [FAIL-CTL-4](../platform/failure-model.md): the allocation-pinning
+  transaction (CTL-R90, CTL-R162).
+- [FAIL-CTL-5](../platform/failure-model.md): Worker finalization
+  (CTL-R118, CTL-R54).
+- [FAIL-CTL-6](../platform/failure-model.md): Worker abort
+  (CTL-R119, CTL-R121, CTL-R54).
+- [FAIL-CTL-7](../platform/failure-model.md): allocation release
+  (CTL-R125, CTL-R126, CTL-R48).
+- [FAIL-CTL-8](../platform/failure-model.md): control lease expiry and observed
+  allocation loss (CTL-R47, CTL-R56, CTL-R61).
+- [FAIL-CTL-9](../platform/failure-model.md): Server restart and Registry loss
+  (CTL-R64).
+- [FAIL-CTL-10](../platform/failure-model.md): validation of the resource block
+  of a final report (CTL-R136).
+- [FAIL-CTL-11](../platform/failure-model.md): a private request on a reusable
+  connection (CTL-R166).
+- [LIFE-CTL-1](../platform/lifecycle.md) Runtime Agent Registry entry,
+  [LIFE-CTL-2](../platform/lifecycle.md) authoritative allocation,
+  [LIFE-CTL-3](../platform/lifecycle.md) durable allocation record,
+  [LIFE-CTL-4](../platform/lifecycle.md) Runtime Agent principal,
+  [LIFE-CTL-5](../platform/lifecycle.md) reusable private connections.
+- This document defines no error codes. Insufficient compatible capacity is a
+  temporary placement result, and the code of a preparation StageTermination
+  identifies the infrastructure error ([scheduler](scheduler.md)).
+
+## Security
+
+The deployment CA, mutual TLS on the private control protocol, the reserved
+Control Plane URI SAN prefix and the Runtime Agent's checks on its Control
+Plane peer are specified in [security](../platform/security.md), including the
+equal trust of all Runtime Agents and the node trust boundary.
+
+Within that boundary this document adds: the certificate-derived principal and
+its binding of every request, report and RuntimeSettings to the issuing process
+(CTL-R17, CTL-R18, CTL-R22, CTL-R24, CTL-R144);
+SPKI verification of registered endpoints (CTL-R19,
+CTL-R20), repeated on every new reusable connection, which is never shared
+across principals and is re-verified within a bounded lifetime (CTL-R163,
+CTL-R165); no executable input from Workflow, template, Planner or API
+(CTL-R5); no secrets in a `WorkerHandle` and the Agent Card secret scan
+(CTL-R109, CTL-R110); proxy settings that never carry
+control traffic (CTL-R131). The principal and capabilities never grant a
+different authorization role (CTL-R23, CTL-R38, CTL-R145).
+
+## Observability
+
+- `software_version` is observation metadata (CTL-R14); registration
+  `last_seen` serves observation and routing diagnostics (CTL-R42);
+  probe failures stay startup diagnostics (CTL-R31); an adapter
+  mismatch is visible in Operations (CTL-R29).
+- [Operations](../operations/operations.md) defines the full registry snapshot,
+  its generation and revision, and the continuation cursors for the two live
+  lists. It also defines `lastAcceptedHeartbeat`, `confirmedLeaseUntil` and the
+  separate observed and authoritative allocation fields. Retired registry
+  entries leave the current-state view (CTL-R66).
+
+**CTL-R167.** Private HTTP observation publication requires the allocation's
+explicit pinned collection policy and ordinary allocation write gate. Identity,
+Project, Run and deployment derive from the allocation. Fencing joins an
+admitted publication and rejects later ones. Because finalization fences writes
+before calling Runtime finalize, the best-effort checkpoint runs at Worker
+invocation completion. Missing collector data or a final Runtime report adds no
+sitemap-specific Run state. [SMT-R13](../artifacts/project-sitemap.md) and
+[SMT-R18](../artifacts/project-sitemap.md) through [SMT-R21](../artifacts/project-sitemap.md)
+own the domain policy, private ingress and lifecycle.
+
+## Invariants
+
+1. Physical placement belongs to Control Plane, not the Workflow Scheduler or
+   Planner (CTL-R3).
+2. One declared Stage Agent name maps to one allocation and handle
+   (CTL-R105).
+3. One Runtime Agent process has one slot and at most one in-process Worker
+   instance; it never hosts multiple Workers concurrently and may create the
+   next Worker only after the prior allocation is released and fully cleared
+   (CTL-R112, CTL-R142).
+4. Runtime Agent owns transport and allocation checks; its current Worker
+   runtime owns every A2A Task under the allocation
+   ([runtime-agent](runtime-agent.md)).
+5. Allocation identity is not A2A Task identity; one allocation may serve a
+   sequence of Tasks (CTL-R104).
+6. Planner completion first moves its StageExecution to durable `finalizing`;
+   Scheduler-owned cancellation or interruption instead moves it to durable
+   `aborting`. The two transitions are mutually exclusive
+   ([scheduler](scheduler.md)).
+7. Worker finalization and abort cannot perform model or tool calls or artifact
+   mutations, wait indefinitely for A2A Task cancellation, or exceed their
+   durable control deadline ([runtime-agent](runtime-agent.md),
+   CTL-R116, CTL-R141, CTL-R119).
+8. The Workflow Scheduler releases allocations only after recording the
+   terminal Stage outcome (CTL-R122, with the exception of
+   CTL-R123).
+9. Stale, draining or released allocation identities cannot address the
+   current or a replacement Worker instance (CTL-R103).
+10. A Runtime Agent recognizes a Control Plane peer by the reserved URI SAN
+    prefix in a certificate signed by the deployment CA
+    ([security](../platform/security.md)); Control Plane applies no per-agent
+    authorization policy beyond allocation ownership consistency
+    (CTL-R17, CTL-R145).
+11. A Runtime Agent process restart creates a new process `instance_id`, may
+    retain its certificate-derived principal and durable labels, and never
+    resumes or adopts the previous process instance's allocation
+    (CTL-R21).
+12. The confirmed control lease advances only through a new monotonic
+    request/ack/echo round trip; receiving heartbeat requests alone does not
+    keep an allocation live or a slot eligible for placement
+    (CTL-R43).
+13. Local lease expiry drains and destroys the Worker, then leaves the Runtime
+    Agent fenced with the old allocation identity until explicit release is
+    acknowledged; it never silently becomes idle
+    ([runtime-agent](runtime-agent.md), CTL-R48).
+14. An observed and authoritative allocation mismatch triggers reconciliation
+    and cannot itself release, adopt or replace an allocation
+    (CTL-R46).
+15. Live registrations, heartbeat sequence state and slot availability are
+    in-memory Control Plane state; PostgreSQL does not serve as a heartbeat
+    registry (CTL-R62).
+16. An `allocation_id` is globally unique and never reused; no allocation
+    generation exists (CTL-R102).
+17. Capacity for one Stage is reserved all-or-nothing; the Planner never
+    receives a partial WorkerHandle map (CTL-R86,
+    CTL-R146).
+18. A Runtime Agent advertises only runtime, Toolset/tool, SandboxProfile and
+    RuntimeAdapter capabilities proven before first registration; that
+    normalized snapshot is immutable for its process-scoped `instance_id` and
+    is never changed by heartbeat (CTL-R31,
+    CTL-R34).
+19. Capability-aware placement requires set containment for each binding and a
+    complete injective matching for the whole Stage; extra advertised tools are
+    never exposed implicitly (CTL-R73, CTL-R83,
+    CTL-R74).
+20. The Runtime Agent's process environment is immutable after registration;
+    changing dependencies, executable resolution or enabled factories requires
+    a process restart, a new `instance_id` and new startup probes
+    (CTL-R35).
+21. A label or configuration change affects only a future allocation; the
+    Runtime Agent never interprets the label name or mutates an active
+    RuntimeSettings snapshot (CTL-R28, CTL-R139).
+22. Allocation proxy settings never intercept registration, heartbeat,
+    control, A2A or Artifact API traffic (CTL-R131).
+23. Agent Skill packages are allocation data pinned by WorkflowRun, not
+    Runtime environment capabilities or A2A Agent Card operations; the Runtime
+    never resolves an owner UserScope current skill binding
+    (CTL-R100).
+24. The Runtime exposes live Worker State only through the read-only
+    allocation-correlated Control Plane endpoint; no private request can write
+    an arbitrary ADK State key or replace pinned allocation configuration
+    (CTL-R129).
+25. Every AllocationSpec carries the Stage's explicit immutable Worker session
+    mode; reservation replay with another mode conflicts rather than replacing
+    an existing allocation (CTL-R101, CTL-R92).
+26. Allocation, A2A Task/context, Contractor invocation and ADK session IDs are
+    distinct; only the Runtime may create or observe the ADK session identity
+    (CTL-R104).
+27. Placement reuses a binding, credential or resolution observation only
+    within one placement attempt and never in the pinning transaction
+    (CTL-R162, CTL-R88).
+
+## Examples
+
+### Injective matching
+
+Agent A can perform source analysis and LikeC4 validation; agent B can perform
+only source analysis. A Stage needing one source-only Worker and one LikeC4
+validator is placeable as source-only -> B and validator -> A
+(CTL-R83).
+
+### Operation-level tool capabilities
+
+Examples of operation-level tool capabilities (`likec4@1` without
+`validate_likec4`, and the two capability levels of `code-analysis@1`) are in
+[toolsets](../tools/toolsets.md) and
+[CAN-R147](../tools/code-analysis.md). The placement point this document owns:
+a binding is placeable on a Runtime Agent only when the agent's advertised tool
+set contains every selected tool of each exact Toolset ref (CTL-R73).
+
+### Run-selected adapter without an Agent label
+
+A Run pins the `debug` Runtime label, whose configuration sets
+`worker.telemetry` through the `otlp-http@1` adapter, and a candidate Runtime
+Agent has no Agent labels. The candidate is eligible when its frozen capabilities
+include `otlp-http@1`; it does not need a `debug` Agent label. If it lacks the
+adapter, Control Plane tries another candidate or reports temporary
+insufficient compatible capacity. If the candidate instead carries an Agent
+label whose config supplies `worker.telemetry`, that higher layer replaces the
+Run's telemetry block ([runtime-config](../configuration/runtime-config.md),
+CTL-R75).
+
+## Non-goals
+
+- A registration generation, Server epoch, rotated fleet token or
+  cross-process Worker continuation protocol; the stable principal is not an
+  incarnation or Worker-continuation identity.
+- Dynamic re-probing, capability withdrawal and in-place re-registration.
+- Capability-profile expressions for combination-specific incompatibilities.
+- Multiple active Control Plane replicas, shared fleet coordination and durable
+  liveness state ([persistence](../platform/persistence.md)).
+- Kubernetes CRDs or controllers, autoscaling and multi-host placement
+  optimization.
+- Concurrent Tasks inside one Worker allocation (CTL-R113).
+- Dynamic Planner expansion of the Worker pool: see [planners](planners.md).
+
+**CTL-R169.** Ordinary prepare constructs allocation-owned controlled HTTP
+without target I/O from the exact engagement projection. HTTP work begins only
+through its explicit caller. Each call is clipped to its request timeout and
+confirmed allocation lease. The ordinary Scheduler and Audit lifecycle own
+Stage/Audit cancellation and deadlines. The allocation lock registers ownership
+without surrounding target I/O. Abort, finalize, lease expiry and release cancel
+and join HTTP work before clearing clients and secrets. No target request needs
+a Server permit; no separate stop RPC, persisted stop proof or target deadline
+column exists. A new allocation has fresh limits and private session state.
+
+**CTL-R170.** Allocation grants may include immutable concrete Project artifact
+read targets under ART-R135. Composition derives one sitemap/map target from the
+pinned sitemap policy and selected list/read operations; generic grant
+execution knows no sitemap namespace or tool identity. Every returned grant,
+reservation and callback clones its nested targets/operation lists. Read and
+cached-read admission use the existing allocation gate and fence/loss/release
+lifecycle; no second lock, lease or persistent grant registry is introduced.
+Project identity resolves from the durable Run at use time. Domain mutations and
+snapshot creation independently retain their write authority checks.
+
+
+**CTL-R171.** Before preparation or registration, Runtime fetches
+`GET /private/v1/config` through the ordinary private mTLS connection with
+Control Plane role verification. A verified Runtime certificate may read it
+without registering a principal; the endpoint has no database side effects.
+It accepts no query or body and returns a non-cacheable, secret-free
+`SharedConfig` (`apiVersion`, `version`, `limits`, `digest`). Version 1 carries
+`limits.artifactPayloadMaxBytes` from `contracts.MaxArtifactPayloadBytes`,
+`limits.publicPageMaxItems` from `pagelimit.MaxRows`, and
+`limits.artifactListMaxItems` from `contracts.MaxArtifactListItems`.
+Public list pages and private Artifact list pages are independent policies.
+Worker policy comes from the owning `contracts` completion constants:
+`workerResultMaxBytes`, `workerCompletionMaxBytes`,
+`workerFailureMessageMaxBytes`, `workerResultMaxArtifacts`,
+`workerObservationMaxTools`, and `workerWorkspaceMaxFilesRead`.
+The `reporting` State constants supply `workerStateMaxBytes`,
+`workerStateWorkspaceMaxPaths`, and `workerStateWorkspacePathsMaxBytes`.
+These settings retain their independent result, envelope and workspace meanings;
+Planner requests and Stage results are not aliases of these policies.
+`httpRequestBodyMaxBytes`, `httpResponseBodyMaxBytes` and
+`httpHeaderBlockMaxBytes` come from the normalized HTTP evidence constants in
+`contracts`; Server domain validation and Runtime transport/capture share them.
+Provider envelopes, private transport headers and allocation-local HTTP limits
+remain independent.
+`gitImportUrlMaxBytes` supplies the original Git input byte ceiling;
+canonical stored provenance retains its separately derived expansion bound.
+`runMetadataMaxLabels`, `runMetadataKeyMaxBytes`, `runMetadataValueMaxBytes`
+and derived `auditMaxLabels` come from `runlabels`. Runtime validation and
+telemetry, UI label editors/filters and the Git import client consume the
+relevant received settings. Runtime placement labels remain independent.
+Generation binds public/private schemas and shared boundary fixtures, and emits
+sequential Git provenance or metadata CHECK migrations when their policy changes;
+historical SQL is never rewritten, and decreases revalidate existing rows.
+The digest is `sha256:` of canonical JSON containing only `limits` and
+`version`; integers must be positive and exactly representable JSON integers.
+Unknown fields, unsupported versions and digest mismatches are permanent
+startup errors. The owning Server constants are the only editable numeric definitions: run
+`make shared-config-generate` after changing it, and commit generated schema,
+test and sequential SQL CHECK changes; `make lint` checks drift. Historical
+migrations remain immutable. A decrease must first remove oversized payloads
+through normal authorized lifecycle operations, or its SQL migration fails.
+Allocation-specific RuntimeSettings retain their existing owner and delivery.
+The authenticated public projection for browser startup is API-R113.
+
+This boundary uses a startup snapshot instead of hand-maintained Runtime
+constants or another operator config file. It is deliberately limited to
+shared policy with an actual Runtime or UI consumer; Server-only policy stays local.
+Reopen startup-only delivery if policy needs to change during an active Runtime
+process; version/digest do not implement live reload or registration fencing.

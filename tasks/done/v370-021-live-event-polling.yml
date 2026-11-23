@@ -1,0 +1,87 @@
+schema_version: "1.0"
+id: V370-021
+title: "Poll Run events once per Run instead of once per subscription"
+milestone: hub-audit-structure-2026-10
+epic: api-contracts
+kind: defect
+introduced_by: V4-007
+priority: P2
+status: completed
+implementation_commit: 01bc32c8fab79caee3c292657a0fcda51dbf167d
+depends_on: []
+languages: [go]
+goal: "Idle subscriptions to one Run cause one query per catch-up interval."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), public API I1; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Every Run subscription calls ListRunEvents every second
+    (subscriptions.go:79-91) even with a healthy NOTIFY: up to 8 sockets x
+    32 subscriptions = 256 queries/s per idle session.
+  specification:
+    - docs/spec/api/public-api.md#API-R46
+    - docs/spec/api/public-api.md#API-R55
+    - docs/spec/api/public-api.md#API-R64
+    - docs/spec/api/public-api.md#API-R72
+  decision: >-
+    Confirmed on 4146eea: pumpRun ran a ticker per subscription
+    (subscriptions.go:79-94) and catchUpRun read ListRunEvents on every tick
+    whether or not the listener was established, so N idle subscriptions to
+    one Run cost N reads per second. The Hub now runs one runPoller per
+    subscribed Run (run_poller.go); a subscription attaches after its
+    subscribed frame and detaches before its unsubscribed frame. A round reads
+    one page at a time from the lowest last delivered sequence of the Run's
+    subscriptions and hands each subscription only the events after its own
+    sequence, so replay from different cursors, paging and the sequence_gap
+    and cursor_unavailable resyncs stay per subscription (API-R49, API-R72).
+    A notification, an attach and a change of the listener state wake the
+    poller; otherwise it waits CatchUpInterval (1 s, LIM-API-21) without an
+    established listener and 15 s (LIM-API-22) with one. Listen gained a
+    ready callback that runs after LISTEN has taken effect; the Hub wakes
+    every poller on ready, because commits made before LISTEN were never
+    notified, and again when Listen returns, so pollers fall back to 1 s at
+    once. The poller never blocks on a socket: it offers frames without
+    blocking, a full queue ends only that subscription and its own goroutine
+    closes the socket with 1013 (API-R64), detach waits for any delivery in
+    flight (API-R46), and a failed read ends every subscription of the Run
+    with the retryable overloaded error each got from its own read before.
+    Guarantee: no gap or duplicate within a subscription; a lost
+    notification delays delivery by at most 15 s while the listener is
+    established and 1 s otherwise; idle cost is one read per subscribed Run
+    per interval, whatever the number of subscriptions. Alternatives: keep
+    the per-subscription loops with a longer interval while listening (still
+    N reads per interval); drop the periodic read while listening (a broken
+    but undetected listener connection would stall delivery until TCP
+    keepalive notices it, minutes); one batched read across all subscribed
+    Runs (fewer statements for many distinct Runs, but it couples their
+    paging and failures). Accepted risk: while a broken listener connection
+    is not yet detected, events arrive up to 15 s late instead of 1 s;
+    LIM-API-22 bounds it and TestRunCatchUpFollowsTheNotificationListener
+    enforces the interval switch; reopen if users report such stalls or the
+    listener needs a liveness probe. Siblings: the Operations stream keeps
+    its 1-s catch-up per subscription, but it reads the in-process Control
+    Plane ring without I/O, so it is ruled out; Run replay for the e2e and
+    handler paths goes through the same attach. Evidence: the new tests count
+    reads with an injected clock and store, without sleeps: 256 subscriptions
+    on 8 sockets cost one read per interval and one per notification, and
+    the interval follows the listener; mutations that restore
+    per-subscription reads, one poller per subscription, a listener-blind
+    interval, no wake-up on a listener change, or ready before LISTEN each
+    fail a test (the last one the PostgreSQL listener test). introduced_by:
+    the clone is shallow, so the commit history cannot show it; V4-007 built
+    internal/httpapi/public/events with the periodic catch-up per
+    subscription (its context.run_delivery).
+scope:
+  in:
+    - "One poller per runID in the hub and a slow safety catch-up while LISTEN is healthy."
+  out:
+    - "Event delivery guarantees."
+acceptance_criteria:
+  - id: A1
+    text: "Idle subscriptions to one Run cause one query per catch-up interval."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/httpapi/public/events"
+    covers: [A1]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -run TestPostgresListenerOutlivesQueryBudgetsAndReleasesOnShutdown ./internal/runstore"
+    covers: [A1]

@@ -1,0 +1,133 @@
+schema_version: "1.0"
+id: V435-001
+title: Remove Runtime startup label assignments and keep agent infrastructure settings Server-owned
+milestone: label-driven-runtime-configuration
+epic: runtime-config
+kind: defect
+introduced_by: V8-004
+priority: P1
+status: completed
+depends_on: [V8-004, V8-009]
+languages: [go, python]
+goal: >-
+  Runtime registration creates an unlabeled certificate principal and never assigns or
+  overwrites infrastructure labels; Operations remains their sole mutation surface.
+context:
+  acceptance_update: >-
+    User decision 2026-11-02: the APFS filename and long Trailmark-path
+    fixtures are Linux-only under OPS-R1/V433-007, so their historical macOS
+    failures are not acceptance blockers. The standard Runtime gate needs no
+    manual deselection. The successful standard gate below resolves the historical blocker.
+  integration_note: Renumbered from V434-001 during the 2026-11-02 user-requested main merge because newer main already used that ID for Audit integration work.
+  authority:
+    - date: "2026-11-02"
+      source: user
+      decision: >-
+        Retain per-agent infrastructure overrides managed by Server, keep identity
+        certificate-key-derived and environment capabilities Runtime-owned, and remove
+        initialLabels from ordinary Runtime startup and registration. Assign labels
+        explicitly through the existing Operations API, including deployment scripts.
+    - date: "2026-11-03"
+      source: user
+      decision: >-
+        Mark the task completed after confirming its implementation is already in
+        main, its feature branch has no unmerged commits, and the previous full
+        Runtime gate blocker was resolved by V433-007.
+  specification:
+    - docs/spec/execution/control-plane.md
+    - docs/spec/execution/runtime-agent.md
+    - docs/spec/configuration/runtime-config.md
+  finding: >-
+    runtime/src/contractor_runtime/settings.py:77 and
+    internal/agentprincipal/service.go:77 expose startup labels that only apply on
+    first registration. Restarting with changed startup configuration silently leaves
+    the previous assignments, creating two apparent configuration owners.
+  siblings: >-
+    Remove the field from Go and Python DTOs, strict JSON schema, shared fixtures,
+    Runtime settings/state, Ansible rendering and hybrid deployment arguments.
+    Keep placementLabels, capabilities, Operations label CAS/receipts, RuntimeConfig
+    resolution and allocation snapshots. Hybrid bootstrap already assigns labels
+    through the existing Operations API and remains the explicit assignment path.
+  verification_prerequisite: >-
+    V435-002 separately repairs the pre-existing native cleanup fault injection
+    that prevented the complete Control Plane integration gate from passing.
+  verification_results:
+    - make lint passed, including generated contracts, UI/source gates, Go vet/staticcheck, task/spec/fixture checks, deployment checks and Runtime lint/import rules.
+    - All eight listed Go packages passed with integration tags and a disposable PostgreSQL database; no database skip was counted as a pass.
+    - The Runtime label placement family, both real-process Runtime label scenarios, the configuration matrix and Ansible/hybrid gates passed.
+    - The cross-language gate passed with 371 fixtures, 392 Go shared tests and 288 Python shared tests.
+    - The seven directly affected Runtime test modules passed with 478 tests; Runtime Ruff, formatting and import-layer checks passed.
+    - >-
+      Historical verification: make test-runtime failed with 2 failures, 5817 passes and 133 skips on macOS.
+      test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor
+      reports code_analysis_engine_failed; test_limits_deadline_names_and_binary_classification
+      does not reject an NFC lookup of an NFD filesystem entry. Both failures were
+      reproduced independently from a git-archive Runtime source snapshot at
+      8025296489dba8fb0c2c4aac9c350d1bf908be16, before the label changes were committed.
+      These code-analysis/workspace paths were not changed. At that point the task
+      remained in_progress pending its full Runtime gate. The later V433-007 result
+      below supersedes this blocker; no unrelated production fix was introduced.
+    - >-
+      V433-007 subsequently passed the unmodified standard make test-runtime on
+      macOS: 5866 passed, 135 expected platform/opt-in skips, no manual deselection;
+      the Runtime JUnit report check passed. This includes the two newly declared
+      OPS-R1 Linux-only skips and preserves their original failure evidence.
+    - >-
+      Review 2026-11-03 confirmed implementation 4f9b26133730ad5b32f3e47a79ca8ee31f029837
+      is in main through merge 62603ca17; codex/server-owned-agent-labels has zero
+      unmerged commits. Fresh integration-tagged agentprincipal/contracts/control
+      package suites passed against real PostgreSQL. Settings, state and Control
+      client Runtime tests passed: 74 tests, no failures or skips.
+  verification_environment: >-
+    Go 1.26.9 and Node 24.20.0/Corepack from ignored local toolchains, locked uv
+    environment, disposable contractor_agent_labels_test PostgreSQL database.
+    Go filesystem tests require a physical temporary directory: final gates use
+    /private/tmp/contractor-agent-labels-tests, outside the repository and without
+    the macOS /var symlink. An inside-repository TMPDIR makes an existing script
+    evidence-path expectation fail and was replaced without changing that test.
+  boundary_decision: >-
+    Server owns durable infrastructure assignments; Runtime owns immutable process
+    capabilities and placement declarations; mTLS derives identity. New principals
+    start with empty labels at revision 1. Existing principals return their stored
+    labels unchanged. Removing startup seeding is preferred over adding separate
+    declared/managed label sets or a compatibility reader. Reopen only if an explicit
+    deployment caller requires a different assignment authority.
+scope:
+  in:
+    - Remove initialLabels, --initial-label and CONTRACTOR_INITIAL_LABELS support end to end.
+    - Create empty principals and preserve existing assignments on registration retries/restarts.
+    - Reject removed wire fields and CLI arguments with ordinary strict validation.
+    - Update deployment consumers, active documentation and shared contract regressions.
+    - Verify real PostgreSQL registration, Operations mutations, retries and deletion.
+  out:
+    - Changes to certificate identity, placementLabels, capabilities or active Worker snapshots.
+    - Public Operations API changes, schema migrations or live demo deployment.
+acceptance_criteria:
+  - id: A1
+    text: New registrations persist empty labels at revision 1; Operations-assigned labels and revision survive later registrations, with CAS, idempotency and deletion rules preserved in real PostgreSQL tests.
+  - id: A2
+    text: Go, Python and JSON Schema accept registration without initialLabels and reject requests carrying that removed member; Runtime exposes no startup label setting or CLI argument.
+  - id: A3
+    text: Ansible and hybrid startup emit no initial-label arguments; active guides direct operators to the existing Operations assignment path and leave placement declarations independent.
+  - id: A4
+    text: Shared fixtures, complete touched-package suites, focused Runtime tests, deployment gates and lint pass without compatibility paths.
+tests:
+  - command: "go test -tags=integration -count=1 -p=2 ./internal/agentprincipal ./internal/contracts/control ./internal/controlplane ./internal/auditimport ./internal/scheduler ./internal/httpapi/privateartifacts ./internal/httpapi/public ./tests/integration/lease"
+    covers: [A1, A2, A4]
+  - command: make test-runtime
+    covers: [A2, A4]
+  - command: make test-wire-cross-language
+    covers: [A2, A4]
+  - command: make test-runtime-label-placement
+    covers: [A1, A4]
+  - command: make test-runtime-labels-e2e
+    covers: [A1, A2, A4]
+  - command: make test-runtime-configuration-matrix
+    covers: [A2, A4]
+  - command: make test-ansible test-hybrid
+    covers: [A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+
+implementation_commit: 4f9b26133730ad5b32f3e47a79ca8ee31f029837
+landing: Implementation merged into main through 62603ca17; completion recorded on 2026-11-03 after the user-requested review.

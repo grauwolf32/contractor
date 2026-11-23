@@ -1,0 +1,76 @@
+schema_version: "1.0"
+id: V368-034
+title: "Share the gateway recovery participant protocol and index the probe holder"
+milestone: hub-audit-defects-2026-10
+epic: execution-core
+kind: chore
+priority: P3
+status: completed
+implementation_commit: "94fe757d63e582624d7e95cc12d7c9d400071dcd"
+depends_on: []
+languages: [go, python]
+goal: "Go and Python agree on every participant fixture case."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), dispatch D 3.1; V367-006 follow-up; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    The participant protocol (actions requests.go:32-41, ValidFailure codes
+    policy.go:60-66, abandoned and cancellation re-delivery: Go
+    http.go:35-86 versus Python client.py:180-245) has no shared fixture;
+    gateway_recovery_routes has no index on probe_run_id; routes are never
+    deleted and failures receipts live until Run deletion.
+  specification:
+    - docs/spec/execution/scheduler.md#SCH-R168
+    - docs/spec/execution/scheduler.md#SCH-R169
+    - docs/spec/execution/scheduler.md#SCH-R108
+  siblings: >-
+    The fixture found two drifts, both fixed: after a cancellation while
+    reporting a retryable failure the Runtime re-delivered failed, which
+    the Server refuses from a write-fenced allocation (so the probe stayed
+    held until its lease expired), while the Planner re-delivered nothing;
+    and the Planner sent its retry hint with finished updates too. Both
+    participants now share one outcome mapping and one re-delivery rule,
+    and the Runtime validates each update like gatewayrecovery.Request, so
+    a code the Server would refuse fails before it is sent. The failure
+    codes are checked against the shared classification fixture on both
+    sides. The private gateway-recovery handler and Request.Validate were
+    already strict and are unchanged. Every probe_run_id lookup (Admit,
+    EndStage, ReleaseAdmission) is served by the new partial index.
+  decision: >-
+    Guarantee: one participant protocol per language, pinned by
+    gateway-recovery-participant-cases.json (make test-wire-cross-language);
+    an update the invocation could not deliver is re-delivered in its
+    terminal form, released in place of failed, because an ending Stage may
+    only relinquish (SCH-R108). Route retention: routes are kept. A route is
+    the shared gate of one owner model route, keyed by Gateway digest,
+    model, credential and transport digest, so the table is bounded by
+    configuration, and its outage history must reach the next Run; deleting
+    an idle healthy route would save one small row while racing Admit's
+    insert-then-reference (gateway_run_routes and gateway_allocation_routes
+    reference it without locking it first). Failure receipts stay with
+    their Run and go with its hard deletion (LIFE-SCH-5), since they make
+    re-delivered failure reports idempotent while the Run lives. Enforced
+    by PostgreSQL tests: two Runs on one configuration share one route, the
+    route survives Stage end and Run deletion, receipts do not survive Run
+    deletion, and the probe holder lookups use
+    gateway_recovery_routes_probe_run_idx. Alternatives rejected: deleting
+    unreferenced healthy routes at Stage end (the race above) and dropping
+    receipts at Stage end (a re-delivered failure from a not yet fenced
+    allocation could then count twice). Reversal: if a route key gains a
+    per-Run or per-allocation value, or routes per owner grow beyond what
+    configuration explains, add a bounded sweep of idle healthy routes that
+    locks them as Admit does.
+scope:
+  in:
+    - "A shared participant fixture read by Go and Python; an index on probe_run_id; route retention decided."
+  out:
+    - "Recovery policy."
+acceptance_criteria:
+  - id: A1
+    text: "Go and Python agree on every participant fixture case."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "make test-wire-cross-language"
+    covers: [A1]
+  - command: "go test -tags integration ./internal/gatewayrecovery"
+    covers: [A1]

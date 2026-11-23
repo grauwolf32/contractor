@@ -1,0 +1,27 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: sitemap-editor, version: "1"}
+spec:
+  parameters:
+    revision: {required: true}
+    url: {required: true}
+  inputs: {}
+  outputs:
+    report: {required: true, primary: true, mediaTypes: [application/json]}
+  entryStage: research
+  stages:
+    research:
+      objective: Verify authorized Project context
+      instructions: {ref: instructions/probe.md}
+      planner: passthrough@1
+      agents:
+        researcher: {template: sitemap-editor@1}
+      context: {artifacts: {}}
+      result:
+        artifacts:
+          report: {required: true, mediaTypes: [application/json], from: {namespace: researcher, name: report}}
+      workflowOutputs: {report: report}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

@@ -1,0 +1,170 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-026",
+  "verified_on": "2026-09-20",
+  "base_commit": "8edeabf21194f5bba8dd258d53a072af713c630e",
+  "implementation_commit": "1388a507e7ab626e20c5896de79a43d4981ab148",
+  "environment": {
+    "go": "go1.25.6 linux/amd64",
+    "python": "3.13.14, uv.lock",
+    "execution": "isolated review worktree, local loopback official A2A SDK fixture, no live models",
+    "database": "disposable PostgreSQL 17 with isolated schemas; URL and credential omitted"
+  },
+  "finding": {
+    "priority": "P2",
+    "normative_basis": "spec14 shared Go/Python WorkerCompletion, 64 KiB UTF-8 result and preserved encoded limits; V57-004 retains real result bounds, not language-specific temporary encodings",
+    "reproduction": "Identical 65769-byte documents with 65536 ASCII <, > or & result characters are accepted by Python decode_private and rejected by Go DecodeStrict, whose HTML-escaped re-encoding is 393449 bytes. ASCII/Cyrillic controls accepted by both; actual control escaping overflow rejected by both.",
+    "pre_fix_logs": [
+      ".local/v60-review/worker-completion-go-probe.log",
+      ".local/v60-review/worker-completion-python-probe.log"
+    ],
+    "post_fix_log": ".local/v60-review/worker-completion-go-probe-fixed.log"
+  },
+  "implementation": [
+    "For supported typed WorkerCompletion/WorkerResult and StageContentResult boundaries, ResultJSONSize uses json.Encoder with HTML escaping disabled and subtracts only the optional three-byte overhead of each real U+2028/U+2029 escape; escaped backslashes are skipped. No number decoding or float64 conversion.",
+    "Three consumers: WorkerCompletion.Validate, Streamline WorkerResult validation, Planner mapped StageResult validation.",
+    "Numeric caps, finalizer/model-output bounds, request limits, private encoders/digests and A2A transport remain unchanged."
+  ],
+  "checks": [
+    {
+      "command": [
+        "go",
+        "test",
+        "./internal/contracts",
+        "-count=1",
+        "-run",
+        "^TestWorkerResultSizeSharedPythonCases$"
+      ],
+      "exit_code": 1,
+      "started_at_unix": 1789900051.4872887,
+      "duration_seconds": 1.048,
+      "log": ".local/v60-review/v60-006-result-parity-before.log",
+      "go_reported_pass_events": 14,
+      "go_reported_skip_events": 0,
+      "python_summaries": [],
+      "log_sha256": "f02966d3536b28554a1e76b6ae2a938ae053dc6a04ae96d7b9d59939f1f2a8b8"
+    },
+    {
+      "command": [
+        "runtime/.venv/bin/pytest",
+        "-W",
+        "error",
+        "runtime/tests/test_contracts.py",
+        "-k",
+        "worker_result_size_shared_golden_cases"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789900071.1376915,
+      "duration_seconds": 1.676,
+      "log": ".local/v60-review/v60-006-result-parity-python.log",
+      "go_reported_pass_events": 0,
+      "go_reported_skip_events": 0,
+      "python_summaries": [
+        "18 passed, 133 deselected in 0.25s"
+      ],
+      "log_sha256": "e1dbbafe19b4421542f3656a8d14bba1dba8412d04781af757c9cf38e59628c8"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "./internal/contracts",
+        "./internal/planner",
+        "./internal/planner/streamline",
+        "./internal/planner/a2a",
+        "-count=1",
+        "-run",
+        "WorkerResultSizeSharedPython|ResultSizeUsesCompact|SDKAcceptsCompact"
+      ],
+      "exit_code": 1,
+      "started_at_unix": 1789900198.5813975,
+      "duration_seconds": 4.56,
+      "log": ".local/v60-review/v60-006-result-parity-after.log",
+      "go_reported_pass_events": 23,
+      "go_reported_skip_events": 0,
+      "python_summaries": [],
+      "log_sha256": "772cd56d8f9a3b9ef5a35920a247829f5f5c5e9db949814118aadc69022892a0"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "./internal/contracts",
+        "./internal/planner",
+        "./internal/planner/streamline",
+        "./internal/planner/a2a"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789900221.5367994,
+      "duration_seconds": 18.53,
+      "log": ".local/v60-review/v60-006-result-parity-final.log",
+      "go_reported_pass_events": 568,
+      "go_reported_skip_events": 0,
+      "python_summaries": [],
+      "log_sha256": "d9889ba231ee7049b0743f99d650e8c6ca88602bddf8e0d5c57910cacea8679b"
+    },
+    {
+      "command": [
+        "make",
+        "verify-wire-contracts",
+        "test-wire-cross-language"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789900233.1282701,
+      "duration_seconds": 8.784,
+      "log": ".local/v60-review/v60-006-wire-contracts.log",
+      "go_reported_pass_events": 540,
+      "go_reported_skip_events": 0,
+      "python_summaries": [
+        "193 passed in 0.57s",
+        "114 passed, 79 deselected in 0.42s"
+      ],
+      "log_sha256": "d14c4ce8038c8a0375e3341f372151ea7fc7fd97aed7ab9d0d90151126881dcb"
+    },
+    {
+      "command": [
+        "runtime/.venv/bin/ruff",
+        "check",
+        "runtime/tests/test_contracts.py"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789900374.7255118,
+      "duration_seconds": 0.018,
+      "log": ".local/v60-review/v60-006-lint.log",
+      "go_reported_pass_events": 0,
+      "go_reported_skip_events": 0,
+      "python_summaries": [],
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    }
+  ],
+  "regressions": [
+    "18 shared fixture cases executed by Go DecodePrivateStrict and Python decode_private: HTML, Cyrillic, real/literal separators, literal HTML escapes, mixed quotes/backslashes, uint64 max, 65536/65537 text bytes, mandatory control escaping, exact 262144/262145 envelopes including separators.",
+    "Real official Go A2A SDK HTTP round trip accepts 63000-byte HTML result with exact text/identity.",
+    "Passthrough full Runner and Streamline result gate accept HTML and reject mandatory control-escaped overflow.",
+    "Unencodable result value still returns an error."
+  ],
+  "acceptance": {
+    "A1": "PASS",
+    "A2": "PASS",
+    "A3": "PASS",
+    "A4": "PASS"
+  },
+  "boundaries": [
+    "Go pass-event counts include parent tests and subtests, not distinct leaf cases.",
+    "The initial post-fix focused command caught a test-only typo (undefined AsError); corrected to FailureFrom before the complete race suite passed.",
+    "Literal fixture parameters compactly construct large wire documents; all readers receive real expanded JSON.",
+    "Completion metadata and implementation hash are recorded in a subsequent root-owned commit.",
+    "Parity evidence is scoped to supported typed result schemas with integer counters; it is not a generic JSON serializer parity guarantee for arbitrary floating-point values."
+  ],
+  "supported_result_scope": {
+    "models": [
+      "WorkerCompletion",
+      "WorkerResult",
+      "StageContentResult"
+    ],
+    "guarantee": "Verified encoded-size accounting at the current typed result boundaries, including HTML/Unicode escaping and exact uint64 counters.",
+    "excluded": "Generic cross-language JSON byte/size parity, arbitrary floating-point payloads, and provider/model-specific transport limits. Arbitrary float fields are outside these supported result schemas."
+  }
+}

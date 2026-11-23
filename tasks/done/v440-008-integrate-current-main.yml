@@ -1,0 +1,95 @@
+schema_version: "1.0"
+id: V440-008
+title: "Integrate current main before landing the HTTP API review"
+milestone: httpapi-review-cleanup-2026-11
+epic: api-contracts
+kind: chore
+introduced_by: V440-007
+priority: P2
+status: completed
+depends_on: [V440-006, V440-007, V440-009]
+languages: [go, typescript]
+goal: >-
+  The verified HTTP review can land on current main while preserving the newer
+  Control Plane engagement adapter, explicit shared Artifact storage and UI work.
+context:
+  prerequisite: >-
+    V440-009 completed the incoming UI error fixture correction rejected by the
+    existing public API guard. Its full contract and UI gates now pass; this
+    integration resumes with the merge resolutions already committed.
+  task_id_history: "HTTP review IDs moved from V439 to V440 on 2026-11-03 because main had already published the V439 Control Plane tasks."
+  authority:
+    - date: "2026-11-03"
+      decision: "User explicitly requested merging the completed HTTP review branch."
+  finding: >-
+    Trial merge of main 45da0f37c44e8a802778448fab602221d09f4bcf and
+    codex/httpapi-review 9004848b071170ad9b2d57b7445269000e9359ad conflicts
+    in internal/app/composition_control.go, internal/controlplane/placement.go,
+    tasks/index.yml and generated backlog/dependency documents.
+  boundary: >-
+    Preserve main's AdditionalAdapterRequirements port and engagementadapter
+    ownership; preserve the injected Artifact storage/runtime and all HTTP fixes.
+    Resolve constructor call sites using the same shared storage, without
+    restoring removed callbacks or moving engagement rules into Control Plane.
+    Generated files are rebuilt from their owners. Main remains untouched until
+    this combined branch is checked; landing uses git merge --no-ff.
+  decision: >-
+    Integrate main into the existing HTTP worktree, rather than resolving code
+    directly on main. This keeps an independently reviewable and testable merge
+    result. Reconsider only if main changes again before landing.
+scope:
+  in:
+    - "Resolve the concrete merge overlaps and adapt new main consumers to existing explicit storage constructors."
+    - "Regenerate the task backlog and dependency graph, retaining every milestone and completed task from both parents."
+    - "Verify the combined affected Go suites on disposable PostgreSQL, the public API, architecture/lint and UI gates."
+  out:
+    - "New features, other review findings, API/schema changes and taking over unrelated in-progress tasks."
+    - "Changing unrelated primary-checkout files or publishing to the remote."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Given both branches, when integrated, the existing P1 transfer correction,
+      HTTP simplifications, current engagement adapter and UI changes coexist;
+      constructor wiring uses the same explicit storage/runtime and layers hold.
+  - id: A2
+    text: >-
+      All listed checks pass on the combined tree with real PostgreSQL; task
+      metadata and generated artifacts are current and the branch is ready for
+      the user-authorized no-fast-forward merge into main.
+tests:
+  - command: "go test -tags=integration -count=1 -p=2 ./internal/controlplane/... ./internal/controlplane/engagementadapter/... ./internal/app/... ./internal/httpapi/... ./internal/archtest/..."
+    covers: [A1, A2]
+  - command: "go test -tags=integration -race -count=1 -p=2 ./internal/controlplane/... ./internal/controlplane/engagementadapter/..."
+    covers: [A1, A2]
+  - command: make verify-public-api
+    covers: [A1, A2]
+  - command: make ui-verify
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+implementation_commit: 533742d51204c7e4aa0779ed845df5f8045ac543
+verification:
+  date: "2026-11-03"
+  integration_base: 45da0f37c44e8a802778448fab602221d09f4bcf
+  result: >-
+    The full integration suites for Control Plane (including engagementadapter),
+    app, HTTP and architecture passed against disposable TCP PostgreSQL:
+    Control Plane 27.838s, app 15.756s, public 98.215s, private 37.543s,
+    events 4.192s and architecture 2.562s. The complete Control Plane subtree
+    also passed with -race (34.636s; engagementadapter 1.716s).
+    make verify-public-api passed after V440-009 (public 10.570s).
+    make ui-verify passed after the fixture correction: 223 files, 2657 passed
+    tests and one declared expected failure, 17 Node tests, generation, lint,
+    typecheck and build. make lint passed with PostgreSQL configured, including
+    all 190 script tests, source/layer/export/release-graph/spec/task/ERD guards.
+    make docs-dependencies-check and git diff --check passed. Node 24.20.0,
+    pnpm 11.24.0, the existing PNPM_CONFIG_STORE_DIR, Go 1.26.9, TMPDIR=/private/tmp,
+    GOMAXPROCS=4, Go package parallelism 2 and VITEST_MAX_WORKERS=2 were used.
+  task_ids: >-
+    Main's published Control Plane V439 IDs remain intact. All eight HTTP review
+    records and their own links/milestone exit moved to V440; implementation
+    hashes and original evidence were retained. The generated backlog is current.
+  delivery: >-
+    The combined branch is ready for the user-authorized git merge --no-ff into
+    main based on the exact integration_base above. Unrelated primary-checkout
+    files were preserved. No remote publication is part of this task.

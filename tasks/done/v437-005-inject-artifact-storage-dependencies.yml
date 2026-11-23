@@ -1,0 +1,77 @@
+schema_version: "1.0"
+id: V437-005
+title: "Inject Artifact storage dependencies explicitly"
+milestone: artifact-release-cleanup-2026-11
+epic: projects-artifacts
+kind: chore
+introduced_by: V370-016
+priority: P2
+status: completed
+depends_on: [V437-004]
+languages: [go]
+goal: "Storage runtime and retention policy are explicit process dependencies that survive transaction binding without context configuration."
+context:
+  authority: >-
+    User decision 2026-11-02: implement the internal/artifacts review fixes,
+    move bulk deduplication verification out of publication transactions and
+    split registry and payload backends as proposed, keeping the artifacts name.
+  specification:
+    - docs/spec/artifacts/artifact-store.md
+    - docs/spec/artifacts/blob-storage.md
+    - docs/spec/platform/persistence.md
+  planning_boundary: >-
+    Follow-up only. Review constructor impact before implementation, using the
+    existing store owners and one process runtime. No global registry, second
+    store, feature-specific service locator or implicit optional dependency.
+  resumption: >-
+    User decision 2026-11-02: take V437-005 now after merging the package split,
+    including all affected constructors and composition.
+  scope_decision: >-
+    User decision 2026-11-02 after scope clarification: complete fixes, optimization
+    and package separation now; leave full runtime/history dependency injection
+    and related subsystem constructor changes to a separate task.
+  finding: >-
+    blob/runtime.go WithRuntime and postgres/history_policy.go WithHistoryPolicy keep process dependencies in context; a fresh operation context can lose transfer admission, backend selection and configured retention limits.
+  siblings: >-
+    Migrate every constructor, transaction-bound repository, purger, transport transfer caller and tests; update layer classification, ownership registry, ERD, release selectors and source guards.
+  implementation_boundary: >-
+    Decision 2026-11-02: one postgres.Storage owns the process blob runtime and
+    immutable history policy. Its Repository, TxRepository and Purger factories
+    bind the caller's DBTX without changing those dependencies. Composition passes
+    the same Storage through affected subsystem constructors and transfer ports.
+    Context retains only cancellation, deadlines and an active transfer lease.
+    Passing runtime and policy separately through every binding was rejected
+    because it lets consumers pair unrelated admission and retention dependencies.
+    Revisit this owner only when a concrete backend needs another process dependency.
+  boundary: >-
+    ArtifactStore owns normalized identity, revisions, history, lineage and
+    persistence. Payload backends own physical byte operations. Domain callers
+    retain authorization, deadlines and transaction boundaries. No wire or schema
+    changes, compatibility aliases, new receipts or plugin framework.
+scope:
+  in:
+    - "Inject the shared blob runtime and history policy through affected constructors and composition; remove their context keys and migrate every transaction-bound caller."
+  out:
+    - "Renaming the public Artifact concept, database tables or wire fields."
+acceptance_criteria:
+  - id: A1
+    text: "Blob runtime and history policy have no context keys or silent fallbacks; shared transfer admission and policy survive transaction binding."
+  - id: A2
+    text: "Fresh operation contexts retain the configured backend, shared transfer capacity and history policy through the injected store; real-store read, write, rollback and purge tests and all affected consumer suites pass."
+tests:
+  - command: "make lint"
+    covers: [A1, A2]
+  - command: "go test -count=1 -tags integration -p 2 ./internal/... ./cmd/..."
+    covers: [A1, A2]
+implementation_commit: 6e619b7c1609062e0339cd82f447b7e6cff28e6e
+verification: >-
+  make lint and the complete internal/... and cmd/... suites with integration
+  tags and a disposable TCP PostgreSQL database passed. Complete artifacts/...
+  and HTTP transfer suites passed with -race; the registry suite was repeated
+  with -race after strengthening the metadata no-payload-read spy. Complete
+  registry and finding-intake suites passed with filesystem payload selection.
+  Fresh-context tests cover configured backend, shared transfer capacity,
+  transaction binding, rollback, retained-history eviction and committed purge.
+  TestLocalGoToPythonArtifactCopy and TestArtifactHistoryAcrossProductionProcesses
+  passed through real Server/Runtime processes. Backup/restore and
+  verify-architecture passed. Full browser and release-verify gates were not run.

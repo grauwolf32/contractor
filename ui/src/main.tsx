@@ -1,0 +1,52 @@
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { createBrowserRouter } from "react-router";
+
+import { PublicAPI } from "./api/client";
+import { Application } from "./app/application";
+import { applicationRoutes } from "./app/router";
+import { initializeTheme } from "./app/theme";
+import { loadRuntimeConfig } from "./config/runtime-config";
+import "./app/theme.css";
+import "./styles.css";
+import "./app/ui-primitives.css";
+import "./ui/ui.css";
+import "./app/llm-cost.css";
+
+function renderBootstrapFailure(root: HTMLElement, error: unknown): void {
+  const message =
+    error instanceof Error
+      ? error.message
+      : "Contractor UI could not read its runtime configuration";
+  createRoot(root).render(
+    <StrictMode>
+      <main className="centered-state">
+        <p className="eyebrow">Startup blocked</p>
+        <h1>UI runtime configuration is invalid</h1>
+        <p role="alert">{message}</p>
+      </main>
+    </StrictMode>,
+  );
+}
+
+async function bootstrap(): Promise<void> {
+  initializeTheme();
+  const root = document.getElementById("root");
+  if (root === null) {
+    throw new Error("UI root element is missing");
+  }
+  try {
+    const runtimeConfig = await loadRuntimeConfig();
+    const api = new PublicAPI(runtimeConfig);
+    const router = createBrowserRouter(applicationRoutes());
+    createRoot(root).render(
+      <StrictMode>
+        <Application api={api} publicAPI={api} router={router} />
+      </StrictMode>,
+    );
+  } catch (error) {
+    renderBootstrapFailure(root, error);
+  }
+}
+
+void bootstrap();

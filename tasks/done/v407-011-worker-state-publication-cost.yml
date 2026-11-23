@@ -1,0 +1,104 @@
+schema_version: '1.0'
+id: V407-011
+title: Reduce repeated Worker metric serialization and unused transcript recording
+milestone: server-runtime-review-2026-10
+epic: planner-worker
+kind: chore
+introduced_by: V17-002
+priority: P2
+status: completed
+depends_on: []
+languages:
+- python
+goal: Reuse bounded metric projections across callback publications and skip transcript work when summarization
+  is disabled, preserving State publication and session contracts.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/execution/worker.md
+  finding: runtime/src/contractor_runtime/worker/state.py:236-252 republishes the allocation metrics for
+    each mutation. telemetry/metrics.py:425-436 serializes every retained tool call and error on each
+    snapshot, so before/after publications perform quadratic record serialization while history grows
+    to the 1000-record cap. _fit_snapshot copies and encodes the projection in a thread; its binary search
+    runs only on overflow. worker/runtime.py:616,650 also constructs and records a TranscriptRecorder
+    when no summarizer can consume it. Session snapshots are retained by ADK, but the contractor subtree
+    is required by WRK-R105 and is not an unused-contract deletion candidate.
+  validation: Validated against main dc7012e8 on 2026-10-23. A deterministic probe of WorkerStateStore
+    counted 10000/40000 ToolCallRecord.model_dump calls for 100/200 sequential records with before/after
+    publication. deepcopy retains immutable string identity, so encoded envelope bytes are not a measured
+    copy-allocation cost. worker.md WRK-R105 requires the session subtree; no change to that guarantee
+    is authorized by this cleanup.
+  siblings: Worker lifecycle, tool/model callbacks, finalizer and summarizer all publish through WorkerStateStore.
+    Shared and isolated ADK sessions must retain their existing contractor subtree and carry behavior.
+    Final report trimming is covered by V407-020.
+plan:
+- Cache serialized tool/error detail at the mutation boundary, invalidate or append only changed records,
+  and bound the cache by the existing retention limits. Preserve callers receiving independent snapshots;
+  a shallow list copy is still linear in retained references and must not be described as O(1).
+- Optimize internal copying only where aliasing and exact envelope accounting can be proven unchanged.
+  Preserve WRK-R160 snapshot immutability, stateRevision ordering, callback publication points and overflow
+  admission; do not return mutable aliases to stored State.
+- Construct and call TranscriptRecorder only when a summarizer is configured; preserve summarizer input,
+  redaction and cancellation behavior when it is enabled.
+- Add deterministic serialization-count and aliasing regressions at 1000 records, plus transcript-call
+  spies for enabled and disabled summarization. Exercise shared/isolated sessions and lifecycle publications
+  without deleting their State mirrors.
+scope:
+  in:
+  - Incremental bounded metric serialization and internal copy reduction where observable snapshots remain
+    identical.
+  - Summarizer-gated transcript recording and deterministic cost regression tests.
+  out:
+  - Changing callback publication cadence, State fields, envelope caps, truncation order or revision semantics.
+  - Removing or reducing the WRK-R105 contractor session subtree, changing session stateDelta/history
+    behavior, or replacing the deep-copy snapshot contract.
+acceptance_criteria:
+- id: A1
+  text: Given 1000 appended immutable ToolCallRecords and before/after publications with no report export,
+    cached metric projection serializes each record at most once; repeated publication without a metric
+    mutation serializes no retained record again. The count assertion fails on dc7012e8.
+- id: A2
+  text: Existing State fixtures, truncation ordering, revision relationships and caller-mutation isolation
+    remain unchanged for ordinary, maximum-size and concurrent lifecycle paths.
+- id: A3
+  text: With summarization disabled no TranscriptRecorder record call occurs; with it enabled the same
+    bounded redacted transcript and terminal summarizer result are produced.
+- id: A4
+  text: Shared and isolated ADK sessions continue to satisfy WRK-R105; returned snapshots cannot mutate
+    the canonical store or prior completed invocation, and no new cache survives allocation release.
+tests:
+- command: cd runtime && uv run --locked pytest -q tests/test_worker_state.py tests/test_instrumentation.py
+    tests/test_adk_runtime.py tests/test_metrics.py tests/test_performance_contracts.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+implementation_commit: d2b98323b49baa5f9bd9a3638204a7db505ab5ee
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64 worktree on 2caafdf2 (V407-009 and V407-010 merged); Python 3.13 with uv sync --locked (google-adk 2.8.0); Go 1.26.9; Node 24.20 with Corepack pnpm. No database tests are involved (Runtime-only change).
+  evidence:
+  - 'Re-verified finding on 2caafdf2: MetricsState.snapshot (telemetry/metrics.py:425-436) model_dumped every retained ToolCallRecord and error on each State mutation, and WorkerStateStore._mutate (worker/state.py:266-282) deep-copied the whole State including the metrics it then replaced, _fit_snapshot deep-copied the private candidate again, and the result was deep-copied for the caller. worker/runtime.py:642-643,675 built a TranscriptRecorder, derived the summarizer secrets and recorded every event without a summarizer. Profiled at 1000 retained records: one publication 10.9 ms, of which three State deep copies about 7 ms and the record dumps 0.9 ms.'
+  - 'Fix: MetricsState serializes each record once in _append_tool_call/_append_error and keeps the projection index-aligned with the record list, evicted with it (LIM-OBS-4, LIM-OBS-5); the record lists are private with read-only tuple views, so nothing outside the recording methods can desynchronize them. WorkerStateStore copies only the non-metrics sections for a transform, admission works on the private candidate, and _trim_workspace_detail replaces a trimmed observation instead of editing it. The returned and read snapshots remain copy.deepcopy (WRK-R160). One publication at 1000 records: 4.6 ms. The transcript recorder and summarizer secrets are built only when the context has a summarizer.'
+  - 'A1: test_state_publication_serializes_each_retained_record_once publishes before and after each of 1000 tool calls (200 failures, so errors overflow their 100 cap) and counts ToolCallRecord/ExecutionError.model_dump: exactly 1000 and 200; three further rounds of sync_metrics, publish_invocation_metrics, snapshot and agent_state_snapshot, plus complete and begin, add none; the State projections equal fresh dumps of the retained records. On 2caafdf2 the same test counts 1,000,000 and 150,400 and fails. test_shared_report_keeps_exact_aggregates_while_dropping_oldest_bounded_detail (test_metrics.py) checks the projections against 1005 records with tool-call eviction.'
+  - 'A2: existing State, observation, agent-state endpoint and race tests pass unchanged. test_overflow_admission_keeps_the_oldest_prefix_of_unchanged_projections: at the 4 MiB overflow the admitted tool calls are the oldest-first prefix of the projections, one more would cross the envelope, all errors fit, and the reducer projections are unchanged. test_conflicting_revision_retries_admission_from_the_validated_observation holds the first admission of a begin_invocation with a 9000-path workspace, commits a concurrent sync_metrics, and checks revisions 2/3 and that the retried transform starts from the untrimmed observation and ends equal to a conflict-free reference; with in-place trimming restored it fails (scopeComplete False on retry). test_returned_snapshots_never_alias_the_store_or_shared_projections tampers deep fields of the snapshots returned by begin, publish, complete, sync and snapshot: the store, the reducer projections and the previous completed invocation stay unchanged.'
+  - 'A3: test_adk_worker_without_a_summarizer_records_no_transcript spies TranscriptRecorder.__init__/record and _summarizer_secrets: no call during a tool-using invocation (fails on 2caafdf2). test_adk_worker_summarizer_receives_the_recorded_redacted_transcript puts the Gateway token and workspace path in a model text part: one recorder with the summarizer secrets, the summary request transcript equals a replay of the recorded events through a fresh recorder, contains [REDACTED] and neither value, and the result is summarized. Existing summarizer, deadline and cancellation tests pass.'
+  - 'A4: test_adk_worker_sessions_mirror_the_canonical_contractor_state[shared|isolated]: each created session holds the canonical State (isolated: rehydrated before the second invocation), each terminal revision reaches the session as a contractor stateDelta, and the shared session ends equal to the store. test_released_allocation_retains_no_worker_state_projection: after finalize and release the WorkerStateStore is collected, and so is the allocation MetricsState holding the projections once ADK''s find_context_parameter LRU is cleared.'
+  - 'Pre-existing finding, not fixed (outside scope): google.adk.utils.context_utils.find_context_parameter is a module-level functools.lru_cache(maxsize=1024) keyed on the tool callable that FunctionTool inspects. It keeps a released allocation''s tool instances, and through them its MetricsState, artifact client and secrets tuple, until 1024 newer callables evict them. The same test without the cache_clear fails identically on 2caafdf2. The record projections add bounded detail (at most 1000 + 100 dictionaries) to that retained graph but no new retention root; the retention itself needs its own defect task.'
+  commands:
+  - 'cd runtime && uv run --locked pytest -q tests/test_worker_state.py tests/test_instrumentation.py tests/test_adk_runtime.py tests/test_metrics.py tests/test_performance_contracts.py: 211 passed.'
+  - 'New tests on an unmodified 2caafdf2 worktree: test_state_publication_serializes_each_retained_record_once and test_adk_worker_without_a_summarizer_records_no_transcript fail; the aliasing, overflow, retry, release and session guards pass there as well.'
+  - 'make test-runtime: 4369 passed, 39 skipped, 106 failed. 105 IDs are the known macOS set (podman, tool_process, trailmark_child, projectfs local, local_direct socket, code-analysis cursor path) and fail identically when rerun on 2caafdf2. The 106th, test_audit_result_publication.py::test_deadline_bounds_each_io_and_reconciliation[read], uses a 10 ms deadline, passes three of three isolated runs on this branch and does not reach Worker State.'
+  - 'make lint: passed. make docs-dependencies regenerated the graph page for the edited spec; make tasks-backlog regenerated BACKLOG.md.'
+  database_tests_configured: false
+  declined:
+  - 'The deep copy that returns each revision to its caller and the WRK-R160 read copy stay copy.deepcopy, as scope.out requires; they are now the dominant cost (about 2.5 ms at 1000 records). A JSON-tree copier measured about 3x faster but would replace the copy mechanism and is left for a decision outside this task.'
+  - 'WorkspaceObservationReducer.snapshot plus validate_workspace_observation still rebuild and validate up to 10,000 paths per publication; this sibling cost is not metric detail and is outside this task.'
+  - 'Final ExecutionReport trimming stays with V407-020.'

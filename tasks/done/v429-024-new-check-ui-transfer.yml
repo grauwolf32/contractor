@@ -1,0 +1,118 @@
+schema_version: "1.0"
+id: V429-024
+title: Ship the approved OpenDesign New check workspace and checklist authoring
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: completed
+depends_on: [V429-023]
+languages: [typescript, css, go]
+goal: Users can configure a check in the approved consistent workspace, author a checklist inline, inspect material-derived scope and launch through the existing truthful API flow.
+demonstration: Open New check for a project, select Custom checklist, write and apply one item, save its ordinary Project material while creating a check, and verify that the exact retained revision is submitted; inspect API/source/Engagement layouts on desktop and 390px before merging main.
+context:
+  authority: >-
+    User 2026-11-02 approves the New check OpenDesign iteration and requests merging
+    main. Transfer the reviewed screen to working UI, retaining one empty initial
+    checklist item, no file scope for source archives, standard variants in settings,
+    material-derived scope and declared Engagement under Scope. Keep global fonts,
+    themes and every OpenDesign artifact. This is a code merge, not a demo deployment.
+  specification: docs/spec/ui/ui.md
+  design: docs/design/ui/experiments/new-check-opendesign-2026-11-02/README.md
+  decision: >-
+    Existing check-type matching/readiness and useLaunch remain authoritative.
+    The editor authors the existing AUD-R141 checklist JSON, bounded by its profile
+    and the reviewed 128-item composer limit. Apply is local; Start/Save retains
+    a create-only content-addressed ordinary Project Artifact, then submits the
+    exact server revision through the existing launch preparation boundary.
+    Share the existing Web scan retention/reconciliation path rather than add
+    another receipt or API. Shared fixtures test the UI codec against auditdomain.
+    Scope reads only the selected exact small material, using the existing preview
+    and OpenAPI parser owners; it is descriptive, not authorization or proof of
+    execution. Automatic content reads/parses are bounded at the existing 128 KiB
+    automatic preview threshold; larger/unsupported content links to Material Preview.
+    Engagement is shown only for declared typed inputs and retains Server compatibility
+    gates. No new executable engagement profile or arbitrary API subset is introduced.
+scope:
+  in:
+    - OpenDesign workspace composition, responsive type chooser and summary, shared fonts/tokens.
+    - One-empty-item checklist editor, local Apply, stable keys/versions, ordinary retained material and exact launch refs.
+    - Source scope removal, standard variants in Advanced options, descriptive API/checklist counts and declared Engagement projection.
+    - Existing pagination, partial/read failures, unsupported checks, labels, targets, time limits, launch idempotency and stale/ambiguous outcomes.
+    - Shared format fixtures, production route/browser verification, UI patch release and no-ff main merge.
+  out:
+    - New Server operations/schema/migrations, new scope authority, automatic target traffic and demo deployment.
+requirements:
+  - id: R1
+    text: The production route closely follows the reviewed V5 design in shared themes and mobile flow while preserving supported generic/Web scan forms and keyboard actions.
+  - id: R2
+    text: Checklist Apply does not claim a saved material. Start/Save retains exact content through existing Artifact CAS and reconciles ambiguous writes by metadata/bytes/digest before an Audit request.
+  - id: R3
+    text: Scope is derived from the selected exact input and inventory contract; unknown/oversized/failed reads never fabricate zero coverage or authorization and do not poll.
+  - id: R4
+    text: All prior launch key/revision/context fences, pagination and error outcomes remain covered; originals and generation provenance remain intact.
+failure_outcomes:
+  - operation: Retain authored checklist and create/start
+    permanent: Preserve local draft and show the existing preparation/refusal error; never claim a saved/started entity before the Server response.
+    retryable: User retry uses the same content-addressed binding and ordinary launch keys/revision fences.
+    ambiguous: Reconcile exact metadata, media type, byte size and payload digest before reusing the written material; keep create/start ambiguity handling unchanged.
+    cancelled: Existing ensureCurrent fence joins preparation before creating a check; no navigation or create for an abandoned form. Already retained ordinary material follows normal Project lifetime.
+    timeout: Existing bounded PublicAPI transport and launch preparation report failure; no background retry or new timeout owner.
+  - operation: Selected material scope read
+    permanent: Show unavailable/invalid scope with an exact Material Preview link; keep ordinary readiness truthful.
+    retryable: Explicit retry only; retain error without polling.
+    ambiguous: Read-only operation; no writes.
+    cancelled: Abort/switch exact query keys with project/ref changes; old content cannot label a new selection.
+    timeout: Existing Artifact preview transport error is visible and retryable.
+cardinality:
+  - collection: Checklist composer
+    expected: One empty entry, then a small user-authored list
+    maximum: 128 entries or the lower profile item bound, 64 KiB UTF-8 per statement and 8 MiB document under the existing domain bounds
+    bound: Bounded local serialization; shared boundary fixtures and real domain decode; no per-item HTTP calls.
+  - collection: Selected scope content
+    expected: One inventory source plus at most one declared Engagement
+    maximum: Two automatically read documents of 128 KiB each; larger content remains in existing explicit Preview
+    bound: Exact-revision query keys, existing preview/parser and finite state; no whole-project payload scan.
+  - collection: Catalog and material inventory
+    expected: Existing paged check types and materials
+    maximum: Existing Server page and UI autoload bounds
+    bound: Preserve current pagination and incomplete-inventory matching rules.
+lifecycle:
+  - entity: Authored checklist material and check
+    delete: Existing Project Artifact and Audit lifecycle/confirmation mechanisms.
+    cascade: No feature-specific persistent state or receipts.
+    retention: Ordinary exact Project revisions and Audit baseline pins; local drafts reset when leaving their owning project.
+acceptance_criteria:
+  - id: A1
+    text: Real React New check uses the approved composition, consistent typography, clear actions and normal mobile flow at 1440/1100/390/320px and all three themes.
+  - id: A2
+    text: One-empty-item authoring supports edit/add/remove/apply and dirty/invalid bounds, retains stable keys/versions, and submits a domain-valid ordinary material with an exact server revision.
+  - id: A3
+    text: Scope uses exact selected content, source-only reviews omit it, standard choices remain reachable and declared Engagement stays under Scope without new authority or unsupported launch claims.
+  - id: A4
+    text: Ambiguous writes/create/start, conflicts, abandoned form contexts, generic/Web scan behavior and pagination regressions pass relevant suites; full UI verification succeeds and the branch is merged main with no-ff.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3, A4]
+  - command: go test ./internal/auditdomain
+    covers: [A2]
+  - command: node docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify-production.mjs
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A4]
+  - command: python3 scripts/check_tasks.py
+    covers: [A4]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2, A3]
+  - command: git diff --check
+    covers: [A4]
+
+verification:
+  - Production New check uses the approved card hierarchy, shared typography/tokens/icons, responsive chooser and ordinary-flow phone actions. API/checklist scope and typed Engagement retain exact source provenance and Server-owned authority.
+  - make ui-verify passed after final CSS alignment — 223 files, 2657 passed tests and one expected failure; generated client check, lint, both TypeScript projects, static-server tests and production build succeeded.
+  - The full auditdomain package passed after the latest main integration. Shared UI/Go fixtures prove canonical authored documents and the complete 128-item inventory path; UI tests cover UTF-8/profile bounds, local Apply, exact create-only retention, lost/mismatched answers, dirty versions and abandoned preparation.
+  - verify-production.mjs passed 60 actual React layouts across light/dark/black and 1440/1100/390/320px, scope/editor/Engagement/missing/error/unsupported states, reachable picker and zero horizontal overflow, page errors or external requests. Desktop and phone captures were visually compared with preserved V5 output.
+  - make lint passed on 02dd3b032 with the integrated Artifact/Scheduler main. The subsequent CSS-only alignment passed fresh make ui-gates and make ui-verify; the later Control Plane main integration changed no UI or auditdomain sources. Final domain, task/spec and whitespace checks passed.
+  - verify-opendesign-pass.mjs confirms exact native output/scripts/tokens, preservation and relay cleanup. No preserved native-pass asset differs from the approved V429-023 commit; originals, inputs, screenshots, history references and verified backups remain retained.
+  - Merged the implementation into local main with --no-ff as 8cfcf683aa1bc0a9b8879f8c77d14e21651c2df5; UI release is 0.11.4. The real-route read-only production preview is open on port 17560.
+implementation_commit: 08dea45f24a928aa01bccaea4ae4a018d33c751b

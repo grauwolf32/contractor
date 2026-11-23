@@ -1,0 +1,1761 @@
+package runstore
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"reflect"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
+	"github.com/grauwolf32/contractor/internal/agentskills"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
+	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/grauwolf32/contractor/internal/stageresult"
+	"github.com/grauwolf32/contractor/internal/telemetry"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func TestPostgresIntegrationStageLifecycleAndSessions(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
+
+	run := createTestRun(t, ctx, store, "run-lifecycle")
+	if run.State != RunInitializing || run.WorkflowSnapshot == nil {
+		t.Fatalf("created Run = %+v", run)
+	}
+	run, err := store.TransitionRun(ctx, run.RunID, RunInitializing, RunPending, Reason{Code: "initialized"})
+	if err != nil || run.State != RunPending || run.StartedAt != nil {
+		t.Fatalf("initialized Run = (%+v, %v)", run, err)
+	}
+	run, err = store.TransitionRun(ctx, run.RunID, RunPending, RunRunning, Reason{Code: "admitted"})
+	if err != nil {
+		t.Fatalf("start Run: %v", err)
+	}
+	if run.State != RunRunning || run.StartedAt == nil {
+		t.Fatalf("started Run = %+v", run)
+	}
+
+	source := storeTestRunInput(t, ctx, pool, run.RunID, "source")
+	execution, err := store.CreateStageExecution(ctx, CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
+		StageExecutionID: "stage-lifecycle", RunID: run.RunID, StageName: "copy", Attempt: 1,
+		StageSpecSchemaVersion:    "contractor/v1alpha1",
+		StageSpecSnapshot:         json.RawMessage(`{"objective":"copy"}`),
+		StageContextSchemaVersion: "contractor/v1alpha1",
+		StageContext: StageContextSnapshot{
+			Parameters: map[string]string{"mode": "strict"},
+			Artifacts: map[string]PinnedContextArtifact{
+				"source": {
+					Required: true,
+					Artifact: &source,
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create StageExecution: %v", err)
+	}
+	if execution.State != StagePreparing || execution.PlannerSessionID != nil {
+		t.Fatalf("preparing StageExecution = %+v", execution)
+	}
+
+	allocation := StageAllocation{
+		AllocationID: "allocation-1", StageExecutionID: execution.StageExecutionID,
+		LogicalAgentName: "builder", Namespace: "builder",
+		AgentTemplateRef: contracts.AgentTemplateRef{
+			TemplateID: "artifact_builder", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
+		},
+		WorkerRuntimeRef:                  contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"},
+		RuntimeAgentID:                    strings.Repeat("1", 64),
+		RuntimeAgentInstanceID:            "runtime-agent-1",
+		RuntimeAgentLabelRevision:         1,
+		RuntimeConfigurationSchemaVersion: AllocationRuntimeConfigurationSchemaVersion,
+		RuntimeConfiguration:              testAllocationRuntimeConfiguration(),
+		PerformanceCollectionPolicy:       reporting.PerformanceCollectionDisabled,
+	}
+	err = store.RecordStageAllocation(ctx, allocation)
+	if err != nil {
+		t.Fatalf("record allocation: %v", err)
+	}
+	if err := store.RecordStageAllocation(ctx, allocation); err != nil {
+		t.Fatalf("idempotent allocation record: %v", err)
+	}
+	different := allocation
+	different.RuntimeAgentInstanceID = "another-runtime-agent"
+	if err := store.RecordStageAllocation(ctx, different); !errors.Is(err, ErrConflict) {
+		t.Fatalf("mismatched allocation record error = %v, want conflict", err)
+	}
+	allocations, err := store.ListStageAllocations(ctx, execution.StageExecutionID)
+	if err != nil || len(allocations) != 1 || allocations[0].AllocationID != "allocation-1" ||
+		allocations[0].PerformanceCollectionPolicy != reporting.PerformanceCollectionDisabled {
+		t.Fatalf("allocations = (%+v, %v)", allocations, err)
+	}
+	differentPolicy := allocation
+	differentPolicy.PerformanceCollectionPolicy = reporting.PerformanceCollectionRequested
+	if err := store.RecordStageAllocation(ctx, differentPolicy); !errors.Is(err, ErrConflict) {
+		t.Fatalf("mismatched allocation policy error = %v, want conflict", err)
+	}
+	_, err = pool.Exec(ctx, `
+UPDATE stage_allocations
+SET runtime_agent_label_revision = runtime_agent_label_revision + 1
+WHERE allocation_id = 'allocation-1'`)
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
+		t.Fatalf("allocation Runtime provenance rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+	_, err = pool.Exec(ctx, `
+UPDATE stage_allocations
+SET performance_collection_policy = 'requested'
+WHERE allocation_id = 'allocation-1'`)
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
+		t.Fatalf("allocation performance policy rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+	reportFinished := time.Now().UTC()
+	modelCalls := int64(3)
+	telemetryReports := telemetry.NewRepository(pool)
+	reportParams := telemetry.AllocationReportEnvelope{
+		StageExecutionID: execution.StageExecutionID, AllocationID: allocation.AllocationID,
+		LogicalAgentName: allocation.LogicalAgentName, ReportSchemaVersion: contracts.APIVersion,
+		PerformanceCollectionPolicy: allocation.PerformanceCollectionPolicy,
+		Report: reporting.AllocationFinalReport{
+			ReportID: "allocation-report-1", AllocationID: allocation.AllocationID,
+			StartedAt: reportFinished.Add(-time.Second), FinishedAt: reportFinished,
+			Worker: reporting.ExecutionReport{
+				ReportID: "worker-report-1", Complete: true,
+				Metrics: reporting.ExecutionMetrics{
+					ModelCalls: &modelCalls, Tools: map[string]reporting.ToolMetrics{},
+				},
+				ToolCalls: []reporting.ToolCallRecord{}, Errors: []reporting.ExecutionError{},
+			},
+			Runtime: reporting.RuntimeReport{Complete: true},
+		},
+	}
+	if err := telemetryReports.RecordAllocationReport(ctx, reportParams); err != nil {
+		t.Fatalf("record execution report: %v", err)
+	}
+	if err := telemetryReports.RecordAllocationReport(ctx, reportParams); err != nil {
+		t.Fatalf("idempotent execution report: %v", err)
+	}
+	reports, err := telemetryReports.ListAllocationReports(ctx, execution.StageExecutionID)
+	if err != nil || len(reports) != 1 || reports[0].Report.Worker.Metrics.ModelCalls == nil ||
+		*reports[0].Report.Worker.Metrics.ModelCalls != 3 {
+		t.Fatalf("execution reports = (%+v, %v)", reports, err)
+	}
+	differentReport := reportParams
+	differentCalls := int64(4)
+	differentReport.Report.Worker.Metrics.ModelCalls = &differentCalls
+	if err := telemetryReports.RecordAllocationReport(ctx, differentReport); !errors.Is(err, telemetry.ErrConflict) {
+		t.Fatalf("mismatched execution report error = %v, want conflict", err)
+	}
+	if _, err := pool.Exec(ctx, `
+UPDATE allocation_execution_reports
+SET report = jsonb_set(report, '{worker,complete}', 'false')
+WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
+		t.Fatalf("execution report rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+
+	startedRunEvent := RunEventAppend{
+		EventID: "event-started", EventSchemaVersion: contracts.APIVersion,
+		Kind: RunEventPlannerStarted,
+		Data: mustRunEventJSON(t, plannerRunEventData{
+			StageExecutionID: execution.StageExecutionID,
+			SessionID:        "session-1", InvocationID: "invocation-1",
+		}),
+	}
+	err = store.StartPlanner(ctx, StartPlannerParams{
+		StageExecutionID: execution.StageExecutionID,
+		SessionID:        "session-1", InvocationID: "invocation-1",
+		StateSchemaVersion: contracts.APIVersion, InitialState: json.RawMessage(`{"step":0}`),
+		RunEvent: startedRunEvent,
+		Reason:   Reason{Code: "planner_started"},
+	})
+	if err != nil {
+		t.Fatalf("start Planner: %v", err)
+	}
+	execution, err = store.GetStageExecution(ctx, execution.StageExecutionID)
+	if err != nil || execution.State != StageRunning || execution.PlannerSessionID == nil || *execution.PlannerSessionID != "session-1" {
+		t.Fatalf("running StageExecution = (%+v, %v)", execution, err)
+	}
+
+	requestRunEvent := RunEventAppend{
+		EventID: "event-1", EventSchemaVersion: contracts.APIVersion,
+		Kind: RunEventPlannerRequestRecorded,
+		Data: mustRunEventJSON(t, plannerRunEventData{
+			StageExecutionID: execution.StageExecutionID,
+			SessionID:        "session-1", InvocationID: "invocation-1",
+		}),
+	}
+	err = store.AppendPlannerEvent(ctx, AppendPlannerEventParams{
+		SessionID:        "session-1",
+		StageExecutionID: execution.StageExecutionID, InvocationID: "invocation-1",
+		SequenceNumber:        2,
+		NewStateSchemaVersion: contracts.APIVersion, NewState: json.RawMessage(`{"step":1}`),
+		RunEvent: requestRunEvent,
+	})
+	if err != nil {
+		t.Fatalf("append Planner event: %v", err)
+	}
+	session, err := store.GetPlannerSession(ctx, "session-1")
+	if err != nil || session.NextEventSequence != 3 ||
+		string(session.State) != `{"step": 1}` && string(session.State) != `{"step":1}` {
+		t.Fatalf("Planner session = (%+v, %v)", session, err)
+	}
+	plannerRunEventPage, err := store.ListRunEvents(ctx, run.RunID, 5, 10)
+	plannerRunEvents := plannerRunEventPage.Events
+	if err != nil || len(plannerRunEvents) != 2 || plannerRunEventPage.More ||
+		plannerRunEvents[0].EventID != "event-started" || plannerRunEvents[0].SequenceNumber != 6 ||
+		plannerRunEvents[1].EventID != "event-1" || plannerRunEvents[1].SequenceNumber != 7 {
+		t.Fatalf("Planner Run events = (%+v, %v)", plannerRunEvents, err)
+	}
+	gap := requestRunEvent
+	gap.EventID = "event-gap"
+	err = store.AppendPlannerEvent(ctx, AppendPlannerEventParams{
+		SessionID:        "session-1",
+		StageExecutionID: execution.StageExecutionID, InvocationID: "invocation-1",
+		SequenceNumber:        4,
+		NewStateSchemaVersion: contracts.APIVersion, NewState: json.RawMessage(`{"step":2}`),
+		RunEvent: gap,
+	})
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("Planner sequence gap error = %v, want conflict", err)
+	}
+	cursor, err := store.GetRunEventCursor(ctx, run.RunID)
+	if err != nil || cursor.Sequence != 7 || cursor.Generation == "" {
+		t.Fatalf("Run event cursor = (%+v, %v)", cursor, err)
+	}
+	runEventPage, err := store.ListRunEvents(ctx, run.RunID, 0, 10)
+	runEvents := runEventPage.Events
+	if err != nil || len(runEvents) != 7 || runEventPage.More || runEvents[0].Kind != RunEventLifecycleChanged ||
+		runEvents[1].Kind != RunEventLifecycleChanged || runEvents[2].Kind != RunEventLifecycleChanged ||
+		runEvents[3].Kind != RunEventLifecycleChanged || runEvents[4].Kind != RunEventLifecycleChanged ||
+		runEvents[5].Kind != RunEventPlannerStarted || runEvents[6].Kind != RunEventPlannerRequestRecorded {
+		t.Fatalf("Run events = (%+v, %v)", runEvents, err)
+	}
+	wantLifecycle := []lifecycleRunEventData{
+		{RunID: run.RunID, Resource: "run", State: string(RunInitializing)},
+		{RunID: run.RunID, Resource: "run", State: string(RunPending)},
+		{RunID: run.RunID, Resource: "run", State: string(RunRunning)},
+		{RunID: run.RunID, Resource: "stageExecution", StageExecutionID: execution.StageExecutionID, State: string(StagePreparing)},
+		{RunID: run.RunID, Resource: "stageExecution", StageExecutionID: execution.StageExecutionID, State: string(StageRunning)},
+	}
+	for index, want := range wantLifecycle {
+		got, decodeErr := decodeLifecycleRunEventData(runEvents[index].Data)
+		if decodeErr != nil || got != want || runEvents[index].SequenceNumber != int64(index+1) {
+			t.Fatalf("lifecycle event %d = (%+v, %v), want %+v", index, got, decodeErr, want)
+		}
+	}
+
+	candidate := stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion,
+		Outcome:    stageresult.StageSucceeded,
+		Summary:    "copied",
+		Artifacts: map[string]contracts.ArtifactRef{
+			"copied": storeTestRunArtifact(t, ctx, pool, run.RunID, "builder", "result"),
+		},
+	}
+	withoutArtifacts := candidate.Clone()
+	withoutArtifacts.Artifacts = nil
+	err = store.EnterFinalizing(ctx, EnterFinalizingParams{
+		StageExecutionID:    execution.StageExecutionID,
+		ResultSchemaVersion: "contractor/v1alpha1", Candidate: withoutArtifacts,
+		FinalizationID: "finalization-null-artifacts", Deadline: time.Now().Add(time.Minute),
+		Reason: Reason{Code: "planner_completed"},
+	})
+	if !errors.Is(err, ErrInvalid) {
+		t.Fatalf("candidate without artifacts error = %v, want invalid", err)
+	}
+	if running, getErr := store.GetStageExecution(ctx, execution.StageExecutionID); getErr != nil ||
+		running.State != StageRunning || running.CandidateResult != nil {
+		t.Fatalf("StageExecution after a rejected candidate = (%+v, %v)", running, getErr)
+	}
+	err = store.EnterFinalizing(ctx, EnterFinalizingParams{
+		StageExecutionID:    execution.StageExecutionID,
+		ResultSchemaVersion: "contractor/v1alpha1", Candidate: candidate,
+		FinalizationID: "finalization-1", Deadline: time.Now().Add(time.Minute),
+		Reason: Reason{Code: "planner_completed"},
+	})
+	if err != nil {
+		t.Fatalf("enter finalizing: %v", err)
+	}
+	err = store.EnterAborting(ctx, EnterAbortingParams{
+		StageExecutionID: execution.StageExecutionID, ExpectedState: StageRunning,
+		TerminationSchemaVersion: "contractor/v1alpha1",
+		Termination: StageTermination{
+			Outcome: TerminationInterrupted, Code: "late_abort", Message: "late abort",
+			Retryable: true, Phase: TerminationRunning, OccurredAt: time.Now(),
+		},
+		AbortID: "late-abort", Deadline: time.Now().Add(time.Minute), Reason: Reason{Code: "late_abort"},
+	})
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("late abort error = %v, want conflict", err)
+	}
+	if err := store.CompleteStageResult(ctx, execution.StageExecutionID, "contractor/v1alpha1", withoutArtifacts); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("accepted StageResult without artifacts error = %v, want invalid", err)
+	}
+	if finalizing, getErr := store.GetStageExecution(ctx, execution.StageExecutionID); getErr != nil ||
+		finalizing.State != StageFinalizing || finalizing.AcceptedResult != nil {
+		t.Fatalf("StageExecution after a rejected acceptance = (%+v, %v)", finalizing, getErr)
+	}
+	if err := store.CompleteStageResult(ctx, execution.StageExecutionID, "contractor/v1alpha1", candidate); err != nil {
+		t.Fatalf("complete StageResult: %v", err)
+	}
+	execution, err = store.GetStageExecution(ctx, execution.StageExecutionID)
+	if err != nil || execution.State != StageSucceeded || execution.CandidateResult == nil || execution.AcceptedResult == nil {
+		t.Fatalf("terminal StageExecution = (%+v, %v)", execution, err)
+	}
+	if got, want := *execution.AcceptedResult.Artifacts["copied"].Revision, *candidate.Artifacts["copied"].Revision; got != want {
+		t.Fatalf("accepted artifact revision = %q, want %q", got, want)
+	}
+	if err := store.CompleteStageResult(ctx, execution.StageExecutionID, "contractor/v1alpha1", candidate); !errors.Is(err, ErrConflict) {
+		t.Fatalf("second completion error = %v, want conflict", err)
+	}
+	pendingRelease, err := store.ListTerminalStageExecutionsWithAllocations(ctx, nil)
+	if err != nil || len(pendingRelease) != 1 || pendingRelease[0].StageExecutionID != execution.StageExecutionID {
+		t.Fatalf("pending terminal allocation release = (%+v, %v)", pendingRelease, err)
+	}
+	if err := store.MarkStageAllocationReleaseAttempt(ctx, allocation.AllocationID); err != nil {
+		t.Fatalf("mark allocation release attempt: %v", err)
+	}
+	if err := store.MarkStageAllocationReleased(ctx, allocation.AllocationID); err != nil {
+		t.Fatalf("mark allocation released: %v", err)
+	}
+	if err := store.MarkStageAllocationReleased(ctx, allocation.AllocationID); err != nil {
+		t.Fatalf("repeat allocation released marker: %v", err)
+	}
+	allocations, err = store.ListStageAllocations(ctx, execution.StageExecutionID)
+	if err != nil || len(allocations) != 1 || allocations[0].ReleaseAttemptedAt == nil ||
+		allocations[0].ReleaseCompletedAt == nil {
+		t.Fatalf("allocation release state = (%+v, %v)", allocations, err)
+	}
+	pendingRelease, err = store.ListTerminalStageExecutionsWithAllocations(ctx, nil)
+	if err != nil || len(pendingRelease) != 0 {
+		t.Fatalf("completed release remained pending = (%+v, %v)", pendingRelease, err)
+	}
+
+	_, err = store.CreateStageExecution(ctx, CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
+		StageExecutionID: "stage-aborted", RunID: run.RunID, StageName: "precheck", Attempt: 1,
+		StageSpecSchemaVersion: "contractor/v1alpha1", StageSpecSnapshot: json.RawMessage(`{"objective":"check"}`),
+		StageContextSchemaVersion: "contractor/v1alpha1", StageContext: StageContextSnapshot{},
+	})
+	if err != nil {
+		t.Fatalf("create aborting StageExecution: %v", err)
+	}
+	termination := StageTermination{
+		Outcome: TerminationInterrupted, Code: "context_artifact_missing", Message: "source is missing",
+		Retryable: false, Phase: TerminationPreparing, OccurredAt: time.Now(),
+	}
+	err = store.EnterAborting(ctx, EnterAbortingParams{
+		StageExecutionID: "stage-aborted", ExpectedState: StagePreparing,
+		TerminationSchemaVersion: "contractor/v1alpha1", Termination: termination,
+		AbortID: "abort-1", Deadline: time.Now().Add(time.Minute), Reason: Reason{Code: termination.Code},
+	})
+	if err != nil {
+		t.Fatalf("enter aborting during preparation: %v", err)
+	}
+	if err := store.CompleteStageTermination(ctx, "stage-aborted"); err != nil {
+		t.Fatalf("complete StageTermination: %v", err)
+	}
+	aborted, err := store.GetStageExecution(ctx, "stage-aborted")
+	if err != nil || aborted.State != StageInterrupted || aborted.Termination == nil || aborted.PlannerSessionID != nil {
+		t.Fatalf("interrupted StageExecution = (%+v, %v)", aborted, err)
+	}
+
+	executions, err := store.ListStageExecutions(ctx, run.RunID)
+	if err != nil || len(executions) != 2 {
+		t.Fatalf("StageExecution list = (%+v, %v)", executions, err)
+	}
+
+	_, err = pool.Exec(ctx, `
+UPDATE stage_executions
+SET candidate_stage_result = jsonb_set(candidate_stage_result, '{summary}', '"rewritten"')
+WHERE stage_execution_id = 'stage-lifecycle'`)
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
+		t.Fatalf("candidate rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+}
+
+func TestPostgresWorkflowRunMetadataLabelsAreAtomicImmutableAndProjected(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
+
+	params := testRunParams("run-metadata-labels")
+	params.MetadataLabels = RunMetadataLabels{
+		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a", "debug": "",
+	}
+	created, err := createRun(ctx, store, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(created.MetadataLabels, params.MetadataLabels) {
+		t.Fatalf("created metadata labels = %v, want %v", created.MetadataLabels, params.MetadataLabels)
+	}
+	params.MetadataLabels["purpose"] = "mutated-by-caller"
+	loaded, err := store.GetRun(ctx, created.RunID)
+	if err != nil || loaded.MetadataLabels["purpose"] != "eval" {
+		t.Fatalf("stored metadata labels = (%v, %v)", loaded.MetadataLabels, err)
+	}
+	if value, present := loaded.MetadataLabels["debug"]; !present || value != "" {
+		t.Fatalf("key-only label was not stored: %v", loaded.MetadataLabels)
+	}
+	page, err := store.ListRuns(ctx, ListRunsParams{OwnerID: params.OwnerID, Limit: 10})
+	if err != nil || len(page) != 1 || page[0].MetadataLabels["eval.id"] != "eval_01" {
+		t.Fatalf("listed metadata labels = (%+v, %v)", page, err)
+	}
+
+	_, err = pool.Exec(ctx, `
+UPDATE workflow_runs SET metadata_labels = metadata_labels || '{"eval.leg":"b"}'
+WHERE run_id = $1`, created.RunID)
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
+		t.Fatalf("direct metadata-label update SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+	_, err = pool.Exec(ctx, `
+UPDATE workflow_runs SET metadata_labels = metadata_labels - 'eval.leg'
+WHERE run_id = $1`, created.RunID)
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
+		t.Fatalf("direct metadata-label delete SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+	for labels, valid := range map[string]bool{
+		`{"eval.id":"eval_01","debug":""}`:               true,
+		`{"Eval":"x"}`:                                   false,
+		`{"contractor.owner":"x"}`:                       false,
+		`{"eval.id":1}`:                                  false,
+		`{"eval.id":"` + strings.Repeat("v", 257) + `"}`: false,
+	} {
+		var accepted bool
+		if err := pool.QueryRow(ctx, `SELECT contractor_valid_run_metadata_labels($1::jsonb)`, labels).Scan(&accepted); err != nil || accepted != valid {
+			t.Fatalf("metadata labels %s accepted = %t (%v), want %t", labels, accepted, err, valid)
+		}
+	}
+	for count, valid := range map[int]bool{32: true, 33: false} {
+		var accepted bool
+		if err := pool.QueryRow(ctx, `
+SELECT contractor_valid_run_metadata_labels(jsonb_object_agg('label' || index, 'value'))
+FROM generate_series(1, $1) AS index`, count).Scan(&accepted); err != nil || accepted != valid {
+			t.Fatalf("%d metadata labels accepted = %t (%v), want %t", count, accepted, err, valid)
+		}
+	}
+
+	if _, err := pool.Exec(ctx, `DELETE FROM workflow_runs WHERE run_id = $1`, created.RunID); err != nil {
+		t.Fatalf("parent retention delete: %v", err)
+	}
+}
+
+func TestPostgresWorkflowRunProjectMembershipIsOwnedImmutableAndFilterable(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	projects := projectstore.NewPostgresStore(pool)
+	for index, projectID := range []string{"project-one", "project-two"} {
+		_, _, err := projects.Create(ctx, projectstore.CreateParams{
+			ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
+			Name: projectID, IdempotencyKey: projectID,
+			RequestDigest: fmt.Sprintf("sha256:%064x", index+1),
+		})
+		if err != nil {
+			t.Fatalf("create Project %q: %v", projectID, err)
+		}
+	}
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
+	projectID := "project-one"
+	projectParams := testRunParams("run-project-member")
+	projectParams.ProjectID = &projectID
+	projectParams.ProjectHTTPTarget = &runtimesettings.HTTPOriginTargetRef{
+		URL: "https://app.example.test/api",
+	}
+	projectRun, err := createRun(ctx, store, projectParams)
+	if err != nil || projectRun.ProjectID == nil || *projectRun.ProjectID != projectID ||
+		projectRun.ProjectHTTPTarget == nil || projectRun.ProjectHTTPTarget.URL != "https://app.example.test/api" {
+		t.Fatalf("create Project Run = (%+v, %v)", projectRun, err)
+	}
+	if _, err := createRun(ctx, store, testRunParams("run-standalone")); err != nil {
+		t.Fatal(err)
+	}
+	page, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", ProjectID: &projectID, Limit: 10,
+	})
+	if err != nil || len(page) != 1 || page[0].RunID != projectRun.RunID ||
+		page[0].ProjectID == nil || *page[0].ProjectID != projectID {
+		t.Fatalf("Project Run page = (%+v, %v)", page, err)
+	}
+
+	_, err = pool.Exec(ctx, `UPDATE workflow_runs SET project_id = 'project-two' WHERE run_id = $1`, projectRun.RunID)
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
+		t.Fatalf("Project membership mutation SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+	_, err = pool.Exec(ctx, `
+UPDATE workflow_runs
+SET project_http_target_snapshot = '{"url":"https://other.example.test"}'::jsonb
+WHERE run_id = $1`, projectRun.RunID)
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
+		t.Fatalf("Project HTTP target mutation SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+	foreignParams := testRunParams("run-foreign-project-member")
+	foreignParams.OwnerID = "user-2"
+	foreignParams.ProjectID = &projectID
+	// Another owner's Project is one its owner does not have (PRJ-R5).
+	if _, err = createRun(ctx, store, foreignParams); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("foreign Project membership = %v, want ErrNotFound", err)
+	}
+}
+
+func TestPostgresWorkflowRunQueueIsOwnedOldestFirstAndTerminalAware(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	projects := projectstore.NewPostgresStore(pool)
+	for index, item := range []struct {
+		id   string
+		kind projectstore.Kind
+		name string
+	}{
+		{id: "project-queue", kind: projectstore.KindProject, name: "Payment service"},
+		{id: "evaluation-queue", kind: projectstore.KindEvaluation, name: "OpenAPI eval"},
+	} {
+		if _, _, err := projects.Create(ctx, projectstore.CreateParams{
+			ProjectID: item.id, OwnerID: "user-1", Kind: item.kind, Name: item.name,
+			IdempotencyKey: "create-" + item.id,
+			RequestDigest:  fmt.Sprintf("sha256:%064x", index+1),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
+	create := func(runID string, projectID *string, labels RunMetadataLabels) WorkflowRun {
+		t.Helper()
+		params := testRunParams(runID)
+		params.ProjectID = projectID
+		params.MetadataLabels = labels
+		run, err := createRun(ctx, store, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return run
+	}
+	projectID, evaluationID := "project-queue", "evaluation-queue"
+	standalone := create("run-queue-standalone", nil, nil)
+	projectRun := create(
+		"run-queue-project", &projectID, RunMetadataLabels{"purpose": "manual"},
+	)
+	evaluationRun := create(
+		"run-queue-evaluation", &evaluationID,
+		RunMetadataLabels{"purpose": "eval", "eval.id": "eval-queue-1"},
+	)
+	terminal := create("run-queue-terminal", nil, nil)
+	foreignParams := testRunParams("run-queue-foreign")
+	foreignParams.OwnerID = "user-2"
+	if _, err := createRun(ctx, store, foreignParams); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admitTestRun(ctx, store, standalone.RunID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.RequestRunCancellation(ctx, evaluationRun.RunID, WorkflowRunCancellation{
+		Code: CancellationUserRequested, RequestedAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, terminal.RunID, RunInitializing, RunFailed, Reason{Code: "invalid_input"},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := store.ListRunQueue(ctx, ListRunQueueParams{OwnerID: "user-1", Limit: 2})
+	if err != nil || len(first) != 2 || first[0].RunID != standalone.RunID ||
+		first[1].RunID != projectRun.RunID || first[0].ProjectID != nil ||
+		first[1].ProjectID == nil || first[1].ProjectName != "Payment service" ||
+		first[1].ProjectKind != string(projectstore.KindProject) ||
+		first[1].MetadataLabels["purpose"] != "manual" ||
+		first[1].EventCursor.Generation == "" || first[1].EventCursor.Sequence < 0 {
+		t.Fatalf("first Queue page = (%+v, %v)", first, err)
+	}
+	second, err := store.ListRunQueue(ctx, ListRunQueueParams{
+		OwnerID: "user-1", AfterCreatedAt: &first[1].CreatedAt,
+		AfterRunID: first[1].RunID, Limit: 2,
+	})
+	if err != nil || len(second) != 1 || second[0].RunID != evaluationRun.RunID ||
+		second[0].ProjectKind != string(projectstore.KindEvaluation) ||
+		second[0].MetadataLabels["eval.id"] != "eval-queue-1" {
+		t.Fatalf("second Queue page = (%+v, %v)", second, err)
+	}
+	projectMembership := RunQueueProject
+	projectOnly, err := store.ListRunQueue(ctx, ListRunQueueParams{
+		OwnerID: "user-1", Membership: &projectMembership, Limit: 10,
+	})
+	if err != nil || len(projectOnly) != 1 || projectOnly[0].RunID != projectRun.RunID {
+		t.Fatalf("Project Queue filter = (%+v, %v)", projectOnly, err)
+	}
+	cancelling := RunCancelling
+	cancellingOnly, err := store.ListRunQueue(ctx, ListRunQueueParams{
+		OwnerID: "user-1", State: &cancelling, Limit: 10,
+	})
+	if err != nil || len(cancellingOnly) != 1 || cancellingOnly[0].RunID != evaluationRun.RunID {
+		t.Fatalf("cancelling Queue filter = (%+v, %v)", cancellingOnly, err)
+	}
+	foreign, err := store.ListRunQueue(ctx, ListRunQueueParams{OwnerID: "user-2", Limit: 10})
+	if err != nil || len(foreign) != 1 || foreign[0].RunID != "run-queue-foreign" {
+		t.Fatalf("foreign owner Queue = (%+v, %v)", foreign, err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, projectRun.RunID, RunInitializing, RunFailed, Reason{Code: "failed"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	projectOnly, err = store.ListRunQueue(ctx, ListRunQueueParams{
+		OwnerID: "user-1", Membership: &projectMembership, Limit: 10,
+	})
+	if err != nil || len(projectOnly) != 0 {
+		t.Fatalf("terminal Project Queue = (%+v, %v)", projectOnly, err)
+	}
+}
+
+func TestPostgresWorkflowRunMetadataLabelFilteringIsConjunctiveOwnedAndStable(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
+	create := func(runID, ownerID, leg string) WorkflowRun {
+		t.Helper()
+		params := testRunParams(runID)
+		params.OwnerID = ownerID
+		params.MetadataLabels = RunMetadataLabels{
+			"purpose": "eval", "eval.id": "eval_filter", "eval.leg": leg, "debug": "",
+		}
+		run, err := createRun(ctx, store, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return run
+	}
+	old := create("run-filter-old", "user-1", "a")
+	unrelatedParams := testRunParams("run-filter-unrelated")
+	unrelatedParams.MetadataLabels = RunMetadataLabels{"purpose": "manual"}
+	if _, err := createRun(ctx, store, unrelatedParams); err != nil {
+		t.Fatal(err)
+	}
+	newer := create("run-filter-newer", "user-1", "b")
+	_ = create("run-filter-foreign", "user-2", "a")
+	if _, err := admitTestRun(ctx, store, newer.RunID); err != nil {
+		t.Fatal(err)
+	}
+
+	selectors := []RunMetadataLabelSelector{
+		{Key: "purpose", Value: "eval"}, {Key: "eval.id", Value: "eval_filter"},
+	}
+	keyOnly, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", MetadataLabelSelectors: []RunMetadataLabelSelector{{Key: "debug", Value: ""}}, Limit: 10,
+	})
+	if err != nil || len(keyOnly) != 2 {
+		t.Fatalf("key-only filter must exclude absent keys and foreign Runs: (%+v, %v)", keyOnly, err)
+	}
+	first, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", MetadataLabelSelectors: selectors, Limit: 1,
+	})
+	if err != nil || len(first) != 1 || first[0].RunID != newer.RunID {
+		t.Fatalf("first filtered page = (%+v, %v)", first, err)
+	}
+	concurrent := create("run-filter-concurrent", "user-1", "a")
+	second, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", MetadataLabelSelectors: append(selectors, selectors[0]), Limit: 10,
+		BeforeCreatedAt: &first[0].CreatedAt, BeforeRunID: first[0].RunID,
+	})
+	if err != nil || len(second) != 1 || second[0].RunID != old.RunID {
+		t.Fatalf("second stable filtered page = (%+v, %v)", second, err)
+	}
+	all, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", MetadataLabelSelectors: selectors, Limit: 10,
+	})
+	if err != nil || len(all) != 3 || all[0].RunID != concurrent.RunID ||
+		all[1].RunID != newer.RunID || all[2].RunID != old.RunID {
+		t.Fatalf("complete filtered group = (%+v, %v)", all, err)
+	}
+	running := RunRunning
+	byState, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", State: &running, MetadataLabelSelectors: selectors, Limit: 10,
+	})
+	if err != nil || len(byState) != 1 || byState[0].RunID != newer.RunID {
+		t.Fatalf("state plus metadata-label filter = (%+v, %v)", byState, err)
+	}
+	legA, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", MetadataLabelSelectors: append(selectors,
+			RunMetadataLabelSelector{Key: "eval.leg", Value: "a"}), Limit: 10,
+	})
+	if err != nil || len(legA) != 2 || legA[0].RunID != concurrent.RunID || legA[1].RunID != old.RunID {
+		t.Fatalf("filtered leg = (%+v, %v)", legA, err)
+	}
+	contradiction, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", MetadataLabelSelectors: []RunMetadataLabelSelector{
+			{Key: "eval.leg", Value: "a"}, {Key: "eval.leg", Value: "b"},
+		}, Limit: 10,
+	})
+	if err != nil || len(contradiction) != 0 {
+		t.Fatalf("contradictory filtered group = (%+v, %v)", contradiction, err)
+	}
+	foreign, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-2", MetadataLabelSelectors: selectors, Limit: 10,
+	})
+	if err != nil || len(foreign) != 1 || foreign[0].RunID != "run-filter-foreign" {
+		t.Fatalf("foreign owner filtered group = (%+v, %v)", foreign, err)
+	}
+	if _, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", MetadataLabelSelectors: []RunMetadataLabelSelector{{Key: "Upper", Value: "bad"}}, Limit: 10,
+	}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("invalid repository selector error = %v", err)
+	}
+}
+
+func TestPostgresWorkflowRunLifecycleFilteringIsOwnedIntersectedAndStable(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
+
+	terminalOld := createTestRun(t, ctx, store, "run-lifecycle-terminal-old")
+	if _, err := store.TransitionRun(
+		ctx, terminalOld.RunID, RunInitializing, RunFailed, Reason{Code: "failed"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	active := createTestRun(t, ctx, store, "run-lifecycle-active")
+	if _, err := admitTestRun(ctx, store, active.RunID); err != nil {
+		t.Fatal(err)
+	}
+	terminalNew := createTestRun(t, ctx, store, "run-lifecycle-terminal-new")
+	if _, err := store.TransitionRun(
+		ctx, terminalNew.RunID, RunInitializing, RunFailed, Reason{Code: "failed"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	foreignParams := testRunParams("run-lifecycle-terminal-foreign")
+	foreignParams.OwnerID = "user-2"
+	foreign, err := createRun(ctx, store, foreignParams)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, foreign.RunID, RunInitializing, RunFailed, Reason{Code: "failed"},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	terminal := RunLifecycleTerminal
+	first, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", Lifecycle: &terminal, Limit: 1,
+	})
+	if err != nil || len(first) != 1 || first[0].RunID != terminalNew.RunID {
+		t.Fatalf("first terminal page = (%+v, %v)", first, err)
+	}
+	second, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", Lifecycle: &terminal, Limit: 2,
+		BeforeCreatedAt: &first[0].CreatedAt, BeforeRunID: first[0].RunID,
+	})
+	if err != nil || len(second) != 1 || second[0].RunID != terminalOld.RunID {
+		t.Fatalf("second terminal page = (%+v, %v)", second, err)
+	}
+	activeLifecycle := RunLifecycleActive
+	activePage, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", Lifecycle: &activeLifecycle, Limit: 10,
+	})
+	if err != nil || len(activePage) != 1 || activePage[0].RunID != active.RunID {
+		t.Fatalf("active page = (%+v, %v)", activePage, err)
+	}
+	running := RunRunning
+	intersection, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", State: &running, Lifecycle: &terminal, Limit: 10,
+	})
+	if err != nil || len(intersection) != 0 {
+		t.Fatalf("contradictory lifecycle and state page = (%+v, %v)", intersection, err)
+	}
+	unknown := WorkflowRunLifecycle("unknown")
+	if _, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", Lifecycle: &unknown, Limit: 10,
+	}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("invalid lifecycle error = %v", err)
+	}
+}
+
+func testAllocationRuntimeConfiguration() *AllocationRuntimeConfiguration {
+	gateway := llmgateway.LLMGatewayConfigRef{
+		GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
+	}
+	return &AllocationRuntimeConfiguration{
+		ModelPolicy: contracts.ModelPolicyRef{
+			PolicyID: "worker", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64),
+		},
+		Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{
+			LLMGateway: &runtimeconfig.RuntimeFieldOrigin{Layer: runtimeconfig.LayerWorkflow},
+		},
+		Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{
+			Default: runtimesettings.RuntimeLabelBindingProvenance{
+				Label: "default", BindingRevision: 1,
+				Config: runtimesettings.RuntimeConfigRef{
+					Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion,
+					Digest: runtimeconfig.BuiltInDigest,
+				},
+			},
+			RunLabels:       []runtimesettings.RuntimeLabelBindingProvenance{},
+			AgentLabels:     []runtimesettings.RuntimeLabelBindingProvenance{},
+			RuntimeAdapters: []runtimesettings.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
+			RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
+		},
+	}
+}
+
+func TestPostgresIntegrationClaimsConflictsAndExplicitTransactions(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
+	createTestRun(t, ctx, store, "run-race")
+
+	var transitions int32
+	var conflicts int32
+	var wait sync.WaitGroup
+	for range 2 {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			_, err := store.TransitionRun(ctx, "run-race", RunInitializing, RunPending, Reason{Code: "ready"})
+			switch {
+			case err == nil:
+				atomic.AddInt32(&transitions, 1)
+			case errors.Is(err, ErrConflict):
+				atomic.AddInt32(&conflicts, 1)
+			default:
+				t.Errorf("transition race: %v", err)
+			}
+		}()
+	}
+	wait.Wait()
+	if transitions != 1 || conflicts != 1 {
+		t.Fatalf("transition race successes=%d conflicts=%d", transitions, conflicts)
+	}
+
+	type claimResult struct {
+		run WorkflowRun
+		err error
+	}
+	claimResults := make(chan claimResult, 2)
+	for _, claimID := range []string{"claim-a", "claim-b"} {
+		wait.Add(1)
+		go func(claimID string) {
+			defer wait.Done()
+			run, err := store.ClaimRunnableRun(ctx, claimID, time.Minute, nil, resolved.LaneClassModel)
+			claimResults <- claimResult{run: run, err: err}
+		}(claimID)
+	}
+	wait.Wait()
+	close(claimResults)
+	var claimed WorkflowRun
+	var claims, noWork int
+	for result := range claimResults {
+		if result.err == nil {
+			claims++
+			claimed = result.run
+		} else if errors.Is(result.err, ErrNoWork) {
+			noWork++
+		} else {
+			t.Fatalf("claim race: %v", result.err)
+		}
+	}
+	if claims != 1 || noWork != 1 || claimed.SchedulerClaim == nil {
+		t.Fatalf("claim race claims=%d noWork=%d claimed=%+v", claims, noWork, claimed)
+	}
+	if state, err := store.RenewRunClaim(ctx, claimed.RunID, claimed.SchedulerClaim.ClaimID, 2*time.Minute); err != nil ||
+		state != claimed.State {
+		t.Fatalf("renew claim = (%s, %v), want the claimed Run's state %s", state, err, claimed.State)
+	}
+	if err := store.ReleaseRunClaim(ctx, claimed.RunID, "wrong-claim"); !errors.Is(err, ErrConflict) {
+		t.Fatalf("wrong release error = %v", err)
+	}
+	if err := store.ReleaseRunClaim(ctx, claimed.RunID, claimed.SchedulerClaim.ClaimID); err != nil {
+		t.Fatalf("release claim: %v", err)
+	}
+
+	rollback := errors.New("force rollback")
+	err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		txStore := NewPostgresStore(tx, artifactpgtest.NewStorage())
+		if _, err := createRun(ctx, txStore, testRunParams("run-rolled-back")); err != nil {
+			return err
+		}
+		return rollback
+	})
+	if !errors.Is(err, rollback) {
+		t.Fatalf("transaction error = %v, want rollback sentinel", err)
+	}
+	if _, err := store.GetRun(ctx, "run-rolled-back"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("rolled-back Run lookup error = %v", err)
+	}
+	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		_, err := createRun(ctx, NewPostgresStore(tx, artifactpgtest.NewStorage()), testRunParams("run-committed"))
+		return err
+	})
+	if err != nil {
+		t.Fatalf("commit explicit transaction: %v", err)
+	}
+	if _, err := store.GetRun(ctx, "run-committed"); err != nil {
+		t.Fatalf("get committed Run: %v", err)
+	}
+}
+
+func TestPostgresStageAdmissionPreservesInitialQueueControlRevision(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
+	for _, test := range []struct {
+		name   string
+		owner  string
+		paused bool
+	}{
+		{"pause", "user-pause", true},
+		{"idempotent-resume", "user-resume", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			runID := "run-initial-control-" + test.name
+			params := testRunParams(runID)
+			params.OwnerID = test.owner
+			if _, err := createRun(ctx, store, params); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := admitTestRun(ctx, store, runID); err != nil {
+				t.Fatal(err)
+			}
+			initial, err := store.GetOwnerQueueControl(ctx, test.owner)
+			if err != nil || initial.Paused || initial.Revision != 0 || !initial.UpdatedAt.IsZero() {
+				t.Fatalf("initial Queue control = (%+v, %v)", initial, err)
+			}
+			if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+				admission := NewPostgresTxStore(tx, artifactpgtest.NewStorage())
+				if err := admission.LockRunQueueAdmission(ctx, runID); err != nil {
+					return err
+				}
+				_, err := admission.CreateStageExecution(ctx, CreateStageExecutionParams{
+					LaneClass:        resolved.LaneClassModel,
+					StageExecutionID: "stage-initial-control-" + test.name,
+					RunID:            runID, StageName: "copy", Attempt: 1,
+					StageSpecSchemaVersion:    contracts.APIVersion,
+					StageSpecSnapshot:         json.RawMessage(`{}`),
+					StageContextSchemaVersion: contracts.APIVersion,
+					StageContext:              StageContextSnapshot{},
+				})
+				return err
+			}); err != nil {
+				t.Fatal(err)
+			}
+			afterAdmission, err := store.GetOwnerQueueControl(ctx, test.owner)
+			if err != nil || afterAdmission != initial {
+				t.Fatalf("Stage admission changed Queue control: before=%+v after=%+v err=%v", initial, afterAdmission, err)
+			}
+			var rows int
+			if err := pool.QueryRow(ctx, `
+SELECT count(*) FROM owner_queue_controls WHERE owner_id = $1`, test.owner).Scan(&rows); err != nil || rows != 0 {
+				t.Fatalf("Stage admission materialized Queue control = (%d, %v)", rows, err)
+			}
+			updated, err := store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+				OwnerID: test.owner, ExpectedRevision: 0, Paused: test.paused,
+			})
+			if err != nil || updated.Paused != test.paused || updated.Revision != 1 {
+				t.Fatalf("first Queue update after admission = (%+v, %v)", updated, err)
+			}
+			if _, err := store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+				OwnerID: test.owner, ExpectedRevision: 0, Paused: !test.paused,
+			}); !errors.Is(err, ErrPrecondition) {
+				t.Fatalf("stale Queue update error = %v, want precondition", err)
+			}
+		})
+	}
+}
+
+func TestPostgresOwnerQueueControlSerializesWithStageAdmission(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
+
+	initial, err := store.GetOwnerQueueControl(ctx, "user-1")
+	if err != nil || initial.Paused || initial.Revision != 0 || !initial.UpdatedAt.IsZero() {
+		t.Fatalf("initial owner Queue control = (%+v, %v)", initial, err)
+	}
+	other, err := store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+		OwnerID: "user-2", ExpectedRevision: 0, Paused: true,
+	})
+	if err != nil || !other.Paused || other.Revision != 1 {
+		t.Fatalf("other owner Queue control = (%+v, %v)", other, err)
+	}
+	initial, err = store.GetOwnerQueueControl(ctx, "user-1")
+	if err != nil || initial.Paused || initial.Revision != 0 {
+		t.Fatalf("cross-owner Queue control = (%+v, %v)", initial, err)
+	}
+
+	paused, err := store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: 0, Paused: true,
+	})
+	if err != nil || !paused.Paused || paused.Revision != 1 {
+		t.Fatalf("pause owner Queue = (%+v, %v)", paused, err)
+	}
+	repeated, err := store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: 1, Paused: true,
+	})
+	if err != nil || repeated != paused {
+		t.Fatalf("repeat owner Queue pause = (%+v, %v), want %+v", repeated, err, paused)
+	}
+	if _, err := store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: 0, Paused: false,
+	}); !errors.Is(err, ErrPrecondition) {
+		t.Fatalf("stale owner Queue update error = %v, want precondition", err)
+	}
+	resumed, err := store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: 1, Paused: false,
+	})
+	if err != nil || resumed.Paused || resumed.Revision != 2 || !resumed.UpdatedAt.After(paused.UpdatedAt) {
+		t.Fatalf("resume owner Queue = (%+v, %v)", resumed, err)
+	}
+	if _, err := pool.Exec(ctx, `
+UPDATE owner_queue_controls
+SET revision = revision + 1,
+    updated_at = updated_at + interval '1 second'
+WHERE owner_id = 'user-1'`); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
+		t.Fatalf("owner Queue no-op rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+
+	run := createTestRun(t, ctx, store, "run-queue-control")
+	if _, err := admitTestRun(ctx, store, run.RunID); err != nil {
+		t.Fatal(err)
+	}
+
+	// A pause that owns the control row lock orders before admission, even
+	// though it has not committed when the admission attempt begins.
+	pauseTx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pauseTxStore := NewPostgresStore(pauseTx, artifactpgtest.NewStorage())
+	paused, err = pauseTxStore.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: 2, Paused: true,
+	})
+	if err != nil || paused.Revision != 3 {
+		_ = pauseTx.Rollback(ctx)
+		t.Fatalf("transactional owner Queue pause = (%+v, %v)", paused, err)
+	}
+	admissionAfterPause := make(chan error, 1)
+	go func() {
+		admissionAfterPause <- persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+			return NewPostgresTxStore(tx, artifactpgtest.NewStorage()).LockRunQueueAdmission(ctx, run.RunID)
+		})
+	}()
+	select {
+	case err := <-admissionAfterPause:
+		_ = pauseTx.Rollback(ctx)
+		t.Fatalf("Stage admission bypassed uncommitted pause: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if err := pauseTx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-admissionAfterPause; !errors.Is(err, ErrQueuePaused) {
+		t.Fatalf("admission after committed pause error = %v, want Queue paused", err)
+	}
+
+	resumed, err = store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: 3, Paused: false,
+	})
+	if err != nil || resumed.Revision != 4 {
+		t.Fatalf("resume before admission-first ordering = (%+v, %v)", resumed, err)
+	}
+	admissionTx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	admissionStore := NewPostgresTxStore(admissionTx, artifactpgtest.NewStorage())
+	if err := admissionStore.LockRunQueueAdmission(ctx, run.RunID); err != nil {
+		_ = admissionTx.Rollback(ctx)
+		t.Fatal(err)
+	}
+	pauseAfterAdmission := make(chan error, 1)
+	go func() {
+		_, updateErr := store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+			OwnerID: "user-1", ExpectedRevision: 4, Paused: true,
+		})
+		pauseAfterAdmission <- updateErr
+	}()
+	select {
+	case err := <-pauseAfterAdmission:
+		_ = admissionTx.Rollback(ctx)
+		t.Fatalf("Queue pause bypassed Stage admission lock: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if _, err := admissionStore.CreateStageExecution(ctx, CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
+		StageExecutionID: "stage-admitted-before-pause", RunID: run.RunID,
+		StageName: "copy", Attempt: 1, StageSpecSchemaVersion: contracts.APIVersion,
+		StageSpecSnapshot: json.RawMessage(`{}`), StageContextSchemaVersion: contracts.APIVersion,
+		StageContext: StageContextSnapshot{},
+	}); err != nil {
+		_ = admissionTx.Rollback(ctx)
+		t.Fatal(err)
+	}
+	if err := admissionTx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-pauseAfterAdmission; err != nil {
+		t.Fatalf("pause after admitted Stage: %v", err)
+	}
+	if _, err := store.GetStageExecution(ctx, "stage-admitted-before-pause"); err != nil {
+		t.Fatalf("get Stage admitted before pause: %v", err)
+	}
+	current, err := store.GetOwnerQueueControl(ctx, "user-1")
+	if err != nil || !current.Paused || current.Revision != 5 {
+		t.Fatalf("owner Queue after admission-first ordering = (%+v, %v)", current, err)
+	}
+}
+
+func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
+
+	first := createTestRun(t, ctx, store, "run-capacity-waiting")
+	if _, err := admitTestRun(ctx, store, first.RunID); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := store.ClaimRunnableRun(ctx, "claim-capacity-first", time.Minute, nil, resolved.LaneClassModel)
+	if err != nil || claimed.RunID != first.RunID {
+		t.Fatalf("initial claim = (%+v, %v), want first Run", claimed, err)
+	}
+	if err := store.DeferRunClaim(ctx, first.RunID, "claim-capacity-first"); err != nil {
+		t.Fatal(err)
+	}
+
+	otherOwner := testRunParams("run-other-owner-pending")
+	otherOwner.OwnerID = "user-2"
+	second, err := createRun(ctx, store, otherOwner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(ctx, second.RunID, RunInitializing, RunPending, Reason{Code: "awaiting_admission"}); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-other-owner", time.Minute, nil, resolved.LaneClassModel)
+	if err != nil || claimed.RunID != second.RunID {
+		t.Fatalf("pending Run after older deferred running Run = (%+v, %v)", claimed, err)
+	}
+	if err := store.ReleaseRunClaim(ctx, second.RunID, "claim-other-owner"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(ctx, second.RunID, RunPending, RunRunning, Reason{Code: "admitted"}); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-nondeferred-running", time.Minute, nil, resolved.LaneClassModel)
+	if err != nil || claimed.RunID != second.RunID {
+		t.Fatalf("non-deferred running Run lost priority = (%+v, %v)", claimed, err)
+	}
+	if err := store.ReleaseRunClaim(ctx, second.RunID, "claim-nondeferred-running"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(ctx, second.RunID, RunRunning, RunSucceeded, Reason{Code: "completed"}); err != nil {
+		t.Fatal(err)
+	}
+
+	cancelling := createTestRun(t, ctx, store, "run-cancelling")
+	if _, err := store.RequestRunCancellation(ctx, cancelling.RunID, WorkflowRunCancellation{
+		Code: CancellationUserRequested, RequestedAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-cancelling", time.Minute, nil, resolved.LaneClassModel)
+	if err != nil || claimed.RunID != cancelling.RunID {
+		t.Fatalf("cancelling Run lost priority = (%+v, %v)", claimed, err)
+	}
+	if err := store.ReleaseRunClaim(ctx, cancelling.RunID, "claim-cancelling"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(ctx, cancelling.RunID, RunCancelling, RunCancelled, Reason{Code: "cancelled"}); err != nil {
+		t.Fatal(err)
+	}
+
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-recovered", time.Minute, nil, resolved.LaneClassModel)
+	if err != nil || claimed.RunID != first.RunID {
+		t.Fatalf("deferred Run was not retried = (%+v, %v)", claimed, err)
+	}
+	if err := store.ReleaseRunClaim(ctx, first.RunID, "claim-recovered"); err != nil {
+		t.Fatal(err)
+	}
+	third := createTestRun(t, ctx, store, "run-new-pending")
+	if _, err := store.TransitionRun(ctx, third.RunID, RunInitializing, RunPending, Reason{Code: "awaiting_admission"}); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-recovered-priority", time.Minute, nil, resolved.LaneClassModel)
+	if err != nil || claimed.RunID != first.RunID {
+		t.Fatalf("successful release did not restore running priority = (%+v, %v)", claimed, err)
+	}
+}
+
+func TestPostgresDeferredClaimAgesBackIntoItsStateTier(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
+	claimAndDefer := func(claimID, wantRunID string) {
+		t.Helper()
+		claimed, err := store.ClaimRunnableRun(ctx, claimID, time.Minute, nil, resolved.LaneClassModel)
+		if err != nil || claimed.RunID != wantRunID {
+			t.Fatalf("claim %s = (%+v, %v), want %s", claimID, claimed, err, wantRunID)
+		}
+		if err := store.DeferRunClaim(ctx, wantRunID, claimID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	age := func(runID string) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, `
+UPDATE workflow_runs
+SET updated_at = clock_timestamp() - ($2::bigint * interval '1 microsecond') - interval '1 second'
+WHERE run_id = $1`, runID, deferredClaimYield.Microseconds()); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	blocked := createTestRun(t, ctx, store, "run-blocked-running")
+	if _, err := admitTestRun(ctx, store, blocked.RunID); err != nil {
+		t.Fatal(err)
+	}
+	claimAndDefer("claim-blocked-1", blocked.RunID)
+	waiting := createTestRun(t, ctx, store, "run-waiting-pending")
+	if _, err := store.TransitionRun(ctx, waiting.RunID, RunInitializing, RunPending, Reason{Code: "awaiting_admission"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A fresh deferral yields to pending work, including newer pending Runs.
+	claimed, err := store.ClaimRunnableRun(ctx, "claim-waiting-1", time.Minute, nil, resolved.LaneClassModel)
+	if err != nil || claimed.RunID != waiting.RunID {
+		t.Fatalf("pending Run after fresh deferral = (%+v, %v)", claimed, err)
+	}
+	if err := store.ReleaseRunClaim(ctx, waiting.RunID, "claim-waiting-1"); err != nil {
+		t.Fatal(err)
+	}
+	// Once its deferral ages out, the running Run is back ahead of pending work
+	// instead of waiting for every Run that arrives meanwhile.
+	age(blocked.RunID)
+	claimAndDefer("claim-blocked-2", blocked.RunID)
+	// A deferred pending Run likewise competes by age with newer pending work
+	// once its deferral ages out.
+	claimAndDefer("claim-waiting-2", waiting.RunID)
+	age(waiting.RunID)
+	newer := createTestRun(t, ctx, store, "run-newer-pending")
+	if _, err := store.TransitionRun(ctx, newer.RunID, RunInitializing, RunPending, Reason{Code: "awaiting_admission"}); err != nil {
+		t.Fatal(err)
+	}
+	claimAndDefer("claim-waiting-3", waiting.RunID)
+	claimAndDefer("claim-newer", newer.RunID)
+}
+
+func TestPostgresIntegrationRunSkillSnapshotGatesRunnableClaim(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
+	run := createTestRun(t, ctx, store, "run-skill-pending")
+	revision := "owner-revision-1"
+	selection := []agentskills.RunSkillSnapshot{{
+		Name: "review",
+		Source: &contracts.ArtifactRef{
+			Namespace: contracts.AgentSkillNamespace, Name: "review", Revision: &revision,
+		},
+		SourceDigest: "sha256:" + strings.Repeat("a", 64), SourceSize: 1024,
+	}}
+	if err := store.SetRunSkillSelections(ctx, run.RunID, selection); err != nil {
+		t.Fatalf("record Skill selection: %v", err)
+	}
+	pending, err := store.GetRun(ctx, run.RunID)
+	if err != nil || pending.State != RunInitializing ||
+		pending.StateReason.Code != SkillInitializationPendingReason ||
+		len(pending.SkillSnapshot) != 1 {
+		t.Fatalf("pending Run = (%+v, %v)", pending, err)
+	}
+	claimed, err := store.ClaimRunnableRun(ctx, "skill-claim", time.Minute, nil, resolved.LaneClassModel)
+	if err != nil || claimed.RunID != run.RunID || claimed.State != RunInitializing {
+		t.Fatalf("claim pending Skill Run = (%+v, %v)", claimed, err)
+	}
+
+	runRevision := "run-revision-1"
+	initialized := append([]agentskills.RunSkillSnapshot(nil), selection...)
+	initialized[0].Artifact = &contracts.ArtifactRef{
+		Namespace: contracts.AgentSkillNamespace, Name: "review", Revision: &runRevision,
+	}
+	initialized[0].PackageDigest = initialized[0].SourceDigest
+	initialized[0].ExpandedBytes = 2048
+	if err := store.CompleteRunSkillInitialization(ctx, run.RunID, initialized); err != nil {
+		t.Fatalf("complete Skill snapshot: %v", err)
+	}
+	started, err := store.TransitionRun(
+		ctx, run.RunID, RunInitializing, RunPending, Reason{Code: "initialized"},
+	)
+	if err != nil || started.State != RunPending || started.SkillSnapshot[0].Artifact == nil ||
+		*started.SkillSnapshot[0].Artifact.Revision != runRevision {
+		t.Fatalf("started Skill Run = (%+v, %v)", started, err)
+	}
+	_, err = pool.Exec(ctx, `UPDATE workflow_runs SET skill_snapshot = '[]'::jsonb WHERE run_id = $1`, run.RunID)
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
+		t.Fatalf("terminal Skill snapshot rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+
+	mutated := append([]agentskills.RunSkillSnapshot(nil), initialized...)
+	otherRevision := "owner-revision-2"
+	mutated[0].Source = &contracts.ArtifactRef{
+		Namespace: contracts.AgentSkillNamespace, Name: "review", Revision: &otherRevision,
+	}
+	if err := store.CompleteRunSkillInitialization(ctx, run.RunID, mutated); !errors.Is(err, ErrConflict) {
+		t.Fatalf("source rewrite error = %v, want conflict", err)
+	}
+}
+
+func TestWorkflowRunEventNotificationIsVisibleOnlyAfterCommit(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	listener, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Release()
+	if _, err := listener.Exec(ctx, "LISTEN "+runEventNotificationChannel); err != nil {
+		t.Fatal(err)
+	}
+	random := make([]byte, 8)
+	if _, err := rand.Read(random); err != nil {
+		t.Fatal(err)
+	}
+	runID := "run-notify-" + hex.EncodeToString(random)
+	notified := make(chan struct{})
+	waitErr := make(chan error, 1)
+	go func() {
+		for {
+			notification, err := listener.Conn().WaitForNotification(ctx)
+			if err != nil {
+				waitErr <- err
+				return
+			}
+			if notification.Channel == runEventNotificationChannel && notification.Payload == runID {
+				close(notified)
+				return
+			}
+		}
+	}()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = createRun(ctx, NewPostgresStore(tx, artifactpgtest.NewStorage()), CreateRunParams{
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
+		WorkflowSchemaVersion: contracts.APIVersion,
+		WorkflowSnapshot:      json.RawMessage(`{"name":"workflow"}`),
+		Parameters:            map[string]string{},
+		RuntimeConfig:         runtimeconfigtest.BuiltInRunSnapshot(),
+	})
+
+	if err != nil {
+		_ = tx.Rollback(ctx)
+		t.Fatal(err)
+	}
+	select {
+	case <-notified:
+		_ = tx.Rollback(ctx)
+		t.Fatal("WorkflowRun event notification escaped an uncommitted transaction")
+	case err := <-waitErr:
+		_ = tx.Rollback(ctx)
+		t.Fatalf("wait before commit: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-notified:
+	case err := <-waitErr:
+		t.Fatalf("wait after commit: %v", err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("committed WorkflowRun event did not publish a wake-up notification")
+	}
+	page, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).ListRunEvents(ctx, runID, 0, 10)
+	events := page.Events
+	if err != nil || len(events) != 1 || page.More || events[0].Kind != RunEventLifecycleChanged ||
+		events[0].SequenceNumber != 1 || !strings.Contains(string(events[0].Data), `"state": "initializing"`) {
+		t.Fatalf("committed lifecycle events = (%+v, %v)", events, err)
+	}
+}
+
+func TestPostgresIntegrationRunCancellationIsDurableAndIdempotent(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
+
+	requestedBy := "user-1"
+	reason := "stop this work"
+	requestedAt := time.Date(2026, 8, 29, 12, 0, 0, 123, time.FixedZone("request-zone", 3*60*60))
+	first, err := store.RequestRunCancellation(ctx, createTestRun(t, ctx, store, "run-cancel").RunID, WorkflowRunCancellation{
+		Code: CancellationUserRequested, RequestedAt: requestedAt,
+		RequestedBy: &requestedBy, Reason: &reason,
+	})
+	if err != nil {
+		t.Fatalf("request cancellation: %v", err)
+	}
+	if first.State != RunCancelling || first.Cancellation == nil ||
+		first.Cancellation.RequestedAt.Location() != time.UTC ||
+		!first.Cancellation.RequestedAt.Equal(requestedAt) || first.Cancellation.Reason == nil ||
+		*first.Cancellation.Reason != reason || first.CancellationSchemaVersion == nil {
+		t.Fatalf("cancelling Run = %+v", first)
+	}
+
+	differentReason := "must not replace the winner"
+	repeated, err := store.RequestRunCancellation(ctx, first.RunID, WorkflowRunCancellation{
+		Code: CancellationUserRequested, RequestedAt: requestedAt.Add(time.Hour), Reason: &differentReason,
+	})
+	if err != nil {
+		t.Fatalf("repeat cancellation: %v", err)
+	}
+	if repeated.Cancellation == nil || repeated.Cancellation.Reason == nil ||
+		*repeated.Cancellation.Reason != reason || !repeated.Cancellation.RequestedAt.Equal(requestedAt) {
+		t.Fatalf("repeated cancellation replaced the first payload: %+v", repeated.Cancellation)
+	}
+
+	claimed, err := store.ClaimRunnableRun(ctx, "cancel-claim", time.Minute, nil, resolved.LaneClassModel)
+	if err != nil || claimed.RunID != first.RunID || claimed.State != RunCancelling {
+		t.Fatalf("claim cancelling Run = (%+v, %v)", claimed, err)
+	}
+	if state, err := store.RenewRunClaim(ctx, first.RunID, "cancel-claim", time.Minute); err != nil || state != RunCancelling {
+		t.Fatalf("renew cancelling Run claim = (%s, %v), want cancelling", state, err)
+	}
+	cancelled, err := store.TransitionRun(
+		ctx, first.RunID, RunCancelling, RunCancelled, Reason{Code: CancellationUserRequested},
+	)
+	if err != nil || cancelled.State != RunCancelled || cancelled.FinishedAt == nil || cancelled.Cancellation == nil {
+		t.Fatalf("finish cancelled Run = (%+v, %v)", cancelled, err)
+	}
+
+	_, err = pool.Exec(ctx, `
+UPDATE workflow_runs
+SET run_cancellation = jsonb_set(run_cancellation, '{reason}', '"rewritten"')
+WHERE run_id = $1`, first.RunID)
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
+		t.Fatalf("cancellation rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+
+	succeeded := createTestRun(t, ctx, store, "run-succeeded-before-cancel")
+	succeeded, err = admitTestRun(ctx, store, succeeded.RunID)
+	if err == nil {
+		succeeded, err = store.TransitionRun(ctx, succeeded.RunID, RunRunning, RunSucceeded, Reason{Code: "completed"})
+	}
+	if err != nil {
+		t.Fatalf("finish success before cancellation: %v", err)
+	}
+	afterCancel, err := store.RequestRunCancellation(ctx, succeeded.RunID, WorkflowRunCancellation{
+		Code: CancellationUserRequested, RequestedAt: time.Now(),
+	})
+	if err != nil || afterCancel.State != RunSucceeded || afterCancel.Cancellation != nil {
+		t.Fatalf("cancel terminal success = (%+v, %v)", afterCancel, err)
+	}
+}
+
+func TestPostgresRunRuntimeLabelsPinExactBindingsAcrossConcurrentRebind(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	credentials := pinTestRuntimeCredentials{}
+	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
+		Pool: pool, RuntimeCredentials: credentials,
+		PlannerTelemetryAdapters: runtimeconfigtest.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+		Now:                      func() time.Time { return time.Date(2026, 9, 1, 4, 0, 0, 0, time.UTC) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	publish := func(name, block string) runtimeconfig.Ref {
+		t.Helper()
+		document := []byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"` +
+			name + `","version":"1"},"spec":` + block + `}`)
+		result, publishErr := publisher.Publish(ctx, document, "publish-"+name, "operator")
+		if publishErr != nil {
+			t.Fatal(publishErr)
+		}
+		return result.Version.Ref
+	}
+	defaultA := publish("default-a", `{"planner":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://otel.example/a"}}}`)
+	defaultB := publish("default-b", `{"planner":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://otel.example/b"}}}`)
+	debugA := publish("debug-a", `{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://otel.example/debug-a"}}}`)
+	debugB := publish("debug-b", `{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://otel.example/debug-b"}}}`)
+	bindings := runtimeconfig.NewRepository(pool)
+	if _, err := bindings.Rebind(ctx, runtimeconfig.DefaultLabel, 1, defaultA, "operator", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := bindings.CreateBinding(ctx, "debug", debugA, "operator", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	txStore := newRunCreationTestStore(t, tx, pinTestLLMCredentials{})
+	pinned, err := txStore.PinRuntimeLabels(ctx, []string{"debug"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pinned.Default.BindingRevision != 2 || pinned.Default.Config != defaultA ||
+		len(pinned.Labels) != 1 || pinned.Labels[0].BindingRevision != 1 || pinned.Labels[0].Config != debugA {
+		t.Fatalf("old pinned bindings = %+v", pinned)
+	}
+
+	rebindDone := make(chan error, 1)
+	go func() {
+		_, rebindErr := bindings.Rebind(
+			ctx, "debug", 1, debugB, "operator", time.Now().Add(time.Minute),
+		)
+		rebindDone <- rebindErr
+	}()
+	select {
+	case err := <-rebindDone:
+		t.Fatalf("binding rebind bypassed Run pin lock: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if _, err := createRun(ctx, txStore.PostgresStore, CreateRunParams{
+		LaneClass: resolved.LaneClassModel,
+		RunID:     "run-runtime-label-old", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
+		WorkflowSchemaVersion: contracts.APIVersion,
+		WorkflowSnapshot:      json.RawMessage(`{"name":"workflow"}`),
+		Parameters:            map[string]string{}, RuntimeConfig: pinned,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-rebindDone; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := bindings.Rebind(ctx, runtimeconfig.DefaultLabel, 2, defaultB, "operator", time.Now().Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+
+	stored, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).GetRun(ctx, "run-runtime-label-old")
+	if err != nil || stored.RuntimeConfig.Default.Config != defaultA || stored.RuntimeConfig.Labels[0].Config != debugA {
+		t.Fatalf("stored immutable RuntimeConfig snapshot = (%+v, %v)", stored.RuntimeConfig, err)
+	}
+	if _, err := pool.Exec(ctx, `
+UPDATE workflow_runs
+SET runtime_config_snapshot = jsonb_set(runtime_config_snapshot, '{default,bindingRevision}', '99')
+WHERE run_id = 'run-runtime-label-old'`); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
+		t.Fatalf("RuntimeConfig snapshot rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+	newTx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newPinned, err := newRunCreationTestStore(t, newTx, pinTestLLMCredentials{}).PinRuntimeLabels(ctx, []string{"debug"})
+	_ = newTx.Rollback(ctx)
+	if err != nil || newPinned.Default.Config != defaultB || newPinned.Labels[0].Config != debugB ||
+		newPinned.Default.BindingRevision != 3 || newPinned.Labels[0].BindingRevision != 2 {
+		t.Fatalf("new pinned bindings = (%+v, %v)", newPinned, err)
+	}
+}
+
+func TestPostgresNonTerminalCredentialUsageIncludesRuntimeConfigSnapshot(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
+	snapshot := runtimeconfigtest.BuiltInRunSnapshot()
+	snapshot.LLMCredentialIDs = []string{"runtime-route"}
+	if _, err := createRun(ctx, store, CreateRunParams{
+		LaneClass: resolved.LaneClassModel,
+		RunID:     "run-runtime-route", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
+		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
+		Parameters: map[string]string{}, RuntimeConfig: snapshot,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runs, err := store.ListNonTerminalRunIDsByCredential(ctx, "runtime-route", 10)
+	if err != nil || len(runs) != 1 || runs[0] != "run-runtime-route" {
+		t.Fatalf("RuntimeConfig LLM credential usage = (%v, %v)", runs, err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, "run-runtime-route", RunInitializing, RunFailed, Reason{Code: "test_complete"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	runs, err = store.ListNonTerminalRunIDsByCredential(ctx, "runtime-route", 10)
+	if err != nil || len(runs) != 0 {
+		t.Fatalf("terminal RuntimeConfig LLM credential usage = (%v, %v)", runs, err)
+	}
+}
+
+func TestPostgresCredentialUsageIncludesLiveAllocationProvenance(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
+	run := createTestRun(t, ctx, store, "run-live-allocation-credential")
+	if _, err := admitTestRun(ctx, store, run.RunID); err != nil {
+		t.Fatal(err)
+	}
+	execution, err := store.CreateStageExecution(ctx, CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
+		StageExecutionID: "stage-live-allocation-credential", RunID: run.RunID,
+		StageName: "copy", Attempt: 1, StageSpecSchemaVersion: contracts.APIVersion,
+		StageSpecSnapshot: json.RawMessage(`{}`), StageContextSchemaVersion: contracts.APIVersion,
+		StageContext: StageContextSnapshot{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	configuration := testAllocationRuntimeConfiguration()
+	credential := llmgateway.LLMCredentialRef{CredentialID: "allocation-only-key"}
+	configuration.Provenance.LLMCredential = &credential
+	if err := store.RecordStageAllocation(ctx, StageAllocation{
+		AllocationID: "allocation-live-credential", StageExecutionID: execution.StageExecutionID,
+		LogicalAgentName: "builder", Namespace: "builder",
+		AgentTemplateRef: contracts.AgentTemplateRef{
+			TemplateID: "builder", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
+		},
+		WorkerRuntimeRef: contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"},
+		RuntimeAgentID:   strings.Repeat("2", 64), RuntimeAgentInstanceID: "runtime-live",
+		RuntimeAgentLabelRevision:         1,
+		RuntimeConfigurationSchemaVersion: AllocationRuntimeConfigurationSchemaVersion,
+		RuntimeConfiguration:              configuration,
+		PerformanceCollectionPolicy:       reporting.PerformanceCollectionDisabled,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runIDs, err := store.ListNonTerminalRunIDsByCredential(ctx, credential.CredentialID, 10)
+	if err != nil || len(runIDs) != 1 || runIDs[0] != run.RunID {
+		t.Fatalf("live allocation credential Runs = (%v, %v)", runIDs, err)
+	}
+	if err := store.MarkStageAllocationReleased(ctx, "allocation-live-credential"); err != nil {
+		t.Fatal(err)
+	}
+	runIDs, err = store.ListNonTerminalRunIDsByCredential(ctx, credential.CredentialID, 10)
+	if err != nil || len(runIDs) != 0 {
+		t.Fatalf("released allocation credential Runs = (%v, %v)", runIDs, err)
+	}
+}
+
+type pinTestRuntimeCredentials struct{}
+
+func (pinTestRuntimeCredentials) ValidateRuntimeCredential(context.Context, string, ...string) error {
+	return nil
+}
+
+func (pinTestRuntimeCredentials) WithCredentialReferences(_ context.Context, fn func() error) error {
+	return fn()
+}
+
+type pinTestLLMCredentials struct{}
+
+func (pinTestLLMCredentials) LookupLLMCredential(
+	context.Context, string,
+) (resolved.CredentialMetadata, error) {
+	return resolved.CredentialMetadata{}, errors.New("LLM credential unavailable")
+}
+
+func newRunCreationTestStore(
+	t *testing.T,
+	tx pgx.Tx,
+	lookup resolved.CredentialLookup,
+) *PostgresTxStore {
+	t.Helper()
+	bound, err := runtimeconfig.BindTransactionLLMCredentialLookup(
+		tx,
+		runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
+			func(pgx.Tx) (resolved.CredentialLookup, error) { return lookup, nil },
+		),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return NewRunCreationPostgresStore(tx, bound, pinTestRuntimeCredentials{}, artifactpgtest.NewStorage())
+}
+
+func createTestRun(t *testing.T, ctx context.Context, store *PostgresStore, runID string) WorkflowRun {
+	t.Helper()
+	run, err := createRun(ctx, store, testRunParams(runID))
+	if err != nil {
+		t.Fatalf("create test Run %q: %v", runID, err)
+	}
+	return run
+}
+
+// createRun stores params through the public create-Run path with an
+// idempotency key and a request digest derived from the Run ID, as
+// runstoretest.CreateRun does for other packages' tests. A Run ID that is
+// already stored is ErrConflict.
+func createRun(ctx context.Context, store *PostgresStore, params CreateRunParams) (WorkflowRun, error) {
+	digest := contentdigest.Bytes([]byte("runstoretest.CreateRun\x00" + params.RunID))
+	run, inserted, err := store.CreateRunIdempotent(ctx, CreateRunIdempotentParams{
+		CreateRunParams: params,
+		IdempotencyKey:  "test-" + strings.TrimPrefix(digest, "sha256:"),
+		RequestDigest:   digest,
+	})
+	if err != nil {
+		return WorkflowRun{}, err
+	}
+	if !inserted {
+		return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, ErrConflict)
+	}
+	return run, nil
+}
+
+// admitTestRun moves a created Run through initialization, which commits
+// pending, and admission, which sets running (RUN-R28).
+func admitTestRun(ctx context.Context, store *PostgresStore, runID string) (WorkflowRun, error) {
+	if _, err := store.TransitionRun(ctx, runID, RunInitializing, RunPending, Reason{Code: "initialized"}); err != nil {
+		return WorkflowRun{}, err
+	}
+	return store.TransitionRun(ctx, runID, RunPending, RunRunning, Reason{Code: "admitted"})
+}
+
+func testRunParams(runID string) CreateRunParams {
+	return CreateRunParams{
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
+		WorkflowSchemaVersion: "contractor/v1alpha1",
+		WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
+		Parameters:            map[string]string{"mode": "strict"},
+		RuntimeConfig:         runtimeconfigtest.BuiltInRunSnapshot(),
+	}
+}
+
+func isolatedRunStorePool(t *testing.T, ctx context.Context) *pgxpool.Pool {
+	t.Helper()
+	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{})
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
+		t.Fatal(err)
+	}
+	return pool
+}

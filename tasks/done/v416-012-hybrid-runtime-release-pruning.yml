@@ -1,0 +1,100 @@
+schema_version: "1.0"
+id: V416-012
+title: "Preserve Runtime releases referenced by instances outside the current inventory"
+milestone: main-review-2026-10-25
+epic: operations
+kind: defect
+introduced_by: V402-001
+priority: P1
+status: completed
+implementation_commit: 28dea4ee912595b33e7a0c8f10ee22c7bf30d215
+depends_on: []
+languages: [yaml, python]
+goal: >-
+  Release cleanup removes only Runtime releases that no retained unit or
+  running/deferred instance can still use, including instances omitted from
+  the current deployment inventory.
+context:
+  review: "2026-10-25 second-pass review of main f9fda28f1c9ffa4baaf3052c141e652c8593a080."
+  severity: medium
+  deployment_contract: deploy/ansible/README.md
+  finding: >-
+    deploy/ansible/roles/contractor_runtime/tasks/prune.yml:6-21 gates all
+    release deletion on __contractor_runtime_pending, a list built only from
+    the current inventory. main.yml:69-76 removes only explicitly absent
+    instances and :83-90 starts/verifies only current ready instances.
+    Deploy A and B at release old; later deploy only A at new with
+    keep_releases=1. B remains enabled or running, but old is deleted because
+    B never enters the current pending list. Its unit now points to a missing
+    executable, and its live Python process may fail later imports or child
+    commands. A localhost Ansible reproduction included the production
+    prune.yml with disposable old/new release directories and an omitted B
+    unit: it deleted the old executable while retaining the unit.
+  provenance: >-
+    V402-001 implementation c12d35f0435c583ae11a2e495b1b6965eff47f9f added the
+    role, including prune.yml. The hybrid wrapper reuses this same role;
+    pruning must be repaired there rather than only in the wrapper.
+  siblings: >-
+    Full and partial generic Ansible inventories, hybrid regenerated
+    inventories, stopped-but-enabled units, active processes, deferred-restart
+    markers and explicit state:absent cleanup share this rule. Host tools and
+    per-instance bin-directory cleanup have separate ownership and must be
+    checked for the same omitted-instance assumption. No omission authorizes
+    stopping or deleting another instance.
+scope:
+  in:
+    - "Discover the bounded set of retained Contractor units and pending markers before release pruning; protect their referenced releases, including a running process's old release while its unit already names a new release."
+    - "Alternatively require and verify complete ownership inventory before pruning, with a clear refusal when an omitted live or retained instance cannot be resolved; an unchecked assumption of completeness is insufficient."
+    - "Keep explicit state:absent as the authority for stopping/removing a unit; preserve its existing certificate, key and work-root retention."
+    - "Add localhost Ansible regressions using disposable directories and unit/process fixtures; document inventory completeness and the pruning decision."
+  out:
+    - "Implicitly retiring omitted Runtime instances, changing their labels or models, remote deployment, or deleting user business data."
+failure_outcomes:
+  - operation: "Discover release references and prune unused release directories"
+    success: "Only unreferenced excess releases are removed; current and retained-instance releases remain usable."
+    permanent: "Malformed references, unsupported unit shape or ownership ambiguity stops pruning with an actionable error and no deletion based on guessed state."
+    retryable: "Transient discovery failures stop cleanup; the operator can repeat the deployment after resolving them."
+    ambiguous: "A failed delete is reconciled by filesystem inspection; no instance is stopped as a cleanup shortcut."
+    cancelled: "Stop scanning/removal; retained references are protected throughout and a later invocation can resume idempotently."
+    timeout: "Bound discovery and subprocess operations; expiry means cleanup was incomplete, never that a release is unused."
+cardinality:
+  - collection: "Contractor units, restart markers and retained release directories on one host"
+    expected: "A small number of Runtime slots and a few releases."
+    maximum: "Declare an explicit scan bound in the deployment contract; overflow refuses pruning rather than treating an incomplete scan as complete."
+    bound: "Read metadata/unit references only; do not traverse release contents or all system services."
+acceptance_criteria:
+  - id: A1
+    given: "A and B deployed at old, B omitted from the next inventory, A upgraded to new and keep_releases=1"
+    when: "the real role's pruning step runs"
+    then: "B's referenced release remains present, or cleanup is explicitly refused before deletion; B is not stopped or removed implicitly"
+  - id: A2
+    given: "a retained stopped/enabled B or a deferred B whose new unit and old process reference different releases"
+    when: "a later partial inventory deploys A"
+    then: "every release still needed by B remains protected, including its pending previous process release"
+  - id: A3
+    given: "explicitly removed instances and genuinely unreferenced excess releases"
+    when: "cleanup is repeated"
+    then: "eligible releases are removed idempotently; the configured total retention target is honored wherever protecting referenced releases permits, protected releases may exceed the target, and current releases/data roots stay intact"
+  - id: A4
+    given: "unknown/malformed references, a failed discovery, an exceeded bound or cancellation"
+    when: "pruning is attempted"
+    then: "the operation fails conservatively without deleting any release whose safety was not established"
+  - id: A5
+    given: "disposable localhost fixtures, including the production prune tasks"
+    when: "the regression and full deployment suites run"
+    then: "A1 fails on the reviewed code and all cases pass after the fix without contacting a cloud host"
+tests:
+  - command: make test-ansible test-hybrid
+    covers: [A1, A2, A3, A4, A5]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5]
+implementation_notes:
+  - "Cleanup requires a complete retained-unit inventory; omission or unsupported metadata refuses before deletion. Explicit absent remains the only retirement authority."
+  - "Protect current release, literal unit references (executable, arguments, environment), live process references, and all releases while a validated restart marker remains."
+  - "Bounds: 256 units, 4096 entries per metadata directory, 65536 bytes per metadata read, 30-second manager scan and 5-second query timeout; unsupported drop-ins/symlinks/missing references fail conservatively."
+  - "keep_releases counts protected releases in its total target; protected references may exceed it. Host tools and retired instance data/certificates/keys remain untouched."
+validation_notes:
+  - "Fail-before: the localhost omitted-unit regression against HEAD's original prune.yml failed because old release aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa was removed while its unit remained."
+  - "Pass-after: 17 ownership/localhost-role regressions cover omitted/stopped/deferred instances, rewritten unit with old process, literal argument/environment references, total retention, repeated cleanup, malformed metadata, real cardinality limits, manager failure/timeout, oversized stdout/stderr with kill-and-join, and cancellation."
+  - "The real Ansible role runs against disposable localhost filesystem fixtures and a manager fixture; live Linux systemd and cloud deployment were not invoked."
+  - "Verification on the final reviewed candidate: make test-ansible test-hybrid lint PASS (including 17 pruning regressions and 23 hybrid tests); targeted Ruff check/format and git diff --check PASS. Go concurrency was limited with GOFLAGS=-p=2. No database tests or remote deployments are part of these deployment changes."

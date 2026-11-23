@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-16",
+  "acceptedAt": "2026-11-16T16:51:27.031917+00:00",
+  "branch": "fix/first-release-review-20261116",
+  "baseMain": "74a8d5054edfdd4c6fefa9bd4b7cf2823a88ac2d",
+  "implementationCommits": {
+    "V468-001": "3364a6232bba1aa5ccb0ddf2676e94793854e9be",
+    "V468-002": "31241e421ce16075ad5d3973b6d602fffe204692",
+    "V468-003": "41788c01c97b42c4678695bbbbb6a9bf5615efde",
+    "V468-004": "47d84c81b7f85d86775d33c81e7e562962e464c5"
+  },
+  "verifiedCodeHead": "47d84c81b7f85d86775d33c81e7e562962e464c5",
+  "mergedIntoMain": false,
+  "dnsPolicyChanged": false,
+  "primaryCheckoutUntouched": true,
+  "gates": [
+    {
+      "command": "go test -json -count=1 ./... (real PostgreSQL)",
+      "exitCode": 0,
+      "log": "/Users/ruslan/Documents/Codex/2026-11-16/new-chat/work/fix-go-final.log",
+      "logSha256": "sha256:0311a38ff942552ac5b2d0343a1ec25598eae434cd198b5a321727528ad47cfc"
+    },
+    {
+      "command": "cd runtime && uv run pytest -W error tests/test_worker_compaction.py",
+      "exitCode": 0,
+      "log": "/Users/ruslan/Documents/Codex/2026-11-16/new-chat/work/fix-compaction-full.log",
+      "logSha256": "sha256:5a8fc67bfbf75ed99b0a7eda0caeb67b38fdb6de810443ec8c5f8a61097c533a"
+    },
+    {
+      "command": "make lint build test-config",
+      "exitCode": 0,
+      "log": "/Users/ruslan/Documents/Codex/2026-11-16/new-chat/work/fix-lint-build-config.log",
+      "logSha256": "sha256:a79dedfaecf6ab9279caba12587c507b524e3f168dc0008361978ada7307e35d"
+    },
+    {
+      "command": "make lint (final source tree)",
+      "exitCode": 0,
+      "log": "/Users/ruslan/Documents/Codex/2026-11-16/new-chat/work/fix-lint-final.log",
+      "logSha256": "sha256:e648de2d82fdfbab796be11dc71bc088336d877a80c43af5347a235911d5acdd"
+    },
+    {
+      "command": "shared_fixture_gate.py and release_test_reports.py verify-engagement-accounting / verify-compaction-go",
+      "exitCode": 0,
+      "log": "/Users/ruslan/Documents/Codex/2026-11-16/new-chat/work/fix-shared-gates.log",
+      "logSha256": "sha256:046a69a7f03a017bfcc40f7d9b92681c8bba5d393fd7b3bc9882ab68d9723d96"
+    },
+    {
+      "command": "make test-release-config-fixtures",
+      "exitCode": 0,
+      "log": "/Users/ruslan/Documents/Codex/2026-11-16/new-chat/work/fix-config-fixtures-final.log",
+      "logSha256": "sha256:d5f011b4fa6579069bdfc195de5b55e8b270287f4db0274bc2f0e1935043b1db"
+    },
+    {
+      "command": "go test -tags=e2e -count=1 ./tests/ui-stack -run '^TestUIStackConfigurationClosure$'",
+      "exitCode": 0,
+      "log": "/Users/ruslan/Documents/Codex/2026-11-16/new-chat/work/fix-ui-config-fixtures.log",
+      "logSha256": "sha256:a673bbeaffd0daa38a374fb3abbe29f67395b03b41b51e13408989b11845a61b"
+    },
+    {
+      "command": "go test -tags=e2e -count=1 -timeout=20m -v ./tests/ui-stack",
+      "exitCode": 0,
+      "log": "/Users/ruslan/Documents/Codex/2026-11-16/new-chat/work/fix-ui-stack-full.log",
+      "logSha256": "sha256:f514c99f4e6b245c63a8cc4cbace2d005e2059351e2852b6548b179740188bd7"
+    },
+    {
+      "command": "go test -tags=e2e -count=1 ./tests/e2e -run '^TestWorkerCompactionContinuesIsolatedWorker$'",
+      "exitCode": 0,
+      "log": "/Users/ruslan/Documents/Codex/2026-11-16/new-chat/work/fix-compaction-e2e.log",
+      "logSha256": "sha256:970b07dc1b976664df1bebadb2b73d06100bede05a574a744a7c26c46493d2fb"
+    },
+    {
+      "command": "go test -tags=e2e -count=1 ./tests/e2e -run '^TestAuditProgramCatalogReplacementRestartsServer$'",
+      "exitCode": 0,
+      "log": "/Users/ruslan/Documents/Codex/2026-11-16/new-chat/work/fix-catalog-process-final.log",
+      "logSha256": "sha256:78f6b853d6cad46e30f7d783d6bb59d69b983f4cc2a6d37b9cebbed42204d723"
+    },
+    {
+      "command": "make tasks-backlog; cd runtime && uv run python ../scripts/check_tasks.py (completed task metadata)",
+      "exitCode": 0,
+      "log": "/Users/ruslan/Documents/Codex/2026-11-16/new-chat/work/fix-tasks-final.log",
+      "logSha256": "sha256:db1440671db42a9a71cd72c61d74b2816784a94967e68dd78596f64eb1099f53"
+    }
+  ],
+  "aggregateAttempt": {
+    "command": "make -k verify",
+    "exitCode": 2,
+    "log": "/Users/ruslan/Documents/Codex/2026-11-16/new-chat/work/fix-verify.log",
+    "logSha256": "sha256:5e8146370be8162b3c9247e820716ec9d49add39d6145b5bea445440b0a50498",
+    "resolvedFailures": [
+      "Regenerated catalog dependency graph",
+      "Adapted private Eval model selection catalog",
+      "Adapted E2E and UI fixture staging to validate source locks and isolate private routes"
+    ],
+    "passedComponentsReused": [
+      "Full Runtime suite and report validators",
+      "Full UI unit/server tests, generated-client check, lint, typecheck and build"
+    ],
+    "failedComponentsRerun": [
+      "Full Go suite",
+      "lint/build/test-config",
+      "release config fixtures",
+      "shared fixture and compaction/engagement report gates"
+    ],
+    "monolithicVerifyRerun": false
+  },
+  "counts": {
+    "goPassedIncludingSubtests": 11019,
+    "goSkipped": 17,
+    "runtimePassed": 6274,
+    "runtimeSkipped": 135,
+    "uiPassed": 2531,
+    "uiExpectedFailures": 1,
+    "uiServerPassed": 17,
+    "browserPassed": 118,
+    "sharedFixtures": 394,
+    "goSharedTests": 443,
+    "pythonSharedTests": 280,
+    "compactionProcessScenarios": 4
+  },
+  "negativeControls": [
+    {
+      "command": "Go overlay disables the exact PostgreSQL stored-size guard; regression tests fail as expected",
+      "exitCode": 1,
+      "log": "/Users/ruslan/Documents/Codex/2026-11-16/new-chat/work/fix-credentials-red.log",
+      "logSha256": "sha256:2d8df7fef9fe0c9579c1ed9be59d1f9802fc7ac9f96e7236ea8739e134a7d08d"
+    },
+    {
+      "command": "New ADK regression against the original compaction implementation fails at three groups / keep four",
+      "exitCode": 1,
+      "log": "/Users/ruslan/Documents/Codex/2026-11-16/new-chat/work/fix-compaction-red.log",
+      "logSha256": "sha256:08e8c28287355c80bf4881fccd37929c7044f46498b1b705a4bbe86322bb3d47"
+    },
+    {
+      "command": "Go overlay removes observer exclusion from the production SQL; the corrected diagnostic assertion fails",
+      "exitCode": 1,
+      "log": "/Users/ruslan/Documents/Codex/2026-11-16/new-chat/work/fix-performance-red.log",
+      "logSha256": "sha256:39c639dee34b31d8c46beb89bfa81a33ca175db451a96188fe923b0f8a9ea8b6"
+    }
+  ],
+  "nonAcceptanceAttempts": [
+    {
+      "command": "go test -tags=e2e -short ./tests/e2e",
+      "exitCode": 1,
+      "log": "/Users/ruslan/Documents/Codex/2026-11-16/new-chat/work/fix-e2e-offline-final.log",
+      "logSha256": "sha256:d6666c7270e6500153c56a8168929e2e136f37a29abcd7d492d2bbb8a6e3c465",
+      "reason": "This package intentionally rejects short mode for process gates; the Podman gate also requires a preinstalled pinned image. Not product regression evidence or passing coverage."
+    },
+    {
+      "command": "Catalog restart process check concurrent with UI stack",
+      "exitCode": 1,
+      "log": "/Users/ruslan/Documents/Codex/2026-11-16/new-chat/work/fix-catalog-process-concurrent.log",
+      "logSha256": "sha256:e81a0ba1408bff03db17eb30208e8b4102f7c301a44f91b760ce6c1fcd131b06",
+      "reason": "Both lanes shared the database-global Server lease. The standby log names the UI holder; the check was rerun sequentially."
+    }
+  ],
+  "limits": [
+    "No complete 12-stage release-verify claim",
+    "No live model experiment or deployment",
+    "CONTRACTOR_TEST_HEAVY_IO was not enabled",
+    "Platform, external-gate and optional skips are not passing coverage",
+    "Unrelated remaining V425-005 stored-size work stays open"
+  ],
+  "cleanup": {
+    "ownedDatabase": "contractor_test_release_fixes_20261116",
+    "dropped": true
+  },
+  "postVerificationChanges": "Only task status, implementation hashes, generated backlog and evidence; production and test sources are unchanged."
+}

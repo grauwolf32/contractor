@@ -1,0 +1,189 @@
+package rundeletion
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
+	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func TestPostgresRunDeletionGatesMatchDeletion(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedDeletionPool(t, ctx)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	createDeletionRun(t, ctx, pool, "user-1", "run-active", runstore.RunRunning)
+	createDeletionRun(t, ctx, pool, "user-1", "run-release-pending", runstore.RunFailed)
+	createDeletionRun(t, ctx, pool, "user-1", "run-released", runstore.RunSucceeded)
+	createDeletionRun(t, ctx, pool, "user-2", "run-foreign", runstore.RunSucceeded)
+	execution, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
+		StageExecutionID: "stage-release-pending", RunID: "run-release-pending", StageName: "copy", Attempt: 1,
+		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{}`),
+		StageContextSchemaVersion: contracts.APIVersion, StageContext: runstore.StageContextSnapshot{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO stage_allocations (
+    allocation_id, stage_execution_id, logical_agent_name, namespace,
+    agent_template_ref, worker_runtime_ref, runtime_agent_instance_id
+) VALUES ('allocation-release-pending', $1, 'builder', 'builder', '{}'::jsonb, '{}'::jsonb, 'runtime-1')`,
+		execution.StageExecutionID,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	deletions := New(pool, artifactpgtest.NewStorage())
+	want := map[string]*Reason{
+		"run-active":          reasonOf(RunNotTerminal),
+		"run-release-pending": reasonOf(AllocationReleasePending),
+		"run-released":        nil,
+	}
+	for runID, reason := range want {
+		got, err := deletions.RunDeletionBlocker(ctx, "user-1", runID)
+		if err != nil || (got == nil) != (reason == nil) || (got != nil && *got != *reason) {
+			t.Fatalf("RunDeletionBlocker(%s) = (%v, %v), want %v", runID, got, err, reason)
+		}
+	}
+	for _, runID := range []string{"run-foreign", "run-missing"} {
+		if _, err := deletions.RunDeletionBlocker(ctx, "user-1", runID); !errors.Is(err, runstore.ErrNotFound) {
+			t.Fatalf("RunDeletionBlocker(%s) error = %v, want not found", runID, err)
+		}
+	}
+	deletable, err := deletions.DeletableRuns(ctx, "user-1", []string{
+		"run-active", "run-release-pending", "run-released", "run-foreign", "run-missing",
+	})
+	wantDeletable := map[string]bool{
+		"run-active": false, "run-release-pending": false, "run-released": true,
+		"run-foreign": false, "run-missing": false,
+	}
+	if err != nil || fmt.Sprint(deletable) != fmt.Sprint(wantDeletable) {
+		t.Fatalf("DeletableRuns = (%v, %v), want %v", deletable, err, wantDeletable)
+	}
+	oversized := make([]string, pagelimit.MaxRows+1)
+	for index := range oversized {
+		oversized[index] = fmt.Sprintf("run-%d", index)
+	}
+	if _, err := deletions.DeletableRuns(ctx, "user-1", oversized); !errors.Is(err, runstore.ErrInvalid) {
+		t.Fatalf("oversized DeletableRuns error = %v, want invalid", err)
+	}
+
+	for runID, reason := range want {
+		if reason == nil {
+			continue
+		}
+		err := deletions.DeleteReleasedTerminalRun(ctx, "user-1", runID)
+		var blocked *NotDeletableError
+		if !errors.As(err, &blocked) || blocked.Reason != *reason || !errors.Is(err, runstore.ErrConflict) {
+			t.Fatalf("delete %s error = %v, want %s conflict", runID, err, *reason)
+		}
+	}
+	if err := deletions.DeleteReleasedTerminalRun(ctx, "user-1", "run-foreign"); !errors.Is(err, runstore.ErrNotFound) {
+		t.Fatalf("foreign deletion error = %v, want not found", err)
+	}
+	if err := deletions.DeleteReleasedTerminalRun(ctx, "user-1", "run-released"); err != nil {
+		t.Fatalf("delete released terminal Run: %v", err)
+	}
+	if _, err := runs.GetRun(ctx, "run-released"); !errors.Is(err, runstore.ErrNotFound) {
+		t.Fatalf("deleted Run lookup error = %v", err)
+	}
+	if _, err := deletions.RunDeletionBlocker(ctx, "user-1", "run-released"); !errors.Is(err, runstore.ErrNotFound) {
+		t.Fatalf("deleted Run blocker error = %v, want not found", err)
+	}
+}
+
+// The deletion locks must last until the Run is deleted, so they exist only
+// on the stores bound to the caller's transaction: a store that can be
+// backed by a pool has no such step.
+func TestDeletionLocksRequireTransaction(t *testing.T) {
+	for _, step := range []struct {
+		pool, tx any
+		method   string
+	}{
+		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "LockRunForDeletion"},
+		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "LockRunQueueAdmission"},
+		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "LockRunSkillInitialization"},
+		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "PinRuntimeLabels"},
+		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "DeleteLockedRunOutputPublications"},
+		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "DeleteLockedRun"},
+		{(*hookstore.RunDeletion)(nil), (*hookstore.RunDeletionTx)(nil), "LockRunDeletionAudits"},
+	} {
+		if _, found := reflect.TypeOf(step.pool).MethodByName(step.method); found {
+			t.Errorf("%T.%s is available outside a transaction", step.pool, step.method)
+		}
+		if _, found := reflect.TypeOf(step.tx).MethodByName(step.method); !found {
+			t.Errorf("%T.%s is missing", step.tx, step.method)
+		}
+	}
+}
+
+func createDeletionRun(
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool,
+	ownerID, runID string, state runstore.WorkflowRunState,
+) {
+	t.Helper()
+	projectID := "project-" + ownerID
+	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
+		ProjectID: projectID, OwnerID: ownerID, Kind: projectstore.KindProject,
+		Name: "Run deletion " + ownerID, IdempotencyKey: "create-" + projectID,
+		RequestDigest: "sha256:" + strings.Repeat("a", 64),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: ownerID, ProjectID: &projectID,
+		WorkflowName: "artifact-copy", WorkflowVersion: "1",
+		WorkflowSchemaVersion: contracts.APIVersion,
+		WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
+		Parameters:            map[string]string{},
+		RuntimeConfig:         runtimeconfigtest.BuiltInRunSnapshot(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	from := runstore.RunInitializing
+	if state != runstore.RunFailed {
+		// A Run reaches running only through pending (RUN-R26, RUN-R28).
+		for _, next := range []runstore.WorkflowRunState{runstore.RunPending, runstore.RunRunning} {
+			if _, err := runs.TransitionRun(ctx, runID, from, next, runstore.Reason{Code: "started"}); err != nil {
+				t.Fatal(err)
+			}
+			from = next
+		}
+	}
+	if state != from {
+		if _, err := runs.TransitionRun(ctx, runID, from, state, runstore.Reason{Code: "finished"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func isolatedDeletionPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
+	t.Helper()
+	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{})
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
+		t.Fatal(err)
+	}
+	return pool
+}

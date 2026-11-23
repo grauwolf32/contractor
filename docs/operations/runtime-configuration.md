@@ -1,0 +1,220 @@
+# Runtime capabilities, labels and upgrades
+
+[Documentation index](../README.md) · [Local stack](../guides/local-stack.md)
+
+Run commands from the repository root unless a block changes directory.
+API examples use the local Server and `CONTRACTOR_API_TOKEN` from the local-stack
+guide. For typed process deadlines, see [timeout configuration](timeout-configuration.md).
+
+## Environment-specific Runtime Agent capabilities
+
+A Runtime Agent probes its enabled WorkerRuntime, Toolset/tool and
+SandboxProfile factories once, after its private listener starts and before it
+registers. The resulting positive snapshot is fixed for that `instanceId`.
+Keep each process environment fixed: in particular, give it an explicit
+executable search path containing only the validators and tools intended for
+that deployment.
+
+For example, two otherwise identical processes may be started by the service
+manager with different fixed environments:
+
+```shell
+env PATH=/opt/contractor/source-tools/bin:/usr/bin \
+  runtime/.venv/bin/python -m contractor_runtime [normal Runtime flags...]
+
+env PATH=/opt/contractor/architecture-tools/bin:/usr/bin \
+  runtime/.venv/bin/python -m contractor_runtime [normal Runtime flags...]
+```
+
+The second directory might contain a directly invokable `likec4`, while the
+first does not. Both processes still advertise independent LikeC4 editing
+tools; only the process whose startup probe succeeds advertises
+`validate_likec4`. Do not install or replace executables underneath a running
+process. Stop it, change the environment, and start a new process so it gets a
+new `instanceId` and a newly probed immutable snapshot.
+
+Verify the accepted positive snapshots in the UI at
+`/operations/runtime-agents`, or through the read-only
+`GET /v1/operations/runtime-agents` endpoint. The view intentionally contains
+only exact runtime refs, SandboxProfile refs and Toolset/tool names. It does
+not expose failed probe output, executable paths, environment values or a
+remote re-probe control.
+
+`make test-capability-e2e` proves this boundary with two production Python
+Runtime Agent processes. One receives an isolated empty executable path and
+remains idle while a Stage requiring `validate_likec4` waits in its first
+`StageExecution`; a later process receives a deterministic fake LikeC4 CLI,
+is selected without a retry, and completes normal prepare, A2A, finalization,
+release and Operations reconciliation.
+
+## Label-driven Runtime infrastructure
+
+Runtime labels select physical Worker infrastructure without changing a
+Workflow's ModelPolicy, budgets, Planner or tool allowlist. The checked-in
+[deployment examples](../../deploy/runtime-labels/README.md) show secret-free OTLP
+and proxy documents. Publish credential material through the write-only
+Operations mutation, publish each immutable RuntimeConfig, and then bind its
+short label. A missing label always means only the pinned `default` binding;
+the bootstrap `contractor-empty@1` default preserves authored executionConfig.
+
+Every concurrently connected process must have a unique CA-signed identity:
+
+```shell
+contractor pki issue-runtime --name agent-proxy
+contractor pki issue-runtime --name agent-telemetry
+```
+
+Start the first process with its own certificate and an immutable adapter subset:
+
+```shell
+cd runtime
+uv run contractor-runtime \
+  --control-plane-url https://127.0.0.1:8443 \
+  --advertised-control-url https://127.0.0.1:9443 \
+  --advertised-a2a-url https://127.0.0.1:9443 \
+  --ca-file ../.local/pki/ca.crt \
+  --certificate-file ../.local/pki/agents/agent-proxy.crt \
+  --private-key-file ../.local/pki/agents/agent-proxy.key \
+  --listen 127.0.0.1:9443 \
+  --work-root ../.local/runtime/agent-proxy \
+  --runtime-adapter http-proxy@1
+```
+
+Start the second process on another listen/advertised port with
+`agent-telemetry.{crt,key}` and a different `--work-root`. If local project
+workspaces are enabled, give it a different `--workspace-work-root` too. Each
+Runtime holds an exclusive lock on both roots while running; a second process
+using either root fails with `work root in use` before startup cleanup can
+remove live files. Keep the scratch and project-workspace roots separate rather
+than nesting them.
+
+The Runtime creates a missing root with mode 0700. A root created in advance
+must be a directory owned by the Runtime user with mode 0700, for example
+`install -d -m 0700 .local/runtime/agent-proxy`; any other owner or mode fails
+startup with `work root unsafe` and the owner and mode found. The lock is the
+file `contractor-runtime.lock` (a single-link regular file, mode 0600) in each
+root. It stays after the Runtime stops and is not leftover work; do not delete
+it while any Runtime may use that root, or two processes can own the same root.
+Omit `--runtime-adapter` to probe all built-ins, or
+repeat it for an explicit subset. A new certificate principal starts with no
+configuration labels. After registration, bind a label such as `site-proxy` and
+assign it through Operations using CAS on
+`PUT /v1/operations/runtime-agent-principals/{runtimeAgentId}/labels`.
+
+Deploy Server and Runtime from the same revision: registration no longer accepts
+startup label assignments. Existing Server-managed labels need no data migration.
+
+Inspect certificate identity, authoritative labels and safe adapter capability
+without receiving an endpoint or credential value:
+
+```shell
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  'http://127.0.0.1:8080/v1/operations/runtime-agent-principals?limit=50' | jq .
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
+  'http://127.0.0.1:8080/v1/operations/runtime-labels?limit=50' | jq .
+```
+
+A Run-selected Runtime label such as `debug` may require `otlp-http@1` even when neither Agent
+is named or labeled `debug`; placement selects any capable idle candidate. An
+Agent label is the highest physical Worker layer and can replace that Run's
+endpoint/credential on its next allocation. Rebinding a label while work is
+active changes only future Runs (for Run-selected Runtime labels) or future
+allocations (for Agent Runtime labels). `make test-runtime-labels-e2e` proves
+these rules with real
+Server, PostgreSQL, two uniquely certified Runtime processes, OTLP protobuf,
+authenticated proxying, exporter failure and complete slot reuse.
+
+The public Run field is `runtimeLabels`. The former top-level `labels` array is
+not a compatibility alias: upgrade Server, bundled UI and automation clients
+together after draining request traffic, and discard any unsubmitted browser
+draft created against the old shape. Existing Run rows and active allocation
+snapshots keep their pinned Runtime configuration and require no data rewrite.
+
+## Worker session mode upgrade
+
+`workerSessionMode` is another mandatory private AllocationSpec field. The Go
+Server, every Python Runtime Agent and the generated UI/API contract must be
+deployed in lockstep; an old Runtime rejects the new field and a new Runtime
+rejects its absence. The deployment procedure is:
+
+1. pause new Run admission and let current Stage allocations finish, or cancel
+   them through the normal bounded abort path;
+2. confirm that Operations shows no authoritative allocation and every Runtime
+   slot has completed release reconciliation;
+3. take the normal PostgreSQL backup, then stop Server and Runtime Agents;
+4. deploy Server, Runtime Agents and UI from the same release and restart them;
+5. validate configuration and run the focused gate below before resuming
+   admission.
+
+No data migration rewrites existing WorkflowRun or StageExecution snapshots.
+Persisted Workflow and Stage snapshots must contain an explicit `session` value
+of `isolated` or `shared`. Missing, null, empty and unknown values fail decoding;
+snapshots written before the field existed are unsupported. Finish or cancel
+in-flight pre-feature Runs before upgrading, and do not rely on old snapshots
+remaining readable after the upgrade. Newly loaded YAML with omitted `session`
+resolves and stores explicit `isolated`; explicit `shared` remains available
+when a Stage needs one sequential conversation. Invalid authoring values fail.
+
+A binary-only rollback after admitting a new Run is unsafe because old Server
+code does not understand the explicit field in its immutable snapshots. Before
+resuming admission, rollback may replace the whole lockstep release. Afterward,
+use a forward fix or restore the pre-upgrade database backup together with the
+old binaries; never delete the field manually from selected rows.
+
+Run the focused verification before release:
+
+```shell
+go test -race ./internal/config/... ./internal/scheduler/... \
+  ./internal/controlplane/... ./internal/httpapi/public/...
+make test-wire-cross-language
+make test-worker-session-modes-e2e
+```
+
+The process gate exercises default-isolated and explicit-shared Stages through
+the real Scheduler, Control Plane, private allocation transport and Python
+Runtime, including sequential invocations, allocation cleanup and Runtime-slot
+reuse.
+
+## Process location labels
+
+Declare an instance's location with repeated `--placement-label` arguments or
+`CONTRACTOR_PLACEMENT_LABELS=cloud/hetzner`. Explicit arguments replace the
+comma-separated environment list. Accepted namespaces are `cloud` and `local`;
+examples are `cloud/aws`, `cloud/hetzner` and `local/lab`. A bare root is also
+valid. Values are case-sensitive, use lowercase identifier segments separated
+by `/`, and contain no wildcard. The list may contain at most 32 unique labels
+of at most 63 ASCII bytes each, and all values must form one ancestor chain.
+
+The Runtime publishes its location at registration, and Operations returns it
+as `live.placementLabels` on the Runtime principal. Changing the declaration
+requires a new process incarnation. It needs no RuntimeConfig binding and is
+independent of the durable configuration labels assigned through Operations.
+For Ansible, set `contractor_runtime_placement_labels` at host/group level or
+`placement_labels` on an instance.
+
+A standalone Run, Project Run or Audit selects placement through ordinary
+`labels`, for example `{"cloud":""}` for any cloud or `{"cloud":"aws"}` for
+one provider. `{"local":"lab"}` selects a local site; other keys remain
+ordinary metadata. Audit start fixes all its labels, and every child Run
+inherits that snapshot alongside its own system `audit.*` labels. An Audit
+accepts 28 user labels, reserving four of the Run's 32 entries for provenance.
+The derived `requiredPlacementLabels` is visible in read projections. An
+offline selection waits for matching capacity. Inspect each Stage allocation's
+actual `placementLabels` through Run detail. UI uses the ordinary label editors.
+
+Cloud VMs use the same authenticated private transports as local Runtime
+hosts. Advertise control and A2A addresses reachable from the Server, and
+allow the Runtime to reach the Server's private artifact API. A loopback
+address is suitable only when both peers share a host. Keep certificate SANs
+consistent with the advertised addresses; cloud/local labels declare location
+and do not replace mTLS identity or target authorization.
+
+`make test-runtime-placement-e2e` runs real Server and Python Runtime
+processes against a disposable PostgreSQL schema. It covers parent matching,
+provider boundaries, tool capability filtering, late connection, cancellation,
+restart, retained allocation history and failed-Run resume, with a deterministic
+test-only scanner executable and no model calls. The same target runs the
+PostgreSQL Audit preparation/check/round inheritance suites. Real scanner
+behaviour remains covered by the separate scanner process gates.

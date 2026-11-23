@@ -1,0 +1,86 @@
+schema_version: '1.0'
+id: V458-002
+title: Serve durable attributed Run Audit and Project LLM costs
+milestone: llm-cost-reporting-2026-11
+epic: operations
+kind: feature
+priority: P1
+status: completed
+depends_on: [V458-001]
+languages: [go, sql, markdown, yaml]
+goal: Provide durable exact cost summaries for Run, Audit and Project that preserve unsuccessful attempts and remain honest after telemetry expiry or child Run deletion.
+demonstration: Real PostgreSQL receives repeated ordinary reports for child and standalone Runs, then telemetry expires and a child Run is deleted; owner-authorized API summaries retain the same known subtotal and incomplete coverage (A1-A3).
+context:
+  authority: 'User approval 2026-11-08 includes lifetime Project total, Audit detail and per-Run attribution. User clarification 2026-11-08 explicitly prohibits separate tables for this feature. Reuse report replay identities and add compact fields to existing allocation/Planner, Run, Audit execution, Audit and Project records. Code inspection confirms Planner calls belong to ordinary Runs; their cost is included in each Run, with no separate Audit-planning addend.'
+  design: 'Existing stage_allocations are immutable per logical Worker and planner_sessions are unique per Stage; retain the last counted participant snapshot in those existing lifecycle records (or the owning Stage for a missing Planner session), independently of expiring diagnostic reports. Apply replacement deltas and parent totals in one existing transaction, with each owning store writing only its tables. Parent totals retain history through child deletion; no table, report-retention extension, extra receipt system or per-call billing log is introduced. Choose a common owner-authorized cost subresource for Run/Audit/Project with independent freshness; operational cost columns stay outside unchanged parent ETags. Each aggregate has at most 64 detail groups. Audit cost reads optionally select at most 64 exact execution IDs to serve visible Work attempts in one indexed read. A compact empty object distinguishes new known-empty totals from SQL NULL historical gaps and preserves Run HOT space.'
+  specification: docs/spec/platform/observability.md#usage-attribution
+scope:
+  in:
+  - Compact fields on existing participant and parent records with atomic replacement/replay semantics and indexed bounded summary reads; no new tables.
+  - Run, Audit Workspace and Project API consumers with independent freshness, source, coverage and bounded breakdown.
+  - Schema migration, ownership/ERD, API generators and real PostgreSQL retention/deletion tests.
+  out:
+  - Invented historical costs, raw provider logs, separate billing service, currency conversion, inference changes and demo migration/deployment.
+requirements:
+- id: R1
+  text: Attribute reports using Server-owned allocation/Planner identity, Run, Project and Audit execution. Include all attempts and iterations exactly once. Project counts each unique Run once; Audit-owned planning is not charged twice to child Runs.
+- id: R2
+  text: Persist the last counted participant contribution and update existing parent cost fields before report retention can erase diagnostics. Replay and corrected complete contributions replace the prior contribution atomically. Parent totals survive child Run/Audit deletion; projectless cost follows its Run. Add no tables.
+- id: R3
+  text: Keep basis independent of coverage. Unknown legacy/unreported work stays unavailable/partial, active work is pending, and known zero is explicit. Historical token totals are never multiplied by current tariffs.
+- id: R4
+  text: Cost reads do not change the strong Audit ETag contract, Audit Workspace or draft revision. Provide one common cost read for owner-authorized Run/Audit/Project scopes with independent freshness, without browser fan-out over Runs.
+failure_outcomes:
+- operation: Cost projection and public reads
+  permanent: Invalid report/domain identity follows existing invalid/not-found classification, without changing stored totals.
+  retryable: Existing storage_transaction_conflict/503 policy; report retry uses the same identity and does not duplicate amounts.
+  ambiguous: Transactional report identity and durable contribution reconcile replays; no additional mutation receipt mechanism.
+  cancelled: Database transaction rolls back or commits atomically; caller cancellation does not leave half-updated totals.
+  timeout: Existing store/public request deadlines own work; no provider network operation is performed during a read.
+cardinality:
+- collection: Durable report contributions
+  expected: One compact contribution per allocation or Planner attempt
+  maximum: Existing admitted attempt count; each contribution has at most 64 groups
+  bound: One report mutation updates a fixed set of owning scopes and bounded group data; reads use prepared summaries rather than whole history.
+- collection: Public breakdown
+  expected: Few phase/model rows
+  maximum: 64 bounded groups plus an explicitly combined remainder where necessary
+  bound: Constant bounded response per summary; ordinary pagination remains authoritative for Run/task lists.
+lifecycle:
+- entity: Durable cost projection
+  delete: Project owner deletion removes its projection; deleting a child retains the Project/Audit historical amount; projectless projection is deleted with its Run.
+  cascade: Telemetry expiry and child Run deletion do not lower retained known spending.
+  retention: Parent Project lifetime, or projectless Run lifetime; existing historical gaps remain visible.
+acceptance_criteria:
+- id: A1
+  given: Concurrent replay, partial/complete replacement, retries and multiple Audit iterations
+  when: Real PostgreSQL ingests reports
+  then: Run/Audit/Project exact sums and attribution are stable and cannot double count.
+- id: A2
+  given: Expired telemetry, deleted child Run, deleted Audit and later Project deletion
+  when: Cleanup and ordinary lifecycle operations execute
+  then: Cost remains on living owning scopes and is removed when its final parent is deleted; missing historical data remains explicit.
+- id: A3
+  given: Large histories, another owner and an unchanged Audit revision
+  when: API summaries are read
+  then: Reads are bounded and authorized, monetary freshness is independent, generated clients agree, and no raw Gateway data leaks.
+tests:
+- command: go test ./internal/telemetry ./internal/auditstore/... ./internal/auditservice ./internal/runstore ./internal/projectlifecycle ./internal/httpapi/public
+  covers: [A1, A2, A3]
+- command: make verify-public-api
+  covers: [A3]
+- command: make verify-public-api-postgres
+  covers: [A1, A2, A3]
+- command: make docs-erd
+  covers: [A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+
+implementation_commit: 6c25a56bb868dfbcae4b98f2183ccd78d781bb24
+verification:
+  results:
+  - Full reporting, persistence/postgres, telemetry, runservice, runstore, projectstore, auditstore, auditservice, projectlifecycle, public handlers and app suites passed against the owned disposable PostgreSQL database.
+  - make verify-public-api, make verify-public-api-postgres, make docs-erd and UV_OFFLINE=true make lint passed. ERD remains 60 tables and 70 foreign keys. Heavy IO was not enabled.
+  - Real-store regressions cover concurrent replay, incomplete replacement, rollback of a failed parent write, retention expiry, child deletion, Audit purge, owner visibility, unchanged Audit revisions and migration preservation with no new tables.
+  - Initial socket and macOS symlink-temp test failures were resolved by using TCP to the same disposable database and TMPDIR=/private/tmp. The genuine Run HOT regression was fixed by compact known-empty defaults and its full package passed.
+  - No demo migration, business-data reset, merge or deployment was performed. V458-003 owns the production UI.

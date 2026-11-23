@@ -1,0 +1,142 @@
+schema_version: '1.0'
+id: V412-002
+title: Execute closed browser login and replay recipes with trusted markers
+milestone: autonomous-pentest-browser-2026-10
+epic: http-tools
+kind: feature
+priority: P2
+status: archived
+depends_on:
+- V412-001
+- V411-009
+languages:
+- go
+- python
+goal: Make browser login and client-side proof reproducible through a closed, pinned DSL and a reviewed
+  observation harness, independently of model claims.
+context:
+  proposal: docs/proposals/0033-autonomous-pentest-audits.md
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R1
+  - docs/spec/execution/worker.md#WRK-R1
+  - docs/spec/audits/review-and-reports.md#REV-R3
+scope:
+  in:
+  - Exact contractor.pentest.browser-recipe.v1 schema and media type, pinned login/refresh subset and
+    native model-free production executor.
+  - Shared Go/Python valid/invalid fixtures and reviewed pinned marker harness; same-recipe fresh-context
+    replay.
+  - Extend the V412-001 real-browser adapter gate with actual login, positive/fixed marker targets, exact-recipe
+    fresh-context replay and all negative DSL cases; mocks alone cannot prove browser behavior.
+  out:
+  - No arbitrary JavaScript/eval, DevTools, executable selectors, browser storage extraction, locator
+    repair or positional fallback.
+  - No callback oracle or combined profile publication before V412-003.
+requirements:
+- id: R1
+  text: Implement proposal section 9.1 closed navigate/fill/click/wait/arm-marker union plus existing
+    HTTP steps. Login/refresh excludes arm-marker and marker waits; private secret fills are only allowed
+    there and bound to expected origin and exact locator.
+- id: R2
+  text: Locators are exact test ID, exact label or role plus exact name, at most 512 UTF-8 bytes. One
+    expected origin/page/context is mandatory; zero/multiple matches, changed origin or stale page blocks.
+    Ordinary values/fragments are at most 8192 bytes.
+- id: R3
+  text: Count all steps in existing 16 default/64 max recipe bounds; login actions 8 default/16 max and
+    attempts 2 default/3 max. Waits are at most 5 seconds each and 30 seconds total, capped by remaining
+    lifecycle allowance. Every resulting physical send consumes the shared ledger.
+- id: R4
+  text: Arm-marker only installs the pinned harness; it cannot create a success observation. Only actual
+    target-context payload execution with an exact fresh marker/session/action binding satisfies browserMarker.
+    DOM text, console output and navigation success are insufficient.
+- id: R5
+  text: Pin recipe bytes, predicates, harness/adapter versions and approved typed substitutions before
+    observation. Replay in a separate Run/invocation using fresh contexts/objects and the identical recipe;
+    changed predicate/locator/harness never counts as reproduced.
+- id: R6
+  text: Unknown schema members/steps/versions fail closed. HTTP-only profile closures do not load or require
+    browser schema support. Update existing contracts, fixtures and predicate evaluator rather than duplicate
+    their truth semantics.
+failure_outcomes:
+- operation: Browser recipe step and proof registration
+  permanent: Invalid schema, locator, control or pinned version returns stable rejection; no automatic
+    repair.
+  retryable: Only explicitly declared bounded transport retry; replay executions at most two.
+  ambiguous: Reuse action/capture/proof receipts; unknown state changes are never blindly replayed.
+  cancelled: Executor joins pending page/network operations before context release.
+  timeout: Step/recipe wait bounds and remaining Audit allowance both apply; incomplete evidence yields
+    unknown.
+cardinality:
+- collection: Browser recipe and login steps
+  expected: 16 recipe steps, eight login actions
+  maximum: 64 recipe steps, 16 login actions, three login attempts, two replays
+  bound: 4 MiB typed document maximum and lower package bound; locator 512 bytes, value/fragment 8192
+    bytes; no unbounded DOM/frame iteration.
+lifecycle:
+- entity: Pinned recipe/harness proof and ephemeral browser login
+  delete: Existing retained-proof protection governs deletion; session erased at allocation end.
+  cascade: Exact proof dependencies retained through ordinary bindings; no raw credential artifact.
+  retention: Retain safe proof inputs with Audit report; browser state never survives teardown.
+acceptance_criteria:
+- id: A1
+  given: A pinned valid browser login and XSS recipe with a positive and fixed target
+  when: the native executor observes and replays in fresh contexts
+  then: only actual target execution with matching controls and identical recipe earns reproduced proof.
+- id: A2
+  given: Unknown members, secret fill in a PoC, ambiguous locator, wrong origin or unsupported frame
+  when: validation or execution occurs
+  then: the step is rejected without repair, secret exposure or arbitrary script authority.
+- id: A3
+  given: Forged DOM/console markers, arming alone, changed predicates or different harness versions
+  when: proof evaluation runs
+  then: the result is fail or unknown and never reproduced.
+- id: A4
+  given: Maximum recipe steps/waits, redirects and cancellation
+  when: the browser recipe runs
+  then: all network sends are accounted, waits stay bounded, cleanup follows remaining allowance and secrets
+    remain absent.
+tests:
+- command: make test-pentest-browser-adapter-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-pentest-http-process
+  covers:
+  - A2
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+
+archive:
+  date: '2026-10-30'
+  previous_status: pending
+  authority: User requested rewriting stalled pentest work and archiving tasks requiring removed functionality;
+    planning only, on a separate branch.
+  reason: Automatic browser login/refresh and frozen browser replay recipes extend the removed HTTP recipe/action-ledger
+    subsystem. Managed browser investigation can ship using supplied credentials and ordinary evidence
+    without this DSL or proof promotion.
+  superseded_by:
+  - V412-001
+  - V412-003
+  reactivation_condition: Explicit user direction and a new reviewed scope with a concrete production
+    caller. Completion of historical dependencies does not reactivate this task.
+  evidence: Original scope, acceptance criteria and test commands below/above are historical design, not
+    implementation evidence or requirements for active work.

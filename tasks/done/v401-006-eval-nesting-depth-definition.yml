@@ -1,0 +1,58 @@
+schema_version: "1.0"
+id: V401-006
+title: "Define how the Eval nesting depth limit counts levels and pin its boundary in shared cases"
+milestone: hub-audit-defects-2026-10
+epic: evals
+kind: defect
+priority: P3
+status: completed
+implementation_commit: "951792e9f8deb22fbacd7327470696087cbee84c"
+depends_on: []
+languages: [go, markdown, json]
+goal: "EVF-R30 and LIM-EVF-4 say exactly which nesting the depth limit of 32 counts, and shared Eval conformance cases accept the deepest allowed document and reject one level more."
+context:
+  review: "Finding of V371-013 (merged in 68b553de), recorded in its task decision on 2026-10-23"
+  specification: "docs/spec/evals/format.md#EVF-R30"
+  severity: low
+  finding: >-
+    EVF-R30 (docs/spec/evals/format.md:263-268) and LIM-EVF-4
+    (docs/spec/platform/limits.md:329) set "nesting depth 32" without saying
+    how levels are counted. internal/evaldomain/json.go counts the top-level
+    value as depth 0, so documents with 33 levels of values are accepted and 34
+    are rejected (strictJSONBounds uses MaxDepth + 1 for
+    strictjson.DecodeBounded, which counts the top-level value as 1). The
+    shared fixtures in api/testdata/evals have no depth case, so an
+    independent client that counts the other way cannot detect the
+    difference. The introducing change is not knowable from the record.
+  siblings: >-
+    strictjson.DecodeBounded's own depth convention for other callers is
+    unchanged. No UI or Runtime code validates Eval nesting depth.
+scope:
+  in:
+    - "State in EVF-R30 and LIM-EVF-4 that the top-level value is at depth 0 and the deepest allowed value at depth 32, matching the current Go codec."
+    - "Shared cases in api/testdata/evals (and cases.json) for the deepest accepted document and the first rejected one, read by the Go conformance test."
+  out:
+    - "Changing the accepted depth."
+acceptance_criteria:
+  - id: A1
+    text: "The specification and the limits registry name the counting rule."
+  - id: A2
+    text: "The Go conformance test accepts the depth-32 case and rejects the depth-33 case with eval_limit_exceeded, and fails if the bound moves by one."
+tests:
+  - command: "go test ./internal/evaldomain"
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]
+verification:
+  date: "2026-10-23"
+  revision: "7f34866a8601cf6a3476a9dd58f40d165c389f8c"
+  environment: >-
+    Integration branch integration/v401-findings on macOS arm64 with Go 1.26.9,
+    Node 24.20.0, pnpm 11.24.0 and disposable PostgreSQL 17.11
+    (CONTRACTOR_TEST_DATABASE_URL set), TMPDIR left at the shell default.
+  merged_run:
+    - "make -k verify: test-go passed with no failing package, ui-verify passed (2,271 UI tests), build and test-config passed; ui-gates failed only because ui/node_modules was not installed yet, and make lint passed in full after installing it."
+    - "make test-runtime: 101 failures, all among the 102 that fail identically on main on this host (V401-007)."
+    - "make test-wire-cross-language (245 fixtures), make verify-public-api and make ui-browser-mocked (75 of 75) passed."
+  task_commands:
+    - "go test ./internal/evaldomain passed; moving the codec's depth bound by one level failed depth-limit-deepest."

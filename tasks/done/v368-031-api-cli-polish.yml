@@ -1,0 +1,53 @@
+schema_version: "1.0"
+id: V368-031
+title: "Fix small public API and CLI inaccuracies"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+priority: P3
+status: completed
+implementation_commit: 16a6a88c58835653ed552e6c237bc398dc90dffc
+depends_on: []
+languages: [go]
+goal: "Tests for each of the three."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), V367-005 and V367-012 follow-ups; file:line as of 02bbdcbf, re-verify on current main"
+  specification:
+    - docs/spec/api/public-api.md#API-R69
+  decision: >-
+    Cache-Control: getRunRepeatDraft sets no-store before any response, like
+    the other owner-scoped reads, so all three 200 paths (Audit-managed,
+    unavailable or invalid snapshot, full draft) carry it; the three tests
+    that reach those paths now assert it. Siblings were checked with a
+    script over every OpenAPI 2xx response whose Cache-Control header is
+    required: every other handler (Eval routes through their shared
+    wrapper) already sets it. CLI hint: the decision reuses
+    publicclient.IsTransient, the client's own retry classification, so the
+    hint appears exactly when another attempt with the same key may succeed
+    (lost or interrupted response, intermediary 502/503/504, or a Server
+    error marked retryable) and never after a permanent rejection, where
+    reusing the key is idempotency_conflict (API-R69); both create commands
+    share printCreateRetryHint. Diagnostics: besides
+    credential_recovery_required, the artifact transfer-capacity, integrity
+    and missing-content 503s also logged cause=unknown; they now have closed
+    categories. Ruled out: the Git import mapper writes its 503/504 without
+    handleError, so its log cause stays unknown until V370-010 replaces the
+    local mappers with error kinds.
+  finding: >-
+    The Run repeat-draft 200 response lacks Cache-Control: no-store, which
+    OpenAPI marks required. The CLI prints its retry-with---idempotency-key
+    hint after permanent failures. diagnosticCause logs a recovery-required
+    error as cause=unknown.
+scope:
+  in:
+    - "Set the header, print the hint only for retryable failures, classify the diagnostic cause."
+  out:
+    - "Response bodies."
+acceptance_criteria:
+  - id: A1
+    text: "Tests for each of the three."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/httpapi/public ./internal/cli"
+    covers: [A1]

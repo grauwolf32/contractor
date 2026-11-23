@@ -1,0 +1,64 @@
+schema_version: "1.0"
+id: V372-018
+title: "Name the finding-proposals Namespace through artifactpolicy in finding intake"
+milestone: hub-audit-defects-2026-10
+epic: findings
+kind: chore
+priority: P3
+status: completed
+implementation_commit: "32b2a1370ff254601add6e72912a8556308f76f5"
+depends_on: []
+languages: [go, python]
+goal: "Go code names the reserved finding-proposals Namespace only through artifactpolicy.FindingProposalNamespace, and the Runtime's comparisons use its one reserved-Namespace definition."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2g: V370-016), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/artifacts/artifact-store.md#ART-R114"
+  finding: >-
+    canonicalSubmission rejects evidence refs in the proposal Namespace with
+    the literal ref.Namespace == "finding-proposals"
+    (internal/findingintake/types.go:187), while
+    artifactpolicy.FindingProposalNamespace
+    (internal/artifactpolicy/visibility.go:16) defines the reserved name and
+    the same package already uses it for the proposal ref
+    (internal/findingintake/service.go:180). A rename of the Namespace would
+    miss the literal and let evidence point into the proposal Namespace
+    (AGENTS.md 3.1). Predates the shallow history (boundary 6349621).
+  siblings: >-
+    Runtime: runtime/src/contractor_runtime/finding_proposals.py:102
+    compares the proposal API's answer with the literal "finding-proposals",
+    while runtime/src/contractor_runtime/contracts/artifacts.py:27-29
+    (PURPOSE_RESERVED_NAMESPACES) lists the
+    reserved Namespaces that api/testdata/v1alpha1/memory-reservation-cases.json
+    pins to artifactpolicy; the comparison should name one constant of that
+    module. The public route paths .../finding-proposals are URL segments,
+    another rule, and stay. V371-019 does the same for the audit- prefix.
+scope:
+  in:
+    - "findingintake uses artifactpolicy.FindingProposalNamespace; the Runtime names the Namespace through one constant next to PURPOSE_RESERVED_NAMESPACES."
+    - "A source scan (or extending an existing one) that finds the literal outside artifactpolicy and the Runtime contracts module."
+  out:
+    - "The evidence rules and the Namespace name."
+acceptance_criteria:
+  - id: A1
+    text: "No Go file outside artifactpolicy and no Runtime module outside contracts spells finding-proposals as a Namespace, and the scan fails on a new copy."
+  - id: A2
+    text: "Finding submission and proposal tests pass unchanged."
+tests:
+  - command: "go test ./internal/findingintake ./internal/artifactpolicy"
+    covers: [A1, A2]
+  - command: "cd runtime && uv run pytest tests/test_security_findings_toolset.py tests/test_contracts.py"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+verification:
+  date: "2026-10-23"
+  revision: "4925c9c78b9457bccca516060e789cb4bc939c25"
+  environment: >-
+    Integration branch integration/quick-wins-2026-10-23 on macOS arm64 with
+    Go 1.26.9, Node 24.20.0, pnpm 11.24.0, disposable PostgreSQL 17.11
+    (CONTRACTOR_TEST_DATABASE_URL set) and TMPDIR under /private/tmp.
+  merged_run:
+    - "make -k verify: lint after the dependency graph refresh, ui-verify (2,260 UI tests), test-config and build passed; make lint passed in full on the rerun."
+    - "make test-go: every package passed except internal/app TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder, which fails the same way on main because macOS PostgreSQL does not support tcp_user_timeout."
+    - "make test-runtime: the 102 failures it reports (Podman, Darwin process limits, sandbox) fail identically on main; test_scan_toolset::test_capabilities_check_each_binary_independently[scan_nuclei] is timing-dependent (V371-022 class) and passed on rerun."
+    - "make test-wire-cross-language (243 fixtures, 1,135 tests) and make verify-public-api passed."

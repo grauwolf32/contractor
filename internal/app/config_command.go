@@ -1,0 +1,141 @@
+package app
+
+import (
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io"
+	"log/slog"
+
+	contractorconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
+	"github.com/grauwolf32/contractor/internal/helpers/securefile"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+)
+
+func runConfigCLI(args []string, logger *slog.Logger) error {
+	if err := commandGroupHelp(args, "config",
+		[2]string{"validate", "check the operator and managed configuration roots offline"},
+		[2]string{"lock", "freeze new operator catalog identities without rebinding existing ones"}); err != nil {
+		return err
+	}
+	if len(args) == 0 || args[0] != "validate" && args[0] != "lock" {
+		return fmt.Errorf("config command requires validate or lock")
+	}
+
+	var auditDocument, auditContext string
+	var requireLock bool
+	root := "./configs"
+	managedRoot := ""
+	flags := flag.NewFlagSet("contractor-server config "+args[0], flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	flags.StringVar(&auditDocument, "audit-document", "", "strict Audit JSON document to validate offline against the loaded catalog")
+	flags.StringVar(&auditContext, "audit-context", "", "exact trusted context for offline result, proposal and prepared-work validation")
+	flags.StringVar(&root, "root", root, "configuration root")
+	flags.StringVar(&managedRoot, "managed-root", managedRoot, "managed configuration root (default: sibling managed-configs)")
+	flags.BoolVar(&requireLock, "require-catalog-lock", false, "require the operator catalog digest lock (release validation)")
+	if err := parseCommandFlags(flags, args[1:]); err != nil {
+		return fmt.Errorf("parse config %s flags: %w", args[0], err)
+	}
+	if flags.NArg() != 0 {
+		return fmt.Errorf("unexpected positional arguments: %v", flags.Args())
+	}
+
+	if managedRoot == "" {
+		managedRoot = defaultManagedConfigRoot(root)
+	}
+	if args[0] == "lock" {
+		if auditDocument != "" || auditContext != "" || requireLock {
+			return fmt.Errorf("config lock accepts only root and managed-root")
+		}
+		if _, err := configload.UpdateCatalogLock(root, managedRoot); err != nil {
+			return fmt.Errorf("lock configuration: %w", err)
+		}
+		logger.Info("catalog lock updated", "root", root)
+		return nil
+	}
+	snapshot, bundles, err := configload.LoadUnionReadOnly(root, managedRoot)
+	if err != nil {
+		return fmt.Errorf("validate configuration: %w", err)
+	}
+	if requireLock {
+		if err := contractorconfig.ValidateCatalogLock(root, snapshot, true); err != nil {
+			return fmt.Errorf("validate catalog lock: %w", err)
+		}
+	}
+	if auditContext != "" && auditDocument == "" {
+		return fmt.Errorf("audit-context requires audit-document")
+	}
+	if auditDocument != "" {
+		data, readErr := securefile.Read(auditDocument, auditcontract.MaximumDocumentBytes)
+		if readErr != nil {
+			return fmt.Errorf("read Audit document: %w", readErr)
+		}
+		var context []byte
+		if auditContext != "" {
+			context, readErr = securefile.Read(auditContext, auditcontract.MaximumDocumentBytes)
+			if readErr != nil {
+				return fmt.Errorf("read Audit context: %w", readErr)
+			}
+		}
+		canonical, decodeErr := auditcontract.Decode(data, context)
+		if decodeErr != nil {
+			return decodeErr
+		}
+		var document map[string]any
+		if err := strictjson.Decode(canonical, &document); err != nil {
+			return err
+		}
+		if document["schema"] == auditcontract.PreparedWorkSchema {
+			if err := contractorconfig.ValidatePreparedWork(snapshot, canonical, context); err != nil {
+				return err
+			}
+		} else if document["schema"] == auditcontract.TaskSchema {
+			if _, err := auditcontract.DecodeTask(canonical); err != nil {
+				return err
+			}
+		} else if document["schema"] == "contractor.audit.program.v1" {
+			if err := configload.ValidateAuditProgram(snapshot, bundles, canonical); err != nil {
+				return err
+			}
+		} else if document["schema"] == "contractor.audit.proposals.v1" {
+			var trusted map[string]json.RawMessage
+			if err := strictjson.Decode(context, &trusted); err != nil {
+				return err
+			}
+			if err := configload.ValidateAuditProgram(snapshot, bundles, trusted["program"]); err != nil {
+				return err
+			}
+		}
+	}
+	counts := snapshot.Counts()
+	logger.Info(
+		"configuration valid",
+		"root", root,
+		"managed_root", managedRoot,
+		"workflows", counts.Workflows,
+		"agent_templates", counts.AgentTemplates,
+		"model_policies", counts.ModelPolicies,
+		"llm_gateways", counts.LLMGateways,
+		"audit_profiles", counts.AuditProfiles,
+		"instructions", counts.Instructions,
+	)
+	return nil
+}
+
+// loadServerConfiguration is the Server's startup load of both roots: the
+// catalog plus every operator-root bundle check, which the returned Manager
+// repeats before each managed publication. It returns the bundles that load
+// validated, which configureCatalogs seeds without walking the root again.
+// config validate applies the same checks offline through
+// configload.LoadUnionReadOnly.
+func loadServerConfiguration(
+	operatorRoot, managedRoot string, logger *slog.Logger,
+) (*contractorconfig.Manager, configload.Bundles, error) {
+	return configload.NewManager(contractorconfig.ManagerOptions{
+		OperatorRoot: operatorRoot,
+		ManagedRoot:  managedRoot,
+		Logger:       logger,
+	})
+}

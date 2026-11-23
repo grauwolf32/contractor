@@ -1,0 +1,302 @@
+/**
+ * User-facing vocabulary of the V3B UI (docs/design/ui/v3b-build-contract.md
+ * §3): one term, one meaning. Pages take labels and tones from here instead of
+ * writing their own strings.
+ *
+ * Every table is keyed by a type generated from the public OpenAPI document,
+ * so a new or removed enum value is a compile error here rather than a blank
+ * label on a page. A value the client does not know at run time (an older
+ * client against a newer Server) still gets a readable label and the neutral
+ * tone.
+ */
+import type {
+  Audit,
+  AuditProfile,
+  AuditState,
+  FindingSeverity,
+  FindingState,
+  FindingVerdict,
+} from "../api/audits";
+import type { components } from "../api/generated/public";
+import type { RunStatus, WorkflowRunState } from "../api/runs";
+import { formatNumber } from "./format";
+import type { StatusTone } from "./status-tone";
+type AuditReportStatus = components["schemas"]["AuditReportStatus"];
+
+/** A status word and the tone its glyph, chip or segment uses. */
+export interface VocabularyLabel {
+  readonly label: string;
+  readonly tone: StatusTone;
+}
+
+/** User-facing nouns, lower case for use inside sentences. */
+export const TERMS = {
+  check: "check",
+  checks: "checks",
+  checkType: "check type",
+  checkTypes: "check types",
+  possibleIssue: "possible issue",
+  possibleIssues: "possible issues",
+  issue: "issue",
+  issues: "issues",
+  /** An artifact on project pages. */
+  material: "material",
+  materials: "materials",
+  /** An artifact in the Library. */
+  file: "file",
+  files: "files",
+  /** An eval assessment check. */
+  criterion: "criterion",
+  criteria: "criteria",
+  report: "report",
+  reports: "reports",
+  /** Destination names are proper names and keep their capital. */
+  inbox: "Inbox",
+  library: "Library",
+} as const;
+
+/** Upper-cases the first letter, for headings built from TERMS. */
+export function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+// The label tables are exported for lists that iterate every value, such as
+// filter chips; their key order is the display order.
+
+export const CHECK_STATE_LABELS: Readonly<Record<AuditState, VocabularyLabel>> =
+  {
+    draft: { label: "Draft", tone: "idle" },
+    active: { label: "Running", tone: "progress" },
+
+    paused: { label: "Paused", tone: "warning" },
+    finalizing: { label: "Finishing", tone: "progress" },
+    cancelling: { label: "Stopping", tone: "warning" },
+    completed: { label: "Finished", tone: "done" },
+    cancelled: { label: "Stopped", tone: "neutral" },
+    failed: { label: "Failed", tone: "blocked" },
+    deleting: { label: "Deleting", tone: "neutral" },
+  };
+
+export const FINDING_STATE_LABELS: Readonly<
+  Record<FindingState, VocabularyLabel>
+> = {
+  proposed: { label: "Needs review", tone: "review" },
+  confirmed: { label: "Confirmed", tone: "success" },
+  rejected: { label: "Not an issue", tone: "neutral" },
+  duplicate: { label: "Duplicate", tone: "neutral" },
+  "needs-evidence": { label: "Needs evidence", tone: "warning" },
+};
+
+/** An analyst verdict, or "unreviewed" for a finding without one. */
+type VerdictValue = FindingVerdict | "unreviewed";
+
+export const VERDICT_LABELS: Readonly<Record<VerdictValue, VocabularyLabel>> = {
+  true_positive: { label: "Confirmed", tone: "success" },
+  false_positive: { label: "Not an issue", tone: "neutral" },
+  needs_evidence: { label: "Needs evidence", tone: "warning" },
+  duplicate: { label: "Duplicate", tone: "neutral" },
+  reopen: { label: "Reopened", tone: "review" },
+  unreviewed: { label: "Not reviewed", tone: "idle" },
+};
+
+// Only ready reports provide retained report content.
+const REPORT_STATUS_LABELS: Readonly<
+  Record<AuditReportStatus, VocabularyLabel>
+> = {
+  pending: { label: "Not ready yet", tone: "idle" },
+  ready: { label: "Ready", tone: "done" },
+  unavailable: { label: "Not available", tone: "neutral" },
+};
+
+export const SEVERITY_LABELS: Readonly<Record<FindingSeverity, string>> = {
+  informational: "Informational",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  critical: "Critical",
+};
+
+/**
+ * An API value in words ("not_eligible" is "Not eligible"), also for a
+ * value this client does not know yet.
+ */
+export function readableValue(value: string): string {
+  const words = value.replaceAll(/[_-]+/g, " ").trim();
+  return words === "" ? "Unknown" : capitalize(words);
+}
+
+/**
+ * The label of `value` in a vocabulary table; a value this client does not
+ * know yet reads as written ("release_pending" is "Release pending") with
+ * the neutral tone.
+ */
+export function labelOf<K extends string>(
+  table: Readonly<Record<K, VocabularyLabel>>,
+  value: K,
+): VocabularyLabel {
+  return Object.hasOwn(table, value)
+    ? table[value]
+    : { label: readableValue(value), tone: "neutral" };
+}
+
+/** Check (Audit) state: "Running", "Waiting for you", "Finished", … */
+export function checkStateLabel(state: AuditState): VocabularyLabel {
+  return labelOf(CHECK_STATE_LABELS, state);
+}
+
+/** Triage state of a possible issue: "Needs review", "Confirmed", … */
+export function findingStateLabel(state: FindingState | null): VocabularyLabel {
+  return state === null
+    ? { label: "Not assessed", tone: "idle" }
+    : labelOf(FINDING_STATE_LABELS, state);
+}
+
+/** Analyst verdict of a decision; a missing verdict is "Not reviewed". */
+export function verdictLabel(
+  verdict: VerdictValue | null | undefined,
+): VocabularyLabel {
+  return labelOf(VERDICT_LABELS, verdict ?? "unreviewed");
+}
+
+/** Availability of the retained report. */
+export function reportStatusLabel(status: AuditReportStatus): VocabularyLabel {
+  return labelOf(REPORT_STATUS_LABELS, status);
+}
+
+/**
+ * Analyst severity. An empty or missing severity (an unreviewed finding, or
+ * a proposal without a suggestion) is "Not set"; a model suggestion is never
+ * shown as the analyst's rating.
+ */
+export function severityLabel(
+  severity: FindingSeverity | "" | null | undefined,
+): string {
+  return severity === undefined || severity === null || severity === ""
+    ? "Not set"
+    : wordOf(SEVERITY_LABELS, severity);
+}
+
+// Run states keep the execution vocabulary (v3b-build-contract.md §3: "Run,
+// Workflow, Runtime Agent: unchanged"): each label is the API state as a
+// word, so it never claims more than the state says, and an unknown wait
+// reason stays unknown (§3). Tones follow the state's meaning
+// (docs/spec/execution/runs.md, Run lifecycle): initializing and running are
+// work under way (progress); pending is not admitted yet (idle); waiting for
+// the model route and cancelling need attention (warning). Runs, Projects and
+// the Inbox all read this table.
+export const RUN_STATE_LABELS: Readonly<
+  Record<WorkflowRunState, VocabularyLabel>
+> = {
+  initializing: { label: "Initializing", tone: "progress" },
+  pending: { label: "Pending", tone: "idle" },
+  waiting: { label: "Waiting", tone: "warning" },
+  running: { label: "Running", tone: "progress" },
+  cancelling: { label: "Cancelling", tone: "warning" },
+  succeeded: { label: "Succeeded", tone: "done" },
+  failed: { label: "Failed", tone: "blocked" },
+  cancelled: { label: "Cancelled", tone: "neutral" },
+};
+
+/** Run state: "Running", "Waiting", "Succeeded", … */
+export function runStateLabel(state: WorkflowRunState): VocabularyLabel {
+  return labelOf(RUN_STATE_LABELS, state);
+}
+
+const RUN_STATE_PHRASES: Readonly<Record<WorkflowRunState, string>> = {
+  initializing: "is initializing",
+  pending: "is pending",
+  waiting: "is waiting",
+  running: "is running",
+  cancelling: "is cancelling",
+  succeeded: "succeeded",
+  failed: "failed",
+  cancelled: "was cancelled",
+};
+
+/** Run state inside a sentence, after the Run's name: "is running", "succeeded". */
+export function runStatePhrase(state: WorkflowRunState): string {
+  return Object.hasOwn(RUN_STATE_PHRASES, state)
+    ? RUN_STATE_PHRASES[state]
+    : `is ${runStateLabel(state).label.toLowerCase()}`;
+}
+
+type RunRecoveryCode = NonNullable<RunStatus["recovery"]>["code"];
+
+const RUN_RECOVERY_REASONS: Readonly<Record<RunRecoveryCode, string>> = {
+  model_unavailable: "The model was unloaded or is unavailable.",
+  gateway_unavailable: "The model gateway is unavailable.",
+  gateway_timeout: "The model request timed out.",
+  gateway_rate_limited: "The model gateway is rate limiting requests.",
+};
+
+/** Why a waiting Run waits for its model route (RUN-R30). */
+export function runRecoveryReason(code: RunRecoveryCode): string {
+  return Object.hasOwn(RUN_RECOVERY_REASONS, code)
+    ? RUN_RECOVERY_REASONS[code]
+    : "The model connection is interrupted.";
+}
+
+/** What one unit of work in a check is called. */
+type ItemKind = "endpoint" | "requirement" | "scenario" | "item";
+
+const ITEM_NOUNS: Readonly<
+  Record<ItemKind, readonly [singular: string, plural: string]>
+> = {
+  endpoint: ["endpoint", "endpoints"],
+  requirement: ["requirement", "requirements"],
+  scenario: ["scenario", "scenarios"],
+  item: ["item", "items"],
+};
+
+/** "endpoint" for one, "endpoints" for any other count (including 0). */
+function itemNoun(kind: ItemKind, count: number): string {
+  const [singular, plural] = ITEM_NOUNS[kind];
+  return count === 1 ? singular : plural;
+}
+
+/** "1 endpoint", "12 requirements", "1,204 items". */
+export function itemCount(kind: ItemKind, count: number): string {
+  return `${formatNumber(count)} ${itemNoun(kind, count)}`;
+}
+
+// Work item kinds the Server's inventories create (internal/auditdomain).
+const WSTG = /\bwstg\b/i;
+
+/** WSTG standards hold test scenarios; every other standard requirements. */
+function standardsKind(schemes: readonly string[]): ItemKind | undefined {
+  if (schemes.length === 0) return undefined;
+  return schemes.every((scheme) => WSTG.test(scheme))
+    ? "scenario"
+    : "requirement";
+}
+
+/** Last resort for a check without a baseline: its check type's name. */
+function checkTypeNameKind(name: string): ItemKind {
+  if (name.startsWith("openapi-") || name.startsWith("source-openapi-"))
+    return "endpoint";
+  if (WSTG.test(name)) return "scenario";
+  if (/\b(asvs|top-?10)\b/i.test(name)) return "requirement";
+  return "item";
+}
+
+/** What the UI knows about a check: a work item, the check type or the check. */
+type CheckItemKindSource =
+  Pick<AuditProfile, "ref"> | Pick<Audit, "profile" | "baseline">;
+
+/** Units of work from the selected program or pinned standards. */
+export function checkItemKind(source: CheckItemKindSource): ItemKind {
+  if ("ref" in source) return checkTypeNameKind(source.ref.name);
+  const baseline = source.baseline;
+  const pinned = standardsKind(
+    baseline?.standards.map((standard) => standard.reference.scheme) ?? [],
+  );
+  if (pinned !== undefined) return pinned;
+  return checkTypeNameKind(source.profile.name);
+}
+
+function wordOf<K extends string>(
+  table: Readonly<Record<K, string>>,
+  value: K,
+): string {
+  return Object.hasOwn(table, value) ? table[value] : readableValue(value);
+}

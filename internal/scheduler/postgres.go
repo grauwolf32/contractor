@@ -1,0 +1,827 @@
+package scheduler
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sort"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/stageresult"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// PostgresPersistence composes transaction-bound RunStore and ArtifactStore
+// repositories. No method performs network I/O or reads artifact payloads.
+type PostgresPersistence struct {
+	storage *artifactpostgres.Storage
+
+	pool *pgxpool.Pool
+}
+
+func NewPostgresPersistence(pool *pgxpool.Pool, storage *artifactpostgres.Storage) (*PostgresPersistence, error) {
+	if storage == nil || pool == nil {
+		return nil, fmt.Errorf("PostgreSQL pool is required")
+	}
+	return &PostgresPersistence{storage: storage, pool: pool}, nil
+}
+
+func (p *PostgresPersistence) CreateStageWithContext(
+	ctx context.Context,
+	params runstore.CreateStageExecutionParams,
+	pins []ContextPin,
+) (runstore.StageExecution, error) {
+	var created runstore.StageExecution
+	err := persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		store := runstore.NewPostgresTxStore(tx, p.storage)
+		if _, err := lockClaimedRun(ctx, store, params.RunID, stageCreationRunStates...); err != nil {
+			return err
+		}
+		if err := store.LockRunQueueAdmission(ctx, params.RunID); err != nil {
+			return err
+		}
+		var err error
+		created, err = store.CreateStageExecution(ctx, params)
+		if err != nil {
+			return err
+		}
+		artifactService := artifacts.NewService(p.storage.Repository(tx))
+		scope, err := artifacts.RunScope(params.RunID)
+		if err != nil {
+			return err
+		}
+		sorted := append([]ContextPin(nil), pins...)
+		sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
+		for _, pin := range sorted {
+			if err := artifactService.RequireExact(ctx, scope, pin.Ref); err != nil {
+				return fmt.Errorf("require StageContext artifact %q: %w", pin.Name, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return runstore.StageExecution{}, err
+	}
+	return created, nil
+}
+
+func (p *PostgresPersistence) EnterFinalizingWithResult(
+	ctx context.Context,
+	params runstore.EnterFinalizingParams,
+) error {
+	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		store := runstore.NewPostgresTxStore(tx, p.storage)
+		execution, err := store.GetStageExecution(ctx, params.StageExecutionID)
+		if err != nil {
+			return err
+		}
+		// A Runtime Agent may deliver its result while the Run waits for a
+		// model gateway on another route; the result commit clears the wait.
+		if _, err := lockClaimedRun(ctx, store, execution.RunID, finalizationRunStates...); err != nil {
+			return err
+		}
+		artifactService := artifacts.NewService(p.storage.Repository(tx))
+		scope, err := artifacts.RunScope(execution.RunID)
+		if err != nil {
+			return err
+		}
+		if params.Candidate.Summarized {
+			if params.Candidate.SummaryArtifact == nil {
+				return fmt.Errorf("summarized candidate requires its saved summary artifact")
+			}
+			if err := artifactService.RequireExact(ctx, scope, *params.Candidate.SummaryArtifact); err != nil {
+				return fmt.Errorf("require saved summary: %w", err)
+			}
+		}
+		names := sortedArtifactNames(params.Candidate.Artifacts)
+		for _, name := range names {
+			if err := artifactService.RequireExact(ctx, scope, params.Candidate.Artifacts[name]); err != nil {
+				return fmt.Errorf("require StageResult artifact %q: %w", name, err)
+			}
+		}
+		return store.EnterFinalizing(ctx, params)
+	})
+}
+
+// EnterAbortingWithTermination takes lifecycle locks in the same Run-then-Stage
+// order as every other Scheduler commit point. The Stage lifecycle trigger
+// allocates a WorkflowRun event sequence and therefore also touches the Run;
+// calling runstore.EnterAborting directly on a pool would otherwise acquire
+// Stage-then-Run and could deadlock with a Planner Memory transaction.
+func (p *PostgresPersistence) EnterAbortingWithTermination(
+	ctx context.Context,
+	runID string,
+	params runstore.EnterAbortingParams,
+) error {
+	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		store := runstore.NewPostgresTxStore(tx, p.storage)
+		if _, err := lockClaimedRun(ctx, store, runID, abortRunStates...); err != nil {
+			return err
+		}
+		if _, err := store.LockStageState(ctx, runID, params.StageExecutionID); err != nil {
+			return err
+		}
+		return store.EnterAborting(ctx, params)
+	})
+}
+
+func (p *PostgresPersistence) CommitResultProgression(
+	ctx context.Context,
+	value ResultProgression,
+) error {
+	if err := validateResultProgression(value); err != nil {
+		return err
+	}
+	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		txStore := runstore.NewPostgresTxStore(tx, p.storage)
+		store := txStore.PostgresStore
+		if _, err := lockClaimedRun(ctx, txStore, value.RunID, progressionRunStates...); err != nil {
+			return err
+		}
+		if _, err := txStore.LockStageState(ctx, value.RunID, value.StageExecutionID); err != nil {
+			return err
+		}
+		if value.Progression.NextStage != nil {
+			if err := txStore.LockRunQueueAdmission(ctx, value.RunID); err != nil {
+				return err
+			}
+		}
+		if err := store.CompleteStageResult(
+			ctx,
+			value.StageExecutionID,
+			contracts.APIVersion,
+			value.Result,
+		); err != nil {
+			return err
+		}
+		// Complete the durable wait projection even if its asynchronous write failed.
+		if err := txStore.LeaveWaiting(ctx, value.RunID); err != nil {
+			return err
+		}
+
+		if value.Result.Outcome == stageresult.StageSucceeded {
+			artifactService := artifacts.NewService(p.storage.Repository(tx))
+			outputNames := make([]string, 0, len(value.WorkflowOutputs))
+			for outputName := range value.WorkflowOutputs {
+				outputNames = append(outputNames, outputName)
+			}
+			sort.Strings(outputNames)
+			for _, outputName := range outputNames {
+				resultName := value.WorkflowOutputs[outputName]
+				ref, present := value.Result.Artifacts[resultName]
+				if !present {
+					if value.OutputContracts[outputName].Required {
+						return fmt.Errorf(
+							"%w: required Workflow output %q has no Stage result", errInvalidRunState, outputName,
+						)
+					}
+					continue
+				}
+				bound, err := bindOutput(ctx, artifactService, value.RunID, outputName, ref)
+				if err != nil {
+					return fmt.Errorf("bind Workflow output %q: %w", outputName, err)
+				}
+				if !contracts.AcceptsMediaType(value.OutputContracts[outputName].MediaTypes, bound.MediaType) {
+					return fmt.Errorf(
+						"%w: Workflow output %q has incompatible media type", errInvalidRunState, outputName,
+					)
+				}
+			}
+		}
+
+		if err := commitNextStage(ctx, tx, store, value.Progression, p.storage); err != nil {
+			return err
+		}
+		if _, err := store.RecordStageTransitionDecision(ctx, value.Progression.Decision); err != nil {
+			return err
+		}
+		publicationFailures := 0
+		if value.Progression.TerminalRunState == runstore.RunSucceeded && len(value.OutputContracts) > 0 {
+			// The StageExecution lock keeps the count stable while this
+			// transaction decides whether to attempt publication.
+			failures, err := store.StageOutputPublicationFailures(ctx, value.RunID, value.StageExecutionID)
+			if err != nil {
+				return err
+			}
+			publicationFailures = failures
+		}
+		return commitTerminalRun(
+			ctx, tx, store, value.RunID, value.OutputContracts, value.Progression, publicationFailures, p.storage)
+	})
+}
+
+func (p *PostgresPersistence) CommitTerminationProgression(
+	ctx context.Context,
+	value TerminationProgression,
+) error {
+	if err := validateTerminationProgression(value); err != nil {
+		return err
+	}
+	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		txStore := runstore.NewPostgresTxStore(tx, p.storage)
+		if _, err := lockClaimedRun(ctx, txStore, value.RunID, progressionRunStates...); err != nil {
+			return err
+		}
+		if _, err := txStore.LockStageState(ctx, value.RunID, value.StageExecutionID); err != nil {
+			return err
+		}
+		store := txStore.PostgresStore
+		if value.Progression.NextStage != nil {
+			if err := txStore.LockRunQueueAdmission(ctx, value.RunID); err != nil {
+				return err
+			}
+		}
+		if err := store.CompleteStageTermination(ctx, value.StageExecutionID); err != nil {
+			return err
+		}
+		// A follow-up Stage starts without its predecessor's durable wait.
+		if err := txStore.LeaveWaiting(ctx, value.RunID); err != nil {
+			return err
+		}
+
+		if err := commitNextStage(ctx, tx, store, value.Progression, p.storage); err != nil {
+			return err
+		}
+		if _, err := store.RecordStageTransitionDecision(ctx, value.Progression.Decision); err != nil {
+			return err
+		}
+		return commitTerminalRun(ctx, tx, store, value.RunID, nil, value.Progression, 0, p.storage)
+	})
+}
+
+func (p *PostgresPersistence) AcceptResultDuringCancellation(
+	ctx context.Context,
+	runID string,
+	stageExecutionID string,
+	result stageresult.StageContentResult,
+) error {
+	if runID == "" || stageExecutionID == "" {
+		return fmt.Errorf("Run and StageExecution IDs are required")
+	}
+	if err := result.Validate(); err != nil {
+		return fmt.Errorf("invalid StageResult acceptance: %w", err)
+	}
+	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		store := runstore.NewPostgresTxStore(tx, p.storage)
+		if _, err := lockClaimedRun(ctx, store, runID, runstore.RunCancelling); err != nil {
+			return err
+		}
+		if _, err := store.LockStageState(ctx, runID, stageExecutionID); err != nil {
+			return err
+		}
+		if err := store.CompleteStageResult(ctx, stageExecutionID, contracts.APIVersion, result); err != nil {
+			return err
+		}
+		artifactService := artifacts.NewService(p.storage.Repository(tx))
+		if err := freezeOutputs(ctx, artifactService, runID); err != nil {
+			return fmt.Errorf("freeze Workflow outputs: %w", err)
+		}
+		if _, err := store.TransitionRun(
+			ctx, runID, runstore.RunCancelling, runstore.RunCancelled,
+			runstore.Reason{Code: runstore.CancellationUserRequested},
+		); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func (p *PostgresPersistence) CommitTerminationAndFinishRun(
+	ctx context.Context,
+	runID string,
+	stageExecutionID string,
+	expectedRunState runstore.WorkflowRunState,
+	nextRunState runstore.WorkflowRunState,
+	reason runstore.Reason,
+) error {
+	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		store := runstore.NewPostgresTxStore(tx, p.storage)
+		if _, err := lockClaimedRun(ctx, store, runID, expectedRunState); err != nil {
+			return err
+		}
+		if _, err := store.LockStageState(ctx, runID, stageExecutionID); err != nil {
+			return err
+		}
+		if err := store.CompleteStageTermination(ctx, stageExecutionID); err != nil {
+			return err
+		}
+		artifactService := artifacts.NewService(p.storage.Repository(tx))
+		if err := freezeOutputs(ctx, artifactService, runID); err != nil {
+			return fmt.Errorf("freeze Workflow outputs: %w", err)
+		}
+		if _, err := store.TransitionRun(
+			ctx,
+			runID,
+			expectedRunState,
+			nextRunState,
+			reason,
+		); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+// FailRunWithActiveStages ends a Run the Scheduler cannot progress. Every
+// active Stage becomes terminal in the same transaction, so terminal
+// allocation recovery releases what it still holds (SCH-R102): preparing and
+// running Stages are interrupted, aborting Stages commit their stored
+// termination, and a finalizing Stage, which already won its result race,
+// accepts its durable candidate without Workflow progression or output
+// binding. The outputs that earlier Stages bound are frozen with the Run
+// (ART-R94).
+func (p *PostgresPersistence) FailRunWithActiveStages(
+	ctx context.Context,
+	runID string,
+	expectedRunState runstore.WorkflowRunState,
+	nextRunState runstore.WorkflowRunState,
+	reason runstore.Reason,
+	termination runstore.StageTermination,
+	abortID string,
+) error {
+	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		store := runstore.NewPostgresTxStore(tx, p.storage)
+		if _, err := lockClaimedRun(ctx, store, runID, expectedRunState); err != nil {
+			return err
+		}
+		if err := store.FailRunWithActiveStages(ctx, runstore.FailRunWithActiveStagesParams{
+			RunID: runID, ExpectedState: expectedRunState, NextState: nextRunState, Reason: reason,
+			TerminationSchemaVersion: contracts.APIVersion, Termination: termination, AbortID: abortID,
+		}); err != nil {
+			return err
+		}
+		// The Run row is locked above, as before every other terminal freeze.
+		if err := freezeOutputs(ctx, artifacts.NewService(p.storage.Repository(tx)), runID); err != nil {
+			return fmt.Errorf("freeze Workflow outputs: %w", err)
+		}
+		return nil
+	})
+}
+
+// FinishCancelledRun ends a cancelling Run that has no active StageExecution
+// (RUN-R43): it freezes the outputs that earlier Stages bound (ART-R94) and
+// moves the Run to cancelled in one transaction. Cancellation forbids new
+// Stages (RUN-R42), so none can start after the caller found none active. A
+// Run that is no longer cancelling is a StateConflictError and changes
+// nothing.
+func (p *PostgresPersistence) FinishCancelledRun(ctx context.Context, runID string) error {
+	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		store := runstore.NewPostgresTxStore(tx, p.storage)
+		if _, err := lockClaimedRun(ctx, store, runID, runstore.RunCancelling); err != nil {
+			return err
+		}
+		if err := freezeOutputs(ctx, artifacts.NewService(p.storage.Repository(tx)), runID); err != nil {
+			return fmt.Errorf("freeze Workflow outputs: %w", err)
+		}
+		_, err := store.TransitionRun(
+			ctx, runID, runstore.RunCancelling, runstore.RunCancelled,
+			runstore.Reason{Code: runstore.CancellationUserRequested},
+		)
+		return err
+	})
+}
+
+// The WorkflowRun states each commit point accepts under its Run row lock.
+// The memory test doubles of these commit points enforce the same sets.
+var (
+	// A Stage starts only after initialization committed and never while the
+	// Run is cancelling (RUN-R26, RUN-R42).
+	stageCreationRunStates = []runstore.WorkflowRunState{runstore.RunPending, runstore.RunRunning}
+	// A Runtime may deliver its result while the Run waits for a model route
+	// on another call; the result commit ends the wait.
+	finalizationRunStates = []runstore.WorkflowRunState{runstore.RunRunning, runstore.RunWaiting}
+	// Admission and result or termination progression move an initialized
+	// Run that is not cancelling; cancellation has its own commit points.
+	progressionRunStates = []runstore.WorkflowRunState{runstore.RunPending, runstore.RunRunning, runstore.RunWaiting}
+	// A Stage abort may also start for a cancelling Run (RUN-R42).
+	abortRunStates = []runstore.WorkflowRunState{
+		runstore.RunPending, runstore.RunRunning, runstore.RunWaiting, runstore.RunCancelling,
+	}
+)
+
+func validateResultProgression(value ResultProgression) error {
+	if value.RunID == "" || value.StageExecutionID == "" {
+		return fmt.Errorf("Run and StageExecution IDs are required")
+	}
+	if err := value.Result.Validate(); err != nil {
+		return fmt.Errorf("invalid StageResult acceptance: %w", err)
+	}
+	if value.Result.Outcome == stageresult.StageSucceeded {
+		for outputName, slot := range value.OutputContracts {
+			resultName, mapped := value.WorkflowOutputs[outputName]
+			if mapped {
+				if _, exists := value.Result.Artifacts[resultName]; slot.Required && !exists {
+					return fmt.Errorf(
+						"%w: required Workflow output %q has no Stage result", errInvalidRunState, outputName,
+					)
+				}
+			}
+		}
+		for outputName := range value.WorkflowOutputs {
+			if _, declared := value.OutputContracts[outputName]; !declared {
+				return fmt.Errorf("%w: undeclared Workflow output %q is mapped", errInvalidRunState, outputName)
+			}
+		}
+	}
+	return validateProgression(value.RunID, value.StageExecutionID, value.Progression)
+}
+
+func validateTerminationProgression(value TerminationProgression) error {
+	if value.RunID == "" || value.StageExecutionID == "" {
+		return fmt.Errorf("Run and StageExecution IDs are required")
+	}
+	return validateProgression(value.RunID, value.StageExecutionID, value.Progression)
+}
+
+func validateProgression(runID, sourceExecutionID string, value StageProgression) error {
+	decision := value.Decision
+	if decision.RunID != runID || decision.SourceExecutionID != sourceExecutionID {
+		return fmt.Errorf("Stage progression decision identifies another source")
+	}
+	if err := decision.Validate(); err != nil {
+		return fmt.Errorf("invalid Stage progression decision: %w", err)
+	}
+	switch decision.Action {
+	case runstore.StageTransitionNext, runstore.StageTransitionRetry, runstore.StageTransitionEscalate:
+		if value.NextStage == nil || value.TerminalRunState != "" ||
+			decision.TargetStageName == nil || decision.TargetExecutionID == nil {
+			return fmt.Errorf("%s Stage progression requires exactly one next execution", decision.Action)
+		}
+		params := value.NextStage.Params
+		if params.RunID != runID || params.StageExecutionID != *decision.TargetExecutionID ||
+			params.StageName != *decision.TargetStageName {
+			return fmt.Errorf("Stage progression target differs from the durable decision")
+		}
+		if err := validateNextStagePins(*value.NextStage); err != nil {
+			return err
+		}
+		if decision.Action == runstore.StageTransitionEscalate {
+			if params.ExecutionConfigVariant != runstore.StageExecutionConfigFailedEscalation &&
+				params.ExecutionConfigVariant != runstore.StageExecutionConfigInterruptedEscalation &&
+				params.ExecutionConfigVariant != runstore.StageExecutionConfigSummaryEscalation {
+				return fmt.Errorf("escalate Stage progression requires an escalation configuration variant")
+			}
+			if decision.EscalationOrdinal == nil || params.EscalationOrdinal == nil ||
+				*decision.EscalationOrdinal != *params.EscalationOrdinal || decision.EscalationExhausted {
+				return fmt.Errorf("escalate Stage progression ordinal differs from its target")
+			}
+		} else if decision.Action == runstore.StageTransitionRetry &&
+			params.ExecutionConfigVariant == runstore.StageExecutionConfigSummaryEscalation {
+			if params.EscalationOrdinal == nil || *params.EscalationOrdinal != 1 || params.StageContext.Continuation == nil {
+				return fmt.Errorf("summary retry requires its existing strategy ordinal and context")
+			}
+		} else if params.ExecutionConfigVariant != runstore.StageExecutionConfigBase ||
+			params.EscalationOrdinal != nil {
+			return fmt.Errorf("next/retry Stage progression must use the base execution configuration")
+		}
+	case runstore.StageTransitionSucceed:
+		if value.NextStage != nil || value.TerminalRunState != runstore.RunSucceeded ||
+			decision.TargetStageName != nil || decision.TargetExecutionID != nil {
+			return fmt.Errorf("succeed Stage progression has an invalid shape")
+		}
+	case runstore.StageTransitionFail:
+		if value.NextStage != nil || value.TerminalRunState != runstore.RunFailed ||
+			decision.TargetStageName != nil || decision.TargetExecutionID != nil {
+			return fmt.Errorf("fail Stage progression has an invalid shape")
+		}
+	default:
+		return fmt.Errorf("unknown Stage progression action %q", decision.Action)
+	}
+	return nil
+}
+
+func validateNextStagePins(value NextStageCreation) error {
+	pins := make(map[string]contracts.ArtifactRef, len(value.ContextPins))
+	for _, pin := range value.ContextPins {
+		if _, duplicate := pins[pin.Name]; duplicate {
+			return fmt.Errorf("StageContext artifact %q has duplicate pins", pin.Name)
+		}
+		pins[pin.Name] = pin.Ref
+	}
+	for _, expected := range value.Params.StageContext.Pins() {
+		pin, present := pins[expected.Name]
+		if !present || !pin.SameExact(expected.Ref) {
+			return fmt.Errorf("StageContext artifact %q pin differs from its exact snapshot", expected.Name)
+		}
+		delete(pins, expected.Name)
+	}
+	if len(pins) != 0 {
+		return fmt.Errorf("StageContext contains an undeclared artifact pin")
+	}
+	return nil
+}
+
+func commitNextStage(
+	ctx context.Context,
+	tx pgx.Tx,
+	store *runstore.PostgresStore,
+	progression StageProgression,
+	storage *artifactpostgres.Storage,
+) error {
+	if progression.NextStage == nil {
+		return nil
+	}
+	created, err := store.CreateStageExecution(ctx, progression.NextStage.Params)
+	if err != nil {
+		return err
+	}
+	if created.StageExecutionID != progression.NextStage.Params.StageExecutionID {
+		return fmt.Errorf("created StageExecution identity differs from progression target")
+	}
+	artifactService := artifacts.NewService(storage.Repository(tx))
+	scope, err := artifacts.RunScope(progression.NextStage.Params.RunID)
+	if err != nil {
+		return err
+	}
+	pins := append([]ContextPin(nil), progression.NextStage.ContextPins...)
+	sort.Slice(pins, func(i, j int) bool { return pins[i].Name < pins[j].Name })
+	for _, pin := range pins {
+		if err := artifactService.RequireExact(ctx, scope, pin.Ref); err != nil {
+			if artifacts.IsExactReferenceRejection(err) {
+				return fmt.Errorf("%w: require StageContext artifact %q: %w", errInvalidRunState, pin.Name, err)
+			}
+			return fmt.Errorf("require StageContext artifact %q: %w", pin.Name, err)
+		}
+	}
+	return nil
+}
+
+// commitTerminalRun finishes the Run of a terminal progression. On success it
+// publishes Project outputs unless publicationFailures, the transient
+// publication failures counted for the committing StageExecution, has reached
+// LIM-PRJ-4.
+func commitTerminalRun(
+	ctx context.Context,
+	tx pgx.Tx,
+	store *runstore.PostgresStore,
+	runID string,
+	outputContracts map[string]resolved.ArtifactSlot,
+	progression StageProgression,
+	publicationFailures int,
+	storage *artifactpostgres.Storage,
+) error {
+	if progression.TerminalRunState == "" {
+		return nil
+	}
+	if progression.TerminalRunState == runstore.RunSucceeded {
+		if err := verifyRequiredWorkflowOutputs(ctx, tx, runID, outputContracts, storage); err != nil {
+			return err
+		}
+	}
+	artifactService := artifacts.NewService(storage.Repository(tx))
+	if err := freezeOutputs(ctx, artifactService, runID); err != nil {
+		return fmt.Errorf("freeze Workflow outputs: %w", err)
+	}
+	if progression.TerminalRunState == runstore.RunSucceeded {
+		if err := publishProjectOutputs(ctx, tx, runID, outputContracts, publicationFailures, storage); err != nil {
+			return err
+		}
+	}
+	// The Run row is locked; only its state is needed for the transition.
+	state, err := store.GetRunState(ctx, runID)
+	if err != nil {
+		return err
+	}
+	_, err = store.TransitionRun(
+		ctx,
+		runID,
+		state,
+		progression.TerminalRunState,
+		progression.RunReason,
+	)
+	return err
+}
+
+// maxOutputPublicationFailures is LIM-PRJ-4: the transient publication
+// failures counted for one finalizing StageExecution before its terminal
+// commit stops attempting publication (PRJ-R58).
+const maxOutputPublicationFailures = 5
+
+// errTransientOutputPublication marks a terminal transaction that a transient
+// Project output publication failure aborted. It recorded nothing; the
+// Scheduler counts it against maxOutputPublicationFailures.
+var errTransientOutputPublication = errors.New("Project output publication failed transiently")
+
+func publishProjectOutputs(
+	ctx context.Context,
+	tx pgx.Tx,
+	runID string,
+	outputContracts map[string]resolved.ArtifactSlot,
+	publicationFailures int,
+	storage *artifactpostgres.Storage,
+) error {
+	var projectID *string
+	var publicationMode runstore.OutputPublicationMode
+	if err := tx.QueryRow(ctx, `
+SELECT project_id, publication_mode
+FROM workflow_runs
+WHERE run_id = $1`, runID).Scan(&projectID, &publicationMode); err != nil {
+		return fmt.Errorf("resolve WorkflowRun Project for output publication: %w", err)
+	}
+	if projectID == nil {
+		return nil
+	}
+	if publicationMode == runstore.PublicationAuditManaged {
+		return nil
+	}
+	if publicationMode != runstore.PublicationOrdinary {
+		return fmt.Errorf("WorkflowRun output publication mode is invalid")
+	}
+
+	exhausted := publicationFailures >= maxOutputPublicationFailures
+
+	artifactService := artifacts.NewService(storage.Repository(tx))
+	runArtifacts, err := artifactService.Run(runID)
+	if err != nil {
+		return err
+	}
+	names := make([]string, 0, len(outputContracts))
+	for name := range outputContracts {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		source, metadataErr := runArtifacts.Metadata(
+			ctx, contracts.ArtifactRef{Namespace: "outputs", Name: name},
+		)
+		if errors.Is(metadataErr, artifacts.ErrArtifactNotFound) && !outputContracts[name].Required {
+			continue
+		}
+		if metadataErr != nil {
+			return fmt.Errorf("resolve exact Workflow output %q for Project publication: %w", name, metadataErr)
+		}
+		if !source.Frozen || source.Ref.Revision == nil {
+			return fmt.Errorf("Workflow output %q is not frozen at an exact revision", name)
+		}
+		if exhausted {
+			if err := recordExhaustedOutputPublication(ctx, tx, runID, *projectID, name, source.Ref, storage); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := publishOneProjectOutput(ctx, tx, runID, *projectID, name, source.Ref, storage); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func publishOneProjectOutput(
+	ctx context.Context,
+	tx pgx.Tx,
+	runID string,
+	projectID string,
+	outputName string,
+	source contracts.ArtifactRef,
+	storage *artifactpostgres.Storage,
+) error {
+	attempt, err := tx.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("start Project output publication %q: %w", outputName, err)
+	}
+	attemptService := artifacts.NewService(storage.Repository(attempt))
+	published, publishErr := publishRunOutput(ctx, attemptService, runID, projectID, outputName, source)
+	if publishErr == nil {
+		target := published.TargetRef
+		_, _, recordErr := runstore.NewPostgresStore(attempt, storage).RecordRunOutputPublication(
+			ctx,
+			runstore.RecordRunOutputPublicationParams{
+				RunID: runID, ProjectID: projectID, OutputName: outputName,
+				Status: runstore.OutputPublicationPublished,
+				Source: source, Target: &target,
+			},
+		)
+		if recordErr == nil {
+			if err := attempt.Commit(ctx); err != nil {
+				return fmt.Errorf("commit Project output publication %q: %w", outputName, err)
+			}
+			return nil
+		}
+		publishErr = fmt.Errorf("record successful publication: %w", recordErr)
+	}
+	if err := attempt.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+		return fmt.Errorf("rollback Project output publication %q: %w", outputName, errors.Join(publishErr, err))
+	}
+	if transientPublicationFailure(ctx, publishErr) {
+		// A deadlock, serialization abort, lock or statement timeout or lost
+		// connection says nothing about the output. Abort the whole terminal
+		// transaction instead of recording a permanent failure: the Stage stays
+		// finalizing and finalization recovery replays the same terminal
+		// commit, which publishes the same exact source (PRJ-R58, PRJ-R59).
+		return fmt.Errorf("publish Project output %q: %w: %w", outputName, errTransientOutputPublication, publishErr)
+	}
+
+	params := runstore.RecordRunOutputPublicationParams{
+		RunID: runID, ProjectID: projectID, OutputName: outputName, Source: source,
+	}
+	if errors.Is(publishErr, artifacts.ErrArtifactConflict) {
+		params.Status = runstore.OutputPublicationAlreadyPresent
+	} else {
+		params.Status = runstore.OutputPublicationFailed
+		params.ErrorCode, params.ErrorMessage = projectOutputPublicationFailure(publishErr)
+	}
+	if _, _, err := runstore.NewPostgresStore(tx, storage).RecordRunOutputPublication(ctx, params); err != nil {
+		return fmt.Errorf("record Project output publication %q: %w", outputName, err)
+	}
+	return nil
+}
+
+// recordExhaustedOutputPublication ends publication replays without another
+// attempt: the Run keeps its success and the output gets one bounded failed
+// result (PRJ-R58, LIM-PRJ-4).
+func recordExhaustedOutputPublication(
+	ctx context.Context,
+	tx pgx.Tx,
+	runID string,
+	projectID string,
+	outputName string,
+	source contracts.ArtifactRef,
+	storage *artifactpostgres.Storage,
+) error {
+	_, _, err := runstore.NewPostgresStore(tx, storage).RecordRunOutputPublication(ctx, runstore.RecordRunOutputPublicationParams{
+		RunID: runID, ProjectID: projectID, OutputName: outputName, Source: source,
+		Status: runstore.OutputPublicationFailed, ErrorCode: "publication_attempts_exhausted",
+		ErrorMessage: fmt.Sprintf(
+			"The Project output was not published after %d transient database failures.",
+			maxOutputPublicationFailures,
+		),
+	})
+	if err != nil {
+		return fmt.Errorf("record Project output publication %q: %w", outputName, err)
+	}
+	return nil
+}
+
+// transientPublicationFailure reports a publication error that a replay of the
+// terminal transaction may outlast. Everything else is a definite rejection
+// that is recorded once as a failed publication.
+func transientPublicationFailure(ctx context.Context, err error) bool {
+	return ctx.Err() != nil || errors.Is(err, context.Canceled) ||
+		persistencepostgres.IsTransientFailure(err)
+}
+
+func projectOutputPublicationFailure(err error) (string, string) {
+	switch {
+	case errors.Is(err, artifacts.ErrArtifactNotFound):
+		return "source_unavailable", "The exact frozen Run output is unavailable."
+	case errors.Is(err, artifacts.ErrInvalidScope), errors.Is(err, artifacts.ErrScopeDeleting):
+		return "project_unavailable", "The destination Project is unavailable."
+	default:
+		return "publication_failed", "The Project output could not be published."
+	}
+}
+
+// verifyRequiredWorkflowOutputs checks, in tx, that every required Workflow
+// output of Run runID is bound and that every bound output's current revision
+// has a media type its slot accepts; a failed check is errInvalidRunState.
+// It reads the bindings through the ArtifactStore.
+func verifyRequiredWorkflowOutputs(
+	ctx context.Context,
+	tx pgx.Tx,
+	runID string,
+	contractsByName map[string]resolved.ArtifactSlot,
+	storage *artifactpostgres.Storage,
+) error {
+	scope, err := artifacts.RunScope(runID)
+	if err != nil {
+		return err
+	}
+	repository := storage.Repository(tx)
+	names := make([]string, 0, len(contractsByName))
+	for name := range contractsByName {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		slot := contractsByName[name]
+		metadata, err := repository.Metadata(ctx, scope, artifacts.ArtifactRef{Namespace: "outputs", Name: name})
+		if errors.Is(err, artifacts.ErrArtifactNotFound) && !slot.Required {
+			continue
+		}
+		if errors.Is(err, artifacts.ErrArtifactNotFound) {
+			return fmt.Errorf("%w: required Workflow output %q is not bound", errInvalidRunState, name)
+		}
+		if err != nil {
+			return fmt.Errorf("verify Workflow output %q: %w", name, err)
+		}
+		if !contracts.AcceptsMediaType(slot.MediaTypes, metadata.MediaType) {
+			return fmt.Errorf("%w: Workflow output %q has incompatible media type", errInvalidRunState, name)
+		}
+	}
+	return nil
+}
+
+func sortedArtifactNames(values map[string]contracts.ArtifactRef) []string {
+	result := make([]string, 0, len(values))
+	for name := range values {
+		result = append(result, name)
+	}
+	sort.Strings(result)
+	return result
+}

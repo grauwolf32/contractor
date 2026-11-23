@@ -1,0 +1,175 @@
+schema_version: "1.0"
+id: V416-007
+title: "Account for Interactsh reconciliation polls in the shared gap and rate rules"
+milestone: main-review-2026-10-25
+epic: http-tools
+kind: defect
+introduced_by: V382-001
+priority: P2
+status: completed
+depends_on: []
+languages: [python]
+goal: >-
+  Every network poll of an owned Interactsh registration, including registration
+  reconciliation, records its attempt for spacing and preserves a sticky
+  coverage gap when the destructive response cannot be confirmed.
+context:
+  review: >-
+    Detailed read-only review of main on 2026-10-25, validated at
+    f9fda28f1c9ffa4baaf3052c141e652c8593a080; Interactsh reconciliation finding.
+  specification:
+    - docs/spec/tools/interactsh.md#INT-R5
+    - docs/spec/tools/interactsh.md#INT-R7
+    - docs/spec/tools/interactsh.md#INT-R9
+    - docs/spec/tools/interactsh.md#INT-R10
+    - docs/spec/tools/interactsh.md#INT-R11
+    - docs/spec/tools/interactsh.md#FAIL-INT-1
+    - docs/spec/tools/interactsh.md#FAIL-INT-2
+    - docs/spec/tools/interactsh.md#FAIL-INT-3
+    - docs/spec/tools/interactsh.md#LIFE-INT-1
+  severity: low
+  finding: >-
+    runtime/src/contractor_runtime/adapters/interactsh.py:199 calls _poll
+    directly after an ambiguous /register response. The attempt timestamp and
+    sticky-gap updates exist only in poll at :225-234. Reproduced with the
+    existing Collector test transport, an injected clock fixed at zero, a lost
+    registration response and a lost reconciliation response after the collector
+    handles its destructive poll: register returns outcome_unknown with
+    coverage_gap=False and last_poll=-inf. An immediate explicit poll performs
+    a second network request at the same clock value and returns no_interaction
+    with coverage_gap=False. This violates FAIL-INT-2 and the two-second
+    LIM-INT-5 network-poll interval. Ordinary impact is limited because the
+    initial registration has not yet exposed its payload to the caller; the
+    finding is a contract/accounting defect, not demonstrated vulnerability proof.
+  siblings: >-
+    Registration reconciliation and explicit client.poll must share network
+    attempt bookkeeping without recursively taking the same asyncio lock.
+    Returning an already reconciled batch is not a network poll and must not
+    overwrite the timestamp or manufacture a new gap. Toolset _Session.poll
+    must retain its pending-evidence-before-next-poll ordering. Timeout and
+    cancellation during a reconciliation poll must obey the same uncertainty
+    rule as explicit polling. Registration failures before any poll, local
+    rate-limit refusals and cleanup deregistration are distinct operations.
+  provenance: >-
+    The bypass was added by 1bf48a1ea8a8b9c4f663f7a4d754b52ef6906083,
+    V382-001. No pending task was found for this bookkeeping defect;
+    V412-004 is a separate trusted pentest callback bridge and does not own
+    correcting the existing generic adapter's network-poll path.
+scope:
+  in:
+    - >-
+      Use one small internal network-poll wrapper for spacing, attempt timestamp
+      and gap accounting from both registration reconciliation and explicit
+      polling; preserve one network request per attempt and the owned identity.
+    - >-
+      Add deterministic transport-boundary regressions for lost/malformed
+      reconciliation responses, timeout, cancellation, immediate subsequent
+      polls and successful later polls with retained uncertainty.
+    - >-
+      Keep returning a cached reconciliation batch and republishing pending
+      Artifact evidence free of unnecessary collector requests.
+  out:
+    - Changing upstream version, cryptography, credentials or tool signatures.
+    - A new retry loop, receipt store, background poller or registration identity.
+    - The separate trusted pentest callback proof and attribution work in V412-004.
+failure_outcomes:
+  - operation: One destructive collector poll for an owned identity
+    success: Return or retain the exact bounded batch and preserve any earlier coverage gap.
+    permanent: >-
+      Retain existing auth, protocol and expired-handle error classes;
+      classify uncertainty for an attempted destructive poll consistently
+      with the existing explicit-poll behavior, without leaking provider text.
+    retryable: >-
+      Local interval refusal performs no network request. A failed network
+      attempt is never automatically repeated; later explicit attempts observe
+      the two-second interval and existing Retry-After reporting.
+    ambiguous: >-
+      A lost or malformed response leaves the same identity owned and sets a
+      sticky gap. Registration reconciliation may remain outcome_unknown;
+      a subsequent empty success cannot erase the gap.
+    cancelled: >-
+      Cancellation after a poll starts retains uncertainty and remote ownership,
+      joins active/decryption work and allows existing allocation cleanup.
+    timeout: >-
+      Reconciliation remains inside its existing registration budget and explicit
+      polls inside theirs; the independent ten-second cleanup budget is unchanged.
+cardinality:
+  - collection: Registrations, poll attempts and pending evidence
+    expected: A small number of callback registrations with explicit incremental polling.
+    maximum: >-
+      Existing 16 registrations per allocation, 100 event candidates per poll,
+      1 MiB response, 64 KiB event, 2 MiB evidence and 48 MiB pending buffers.
+    bound: >-
+      Constant additional state per registration; no history of attempts, new
+      network retry or increase in response/event/cardinality limits.
+lifecycle:
+  - entity: Allocation-owned Interactsh registration
+    delete: Existing adapter close owns deregistration and erasure.
+    cascade: Cancel and join the same active tasks before deregistration and secret erasure.
+    retention: Existing ordinary Artifact evidence and upstream TTL remain unchanged.
+acceptance_criteria:
+  - id: A1
+    given: Lost registration and reconciliation responses after an attempted destructive poll
+    when: Registration returns and a later successful empty poll completes
+    then: >-
+      The same handle/identity is retained, outcome_unknown remains honest until
+      confirmation, and every later poll result reports the sticky coverage gap.
+  - id: A2
+    given: A reconciliation network poll at injected monotonic time zero
+    when: A second network poll is requested before and at the two-second boundary
+    then: >-
+      The early call is rate-limited without collector contact; the boundary
+      call may contact the collector. Serving a cached reconciled batch is
+      allowed without contact and does not reset this boundary.
+  - id: A3
+    given: Reconciliation transport/protocol failures, timeout, cancellation and successful batches
+    when: Production adapter and Toolset paths process them
+    then: >-
+      Existing classifications, pending evidence reconciliation, one-identity
+      ownership, bounds, secret handling and joined teardown remain correct;
+      no automatic repeated destructive poll or blind registration is added.
+  - id: A4
+    given: The deterministic new tests and reviewed implementation
+    when: They run against the unfixed code
+    then: >-
+      The false coverage-gap and immediate second network-poll cases fail;
+      no wall-clock performance or sleep assertion is used.
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_interactsh.py"
+    covers: [A1, A2, A3, A4]
+  - command: make test-interactsh-protocol
+    covers: [A3]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification:
+  date: '2026-10-25'
+  decisions:
+    - >-
+      Both callers use _poll under the existing allocation lock. That wrapper
+      records one attempt before _request_poll and marks uncertainty on every
+      interrupted attempted poll; interval refusals occur before the request.
+      Cached batches return before the wrapper, so their evidence can be
+      reconciled without another destructive network request.
+  commands:
+    - >-
+      Before the production fix, cd runtime && uv run --locked pytest -q
+      tests/test_interactsh.py -k 'reconciliation_network_poll or
+      interrupted_reconciliation' -o addopts='' --tb=short failed all five
+      new cases on false coverage_gap. The strengthened cached-reconciliation
+      case separately failed because last_poll remained negative infinity.
+    - >-
+      cd runtime && uv run --locked pytest -q tests/test_interactsh.py
+      -o addopts='' --tb=short passed all 22 tests, including cached event
+      publication replay and the exact injected two-second poll boundary.
+    - >-
+      make test-interactsh-protocol passed the real pinned Interactsh v1.4.1
+      local server test (one test). Changed Runtime files pass Ruff check
+      and format checks.
+  integration: The coordinating branch completed the required make lint; see integration_verification.
+implementation_commit: 3a874055294d2f7682bd9aeefd2dd67d27351829
+integration_verification:
+  date: "2026-10-25"
+  revision: 4923b9000d57cfa042733c6f5bf512f5e01444f5
+  command: make lint
+  result: passed
+  scope: Integrated implementation and required task-specific suites passed; no platform-limited full Runtime result is substituted for this task's required checks.

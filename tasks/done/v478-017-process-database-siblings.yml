@@ -1,0 +1,60 @@
+schema_version: '1.0'
+id: V478-017
+title: Share database isolation across every process Server harness
+milestone: audit-evidence-results-2026-11
+epic: execution-core
+kind: defect
+introduced_by: V478-011
+priority: P1
+status: completed
+implementation_commit: 43856a2133281a56aad20dd1fb225eaff8a6522f
+depends_on: [V478-011]
+languages: [go, markdown]
+goal: Every independent process Server gets its own database-wide lease and cleans up its owned database after process shutdown.
+context:
+  authority: 'User request 2026-11-22: investigate the second Server waiting for a lease until timeout. Fix the same isolation defect in sibling process harnesses while continuing V478.'
+  specification: [docs/spec/platform/persistence.md, docs/spec/execution/scheduler.md]
+  finding: >-
+    tests/ui-stack/stack_test.go:1103 and tests/eval/project_workflows/live_process_test.go:230
+    retain schema-only isolation after V478-011 fixed tests/e2e. Their Servers still
+    contend on the database-wide lease. Cleanup also suppresses database cleanup failures.
+  siblings: >-
+    Consolidate all three process database helpers through internal/persistence/postgrestest.
+    tests/integration/lease already creates actual databases. Schema-isolated repository
+    pools and tests/integration/streamline do not start competing Server processes and remain schema-isolated.
+  boundary: Database ownership belongs to process test fixtures. Keep the production lease, standby behavior, deadlines, live model selection and demo data unchanged.
+scope:
+  in:
+  - Reuse one test helper for random owned databases, connection verification, URL options and bounded cleanup.
+  - Register cleanup before CREATE so ambiguous creation is recoverable; fail on cleanup errors and drop only the owned database after later process cleanups.
+  - Real PostgreSQL regressions for the common helper and each former schema-only caller, including cancelled setup context and actual two-Server execution.
+  out:
+  - Live model calls, live evaluation, browser behavior changes, new production lease keys and demo deployment.
+acceptance_criteria:
+- id: A1
+  text: Every helper connects to a distinct real database, removes inherited search_path, preserves unrelated URL options, and removes its database after cleanup with an independent bounded context.
+- id: A2
+  text: Actual simultaneous Server/Runtime groups both finish their real source Finding workflow; production single-active behavior is unchanged.
+- id: A3
+  text: UI-stack and live-eval helper regressions reject their original schema-only implementations without calling any model or starting a live evaluation.
+tests:
+- command: go test -race -count=1 ./internal/persistence/postgrestest
+  covers: [A1]
+- command: go test -tags=e2e -count=1 -run '^TestUIProcessDatabaseIsolation$' ./tests/ui-stack
+  covers: [A1, A3]
+- command: go test -count=1 ./tests/eval/project_workflows
+  covers: [A1, A3]
+- command: go test -tags=e2e -count=1 -run '^(TestProcessDatabaseIsolation|TestIndependentFindingsServersAcrossProcesses)$' -timeout=10m ./tests/e2e
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2, A3]
+verification_results: >-
+  Original UI/live-eval helpers fail their new real-PostgreSQL regressions with
+  an explicit shared-parent-database assertion (0.479s/0.435s). The shared helper
+  passes its full package under race (2.817s); UI caller regression passes
+  (0.526s), full offline project Workflow package passes (2.035s, live-model
+  execution stays skipped), and simultaneous real Server/Runtime Findings plus
+  database cleanup pass (25.836s). Full make lint passes. Normal cleanup removes
+  each owned database, cancelled setup uses an independent context, and definite
+  CREATE rejection cannot delete a pre-existing collision. Production single-active
+  lease behavior is unchanged; no demo data, model or deployment was changed.

@@ -1,0 +1,179 @@
+schema_version: '1.0'
+id: V62-017
+title: Consolidate Audit gate reports and evidence
+milestone: audit-iterative-simplification-2026-10
+epic: audits
+kind: chore
+introduced_by: V62-013
+priority: P2
+status: completed
+depends_on:
+- V62-007
+- V62-013
+languages:
+- python
+- yaml
+- markdown
+goal: One report verifier and capture lifecycle serve the Audit family gates; one case inventory owns
+  iterative selection and acceptance coverage.
+context:
+  authority: The user explicitly requested creation, sequential implementation, verification, task closure
+    and merge of the five reviewed simplifications on 2026-10-27.
+  finding: scripts/test-audit-iterative.py:89, scripts/test-audit-composition-e2e.py:36 and scripts/test-audit-completion-e2e.py:44
+    implement overlapping Go report verification; the iterative matrix and evidence duplicate coverage
+    prose.
+  review: Read-only review of main 4d50b1cfc4961adad9dfa1fef160ef338cbd86ba and the accepted five-step
+    simplification plan.
+scope:
+  in:
+  - Move strict Go event verification, selection patterns, redaction and subprocess capture into the existing
+    release_test_reports owner; retain family prerequisite, JUnit and browser policies.
+  - Represent every existing iterative case once with its boundary/package/case/covers metadata; derive
+    selection and coverage without dropping supporting regressions.
+  - Keep historical task evidence immutable; new evidence references the exact matrix and report instead
+    of copying coverage prose. Keep canonical report reuse and existing Make entrypoints.
+  out:
+  - No new model authority, arbitrary Workflow routing, receipt/lease store or permissive legacy reader.
+  - No deployment, live model changes or modification of historical frozen evidence.
+acceptance_criteria:
+- id: A1
+  text: All 66 existing iterative identities (53 PostgreSQL, 5 process, 8 harness), including 13 supporting
+    regressions without acceptance links, remain selected.
+- id: A2
+  text: Missing, zero, skipped, failed, duplicate, malformed, oversized, out-of-order and unfinished selected
+    cases fail. Unrelated optional roots retain their policy.
+- id: A3
+  text: Cancellation and timeout stop and join descendants; secrets are redacted. Fresh execution evidence
+    pins source and matrix; report-only verification cannot claim a new execution.
+- id: A4
+  text: The direct gates pass against real PostgreSQL/Server/Runtime; canonical release consumers reuse
+    reports without duplicate execution.
+tests:
+- command: python3 -m unittest discover -s scripts -p "test_*.py"
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-audit-iterative-postgres test-audit-iterative-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-audit-composition-e2e test-audit-completion-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: go test -count=1 ./tests/e2e
+  covers:
+  - A2
+  - A3
+  - A4
+failure_outcomes:
+  permanent: Invalid source, route, schema or exact bytes fail before target execution; no fallback.
+  retryable: Reuse existing bounded retries and original deadlines.
+  ambiguous: Reconcile existing receipt, generation, cursor and child intent; never append/recharge blindly.
+  cancelled: Join owned work and preserve immutable accepted evidence; partial staged work stays private.
+cardinality:
+  bound: Preserve existing per-slice rows/bytes, page/closure ceilings and canonical report bounds; no
+    whole-history hydration.
+lifecycle:
+  bound: Existing approval, pause, cancel, producer deletion and Audit purge remain authoritative.
+verification:
+  date: '2026-10-27'
+  source_revision: 07d4962a76d65af60b9a69d727612d0bb2f1d6d5
+  results:
+  - 'Full scripts unittest: 167 passed; full untagged tests/e2e package passed in 6.834s.'
+  - make lint passed including release graph, inventories, generated client check, Python/UI gates and
+    layer contracts.
+  - make test-audit-iterative-postgres test-audit-iterative-e2e passed as one sequential final command;
+    53 required PG cases / 100 actual, 5 required process cases / 6 actual including parents; no skips.
+  - 'make test-audit-composition-e2e test-audit-completion-e2e passed: 58 store + 11 process + real browser,
+    then 250 Go + 469 Runtime cases; no selected skips.'
+  - Canonical verify-iterative-postgres and verify-iterative-process accepted those same actual reports
+    without running tests again.
+  - All 66 selected identities and 54 acceptance edges match the pre-change matrix, including 13 supporting
+    regressions.
+  - After fixing the demonstrated review/finalization race, full tests/e2e passed (5.530s; see owner log),
+    the complete iterative PostgreSQL/process command passed on clean 07d4962a76d65af60b9a69d727612d0bb2f1d6d5
+    (53 required PG / 100 actual, 5 required process / 6 actual, zero skips), followed by make lint. Prior
+    independent report-helper/composition/completion evidence remains unchanged by this isolated fixture
+    ordering fix.
+  reports:
+    postgres:
+      path: .local/audit-iterative-gate/postgres-v7vpewk9/result.json
+      counts:
+        required: 53
+        passed: 100
+        skipped: 0
+      matrix:
+        path: tests/e2e/audit_iterative_matrix.yml
+        digest: sha256:ed8a6c51bc7a69fe36ec854f5c642cc5912491929392cdc91a3df001b23100e3
+      report_digest: sha256:6579803209f272f47f1a63fffc6652d0a1d1defe442001c0590b3732b721fb21
+    process:
+      path: .local/audit-iterative-gate/process-hpbsvlmm/result.json
+      counts:
+        required: 5
+        passed: 6
+        skipped: 0
+      matrix:
+        path: tests/e2e/audit_iterative_matrix.yml
+        digest: sha256:ed8a6c51bc7a69fe36ec854f5c642cc5912491929392cdc91a3df001b23100e3
+      report_digest: sha256:34dadf75bccc6921c429fde1517af56244fee97247eb39983a9c6ace468476e3
+    final:
+      postgres:
+        path: .local/audit-iterative-gate/postgres-4_e8zag5/result.json
+        source:
+          revision: 07d4962a76d65af60b9a69d727612d0bb2f1d6d5
+          dirty: false
+        counts:
+          required: 53
+          passed: 100
+          skipped: 0
+        matrix:
+          path: tests/e2e/audit_iterative_matrix.yml
+          digest: sha256:ed8a6c51bc7a69fe36ec854f5c642cc5912491929392cdc91a3df001b23100e3
+        report_digest: sha256:c21423d952085962cea7920f4b9354e8f049784a4ff57a1a85a554c00a87fc60
+      process:
+        path: .local/audit-iterative-gate/process-pv3qlwss/result.json
+        source:
+          revision: 07d4962a76d65af60b9a69d727612d0bb2f1d6d5
+          dirty: false
+        counts:
+          required: 5
+          passed: 6
+          skipped: 0
+        matrix:
+          path: tests/e2e/audit_iterative_matrix.yml
+          digest: sha256:ed8a6c51bc7a69fe36ec854f5c642cc5912491929392cdc91a3df001b23100e3
+        report_digest: sha256:5b1b93d7f012f856e1585cceb3bb5710db7ac4aee0dd74c5417b2c6ebb9d8145
+      lint_log: /private/tmp/v62-019-final-lint.log
+      owner_log: /private/tmp/v62-017-lifecycle-owner.log
+  history:
+  - Initial real gates exposed legal slash-containing Go test names and completion console redaction regressions;
+    both fixed with targeted regressions and full owner tests.
+  - One first joined process case failed while the separate composition family was active. Content-free
+    report preserves failure identity but not cause; the detailed isolated case passed (71.42s), followed
+    by the complete sequential iterative command passing unchanged. No assertion, model or timeout was
+    weakened. Cause is unproven; reopen process-fixture diagnosis on recurrence with full redacted output.
+  - 'Reopened after a detailed process rerun during V62-019 proved the joined fixture read findings and
+    requested review while controller finalization could still change Audit revision. Public paged reads
+    correctly returned 409; finding review rejects finalizing. Wait for automatic Audit completion before
+    the explicit review. Prior gate implementation: dc44a7d10dd089fbb0b0a18d5075f65fb84c5241.'
+  - Detailed rerun log /private/tmp/v62-019-joined-diagnostic.log establishes HTTP 409 from the paged
+    findings revision fence while controller finalization was in progress. The fixture now awaits public
+    completed state, proves the finding is still proposed/unreviewed, makes the explicit analyst decision,
+    and verifies Audit remains completed and its report readable. No retry, assertion or production fence
+    was weakened. The earlier content-free failure cannot be conclusively attributed to this cause.
+  limits:
+  - No deployment, live-model quality evaluation or full release-verify run claimed.
+implementation_commit: 07d4962a76d65af60b9a69d727612d0bb2f1d6d5

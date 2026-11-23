@@ -1,0 +1,88 @@
+schema_version: '1.0'
+id: V474-001
+title: Reject undeclared model tool arguments before execution
+milestone: runtime-maintenance-2026-10
+epic: planner-worker
+kind: feature
+priority: P1
+status: completed
+depends_on: []
+languages:
+- python
+- go
+- yaml
+goal: A model can correct a misspelled tool argument before its intended action runs.
+demonstration: Feed a scripted Gateway tool call with methdo through the real Worker and pinned ADK using
+  a counting stub transport. The Worker returns a repairable error, the transport count stays zero, and
+  the corrected call runs once.
+context:
+  authority: User decision 2026-11-21 requires an explicit error when the callable lacks a supplied argument.
+    Closing the generated schema at the same boundary is the proposed implementation.
+  specification:
+  - docs/spec/tools/toolsets.md#TLS-R1
+  - docs/spec/tools/toolsets.md#TLS-R32
+  evidence: At runtime/src/contractor_runtime/worker/function_tools.py:29 the ADK wrapper preserves raw
+    integer inputs. In an offline run_async probe on the locked SDK, methdo=POST was silently discarded
+    and the callable received its GET default. V418-002 introduced the current wrapper. Worker instrumentation
+    already supports selected raw-argument guards.
+scope:
+  in:
+  - Implement first at the Worker declaration and raw-argument boundary before ADK drops keys. Review
+    Worker history, native Skills and both Go Planner profiles with the same fixture. Reuse already strict
+    paths.
+  - Check closed nested records before SDK conversion and the injected tool_context name. Preserve open
+    headers/query dictionaries and domain-owned numeric/type checks.
+  out:
+  - Wire DTO changes, HTTP verb changes, model-free execution, and introducing a second exception taxonomy.
+requirements:
+- id: R1
+  text: Use the selected declaration as field authority. Mark fixed objects closed, keep intentionally
+    open maps open. Return bounded field-level diagnostics without argument values. Preserve the existing
+    separation between model input errors and infrastructure failures.
+failure_outcomes:
+- operation: Validate a selected model call
+  permanent: Unknown key returns a model-correctable error before callable effects, including any network,
+    artifact or finding write.
+  retryable: Only a corrected call can execute. Infrastructure failures follow the existing owning operation.
+  ambiguous: Validation creates no external operation or receipt.
+  cancelled: Existing Worker/Planner invocation cancellation owns the call.
+  timeout: Use the current call budget.
+cardinality:
+- collection: One decoded tool argument object and its permitted nested fields
+  bound: Use the existing per-request size limits and a bounded diagnostic for the first bad field. Do
+    not inspect stored artifacts.
+lifecycle:
+- entity: Validation result
+  retention: Existing tool result and redacted event lifecycle.
+acceptance_criteria:
+- id: A1
+  text: The scripted typo produces a bounded field error, zero transport calls and no success receipt.
+    The corrected call performs exactly one operation.
+- id: A2
+  text: Worker, its optional history and native Skills, Router and Streamline all reject unknown root
+    keys. Nested fixed records reject extras, arbitrary header keys remain valid and model-supplied tool_context
+    is rejected.
+- id: A3
+  text: Inspect the actual Python and Go declarations delivered to the Gateway and the returned error.
+    Test current defaults, properly typed integers, and a real infrastructure exception with the same
+    entry points.
+tests:
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: go test -count=1 ./internal/planner/...
+  covers:
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A2
+  - A3
+implementation_commit: 310462cb865ce972d53a609c4e58844f6c334eb2
+verification: >-
+  make test-runtime passes with 6383 passed and 135 declared skips, using the pinned
+  local tools. Both full Planner profiles pass go test -count=1 ./internal/planner/....
+  make lint passes. The Worker transcript rejects the typo before the mock transport
+  and executes the corrected call once. Optional skips are not passing coverage.

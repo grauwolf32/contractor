@@ -1,0 +1,881 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/project-sitemap.schema.json",
+  "$defs": {
+    "SitemapMutation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": [
+            "declare",
+            "annotate",
+            "remove",
+            "restore",
+            "replace-source"
+          ]
+        },
+        "expectedRevision": {
+          "$ref": "#/$defs/ResourceId"
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 8192,
+          "x-maxBytes": 8192
+        },
+        "method": {
+          "type": "string",
+          "pattern": "^[A-Z]{1,16}$",
+          "maxLength": 16
+        },
+        "memberIds": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 4096,
+          "x-maxBytes": 4096
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxBytes": 64
+          }
+        },
+        "markerId": {
+          "$ref": "#/$defs/ResourceId"
+        },
+        "source": {
+          "$ref": "#/$defs/SitemapSourceUpdate"
+        }
+      }
+    },
+    "ResourceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+    },
+    "SitemapSourceUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rules"
+      ],
+      "properties": {
+        "expected": {
+          "$ref": "#/$defs/SitemapSource"
+        },
+        "rules": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/SitemapEditorRule"
+          }
+        }
+      }
+    },
+    "SitemapSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provenance",
+        "generation",
+        "policyDigest"
+      ],
+      "properties": {
+        "provenance": {
+          "$ref": "#/$defs/SitemapProvenance"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "artifact": {
+          "$ref": "#/$defs/SitemapExactArtifact"
+        },
+        "policyDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        }
+      }
+    },
+    "SitemapProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceId",
+        "kind"
+      ],
+      "properties": {
+        "sourceId": {
+          "$ref": "#/$defs/ResourceId"
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
+          "description": "Source label using the shared name grammar. Observed sources are extensible; manual and openapi identify domain editing and declaration provenance."
+        },
+        "deployment": {
+          "$ref": "#/$defs/ResourceId"
+        }
+      }
+    },
+    "SitemapExactArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "digest"
+      ],
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/ExactArtifactRef"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "mediaType": {
+          "$ref": "#/$defs/MediaType"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 67108864
+        }
+      }
+    },
+    "ExactArtifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "name",
+        "revision"
+      ],
+      "properties": {
+        "namespace": {
+          "$ref": "#/$defs/ArtifactName"
+        },
+        "name": {
+          "$ref": "#/$defs/ArtifactName"
+        },
+        "revision": {
+          "$ref": "#/$defs/Revision"
+        }
+      }
+    },
+    "ArtifactName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    },
+    "Revision": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+    },
+    "MediaType": {
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "*/*"
+        },
+        {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 255,
+          "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$"
+        }
+      ]
+    },
+    "SitemapRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceId",
+        "origin",
+        "method",
+        "path",
+        "pointer",
+        "parameters",
+        "structural"
+      ],
+      "properties": {
+        "sourceId": {
+          "$ref": "#/$defs/ResourceId"
+        },
+        "origin": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "method": {
+          "type": "string",
+          "pattern": "^[A-Z]{1,16}$",
+          "maxLength": 16
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "pointer": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "parameters": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxBytes": 64
+          }
+        },
+        "structural": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/SitemapStructuralParameter"
+          }
+        }
+      }
+    },
+    "SitemapStructuralParameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "allowed"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "x-maxBytes": 64
+        },
+        "allowed": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxBytes": 64
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "SitemapInputDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "digest",
+        "mediaType",
+        "sizeBytes"
+      ],
+      "properties": {
+        "ref": {
+          "$ref": "common.schema.json#/$defs/exactArtifactRef"
+        },
+        "digest": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "mediaType": {
+          "$ref": "common.schema.json#/$defs/mediaType"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 67108864
+        }
+      }
+    },
+    "SitemapMutationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "apiVersion",
+        "mutation"
+      ],
+      "properties": {
+        "apiVersion": {
+          "$ref": "common.schema.json#/$defs/apiVersion"
+        },
+        "mutation": {
+          "$ref": "#/$defs/SitemapMutation"
+        }
+      }
+    },
+    "SitemapSnapshotRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "apiVersion",
+        "selection"
+      ],
+      "properties": {
+        "apiVersion": {
+          "$ref": "common.schema.json#/$defs/apiVersion"
+        },
+        "selection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "revision"
+          ],
+          "properties": {
+            "revision": {
+              "$ref": "common.schema.json#/$defs/resourceId"
+            },
+            "requireReferencedInputs": {
+              "type": "boolean"
+            },
+            "groups": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "members": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "SitemapMutationResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "apiVersion",
+        "result"
+      ],
+      "properties": {
+        "apiVersion": {
+          "$ref": "common.schema.json#/$defs/apiVersion"
+        },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "artifact",
+            "replayed",
+            "changed"
+          ],
+          "properties": {
+            "artifact": {
+              "$ref": "common.schema.json#/$defs/exactArtifactRef"
+            },
+            "replayed": {
+              "type": "boolean"
+            },
+            "changed": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "SitemapSnapshotResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "apiVersion",
+        "result"
+      ],
+      "properties": {
+        "apiVersion": {
+          "$ref": "common.schema.json#/$defs/apiVersion"
+        },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "artifact",
+            "replayed"
+          ],
+          "properties": {
+            "artifact": {
+              "$ref": "#/$defs/SitemapInputDescriptor"
+            },
+            "replayed": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "SitemapHTTPObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8192,
+          "x-maxBytes": 8192
+        },
+        "method": {
+          "type": "string",
+          "pattern": "^[A-Z]{1,16}$"
+        },
+        "outcome": {
+          "enum": [
+            "response",
+            "timeout",
+            "transport-error",
+            "attempt"
+          ]
+        },
+        "status": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 599
+        },
+        "at": {
+          "allOf": [
+            {
+              "$ref": "common.schema.json#/$defs/timestamp"
+            },
+            {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{0,8}[1-9])?Z$"
+            }
+          ]
+        },
+        "parameters": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "x-maxBytes": 64,
+            "not": {
+              "pattern": "[\u0000-\u001f\u007f-\u009f]"
+            }
+          }
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 4096,
+          "x-maxBytes": 4096
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "x-maxBytes": 64
+          }
+        }
+      },
+      "required": [
+        "url",
+        "method",
+        "outcome",
+        "status",
+        "at"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "response"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "minimum": 100
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "status": {
+                "const": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    "SitemapCollectionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": "contractor/v1alpha1"
+        },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "observations": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/$defs/SitemapHTTPObservation"
+              }
+            },
+            "kind": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/SitemapProvenance/properties/kind"
+                },
+                {
+                  "not": {
+                    "enum": [
+                      "manual",
+                      "openapi"
+                    ]
+                  }
+                }
+              ]
+            },
+            "artifact": {
+              "$ref": "#/$defs/ExactArtifactRef"
+            },
+            "gaps": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "reason",
+                  "count"
+                ],
+                "properties": {
+                  "reason": {
+                    "$ref": "#/$defs/SitemapGap/properties/reason"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                }
+              },
+              "allOf": [
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "structural"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "members"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "groups"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "summaries"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "examples"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "regrouping"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "incomplete"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "parameters"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "source-unavailable"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "ambiguous"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "projection"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "report-truncated"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "request-errors"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "evidence"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "observations"
+          ]
+        },
+        "automatic": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "input",
+        "automatic"
+      ]
+    },
+    "SitemapEditorRule": {
+      "type": "object",
+      "description": "Server validates origin and path together: their combined UTF-8 size must not exceed 8192 bytes (LIM-SMT-2). Each part also stays within that bound; unused bytes in one part are available to the other. Invalid routes return 400 invalid_request. Origin must be a canonical HTTP(S) origin and path must start with '/' and contain no query or fragment.",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "method",
+        "path",
+        "pointer",
+        "parameters",
+        "structural"
+      ],
+      "properties": {
+        "origin": {
+          "type": "string",
+          "maxLength": 8192,
+          "x-maxBytes": 8192
+        },
+        "method": {
+          "type": "string",
+          "pattern": "^[A-Z]{1,16}$",
+          "maxLength": 16
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 8192,
+          "x-maxBytes": 8192
+        },
+        "pointer": {
+          "type": "string",
+          "maxLength": 2048,
+          "x-maxBytes": 2048
+        },
+        "parameters": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxBytes": 64
+          }
+        },
+        "structural": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/SitemapStructuralParameter"
+          }
+        }
+      }
+    },
+    "SitemapGap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceId",
+        "reason",
+        "count"
+      ],
+      "properties": {
+        "sourceId": {
+          "oneOf": [
+            {
+              "type": "string",
+              "const": ""
+            },
+            {
+              "$ref": "#/$defs/ResourceId"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "structural",
+            "members",
+            "groups",
+            "summaries",
+            "examples",
+            "regrouping",
+            "incomplete",
+            "parameters",
+            "source-unavailable",
+            "ambiguous",
+            "projection",
+            "report-truncated",
+            "request-errors",
+            "evidence"
+          ]
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/SitemapMutationRequest"
+    },
+    {
+      "$ref": "#/$defs/SitemapSnapshotRequest"
+    },
+    {
+      "$ref": "#/$defs/SitemapMutationResponse"
+    },
+    {
+      "$ref": "#/$defs/SitemapSnapshotResponse"
+    },
+    {
+      "$ref": "#/$defs/SitemapCollectionRequest"
+    }
+  ]
+}

@@ -1,0 +1,168 @@
+package public
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/apierror"
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpreview "github.com/grauwolf32/contractor/internal/artifacts/preview"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
+)
+
+var errArchiveMediaType = apierror.New(apierror.ArchiveMediaType, "archive preview requires a ZIP or Skill package")
+
+type artifactArchiveResponse struct {
+	Artifact contracts.ArtifactRef   `json:"artifact"`
+	Entries  []artifactpreview.Entry `json:"entries"`
+}
+
+type artifactArchiveFileResponse struct {
+	Artifact contracts.ArtifactRef `json:"artifact"`
+	Path     string                `json:"path"`
+	Size     int                   `json:"size"`
+	Text     string                `json:"text"`
+}
+
+type archiveStoreResolver func(http.ResponseWriter, *http.Request) (artifacts.ScopedStore, bool)
+
+func (h *artifactHandlers) getArtifactArchive(w http.ResponseWriter, r *http.Request) error {
+	return h.serveArchive(w, r, h.userArchiveStore, false)
+}
+
+func (h *artifactHandlers) getArtifactArchiveFile(w http.ResponseWriter, r *http.Request) error {
+	return h.serveArchive(w, r, h.userArchiveStore, true)
+}
+
+func (h *artifactHandlers) getProjectArtifactArchive(w http.ResponseWriter, r *http.Request) error {
+	return h.serveArchive(w, r, h.projectArchiveStore, false)
+}
+
+func (h *artifactHandlers) getProjectArtifactArchiveFile(w http.ResponseWriter, r *http.Request) error {
+	return h.serveArchive(w, r, h.projectArchiveStore, true)
+}
+
+func (h *artifactHandlers) getRunArtifactArchive(w http.ResponseWriter, r *http.Request) error {
+	return h.serveArchive(w, r, h.runArchiveStore, false)
+}
+
+func (h *artifactHandlers) getRunArtifactArchiveFile(w http.ResponseWriter, r *http.Request) error {
+	return h.serveArchive(w, r, h.runArchiveStore, true)
+}
+
+func (h *artifactHandlers) userArchiveStore(w http.ResponseWriter, r *http.Request) (artifacts.ScopedStore, bool) {
+	if err := validateUserArtifactReadRoute(r); err != nil {
+		handleError(w, err)
+		return artifacts.ScopedStore{}, false
+	}
+	store, err := h.Artifacts.User(principalUserID(r.Context()))
+	if err != nil {
+		handleError(w, err)
+	}
+	return store, err == nil
+}
+
+func (h *artifactHandlers) projectArchiveStore(w http.ResponseWriter, r *http.Request) (artifacts.ScopedStore, bool) {
+	store, _, err := h.ownedProjectArtifactStore(r)
+	if err != nil {
+		handleError(w, err)
+		return artifacts.ScopedStore{}, false
+	}
+	return store, !h.rejectAuditManagedProjectArtifact(w, r)
+}
+
+func (h *artifactHandlers) runArchiveStore(w http.ResponseWriter, r *http.Request) (artifacts.ScopedStore, bool) {
+	store, _, err := h.ownedRunArtifactStore(r)
+	if err != nil {
+		handleError(w, err)
+		return artifacts.ScopedStore{}, false
+	}
+	return store, true
+}
+
+func (h *artifactHandlers) serveArchive(w http.ResponseWriter, r *http.Request, resolve archiveStoreResolver, file bool) error {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	allowed := []string{"revision"}
+	if file {
+		allowed = append(allowed, "path")
+	}
+	query, err := exactQuery(r.URL.RawQuery, allowed...)
+	if err != nil {
+		return err
+	}
+	revision := query.Get("revision")
+	if err := validatePublicRevision(revision); err != nil {
+		return err
+	}
+	if err := validateArtifactRouteNames(r); err != nil {
+		return err
+	}
+	if file && !artifactpreview.ValidPath(query.Get("path")) {
+		return errInvalidRequest
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	r = r.WithContext(ctx)
+	store, ok := resolve(w, r)
+	if !ok {
+		return nil
+	}
+	r, transfer, err := artifacttransfer.Acquire(w, r, h.Transfers)
+	if err != nil {
+		return err
+	}
+	defer transfer.Close()
+	etag, body, err := archivePreview(r.Context(), store, contracts.ArtifactRef{
+		Namespace: r.PathValue("namespace"), Name: r.PathValue("name"), Revision: &revision,
+	}, file, query.Get("path"))
+	// A listing can reach several MiB. The payload and the opened archive are
+	// unreachable once archivePreview returns, and a client that stops reading
+	// the response must not keep the transfer slot.
+	transfer.ReleaseBeforeWrite(int64(len(body)))
+	if err != nil {
+		return err
+	}
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(body)
+	return nil
+}
+
+// archivePreview reads and inspects the payload while the caller holds the
+// transfer slot and returns only the encoded response and its ETag.
+func archivePreview(
+	ctx context.Context, store artifacts.ScopedStore, ref contracts.ArtifactRef, file bool, path string,
+) (string, []byte, error) {
+	result, err := store.Read(ctx, ref)
+	if err != nil {
+		return "", nil, err
+	}
+	if !artifactpreview.SupportsMediaType(result.Payload.MediaType) {
+		return "", nil, errArchiveMediaType
+	}
+	archive, err := artifactpreview.Open(ctx, result.Payload.Data)
+	if err != nil {
+		return "", nil, err
+	}
+	var response any = artifactArchiveResponse{Artifact: result.Ref, Entries: archive.Entries}
+	if file {
+		text, err := archive.Text(ctx, path)
+		if err != nil {
+			return "", nil, err
+		}
+		response = artifactArchiveFileResponse{Artifact: result.Ref, Path: path, Size: len(text), Text: text}
+	}
+	body, err := json.Marshal(response)
+	if err != nil {
+		return "", nil, err
+	}
+	return httpx.QuotedETag(result.Ref.Revision), append(body, '\n'), nil
+}

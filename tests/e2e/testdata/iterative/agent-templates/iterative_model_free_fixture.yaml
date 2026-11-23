@@ -1,0 +1,17 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: iterative-model-free-fixture, version: "1"}
+spec:
+  description: A deterministic local scanner invocation without a model
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  toolsets:
+    - ref: scan@1
+      tools: [scan_nuclei]
+  execution:
+    tool: scan_nuclei
+    arguments:
+      url: {source: parameter, name: target}
+      timeout_seconds: {source: literal, value: 10}
+    resultArtifact: report
+    timeoutSeconds: 20

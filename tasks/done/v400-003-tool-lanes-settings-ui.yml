@@ -1,0 +1,83 @@
+schema_version: "1.0"
+id: V400-003
+title: "Edit the model-free lane limit on the Operations settings page"
+milestone: model-free-stage-lanes-2026-10
+epic: operations
+kind: feature
+priority: P2
+status: completed
+implementation_commit: e4c0bb8fb13b1f177d28c73ef4df0dcfbc649d2d
+depends_on: [V400-001]
+languages: [typescript]
+goal: >-
+  An operator sets how many scans and other model-free Stages may run at once
+  next to the existing parallel Run limit, without calling the API by hand.
+context:
+  proposal: docs/proposals/0040-model-free-stage-lanes.md
+  specification:
+    - docs/spec/operations/operations.md#OPS-R47
+    - docs/spec/operations/operations.md#OPS-R64
+    - docs/spec/ui/ui.md
+  design: docs/design/ui/README.md
+  current_code: >-
+    The Operations settings page edits maxConcurrentRuns
+    (ui/src/routes/operations/settings/index.tsx, ui/src/api/operations.ts,
+    ui/src/api/scheduler-settings.test.ts,
+    ui/src/routes/operations/settings/settings.test.tsx). V400-001 adds
+    maxConcurrentToolRuns to the resource and regenerates
+    ui/src/api/generated/public.ts.
+scope:
+  in:
+    - "A second numeric field for maxConcurrentToolRuns (1..32) beside maxConcurrentRuns, saved through the same request and ETag."
+    - "Labels and help text in the user's words from docs/design/ui/README.md: the first limit bounds checks that use a model, the second bounds scans and other checks without a model; setting names stay under Technical details."
+    - "The existing stale-revision conflict, validation and saved states for both fields."
+    - "A ui/package.json patch version bump."
+    - "OPS-R64 lists both inputs."
+  out:
+    - "Any change to the Scheduler or the API (V400-001)."
+requirements:
+  - id: R1
+    text: "The page never shows a value the Server has not returned; after a save it shows the stored values from the response."
+  - id: R2
+    text: "A stale revision shows the conflict and keeps the operator's draft instead of overwriting the newer value."
+acceptance_criteria:
+  - id: A1
+    given: "the settings resource with both values"
+    when: "the page loads"
+    then: "both fields show the stored values with their explanations."
+  - id: A2
+    given: "an operator changes only the model-free limit"
+    when: "they save"
+    then: "one request sends both values with the current ETag and the page shows the Server's response."
+  - id: A3
+    given: "a value outside 1..32 or a stale ETag"
+    when: "the operator saves"
+    then: "the page shows the validation error or the conflict and keeps the draft."
+  - id: A4
+    given: "a 390 px viewport in the light, dark and black themes"
+    when: "the page renders"
+    then: "both fields fit without horizontal scrolling."
+tests:
+  - command: "cd ui && corepack pnpm exec vitest run src/api/scheduler-settings.test.ts src/routes/operations/settings/settings.test.tsx"
+    covers: [A1, A2, A3]
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: "make ui-browser-mocked (e2e/scheduler-settings.spec.ts)"
+    covers: [A2, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification:
+  date: "2026-10-23"
+  revision: "e4c0bb8fb13b1f177d28c73ef4df0dcfbc649d2d"
+  environment: >-
+    Branch feat/model-free-stage-lanes on main @ 75983b5b, macOS arm64,
+    Node 24.20 with Corepack pnpm, Playwright Chromium, TMPDIR under
+    /private/tmp.
+  results:
+    - "A1: settings.test.tsx 'explains both limits and keeps their setting names under Technical details' reads both saved values, both field descriptions and the setting names, lane pools and revision inside the closed disclosure."
+    - "A2: 'saves a changed model-free limit with both values and shows the Server's answer' sends one PUT with If-Match \"1\" and both values and shows the response; scheduler-settings.test.ts checks the body and rejects a response that differs in either value."
+    - "A3: the CAS test and the new A2 test show the range and whole-number errors of each field with Save disabled; the 412 test keeps both drafted values while the reloaded value appears, and reset restores both."
+    - "A4: e2e/scheduler-settings.spec.ts at 390 px in light, dark and black: both inputs inside the viewport, no horizontal page scroll, Technical details open, and a save of the model-free limit alone."
+    - "Mutations: dropping maxConcurrentToolRuns from the PUT body, checking or validating only maxConcurrentRuns in the API helper, comparing only the model limit for dirtiness, sending the saved instead of the drafted model-free value, or validating only the first field each fails a test."
+    - "make ui-browser-mocked: 78 passed. A first run failed 8 git-artifacts tests because ui/package.json was bumped while the gate ran (build 0.7.4, runtime configuration 0.7.5); the rerun on the settled tree passed."
+    - "make ui-verify: 189 files, 2279 tests passed (1 expected fail); make lint passed."

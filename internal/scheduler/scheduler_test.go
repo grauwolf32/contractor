@@ -1,0 +1,3705 @@
+package scheduler
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"maps"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"reflect"
+	"slices"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	"google.golang.org/protobuf/proto"
+
+	"github.com/grauwolf32/contractor/internal/agentskills"
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/configtest"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
+	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
+	"github.com/grauwolf32/contractor/internal/stageresult"
+	"github.com/grauwolf32/contractor/internal/telemetry"
+)
+
+func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
+	snapshot, _, err := configload.LoadUnionReadOnly(configtest.CopyWithPolicies(t, "../../testdata/configs"), filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages[workflow.EntryStage]
+	reviewer := stage.Agents["builder"]
+	reviewer.Namespace = "reviewer"
+	stage.Agents["reviewer"] = reviewer
+	stage.ExecutionConfig.Agents["reviewer"] = stage.ExecutionConfig.Agents["builder"]
+	plannerPolicy, err := snapshot.ModelPolicy("test-planner@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateway, err := snapshot.LLMGateway("local-litellm@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plannerConfig := resolved.ResolvedConsumerExecutionConfig{
+		ModelPolicy: plannerPolicy,
+		LLMGateway:  &gateway,
+		Origins: resolved.ExecutionConfigOrigins{
+			ModelPolicy: "test",
+			LLMGateway:  "test",
+		},
+	}
+
+	decode := func(value resolved.ResolvedWorkflow) error {
+		encoded, marshalErr := json.Marshal(value)
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		_, decodeErr := decodeExecutableWorkflow(runstore.WorkflowRun{
+			WorkflowName: value.Ref.Name, WorkflowVersion: value.Ref.Version,
+			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: encoded,
+		})
+		return decodeErr
+	}
+	for _, plannerID := range []string{"streamline", "passthrough"} {
+		stage.Planner = resolved.PlannerRef{PlannerID: plannerID, Version: "1"}
+		stage.ExecutionConfig.Planner = &plannerConfig
+		if plannerID == "passthrough" {
+			stage.ExecutionConfig.Planner = nil
+		}
+		workflow.Stages[workflow.EntryStage] = stage
+		if err := decode(workflow); !errors.Is(err, ErrUnsupportedWorkflow) {
+			t.Fatalf("multi-Worker %s error = %v", plannerID, err)
+		}
+	}
+	stage.Planner = resolved.PlannerRef{PlannerID: "router", Version: "1"}
+	stage.ExecutionConfig.Planner = &plannerConfig
+	workflow.Stages[workflow.EntryStage] = stage
+	if err := decode(workflow); err != nil {
+		t.Fatalf("multi-Worker router Workflow was rejected: %v", err)
+	}
+	// The snapshot decoder checks every Stage against the registered
+	// PlannerFactory descriptors, so a Planner the Server does not register
+	// never reaches a Planner factory.
+	stage.Planner = resolved.PlannerRef{PlannerID: "router", Version: "2"}
+	workflow.Stages[workflow.EntryStage] = stage
+	if err := decode(workflow); !errors.Is(err, ErrUnsupportedWorkflow) ||
+		!strings.Contains(err.Error(), `unknown PlannerFactory "router@2"`) {
+		t.Fatalf("unregistered Planner error = %v", err)
+	}
+}
+
+func TestDecodeExecutableWorkflowRejectsLegacySnapshotWithoutExecutionConfig(t *testing.T) {
+	snapshot, _, err := configload.LoadUnionReadOnly(configtest.CopyWithPolicies(t, "../../testdata/configs"), filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages[workflow.EntryStage]
+	stage.ExecutionConfig = resolved.ResolvedStageExecutionConfig{}
+	workflow.Stages[workflow.EntryStage] = stage
+	encoded, err := json.Marshal(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = decodeExecutableWorkflow(runstore.WorkflowRun{
+		WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
+		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: encoded,
+	})
+	if !errors.Is(err, ErrUnsupportedWorkflow) || !strings.Contains(err.Error(), "executionConfig") {
+		t.Fatalf("legacy Workflow snapshot error = %v", err)
+	}
+}
+
+func TestDecodeExecutableWorkflowRejectsPurposeReservedAgentNamespace(t *testing.T) {
+	snapshot, _, err := configload.LoadUnionReadOnly(configtest.CopyWithPolicies(t, "../../testdata/configs"), filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages[workflow.EntryStage]
+	binding := stage.Agents["builder"]
+	binding.Namespace = "skills"
+	stage.Agents["builder"] = binding
+	workflow.Stages[workflow.EntryStage] = stage
+	encoded, err := json.Marshal(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = decodeExecutableWorkflow(runstore.WorkflowRun{
+		WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
+		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: encoded,
+	})
+	if !errors.Is(err, ErrUnsupportedWorkflow) || !strings.Contains(err.Error(), "Agent binding") {
+		t.Fatalf("purpose-reserved persisted Agent Namespace error = %v", err)
+	}
+}
+
+func TestBindingRequirementsProjectOnlyEachTemplatesPinnedRunSkills(t *testing.T) {
+	t.Parallel()
+
+	snapshot, _, err := configload.LoadUnionReadOnly(configtest.CopyWithPolicies(t, "../../testdata/configs"), filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages[workflow.EntryStage]
+	builder := stage.Agents["builder"]
+	builder.Template.Skills = []contracts.ArtifactRef{{Namespace: "skills", Name: "review"}}
+	stage.Agents["builder"] = builder
+	reviewer := builder
+	reviewer.Namespace = "reviewer"
+	reviewer.Template.Skills = []contracts.ArtifactRef{
+		{Namespace: "skills", Name: "analysis2"},
+		{Namespace: "skills", Name: "review"},
+	}
+	stage.Agents["reviewer"] = reviewer
+	stage.ExecutionConfig.Agents["reviewer"] = stage.ExecutionConfig.Agents["builder"]
+	analysisRevision, reviewRevision := "run-analysis2-1", "run-review-1"
+	runSkills := []agentskills.RunSkillSnapshot{
+		{
+			Name: "analysis2", Source: exactSkillRef("analysis2", "owner-analysis2-1"),
+			SourceDigest: "sha256:" + strings.Repeat("a", 64), Artifact: exactSkillRef("analysis2", analysisRevision),
+			PackageDigest: "sha256:" + strings.Repeat("a", 64), SourceSize: 1, ExpandedBytes: 1,
+		},
+		{
+			Name: "review", Source: exactSkillRef("review", "owner-review-1"),
+			SourceDigest: "sha256:" + strings.Repeat("b", 64), Artifact: exactSkillRef("review", reviewRevision),
+			PackageDigest: "sha256:" + strings.Repeat("b", 64), SourceSize: 1, ExpandedBytes: 1,
+		},
+	}
+
+	requirements, err := bindingRequirements(stage, runSkills, runstore.StageContextSnapshot{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(requirements) != 2 || len(requirements[0].ResolvedSkills) != 1 ||
+		requirements[0].ResolvedSkills[0].Name != "review" ||
+		len(requirements[1].ResolvedSkills) != 2 ||
+		requirements[1].ResolvedSkills[0].Name != "analysis2" {
+		t.Fatalf("unexpected resolved Skill subsets: %+v", requirements)
+	}
+	if requirements[0].ResolvedSkills[0].Artifact.Revision == nil ||
+		*requirements[0].ResolvedSkills[0].Artifact.Revision != reviewRevision {
+		t.Fatalf("builder did not receive exact review pin: %+v", requirements[0])
+	}
+
+	_, err = bindingRequirements(stage, runSkills[1:], runstore.StageContextSnapshot{})
+	if err == nil || !strings.Contains(err.Error(), "analysis2") {
+		t.Fatalf("missing immutable Run Skill was not rejected: %v", err)
+	}
+}
+
+func TestBindingRequirementsProjectExactWorkspacePinsForEveryWorker(t *testing.T) {
+	t.Parallel()
+
+	snapshot, _, err := configload.LoadUnionReadOnly(configtest.CopyWithPolicies(t, "../../testdata/configs"), filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages[workflow.EntryStage]
+	stage.Context.Artifacts = map[string]resolved.ContextArtifact{
+		"source": {Namespace: "inputs", Name: "source", Required: true},
+		"state":  {Namespace: "builder", Name: "workspace_state", Required: false},
+	}
+	stage.Context.Workspace = &resolved.WorkspaceContext{
+		Mode:    contracts.WorkspaceModeOverlay,
+		Sources: []resolved.WorkspaceSource{{Artifact: "source", Target: "project"}},
+		State:   &resolved.WorkspaceStateInput{Artifact: "state"},
+		Export:  &resolved.WorkspaceExport{State: "next_state", Diff: "changes"},
+	}
+	second := stage.Agents["builder"]
+	second.Namespace = "reviewer"
+	stage.Agents["reviewer"] = second
+	stage.ExecutionConfig.Agents["reviewer"] = stage.ExecutionConfig.Agents["builder"]
+	sourceRevision := "source-revision-7"
+	stageContext := runstore.StageContextSnapshot{Artifacts: map[string]runstore.PinnedContextArtifact{
+		"source": {
+			Required: true,
+			Artifact: &contracts.ArtifactRef{Namespace: "inputs", Name: "source", Revision: &sourceRevision},
+		},
+		"state": {Required: false},
+	}}
+
+	requirements, err := bindingRequirements(stage, []agentskills.RunSkillSnapshot{}, stageContext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(requirements) != 2 || requirements[0].Workspace == nil || requirements[1].Workspace == nil {
+		t.Fatalf("workspace requirements = %+v", requirements)
+	}
+	for _, requirement := range requirements {
+		workspace := requirement.Workspace
+		if workspace.Mode != contracts.WorkspaceModeOverlay || len(workspace.Sources) != 1 ||
+			workspace.Sources[0].Target != "project" || workspace.Sources[0].Artifact.Revision == nil ||
+			*workspace.Sources[0].Artifact.Revision != sourceRevision || workspace.State != nil ||
+			workspace.Export == nil || workspace.Export.State != "next_state" || workspace.Export.Diff != "changes" {
+			t.Fatalf("projected workspace = %+v", workspace)
+		}
+	}
+	mutated := "mutated"
+	requirements[0].Workspace.Sources[0].Artifact.Revision = &mutated
+	if *requirements[1].Workspace.Sources[0].Artifact.Revision != sourceRevision ||
+		*stageContext.Artifacts["source"].Artifact.Revision != sourceRevision {
+		t.Fatal("Router workspace projections alias each other or persisted StageContext")
+	}
+}
+
+func TestProjectAllocationWorkspaceRejectsMissingRequiredSource(t *testing.T) {
+	t.Parallel()
+	workspace := &resolved.WorkspaceContext{
+		Mode:    contracts.WorkspaceModeDirect,
+		Sources: []resolved.WorkspaceSource{{Artifact: "source", Target: ""}},
+	}
+	_, err := projectAllocationWorkspace(workspace, runstore.StageContextSnapshot{
+		Artifacts: map[string]runstore.PinnedContextArtifact{"source": {Required: true}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "no exact StageContext pin") {
+		t.Fatalf("missing source error = %v", err)
+	}
+}
+
+func exactSkillRef(name, revision string) *contracts.ArtifactRef {
+	return &contracts.ArtifactRef{Namespace: contracts.AgentSkillNamespace, Name: name, Revision: &revision}
+}
+
+func TestSchedulerExecutesSingleStageAndFencesBeforeFinalizing(t *testing.T) {
+	harness := newSchedulerHarness(t)
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.store.run.State != runstore.RunSucceeded || len(harness.store.stages) != 1 ||
+		harness.store.stages[0].State != runstore.StageSucceeded {
+		t.Fatalf("terminal state = run:%s stages:%+v", harness.store.run.State, harness.store.stages)
+	}
+	output, ok := harness.persistence.outputs["result"]
+	if !ok || output.Revision == nil || output.Namespace != "outputs" || output.Name != "result" {
+		t.Fatalf("frozen output = %+v", harness.persistence.outputs)
+	}
+	if harness.planners.createCalls != 1 || harness.planners.runCalls != 1 ||
+		harness.workers.prepareCalls != 1 || harness.workers.finalizeCalls != 1 ||
+		harness.workers.releaseCalls != 1 {
+		t.Fatalf(
+			"calls planner=(%d,%d) workers=(%d,%d,%d)",
+			harness.planners.createCalls, harness.planners.runCalls,
+			harness.workers.prepareCalls, harness.workers.finalizeCalls,
+			harness.workers.releaseCalls,
+		)
+	}
+	assertOrderedEvents(t, harness.events.values,
+		"create_stage", "reserve", "record_allocation", "prepare", "planner",
+		"fence", "enter_finalizing", "finalize", "record_report", "accept", "release",
+	)
+	if len(harness.store.reports) != 1 ||
+		harness.store.reports[0].Report.Worker.Metrics.ModelCalls == nil ||
+		*harness.store.reports[0].Report.Worker.Metrics.ModelCalls != 1 {
+		t.Fatalf("persisted execution reports = %+v", harness.store.reports)
+	}
+	if !reflect.DeepEqual(harness.persistence.stageStates, []runstore.StageExecutionState{
+		runstore.StagePreparing, runstore.StageRunning, runstore.StageFinalizing, runstore.StageSucceeded,
+	}) {
+		t.Fatalf("Stage states = %v", harness.persistence.stageStates)
+	}
+	if harness.planners.invocation.Context.Artifacts["source"] == nil ||
+		harness.planners.invocation.Context.Artifacts["source"].Revision == nil {
+		t.Fatalf("Planner did not receive exact StageContext: %+v", harness.planners.invocation.Context)
+	}
+}
+
+func TestSchedulerFencesEveryRecordedAllocationBeforeFinalizing(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	originalOnRun := harness.planners.onRun
+	extraAllocationID := "allocation-recorded-recovery"
+	harness.planners.onRun = func() {
+		originalOnRun()
+		executionID := harness.store.stages[0].StageExecutionID
+		grant := controlplane.AllocationGrant{
+			AllocationID: extraAllocationID, RuntimeAgentID: strings.Repeat("2", 64),
+			RuntimeInstanceID: "runtime-recorded", RunID: harness.store.run.RunID,
+			StageExecutionID: executionID, LogicalAgentName: "builder", Namespace: "builder",
+			ReadPolicy: controlplane.ReadCurrentRun, WritePolicy: controlplane.WriteInputsAndIntermediates,
+		}
+		harness.allocator.grants[extraAllocationID] = grant
+		harness.allocator.cached = append(harness.allocator.cached, controlplane.Reservation{Grant: grant})
+		harness.store.allocations = append(harness.store.allocations, runstore.StageAllocation{
+			AllocationID: extraAllocationID, StageExecutionID: executionID,
+			LogicalAgentName: "builder", Namespace: "builder",
+			RuntimeAgentInstanceID: "runtime-recorded",
+		})
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	if !harness.allocator.fenced[extraAllocationID] {
+		t.Fatal("durably recorded allocation missing from the live batch was not fenced")
+	}
+	finalizingIndex, finalizing := eventIndex(harness.events.values, "enter_finalizing")
+	secondFenceIndex := -1
+	fences := 0
+	for index, event := range harness.events.values {
+		if event == "fence" {
+			fences++
+			if fences == 2 {
+				secondFenceIndex = index
+			}
+		}
+	}
+	if !finalizing || fences < 2 || secondFenceIndex > finalizingIndex {
+		t.Fatalf("recorded fence order = %v", harness.events.values)
+	}
+	worked, err = harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("terminal release recovery = (%v, %v)", worked, err)
+	}
+	if _, err := harness.allocator.GetGrant(extraAllocationID); !errors.Is(err, controlplane.ErrAllocationNotFound) {
+		t.Fatalf("recorded allocation remained live after bounded recovery: %v", err)
+	}
+}
+
+func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	snapshot, _, err := configload.LoadUnionReadOnly(configtest.CopyWithPolicies(t, "../../testdata/configs"), filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	plannerPolicy, _ := snapshot.ModelPolicy("test-planner@1")
+	workerPolicy, _ := snapshot.ModelPolicy("test-domain-worker@1")
+	workerGateway, _ := snapshot.LLMGateway("local-litellm@1")
+	plannerGateway := llmgateway.ResolvedLLMGatewayConfig{
+		Ref: llmgateway.LLMGatewayConfigRef{
+			GatewayID: "planner-gateway", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
+		},
+		Protocol: llmgateway.OpenAICompatibleProtocol,
+		URL:      "https://planner.example/v1",
+	}
+	plannerCredential := llmgateway.LLMCredentialRef{CredentialID: "planner-credential"}
+	workerCredential := llmgateway.LLMCredentialRef{CredentialID: "worker-credential"}
+	provider, err := credentials.NewStaticProvider([]credentials.StaticEntry{
+		{
+			Metadata: resolved.CredentialMetadata{
+				Ref: plannerCredential, LLMGateway: plannerGateway.Ref,
+			},
+			Token: contracts.NewSecretString("planner-secret"),
+		},
+		{
+			Metadata: resolved.CredentialMetadata{
+				Ref: workerCredential, LLMGateway: workerGateway.Ref,
+			},
+			Token: contracts.NewSecretString("worker-secret"),
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.scheduler.options.Credentials = provider
+	stage := harness.workflow.Stages[harness.workflow.EntryStage]
+	stage.ExecutionConfig.Planner = &resolved.ResolvedConsumerExecutionConfig{
+		ModelPolicy: plannerPolicy, LLMGateway: &plannerGateway, Credential: &plannerCredential,
+		Origins: resolved.ExecutionConfigOrigins{ModelPolicy: "test", LLMGateway: "test", Credential: "test"},
+	}
+	workerSelection := stage.ExecutionConfig.Agents["builder"]
+	workerSelection.ModelPolicy = workerPolicy
+	workerSelection.Credential = &workerCredential
+	stage.ExecutionConfig.Agents["builder"] = workerSelection
+
+	reservations := schedulerTestReservations(t, stage)
+	workerSettings, err := harness.scheduler.workerExecutionSettingsForRun(t.Context(), harness.store.run, stage, reservations)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker := workerSettings["builder"]
+	if worker.ModelPolicy.Ref != workerPolicy.Ref ||
+		worker.RuntimeSettings.LLMGatewayURL != workerGateway.URL ||
+		worker.RuntimeSettings.LLMGatewayToken.Reveal() != "worker-secret" ||
+		worker.RuntimeSettings.ArtifactAPIURL != "https://control.test/private/v1" {
+		t.Fatalf("Worker execution settings = %+v", worker)
+	}
+	plannerAccess, err := harness.scheduler.plannerModelAccess(t.Context(), stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plannerAccess == nil || plannerAccess.ModelPolicy.Ref != plannerPolicy.Ref ||
+		plannerAccess.LLMGateway.Ref != plannerGateway.Ref ||
+		plannerAccess.Token.Reveal() != "planner-secret" ||
+		plannerAccess.Credential == nil || *plannerAccess.Credential != plannerCredential {
+		t.Fatalf("Planner model access = %+v", plannerAccess)
+	}
+	harness.scheduler.options.Credentials = credentialResolverFunc(func(
+		context.Context, llmgateway.LLMCredentialRef, llmgateway.LLMGatewayConfigRef,
+	) (contracts.SecretString, error) {
+		return contracts.SecretString{}, errors.New("provider leaked worker-secret")
+	})
+	if _, err := harness.scheduler.workerExecutionSettingsForRun(t.Context(), harness.store.run, stage, reservations); err == nil ||
+		strings.Contains(err.Error(), "worker-secret") {
+		t.Fatalf("unsafe credential resolution error = %v", err)
+	}
+}
+
+func TestSchedulerMaterializesAndErasesPinnedCaidoBearer(t *testing.T) {
+	const secret = "caido-private-allocation-secret"
+	harness := newSchedulerHarness(t)
+	harness.scheduler.options.RuntimeCredentials = runtimeCredentialResolverFunc(func(
+		_ context.Context,
+		credentialID string,
+		allowed []runtimesettings.RuntimeCredentialKind,
+		consumer func(runtimesettings.RuntimeCredentialKind, []byte) error,
+	) error {
+		if credentialID != "caido-lab" ||
+			!reflect.DeepEqual(allowed, []runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialCaidoBearer}) {
+			return errors.New("unexpected Runtime credential selection")
+		}
+		return consumer(runtimesettings.RuntimeCredentialCaidoBearer, []byte(`{"token":"`+secret+`"}`))
+	})
+	runtimeConfig, err := schedulerTestResolvedWorkerConfig(
+		harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"],
+		false,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtimeConfig.Caido = &runtimeconfig.CaidoConfig{
+		Adapter: string(runtimesettings.RuntimeAdapterCaidoGraphQL), Endpoint: "https://caido.example/prefix",
+		Credential: "caido-lab", RequestTimeoutSeconds: 120,
+	}
+	settings, err := harness.scheduler.materializeRuntimeSettings(t.Context(), runtimeConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settings.Caido == nil || settings.Caido.BearerToken == nil ||
+		settings.Caido.BearerToken.Reveal() != secret ||
+		settings.Caido.RequestTimeoutSeconds != settings.RequestTimeoutSeconds {
+		t.Fatalf("materialized Caido settings = %+v", settings.Caido)
+	}
+	if strings.Contains(fmt.Sprintf("%+v", settings), secret) {
+		t.Fatal("formatted Runtime settings exposed Caido bearer")
+	}
+	workerSettings := map[string]runtimesettings.WorkerExecutionSettings{
+		"builder": {RuntimeSettings: settings},
+	}
+	clearWorkerExecutionSettings(workerSettings)
+	if workerSettings["builder"].RuntimeSettings.Caido.BearerToken != nil {
+		t.Fatal("Caido bearer survived Worker execution settings erasure")
+	}
+}
+
+func TestSchedulerMaterializesProjectOriginOnlyForHTTPRequestWorkerAndErasesIt(t *testing.T) {
+	const secret = "project-origin-allocation-secret"
+	harness := newSchedulerHarness(t)
+	harness.scheduler.options.RuntimeCredentials = runtimeCredentialResolverFunc(func(
+		_ context.Context,
+		credentialID string,
+		allowed []runtimesettings.RuntimeCredentialKind,
+		consumer func(runtimesettings.RuntimeCredentialKind, []byte) error,
+	) error {
+		if credentialID != "project-origin" || !reflect.DeepEqual(allowed, []runtimesettings.RuntimeCredentialKind{
+			runtimesettings.RuntimeCredentialOriginBasic, runtimesettings.RuntimeCredentialOriginBearer,
+		}) {
+			return errors.New("unexpected Runtime credential selection")
+		}
+		return consumer(runtimesettings.RuntimeCredentialOriginBearer, []byte(`{"token":"`+secret+`"}`))
+	})
+	stage := harness.workflow.Stages[harness.workflow.EntryStage]
+	binding := stage.Agents["builder"]
+	binding.Template.Toolsets = append(binding.Template.Toolsets, contracts.ToolsetSelection{
+		Ref:   contracts.ToolsetRef{ToolsetID: "http-tools", Version: "1"},
+		Tools: []string{"http_request"},
+	})
+	stage.Agents["builder"] = binding
+	run := runstore.WorkflowRun{ProjectHTTPTarget: &runtimesettings.HTTPOriginTargetRef{
+		URL: "https://app.example.test/api",
+		Credential: &runtimesettings.RuntimeCredentialRef{
+			CredentialID: "project-origin", Kind: runtimesettings.RuntimeCredentialOriginBearer,
+		},
+	}}
+	reservations := schedulerTestReservations(t, stage)
+	settings, err := harness.scheduler.workerExecutionSettingsForRun(t.Context(), run, stage, reservations)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := settings["builder"].RuntimeSettings.HTTPOriginTarget
+	if target == nil || target.URL != "https://app.example.test/api" || target.BearerToken == nil ||
+		target.BearerToken.Reveal() != secret {
+		t.Fatalf("materialized Project HTTP target = %+v", target)
+	}
+	clearWorkerExecutionSettings(settings)
+	if settings["builder"].RuntimeSettings.HTTPOriginTarget != nil {
+		t.Fatal("Project HTTP target survived execution-settings cleanup")
+	}
+
+	binding.Template.Toolsets[len(binding.Template.Toolsets)-1].Tools = []string{"http_history"}
+	stage.Agents["builder"] = binding
+	withoutHTTP, err := harness.scheduler.workerExecutionSettingsForRun(t.Context(), run, stage, reservations)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if withoutHTTP["builder"].RuntimeSettings.HTTPOriginTarget != nil {
+		t.Fatal("Project HTTP target was sent to a Worker without http_request")
+	}
+}
+
+func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.T) {
+	const headerSecret = "planner-header-secret-canary"
+	for _, test := range []struct {
+		name       string
+		statusCode int
+		wantExport reporting.ToolCallOutcome
+	}{
+		{name: "accepted", statusCode: http.StatusOK, wantExport: reporting.ToolCallSucceeded},
+		{name: "rejected", statusCode: http.StatusServiceUnavailable, wantExport: reporting.ToolCallFailed},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var collectorMu sync.Mutex
+			var collectorBodies [][]byte
+			var collectorHeader string
+			collector := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+				body, _ := io.ReadAll(io.LimitReader(request.Body, 3<<20))
+				collectorMu.Lock()
+				collectorBodies = append(collectorBodies, append([]byte(nil), body...))
+				collectorHeader = request.Header.Get("x-planner-token")
+				collectorMu.Unlock()
+				response.WriteHeader(test.statusCode)
+			}))
+			defer collector.Close()
+
+			harness := newSchedulerHarness(t)
+			var safeLogs bytes.Buffer
+			harness.scheduler.options.Logger = slog.New(slog.NewTextHandler(&safeLogs, nil))
+			registry, err := telemetry.NewBuiltinPlannerAdapterRegistry()
+			if err != nil {
+				t.Fatal(err)
+			}
+			recordingRegistry := &recordingPlannerTelemetryRegistry{inner: registry}
+			harness.scheduler.options.PlannerTelemetry = recordingRegistry
+			harness.scheduler.options.RuntimeCredentials = runtimeCredentialResolverFunc(func(
+				_ context.Context,
+				credentialID string,
+				allowed []runtimesettings.RuntimeCredentialKind,
+				consumer func(runtimesettings.RuntimeCredentialKind, []byte) error,
+			) error {
+				if credentialID != "planner-otel" ||
+					!reflect.DeepEqual(allowed, []runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialOTLPHeaders}) {
+					return errors.New("unexpected Runtime credential selection")
+				}
+				return consumer(
+					runtimesettings.RuntimeCredentialOTLPHeaders,
+					[]byte(`{"headers":{"x-planner-token":"`+headerSecret+`"}}`),
+				)
+			})
+
+			debugRef := runtimeconfig.Ref{
+				Name: "debug", Version: "1", Digest: "sha256:" + strings.Repeat("d", 64),
+			}
+			agentRef := runtimeconfig.Ref{
+				Name: "agent-caido", Version: "1", Digest: "sha256:" + strings.Repeat("e", 64),
+			}
+			snapshot := runtimeconfigtest.BuiltInRunSnapshot()
+			snapshot.Labels = []runtimeconfig.PinnedLabel{{
+				Label: "debug", Explicit: true, BindingRevision: 7, Config: debugRef,
+			}}
+			snapshot.RuntimeCredentialIDs = []string{"planner-otel"}
+			harness.store.run.RuntimeConfig = snapshot
+			harness.store.run.RuntimeLabels = []string{"debug"}
+			projectID := "project-telemetry"
+			harness.store.run.ProjectID = &projectID
+			harness.store.run.MetadataLabels = runstore.RunMetadataLabels{
+				"purpose": "eval", "eval.id": "metadata-eval-id-canary", "eval.leg": "a",
+				"audit.id": "audit-telemetry",
+			}
+
+			selection := harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"]
+			runtimeConfig, err := schedulerTestResolvedWorkerConfig(selection, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtimeConfig.PlannerTelemetry = &runtimeconfig.TelemetryConfig{
+				Adapter: telemetry.PlannerAdapterOTLPHTTP, Endpoint: collector.URL + "/v1/traces",
+				Credential: "planner-otel", FlushTimeoutSeconds: 1,
+			}
+			runtimeConfig.PlannerRuntimeCredential = &runtimesettings.RuntimeCredentialRef{
+				CredentialID: "planner-otel", Kind: runtimesettings.RuntimeCredentialOTLPHeaders,
+			}
+			runtimeConfig.Origins.PlannerTelemetry = &runtimeconfig.RuntimeFieldOrigin{
+				Layer: runtimeconfig.LayerRunLabels, Configs: []runtimeconfig.Ref{debugRef},
+			}
+			runtimeConfig.Provenance.RunLabels = []runtimesettings.RuntimeLabelBindingProvenance{{
+				Label: "debug", BindingRevision: 7, Config: schedulerTestRuntimeConfigRef(debugRef),
+			}}
+			runtimeConfig.Provenance.AgentLabels = []runtimesettings.RuntimeLabelBindingProvenance{{
+				Label: "caido", BindingRevision: 11, Config: schedulerTestRuntimeConfigRef(agentRef),
+			}}
+			harness.allocator.resolvedRuntimeConfig = &runtimeConfig
+
+			worked, runErr := harness.scheduler.RunOnce(t.Context())
+			if runErr != nil || !worked || harness.store.run.State != runstore.RunSucceeded ||
+				harness.workers.releaseCalls != 1 {
+				t.Fatalf("telemetry Run = (%t, %v), state=%s release=%d", worked, runErr, harness.store.run.State, harness.workers.releaseCalls)
+			}
+			collectorMu.Lock()
+			bodies := append([][]byte(nil), collectorBodies...)
+			header := collectorHeader
+			collectorMu.Unlock()
+			if len(bodies) != 1 || header != headerSecret ||
+				bytes.Contains(bodies[0], []byte(headerSecret)) ||
+				bytes.Contains(bodies[0], []byte(agentRef.Name)) ||
+				!bytes.Contains(bodies[0], []byte(debugRef.Name+"@"+debugRef.Version)) ||
+				!bytes.Contains(bodies[0], []byte("contractor.run.label.eval.id")) ||
+				!bytes.Contains(bodies[0], []byte("metadata-eval-id-canary")) {
+				t.Fatalf("Planner OTLP selection leaked or missed provenance: requests=%d header=%q body=%q", len(bodies), header, bodies)
+			}
+			var exported collectortracev1.ExportTraceServiceRequest
+			if err := proto.Unmarshal(bodies[0], &exported); err != nil {
+				t.Fatal(err)
+			}
+			spanCount := 0
+			for _, resource := range exported.ResourceSpans {
+				for _, scope := range resource.ScopeSpans {
+					for _, span := range scope.Spans {
+						spanCount++
+						identities := map[string]string{}
+						for _, attribute := range span.Attributes {
+							identities[attribute.Key] = attribute.Value.GetStringValue()
+						}
+						if identities["contractor.run.label.project.id"] != projectID || identities["contractor.run.label.audit.id"] != "audit-telemetry" {
+							t.Fatalf("span %s missed Run identity: %v", span.Name, identities)
+						}
+					}
+				}
+			}
+			if spanCount == 0 {
+				t.Fatal("no Planner spans exported")
+			}
+			if !recordingRegistry.preparedCredentialSeen || recordingRegistry.creates != 1 || len(recordingRegistry.resources) != 1 ||
+				len(recordingRegistry.metadataLabels) != 1 ||
+				!equalRunMetadataLabels(
+					recordingRegistry.metadataLabels[0], harness.store.run.MetadataLabels,
+				) ||
+				len(recordingRegistry.resources[0].RunLabels) != 1 ||
+				recordingRegistry.resources[0].RunLabels[0] != "debug" ||
+				stringSliceContains(recordingRegistry.resources[0].RuntimeConfigRefs, "agent-caido@1") {
+				t.Fatalf("Planner registry inputs = creates:%d resources:%+v", recordingRegistry.creates, recordingRegistry.resources)
+			}
+			if len(harness.workers.preparedReservations) != 1 ||
+				len(harness.workers.preparedReservations[0]) != 1 ||
+				harness.workers.preparedReservations[0][0].ProjectID != projectID || !equalRunMetadataLabels(
+				harness.workers.preparedReservations[0][0].RunMetadataLabels,
+				harness.store.run.MetadataLabels,
+			) {
+				t.Fatalf("allocation metadata labels = %+v", harness.workers.preparedReservations)
+			}
+			if len(harness.store.plannerReports) != 1 {
+				t.Fatalf("Planner reports = %+v", harness.store.plannerReports)
+			}
+			report := harness.store.plannerReports[0].Report
+			encodedReport, encodeErr := json.Marshal(report)
+			if encodeErr != nil || bytes.Contains(encodedReport, []byte(headerSecret)) ||
+				bytes.Contains(encodedReport, []byte("metadata-eval-id-canary")) ||
+				bytes.Contains(encodedReport, []byte(collector.URL)) ||
+				bytes.Contains(encodedReport, []byte(agentRef.Name)) ||
+				strings.Contains(safeLogs.String(), headerSecret) || strings.Contains(safeLogs.String(), collector.URL) {
+				t.Fatalf("Planner telemetry secret/provenance leak: report=%s logs=%s error=%v", encodedReport, safeLogs.String(), encodeErr)
+			}
+			metrics := report.Metrics.Tools["telemetry.export"]
+			if len(report.ToolCalls) != 1 || report.ToolCalls[0].Tool != "telemetry.export" ||
+				report.ToolCalls[0].Outcome != test.wantExport || metrics.Calls == nil || *metrics.Calls != 1 {
+				t.Fatalf("durable Planner telemetry result = %+v", report)
+			}
+		})
+	}
+}
+
+func TestSchedulerRunWithoutPlannerTelemetryCreatesNoExporter(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	registry, err := telemetry.NewBuiltinPlannerAdapterRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	recordingRegistry := &recordingPlannerTelemetryRegistry{inner: registry}
+	harness.scheduler.options.PlannerTelemetry = recordingRegistry
+	worked, runErr := harness.scheduler.RunOnce(t.Context())
+	if runErr != nil || !worked || harness.store.run.State != runstore.RunSucceeded {
+		t.Fatalf("Run = (%t, %v), state=%s", worked, runErr, harness.store.run.State)
+	}
+	if recordingRegistry.creates != 0 {
+		t.Fatalf("no-telemetry Run created %d exporters", recordingRegistry.creates)
+	}
+	if len(harness.store.plannerReports) != 1 ||
+		harness.store.plannerReports[0].Report.Metrics.Tools["telemetry.export"].Calls != nil {
+		t.Fatalf("no-telemetry Planner report = %+v", harness.store.plannerReports)
+	}
+}
+
+func TestSchedulerMissingRequiredContextInterruptsWithoutAllocation(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	delete(harness.artifacts.values, "run-1/inputs/source/input-r1")
+	delete(harness.artifacts.current, "run-1/inputs/source")
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	execution := harness.store.stages[0]
+	if harness.store.run.State != runstore.RunFailed || execution.State != runstore.StageInterrupted ||
+		execution.Termination == nil || execution.Termination.Code != "context_artifact_missing" ||
+		execution.Termination.Retryable || execution.Termination.Phase != runstore.TerminationPreparing {
+		t.Fatalf("missing context lifecycle = run:%s stage:%+v", harness.store.run.State, execution)
+	}
+	if harness.allocator.reserveCalls != 0 || harness.workers.prepareCalls != 0 ||
+		harness.planners.createCalls != 0 {
+		t.Fatalf("missing context allocated or planned work")
+	}
+	assertOrderedEvents(t, harness.events.values, "create_stage", "enter_aborting", "commit_termination")
+}
+
+// An Audit completion Run pins its task input to an exact revision
+// (auditPinnedContextRef), which config validation requires to be a required
+// Stage context artifact. When the RunScope no longer holds that revision,
+// the Stage ends with the permanent context_artifact_missing before any
+// allocation (SCH-R17), even though the logical binding still resolves to
+// another revision: the Scheduler neither substitutes the current revision
+// nor retries the resolution.
+func TestSchedulerMissingAuditPinnedContextInterruptsWithoutAllocation(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.store.run.AuditCompletion = &runstore.AuditCompletionSnapshot{
+		Stage: "copy", Agent: "builder", Contract: contracts.WorkerCompletionContract{
+			Kind:           contracts.AuditCheckResultsV1,
+			Context:        exactRef("inputs", "source", "input-r0"),
+			ResultArtifact: contracts.ArtifactRef{Namespace: "builder", Name: "copied"},
+		},
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	execution := harness.store.stages[0]
+	if harness.store.run.State != runstore.RunFailed || execution.State != runstore.StageInterrupted ||
+		execution.Termination == nil || execution.Termination.Code != "context_artifact_missing" ||
+		execution.Termination.Retryable || execution.Termination.Phase != runstore.TerminationPreparing {
+		t.Fatalf("missing pinned context lifecycle = run:%s stage:%+v", harness.store.run.State, execution)
+	}
+	if pinned := execution.StageContext.Artifacts["source"]; !pinned.Required || pinned.Artifact != nil {
+		t.Fatalf("pinned source context = %+v, want required and absent", pinned)
+	}
+	if harness.allocator.reserveCalls != 0 || harness.workers.prepareCalls != 0 ||
+		harness.planners.createCalls != 0 {
+		t.Fatalf("missing pinned context allocated or planned work")
+	}
+}
+
+func TestSchedulerLeavesPreparingStageDeferredWhenCapacityIsUnavailable(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.allocator.reserveError = controlplane.ErrInsufficientCapacity
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if !worked || !errors.Is(err, ErrDeferred) {
+		t.Fatalf("RunOnce = (%v, %v), want deferred", worked, err)
+	}
+	if harness.store.run.State != runstore.RunRunning || harness.store.stages[0].State != runstore.StagePreparing ||
+		harness.store.stages[0].Termination != nil || harness.planners.createCalls != 0 {
+		t.Fatalf("deferred lifecycle = run:%s stage:%+v", harness.store.run.State, harness.store.stages[0])
+	}
+}
+
+func TestSchedulerQueueResidenceDoesNotConsumeExecutionDeadline(t *testing.T) {
+	h := newSchedulerHarness(t)
+	h.store.run.State = runstore.RunPending
+	h.allocator.reserveError = controlplane.ErrInsufficientCapacity
+	for range 2 {
+		worked, err := h.scheduler.RunOnce(t.Context())
+		if !worked || !errors.Is(err, ErrDeferred) {
+			t.Fatalf("capacity wait=(%v,%v)", worked, err)
+		}
+		if h.store.run.State != runstore.RunPending || h.store.stages[0].AdmittedAt != nil {
+			t.Fatal("queued Run admitted without capacity")
+		}
+		h.store.stages[0].CreatedAt = h.clock.now.Add(-24 * time.Hour)
+	}
+	h.allocator.reserveError = nil
+	worked, err := h.scheduler.RunOnce(t.Context())
+	if !worked || err != nil {
+		t.Fatalf("admission=(%v,%v)", worked, err)
+	}
+	if h.store.stages[0].AdmittedAt == nil || h.store.run.State != runstore.RunSucceeded {
+		t.Fatalf("admitted Run: %+v", h.store.run)
+	}
+}
+
+func TestSchedulerPreparationFailureInterruptsWithoutPlanner(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.workers.prepareError = &controlplane.RuntimeAPIError{
+		StatusCode: 503, Code: "worker_prepare_failed", Retryable: true,
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	execution := harness.store.stages[0]
+	if execution.State != runstore.StageInterrupted || execution.Termination == nil ||
+		execution.Termination.Code != "allocation_preparation_failed" ||
+		!execution.Termination.Retryable || execution.Termination.Phase != runstore.TerminationPreparing {
+		t.Fatalf("preparation termination = %+v", execution)
+	}
+	if harness.planners.createCalls != 0 || harness.planners.runCalls != 0 {
+		t.Fatal("Planner ran after allocation preparation failed")
+	}
+	if _, hasFinalizing := eventIndex(harness.events.values, "enter_finalizing"); hasFinalizing {
+		t.Fatal("preparation failure entered finalizing")
+	}
+}
+
+func TestSchedulerInvalidCandidateAbortsWithoutPublishingOutput(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	invalid := harness.planners.result
+	ref := invalid.Artifacts["copied"]
+	ref.Revision = nil
+	invalid.Artifacts["copied"] = ref
+	harness.planners.result = invalid
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	execution := harness.store.stages[0]
+	if execution.State != runstore.StageInterrupted || execution.Termination == nil ||
+		execution.Termination.Code != "result_contract_violation" || execution.Termination.Retryable {
+		t.Fatalf("invalid candidate termination = %+v", execution)
+	}
+	if len(harness.persistence.outputs) != 0 {
+		t.Fatalf("invalid candidate published outputs: %+v", harness.persistence.outputs)
+	}
+	if _, found := eventIndex(harness.events.values, "enter_finalizing"); found {
+		t.Fatal("invalid candidate entered finalizing")
+	}
+}
+
+func TestSchedulerRejectsReservedMemoryCandidateBeforeFinalizing(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.planners.result.Artifacts["copied"] = exactRef(
+		"builder", "memory.hidden", "memory-result-r1",
+	)
+	harness.artifacts.values["run-1/builder/memory.hidden/memory-result-r1"] = ResolvedArtifact{
+		Ref:       exactRef("builder", "memory.hidden", "memory-result-r1"),
+		MediaType: "text/plain",
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	execution := harness.store.stages[0]
+	if execution.State != runstore.StageInterrupted || execution.Termination == nil ||
+		execution.Termination.Code != "result_contract_violation" || execution.Termination.Retryable {
+		t.Fatalf("reserved Memory candidate termination = %+v", execution)
+	}
+	if len(harness.persistence.outputs) != 0 {
+		t.Fatalf("reserved Memory candidate published outputs: %+v", harness.persistence.outputs)
+	}
+	if _, found := eventIndex(harness.events.values, "enter_finalizing"); found {
+		t.Fatal("reserved Memory candidate entered finalizing")
+	}
+}
+
+func TestSchedulerPlannerBudgetFailureUsesBoundedRunningAbort(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.planners.runErrors = []error{planner.NewError(
+		"planner_model_call_limit", "Planner exhausted its model-call limit", true, nil,
+	)}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	execution := harness.store.stages[0]
+	if execution.State != runstore.StageInterrupted || execution.Termination == nil ||
+		execution.Termination.Code != "planner_model_call_limit" ||
+		execution.Termination.Phase != runstore.TerminationRunning ||
+		!execution.Termination.Retryable {
+		t.Fatalf("budget termination = %+v", execution)
+	}
+	if harness.workers.abortCalls != 1 || harness.workers.finalizeCalls != 0 ||
+		len(harness.persistence.outputs) != 0 {
+		t.Fatalf("budget abort path = abort:%d finalize:%d outputs:%v",
+			harness.workers.abortCalls, harness.workers.finalizeCalls, harness.persistence.outputs)
+	}
+	assertOrderedEvents(t, harness.events.values,
+		"planner", "fence", "enter_aborting", "abort", "record_report", "commit_termination", "release",
+	)
+}
+
+func TestSchedulerMetricsPersistenceFailureDoesNotChangeSemanticResult(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.store.reportError = errors.New("telemetry database unavailable")
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.store.run.State != runstore.RunSucceeded ||
+		harness.store.stages[0].State != runstore.StageSucceeded ||
+		len(harness.persistence.outputs) != 1 {
+		t.Fatalf("telemetry failure changed semantic result: run=%s stage=%s outputs=%v",
+			harness.store.run.State, harness.store.stages[0].State, harness.persistence.outputs)
+	}
+}
+
+func TestSchedulerRecoversDurableFinalizingCandidateWithoutPlannerInvocation(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	execution := harness.persistedExecution(t, runstore.StageFinalizing)
+	result := harness.planners.result
+	finalizationID := "finalization-recovery"
+	deadline := harness.clock.now.Add(time.Minute)
+	execution.CandidateResultSchemaVersion = stringPointer(contracts.APIVersion)
+	execution.CandidateResult = &result
+	execution.FinalizationID = &finalizationID
+	execution.FinalizationDeadline = &deadline
+	harness.store.stages = []runstore.StageExecution{execution}
+	harness.persistence.stageStates = []runstore.StageExecutionState{runstore.StageFinalizing}
+	harness.installRecordedReservation(execution.StageExecutionID)
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.planners.createCalls != 0 || harness.planners.runCalls != 0 ||
+		harness.workers.prepareCalls != 0 || harness.workers.finalizeCalls != 1 {
+		t.Fatalf("recovery repeated semantic work: planner=(%d,%d), workers=(%d,%d)",
+			harness.planners.createCalls, harness.planners.runCalls,
+			harness.workers.prepareCalls, harness.workers.finalizeCalls)
+	}
+	if harness.store.run.State != runstore.RunSucceeded || harness.store.stages[0].State != runstore.StageSucceeded {
+		t.Fatalf("recovered terminal state = run:%s stage:%s", harness.store.run.State, harness.store.stages[0].State)
+	}
+	assertOrderedEvents(t, harness.events.values, "reserve", "finalize", "record_report", "accept", "release")
+}
+
+func TestSchedulerRestartRetriesReleaseAfterTerminalTransaction(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.workers.releaseError = errors.New("release acknowledgement lost")
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked || harness.store.run.State != runstore.RunSucceeded {
+		t.Fatalf("first RunOnce = (%v, %v), run=%s", worked, err, harness.store.run.State)
+	}
+	output := harness.persistence.outputs["result"]
+	if output.Revision == nil {
+		t.Fatal("terminal transaction did not publish output")
+	}
+	harness.workers.releaseError = nil
+	restarted, err := New(
+		harness.store, harness.persistence, harness.artifacts, harness.allocator,
+		harness.workers, harness.planners, harness.scheduler.options,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worked, err = restarted.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("release recovery RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.workers.releaseCalls != 2 || harness.planners.runCalls != 1 ||
+		!reflect.DeepEqual(harness.persistence.outputs["result"], output) {
+		t.Fatalf("release recovery changed semantic work: releases=%d planner=%d output=%+v",
+			harness.workers.releaseCalls, harness.planners.runCalls, harness.persistence.outputs["result"])
+	}
+}
+
+func TestTerminalReleaseFailureDoesNotBlockClaimPath(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	execution := harness.persistedExecution(t, runstore.StageSucceeded)
+	harness.store.stages = []runstore.StageExecution{execution}
+	harness.store.run.State = runstore.RunSucceeded
+	harness.installRecordedReservation(execution.StageExecutionID)
+	harness.workers.releaseError = errors.New("runtime unavailable")
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || worked {
+		t.Fatalf("RunOnce with failed cleanup = (%v, %v)", worked, err)
+	}
+	// RunOnce tries one claim per lane pool.
+	if harness.store.claimCalls != len(resolved.LaneClasses) || harness.workers.releaseCalls != 1 {
+		t.Fatalf("failed cleanup blocked claim path: claims=%d releases=%d",
+			harness.store.claimCalls, harness.workers.releaseCalls)
+	}
+}
+
+func TestTerminalReleaseRecoveryRetriesOnlyRemainingLiveAllocations(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	execution := harness.persistedExecution(t, runstore.StageSucceeded)
+	harness.store.stages = []runstore.StageExecution{execution}
+	harness.store.run.State = runstore.RunSucceeded
+	first, err := harness.allocator.reservation(execution.StageExecutionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second := first
+	second.Grant.AllocationID = "allocation-second"
+	second.Grant.RuntimeInstanceID = "runtime-2"
+	second.Grant.LogicalAgentName = "reviewer"
+	second.Grant.Namespace = "reviewer"
+	harness.allocator.cached = []controlplane.Reservation{first, second}
+	harness.allocator.grants[first.Grant.AllocationID] = first.Grant
+	harness.allocator.grants[second.Grant.AllocationID] = second.Grant
+	harness.store.allocations = []runstore.StageAllocation{
+		stageAllocationFromReservation(first), stageAllocationFromReservation(second),
+	}
+	harness.workers.releaseErrors = map[string]error{
+		second.Grant.AllocationID: errors.New("second Runtime unavailable"),
+	}
+
+	worked, err := harness.scheduler.recoverTerminalRelease(context.Background())
+	if !worked || err == nil {
+		t.Fatalf("partial release = (%v, %v)", worked, err)
+	}
+	if harness.store.allocations[0].ReleaseCompletedAt == nil ||
+		harness.store.allocations[1].ReleaseCompletedAt != nil {
+		t.Fatalf("partial release markers = %+v", harness.store.allocations)
+	}
+	if _, ok := harness.allocator.grants[first.Grant.AllocationID]; ok {
+		t.Fatal("successfully released allocation remained live")
+	}
+	delete(harness.workers.releaseErrors, second.Grant.AllocationID)
+	worked, err = harness.scheduler.recoverTerminalRelease(context.Background())
+	if !worked || err != nil || harness.store.allocations[1].ReleaseCompletedAt == nil {
+		t.Fatalf("remaining release retry = (%v, %v), allocations=%+v", worked, err, harness.store.allocations)
+	}
+	if harness.workers.releasedBatches[0] != 2 || harness.workers.releasedBatches[1] != 1 {
+		t.Fatalf("release retry batches = %v", harness.workers.releasedBatches)
+	}
+}
+
+func TestTerminalReleaseRecoverySkipsStageOwnedByRunLane(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	execution := harness.persistedExecution(t, runstore.StageSucceeded)
+	harness.store.stages = []runstore.StageExecution{execution}
+	harness.store.run.State = runstore.RunSucceeded
+	harness.installRecordedReservation(execution.StageExecutionID)
+	if !harness.scheduler.beginTerminalRelease(execution.StageExecutionID) {
+		t.Fatal("failed to acquire terminal release gate")
+	}
+	defer harness.scheduler.endTerminalRelease(execution.StageExecutionID)
+
+	worked, err := harness.scheduler.recoverTerminalRelease(context.Background())
+	if err != nil || worked {
+		t.Fatalf("busy terminal release recovery = (%v, %v), want (false, nil)", worked, err)
+	}
+	if harness.workers.releaseCalls != 0 {
+		t.Fatalf("recovery duplicated in-flight Runtime release: calls=%d", harness.workers.releaseCalls)
+	}
+}
+
+// A live grant whose provenance differs from its terminal durable row cannot
+// be repaired by retrying. Recovery fences and releases it once no active
+// Stage can own it, instead of retrying and logging it on every poll forever.
+func TestTerminalReleaseRecoveryReleasesDivergedGrantWithoutActiveOwner(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		liveStage  string
+		otherState runstore.StageExecutionState
+		released   bool
+	}{
+		{name: "same terminal Stage", liveStage: "stage-recovery", released: true},
+		{name: "other terminal Stage", liveStage: "stage-other", otherState: runstore.StageFailed, released: true},
+		{name: "unknown Stage", liveStage: "stage-unknown", released: true},
+		{name: "other active Stage", liveStage: "stage-other", otherState: runstore.StageRunning},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			harness := newSchedulerHarness(t)
+			execution := harness.persistedExecution(t, runstore.StageSucceeded)
+			harness.store.stages = []runstore.StageExecution{execution}
+			if test.otherState != "" {
+				other := harness.persistedExecution(t, test.otherState)
+				other.StageExecutionID = "stage-other"
+				harness.store.stages = append(harness.store.stages, other)
+			}
+			harness.store.run.State = runstore.RunSucceeded
+			harness.installRecordedReservation(execution.StageExecutionID)
+			live := harness.allocator.cached[0]
+			allocationID := live.Grant.AllocationID
+			live.Grant.RuntimeInstanceID = "runtime-diverged"
+			live.Grant.StageExecutionID = test.liveStage
+			live.Grant.WriteFenced = false
+			harness.allocator.cached[0] = live
+			harness.allocator.grants[allocationID] = live.Grant
+			delete(harness.allocator.fenced, allocationID)
+
+			worked, err := harness.scheduler.recoverTerminalRelease(context.Background())
+			_, liveErr := harness.allocator.GetGrant(allocationID)
+			releasedRow := harness.store.allocations[0].ReleaseCompletedAt != nil
+			if test.released {
+				if !worked || err != nil || !errors.Is(liveErr, controlplane.ErrAllocationNotFound) || !releasedRow ||
+					!harness.allocator.fenced[allocationID] || harness.workers.releaseCalls != 1 {
+					t.Fatalf("diverged release = (%v, %v), live=%v row=%t fenced=%t releases=%d",
+						worked, err, liveErr, releasedRow, harness.allocator.fenced[allocationID], harness.workers.releaseCalls)
+				}
+				return
+			}
+			if !worked || err == nil || liveErr != nil || releasedRow ||
+				harness.allocator.fenced[allocationID] || harness.workers.releaseCalls != 0 {
+				t.Fatalf("actively owned diverged grant = (%v, %v), live=%v row=%t fenced=%t releases=%d",
+					worked, err, liveErr, releasedRow, harness.allocator.fenced[allocationID], harness.workers.releaseCalls)
+			}
+		})
+	}
+}
+
+func stageAllocationFromReservation(reservation controlplane.Reservation) runstore.StageAllocation {
+	runtimeConfig := reservation.ResolvedRuntimeConfig
+	return runstore.StageAllocation{
+		AllocationID: reservation.Grant.AllocationID, StageExecutionID: reservation.Grant.StageExecutionID,
+		LogicalAgentName: reservation.Grant.LogicalAgentName, Namespace: reservation.Grant.Namespace,
+		AgentTemplateRef: reservation.AgentTemplate.Ref, WorkerRuntimeRef: reservation.AgentTemplate.Runtime,
+		RuntimeAgentInstanceID:            reservation.Grant.RuntimeInstanceID,
+		RuntimeAgentID:                    reservation.Grant.RuntimeAgentID,
+		RuntimeAgentLabelRevision:         reservation.RuntimeAgentLabelRevision,
+		CompletionContract:                contracts.CloneWorkerCompletionContract(reservation.CompletionContract),
+		PerformanceCollectionPolicy:       reservation.PerformanceCollectionPolicy,
+		RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
+		RuntimeConfiguration: &runstore.AllocationRuntimeConfiguration{
+			ModelPolicy: runtimeConfig.ModelPolicy.Ref, Origins: runtimeConfig.Origins, Provenance: runtimeConfig.Provenance,
+		},
+	}
+}
+
+func TestSchedulerAbortsRunningStageWhenVolatileControlPlaneStateWasLost(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	execution := harness.persistedExecution(t, runstore.StageRunning)
+	harness.store.stages = []runstore.StageExecution{execution}
+	harness.persistence.stageStates = []runstore.StageExecutionState{runstore.StageRunning}
+	harness.store.allocations = []runstore.StageAllocation{{
+		AllocationID: "lost-allocation", StageExecutionID: execution.StageExecutionID,
+		LogicalAgentName: "builder", Namespace: "builder",
+		AgentTemplateRef:       harness.workflow.Stages["copy"].Agents["builder"].Template.Ref,
+		WorkerRuntimeRef:       harness.workflow.Stages["copy"].Agents["builder"].Template.Runtime,
+		RuntimeAgentInstanceID: "lost-runtime",
+	}}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	execution = harness.store.stages[0]
+	if execution.State != runstore.StageInterrupted || execution.Termination == nil ||
+		execution.Termination.Code != "control_plane_state_lost" ||
+		execution.Termination.Phase != runstore.TerminationRunning || !execution.Termination.Retryable {
+		t.Fatalf("lost Control Plane termination = %+v", execution)
+	}
+	if harness.planners.createCalls != 0 || harness.workers.prepareCalls != 0 {
+		t.Fatal("lost Control Plane state caused semantic re-execution")
+	}
+}
+
+func TestSchedulerCancelsRunWithoutCreatingStage(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.requestCancellation("stop before work starts")
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.store.run.State != runstore.RunCancelled || len(harness.store.stages) != 0 ||
+		harness.planners.createCalls != 0 || harness.allocator.reserveCalls != 0 {
+		t.Fatalf("cancel-before-Stage = run:%s stages:%v planners:%d reserves:%d",
+			harness.store.run.State, harness.store.stages, harness.planners.createCalls, harness.allocator.reserveCalls)
+	}
+}
+
+func TestSchedulerCancelInterruptsPlannerAndIgnoresLateCandidate(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.planners.onRun = func() {
+		harness.persistence.stageStates = append(harness.persistence.stageStates, runstore.StageRunning)
+		harness.requestCancellation("late candidate must not win")
+		harness.scheduler.Cancel(harness.store.run.RunID)
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	execution := harness.store.stages[0]
+	if harness.store.run.State != runstore.RunCancelled || execution.State != runstore.StageCancelled ||
+		execution.Termination == nil || execution.Termination.Outcome != runstore.TerminationCancelled ||
+		execution.Termination.Code != runstore.CancellationUserRequested {
+		t.Fatalf("cancelled lifecycle = run:%s stage:%+v", harness.store.run.State, execution)
+	}
+	if execution.CandidateResult != nil || execution.AcceptedResult != nil || len(harness.persistence.outputs) != 0 {
+		t.Fatalf("late candidate became semantic output: stage=%+v outputs=%v", execution, harness.persistence.outputs)
+	}
+	if harness.workers.abortCalls != 1 || harness.workers.finalizeCalls != 0 ||
+		len(harness.store.reports) != 1 || harness.store.reports[0].Report.Worker.Complete {
+		t.Fatalf("bounded abort/report calls = abort:%d finalize:%d reports:%+v",
+			harness.workers.abortCalls, harness.workers.finalizeCalls, harness.store.reports)
+	}
+	assertOrderedEvents(t, harness.events.values,
+		"planner", "fence", "enter_aborting", "abort", "record_report", "commit_termination", "release",
+	)
+}
+
+func TestSchedulerMetricsCancelDeadlineTerminatesWithIncompleteReportAndFencedAllocation(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.requestCancellation("runtime is unreachable")
+	execution := harness.persistedExecution(t, runstore.StageAborting)
+	abortID := "abort-recovery"
+	deadline := harness.clock.now.Add(-time.Second)
+	execution.TerminationSchemaVersion = stringPointer(contracts.APIVersion)
+	execution.Termination = &runstore.StageTermination{
+		Outcome: runstore.TerminationCancelled, Code: runstore.CancellationUserRequested,
+		Message: "runtime is unreachable", Retryable: false,
+		Phase: runstore.TerminationRunning, OccurredAt: harness.clock.now.Add(-2 * time.Second),
+	}
+	execution.AbortID = &abortID
+	execution.AbortDeadline = &deadline
+	harness.store.stages = []runstore.StageExecution{execution}
+	harness.installRecordedReservation(execution.StageExecutionID)
+	harness.workers.releaseError = errors.New("runtime unreachable")
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	allocationID := harness.store.allocations[0].AllocationID
+	if harness.workers.abortCalls != 0 || harness.store.run.State != runstore.RunCancelled ||
+		harness.store.stages[0].State != runstore.StageCancelled || !harness.allocator.fenced[allocationID] {
+		t.Fatalf("deadline cancel = aborts:%d run:%s stage:%s fenced:%v",
+			harness.workers.abortCalls, harness.store.run.State, harness.store.stages[0].State,
+			harness.allocator.fenced[allocationID])
+	}
+	if _, stillUnavailable := harness.allocator.grants[allocationID]; !stillUnavailable ||
+		len(harness.store.reports) != 1 || harness.store.reports[0].Report.Worker.Complete ||
+		len(harness.store.reports[0].Report.Worker.Errors) != 1 ||
+		harness.store.reports[0].Report.Worker.Errors[0].Code != "allocation_report_unavailable" {
+		t.Fatalf("lost allocation/report = grants:%v reports:%+v", harness.allocator.grants, harness.store.reports)
+	}
+}
+
+func TestSchedulerCancelAcceptsAlreadyFinalizingResultForAuditOnly(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.requestCancellation("result already won Stage race")
+	execution := harness.persistedExecution(t, runstore.StageFinalizing)
+	result := harness.planners.result.Clone()
+	finalizationID := "finalization-before-cancel"
+	deadline := harness.clock.now.Add(time.Minute)
+	execution.CandidateResultSchemaVersion = stringPointer(contracts.APIVersion)
+	execution.CandidateResult = &result
+	execution.FinalizationID = &finalizationID
+	execution.FinalizationDeadline = &deadline
+	harness.store.stages = []runstore.StageExecution{execution}
+	harness.installRecordedReservation(execution.StageExecutionID)
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	execution = harness.store.stages[0]
+	if harness.store.run.State != runstore.RunCancelled || execution.State != runstore.StageSucceeded ||
+		execution.AcceptedResult == nil || len(harness.persistence.outputs) != 0 {
+		t.Fatalf("audit-only result = run:%s stage:%+v outputs:%v",
+			harness.store.run.State, execution, harness.persistence.outputs)
+	}
+	assertOrderedEvents(t, harness.events.values, "finalize", "record_report", "accept_cancelled", "release")
+}
+
+func TestSchedulerLeaseLossInterruptsPlannerAndStartsBoundedAbort(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.planners.onRun = func() {
+		harness.persistence.stageStates = append(harness.persistence.stageStates, runstore.StageRunning)
+		reservation := harness.allocator.cached[0]
+		reservation.Grant.Lost = true
+		reservation.Grant.WriteFenced = true
+		harness.allocator.cached[0] = reservation
+		grant := harness.allocator.grants[reservation.Grant.AllocationID]
+		grant.Lost = true
+		grant.WriteFenced = true
+		harness.allocator.grants[reservation.Grant.AllocationID] = grant
+		harness.allocator.losses = append(harness.allocator.losses, controlplane.AllocationLoss{
+			AllocationID:      reservation.Grant.AllocationID,
+			RuntimeInstanceID: reservation.Grant.RuntimeInstanceID,
+			RunID:             harness.store.run.RunID,
+			StageExecutionID:  reservation.Grant.StageExecutionID,
+			Reason:            controlplane.LossControlLeaseExpired,
+		})
+		harness.scheduler.pollAllocationLosses()
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	execution := harness.store.stages[0]
+	if harness.store.run.State != runstore.RunFailed || execution.State != runstore.StageInterrupted ||
+		execution.Termination == nil || execution.Termination.Code != "control_lease_expired" ||
+		!execution.Termination.Retryable || execution.CandidateResult != nil {
+		t.Fatalf("lease-loss lifecycle = run:%s stage:%+v", harness.store.run.State, execution)
+	}
+	if harness.workers.abortCalls != 1 || harness.workers.finalizeCalls != 0 ||
+		len(harness.persistence.outputs) != 0 {
+		t.Fatalf("lease-loss remote path = abort:%d finalize:%d outputs:%v",
+			harness.workers.abortCalls, harness.workers.finalizeCalls, harness.persistence.outputs)
+	}
+}
+
+func TestSchedulerRetryCreatesThreeFreshAttemptsBeforeSuccess(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	stage := harness.workflow.Stages[harness.workflow.EntryStage]
+	stage.Session = contracts.WorkerSessionShared
+	harness.workflow.Stages[harness.workflow.EntryStage] = stage
+	configureRetryWorkflow(t, harness, 3)
+	harness.artifacts.current["run-1/inputs/source"] = "input-r1"
+	harness.artifacts.values["run-1/inputs/source/input-r2"] = ResolvedArtifact{
+		Ref: exactRef("inputs", "source", "input-r2"), MediaType: "text/plain",
+	}
+	harness.planners.runErrors = []error{
+		planner.NewError("transient_one", "first transient failure", true, nil),
+		planner.NewError("transient_two", "second transient failure", true, nil),
+		nil,
+	}
+	harness.planners.onRun = func() {
+		harness.persistence.stageStates = append(harness.persistence.stageStates, runstore.StageRunning)
+		if harness.planners.runCalls == 1 {
+			harness.artifacts.current["run-1/inputs/source"] = "input-r2"
+		}
+	}
+
+	for iteration := 0; iteration < 3; iteration++ {
+		worked, err := harness.scheduler.RunOnce(context.Background())
+		if err != nil || !worked {
+			t.Fatalf("RunOnce %d = (%v, %v)", iteration+1, worked, err)
+		}
+	}
+	if harness.store.run.State != runstore.RunSucceeded || len(harness.store.stages) != 3 {
+		t.Fatalf("retry terminal state = run:%s stages:%+v", harness.store.run.State, harness.store.stages)
+	}
+	for index, execution := range harness.store.stages {
+		if execution.Attempt != index+1 {
+			t.Fatalf("attempt[%d] = %d", index, execution.Attempt)
+		}
+		if index == 0 && execution.PreviousExecutionID != nil {
+			t.Fatalf("first attempt has previous execution: %v", execution.PreviousExecutionID)
+		}
+		if index > 0 && (execution.PreviousExecutionID == nil ||
+			*execution.PreviousExecutionID != harness.store.stages[index-1].StageExecutionID) {
+			t.Fatalf("attempt[%d] lineage = %v", index, execution.PreviousExecutionID)
+		}
+	}
+	firstRef := harness.store.stages[0].StageContext.Artifacts["source"].Artifact
+	secondRef := harness.store.stages[1].StageContext.Artifacts["source"].Artifact
+	if firstRef == nil || secondRef == nil || firstRef.Revision == nil || secondRef.Revision == nil ||
+		*firstRef.Revision != "input-r1" || *secondRef.Revision != "input-r2" {
+		t.Fatalf("fresh retry contexts = first:%+v second:%+v", firstRef, secondRef)
+	}
+	if got := []runstore.StageTransitionAction{
+		harness.persistence.decisions[0].Action,
+		harness.persistence.decisions[1].Action,
+		harness.persistence.decisions[2].Action,
+	}; !reflect.DeepEqual(got, []runstore.StageTransitionAction{
+		runstore.StageTransitionRetry, runstore.StageTransitionRetry, runstore.StageTransitionSucceed,
+	}) {
+		t.Fatalf("retry decisions = %v", got)
+	}
+	if len(harness.workers.preparedReservations) != 3 {
+		t.Fatalf("retry prepared batches = %d, want 3", len(harness.workers.preparedReservations))
+	}
+	for index, batch := range harness.workers.preparedReservations {
+		if len(batch) != 1 || batch[0].WorkerSessionMode != contracts.WorkerSessionShared {
+			t.Fatalf("retry allocation[%d] session mode = %+v, want shared", index, batch)
+		}
+	}
+}
+
+func TestSchedulerRetryNonRetryableFailureExecutesThenImmediately(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	configureRetryWorkflow(t, harness, 3)
+	harness.planners.runErrors = []error{
+		planner.NewError("permanent", "permanent failure", false, nil),
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.store.run.State != runstore.RunFailed || len(harness.store.stages) != 1 ||
+		len(harness.persistence.decisions) != 1 ||
+		harness.persistence.decisions[0].Action != runstore.StageTransitionFail {
+		t.Fatalf("non-retryable progression = run:%s stages:%d decisions:%+v",
+			harness.store.run.State, len(harness.store.stages), harness.persistence.decisions)
+	}
+}
+
+func TestSchedulerRetryExhaustionFailsAfterMaximumAttempts(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	configureRetryWorkflow(t, harness, 3)
+	failure := planner.NewError("still_unavailable", "transient failure persisted", true, nil)
+	harness.planners.runErrors = []error{failure, failure, failure}
+
+	for iteration := 0; iteration < 3; iteration++ {
+		worked, err := harness.scheduler.RunOnce(context.Background())
+		if err != nil || !worked {
+			t.Fatalf("RunOnce %d = (%v, %v)", iteration+1, worked, err)
+		}
+	}
+	if harness.store.run.State != runstore.RunFailed || len(harness.store.stages) != 3 ||
+		len(harness.persistence.decisions) != 3 ||
+		harness.persistence.decisions[2].Action != runstore.StageTransitionFail {
+		t.Fatalf("exhausted retry = run:%s stages:%d decisions:%+v",
+			harness.store.run.State, len(harness.store.stages), harness.persistence.decisions)
+	}
+}
+
+func TestSchedulerRetryCancellationPreventsNewAttempt(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	configureRetryWorkflow(t, harness, 3)
+	harness.planners.runErrors = []error{
+		planner.NewError("transient", "retry would otherwise be eligible", true, nil),
+	}
+	harness.planners.onRun = func() {
+		harness.persistence.stageStates = append(harness.persistence.stageStates, runstore.StageRunning)
+		harness.requestCancellation("cancel before retry decision")
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.store.run.State != runstore.RunCancelled || len(harness.store.stages) != 1 ||
+		len(harness.persistence.decisions) != 0 {
+		t.Fatalf("cancel/retry race = run:%s stages:%d decisions:%+v",
+			harness.store.run.State, len(harness.store.stages), harness.persistence.decisions)
+	}
+}
+
+func TestSchedulerEscalatesNonRetryableFailureWithPinnedConfigurationAfterRestart(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	stage := harness.workflow.Stages[harness.workflow.EntryStage]
+	stage.Session = contracts.WorkerSessionShared
+	harness.workflow.Stages[harness.workflow.EntryStage] = stage
+	strongPolicy := configureEscalationWorkflow(t, harness, "failed", 1)
+	harness.planners.results = []stageresult.StageContentResult{
+		failedStageResult("permanent", false),
+		harness.planners.result,
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("first RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.store.run.State != runstore.RunRunning || len(harness.store.stages) != 2 ||
+		len(harness.persistence.decisions) != 1 {
+		t.Fatalf("escalation commit = run:%s stages:%+v decisions:%+v",
+			harness.store.run.State, harness.store.stages, harness.persistence.decisions)
+	}
+	base, escalated := harness.store.stages[0], harness.store.stages[1]
+	if base.State != runstore.StageFailed ||
+		escalated.ExecutionConfigVariant != runstore.StageExecutionConfigFailedEscalation ||
+		escalated.EscalationOrdinal == nil || *escalated.EscalationOrdinal != 1 ||
+		escalated.PreviousExecutionID == nil || *escalated.PreviousExecutionID != base.StageExecutionID {
+		t.Fatalf("escalated StageExecution identity = base:%+v escalated:%+v", base, escalated)
+	}
+	decision := harness.persistence.decisions[0]
+	if decision.Action != runstore.StageTransitionEscalate || decision.EscalationOrdinal == nil ||
+		*decision.EscalationOrdinal != 1 || decision.EscalationExhausted {
+		t.Fatalf("escalation decision = %+v", decision)
+	}
+
+	restarted, err := New(
+		harness.store, harness.persistence, harness.artifacts, harness.allocator,
+		harness.workers, harness.planners, harness.scheduler.options,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worked, err = restarted.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("restarted RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.store.run.State != runstore.RunSucceeded || len(harness.store.stages) != 2 ||
+		len(harness.persistence.decisions) != 2 {
+		t.Fatalf("recovered escalation = run:%s stages:%+v decisions:%+v",
+			harness.store.run.State, harness.store.stages, harness.persistence.decisions)
+	}
+	if len(harness.workers.preparedSettings) != 2 ||
+		harness.workers.preparedSettings[0]["builder"].ModelPolicy.Ref == strongPolicy.Ref ||
+		harness.workers.preparedSettings[1]["builder"].ModelPolicy.Ref != strongPolicy.Ref {
+		t.Fatalf("effective Worker policies = %+v", harness.workers.preparedSettings)
+	}
+	if len(harness.workers.preparedReservations) != 2 {
+		t.Fatalf("escalation prepared batches = %d, want 2", len(harness.workers.preparedReservations))
+	}
+	for index, batch := range harness.workers.preparedReservations {
+		if len(batch) != 1 || batch[0].WorkerSessionMode != contracts.WorkerSessionShared {
+			t.Fatalf("escalation allocation[%d] session mode = %+v, want shared", index, batch)
+		}
+	}
+}
+
+func TestSchedulerEscalationExhaustionAppliesThenExactlyOnce(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	configureEscalationWorkflow(t, harness, "failed", 1)
+	harness.planners.results = []stageresult.StageContentResult{
+		failedStageResult("permanent_one", false),
+		failedStageResult("permanent_two", false),
+	}
+
+	for iteration := 0; iteration < 2; iteration++ {
+		worked, err := harness.scheduler.RunOnce(context.Background())
+		if err != nil || !worked {
+			t.Fatalf("RunOnce %d = (%v, %v)", iteration+1, worked, err)
+		}
+	}
+	if harness.store.run.State != runstore.RunFailed || len(harness.store.stages) != 2 ||
+		len(harness.persistence.decisions) != 2 {
+		t.Fatalf("exhausted escalation = run:%s stages:%+v decisions:%+v",
+			harness.store.run.State, harness.store.stages, harness.persistence.decisions)
+	}
+	first, exhausted := harness.persistence.decisions[0], harness.persistence.decisions[1]
+	if first.Action != runstore.StageTransitionEscalate ||
+		exhausted.Action != runstore.StageTransitionFail || !exhausted.EscalationExhausted ||
+		exhausted.EscalationOrdinal == nil || *exhausted.EscalationOrdinal != 1 ||
+		exhausted.TargetExecutionID != nil {
+		t.Fatalf("bounded escalation decisions = first:%+v exhausted:%+v", first, exhausted)
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || worked || len(harness.store.stages) != 2 || len(harness.persistence.decisions) != 2 {
+		t.Fatalf("terminal re-run = (%v, %v), stages:%d decisions:%d",
+			worked, err, len(harness.store.stages), len(harness.persistence.decisions))
+	}
+}
+
+func TestSchedulerEscalatesNonRetryableInterruption(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	configureEscalationWorkflow(t, harness, "interrupted", 1)
+	harness.planners.runErrors = []error{
+		planner.NewError("planner_rejected", "Planner cannot continue", false, nil),
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.store.run.State != runstore.RunRunning || len(harness.store.stages) != 2 ||
+		harness.store.stages[0].State != runstore.StageInterrupted ||
+		harness.store.stages[1].ExecutionConfigVariant != runstore.StageExecutionConfigInterruptedEscalation ||
+		harness.store.stages[1].EscalationOrdinal == nil || *harness.store.stages[1].EscalationOrdinal != 1 ||
+		len(harness.persistence.decisions) != 1 ||
+		harness.persistence.decisions[0].Action != runstore.StageTransitionEscalate {
+		t.Fatalf("interrupted escalation = run:%s stages:%+v decisions:%+v",
+			harness.store.run.State, harness.store.stages, harness.persistence.decisions)
+	}
+}
+
+func TestSchedulerCancellationWinsOverEscalation(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	configureEscalationWorkflow(t, harness, "failed", 1)
+	harness.planners.result = failedStageResult("would_escalate", false)
+	harness.planners.onRun = func() {
+		harness.persistence.stageStates = append(harness.persistence.stageStates, runstore.StageRunning)
+		harness.requestCancellation("cancel before escalation decision")
+		harness.scheduler.Cancel(harness.store.run.RunID)
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	if harness.store.run.State != runstore.RunCancelled || len(harness.store.stages) != 1 ||
+		len(harness.persistence.decisions) != 0 {
+		t.Fatalf("cancel/escalation race = run:%s stages:%+v decisions:%+v",
+			harness.store.run.State, harness.store.stages, harness.persistence.decisions)
+	}
+}
+
+func TestSchedulerExecutesMultiStageWorkflowSerially(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	configureMultiStageWorkflow(t, harness)
+	harness.artifacts.current["run-1/builder/copied"] = "result-r1"
+
+	for iteration := 0; iteration < 2; iteration++ {
+		worked, err := harness.scheduler.RunOnce(context.Background())
+		if err != nil || !worked {
+			t.Fatalf("RunOnce %d = (%v, %v)", iteration+1, worked, err)
+		}
+	}
+	if harness.store.run.State != runstore.RunSucceeded || len(harness.store.stages) != 2 ||
+		harness.store.stages[0].StageName != "build" || harness.store.stages[1].StageName != "review" ||
+		harness.store.stages[0].State != runstore.StageSucceeded ||
+		harness.store.stages[1].State != runstore.StageSucceeded {
+		t.Fatalf("multi-Stage lifecycle = run:%s stages:%+v", harness.store.run.State, harness.store.stages)
+	}
+	draft := harness.store.stages[1].StageContext.Artifacts["draft"].Artifact
+	if draft == nil || draft.Revision == nil || draft.Namespace != "builder" || *draft.Revision != "result-r1" {
+		t.Fatalf("later Stage context = %+v", draft)
+	}
+	if got := []runstore.StageTransitionAction{
+		harness.persistence.decisions[0].Action,
+		harness.persistence.decisions[1].Action,
+	}; !reflect.DeepEqual(got, []runstore.StageTransitionAction{
+		runstore.StageTransitionNext, runstore.StageTransitionSucceed,
+	}) {
+		t.Fatalf("multi-Stage decisions = %v", got)
+	}
+}
+
+// pauseAfterClaim pauses the owner's Queue once, after the next claim and
+// before the lane's own Queue gates run (SCH-R163 skips a pending Run of a
+// paused owner at the claim, so only this window reaches them).
+func (h *schedulerHarness) pauseAfterClaim() {
+	h.store.afterClaim = func() {
+		h.persistence.queuePaused = true
+		h.store.afterClaim = nil
+	}
+}
+
+// The memory claim answers as the PostgreSQL claim does
+// (TestPostgresClaimSkipsPendingRunsOfPausedOwners): a pending Run of a
+// paused owner is no work unless one of its active Stages is aborting or
+// holds an unreleased allocation (SCH-R163).
+func TestMemoryClaimSkipsPendingRunsOfPausedOwners(t *testing.T) {
+	released := time.Unix(1, 0)
+	for _, test := range []struct {
+		name    string
+		state   runstore.WorkflowRunState
+		paused  bool
+		stage   runstore.StageExecutionState
+		release *time.Time
+		// allocated records an allocation of the Stage, released at release.
+		allocated bool
+		claimed   bool
+	}{
+		{name: "pending without a Stage", state: runstore.RunPending, paused: true},
+		{name: "pending with a preparing Stage", state: runstore.RunPending, paused: true, stage: runstore.StagePreparing},
+		{
+			name: "pending with a released allocation", state: runstore.RunPending, paused: true,
+			stage: runstore.StagePreparing, allocated: true, release: &released,
+		},
+		{
+			name: "pending with an unreleased allocation", state: runstore.RunPending, paused: true,
+			stage: runstore.StagePreparing, allocated: true, claimed: true,
+		},
+		{name: "pending with an aborting Stage", state: runstore.RunPending, paused: true, stage: runstore.StageAborting, claimed: true},
+		{name: "running", state: runstore.RunRunning, paused: true, stage: runstore.StageRunning, claimed: true},
+		{name: "pending of a running Queue", state: runstore.RunPending, stage: runstore.StagePreparing, claimed: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			harness := newSchedulerHarness(t)
+			harness.store.run.State = test.state
+			harness.persistence.queuePaused = test.paused
+			if test.stage != "" {
+				execution := harness.persistedExecution(t, test.stage)
+				harness.store.stages = []runstore.StageExecution{execution}
+				if test.allocated {
+					harness.store.allocations = []runstore.StageAllocation{{
+						AllocationID: "allocation-1", StageExecutionID: execution.StageExecutionID,
+						ReleaseCompletedAt: test.release,
+					}}
+				}
+			}
+			run, err := harness.store.ClaimRunnableRun(
+				context.Background(), "claim-1", time.Minute, nil, harness.store.run.SchedulerLaneClass,
+			)
+			if test.claimed && (err != nil || run.RunID != harness.store.run.RunID) {
+				t.Fatalf("claim = (%s, %v), want the Run", run.RunID, err)
+			}
+			if !test.claimed && !errors.Is(err, runstore.ErrNoWork) {
+				t.Fatalf("claim = (%s, %v), want no work", run.RunID, err)
+			}
+		})
+	}
+}
+
+// A pending Run's first Stage is created under the owner's Queue gate: a
+// pause that commits after the claim defers the Run without a Stage.
+func TestSchedulerOwnerQueuePauseDefersInitialAdmissionUntilResume(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.store.run.State = runstore.RunPending
+	harness.pauseAfterClaim()
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if !worked || !errors.Is(err, ErrDeferred) {
+		t.Fatalf("paused RunOnce = (%v, %v), want deferred", worked, err)
+	}
+	if len(harness.store.stages) != 0 || harness.allocator.reserveCalls != 0 ||
+		harness.planners.createCalls != 0 || harness.store.run.State != runstore.RunPending {
+		t.Fatalf("paused admission created work: run=%s stages=%d reserves=%d planners=%d",
+			harness.store.run.State, len(harness.store.stages), harness.allocator.reserveCalls,
+			harness.planners.createCalls)
+	}
+
+	harness.persistence.queuePaused = false
+	worked, err = harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked || harness.store.run.State != runstore.RunSucceeded ||
+		len(harness.store.stages) != 1 {
+		t.Fatalf("resumed RunOnce = (%v, %v), run=%s stages=%d",
+			worked, err, harness.store.run.State, len(harness.store.stages))
+	}
+}
+
+func TestSchedulerOwnerQueuePauseDrainsCurrentStageWithoutAdmittingNext(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	configureMultiStageWorkflow(t, harness)
+	harness.artifacts.current["run-1/builder/copied"] = "result-r1"
+	originalOnRun := harness.planners.onRun
+	harness.planners.onRun = func() {
+		originalOnRun()
+		harness.persistence.queuePaused = true
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if !worked || !errors.Is(err, ErrDeferred) {
+		t.Fatalf("pause while Stage runs = (%v, %v), want deferred", worked, err)
+	}
+	if len(harness.store.stages) != 1 || harness.store.stages[0].State != runstore.StageFinalizing ||
+		harness.workers.finalizeCalls != 1 || harness.workers.releaseCalls != 1 ||
+		len(harness.store.allocations) != 1 || harness.store.allocations[0].ReleaseCompletedAt == nil ||
+		len(harness.persistence.decisions) != 0 {
+		t.Fatalf("paused drain = stages:%+v finalize:%d release:%d allocations:%+v decisions:%+v",
+			harness.store.stages, harness.workers.finalizeCalls, harness.workers.releaseCalls,
+			harness.store.allocations, harness.persistence.decisions)
+	}
+
+	harness.persistence.queuePaused = false
+	harness.planners.onRun = originalOnRun
+	worked, err = harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked || len(harness.store.stages) != 2 ||
+		harness.store.stages[0].State != runstore.StageSucceeded ||
+		harness.store.stages[1].State != runstore.StagePreparing {
+		t.Fatalf("resumed next admission = (%v, %v), stages:%+v", worked, err, harness.store.stages)
+	}
+}
+
+// A pending Run's Stage can exist before its owner pauses (capacity deferral
+// or manual continuation). Placement must not pin Runtime slots for the
+// whole pause only for AdmitStage to reject it afterwards.
+func TestSchedulerOwnerQueuePauseDoesNotPlacePendingStage(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.store.run.State = runstore.RunPending
+	harness.store.stages = []runstore.StageExecution{harness.persistedExecution(t, runstore.StagePreparing)}
+	harness.pauseAfterClaim()
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if !worked || !errors.Is(err, ErrDeferred) {
+		t.Fatalf("paused pending RunOnce = (%v, %v), want deferred", worked, err)
+	}
+	if harness.store.queueProbes != 1 || harness.allocator.reserveCalls != 0 ||
+		len(harness.allocator.grants) != 0 || len(harness.store.allocations) != 0 ||
+		harness.store.stages[0].AdmittedAt != nil || harness.store.run.State != runstore.RunPending {
+		t.Fatalf("paused placement = probes:%d reserves:%d grants:%d allocations:%d admitted:%v run:%s",
+			harness.store.queueProbes, harness.allocator.reserveCalls, len(harness.allocator.grants),
+			len(harness.store.allocations), harness.store.stages[0].AdmittedAt, harness.store.run.State)
+	}
+
+	harness.persistence.queuePaused = false
+	worked, err = harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked || harness.store.run.State != runstore.RunSucceeded ||
+		harness.allocator.reserveCalls != 1 {
+		t.Fatalf("resumed pending RunOnce = (%v, %v), run=%s reserves=%d",
+			worked, err, harness.store.run.State, harness.allocator.reserveCalls)
+	}
+}
+
+func TestSchedulerOwnerQueuePauseDoesNotBlockCancellation(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.persistence.queuePaused = true
+	harness.requestCancellation("cancel while Queue is paused")
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked || harness.store.run.State != runstore.RunCancelled ||
+		len(harness.store.stages) != 0 {
+		t.Fatalf("paused cancellation = (%v, %v), run=%s stages=%d",
+			worked, err, harness.store.run.State, len(harness.store.stages))
+	}
+}
+
+func TestSchedulerRecoversPendingRunSkillInitializationBeforeStageCreation(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.store.run.State = runstore.RunInitializing
+	harness.store.run.StateReason = runstore.Reason{Code: runstore.SkillInitializationPendingReason}
+	initializer := &memoryRunSkillInitializer{store: harness.store, transientFailures: 1}
+	harness.scheduler.options.RunSkills = initializer
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if !worked || err == nil || len(harness.store.stages) != 0 ||
+		harness.store.run.State != runstore.RunInitializing {
+		t.Fatalf("transient initialization = worked %t, error %v, run %s, stages %d", worked, err, harness.store.run.State, len(harness.store.stages))
+	}
+	worked, err = harness.scheduler.RunOnce(context.Background())
+	if !worked || err != nil || initializer.calls != 2 ||
+		harness.store.run.State != runstore.RunSucceeded || len(harness.store.stages) != 1 {
+		t.Fatalf("recovered initialization = worked %t, error %v, calls %d, run %s, stages %d", worked, err, initializer.calls, harness.store.run.State, len(harness.store.stages))
+	}
+}
+
+func configureRetryWorkflow(t *testing.T, harness *schedulerHarness, maxAttempts int) {
+	t.Helper()
+	stage := harness.workflow.Stages[harness.workflow.EntryStage]
+	retry := resolved.TransitionAction{
+		Kind: resolved.TransitionRetry,
+		Retry: &resolved.RetryTransition{
+			MaxAttempts: maxAttempts,
+			Then:        resolved.TransitionAction{Kind: resolved.TransitionFail},
+		},
+	}
+	stage.On.Failed = retry
+	stage.On.Interrupted = retry
+	harness.workflow.Stages[harness.workflow.EntryStage] = stage
+	installHarnessWorkflow(t, harness)
+}
+
+func configureEscalationWorkflow(
+	t *testing.T,
+	harness *schedulerHarness,
+	outcome string,
+	maxAttempts int,
+) contracts.ResolvedModelPolicy {
+	t.Helper()
+	snapshot, _, err := configload.LoadUnionReadOnly(configtest.CopyWithPolicies(t, "../../testdata/configs"), filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	strongPolicy, err := snapshot.ModelPolicy("test-strong-worker@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stageName := harness.workflow.EntryStage
+	stage := harness.workflow.Stages[stageName]
+	effective := stage.ExecutionConfig
+	effective.Agents = make(map[string]resolved.ResolvedConsumerExecutionConfig, len(stage.ExecutionConfig.Agents))
+	for logicalName, selection := range stage.ExecutionConfig.Agents {
+		effective.Agents[logicalName] = selection
+	}
+	selection := effective.Agents["builder"]
+	selection.ModelPolicy = strongPolicy
+	selection.Origins.ModelPolicy = fmt.Sprintf(
+		"workflow.stages.%s.on.%s.escalate.executionConfig.agents.builder", stageName, outcome,
+	)
+	effective.Agents["builder"] = selection
+	policyOverride := strongPolicy
+	escalate := resolved.TransitionAction{
+		Kind: resolved.TransitionEscalate,
+		Escalate: &resolved.EscalateTransition{
+			MaxAttempts: maxAttempts,
+			ExecutionConfig: resolved.ResolvedEscalationExecutionConfig{
+				Override: resolved.ResolvedStageExecutionConfigOverride{
+					Agents: map[string]resolved.ResolvedExecutionSelectionOverride{
+						"builder": {ModelPolicy: &policyOverride},
+					},
+				},
+				Effective: effective,
+			},
+			Then: resolved.TransitionAction{Kind: resolved.TransitionFail},
+		},
+	}
+	switch outcome {
+	case "failed":
+		stage.On.Failed = escalate
+	case "interrupted":
+		stage.On.Interrupted = escalate
+	default:
+		t.Fatalf("unknown escalation outcome %q", outcome)
+	}
+	harness.workflow.Stages[stageName] = stage
+	installHarnessWorkflow(t, harness)
+	return strongPolicy
+}
+
+func failedStageResult(code string, retryable bool) stageresult.StageContentResult {
+	return stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion,
+		Outcome:    stageresult.StageFailed,
+		Summary:    "Stage failed",
+		Artifacts:  map[string]contracts.ArtifactRef{},
+		Error: &contracts.TerminationError{
+			Code: code, Message: "Stage could not produce a result", Retryable: retryable,
+		},
+	}
+}
+
+func configureMultiStageWorkflow(t *testing.T, harness *schedulerHarness) {
+	t.Helper()
+	encodedStage, err := json.Marshal(harness.workflow.Stages[harness.workflow.EntryStage])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var build resolved.ResolvedStage
+	var review resolved.ResolvedStage
+	if err := json.Unmarshal(encodedStage, &build); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(encodedStage, &review); err != nil {
+		t.Fatal(err)
+	}
+	build.WorkflowOutputs = map[string]string{}
+	build.On.Succeeded = resolved.TransitionAction{Kind: resolved.TransitionNext, NextStage: "review"}
+	review.Context.Artifacts = map[string]resolved.ContextArtifact{
+		"draft": {Namespace: "builder", Name: "copied", Required: true},
+	}
+	harness.workflow.EntryStage = "build"
+	harness.workflow.Stages = map[string]resolved.ResolvedStage{"build": build, "review": review}
+	installHarnessWorkflow(t, harness)
+}
+
+func installHarnessWorkflow(t *testing.T, harness *schedulerHarness) {
+	t.Helper()
+	if err := resolved.ValidateWorkflowGraph(harness.workflow); err != nil {
+		t.Fatalf("test Workflow graph: %v", err)
+	}
+	encoded, err := json.Marshal(harness.workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.store.run.WorkflowSnapshot = encoded
+	harness.store.run.SchedulerLaneClass = resolved.EntryLaneClass(harness.workflow)
+	harness.allocator.workflow = harness.workflow
+}
+
+type schedulerHarness struct {
+	t           *testing.T
+	workflow    resolved.ResolvedWorkflow
+	clock       staticClock
+	events      *eventRecorder
+	store       *memorySchedulerStore
+	persistence *memoryAtomicPersistence
+	artifacts   *memoryArtifactResolver
+	allocator   *memoryAllocator
+	workers     *memoryWorkers
+	planners    *memoryPlannerRegistry
+	scheduler   *Scheduler
+}
+
+func newSchedulerHarness(t *testing.T) *schedulerHarness {
+	t.Helper()
+	snapshot, _, err := configload.LoadUnionReadOnly(configtest.CopyWithPolicies(t, "../../testdata/configs"), filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, _ := json.Marshal(workflow)
+	clock := staticClock{now: time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)}
+	events := &eventRecorder{}
+	store := &memorySchedulerStore{run: runstore.WorkflowRun{
+		RunID: "run-1", OwnerID: "user-1", WorkflowName: workflow.Ref.Name,
+		WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
+		WorkflowSnapshot: encoded, Parameters: map[string]string{"objective": "copy exactly"},
+		State: runstore.RunRunning, SchedulerLaneClass: resolved.EntryLaneClass(workflow),
+	}, events: events}
+	resolver := &memoryArtifactResolver{
+		current: map[string]string{"run-1/inputs/source": "input-r1"},
+		values: map[string]ResolvedArtifact{
+			"run-1/inputs/source/input-r1": {
+				Ref: exactRef("inputs", "source", "input-r1"), MediaType: "text/plain",
+			},
+			"run-1/builder/copied/result-r1": {
+				Ref: exactRef("builder", "copied", "result-r1"), MediaType: "text/plain",
+			},
+		},
+	}
+	allocator := &memoryAllocator{
+		workflow: workflow, clock: clock, events: events, grants: map[string]controlplane.AllocationGrant{},
+		pin: pinStageAllocations(store),
+	}
+	workers := &memoryWorkers{allocator: allocator, workflow: workflow, clock: clock, events: events}
+	result := stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "copied",
+		Artifacts: map[string]contracts.ArtifactRef{"copied": exactRef("builder", "copied", "result-r1")},
+	}
+	planners := &memoryPlannerRegistry{store: store, result: result, events: events}
+	persistence := &memoryAtomicPersistence{
+		store: store, artifacts: resolver, allocator: allocator, events: events, outputs: map[string]contracts.ArtifactRef{},
+	}
+	store.queuePaused = &persistence.queuePaused
+	planners.onRun = func() {
+		persistence.stageStates = append(persistence.stageStates, runstore.StageRunning)
+	}
+	idSequence := 0
+	scheduler, err := New(store, persistence, resolver, allocator, workers, planners, Options{
+		PlannerSessions: uncompletedSessions{},
+		PollInterval:    time.Second, LeaseScanInterval: time.Second, ClaimDuration: time.Hour, OperationTimeout: time.Second,
+		PlannerTimeout: 30 * time.Second, FinalizationTimeout: 10 * time.Second, AbortTimeout: 10 * time.Second,
+		RuntimeTransport: RuntimeTransportSettings{
+			ArtifactAPIURL: "https://control.test/private/v1", RequestTimeoutSeconds: 5,
+		},
+		Credentials: credentialResolverFunc(func(
+			_ context.Context,
+			credential llmgateway.LLMCredentialRef,
+			_ llmgateway.LLMGatewayConfigRef,
+		) (contracts.SecretString, error) {
+			if credential.CredentialID != "development-worker" &&
+				credential.CredentialID != "development-planner" {
+				return contracts.SecretString{}, errors.New("unknown test LLM credential")
+			}
+			return contracts.NewSecretString("test-token"), nil
+		}),
+		Clock: clock,
+		Settings: staticSchedulerSettings{value: settingsstore.SchedulerSettings{
+			MaxConcurrentRuns: 1, Revision: 1, UpdatedAt: clock.now,
+		}},
+		Reports: store,
+		NewID: func(prefix string) (string, error) {
+			idSequence++
+			return fmt.Sprintf("%s%d", prefix, idSequence), nil
+		},
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &schedulerHarness{
+		t: t, workflow: workflow, clock: clock, events: events, store: store,
+		persistence: persistence, artifacts: resolver, allocator: allocator,
+		workers: workers, planners: planners, scheduler: scheduler,
+	}
+}
+
+func (h *schedulerHarness) persistedExecution(
+	t *testing.T,
+	state runstore.StageExecutionState,
+) runstore.StageExecution {
+	t.Helper()
+	stage := h.workflow.Stages[h.workflow.EntryStage]
+	encodedStage, _ := json.Marshal(stage)
+	input := exactRef("inputs", "source", "input-r1")
+	execution := runstore.StageExecution{
+		StageExecutionID: "stage-recovery", RunID: h.store.run.RunID,
+		StageName: h.workflow.EntryStage, Attempt: 1,
+		ExecutionConfigVariant: runstore.StageExecutionConfigBase,
+		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: encodedStage,
+		StageContextSchemaVersion: contracts.APIVersion,
+		StageContext: runstore.StageContextSnapshot{
+			Parameters: clone.Map(h.store.run.Parameters),
+			Artifacts: map[string]runstore.PinnedContextArtifact{
+				"source": {Required: true, Artifact: &input},
+			},
+		},
+		State: state, CreatedAt: h.clock.now,
+	}
+	if state != runstore.StagePreparing {
+		sessionID, invocationID := "session-recovery", "invocation-recovery"
+		execution.PlannerSessionID = &sessionID
+		execution.PlannerInvocationID = &invocationID
+		started := h.clock.now.Add(-time.Second)
+		execution.PlannerStartedAt = &started
+	}
+	return execution
+}
+
+func (h *schedulerHarness) installRecordedReservation(stageExecutionID string) {
+	reservation, err := h.allocator.reservation(stageExecutionID)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	h.allocator.cached = []controlplane.Reservation{reservation}
+	h.allocator.grants[reservation.Grant.AllocationID] = reservation.Grant
+	if h.allocator.fenced == nil {
+		h.allocator.fenced = make(map[string]bool)
+	}
+	h.allocator.fenced[reservation.Grant.AllocationID] = true
+	h.store.allocations = []runstore.StageAllocation{stageAllocationFromReservation(reservation)}
+}
+
+func (h *schedulerHarness) requestCancellation(reason string) {
+	requestedBy := "user-1"
+	h.store.run.State = runstore.RunCancelling
+	h.store.run.StateReason = runstore.Reason{Code: runstore.CancellationUserRequested}
+	h.store.run.Cancellation = &runstore.WorkflowRunCancellation{
+		Code: runstore.CancellationUserRequested, RequestedAt: h.clock.now,
+		RequestedBy: &requestedBy, Reason: &reason,
+	}
+	version := contracts.APIVersion
+	h.store.run.CancellationSchemaVersion = &version
+}
+
+type eventRecorder struct{ values []string }
+
+func (r *eventRecorder) add(value string) { r.values = append(r.values, value) }
+
+type staticClock struct{ now time.Time }
+
+func (c staticClock) Now() time.Time { return c.now }
+func (staticClock) After(time.Duration) <-chan time.Time {
+	return make(chan time.Time)
+}
+
+type staticSchedulerSettings struct {
+	value settingsstore.SchedulerSettings
+	err   error
+}
+
+func (s staticSchedulerSettings) GetSchedulerSettings(context.Context) (settingsstore.SchedulerSettings, error) {
+	return s.value, s.err
+}
+
+type memorySchedulerStore struct {
+	run            runstore.WorkflowRun
+	stages         []runstore.StageExecution
+	allocations    []runstore.StageAllocation
+	reports        []telemetry.AllocationReportEnvelope
+	plannerReports []telemetry.PlannerReportEnvelope
+	reportError    error
+	claimID        string
+	claimCalls     int
+	// claimedClasses lists the lane class of each successful claim and
+	// deferrals counts deferred releases.
+	claimedClasses []resolved.LaneClass
+	deferrals      int
+	// activeStageReads counts the active Stage reads and stageListReads the
+	// Stage history reads (existence probe and lineage), so a test can prove
+	// a progression attempt reads one Stage, not the history.
+	activeStageReads int
+	stageListReads   int
+	events           *eventRecorder
+	// queuePaused aliases the owner Queue gate enforced by memory persistence.
+	queuePaused *bool
+	queueProbes int
+	// afterClaim runs after a successful claim, as a write that commits
+	// between the claim and the lane's work (an owner pausing its Queue).
+	afterClaim func()
+}
+
+type memoryRunSkillInitializer struct {
+	store             *memorySchedulerStore
+	calls             int
+	transientFailures int
+}
+
+func (i *memoryRunSkillInitializer) InitializeRunSkills(
+	_ context.Context,
+	runID string,
+) (runstore.WorkflowRun, error) {
+	i.calls++
+	if runID != i.store.run.RunID {
+		return runstore.WorkflowRun{}, runstore.ErrNotFound
+	}
+	if i.transientFailures > 0 {
+		i.transientFailures--
+		return i.store.run, errors.New("transient Skill fork failure")
+	}
+	// Initialization commits pending, as the production initializer does.
+	return i.store.TransitionRun(
+		context.Background(), runID, runstore.RunInitializing, runstore.RunPending,
+		runstore.Reason{Code: "initialized"},
+	)
+}
+
+// ClaimRunnableRun claims the Run only for a lane of its stored class, which
+// the memory persistence keeps as the PostgreSQL statements do.
+func (s *memorySchedulerStore) ClaimRunnableRun(
+	_ context.Context, claimID string, duration time.Duration, excludedRunIDs []string,
+	laneClass resolved.LaneClass,
+) (runstore.WorkflowRun, error) {
+	if !laneClass.Valid() {
+		return runstore.WorkflowRun{}, runstore.ErrInvalid
+	}
+	s.claimCalls++
+	pendingSkills := s.run.State == runstore.RunInitializing &&
+		s.run.StateReason.Code == runstore.SkillInitializationPendingReason
+	if s.run.State != runstore.RunRunning && s.run.State != runstore.RunPending && s.run.State != runstore.RunWaiting && s.run.State != runstore.RunCancelling && !pendingSkills ||
+		s.run.SchedulerLaneClass != laneClass ||
+		s.claimID != "" || duration <= 0 || slices.Contains(excludedRunIDs, s.run.RunID) ||
+		s.pausedOwnerSkips() {
+		return runstore.WorkflowRun{}, runstore.ErrNoWork
+	}
+	s.claimID = claimID
+	s.claimedClasses = append(s.claimedClasses, laneClass)
+	claimed := s.run
+	if hook := s.afterClaim; hook != nil {
+		hook()
+	}
+	return claimed, nil
+}
+
+// pausedOwnerSkips applies SCH-R163 as the PostgreSQL claim does: a pending
+// Run of a paused owner is not claimed unless one of its active Stages is
+// aborting or holds an allocation whose release has not completed.
+func (s *memorySchedulerStore) pausedOwnerSkips() bool {
+	if s.run.State != runstore.RunPending || s.queuePaused == nil || !*s.queuePaused {
+		return false
+	}
+	for _, execution := range s.stages {
+		if execution.RunID != s.run.RunID || execution.State.Terminal() {
+			continue
+		}
+		if execution.State == runstore.StageAborting {
+			return false
+		}
+		for _, allocation := range s.allocations {
+			if allocation.StageExecutionID == execution.StageExecutionID && allocation.ReleaseCompletedAt == nil {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// RenewRunClaim answers as the store does: the claimed Run's state, or a
+// conflict once the claim is gone (a terminal transition clears it).
+func (s *memorySchedulerStore) RenewRunClaim(
+	_ context.Context, runID, claimID string, _ time.Duration,
+) (runstore.WorkflowRunState, error) {
+	if runID != s.run.RunID || claimID != s.claimID {
+		return "", runstore.ErrConflict
+	}
+	return s.run.State, nil
+}
+
+func (s *memorySchedulerStore) ReleaseRunClaim(_ context.Context, runID, claimID string) error {
+	if runID != s.run.RunID || claimID != s.claimID {
+		return runstore.ErrConflict
+	}
+	s.claimID = ""
+	return nil
+}
+
+func (s *memorySchedulerStore) DeferRunClaim(ctx context.Context, runID, claimID string) error {
+	if err := s.ReleaseRunClaim(ctx, runID, claimID); err != nil {
+		return err
+	}
+	s.deferrals++
+	return nil
+}
+
+func (s *memorySchedulerStore) GetRun(_ context.Context, runID string) (runstore.WorkflowRun, error) {
+	if runID != s.run.RunID {
+		return runstore.WorkflowRun{}, runstore.ErrNotFound
+	}
+	return s.run, nil
+}
+
+func (s *memorySchedulerStore) GetRunState(_ context.Context, runID string) (runstore.WorkflowRunState, error) {
+	if runID != s.run.RunID {
+		return "", runstore.ErrNotFound
+	}
+	return s.run.State, nil
+}
+
+func (s *memorySchedulerStore) GetOwnerQueueControl(_ context.Context, ownerID string) (runstore.OwnerQueueControl, error) {
+	s.queueProbes++
+	return runstore.OwnerQueueControl{OwnerID: ownerID, Paused: s.queuePaused != nil && *s.queuePaused}, nil
+}
+
+func (s *memorySchedulerStore) TransitionRun(
+	_ context.Context,
+	runID string,
+	expected runstore.WorkflowRunState,
+	next runstore.WorkflowRunState,
+	reason runstore.Reason,
+) (runstore.WorkflowRun, error) {
+	if err := runstore.ValidateRunTransition(expected, next); err != nil {
+		return runstore.WorkflowRun{}, err
+	}
+	if runID != s.run.RunID || s.run.State != expected {
+		return runstore.WorkflowRun{}, runstore.ErrConflict
+	}
+	s.run.State, s.run.StateReason = next, reason
+	if next == runstore.RunSucceeded || next == runstore.RunFailed || next == runstore.RunCancelled {
+		s.claimID = ""
+	}
+	return s.run, nil
+}
+
+// GetActiveStageExecution answers as the PostgreSQL store does: the one
+// active StageExecution, ErrNotFound for none and ErrMultipleActiveStages
+// for more.
+func (s *memorySchedulerStore) GetActiveStageExecution(
+	_ context.Context, runID string,
+) (runstore.StageExecution, error) {
+	s.activeStageReads++
+	if runID != s.run.RunID {
+		return runstore.StageExecution{}, runstore.ErrNotFound
+	}
+	var active []runstore.StageExecution
+	for _, execution := range s.stages {
+		switch execution.State {
+		case runstore.StagePreparing, runstore.StageRunning, runstore.StageFinalizing, runstore.StageAborting:
+			active = append(active, execution)
+		}
+	}
+	switch len(active) {
+	case 0:
+		return runstore.StageExecution{}, runstore.ErrNotFound
+	case 1:
+		return active[0], nil
+	default:
+		return runstore.StageExecution{}, runstore.ErrMultipleActiveStages
+	}
+}
+
+// HasStageExecutions answers as the PostgreSQL probe does. The double holds
+// the stages of one Run: another Run's history is a failed read.
+func (s *memorySchedulerStore) HasStageExecutions(_ context.Context, runID string) (bool, error) {
+	s.stageListReads++
+	if runID != s.run.RunID {
+		return false, runstore.ErrNotFound
+	}
+	return len(s.stages) > 0, nil
+}
+
+// ListStageLineage selects, like the PostgreSQL statement, the lineage of the
+// Run's attempts of one Stage in attempt order. The double holds the stages
+// of one Run: another Run's history is a failed read.
+func (s *memorySchedulerStore) ListStageLineage(
+	_ context.Context, runID, stageName string,
+) ([]runstore.StageLineage, error) {
+	s.stageListReads++
+	if runID != s.run.RunID {
+		return nil, runstore.ErrNotFound
+	}
+	var result []runstore.StageLineage
+	for _, execution := range s.stages {
+		if execution.StageName != stageName {
+			continue
+		}
+		result = append(result, runstore.StageLineage{
+			StageExecutionID: execution.StageExecutionID, RunID: execution.RunID,
+			StageName: execution.StageName, Attempt: execution.Attempt, State: execution.State,
+			ExecutionConfigVariant:  execution.ExecutionConfigVariant,
+			EscalationOrdinal:       execution.EscalationOrdinal,
+			PreviousExecutionID:     execution.PreviousExecutionID,
+			ResumeSourceExecutionID: execution.ResumeSourceExecutionID,
+		})
+	}
+	slices.SortFunc(result, func(left, right runstore.StageLineage) int { return left.Attempt - right.Attempt })
+	return result, nil
+}
+
+// ListStageExecutionsWithUnreleasedAllocations selects, like the PostgreSQL
+// statement, the Run's executions with an allocation whose release has not
+// completed, in creation order; the double holds the stages of one Run.
+func (s *memorySchedulerStore) ListStageExecutionsWithUnreleasedAllocations(
+	_ context.Context, runID string,
+) ([]runstore.StageExecution, error) {
+	result := make([]runstore.StageExecution, 0)
+	if runID != s.run.RunID {
+		return result, nil
+	}
+	for _, execution := range s.stages {
+		for _, allocation := range s.allocations {
+			if allocation.StageExecutionID == execution.StageExecutionID &&
+				allocation.ReleaseCompletedAt == nil {
+				result = append(result, execution)
+				break
+			}
+		}
+	}
+	return result, nil
+}
+
+func (s *memorySchedulerStore) ListTerminalStageExecutionsWithAllocations(
+	_ context.Context, excluded []string,
+) ([]runstore.StageExecution, error) {
+	result := make([]runstore.StageExecution, 0)
+	for _, execution := range s.stages {
+		if slices.Contains(excluded, execution.StageExecutionID) {
+			continue
+		}
+		if execution.State != runstore.StageSucceeded && execution.State != runstore.StageFailed &&
+			execution.State != runstore.StageInterrupted && execution.State != runstore.StageCancelled {
+			continue
+		}
+		for _, allocation := range s.allocations {
+			if allocation.StageExecutionID == execution.StageExecutionID &&
+				allocation.ReleaseCompletedAt == nil {
+				result = append(result, execution)
+				break
+			}
+		}
+	}
+	return result, nil
+}
+
+func (s *memorySchedulerStore) GetStageExecution(
+	_ context.Context, stageExecutionID string,
+) (runstore.StageExecution, error) {
+	for _, execution := range s.stages {
+		if execution.StageExecutionID == stageExecutionID {
+			return execution, nil
+		}
+	}
+	return runstore.StageExecution{}, runstore.ErrNotFound
+}
+
+// RecordStageAllocation validates the row as the store does and enforces the
+// table's identity and per-Stage agent uniqueness. Placement is the only
+// writer of a row, so unlike the idempotent PostgreSQL store this fake rejects
+// a second write of the same allocation.
+func (s *memorySchedulerStore) RecordStageAllocation(
+	_ context.Context, allocation runstore.StageAllocation,
+) error {
+	if err := allocation.Validate(); err != nil {
+		return err
+	}
+	for _, current := range s.allocations {
+		if current.AllocationID == allocation.AllocationID {
+			return errDuplicateAllocationWrite
+		}
+		if current.StageExecutionID == allocation.StageExecutionID &&
+			current.LogicalAgentName == allocation.LogicalAgentName {
+			return runstore.ErrConflict
+		}
+	}
+	s.allocations = append(s.allocations, allocation)
+	s.events.add("record_allocation")
+	return nil
+}
+
+var errDuplicateAllocationWrite = errors.New("Stage allocation row was written twice")
+
+func (s *memorySchedulerStore) ListStageAllocations(
+	_ context.Context, stageExecutionID string,
+) ([]runstore.StageAllocation, error) {
+	result := make([]runstore.StageAllocation, 0)
+	for _, allocation := range s.allocations {
+		if allocation.StageExecutionID == stageExecutionID {
+			result = append(result, allocation)
+		}
+	}
+	return result, nil
+}
+
+func (s *memorySchedulerStore) ListStageAllocationsBatch(
+	_ context.Context, stageExecutionIDs []string,
+) (map[string][]runstore.StageAllocation, error) {
+	result := make(map[string][]runstore.StageAllocation)
+	for _, allocation := range s.allocations {
+		if slices.Contains(stageExecutionIDs, allocation.StageExecutionID) {
+			result[allocation.StageExecutionID] = append(result[allocation.StageExecutionID], allocation)
+		}
+	}
+	return result, nil
+}
+
+// MarkStageAllocationReleaseAttempt and MarkStageAllocationReleased mirror
+// the PostgreSQL markers: a blank ID refuses the call before anything is
+// marked, each named allocation whose release has not completed is marked, a
+// completed one is left as it is, and only a missing one is ErrNotFound,
+// without stopping the others.
+func (s *memorySchedulerStore) MarkStageAllocationReleaseAttempt(
+	_ context.Context, allocationIDs ...string,
+) error {
+	return s.markAllocations(allocationIDs, false)
+}
+
+func (s *memorySchedulerStore) MarkStageAllocationReleased(
+	_ context.Context, allocationIDs ...string,
+) error {
+	return s.markAllocations(allocationIDs, true)
+}
+
+func (s *memorySchedulerStore) markAllocations(allocationIDs []string, completed bool) error {
+	for _, allocationID := range allocationIDs {
+		if strings.TrimSpace(allocationID) == "" {
+			return runstore.ErrInvalid
+		}
+	}
+	var failures []error
+	for _, allocationID := range allocationIDs {
+		index := slices.IndexFunc(s.allocations, func(allocation runstore.StageAllocation) bool {
+			return allocation.AllocationID == allocationID
+		})
+		if index < 0 {
+			failures = append(failures, fmt.Errorf("Stage allocation %q: %w", allocationID, runstore.ErrNotFound))
+			continue
+		}
+		if s.allocations[index].ReleaseCompletedAt != nil {
+			continue
+		}
+		now := time.Now().UTC()
+		s.allocations[index].ReleaseAttemptedAt = &now
+		if completed {
+			s.allocations[index].ReleaseCompletedAt = &now
+		}
+	}
+	return errors.Join(failures...)
+}
+
+// Memory persistence never publishes Project outputs, so nothing reads the
+// count; the guard mirrors PostgreSQL so a misuse fails like the real store.
+func (s *memorySchedulerStore) RecordStageOutputPublicationFailure(
+	_ context.Context, runID string, stageExecutionID string,
+) error {
+	if runID == "" || stageExecutionID == "" {
+		return runstore.ErrInvalid
+	}
+	for _, execution := range s.stages {
+		if execution.StageExecutionID == stageExecutionID && execution.RunID == runID &&
+			execution.State == runstore.StageFinalizing {
+			return nil
+		}
+	}
+	return &runstore.StateConflictError{
+		Resource: "StageExecution", ID: stageExecutionID, Expected: string(runstore.StageFinalizing),
+	}
+}
+
+func (s *memorySchedulerStore) RecordAllocationReport(
+	_ context.Context, report telemetry.AllocationReportEnvelope,
+) error {
+	if s.reportError != nil {
+		return s.reportError
+	}
+	s.reports = append(s.reports, report)
+	s.events.add("record_report")
+	return nil
+}
+
+func (s *memorySchedulerStore) RecordPlannerReport(
+	_ context.Context, report telemetry.PlannerReportEnvelope,
+) error {
+	for _, existing := range s.plannerReports {
+		if existing.StageExecutionID == report.StageExecutionID &&
+			existing.SessionID == report.SessionID && existing.InvocationID == report.InvocationID &&
+			existing.Report.ReportID == report.Report.ReportID {
+			return nil
+		}
+	}
+	s.plannerReports = append(s.plannerReports, report)
+	return nil
+}
+
+func (s *memorySchedulerStore) RebuildStageMetrics(
+	_ context.Context, _, _ string,
+) (telemetry.StageMetricsRecord, error) {
+	return telemetry.StageMetricsRecord{}, nil
+}
+
+func (s *memorySchedulerStore) EnterAborting(
+	_ context.Context, params runstore.EnterAbortingParams,
+) error {
+	for index := range s.stages {
+		if s.stages[index].StageExecutionID == params.StageExecutionID && s.stages[index].State == params.ExpectedState {
+			s.stages[index].State = runstore.StageAborting
+			s.stages[index].Termination = &params.Termination
+			s.stages[index].TerminationSchemaVersion = stringPointer(params.TerminationSchemaVersion)
+			s.stages[index].AbortID = stringPointer(params.AbortID)
+			s.stages[index].AbortDeadline = &params.Deadline
+			s.events.add("enter_aborting")
+			return nil
+		}
+	}
+	return runstore.ErrConflict
+}
+
+type memoryAtomicPersistence struct {
+	store       *memorySchedulerStore
+	artifacts   *memoryArtifactResolver
+	allocator   *memoryAllocator
+	events      *eventRecorder
+	outputs     map[string]contracts.ArtifactRef
+	stageStates []runstore.StageExecutionState
+	decisions   []runstore.StageTransitionDecision
+	queuePaused bool
+}
+
+// runIn is the Run-state check each PostgresPersistence commit point makes
+// under its Run row lock, with the same state set.
+func (p *memoryAtomicPersistence) runIn(runID string, states []runstore.WorkflowRunState) bool {
+	return runID == p.store.run.RunID && slices.Contains(states, p.store.run.State)
+}
+
+// endStage clears the durable model-wait projection when a Stage ends:
+// a Run waiting for its model route returns to running.
+func (p *memoryAtomicPersistence) endStage() {
+	if p.store.run.State == runstore.RunWaiting {
+		p.store.run.State = runstore.RunRunning
+		p.store.run.StateReason = runstore.Reason{Code: "gateway_recovered"}
+	}
+}
+
+// checkTerminalTransition applies the store's transition rule to the terminal
+// Run transition of a progression commit, from the Run state after endStage.
+// A transition the store rejects fails the whole commit before anything
+// changes, as its transaction rolls back.
+func (p *memoryAtomicPersistence) checkTerminalTransition(value StageProgression) error {
+	if value.TerminalRunState == "" {
+		return nil
+	}
+	from := p.store.run.State
+	if from == runstore.RunWaiting {
+		from = runstore.RunRunning
+	}
+	return runstore.ValidateRunTransition(from, value.TerminalRunState)
+}
+
+func (p *memoryAtomicPersistence) CreateStageWithContext(
+	ctx context.Context, params runstore.CreateStageExecutionParams, _ []ContextPin,
+) (runstore.StageExecution, error) {
+	if !params.LaneClass.Valid() {
+		return runstore.StageExecution{}, runstore.ErrInvalid
+	}
+	if err := p.requireClaim(ctx, params.RunID); err != nil {
+		return runstore.StageExecution{}, err
+	}
+
+	if !p.runIn(params.RunID, stageCreationRunStates) {
+		return runstore.StageExecution{}, runstore.ErrConflict
+	}
+	if p.queuePaused {
+		return runstore.StageExecution{}, runstore.ErrQueuePaused
+	}
+	p.store.run.SchedulerLaneClass = params.LaneClass
+	execution := runstore.StageExecution{
+		StageExecutionID: params.StageExecutionID, RunID: params.RunID, StageName: params.StageName,
+		Attempt: params.Attempt, PreviousExecutionID: params.PreviousExecutionID,
+		ExecutionConfigVariant: params.ExecutionConfigVariant,
+		EscalationOrdinal:      params.EscalationOrdinal,
+		StageSpecSchemaVersion: params.StageSpecSchemaVersion, StageSpecSnapshot: params.StageSpecSnapshot,
+		StageContextSchemaVersion: params.StageContextSchemaVersion, StageContext: params.StageContext,
+		State: runstore.StagePreparing, CreatedAt: p.allocator.clock.now,
+	}
+	p.store.stages = append(p.store.stages, execution)
+	p.stageStates = append(p.stageStates, runstore.StagePreparing)
+	p.events.add("create_stage")
+	return execution, nil
+}
+
+func (p *memoryAtomicPersistence) EnterFinalizingWithResult(
+	ctx context.Context, params runstore.EnterFinalizingParams,
+) error {
+	if err := p.requireClaim(ctx, p.store.run.RunID); err != nil {
+		return err
+	}
+
+	if !p.runIn(p.store.run.RunID, finalizationRunStates) {
+		return runstore.ErrConflict
+	}
+	for _, reservation := range p.allocator.cached {
+		if !p.allocator.fenced[reservation.Grant.AllocationID] {
+			return errors.New("candidate persisted before write fence")
+		}
+	}
+	for index := range p.store.stages {
+		if p.store.stages[index].StageExecutionID == params.StageExecutionID &&
+			p.store.stages[index].State == runstore.StageRunning {
+			candidate := params.Candidate.Clone()
+			p.store.stages[index].State = runstore.StageFinalizing
+			p.store.stages[index].CandidateResult = &candidate
+			p.store.stages[index].CandidateResultSchemaVersion = stringPointer(params.ResultSchemaVersion)
+			p.store.stages[index].FinalizationID = stringPointer(params.FinalizationID)
+			p.store.stages[index].FinalizationDeadline = &params.Deadline
+			p.stageStates = append(p.stageStates, runstore.StageFinalizing)
+			p.events.add("enter_finalizing")
+			return nil
+		}
+	}
+	return runstore.ErrConflict
+}
+
+func (p *memoryAtomicPersistence) EnterAbortingWithTermination(
+	ctx context.Context,
+	runID string,
+	params runstore.EnterAbortingParams,
+) error {
+	if err := p.requireClaim(ctx, runID); err != nil {
+		return err
+	}
+
+	if !p.runIn(runID, abortRunStates) {
+		return runstore.ErrConflict
+	}
+	for _, reservation := range p.allocator.cached {
+		if !p.allocator.fenced[reservation.Grant.AllocationID] {
+			return errors.New("termination persisted before write fence")
+		}
+	}
+	return p.store.EnterAborting(ctx, params)
+}
+
+func (p *memoryAtomicPersistence) CommitResultProgression(
+	ctx context.Context, value ResultProgression,
+) error {
+	if err := validateResultProgression(value); err != nil {
+		return err
+	}
+	if err := p.requireClaim(ctx, value.RunID); err != nil {
+		return err
+	}
+
+	if !p.runIn(value.RunID, progressionRunStates) {
+		return runstore.ErrConflict
+	}
+	if value.Progression.NextStage != nil && p.queuePaused {
+		return runstore.ErrQueuePaused
+	}
+	if err := p.checkTerminalTransition(value.Progression); err != nil {
+		return err
+	}
+	for index := range p.store.stages {
+		if p.store.stages[index].StageExecutionID != value.StageExecutionID ||
+			p.store.stages[index].State != runstore.StageFinalizing {
+			continue
+		}
+		result := value.Result.Clone()
+		// Like bindOutput, each output binding is created once per Run: the
+		// binding of the same source replays, and one of another revision or
+		// from a source revision the RunScope no longer holds refuses the
+		// whole acceptance before anything changes.
+		bound := map[string]contracts.ArtifactRef{}
+		if result.Outcome == stageresult.StageSucceeded {
+			for output, resultName := range value.WorkflowOutputs {
+				if source, ok := result.Artifacts[resultName]; ok {
+					if _, held := p.artifacts.values[value.RunID+"/"+source.Namespace+"/"+source.Name+"/"+*source.Revision]; !held {
+						return fmt.Errorf("bind Workflow output %q: %w: %w", output, errInvalidRunState, artifacts.ErrArtifactNotFound)
+					}
+					target := exactRef("outputs", output, "output-"+*source.Revision)
+					if existing, exists := p.outputs[output]; exists && !existing.SameExact(target) {
+						conflict := &artifacts.ConflictError{Ref: contracts.ArtifactRef{Namespace: "outputs", Name: output}}
+						return fmt.Errorf("bind Workflow output %q: %w: %w", output, errInvalidRunState, conflict)
+					}
+					bound[output] = target
+				}
+			}
+		}
+		p.store.stages[index].State = runstore.StageExecutionState(result.Outcome)
+		p.store.stages[index].AcceptedResult = &result
+		p.store.stages[index].AcceptedResultSchemaVersion = stringPointer(contracts.APIVersion)
+		p.stageStates = append(p.stageStates, p.store.stages[index].State)
+		maps.Copy(p.outputs, bound)
+		p.endStage()
+		p.commitProgression(value.Progression)
+		p.events.add("accept")
+		return nil
+	}
+	return runstore.ErrConflict
+}
+
+func (p *memoryAtomicPersistence) CommitTerminationProgression(
+	ctx context.Context,
+	value TerminationProgression,
+) error {
+	if err := validateTerminationProgression(value); err != nil {
+		return err
+	}
+	if err := p.requireClaim(ctx, value.RunID); err != nil {
+		return err
+	}
+
+	if !p.runIn(value.RunID, progressionRunStates) {
+		return runstore.ErrConflict
+	}
+	if value.Progression.NextStage != nil && p.queuePaused {
+		return runstore.ErrQueuePaused
+	}
+	if err := p.checkTerminalTransition(value.Progression); err != nil {
+		return err
+	}
+	for index := range p.store.stages {
+		if p.store.stages[index].StageExecutionID == value.StageExecutionID &&
+			p.store.stages[index].State == runstore.StageAborting {
+			terminal := runstore.StageExecutionState(p.store.stages[index].Termination.Outcome)
+			p.store.stages[index].State = terminal
+			p.stageStates = append(p.stageStates, runstore.StageAborting, terminal)
+			p.endStage()
+			p.commitProgression(value.Progression)
+			p.events.add("commit_termination")
+			return nil
+		}
+	}
+	return runstore.ErrConflict
+}
+
+func (p *memoryAtomicPersistence) commitProgression(value StageProgression) {
+	decision := runstore.StageTransitionDecision{
+		SourceExecutionID:   value.Decision.SourceExecutionID,
+		RunID:               value.Decision.RunID,
+		Action:              value.Decision.Action,
+		TargetStageName:     value.Decision.TargetStageName,
+		TargetExecutionID:   value.Decision.TargetExecutionID,
+		EscalationOrdinal:   value.Decision.EscalationOrdinal,
+		EscalationExhausted: value.Decision.EscalationExhausted,
+	}
+	p.decisions = append(p.decisions, decision)
+	if value.NextStage != nil {
+		params := value.NextStage.Params
+		p.store.run.SchedulerLaneClass = params.LaneClass
+		p.store.stages = append(p.store.stages, runstore.StageExecution{
+			StageExecutionID: params.StageExecutionID, RunID: params.RunID,
+			StageName: params.StageName, Attempt: params.Attempt,
+			PreviousExecutionID:       params.PreviousExecutionID,
+			ExecutionConfigVariant:    params.ExecutionConfigVariant,
+			EscalationOrdinal:         params.EscalationOrdinal,
+			StageSpecSchemaVersion:    params.StageSpecSchemaVersion,
+			StageSpecSnapshot:         params.StageSpecSnapshot,
+			StageContextSchemaVersion: params.StageContextSchemaVersion,
+			StageContext:              params.StageContext, State: runstore.StagePreparing,
+			CreatedAt: p.allocator.clock.now,
+		})
+		p.stageStates = append(p.stageStates, runstore.StagePreparing)
+	}
+	if value.TerminalRunState != "" {
+		p.store.run.State = value.TerminalRunState
+		p.store.run.StateReason = value.RunReason
+		p.store.claimID = ""
+	}
+}
+
+func (p *memoryAtomicPersistence) AcceptResultDuringCancellation(
+	ctx context.Context,
+	runID string,
+	stageExecutionID string,
+	result stageresult.StageContentResult,
+) error {
+	if err := p.requireClaim(ctx, runID); err != nil {
+		return err
+	}
+
+	if !p.runIn(runID, []runstore.WorkflowRunState{runstore.RunCancelling}) {
+		return runstore.ErrConflict
+	}
+	for index := range p.store.stages {
+		if p.store.stages[index].StageExecutionID == stageExecutionID &&
+			p.store.stages[index].State == runstore.StageFinalizing {
+			accepted := result.Clone()
+			p.store.stages[index].State = runstore.StageExecutionState(result.Outcome)
+			p.store.stages[index].AcceptedResult = &accepted
+			p.store.stages[index].AcceptedResultSchemaVersion = stringPointer(contracts.APIVersion)
+			p.store.run.State = runstore.RunCancelled
+			p.store.claimID = ""
+			p.events.add("accept_cancelled")
+			return nil
+		}
+	}
+	return runstore.ErrConflict
+}
+
+func (p *memoryAtomicPersistence) CommitTerminationAndFinishRun(
+	ctx context.Context,
+	runID string,
+	stageExecutionID string,
+	expectedRunState runstore.WorkflowRunState,
+	nextRunState runstore.WorkflowRunState,
+	_ runstore.Reason,
+) error {
+	if err := p.requireClaim(ctx, runID); err != nil {
+		return err
+	}
+
+	if runID != p.store.run.RunID || p.store.run.State != expectedRunState {
+		return runstore.ErrConflict
+	}
+	if err := runstore.ValidateRunTransition(expectedRunState, nextRunState); err != nil {
+		return err
+	}
+	for index := range p.store.stages {
+		if p.store.stages[index].StageExecutionID == stageExecutionID &&
+			p.store.stages[index].State == runstore.StageAborting {
+			terminal := runstore.StageExecutionState(p.store.stages[index].Termination.Outcome)
+			p.store.stages[index].State = terminal
+			p.stageStates = append(p.stageStates, runstore.StageAborting, terminal)
+			p.store.run.State = nextRunState
+			p.store.claimID = ""
+			p.events.add("commit_termination")
+			return nil
+		}
+	}
+	return runstore.ErrConflict
+}
+
+func (p *memoryAtomicPersistence) FailRunWithActiveStages(
+	ctx context.Context,
+	runID string,
+	expectedRunState runstore.WorkflowRunState,
+	nextRunState runstore.WorkflowRunState,
+	reason runstore.Reason,
+	termination runstore.StageTermination,
+	abortID string,
+) error {
+	if err := p.requireClaim(ctx, runID); err != nil {
+		return err
+	}
+
+	if runID != p.store.run.RunID || p.store.run.State != expectedRunState {
+		return runstore.ErrConflict
+	}
+	if err := runstore.ValidateRunTransition(expectedRunState, nextRunState); err != nil {
+		return err
+	}
+	for _, stage := range p.store.stages {
+		if stage.State == runstore.StageFinalizing && stage.CandidateResult == nil {
+			// PostgreSQL rejects a finalizing Stage without a candidate.
+			return errors.New("finalizing StageExecution has no candidate")
+		}
+	}
+	for index := range p.store.stages {
+		stage := &p.store.stages[index]
+		switch stage.State {
+		case runstore.StagePreparing, runstore.StageRunning:
+			ended := termination
+			ended.Phase = runstore.TerminationPhase(stage.State)
+			stage.Termination, stage.AbortID = &ended, &abortID
+			stage.State = runstore.StageExecutionState(ended.Outcome)
+		case runstore.StageAborting:
+			stage.State = runstore.StageExecutionState(stage.Termination.Outcome)
+		case runstore.StageFinalizing:
+			accepted := stage.CandidateResult.Clone()
+			stage.AcceptedResult = &accepted
+			stage.State = runstore.StageExecutionState(accepted.Outcome)
+		}
+	}
+	p.store.run.State, p.store.run.StateReason = nextRunState, reason
+	p.store.claimID = ""
+	return nil
+}
+
+// FinishCancelledRun ends a cancelling Run, as the store's compare-and-set on
+// the locked Run row does.
+func (p *memoryAtomicPersistence) FinishCancelledRun(ctx context.Context, runID string) error {
+	if err := p.requireClaim(ctx, runID); err != nil {
+		return err
+	}
+
+	if !p.runIn(runID, []runstore.WorkflowRunState{runstore.RunCancelling}) {
+		return runstore.ErrConflict
+	}
+	p.store.run.State = runstore.RunCancelled
+	p.store.run.StateReason = runstore.Reason{Code: runstore.CancellationUserRequested}
+	p.store.claimID = ""
+	return nil
+}
+
+type memoryArtifactResolver struct {
+	current   map[string]string
+	values    map[string]ResolvedArtifact
+	summaries map[string]string
+}
+
+func (r *memoryArtifactResolver) SaveSummary(
+	_ context.Context, runID, namespace, sourceStageID, summary string,
+) (contracts.ArtifactRef, error) {
+	ref := contracts.ArtifactRef{Namespace: namespace, Name: stageresult.SummaryArtifactPrefix + sourceStageID}
+	if err := ref.Validate(); err != nil || summary == "" || len(summary) > stageresult.MaxStageResultSummaryBytes {
+		return contracts.ArtifactRef{}, artifacts.ErrInvalidName
+	}
+	key := runID + "/" + ref.Namespace + "/" + ref.Name
+	if existing, ok := r.summaries[key]; ok {
+		if existing != summary {
+			return contracts.ArtifactRef{}, errSummaryArtifactConflict
+		}
+		value, err := r.Resolve(context.Background(), runID, ref)
+		return value.Ref, err
+	}
+	if r.summaries == nil {
+		r.summaries = make(map[string]string)
+	}
+	if r.current == nil {
+		r.current = make(map[string]string)
+	}
+	if r.values == nil {
+		r.values = make(map[string]ResolvedArtifact)
+	}
+	revision := "summary-r1"
+	ref.Revision = &revision
+	r.summaries[key] = summary
+	r.current[key] = revision
+	r.values[key+"/"+revision] = ResolvedArtifact{Ref: ref, MediaType: "text/plain"}
+	return ref.Clone(), nil
+}
+
+func (r *memoryArtifactResolver) Resolve(
+	_ context.Context, runID string, ref contracts.ArtifactRef,
+) (ResolvedArtifact, error) {
+	revision := ""
+	if ref.Revision == nil {
+		revision = r.current[runID+"/"+ref.Namespace+"/"+ref.Name]
+	} else {
+		revision = *ref.Revision
+	}
+	if revision == "" {
+		return ResolvedArtifact{}, artifacts.ErrArtifactNotFound
+	}
+	result, ok := r.values[runID+"/"+ref.Namespace+"/"+ref.Name+"/"+revision]
+	if !ok {
+		return ResolvedArtifact{}, artifacts.ErrArtifactNotFound
+	}
+	return result, nil
+}
+
+func schedulerTestResolvedWorkerConfig(selection resolved.ResolvedConsumerExecutionConfig, modelFree bool) (runtimeconfig.ResolvedRuntimeConfig, error) {
+	input := runtimeconfig.ResolveRuntimeConfigInput{
+		ModelFree: modelFree, ModelPolicy: selection.ModelPolicy,
+		Default: runtimeconfig.PinnedRuntimeConfig{
+			Label: "default", BindingRevision: 1,
+			Config: runtimeconfig.Ref{Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest},
+		},
+	}
+	if selection.LLMGateway != nil {
+		gateway := *selection.LLMGateway
+		input.Workflow.Gateway = runtimeconfig.Field[llmgateway.LLMGatewayConfigRef]{Present: true, Value: gateway.Ref}
+		input.Gateways = map[llmgateway.LLMGatewayConfigRef]llmgateway.ResolvedLLMGatewayConfig{gateway.Ref: gateway}
+		if selection.Credential != nil {
+			input.Workflow.Credential = runtimeconfig.Field[string]{Present: true, Value: selection.Credential.CredentialID}
+			input.LLMCredentials = map[string]runtimeconfig.LLMCredentialAuthorization{
+				selection.Credential.CredentialID: {
+					Ref: *selection.Credential, LLMGateway: gateway.Ref,
+					ModelPolicies: []contracts.ModelPolicyRef{selection.ModelPolicy.Ref}, Models: []string{selection.ModelPolicy.Model},
+				},
+			}
+		}
+	}
+	return runtimeconfig.ResolveRuntimeConfig(input)
+}
+
+func schedulerTestReservations(t *testing.T, stage resolved.ResolvedStage) []controlplane.Reservation {
+	t.Helper()
+	reservations := make([]controlplane.Reservation, 0, len(stage.Agents))
+	for name, binding := range stage.Agents {
+		runtimeConfig, err := schedulerTestResolvedWorkerConfig(stage.ExecutionConfig.Agents[name], binding.Template.IsToolWorker())
+		if err != nil {
+			t.Fatal(err)
+		}
+		reservations = append(reservations, controlplane.Reservation{
+			Grant: controlplane.AllocationGrant{LogicalAgentName: name}, ResolvedRuntimeConfig: &runtimeConfig,
+		})
+	}
+	return reservations
+}
+
+type memoryAllocator struct {
+	workflow              resolved.ResolvedWorkflow
+	clock                 staticClock
+	events                *eventRecorder
+	grants                map[string]controlplane.AllocationGrant
+	cached                []controlplane.Reservation
+	fenced                map[string]bool
+	reserveCalls          int
+	allocationSequence    int
+	reserveError          error
+	losses                []controlplane.AllocationLoss
+	resolvedRuntimeConfig *runtimeconfig.ResolvedRuntimeConfig
+	// pin is required: like production placement, the fake durably pins the
+	// stage_allocations rows before a reservation becomes visible.
+	pin func(context.Context, []controlplane.Reservation) error
+	// released holds Stages whose committed reservation was released; like
+	// the production Registry it cannot be reserved again.
+	released map[string]bool
+	// modelFree records ReservationRequest.ModelFree of every call.
+	modelFree []bool
+}
+
+// pinStageAllocations records placement rows as production placement does.
+func pinStageAllocations(store interface {
+	RecordStageAllocation(context.Context, runstore.StageAllocation) error
+}) func(context.Context, []controlplane.Reservation) error {
+	return func(ctx context.Context, reservations []controlplane.Reservation) error {
+		for _, reservation := range reservations {
+			if err := store.RecordStageAllocation(ctx, stageAllocationFromReservation(reservation)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
+func (a *memoryAllocator) ReserveAllContext(ctx context.Context, request controlplane.ReservationRequest) ([]controlplane.Reservation, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	a.reserveCalls++
+	a.modelFree = append(a.modelFree, request.ModelFree)
+	a.events.add("reserve")
+	if a.reserveError != nil {
+		return nil, a.reserveError
+	}
+	if len(a.cached) == 0 || a.cached[0].Grant.StageExecutionID != request.StageExecutionID {
+		if a.released[request.StageExecutionID] {
+			return nil, controlplane.ErrReservationReleased
+		}
+		if a.pin == nil {
+			return nil, errors.New("test placement must pin durable allocation rows like production")
+		}
+		reservation, err := a.reservationForRequest(request)
+		if err != nil {
+			return nil, err
+		}
+		if request.Admit != nil {
+			if err := request.Admit(ctx, []controlplane.Reservation{reservation}); err != nil {
+				return nil, err
+			}
+		}
+		if err := a.pin(ctx, []controlplane.Reservation{reservation}); err != nil {
+			return nil, err
+		}
+		a.cached = []controlplane.Reservation{reservation}
+		for _, reservation := range a.cached {
+			a.grants[reservation.Grant.AllocationID] = reservation.Grant
+		}
+	}
+	return append([]controlplane.Reservation(nil), a.cached...), nil
+}
+
+func (a *memoryAllocator) reservationForRequest(request controlplane.ReservationRequest) (controlplane.Reservation, error) {
+	a.allocationSequence++
+	binding := request.Bindings[0]
+	if binding.RuntimeSelection == nil {
+		return controlplane.Reservation{}, errors.New("test allocation requires a Runtime selection")
+	}
+	runtimeConfig, err := schedulerTestResolvedWorkerConfig(*binding.RuntimeSelection, binding.AgentTemplate.IsToolWorker())
+	if err != nil {
+		return controlplane.Reservation{}, err
+	}
+	reservation := controlplane.Reservation{
+		Grant: controlplane.AllocationGrant{
+			AllocationID:   fmt.Sprintf("allocation-%d", a.allocationSequence),
+			RuntimeAgentID: strings.Repeat("1", 64), RuntimeInstanceID: "runtime-1",
+			RunID: request.RunID, StageExecutionID: request.StageExecutionID,
+			LogicalAgentName: binding.LogicalAgentName, Namespace: binding.Namespace,
+			ReadPolicy: controlplane.ReadCurrentRun, WritePolicy: controlplane.WriteInputsAndIntermediates,
+		},
+		ControlURL: "https://runtime.test", A2AURL: "https://runtime.test",
+		WorkerSessionMode: binding.WorkerSessionMode, ContextManagement: binding.ContextManagement.Clone(),
+		AgentTemplate: binding.AgentTemplate, ResolvedSkills: contracts.CloneResolvedSkills(binding.ResolvedSkills),
+		RunMetadataLabels:         request.RunMetadataLabels.Clone(),
+		ProjectID:                 request.ProjectID,
+		ExecutionConfig:           binding.ExecutionConfig,
+		RuntimeAgentLabelRevision: 1, LeaseExpiresAt: a.clock.now.Add(time.Minute),
+		PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled,
+		ResolvedRuntimeConfig:       &runtimeConfig,
+	}
+	if a.resolvedRuntimeConfig != nil {
+		runtimeConfig := a.resolvedRuntimeConfig.Clone()
+		reservation.ResolvedRuntimeConfig = &runtimeConfig
+	}
+	return reservation, nil
+}
+
+func (a *memoryAllocator) reservation(stageExecutionID string) (controlplane.Reservation, error) {
+	binding := a.workflow.Stages[a.workflow.EntryStage].Agents["builder"]
+	selection := a.workflow.Stages[a.workflow.EntryStage].ExecutionConfig.Agents["builder"]
+	return a.reservationForRequest(controlplane.ReservationRequest{
+		RunID: "run-1", StageExecutionID: stageExecutionID,
+		Bindings: []controlplane.BindingRequirement{{
+			LogicalAgentName: "builder", Namespace: binding.Namespace, AgentTemplate: binding.Template,
+			WorkerSessionMode: a.workflow.Stages[a.workflow.EntryStage].Session,
+			ContextManagement: contracts.EffectiveContextManagement(binding.ContextManagement, binding.Template),
+			ResolvedSkills:    []contracts.ResolvedSkill{},
+			ExecutionConfig:   allocationExecutionConfig(a.workflow.Stages[a.workflow.EntryStage], "builder"),
+			RuntimeSelection:  &selection,
+		}},
+	})
+}
+
+func (a *memoryAllocator) GetGrant(allocationID string) (controlplane.AllocationGrant, error) {
+	grant, ok := a.grants[allocationID]
+	if !ok {
+		return controlplane.AllocationGrant{}, controlplane.ErrAllocationNotFound
+	}
+	return grant, nil
+}
+
+func (a *memoryAllocator) GetReservation(allocationID string) (controlplane.Reservation, error) {
+	for _, reservation := range a.cached {
+		if reservation.Grant.AllocationID == allocationID {
+			if _, ok := a.grants[allocationID]; ok {
+				return reservation, nil
+			}
+		}
+	}
+	return controlplane.Reservation{}, controlplane.ErrAllocationNotFound
+}
+
+func (a *memoryAllocator) SetWriteFence(allocationID string) error {
+	grant, ok := a.grants[allocationID]
+	if !ok {
+		return controlplane.ErrAllocationNotFound
+	}
+	if a.fenced == nil {
+		a.fenced = make(map[string]bool)
+	}
+	a.fenced[allocationID] = true
+	grant.WriteFenced = true
+	a.grants[allocationID] = grant
+	a.events.add("fence")
+	return nil
+}
+
+func (a *memoryAllocator) DiscardUnprepared(stageExecutionID string) error {
+	if len(a.cached) == 0 || a.cached[0].Grant.StageExecutionID != stageExecutionID {
+		return nil
+	}
+	for _, reservation := range a.cached {
+		if a.fenced[reservation.Grant.AllocationID] {
+			return controlplane.ErrReservationConflict
+		}
+	}
+	for _, reservation := range a.cached {
+		delete(a.grants, reservation.Grant.AllocationID)
+	}
+	a.cached = nil
+	a.events.add("discard")
+	return nil
+}
+
+func (a *memoryAllocator) PollAllocationLosses() []controlplane.AllocationLoss {
+	result := append([]controlplane.AllocationLoss(nil), a.losses...)
+	a.losses = nil
+	return result
+}
+
+type memoryWorkers struct {
+	allocator            *memoryAllocator
+	workflow             resolved.ResolvedWorkflow
+	clock                staticClock
+	events               *eventRecorder
+	prepareCalls         int
+	finalizeCalls        int
+	abortCalls           int
+	releaseCalls         int
+	preparedSettings     []map[string]runtimesettings.WorkerExecutionSettings
+	preparedReservations [][]controlplane.Reservation
+	prepareError         error
+	finalizeError        error
+	abortError           error
+	releaseError         error
+	releaseErrors        map[string]error
+	releasedBatches      []int
+}
+
+func (w *memoryWorkers) PrepareAll(
+	_ context.Context, reservations []controlplane.Reservation,
+	settings map[string]runtimesettings.WorkerExecutionSettings,
+) (map[string]contracts.WorkerHandle, error) {
+	w.prepareCalls++
+	w.preparedSettings = append(w.preparedSettings, settings)
+	batch := append([]controlplane.Reservation(nil), reservations...)
+	for index := range batch {
+		batch[index].RunMetadataLabels = batch[index].RunMetadataLabels.Clone()
+	}
+	w.preparedReservations = append(w.preparedReservations, batch)
+	w.events.add("prepare")
+	if w.prepareError != nil {
+		return nil, w.prepareError
+	}
+	result := make(map[string]contracts.WorkerHandle, len(reservations))
+	for _, reservation := range reservations {
+		result[reservation.Grant.LogicalAgentName] = contracts.WorkerHandle{
+			AllocationID:     reservation.Grant.AllocationID,
+			AgentTemplateRef: reservation.AgentTemplate.Ref,
+			WorkerRuntimeRef: reservation.AgentTemplate.Runtime,
+			AgentCard:        map[string]any{"name": reservation.Grant.LogicalAgentName},
+			LeaseExpiresAt:   reservation.LeaseExpiresAt,
+		}
+	}
+	return result, nil
+}
+
+func (w *memoryWorkers) FinalizeAll(
+	_ context.Context, reservations []controlplane.Reservation, _ string, _ time.Time,
+) (map[string]reporting.AllocationFinalReport, error) {
+	w.finalizeCalls++
+	for _, reservation := range reservations {
+		if !w.allocator.fenced[reservation.Grant.AllocationID] {
+			return nil, errors.New("finalize observed an unfenced allocation")
+		}
+	}
+	w.events.add("finalize")
+	if w.finalizeError != nil {
+		// Like RuntimeBatchController, a rejected Runtime response leaves that
+		// allocation without a report and joins its error.
+		return map[string]reporting.AllocationFinalReport{}, w.finalizeError
+	}
+	reports := make(map[string]reporting.AllocationFinalReport, len(reservations))
+	for _, reservation := range reservations {
+		reports[reservation.Grant.LogicalAgentName] = schedulerTestAllocationReport(
+			reservation.Grant.AllocationID, w.clock.now,
+		)
+	}
+	return reports, nil
+}
+
+func (w *memoryWorkers) AbortAll(
+	_ context.Context, _ []controlplane.Reservation, _ string, _ contracts.TerminationError, _ time.Time,
+) (map[string]reporting.AllocationFinalReport, error) {
+	w.abortCalls++
+	w.events.add("abort")
+	return map[string]reporting.AllocationFinalReport{}, w.abortError
+}
+
+func schedulerTestAllocationReport(
+	allocationID string, finishedAt time.Time,
+) reporting.AllocationFinalReport {
+	modelCalls := int64(1)
+	return reporting.AllocationFinalReport{
+		ReportID: "allocation-final-" + allocationID, AllocationID: allocationID,
+		StartedAt: finishedAt.Add(-time.Second), FinishedAt: finishedAt,
+		Worker: reporting.ExecutionReport{
+			ReportID: "worker-" + allocationID, Complete: true,
+			Metrics: reporting.ExecutionMetrics{
+				ModelCalls: &modelCalls, Tools: map[string]reporting.ToolMetrics{},
+			},
+			ToolCalls: []reporting.ToolCallRecord{}, Errors: []reporting.ExecutionError{},
+		},
+		Runtime: reporting.RuntimeReport{Complete: true},
+	}
+}
+
+func (w *memoryWorkers) ReleaseAll(_ context.Context, reservations []controlplane.Reservation) error {
+	w.releaseCalls++
+	w.releasedBatches = append(w.releasedBatches, len(reservations))
+	w.events.add("release")
+	if w.releaseError != nil {
+		return w.releaseError
+	}
+	var failures []error
+	for _, reservation := range reservations {
+		if err := w.releaseErrors[reservation.Grant.AllocationID]; err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		delete(w.allocator.grants, reservation.Grant.AllocationID)
+		if w.allocator.released == nil {
+			w.allocator.released = make(map[string]bool)
+		}
+		w.allocator.released[reservation.Grant.StageExecutionID] = true
+	}
+	remaining := w.allocator.cached[:0]
+	for _, reservation := range w.allocator.cached {
+		if _, live := w.allocator.grants[reservation.Grant.AllocationID]; live {
+			remaining = append(remaining, reservation)
+		}
+	}
+	w.allocator.cached = remaining
+	return errors.Join(failures...)
+}
+
+type memoryPlannerRegistry struct {
+	store       *memorySchedulerStore
+	result      stageresult.StageContentResult
+	results     []stageresult.StageContentResult
+	runErrors   []error
+	events      *eventRecorder
+	createCalls int
+	runCalls    int
+	invocation  planner.Invocation
+	onRun       func()
+}
+
+func (r *memoryPlannerRegistry) Create(
+	ref string, invocation planner.Invocation,
+) (planner.Planner, error) {
+	r.createCalls++
+	r.invocation = invocation
+	if ref != resolved.PassthroughPlanner && ref != resolved.StreamlinePlanner {
+		return nil, errors.New("unexpected Planner ref")
+	}
+	return plannerFunc(func(context.Context) (stageresult.StageContentResult, error) {
+		r.runCalls++
+		for index := range r.store.stages {
+			if r.store.stages[index].StageExecutionID == invocation.StageExecutionID &&
+				r.store.stages[index].State == runstore.StagePreparing {
+				r.store.stages[index].State = runstore.StageRunning
+				sessionID, invocationID := "session-1", "invocation-1"
+				r.store.stages[index].PlannerSessionID = &sessionID
+				r.store.stages[index].PlannerInvocationID = &invocationID
+			}
+		}
+		if r.onRun != nil {
+			r.onRun()
+		}
+		r.events.add("planner")
+		callIndex := r.runCalls - 1
+		if callIndex < len(r.runErrors) && r.runErrors[callIndex] != nil {
+			return stageresult.StageContentResult{}, r.runErrors[callIndex]
+		}
+		if callIndex < len(r.results) {
+			return r.results[callIndex].Clone(), nil
+		}
+		return r.result.Clone(), nil
+	}), nil
+}
+
+type plannerFunc func(context.Context) (stageresult.StageContentResult, error)
+
+type uncompletedSessions struct{}
+
+func (uncompletedSessions) Begin(context.Context, string) (planner.SessionStart, error) {
+	return planner.SessionStart{}, planner.ErrInvocationInProgress
+}
+
+func (s *memorySchedulerStore) HasSummaryEscalation(_ context.Context, runID, stageName string) (bool, error) {
+	for _, e := range s.stages {
+		if e.RunID == runID && e.StageName == stageName && e.ExecutionConfigVariant == runstore.StageExecutionConfigSummaryEscalation &&
+			e.ResumeSourceExecutionID == nil && e.PreviousExecutionID != nil && e.StageContext.Continuation != nil &&
+			e.StageContext.Continuation.SourceStageExecutionID == *e.PreviousExecutionID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (f plannerFunc) Run(ctx context.Context) (stageresult.StageContentResult, error) { return f(ctx) }
+
+type credentialResolverFunc func(
+	context.Context,
+	llmgateway.LLMCredentialRef,
+	llmgateway.LLMGatewayConfigRef,
+) (contracts.SecretString, error)
+
+func (f credentialResolverFunc) ResolveLLMCredential(
+	ctx context.Context,
+	credential llmgateway.LLMCredentialRef,
+	gateway llmgateway.LLMGatewayConfigRef,
+) (contracts.SecretString, error) {
+	return f(ctx, credential, gateway)
+}
+
+type runtimeCredentialResolverFunc func(
+	context.Context,
+	string,
+	[]runtimesettings.RuntimeCredentialKind,
+	func(runtimesettings.RuntimeCredentialKind, []byte) error,
+) error
+
+func (f runtimeCredentialResolverFunc) UsePlaintext(
+	ctx context.Context,
+	credentialID string,
+	allowed []runtimesettings.RuntimeCredentialKind,
+	consumer func(runtimesettings.RuntimeCredentialKind, []byte) error,
+) error {
+	return f(ctx, credentialID, allowed, consumer)
+}
+
+type recordingPlannerTelemetryRegistry struct {
+	preparedCredentialSeen bool
+	inner                  *telemetry.PlannerAdapterRegistry
+	creates                int
+	resources              []telemetry.PlannerResource
+	metadataLabels         []runlabels.RunMetadataLabels
+}
+
+func (r *recordingPlannerTelemetryRegistry) Create(
+	ref string,
+	settings telemetry.PlannerAdapterSettings,
+) (telemetry.PlannerTelemetry, error) {
+	r.creates++
+	for _, value := range settings.KnownCredentials {
+		if value.Reveal() == "test-token" {
+			r.preparedCredentialSeen = true
+		}
+	}
+	r.resources = append(r.resources, settings.Resource)
+	r.metadataLabels = append(r.metadataLabels, settings.RunMetadataLabels.Clone())
+	return r.inner.Create(ref, settings)
+}
+
+func schedulerTestRuntimeConfigRef(value runtimeconfig.Ref) runtimesettings.RuntimeConfigRef {
+	return runtimesettings.RuntimeConfigRef{
+		Name: value.Name, Version: value.Version, Digest: value.Digest,
+	}
+}
+
+func stringSliceContains(values []string, expected string) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+	return false
+}
+
+func exactRef(namespace, name, revision string) contracts.ArtifactRef {
+	return contracts.ArtifactRef{Namespace: namespace, Name: name, Revision: &revision}
+}
+
+func assertOrderedEvents(t *testing.T, events []string, expected ...string) {
+	t.Helper()
+	position := 0
+	for _, event := range events {
+		if position < len(expected) && event == expected[position] {
+			position++
+		}
+	}
+	if position != len(expected) {
+		t.Fatalf("events = %v, missing ordered suffix %v", events, expected[position:])
+	}
+}
+
+func eventIndex(events []string, expected string) (int, bool) {
+	for index, event := range events {
+		if event == expected {
+			return index, true
+		}
+	}
+	return 0, false
+}
+
+func (p *memoryAtomicPersistence) DiscardUnadmittedPlacement(
+	ctx context.Context, runID, stageID string, discard func() error,
+) error {
+	if err := p.requireClaim(ctx, runID); err != nil {
+		return err
+	}
+
+	if p.store.run.RunID != runID || p.store.run.State != runstore.RunPending {
+		return runstore.ErrConflict
+	}
+	unadmitted := false
+	for _, stage := range p.store.stages {
+		if stage.StageExecutionID == stageID {
+			unadmitted = stage.State == runstore.StagePreparing && stage.AdmittedAt == nil
+		}
+	}
+	if !unadmitted {
+		return runstore.ErrConflict
+	}
+	kept := make([]runstore.StageAllocation, 0, len(p.store.allocations))
+	for _, allocation := range p.store.allocations {
+		if allocation.StageExecutionID != stageID || allocation.ReleaseAttemptedAt != nil ||
+			allocation.ReleaseCompletedAt != nil {
+			kept = append(kept, allocation)
+		}
+	}
+	// The deletion commits only with the discarded live reservation.
+	if err := discard(); err != nil {
+		return err
+	}
+	p.store.allocations = kept
+	p.events.add("discard_placement")
+	return nil
+}
+
+func (p *memoryAtomicPersistence) AdmitStage(ctx context.Context, runID, stageID string) (runstore.StageExecution, error) {
+	if err := p.requireClaim(ctx, runID); err != nil {
+		return runstore.StageExecution{}, err
+	}
+
+	if !p.runIn(runID, progressionRunStates) {
+		return runstore.StageExecution{}, runstore.ErrConflict
+	}
+	for i := range p.store.stages {
+		if p.store.stages[i].StageExecutionID == stageID {
+			if p.store.run.State == runstore.RunPending && p.queuePaused {
+				return runstore.StageExecution{}, runstore.ErrQueuePaused
+			}
+			if p.store.stages[i].AdmittedAt == nil {
+				now := p.allocator.clock.now
+				p.store.stages[i].AdmittedAt = &now
+			}
+			if p.store.run.State == runstore.RunPending {
+				p.store.run.State = runstore.RunRunning
+			}
+			return p.store.stages[i], nil
+		}
+	}
+	return runstore.StageExecution{}, runstore.ErrNotFound
+}
+
+func TestSchedulerMaterializesAndErasesPinnedInteractshToken(t *testing.T) {
+	const secret = "interactsh-private-allocation-secret"
+	harness := newSchedulerHarness(t)
+	harness.scheduler.options.RuntimeCredentials = runtimeCredentialResolverFunc(func(
+		_ context.Context,
+		credentialID string,
+		allowed []runtimesettings.RuntimeCredentialKind,
+		consumer func(runtimesettings.RuntimeCredentialKind, []byte) error,
+	) error {
+		if credentialID != "interactsh-lab" ||
+			!reflect.DeepEqual(allowed, []runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialInteractshToken}) {
+			return errors.New("unexpected Runtime credential selection")
+		}
+		return consumer(runtimesettings.RuntimeCredentialInteractshToken, []byte(`{"token":"`+secret+`"}`))
+	})
+	runtimeConfig, err := schedulerTestResolvedWorkerConfig(
+		harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"],
+		false,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtimeConfig.Interactsh = &runtimeconfig.InteractshConfig{
+		Adapter: string(runtimesettings.RuntimeAdapterInteractshHTTP), Endpoint: "https://interactsh.example/prefix",
+		Credential: "interactsh-lab", RequestTimeoutSeconds: 120,
+	}
+	settings, err := harness.scheduler.materializeRuntimeSettings(t.Context(), runtimeConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settings.Interactsh == nil || settings.Interactsh.Token == nil ||
+		settings.Interactsh.Token.Reveal() != secret ||
+		settings.Interactsh.RequestTimeoutSeconds != settings.RequestTimeoutSeconds {
+		t.Fatalf("materialized Interactsh settings = %+v", settings.Interactsh)
+	}
+	if strings.Contains(fmt.Sprintf("%+v", settings), secret) {
+		t.Fatal("formatted Runtime settings exposed Interactsh bearer")
+	}
+	workerSettings := map[string]runtimesettings.WorkerExecutionSettings{
+		"builder": {RuntimeSettings: settings},
+	}
+	clearWorkerExecutionSettings(workerSettings)
+	if workerSettings["builder"].RuntimeSettings.Interactsh.Token != nil {
+		t.Fatal("Interactsh bearer survived Worker execution settings erasure")
+	}
+}
+
+func (p *memoryAtomicPersistence) requireClaim(ctx context.Context, runID string) error {
+	claimID, err := claimIDForRun(ctx, runID)
+	if err != nil {
+		return err
+	}
+	if p.store.claimID != claimID {
+		return errors.Join(ErrClaimLost, runstore.ErrConflict)
+	}
+	return nil
+}
+
+func (p *memoryAtomicPersistence) ReconcileModelWait(ctx context.Context, runID, stageID, code string) error {
+	if p.store.run.RunID != runID {
+		return runstore.ErrNotFound
+	}
+	for _, stage := range p.store.stages {
+		if stage.StageExecutionID != stageID || stage.State != runstore.StageRunning {
+			continue
+		}
+		if p.store.run.State != runstore.RunRunning && p.store.run.State != runstore.RunWaiting {
+			return nil
+		}
+		if code == "" {
+			p.store.run.State = runstore.RunRunning
+		} else {
+			p.store.run.State = runstore.RunWaiting
+		}
+		p.store.run.StateReason = runstore.Reason{Code: code}
+	}
+	return nil
+}

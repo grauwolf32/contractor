@@ -1,0 +1,231 @@
+schema_version: '1.0'
+id: V407-002
+title: Batch Audit collection lookups and retention within existing row and byte limits
+milestone: server-runtime-review-2026-10
+epic: audits
+kind: chore
+introduced_by: V45-004
+priority: P2
+status: completed
+implementation_commit: 72b9c7666ea1bc76d35517b0b1828ffce9c205a4
+depends_on: []
+languages:
+- go
+- sql
+goal: Reduce redundant collection reads and transactions using bounded batches while preserving receipt,
+  evidence and failure outcomes.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/audits/execution.md
+  validation: Revalidated against main dc7012e8 on 2026-10-23. The N+1 paths and unused payload reads
+    are confirmed; the original 16384 evidence / 8192 proposal totals were overstated. No database latency
+    or total statement-count improvement was measured during review.
+  finding: internal/auditimport/check_results.go:134 reads evidence payloads only to obtain descriptors
+    through artifacts.go:87-95. Distinct evidence sources are retained separately (check_results.go:304-321),
+    each under WithArtifactWrite and an Audit row lock (auditstore/internal/pgstore/artifact_writes.go:34-44).
+    findingintake/postgres.go:268-304 resolves and hydrates proposals one key at a time; auditstore/internal/pgstore/finding_collection.go:23-39,52-53
+    issues two statements per finding. Reachable limits are 64 collection items, 4096 evidence envelope
+    entries, 1024 retained links per accepted receipt including item result links, 128 proposal selections
+    per resolver call and 4096 proposals per source Run (auditstore/types.go:20-21; auditdomain/codec.go:533;
+    findingintake/postgres.go:262-264; service.go:25,166-178). The late receipt bound can reject a large
+    envelope after preliminary work; this task does not silently broaden that accepted contract.
+  siblings: Reuse hydrateAuditReceiptBatch, readRunAuditHoldsBatch and GetOwnerAuditReceipts where their
+    bounds and authorization fit. CollectionReceiptIDs has a separate 256-entry result contract. Audit
+    list hydration belongs to V407-004; intake provenance-read cleanup belongs to V407-005.
+plan:
+- Record a deterministic baseline of statements, descriptor payload bytes and artifact-write transactions
+  for accepted collection fixtures, a 128-key resolver call, a 4096-proposal paged source Run, and 256
+  collection findings. Make every fixture satisfy both inner and enclosing limits.
+- Use a metadata-only exact-artifact accessor for evidence descriptors. Preserve name/revision/media-type
+  validation and the distinction between invalid references and transient storage failure.
+- Batch proposal resolution and document/hold hydration within existing key, row and byte bounds. Preserve
+  input ordering, duplicate/foreign/missing-key rejection and the current public 128-key call limit; do
+  not introduce an 8192-key API.
+- Batch distinct-source retention into explicitly bounded chunks under existing claim and Audit fences.
+  Define rows and bytes per transaction and the fixed overhead per chunk before implementation; reuse
+  current immutable bindings and replay behavior, and keep cancellation/claim-loss cleanup joined.
+- Read CollectionReceiptIDs set-wise with exact finding revisions and its 256-result bound. Preserve stale-revision
+  and access errors, count overflow before truncation, and use one coherent read snapshot.
+- Add real PostgreSQL count assertions for the stated bounds, transient errors, ambiguous receipt replay
+  and claim loss. Document the resulting formulas and measured counts without inventing a whole-Collect
+  statement target.
+decisions:
+- >-
+  Findings re-verified on base f42665bd and measured by the new count tests on the base code:
+  check_results.go:134 read every evidence payload through ReadRunExact only for its descriptor (960
+  payload reads for the 64-item, 960-record fixture; a revision cited twice was read twice);
+  check_results.go:292,346 retained each distinct source in its own WithArtifactWrite transaction with
+  a claim lock and an Audit row lock (959 transactions); findingintake/postgres.go:268-316 resolved,
+  read the receipt, read all its holds and read the document per key (512 statements per 128 keys,
+  16,384 for a 4,096-proposal Run); pgstore/finding_collection.go:23-39,52-53 sent two statements per
+  finding (510 for 255 findings).
+- >-
+  Evidence descriptors (A1, ART-R121, LIM-ART-8): artifacts.ScopedStore.DescribeExact returns digest,
+  media type and size of exact revisions in request order, one payload-free statement per 32
+  references; Importer.describeEvidence describes each distinct cited revision once. A reference that
+  is not exact or has an invalid name is rejected before any read and a revision the Run does not hold
+  is not found, both evidence-reference-invalid; a stored descriptor that fails validation
+  (ErrArtifactIntegrity) and every other failure stay transient and leave the execution collecting
+  (AUX-R96). The import no longer hashes evidence bytes: the retained binding shares the stored version
+  and every payload read verifies it against the digest. Before, a corrupt evidence blob kept the
+  execution collecting indefinitely; now the receipt is accepted and a later read of the retained copy
+  fails integrity like the source. Reopen if acceptance must prove blob integrity; then read distinct
+  revisions with ReadExactBatch (32 refs, LIM-ART-4) rather than per record.
+- >-
+  Retention chunks (A3, AUX-R98, LIM-AUX-7 now 512): ServiceArtifactAccess.RetainRunExact takes all
+  retentions of one collection (result plus distinct evidence, role outputs, or preparation attempt
+  outputs) and commits them in order in WithArtifactWrite transactions of at most
+  auditdomain.MaximumCollectionTransactionWork = 512 retentions, the bound finding intake already used,
+  now one shared constant. Each transaction keeps the existing claim Lock, Audit row FOR UPDATE and
+  claim Live check, so every retention is still owned by an artifact-write transaction holding the
+  claim and the Audit row. Fixed overhead 5 statements (begin, claim lock, Audit lock, claim check,
+  commit); 2 statements and 3 rows (binding, binding revision, lineage) per new retention, 5 statements
+  per retention replayed through the existing create-only Fork conflict and its content and lineage
+  verification; no payload bytes are copied and refs are bounded by LIM-ART-1. Alternatives: one
+  transaction per revision (base, 959 Audit row locks), one transaction for all (unbounded, out of
+  scope), chunks of 1,024 links (longer Audit row lock hold against takeover and purge). All-or-nothing
+  holds at the receipt: copies stay unlinked and out of public projections until the one collection
+  transaction links them, so an interrupted, cancelled or claim-lost chunk leaves earlier chunks
+  committed but unlinked, no receipt, and the execution collecting; the next attempt (or the next
+  holder) replays them. commitRoleFailure now checks the whole evidence budget before retaining any
+  output (before, earlier outputs were retained unlinked before a later one exhausted the budget; the
+  receipt is the same).
+- >-
+  Proposal resolution (A2): ResolveAuditProposals (proposal_resolution.go) validates the request, then
+  one statement resolves every key to at most two receipts retained by the execution with this Audit's
+  hold, and hydrateAuditReceiptBatch reads the documents in exact batches (32 refs, LIM-ART-4): 1 +
+  ceil(n/32) statements for small documents, 5 for 128 keys, 160 for 4,096 proposals in 32 calls. The
+  128-key limit and ProposalKey API are unchanged. Outcome changes, all mapped by the importer to the
+  same finding-proposal-association-invalid receipt: a key matching two retained receipts is
+  ErrConflict (before, QueryRow picked one; the method contract and AUX-R54 require one receipt);
+  invalid identities, repeated keys and more than 128 keys fail before any read, so an invalid key
+  after a missing one is now ErrInvalid instead of ErrNotFound; a missing, foreign or stale key fails
+  before any document is read. After source Run deletion the document is read from this Audit's own
+  hold, as GetAuditReceipts does, instead of the first hold of any Audit. hydrateReceiptDocuments had
+  no other caller and was removed; readReceiptByID is read only by tests and moved into
+  multi_audit_import_test.go with its statement.
+- >-
+  Collection receipts (A4, FND-R159): CollectionReceiptIDs sends one statement: one revision row per
+  requested finding and at most 257 distinct receipts (at most 257 contributions per finding through
+  the (finding_id, receipt_id) key, plus first receipts). It runs on the publication's repeatable-read
+  transaction, so the read is one snapshot. The first missing finding in input order is ErrNotFound,
+  the first stale one ErrConflict, and only then are more than 256 receipts ErrInvalid (before, the
+  checks interleaved per finding, so an overflow before a stale finding won). More than 256 findings is
+  ErrInvalid without a read: callers cap selectors at 256 (LIM-FND-25) and distinct findings of one
+  Audit have distinct first receipts.
+- >-
+  Siblings ruled out: collectSucceededRole and commitRoleFailure still read role-output payloads through
+  ReadRunBinding (a role has few outputs, and dropping the read would change the outcome for a corrupt
+  output blob, which commitRoleFailure skips and collectSucceededRole retries); resolveTaskProposal
+  stays one GetAuditReceipt (3 statements) per member with a finding task, at most 64 per execution,
+  keeping per-member outcome order; ResolveAuditProposals stays one call per item because the plan
+  keeps the 128-key call limit; scan recovery needs the bytes it reads; the late 1,024-link receipt
+  bound after retention is the out-of-scope oversized-envelope redesign. New spec IDs: AUX-R98,
+  ART-R121, LIM-AUX-15, LIM-ART-8; LIM-AUX-7 gained its value and FND-R159 names the finding expansion.
+scope:
+  in:
+  - Metadata-only evidence description and bounded batching of existing proposal, retention and collection-receipt
+    operations.
+  - Real-store operation-count and failure-parity tests using accepted cardinalities and explicit byte
+    limits.
+  out:
+  - Increasing accepted collection sizes, weakening exact-reference checks, or changing result/receipt
+    API shapes.
+  - An unbounded single transaction for all possible evidence or a fixed total statement count independent
+    of required bounded pages.
+  - Optional redesign of rejected oversized collection envelopes or new retention/idempotency mechanisms.
+acceptance_criteria:
+- id: A1
+  text: Accepted collection fixtures, including 64 items with total result/evidence links within 1024,
+    perform no artifact payload read solely to obtain evidence descriptors. Their retained bindings and
+    receipt contents match the original behavior.
+- id: A2
+  text: A valid 128-key ResolveAuditProposals call uses bounded set queries and bounded hydration batches,
+    not one resolution query per key. The 128-key limit and all duplicate, foreign, missing and stale-data
+    outcomes are preserved.
+- id: A3
+  text: Retention work has documented row and byte bounds per transaction, uses fewer artifact-write transactions
+    on a multi-source fixture than the recorded baseline, and safely resumes through existing identities
+    after interrupted or ambiguous completion.
+- id: A4
+  text: CollectionReceiptIDs for 256 valid findings uses a set-based coherent read, returns the same sorted
+    receipt IDs and exact revision errors, and rejects an overflowing result without dropping entries.
+- id: A5
+  text: PostgreSQL tests assert the documented operation-count formulas at the accepted bounds, including
+    4096 proposals across bounded pages. Existing collection, deletion, cancellation and claim-fencing
+    tests pass without changing intended outcomes.
+tests:
+- command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/auditimport/...
+    ./internal/findingintake/... ./internal/auditstore/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+verification:
+  date: '2026-10-23'
+  revision: 72b9c7666ea1bc76d35517b0b1828ffce9c205a4
+  environment: >-
+    Worktree branch claude/rv-a on base f42665bd, macOS arm64, Go 1.26.9 (GOTOOLCHAIN=local), local
+    PostgreSQL 17.11 database contractor_test_a (CONTRACTOR_TEST_DATABASE_URL set for every Go run).
+  database_tests_configured: true
+  results:
+  - 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/auditimport/...
+    ./internal/findingintake/... ./internal/auditstore/...: passed (auditimport, findingintake, auditstore/internal/pgstore
+    ok; findingintake rerun after the last test-helper move, ok).'
+  - 'make lint: passed (after make docs-dependencies and make tasks-backlog).'
+  - 'go test -tags=integration -count=1 ./internal/artifacts/... ./internal/auditservice/... ./internal/auditcontroller/...
+    ./internal/auditdomain/... ./internal/app/...: passed; go test -count=1 (no tags) of artifacts, auditimport,
+    findingintake and auditstore/...: passed.'
+  - 'go test -count=1 ./internal/persistence/: fails TestSQLAccessFollowsTableOwnership (internal/cli/scan_sweep_remote.go:196)
+    and TestKeyedMutationsUseTheSharedHelpers (internal/app/single_active_budget_test.go); both fail identically
+    on base f42665bd in a temporary worktree, and neither names a file this task changed.'
+  - 'A1: TestPostgresMaximumCollectionDescribesEvidenceAndRetainsInBoundedTransactions collects 64 items with 15
+    evidence records each (1,024 links, 958 distinct evidence revisions, two repeats) through the production
+    importer on a traced pool: 0 evidence payload reads, 30 description statements (ceil(958/32)), 2
+    artifact-write transactions, 959 forks and 5x2 + 2x959 = 1,928 statements inside them; the receipt is
+    accepted with 1,024 links, 959 retained copies with the expected names and digests and the same retained
+    evidence bytes. Base: 960 payload reads, 0 descriptions, 959 artifact-write transactions (fails).
+    TestDescribeExactReadsBoundedMetadataBatchesWithoutPayloads: 103 references in ceil(103/32) statements, no
+    payload read, descriptors equal Metadata; missing and foreign revisions are not found, latest aliases and
+    invalid names fail before any statement, a cancelled read is not reported as invalid.'
+  - 'A2: TestPostgresResolveAuditProposalsUsesBoundedSetReads retains 4,096 proposals in 200-receipt pages and
+    resolves them in 32 calls of 128 keys, each exactly 1 + ceil(128/32) = 5 statements (160 in all). Base:
+    512 statements per call (fails). TestPostgresResolveAuditProposalsPreservesSelectionOutcomes: too many
+    keys and invalid identities ErrInvalid and repeated keys ErrConflict with 0 statements; missing,
+    unretained, foreign Audit, owner or Run and stale execution ErrNotFound and an ambiguous key ErrConflict
+    with 1 statement; no partial result. Base: 4 and 8 statements before rejection, ErrNotFound for an
+    invalid key after a missing one, and the ambiguous key resolved (fails).'
+  - 'A3: TestPostgresMaximumCollectionResumesAfterInterruptedRetention cancels the attempt after its first
+    artifact-write transaction commits: 1 transaction of 512 forks (5 + 2x512 statements), execution
+    collecting, 512 unlinked bindings, 0 links; the next attempt makes 2 transactions with 5x2 + 2x447 +
+    5x512 statements, keeps every committed revision and links exactly the uninterrupted result. Base: the
+    interrupted attempt committed 1 fork (fails). TestPostgresMaximumCollectionStopsAtTransientFailureAndClaimLoss:
+    a transient description failure returns that error (not permanent), writes nothing and leaves the
+    execution collecting; a claim released after the first transaction stops the second at ErrClaimLost with
+    512 unlinked bindings, and the next holder replays them with the same statement formula and links
+    everything. The auditcontroller claim-release replay test passes through the batch API.'
+  - 'A4: TestPostgresCollectionReceiptIDsReadsSelectedFindingsInOneStatement: 255 findings holding exactly 256
+    receipts (one contributing) return the same sorted IDs in 1 statement; 256 findings with 257 receipts
+    ErrInvalid in 1 statement; stale finding plus overflow ErrConflict; missing finding and foreign owner
+    ErrNotFound; 257 findings ErrInvalid with 0 statements. Base: 510 statements for 255 findings (fails).'
+  - 'A5: every count test above was run against the base implementation (tests copied into a temporary base
+    worktree, since removed) and failed there, except the transient/claim-loss test, which needs the new
+    batch API to compile and asserts failure outcomes. No test asserts elapsed time. Existing collection,
+    deletion, cancellation and claim-fencing suites in auditimport, auditcontroller, auditservice,
+    findingintake and pgstore pass unchanged.'
+  - 'Spec: new AUX-R98 (docs/spec/audits/execution.md), ART-R121 (docs/spec/artifacts/artifact-store.md),
+    LIM-ART-8 and LIM-AUX-15 (docs/spec/platform/limits.md); LIM-AUX-7 now states 512 work units; FND-R159
+    states the one-statement expansion. No migration.'
+  declined:
+  - 'Role-output payload reads and per-member resolveTaskProposal reads were left unchanged (see decisions).
+    The late 1,024-link receipt bound and oversized-envelope handling stay out of scope.'

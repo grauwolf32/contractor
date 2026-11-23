@@ -1,0 +1,406 @@
+package projectstore
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
+)
+
+type PostgresStore struct{ db persistencepostgres.DBTX }
+
+func NewPostgresStore(db persistencepostgres.DBTX) *PostgresStore {
+	return &PostgresStore{db: db}
+}
+
+func (s *PostgresStore) Create(ctx context.Context, params CreateParams) (Project, bool, error) {
+	if params.ActiveChecks == "" {
+		params.ActiveChecks = contracts.ActiveChecksAutomatic
+	}
+	if err := validateCreate(params); err != nil {
+		return Project{}, false, err
+	}
+	project, err := scanProject(s.db.QueryRow(ctx, `
+INSERT INTO projects (
+    project_id, owner_id, kind, name, description,
+    request_idempotency_key, request_digest, active_checks
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+ON CONFLICT DO NOTHING
+RETURNING project_id, owner_id, kind, name, description,
+          http_target_url, http_target_credential_id, http_target_credential_kind, active_checks,
+          lifecycle_state, deletion_phase, deletion_requested_at,
+          revision, created_at, updated_at`,
+		params.ProjectID, params.OwnerID, params.Kind, params.Name, params.Description,
+		params.IdempotencyKey, params.RequestDigest, params.ActiveChecks,
+	))
+	if err == nil {
+		return project, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return Project{}, false, fmt.Errorf("create Project: %w", err)
+	}
+
+	var existingID, existingDigest string
+	err = s.db.QueryRow(ctx, `
+SELECT project_id, request_digest
+FROM projects
+WHERE owner_id = $1 AND request_idempotency_key = $2`,
+		params.OwnerID, params.IdempotencyKey,
+	).Scan(&existingID, &existingDigest)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Project{}, false, ErrConflict
+	}
+	if err != nil {
+		return Project{}, false, fmt.Errorf("resolve Project idempotency: %w", err)
+	}
+	if existingDigest != params.RequestDigest {
+		return Project{}, false, fmt.Errorf("%w: Project creation key", contracts.ErrIdempotencyConflict)
+	}
+	project, err = s.Get(ctx, params.OwnerID, existingID)
+	return project, false, err
+}
+
+func (s *PostgresStore) Get(ctx context.Context, ownerID, projectID string) (Project, error) {
+	if err := validateIdentity(ownerID, projectID); err != nil {
+		return Project{}, err
+	}
+	project, err := scanProject(s.db.QueryRow(ctx, `
+SELECT project_id, owner_id, kind, name, description,
+       http_target_url, http_target_credential_id, http_target_credential_kind, active_checks,
+       lifecycle_state, deletion_phase, deletion_requested_at,
+       revision, created_at, updated_at
+FROM projects
+WHERE owner_id = $1 AND project_id = $2`, ownerID, projectID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Project{}, ErrNotFound
+	}
+	if err != nil {
+		return Project{}, fmt.Errorf("read Project: %w", err)
+	}
+	return project, nil
+}
+
+// LockActiveAuditProject takes the shared Project admission lock before an
+// Audit snapshots Project-owned inputs and target configuration. Project
+// update/deletion therefore cannot commit a different target between the
+// snapshot and Audit baseline commit in the caller-owned transaction.
+func (s *PostgresStore) LockActiveAuditProject(
+	ctx context.Context, ownerID, projectID string,
+) (Project, error) {
+	project, err := s.lockProject(ctx, ownerID, projectID)
+	if err != nil {
+		return Project{}, err
+	}
+	if project.Kind != KindProject {
+		return Project{}, ErrNotFound
+	}
+	if project.Lifecycle == LifecycleDeleting {
+		return Project{}, ErrDeleting
+	}
+	return project, nil
+}
+
+// LockActiveProject fences a Run-owned mutation against deletion for either
+// ordinary or evaluation Projects, using the existing Project admission lock.
+func (s *PostgresStore) LockActiveProject(ctx context.Context, ownerID, projectID string) (Project, error) {
+	project, err := s.lockProject(ctx, ownerID, projectID)
+	if err != nil {
+		return Project{}, err
+	}
+	if project.Lifecycle == LifecycleDeleting {
+		return Project{}, ErrDeleting
+	}
+	return project, nil
+}
+
+func (s *PostgresStore) lockProject(ctx context.Context, ownerID, projectID string) (Project, error) {
+	if err := validateIdentity(ownerID, projectID); err != nil {
+		return Project{}, err
+	}
+	project, err := scanProject(s.db.QueryRow(ctx, `
+SELECT project_id, owner_id, kind, name, description,
+       http_target_url, http_target_credential_id, http_target_credential_kind, active_checks,
+       lifecycle_state, deletion_phase, deletion_requested_at,
+       revision, created_at, updated_at
+FROM projects
+WHERE owner_id = $1 AND project_id = $2
+FOR SHARE`, ownerID, projectID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Project{}, ErrNotFound
+	}
+	if err != nil {
+		return Project{}, fmt.Errorf("lock Project: %w", err)
+	}
+	return project, nil
+}
+
+func (s *PostgresStore) List(ctx context.Context, params ListParams) ([]Project, error) {
+	if err := validateList(params); err != nil {
+		return nil, err
+	}
+	var kind *string
+	if params.Kind != nil {
+		value := string(*params.Kind)
+		kind = &value
+	}
+	rows, err := s.db.Query(ctx, listProjectsSQL, params.OwnerID, kind, params.BeforeCreatedAt, params.BeforeProjectID, params.Limit)
+	if err != nil {
+		return nil, fmt.Errorf("list Projects: %w", err)
+	}
+	projects, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Project, error) {
+		return scanProject(row)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("iterate Project page: %w", err)
+	}
+	return projects, nil
+}
+
+// maxCredentialProjects bounds one ListProjectIDsByHTTPTargetCredential read.
+const maxCredentialProjects = 128
+
+// ListProjectIDsByHTTPTargetCredential returns, by Project ID, at most limit
+// Projects whose HTTP target uses the Runtime credential: the Project usage
+// that refuses the credential's deletion (credentials.RuntimeCredentialProjectLookup).
+// The read is an index scan of projects_http_target_credential_idx.
+func (s *PostgresStore) ListProjectIDsByHTTPTargetCredential(ctx context.Context, credentialID string, limit int) ([]string, error) {
+	if !contracts.ValidConfigID(credentialID) || limit < 1 || limit > maxCredentialProjects {
+		return nil, invalid("Project credential usage query is invalid")
+	}
+	rows, err := s.db.Query(ctx, `
+SELECT project_id
+FROM projects
+WHERE http_target_credential_id = $1
+ORDER BY project_id
+LIMIT $2`, credentialID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list Projects that target a Runtime credential: %w", err)
+	}
+	projectIDs, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, fmt.Errorf("read Projects that target a Runtime credential: %w", err)
+	}
+	return projectIDs, nil
+}
+
+func (s *PostgresStore) Update(ctx context.Context, params UpdateParams) (Project, error) {
+	if err := validateUpdate(params); err != nil {
+		return Project{}, err
+	}
+	project, err := scanProject(s.db.QueryRow(ctx, updateProjectSQL,
+		params.Name, params.Description, targetURL(params.HTTPTarget), targetCredentialID(params.HTTPTarget),
+		targetCredentialKind(params.HTTPTarget), params.OwnerID, params.ProjectID, params.ExpectedRevision, params.ActiveChecks,
+	))
+	if err == nil {
+		return project, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return Project{}, fmt.Errorf("update Project: %w", err)
+	}
+	var lifecycle Lifecycle
+	err = s.db.QueryRow(ctx, `
+SELECT lifecycle_state FROM projects WHERE owner_id = $1 AND project_id = $2`,
+		params.OwnerID, params.ProjectID,
+	).Scan(&lifecycle)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Project{}, ErrNotFound
+	}
+	if err != nil {
+		return Project{}, fmt.Errorf("resolve Project update: %w", err)
+	}
+	if lifecycle == LifecycleDeleting {
+		return Project{}, ErrDeleting
+	}
+	return Project{}, ErrPrecondition
+}
+
+// BeginDeletion atomically fences future Project mutations. A retry after the
+// transition is an idempotent read of the already-deleting representation,
+// even when the caller only has the pre-transition revision.
+func (s *PostgresStore) BeginDeletion(
+	ctx context.Context,
+	params BeginDeletionParams,
+) (Project, bool, error) {
+	if err := validateIdentity(params.OwnerID, params.ProjectID); err != nil {
+		return Project{}, false, err
+	}
+	if params.ExpectedRevision == 0 || params.ExpectedRevision > uint64(^uint64(0)>>1) {
+		return Project{}, false, invalid("Project revision is invalid")
+	}
+	project, err := scanProject(s.db.QueryRow(ctx, beginProjectDeletionSQL,
+		params.OwnerID, params.ProjectID, params.ExpectedRevision,
+	))
+	if err == nil {
+		return project, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return Project{}, false, fmt.Errorf("begin Project deletion: %w", err)
+	}
+	project, err = s.Get(ctx, params.OwnerID, params.ProjectID)
+	if err != nil {
+		return Project{}, false, err
+	}
+	if project.Lifecycle == LifecycleDeleting {
+		return project, false, nil
+	}
+	return Project{}, false, ErrPrecondition
+}
+
+type scanner interface{ Scan(...any) error }
+
+func scanProject(row scanner) (Project, error) {
+	var project Project
+	var revision int64
+	var targetURL, credentialID, credentialKind *string
+	var deletionPhase *DeletionPhase
+	var deletionRequestedAt *time.Time
+	err := row.Scan(
+		&project.ProjectID, &project.OwnerID, &project.Kind, &project.Name,
+		&project.Description, &targetURL, &credentialID, &credentialKind, &project.ActiveChecks,
+		&project.Lifecycle, &deletionPhase, &deletionRequestedAt,
+		&revision, &project.CreatedAt, &project.UpdatedAt,
+	)
+	if err == nil {
+		if revision <= 0 {
+			return Project{}, errors.New("stored Project revision is invalid")
+		}
+		if !project.ActiveChecks.Valid() {
+			return Project{}, errors.New("stored Project active checks policy is invalid")
+		}
+		if !project.Lifecycle.Valid() {
+			return Project{}, errors.New("stored Project lifecycle is invalid")
+		}
+		project.Revision = uint64(revision)
+		if project.Lifecycle == LifecycleDeleting {
+			if deletionPhase == nil || !deletionPhase.Valid() || deletionRequestedAt == nil {
+				return Project{}, errors.New("stored Project deletion state is invalid")
+			}
+			project.Deletion = &Deletion{Phase: *deletionPhase, RequestedAt: *deletionRequestedAt}
+		} else if deletionPhase != nil || deletionRequestedAt != nil {
+			return Project{}, errors.New("stored Project deletion state is invalid")
+		}
+		if targetURL != nil {
+			project.HTTPTarget = &runtimesettings.HTTPOriginTargetRef{URL: *targetURL}
+			if credentialID != nil && credentialKind != nil {
+				project.HTTPTarget.Credential = &runtimesettings.RuntimeCredentialRef{
+					CredentialID: *credentialID, Kind: runtimesettings.RuntimeCredentialKind(*credentialKind),
+				}
+			}
+			if validateErr := project.HTTPTarget.Validate(); validateErr != nil {
+				return Project{}, errors.New("stored Project HTTP target is invalid")
+			}
+		}
+	}
+	return project, err
+}
+
+func targetURL(target *runtimesettings.HTTPOriginTargetRef) *string {
+	if target == nil {
+		return nil
+	}
+	value := target.URL
+	return &value
+}
+
+func targetCredentialID(target *runtimesettings.HTTPOriginTargetRef) *string {
+	if target == nil || target.Credential == nil {
+		return nil
+	}
+	value := target.Credential.CredentialID
+	return &value
+}
+
+func targetCredentialKind(target *runtimesettings.HTTPOriginTargetRef) *string {
+	if target == nil || target.Credential == nil {
+		return nil
+	}
+	value := string(target.Credential.Kind)
+	return &value
+}
+
+func validateCreate(params CreateParams) error {
+	if err := validateIdentity(params.OwnerID, params.ProjectID); err != nil {
+		return err
+	}
+	if params.ActiveChecks != "" && !params.ActiveChecks.Valid() {
+		return invalid("Project active checks policy is invalid")
+	}
+	if !params.Kind.Valid() {
+		return invalid("Project kind is invalid")
+	}
+	if err := validateMetadata(params.Name, params.Description); err != nil {
+		return err
+	}
+	if !contracts.ValidIdempotencyKey(params.IdempotencyKey) || !contentdigest.Valid(params.RequestDigest) {
+		return invalid("Project idempotency identity is invalid")
+	}
+	return nil
+}
+
+func validateUpdate(params UpdateParams) error {
+	if err := validateIdentity(params.OwnerID, params.ProjectID); err != nil {
+		return err
+	}
+	if params.ExpectedRevision == 0 || params.ExpectedRevision > uint64(^uint64(0)>>1) {
+		return invalid("Project revision is invalid")
+	}
+	if err := validateMetadata(params.Name, params.Description); err != nil {
+		return err
+	}
+	if params.ActiveChecks != nil && !params.ActiveChecks.Valid() {
+		return invalid("Project active checks policy is invalid")
+	}
+	if params.HTTPTarget != nil {
+		if err := params.HTTPTarget.Validate(); err != nil {
+			return invalid("Project HTTP target is invalid")
+		}
+	}
+	return nil
+}
+
+func validateList(params ListParams) error {
+	if strings.TrimSpace(params.OwnerID) == "" || len(params.OwnerID) > 256 || strings.IndexByte(params.OwnerID, 0) >= 0 {
+		return invalid("Project owner is invalid")
+	}
+	if params.Kind != nil && !params.Kind.Valid() {
+		return invalid("Project kind filter is invalid")
+	}
+	if !pagelimit.ValidFetch(params.Limit) {
+		return invalid("Project page limit is invalid")
+	}
+	if (params.BeforeCreatedAt == nil) != (params.BeforeProjectID == "") {
+		return invalid("Project page cursor is invalid")
+	}
+	if params.BeforeProjectID != "" && !contracts.ValidResourceID(params.BeforeProjectID) {
+		return invalid("Project page cursor is invalid")
+	}
+	return nil
+}
+
+func validateIdentity(ownerID, projectID string) error {
+	if strings.TrimSpace(ownerID) == "" || len(ownerID) > 256 || strings.IndexByte(ownerID, 0) >= 0 ||
+		!contracts.ValidResourceID(projectID) {
+		return invalid("Project identity is invalid")
+	}
+	return nil
+}
+
+func validateMetadata(name, description string) error {
+	if !utf8.ValidString(name) || strings.TrimSpace(name) == "" || len(name) > MaxNameBytes ||
+		strings.IndexByte(name, 0) >= 0 || !utf8.ValidString(description) ||
+		len(description) > MaxDescriptionBytes || strings.IndexByte(description, 0) >= 0 {
+		return invalid("Project metadata is invalid")
+	}
+	return nil
+}
+
+func invalid(message string) error { return fmt.Errorf("%w: %s", ErrInvalid, message) }

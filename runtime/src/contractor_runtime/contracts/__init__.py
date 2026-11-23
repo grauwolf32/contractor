@@ -1,0 +1,209 @@
+"""Public import surface for strict private Runtime protocol contracts."""
+
+from contractor_runtime.contracts.allocation import (
+    AUDIT_COMPLETION_TOOLS as AUDIT_COMPLETION_TOOLS,
+)
+from contractor_runtime.contracts.allocation import AbortAllocationRequest as AbortAllocationRequest
+from contractor_runtime.contracts.allocation import AllocationSpec as AllocationSpec
+from contractor_runtime.contracts.allocation import (
+    FinalizeAllocationRequest as FinalizeAllocationRequest,
+)
+from contractor_runtime.contracts.allocation import (
+    PrepareAllocationRequest as PrepareAllocationRequest,
+)
+from contractor_runtime.contracts.allocation import (
+    PrepareAllocationResponse as PrepareAllocationResponse,
+)
+from contractor_runtime.contracts.allocation import (
+    ReleaseAllocationRequest as ReleaseAllocationRequest,
+)
+from contractor_runtime.contracts.allocation import (
+    WorkerCompletionContract as WorkerCompletionContract,
+)
+from contractor_runtime.contracts.allocation import WorkerHandle as WorkerHandle
+from contractor_runtime.contracts.artifacts import ArtifactListResult as ArtifactListResult
+from contractor_runtime.contracts.artifacts import ArtifactMetadataResult as ArtifactMetadataResult
+from contractor_runtime.contracts.artifacts import ArtifactReadResult as ArtifactReadResult
+from contractor_runtime.contracts.artifacts import ArtifactRef as ArtifactRef
+from contractor_runtime.contracts.artifacts import ArtifactWriteResult as ArtifactWriteResult
+from contractor_runtime.contracts.artifacts import (
+    validate_artifact_name as validate_artifact_name,
+)
+from contractor_runtime.contracts.artifacts import validate_media_type as validate_media_type
+from contractor_runtime.contracts.base import API_VERSION as API_VERSION
+from contractor_runtime.contracts.base import (
+    ARTIFACT_LIST_CURSOR_PATTERN as ARTIFACT_LIST_CURSOR_PATTERN,
+)
+from contractor_runtime.contracts.base import ARTIFACT_NAME_PATTERN as ARTIFACT_NAME_PATTERN
+from contractor_runtime.contracts.base import DIGEST_PATTERN as DIGEST_PATTERN
+from contractor_runtime.contracts.base import ID_PATTERN as ID_PATTERN
+from contractor_runtime.contracts.base import (
+    MAX_ARTIFACT_LIST_CURSOR_LENGTH as MAX_ARTIFACT_LIST_CURSOR_LENGTH,
+)
+from contractor_runtime.contracts.base import MAX_EXACT_INTEGER as MAX_EXACT_INTEGER
+from contractor_runtime.contracts.base import MAX_UINT64 as MAX_UINT64
+from contractor_runtime.contracts.base import MEDIA_TYPE_PATTERN as MEDIA_TYPE_PATTERN
+from contractor_runtime.contracts.base import NATIVE_SKILL_TOOL_NAMES as NATIVE_SKILL_TOOL_NAMES
+from contractor_runtime.contracts.base import (
+    RUN_METADATA_LABEL_KEY_PATTERN as RUN_METADATA_LABEL_KEY_PATTERN,
+)
+from contractor_runtime.contracts.base import RUNTIME_ADAPTER_REFS as RUNTIME_ADAPTER_REFS
+from contractor_runtime.contracts.base import SKILL_NAME_PATTERN as SKILL_NAME_PATTERN
+from contractor_runtime.contracts.base import VERSION_PATTERN as VERSION_PATTERN
+from contractor_runtime.contracts.base import (
+    WORKER_FAILURE_CODE_PATTERN as WORKER_FAILURE_CODE_PATTERN,
+)
+from contractor_runtime.contracts.base import WORKER_SUBTASK_ID_PATTERN as WORKER_SUBTASK_ID_PATTERN
+from contractor_runtime.contracts.base import AgentObservedState as AgentObservedState
+from contractor_runtime.contracts.base import HTTPProxyTarget as HTTPProxyTarget
+from contractor_runtime.contracts.base import ReconciliationAction as ReconciliationAction
+from contractor_runtime.contracts.base import RuntimeAdapterRef as RuntimeAdapterRef
+from contractor_runtime.contracts.base import RuntimeCredentialKind as RuntimeCredentialKind
+from contractor_runtime.contracts.base import TerminationError as TerminationError
+from contractor_runtime.contracts.base import VersionedWireModel as VersionedWireModel
+from contractor_runtime.contracts.base import WireModel as WireModel
+from contractor_runtime.contracts.base import WorkerSessionMode as WorkerSessionMode
+from contractor_runtime.contracts.base import WorkspaceMode as WorkspaceMode
+from contractor_runtime.contracts.base import WorkspaceStorage as WorkspaceStorage
+from contractor_runtime.contracts.base import (
+    normalize_run_metadata_labels as normalize_run_metadata_labels,
+)
+from contractor_runtime.contracts.codec import (
+    PrivateProtocolDecodeError as PrivateProtocolDecodeError,
+)
+from contractor_runtime.contracts.codec import decode_private as decode_private
+from contractor_runtime.contracts.registration import AgentHeartbeat as AgentHeartbeat
+from contractor_runtime.contracts.registration import AgentRegistration as AgentRegistration
+from contractor_runtime.contracts.registration import (
+    AgentRegistrationResponse as AgentRegistrationResponse,
+)
+from contractor_runtime.contracts.registration import HeartbeatResponse as HeartbeatResponse
+from contractor_runtime.contracts.registration import (
+    RuntimeCompletionCapabilities as RuntimeCompletionCapabilities,
+)
+from contractor_runtime.contracts.registration import ToolsetCapability as ToolsetCapability
+from contractor_runtime.contracts.reports import AllocationFinalReport as AllocationFinalReport
+from contractor_runtime.contracts.reports import AllocationFinalResponse as AllocationFinalResponse
+from contractor_runtime.contracts.reports import DroppedSpanCounts as DroppedSpanCounts
+from contractor_runtime.contracts.reports import ExecutionError as ExecutionError
+from contractor_runtime.contracts.reports import ExecutionMetrics as ExecutionMetrics
+from contractor_runtime.contracts.reports import ExecutionReport as ExecutionReport
+from contractor_runtime.contracts.reports import (
+    PerformanceMetricsRequest as PerformanceMetricsRequest,
+)
+from contractor_runtime.contracts.reports import ResourceNumber as ResourceNumber
+from contractor_runtime.contracts.reports import ResourceReason as ResourceReason
+from contractor_runtime.contracts.reports import RuntimeAdapterMetrics as RuntimeAdapterMetrics
+from contractor_runtime.contracts.reports import RuntimeReport as RuntimeReport
+from contractor_runtime.contracts.reports import RuntimeResources as RuntimeResources
+from contractor_runtime.contracts.reports import ToolCallOutcome as ToolCallOutcome
+from contractor_runtime.contracts.reports import ToolCallRecord as ToolCallRecord
+from contractor_runtime.contracts.reports import ToolMetrics as ToolMetrics
+from contractor_runtime.contracts.reports import WorkerBudgetMetrics as WorkerBudgetMetrics
+from contractor_runtime.contracts.reports import (
+    WorkerCompletionDiagnostics as WorkerCompletionDiagnostics,
+)
+from contractor_runtime.contracts.reports import WorkerSummarizerMetrics as WorkerSummarizerMetrics
+from contractor_runtime.contracts.settings import AgentTemplateRef as AgentTemplateRef
+from contractor_runtime.contracts.settings import CaidoSettings as CaidoSettings
+from contractor_runtime.contracts.settings import (
+    CompactWorkerContextManagement as CompactWorkerContextManagement,
+)
+from contractor_runtime.contracts.settings import (
+    GatewayFailureSignature as GatewayFailureSignature,
+)
+from contractor_runtime.contracts.settings import (
+    GatewayFailureSignatures as GatewayFailureSignatures,
+)
+from contractor_runtime.contracts.settings import (
+    HTTPOriginTargetSettings as HTTPOriginTargetSettings,
+)
+from contractor_runtime.contracts.settings import HTTPProxyBasicAuth as HTTPProxyBasicAuth
+from contractor_runtime.contracts.settings import HTTPProxySettings as HTTPProxySettings
+from contractor_runtime.contracts.settings import InteractshSettings as InteractshSettings
+from contractor_runtime.contracts.settings import LLMCredentialRef as LLMCredentialRef
+from contractor_runtime.contracts.settings import LLMGatewayConfigRef as LLMGatewayConfigRef
+from contractor_runtime.contracts.settings import ModelPolicyRef as ModelPolicyRef
+from contractor_runtime.contracts.settings import (
+    NoWorkerContextManagement as NoWorkerContextManagement,
+)
+from contractor_runtime.contracts.settings import ResolvedAgentTemplate as ResolvedAgentTemplate
+from contractor_runtime.contracts.settings import ResolvedInstructions as ResolvedInstructions
+from contractor_runtime.contracts.settings import ResolvedModelPolicy as ResolvedModelPolicy
+from contractor_runtime.contracts.settings import (
+    ResolvedRuntimeConfigProvenance as ResolvedRuntimeConfigProvenance,
+)
+from contractor_runtime.contracts.settings import ResolvedSkill as ResolvedSkill
+from contractor_runtime.contracts.settings import RuntimeConfigRef as RuntimeConfigRef
+from contractor_runtime.contracts.settings import RuntimeCredentialRef as RuntimeCredentialRef
+from contractor_runtime.contracts.settings import (
+    RuntimeLabelBindingProvenance as RuntimeLabelBindingProvenance,
+)
+from contractor_runtime.contracts.settings import RuntimeSettings as RuntimeSettings
+from contractor_runtime.contracts.settings import SandboxProfileRef as SandboxProfileRef
+from contractor_runtime.contracts.settings import TelemetryExportSettings as TelemetryExportSettings
+from contractor_runtime.contracts.settings import TelemetryRetrySettings as TelemetryRetrySettings
+from contractor_runtime.contracts.settings import TelemetrySettings as TelemetrySettings
+from contractor_runtime.contracts.settings import (
+    TerminalWorkerContextManagement as TerminalWorkerContextManagement,
+)
+from contractor_runtime.contracts.settings import ToolsetRef as ToolsetRef
+from contractor_runtime.contracts.settings import ToolsetSelection as ToolsetSelection
+from contractor_runtime.contracts.settings import (
+    WorkerContextManagement as WorkerContextManagement,
+)
+from contractor_runtime.contracts.settings import WorkerRuntimeRef as WorkerRuntimeRef
+from contractor_runtime.contracts.settings import WorkerSummarizerConfig as WorkerSummarizerConfig
+from contractor_runtime.contracts.sitemap import ProjectSitemapPolicy as ProjectSitemapPolicy
+from contractor_runtime.contracts.worker import AgentStateSnapshot as AgentStateSnapshot
+from contractor_runtime.contracts.worker import ContractorWorkerState as ContractorWorkerState
+from contractor_runtime.contracts.worker import StageContentRequest as StageContentRequest
+from contractor_runtime.contracts.worker import ToolObservationCount as ToolObservationCount
+from contractor_runtime.contracts.worker import (
+    WorkerAllocationMetricsState as WorkerAllocationMetricsState,
+)
+from contractor_runtime.contracts.worker import WorkerCompletion as WorkerCompletion
+from contractor_runtime.contracts.worker import WorkerFailure as WorkerFailure
+from contractor_runtime.contracts.worker import WorkerInvocationState as WorkerInvocationState
+from contractor_runtime.contracts.worker import WorkerModelResult as WorkerModelResult
+from contractor_runtime.contracts.worker import WorkerObservations as WorkerObservations
+from contractor_runtime.contracts.worker import WorkerResult as WorkerResult
+from contractor_runtime.contracts.worker import WorkerStateBudget as WorkerStateBudget
+from contractor_runtime.contracts.worker import (
+    WorkerStateExecutionError as WorkerStateExecutionError,
+)
+from contractor_runtime.contracts.worker import (
+    WorkerStateInvocationMetrics as WorkerStateInvocationMetrics,
+)
+from contractor_runtime.contracts.worker import (
+    WorkerStateInvocationToolMetrics as WorkerStateInvocationToolMetrics,
+)
+from contractor_runtime.contracts.worker import WorkerStateSummarizer as WorkerStateSummarizer
+from contractor_runtime.contracts.worker import WorkerStateToolCall as WorkerStateToolCall
+from contractor_runtime.contracts.worker import (
+    WorkerStateWorkspaceInteraction as WorkerStateWorkspaceInteraction,
+)
+from contractor_runtime.contracts.worker import (
+    WorkerStateWorkspaceObservation as WorkerStateWorkspaceObservation,
+)
+from contractor_runtime.contracts.workspace import (
+    AllocationWorkspaceExport as AllocationWorkspaceExport,
+)
+from contractor_runtime.contracts.workspace import (
+    AllocationWorkspaceSource as AllocationWorkspaceSource,
+)
+from contractor_runtime.contracts.workspace import (
+    AllocationWorkspaceSpec as AllocationWorkspaceSpec,
+)
+from contractor_runtime.contracts.workspace import (
+    AllocationWorkspaceState as AllocationWorkspaceState,
+)
+from contractor_runtime.contracts.workspace import (
+    WorkspaceCapabilities as WorkspaceCapabilities,
+)
+from contractor_runtime.contracts.workspace import WorkspaceLimits as WorkspaceLimits
+from contractor_runtime.contracts.workspace import (
+    WorkspaceObservationSummary as WorkspaceObservationSummary,
+)
+
+from .shared_config import SharedConfig as SharedConfig

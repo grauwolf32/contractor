@@ -1,0 +1,103 @@
+import { describe, expect, it, vi } from "vitest";
+
+import { collectAuditPages } from "./audit-collections";
+
+function pagedLoader(pages: number) {
+  return vi.fn(async (cursor?: string) => {
+    const index = cursor === undefined ? 0 : Number(cursor);
+    return {
+      items: [index],
+      page:
+        index + 1 < pages
+          ? { hasMore: true, nextCursor: String(index + 1) }
+          : { hasMore: false },
+    };
+  });
+}
+
+describe("Audit collection pagination", () => {
+  it.each([undefined, "", "repeated"])(
+    "rejects a missing or repeated cursor (%s) instead of returning an incomplete collection",
+    async (nextCursor) => {
+      const load = vi.fn(async (cursor?: string) =>
+        cursor === undefined
+          ? { items: [1], page: { hasMore: true, nextCursor: "repeated" } }
+          : {
+              items: [2],
+              page: {
+                hasMore: true,
+                ...(nextCursor === undefined ? {} : { nextCursor }),
+              },
+            },
+      );
+      await expect(collectAuditPages(load)).rejects.toThrow(
+        "invalid page continuation",
+      );
+      expect(load).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("does not return only the first page when a later page fails", async () => {
+    await expect(
+      collectAuditPages(async (cursor) => {
+        if (cursor !== undefined) throw new Error("Page unavailable");
+        return { items: [1], page: { hasMore: true, nextCursor: "next" } };
+      }),
+    ).rejects.toThrow("Page unavailable");
+  });
+
+  it("reads every page of a collection within the page cap", async () => {
+    const load = pagedLoader(3);
+    await expect(collectAuditPages(load)).resolves.toEqual({
+      items: [0, 1, 2],
+      truncated: false,
+    });
+    expect(load).toHaveBeenCalledTimes(3);
+  });
+
+  it("stops at the default page cap and reports the continuation cursor", async () => {
+    // A collection far longer than any batch: the default cap ends the read.
+    const load = pagedLoader(1000);
+    const batch = await collectAuditPages(load);
+    const pages = load.mock.calls.length;
+    expect(pages).toBeGreaterThan(1);
+    expect(pages).toBeLessThan(1000);
+    expect(batch).toEqual({
+      items: Array.from({ length: pages }, (_, index) => index),
+      truncated: true,
+      nextCursor: String(pages),
+    });
+  });
+
+  it("continues from a cursor with an explicit cap and finishes the collection", async () => {
+    const load = pagedLoader(7);
+    await expect(
+      collectAuditPages(load, { cursor: "5", maxPages: 2 }),
+    ).resolves.toEqual({ items: [5, 6], truncated: false });
+    expect(load.mock.calls.map(([cursor]) => cursor)).toEqual(["5", "6"]);
+    await expect(
+      collectAuditPages(load, { cursor: "2", maxPages: 1 }),
+    ).resolves.toEqual({ items: [2], truncated: true, nextCursor: "3" });
+  });
+
+  it("rejects a cursor that leads back to the starting page", async () => {
+    await expect(
+      collectAuditPages(
+        async () => ({
+          items: [1],
+          page: { hasMore: true, nextCursor: "start" },
+        }),
+        { cursor: "start" },
+      ),
+    ).rejects.toThrow("invalid page continuation");
+  });
+
+  it.each([0, -1, 1.5, Number.NaN])(
+    "rejects an invalid page cap (%s)",
+    async (maxPages) => {
+      await expect(
+        collectAuditPages(pagedLoader(1), { maxPages }),
+      ).rejects.toThrow("Page cap must be a positive integer");
+    },
+  );
+});

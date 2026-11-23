@@ -1,0 +1,653 @@
+//go:build e2e
+
+package e2e
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+)
+
+const summarizerTranscriptCanary = "ephemeral-worker-summary-transcript-canary"
+
+// summarizerReasoningCanary is provider reasoning_content of the first normal
+// Worker response. It may reach only a summarizer request whose AgentTemplate
+// sets includeReasoning: true, as a tagged ordinary part (WRK-R181).
+const summarizerReasoningCanary = "ephemeral-worker-provider-reasoning-canary"
+
+// summarizerReasoningClause is the start of the fixed Runtime instruction
+// clause that accompanies included reasoning (WRK-R183).
+const summarizerReasoningClause = `Parts tagged "reasoning" are the Worker model's own earlier reasoning`
+
+type summarizerGatewayCapture struct {
+	Mode              string
+	Model             string
+	Tools             []string
+	ResponseSchema    bool
+	MaxOutputTokens   int
+	TranscriptPresent bool
+	SecretRedacted    bool
+	// ReasoningTagged reports a tagged, redacted reasoning part, the fixed
+	// instruction clause and reasoningTruncated=false in a summarizer request.
+	ReasoningTagged bool
+}
+
+// summarizerGateway is an offline OpenAI-compatible boundary fixture. It
+// deliberately retains only safe request metadata; provider request bodies
+// and credentials are inspected in-flight and then discarded.
+type summarizerGateway struct {
+	server *httptest.Server
+	token  string
+
+	mu             sync.Mutex
+	normalCalls    map[string]int
+	summaryCalls   map[string]int
+	plannerCalls   int
+	compactorCalls int
+	pending        map[string]summarizerFinalizerExpectation
+	captures       []summarizerGatewayCapture
+	failures       []string
+	summaryStarted chan string
+	releaseBlocked chan struct{}
+	releaseOnce    sync.Once
+}
+
+type summarizerFinalizerExpectation struct {
+	Mode   string
+	Result string
+}
+
+func newSummarizerGateway(token string) *summarizerGateway {
+	gateway := &summarizerGateway{
+		token: token, normalCalls: map[string]int{}, summaryCalls: map[string]int{},
+		pending:        map[string]summarizerFinalizerExpectation{},
+		summaryStarted: make(chan string, 16), releaseBlocked: make(chan struct{}),
+	}
+	gateway.server = httptest.NewServer(http.HandlerFunc(gateway.serveHTTP))
+	return gateway
+}
+
+func (g *summarizerGateway) URL() string { return g.server.URL + "/v1" }
+
+func (g *summarizerGateway) close() {
+	g.releaseOnce.Do(func() { close(g.releaseBlocked) })
+	g.server.Close()
+}
+
+func (g *summarizerGateway) Failures() []string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return append([]string(nil), g.failures...)
+}
+
+func (g *summarizerGateway) Counts(mode string) (normal, summary int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.normalCalls[mode], g.summaryCalls[mode]
+}
+
+func (g *summarizerGateway) Captures() []summarizerGatewayCapture {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	result := make([]summarizerGatewayCapture, len(g.captures))
+	for index, capture := range g.captures {
+		result[index] = capture
+		result[index].Tools = append([]string(nil), capture.Tools...)
+	}
+	return result
+}
+
+func (g *summarizerGateway) WaitForSummary(
+	ctx context.Context,
+	mode string,
+) error {
+	for {
+		select {
+		case observed := <-g.summaryStarted:
+			if observed == mode {
+				return nil
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (g *summarizerGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/chat/completions") {
+		g.fail(w, http.StatusNotFound, "unsupported summarizer Gateway endpoint")
+		return
+	}
+	if r.Header.Get("Authorization") != "Bearer "+g.token {
+		g.fail(w, http.StatusUnauthorized, "invalid summarizer Gateway credential")
+		return
+	}
+	defer r.Body.Close()
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20))
+	decoder.UseNumber()
+	var request map[string]any
+	if err := decoder.Decode(&request); err != nil {
+		g.fail(w, http.StatusBadRequest, "invalid summarizer Gateway request")
+		return
+	}
+	model, ok := request["model"].(string)
+	if !ok || model == "" {
+		g.fail(w, http.StatusBadRequest, "summarizer Gateway request omitted model")
+		return
+	}
+	model = strings.TrimPrefix(model, "openai/")
+	if model == "planner-compactor-model" {
+		if !requestHasNoModelTools(request) {
+			g.fail(w, http.StatusBadRequest, "Planner compactor received tools")
+			return
+		}
+		g.mu.Lock()
+		g.compactorCalls++
+		g.mu.Unlock()
+		g.writeCompletion(w, model, map[string]any{"role": "assistant", "content": `{"summary":"The plan is created; verify the current Worker result before finishing."}`}, "stop", summarizerUsage(50, 10, 60))
+		return
+	}
+	if model == "planner-model" {
+		g.serveContinuationPlanner(w, request)
+		return
+	}
+	finalizerInput, isFinalizer, err := decodeWorkerResultFinalizerRequest(request)
+	if err != nil {
+		g.fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if isFinalizer {
+		g.serveResultFinalizer(w, request, model, finalizerInput)
+		return
+	}
+	mode, err := summarizerRequestMode(request)
+	if err != nil {
+		g.fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	isSummary := model == "worker-summarizer-model"
+	if !isSummary && model != "worker-model" {
+		g.fail(w, http.StatusBadRequest, "unexpected summarizer Gateway model alias")
+		return
+	}
+	tools, err := optionalRequestToolNames(request)
+	if err != nil {
+		g.fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if isSummary && len(tools) != 0 {
+		g.fail(w, http.StatusBadRequest, "terminal summarizer received model-visible tools")
+		return
+	}
+	if !isSummary && !equalStringSlices(tools, []string{"write_text_artifact"}) {
+		g.fail(w, http.StatusBadRequest, fmt.Sprintf("normal Worker exposed tools %v", tools))
+		return
+	}
+
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		g.fail(w, http.StatusBadRequest, "summarizer Gateway request could not be inspected")
+		return
+	}
+	responseSchema := request["response_format"] != nil
+	maxOutputTokens := requestInteger(request, "max_completion_tokens", "max_tokens")
+	capture := summarizerGatewayCapture{
+		Mode: mode, Model: model, Tools: append([]string(nil), tools...),
+		ResponseSchema: responseSchema, MaxOutputTokens: maxOutputTokens,
+		TranscriptPresent: strings.Contains(string(encoded), summarizerTranscriptCanary),
+		SecretRedacted: !strings.Contains(string(encoded), g.token) &&
+			strings.Contains(string(encoded), "[REDACTED]"),
+	}
+	var reasoning summaryReasoning
+	if isSummary {
+		reasoning = inspectSummaryReasoning(request)
+		capture.ReasoningTagged = reasoning.tagged && reasoning.untruncated && reasoning.clause
+	}
+
+	g.mu.Lock()
+	if isSummary {
+		g.summaryCalls[mode]++
+	} else {
+		g.normalCalls[mode]++
+	}
+	normalCall := g.normalCalls[mode]
+	summaryCall := g.summaryCalls[mode]
+	g.captures = append(g.captures, capture)
+	g.mu.Unlock()
+
+	if isSummary {
+		if summaryCall != 1 {
+			g.fail(w, http.StatusBadRequest, "terminal summarizer was invoked more than once")
+			return
+		}
+		if !responseSchema || maxOutputTokens != 2048 {
+			g.fail(w, http.StatusBadRequest, "terminal summarizer policy was not pinned")
+			return
+		}
+		if !capture.TranscriptPresent || !capture.SecretRedacted {
+			g.fail(w, http.StatusBadRequest, "terminal summarizer projection was missing or unsafe")
+			return
+		}
+		if mode == "reasoning-on" && !capture.ReasoningTagged {
+			g.fail(w, http.StatusBadRequest, "enabled summarizer reasoning was not tagged ordinary input")
+			return
+		}
+		if mode != "reasoning-on" && strings.Contains(string(encoded), summarizerReasoningCanary) {
+			g.fail(w, http.StatusBadRequest, "summarizer received reasoning that its template did not enable")
+			return
+		}
+		// The enabled option without provider reasoning keeps its clause and
+		// marker but invents no reasoning part; every other mode has neither.
+		if (mode == "reasoning-absent" &&
+			(!reasoning.clause || !reasoning.untruncated || reasoning.parts != 0)) ||
+			(mode != "reasoning-on" && mode != "reasoning-absent" &&
+				(reasoning.clause || reasoning.marker || reasoning.parts != 0)) {
+			g.fail(w, http.StatusBadRequest, "summarizer reasoning option did not match its template")
+			return
+		}
+		select {
+		case g.summaryStarted <- mode:
+		default:
+			g.fail(w, http.StatusInternalServerError, "terminal summarizer signal queue overflow")
+			return
+		}
+		if mode == "cancel-summary" {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-g.releaseBlocked:
+			}
+		}
+		if mode == "provider-timeout" {
+			g.scriptedProviderFailure(w)
+			return
+		}
+		if mode == "invalid-summary" {
+			g.writeCompletion(w, model, map[string]any{
+				"role": "assistant", "content": "not a structured Worker result",
+			}, "stop", summarizerUsage(13, 5, 18))
+			return
+		}
+		if mode == "empty-summary" || mode == "thought-summary" {
+			message := map[string]any{"role": "assistant", "content": ""}
+			if mode == "thought-summary" {
+				message["content"] = nil
+				message["reasoning_content"] = summarizerTranscriptCanary
+			}
+			g.writeCompletion(w, model, message, "stop", summarizerUsage(13, 5, 18))
+			return
+		}
+		message, resultErr := summarizerResultMessage(request, "Terminal summary for "+mode)
+		if resultErr != nil {
+			g.fail(w, http.StatusBadRequest, resultErr.Error())
+			return
+		}
+		finish := "stop"
+		if mode == "limited-summary" {
+			finish = "length"
+		}
+		g.writeCompletion(w, model, message, finish, summarizerUsage(13, 5, 18))
+		return
+	}
+
+	if normalCall == 1 || (mode == "continuation" && normalCall == 2) {
+		name := "result"
+		if mode == "continuation" && normalCall == 1 {
+			name = "progress"
+		}
+		message := toolCallMessage("summary-write-"+mode, "write_text_artifact", map[string]any{
+			"name": name, "text": "artifact produced for " + mode,
+			"media_type": "text/plain",
+		})
+		// This text is model-visible history, but neither a result nor an
+		// artifact. It proves that the bounded transcript reaches only the live
+		// summarizer request. The configured Gateway token proves value redaction.
+		message["content"] = summarizerTranscriptCanary + " " + g.token
+		if mode == "reasoning-on" || mode == "reasoning-off" {
+			// Actual provider reasoning, which the Gateway adapter maps to a
+			// thought part; reasoning-absent supplies none.
+			message["reasoning_content"] = summarizerReasoningCanary + " " + g.token
+		}
+		usage := normalUsage(mode, normalCall)
+		g.writeCompletion(w, model, message, "tool_calls", usage)
+		return
+	}
+	wantFinal := 2
+	if mode == "continuation" {
+		wantFinal = 3
+	}
+	if normalCall != wantFinal || !normalModeCompletesNormally(mode) {
+		g.fail(w, http.StatusBadRequest, "unexpected additional normal Worker invocation")
+		return
+	}
+	result := "Normal Worker result for " + mode
+	subtaskID, subtaskErr := workerRequestSubtaskID(request)
+	if subtaskErr != nil {
+		g.fail(w, http.StatusBadRequest, subtaskErr.Error())
+		return
+	}
+	g.mu.Lock()
+	if _, exists := g.pending[subtaskID]; exists {
+		g.mu.Unlock()
+		g.fail(w, http.StatusBadRequest, "normal Worker replaced a pending result candidate")
+		return
+	}
+	g.pending[subtaskID] = summarizerFinalizerExpectation{Mode: mode, Result: result}
+	g.mu.Unlock()
+	g.writeCompletion(w, model, map[string]any{
+		"role": "assistant", "content": result,
+	}, "stop", normalUsage(mode, normalCall))
+}
+
+func (g *summarizerGateway) serveResultFinalizer(
+	w http.ResponseWriter,
+	request map[string]any,
+	model string,
+	input workerResultFinalizerInput,
+) {
+	if model != "worker-model" || !requestHasNoModelTools(request) {
+		g.fail(w, http.StatusBadRequest, "invalid Worker result-finalizer model surface")
+		return
+	}
+	if request["response_format"] == nil {
+		g.fail(w, http.StatusBadRequest, "Worker result finalizer omitted its response schema")
+		return
+	}
+	g.mu.Lock()
+	expected, ok := g.pending[input.SubtaskID]
+	if !ok || expected.Result != input.ResultText {
+		g.mu.Unlock()
+		g.fail(w, http.StatusBadRequest, "Worker result finalizer changed or invented a candidate")
+		return
+	}
+	delete(g.pending, input.SubtaskID)
+	g.normalCalls[expected.Mode]++
+	g.captures = append(g.captures, summarizerGatewayCapture{
+		Mode: expected.Mode, Model: model, Tools: []string{}, ResponseSchema: true,
+		MaxOutputTokens: requestInteger(request, "max_completion_tokens", "max_tokens"),
+	})
+	g.mu.Unlock()
+	message, err := workerResultFinalizerMessage(input)
+	if err != nil {
+		g.fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	g.writeCompletion(w, model, message, "stop", summarizerUsage(7, 3, 10))
+}
+
+func (g *summarizerGateway) writeCompletion(
+	w http.ResponseWriter,
+	model string,
+	message map[string]any,
+	finishReason string,
+	usage map[string]any,
+) {
+	w.Header().Set("Content-Type", "application/json")
+	payload := map[string]any{
+		"id": "chatcmpl-worker-summarizer", "object": "chat.completion",
+		"created": time.Now().Unix(), "model": model,
+		"choices": []any{map[string]any{
+			"index": 0, "message": message, "finish_reason": finishReason,
+		}},
+	}
+	if usage != nil {
+		payload["usage"] = usage
+	}
+	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func (g *summarizerGateway) scriptedProviderFailure(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	// This scenario tests Stage retryability after one scripted request.
+	// Suppress transport retries without changing the retryable HTTP 504.
+	w.Header().Set("X-Should-Retry", "false")
+	w.WriteHeader(http.StatusGatewayTimeout)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"error": map[string]any{
+			"message": "deterministic upstream timeout", "type": "timeout_error",
+		},
+	})
+}
+
+func (g *summarizerGateway) fail(w http.ResponseWriter, status int, message string) {
+	g.mu.Lock()
+	g.failures = append(g.failures, message)
+	g.mu.Unlock()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"error": map[string]any{"message": message, "type": "invalid_request_error"},
+	})
+}
+
+func normalUsage(mode string, call int) map[string]any {
+	switch mode {
+	case "continuation":
+		if call == 1 {
+			return summarizerUsage(100, 19900, 20000)
+		}
+		return summarizerUsage(7, 3, 10)
+	case "cumulative", "invalid-summary", "cancel-summary", "provider-timeout", "empty-summary", "thought-summary", "limited-summary",
+		"reasoning-on", "reasoning-off", "reasoning-absent":
+		return summarizerUsage(100, 19_900, 20_000)
+	case "context-window":
+		return summarizerUsage(7168, 3, 7171)
+	case "normal-final", "reuse-after-failure", "reuse-after-cancel":
+		if call == 1 {
+			return summarizerUsage(7, 3, 10)
+		}
+		return summarizerUsage(19_987, 3, 19_990)
+	case "missing-usage":
+		if call == 1 {
+			return nil
+		}
+		return summarizerUsage(7, 3, 10)
+	case "disabled":
+		if call == 1 {
+			return summarizerUsage(100, 24_900, 25_000)
+		}
+		return summarizerUsage(7, 3, 10)
+	default:
+		return summarizerUsage(7, 3, 10)
+	}
+}
+
+func summarizerUsage(prompt, completion, total int) map[string]any {
+	return map[string]any{
+		"prompt_tokens": prompt, "completion_tokens": completion, "total_tokens": total,
+	}
+}
+
+func normalModeCompletesNormally(mode string) bool {
+	switch mode {
+	case "normal-final", "missing-usage", "disabled", "reuse-after-failure", "reuse-after-cancel", "continuation":
+		return true
+	default:
+		return false
+	}
+}
+
+func summarizerRequestMode(request map[string]any) (string, error) {
+	allowed := map[string]bool{
+		"cumulative": true, "context-window": true, "normal-final": true,
+		"missing-usage": true, "disabled": true, "invalid-summary": true,
+		"cancel-summary": true, "provider-timeout": true,
+		"empty-summary": true, "thought-summary": true, "limited-summary": true,
+		"reuse-after-failure": true, "reuse-after-cancel": true,
+		"continuation": true, "reasoning-on": true, "reasoning-off": true,
+		"reasoning-absent": true,
+	}
+	values := map[string]bool{}
+	walkDomainJSON(request, func(object map[string]any) {
+		if parameters, ok := object["parameters"].(map[string]any); ok {
+			if mode, ok := parameters["mode"].(string); ok && allowed[mode] {
+				values[mode] = true
+			}
+		}
+		if mode, ok := object["mode"].(string); ok && allowed[mode] {
+			values[mode] = true
+		}
+	})
+	if len(values) != 1 {
+		return "", fmt.Errorf("summarizer Gateway request has %d recognized modes", len(values))
+	}
+	for value := range values {
+		return value, nil
+	}
+	return "", errors.New("summarizer Gateway request omitted mode")
+}
+
+func (g *summarizerGateway) serveContinuationPlanner(w http.ResponseWriter, request map[string]any) {
+	g.mu.Lock()
+	g.plannerCalls++
+	step := g.plannerCalls
+	g.mu.Unlock()
+	var message map[string]any
+	switch step {
+	case 1:
+		valid := false
+		walkDomainJSON(request, func(object map[string]any) {
+			saved, ok := object["continuation"].(map[string]any)
+			if !ok {
+				return
+			}
+			parameters, _ := object["parameters"].(map[string]any)
+			inputs, _ := object["artifacts"].(map[string]any)
+			ref, _ := saved["summaryArtifact"].(map[string]any)
+			progress, _ := saved["artifacts"].(map[string]any)
+			contract, _ := object["resultArtifacts"].(map[string]any)
+			result, _ := contract["result"].(map[string]any)
+			valid = object["objective"] == "Exercise continuation of partial analysis into the required final report" &&
+				object["instructions"] != "" && parameters["mode"] == "continuation" && inputs["source"] != nil &&
+				saved["summary"] == "Terminal summary for continuation" &&
+				ref["namespace"] == "builder" && ref["revision"] != "" && progress["progress"] != nil && result["required"] == true
+		})
+		if !valid {
+			g.fail(w, http.StatusBadRequest, "Planner did not receive original task and separate saved progress")
+			return
+		}
+		message = toolCallMessage("continue-add", "add_subtask", map[string]any{"objective": "Publish the remaining report", "instructions": "Reuse the partial analysis and verify the final report."})
+	case 2:
+		message = toolCallMessage("continue-execute", "execute_current_subtask", map[string]any{"subtask_id": "0"})
+	case 3:
+		ref, ok := exactArtifactValue(request, "builder", "result")
+		if !ok {
+			g.fail(w, http.StatusBadRequest, "continuation did not publish an exact final report")
+			return
+		}
+		message = toolCallMessage("continue-finish", "finish", map[string]any{"outcome": "succeeded", "summary": "Report completed", "artifacts": map[string]any{"result": materialSelector(ref)}})
+	default:
+		g.fail(w, http.StatusBadRequest, "continuation exceeded its bounded Planner script")
+		return
+	}
+	usage := summarizerUsage(7, 3, 10)
+	if step <= 2 {
+		usage = summarizerUsage(3072, 3, 3075)
+	}
+	g.writeCompletion(w, "planner-model", message, "tool_calls", usage)
+}
+
+// summaryReasoning is what a summarizer request shows of the reasoning option.
+type summaryReasoning struct {
+	// parts counts {"reasoning": ...} parts in the summary input document.
+	parts int
+	// tagged reports the canary only as one redacted reasoning part.
+	tagged bool
+	// marker and untruncated report reasoningTruncated and its false value.
+	marker, untruncated bool
+	// clause reports the fixed instruction clause in the system message.
+	clause bool
+}
+
+func inspectSummaryReasoning(request map[string]any) summaryReasoning {
+	var observed summaryReasoning
+	walkDomainJSON(request, func(object map[string]any) {
+		if text, ok := object["reasoning"].(string); ok {
+			observed.parts++
+			if len(object) == 1 && text == summarizerReasoningCanary+" [REDACTED]" {
+				observed.tagged = true
+			}
+		}
+		if value, ok := object["reasoningTruncated"].(bool); ok {
+			observed.marker = true
+			observed.untruncated = !value
+		}
+	})
+	messages, _ := request["messages"].([]any)
+	for _, raw := range messages {
+		message, _ := raw.(map[string]any)
+		if text, ok := message["content"].(string); ok && message["role"] == "system" &&
+			strings.Contains(text, summarizerReasoningClause) {
+			observed.clause = true
+		}
+	}
+	return observed
+}
+
+func summarizerResultMessage(request map[string]any, result string) (map[string]any, error) {
+	var subtaskID string
+	conflicting := false
+	walkDomainJSON(request, func(object map[string]any) {
+		candidate, ok := object["subtaskId"].(string)
+		if !ok || !validFixtureSubtaskID(candidate) {
+			return
+		}
+		if subtaskID != "" && candidate != subtaskID {
+			conflicting = true
+			return
+		}
+		subtaskID = candidate
+	})
+	if conflicting || subtaskID == "" {
+		return nil, errors.New("terminal summarizer request has no unique valid subtaskId")
+	}
+	encoded, err := json.Marshal(map[string]any{"subtaskId": subtaskID, "result": result})
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"role": "assistant", "content": string(encoded)}, nil
+}
+
+func optionalRequestToolNames(request map[string]any) ([]string, error) {
+	raw, exists := request["tools"]
+	if !exists || raw == nil {
+		return []string{}, nil
+	}
+	values, ok := raw.([]any)
+	if !ok {
+		return nil, errors.New("invalid model-visible tool set")
+	}
+	if len(values) == 0 {
+		return []string{}, nil
+	}
+	names, err := requestToolNames(request)
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+func requestInteger(request map[string]any, names ...string) int {
+	for _, name := range names {
+		switch value := request[name].(type) {
+		case json.Number:
+			parsed, err := value.Int64()
+			if err == nil {
+				return int(parsed)
+			}
+		case float64:
+			return int(value)
+		case int:
+			return value
+		}
+	}
+	return 0
+}

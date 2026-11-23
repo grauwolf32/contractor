@@ -1,0 +1,676 @@
+package planner
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/stageresult"
+	"github.com/grauwolf32/contractor/internal/telemetry"
+	"github.com/jackc/pgx/v5/pgconn"
+)
+
+func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
+	revision := "result-r1"
+	candidate := stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion,
+		Outcome:    stageresult.StageSucceeded,
+		Summary:    "report created",
+		Artifacts: map[string]contracts.ArtifactRef{
+			"report": {Namespace: "builder", Name: "report", Revision: &revision},
+		},
+	}
+	sessions := &memorySessions{}
+	worker := &recordingWorker{result: workerCompletionFromCandidate(candidate)}
+	inspector := &fakeInspector{mediaTypes: map[string]string{
+		"builder/report/result-r1": "application/json",
+	}}
+	factory, err := NewPassthroughFactory(sessions, worker, inspector)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry, err := NewRegistry(factory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invocation := testInvocation()
+	binding := invocation.Stage.Agents["builder"]
+	binding.Template.Toolsets = []contracts.ToolsetSelection{{
+		Ref:   contracts.ToolsetRef{ToolsetID: "memory-tools", Version: "1"},
+		Tools: []string{"read_memory", "write_memory"},
+	}}
+	invocation.Stage.Agents["builder"] = binding
+	telemetryAdapter, telemetryPayload := passthroughTestTelemetry(t, invocation)
+	invocation.Instrumentation = telemetryAdapter.Instrumentation()
+
+	first, err := registry.Create(resolved.PassthroughPlanner, invocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := first.Run(context.Background())
+	if err != nil {
+		t.Fatalf("first Run: %v", err)
+	}
+	if !reflect.DeepEqual(got, candidate) {
+		t.Fatalf("result = %+v, want %+v", got, candidate)
+	}
+	if worker.calls != 1 || sessions.beginCalls != 1 || sessions.requestCalls != 1 ||
+		sessions.completeCalls != 1 {
+		t.Fatalf(
+			"calls worker=%d begin=%d request=%d complete=%d",
+			worker.calls, sessions.beginCalls, sessions.requestCalls, sessions.completeCalls,
+		)
+	}
+	if worker.binding != "builder" || worker.handle.AllocationID != "allocation-1" {
+		t.Fatalf("Worker address = (%q, %q)", worker.binding, worker.handle.AllocationID)
+	}
+	if !worker.deadline.Equal(invocation.Deadline) || !worker.request.Deadline.Equal(invocation.Deadline) {
+		t.Fatalf("Worker deadline = %s, want Stage deadline %s", worker.deadline, invocation.Deadline)
+	}
+	if worker.request.SubtaskID != "0" ||
+		worker.request.Objective != invocation.Stage.Objective ||
+		worker.request.Instructions != invocation.Stage.Instructions.Text ||
+		worker.request.Parameters["mode"] != "strict" ||
+		len(worker.request.Artifacts) != 1 || worker.request.Artifacts["source"].Revision == nil ||
+		worker.request.ResultArtifacts["report"] != (contracts.ArtifactRef{Namespace: "builder", Name: "report"}) {
+		t.Fatalf("StageContentRequest = %+v", worker.request)
+	}
+	if len(sessions.facts.ParameterNames) != 1 || sessions.facts.ParameterNames[0] != "mode" ||
+		sessions.facts.ObjectiveDigest == invocation.Stage.Objective ||
+		sessions.facts.InstructionsDigest == invocation.Stage.Instructions.Text {
+		t.Fatalf("request facts are not redacted/bounded: %+v", sessions.facts)
+	}
+	report, ok := first.(ReportProvider).ExecutionReport()
+	if !ok || !report.Complete || len(report.ToolCalls) != 1 ||
+		report.ToolCalls[0].Outcome != reporting.ToolCallSucceeded ||
+		report.Metrics.Tools["a2a.invoke"].Calls == nil ||
+		*report.Metrics.Tools["a2a.invoke"].Calls != 1 {
+		t.Fatalf("Planner execution report = (%+v, %t)", report, ok)
+	}
+	assertZeroModelUsage(t, report)
+	if export := telemetryAdapter.Flush(t.Context()); !export.Succeeded {
+		t.Fatalf("Passthrough telemetry export = %+v", export)
+	}
+	payload := <-telemetryPayload
+	if !bytes.Contains(payload, []byte(telemetry.PlannerSpanSession)) ||
+		!bytes.Contains(payload, []byte(telemetry.PlannerSpanWorker)) ||
+		!bytes.Contains(payload, []byte(invocation.Stage.Objective)) {
+		t.Fatalf("Passthrough OTLP payload is missing ordinary debug content: %q", payload)
+	}
+
+	recovered, err := registry.Create(resolved.PassthroughPlanner, invocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err = recovered.Run(context.Background())
+	if err != nil || !reflect.DeepEqual(got, candidate) {
+		t.Fatalf("recovered Run = (%+v, %v)", got, err)
+	}
+	if worker.calls != 1 || sessions.beginCalls != 2 || sessions.completeCalls != 1 {
+		t.Fatalf("recovery invoked work twice: worker=%d sessions=%+v", worker.calls, sessions)
+	}
+}
+
+func TestPassthroughCompletionWriteWaitAndRetry(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		complete func(context.Context, int) error
+		attempts int
+	}{
+		{
+			name: "database wait exceeds one second",
+			complete: func(ctx context.Context, _ int) error {
+				select {
+				case <-time.After(1500 * time.Millisecond):
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			},
+			attempts: 1,
+		},
+		{
+			name: "transient first write",
+			complete: func(_ context.Context, attempt int) error {
+				if attempt == 1 {
+					return &pgconn.PgError{Code: persistencepostgres.SQLStateLockNotAvailable}
+				}
+				return nil
+			},
+			attempts: 2,
+		},
+		{
+			name: "closed connection during completion",
+			complete: func(_ context.Context, attempt int) error {
+				if attempt == 1 {
+					return persistencepostgres.WrapError("commit PostgreSQL transaction", pgconn.ErrConnClosed)
+				}
+				return nil
+			},
+			attempts: 2,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			revision := "result-r1"
+			candidate := stageresult.StageContentResult{
+				APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "report created",
+				Artifacts: map[string]contracts.ArtifactRef{
+					"report": {Namespace: "builder", Name: "report", Revision: &revision},
+				},
+			}
+			sessions := &memorySessions{}
+			sessions.completeHook = func(ctx context.Context, _ Completion) error {
+				return test.complete(ctx, sessions.completeCalls)
+			}
+			factory, err := NewPassthroughFactory(
+				sessions,
+				&recordingWorker{result: workerCompletionFromCandidate(candidate)},
+				&fakeInspector{mediaTypes: map[string]string{"builder/report/result-r1": "application/json"}},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			instance, err := factory.Create(testInvocation())
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := instance.Run(t.Context())
+			if err != nil || !reflect.DeepEqual(result, candidate) || sessions.completeCalls != test.attempts ||
+				sessions.completion == nil {
+				t.Fatalf("Run = (%+v, %v), completion calls = %d", result, err, sessions.completeCalls)
+			}
+		})
+	}
+}
+
+func TestRecoverCompletionRevalidatesRecordedOutcome(t *testing.T) {
+	revision := "result-r1"
+	contract := map[string]resolved.ArtifactSlot{
+		"report": {Required: true, MediaTypes: []string{"application/json"}},
+	}
+	recorded := stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "report created",
+		Artifacts: map[string]contracts.ArtifactRef{
+			"report": {Namespace: "builder", Name: "report", Revision: &revision},
+		},
+	}
+	inspector := &fakeInspector{mediaTypes: map[string]string{"builder/report/result-r1": "application/json"}}
+	result, err := RecoverCompletion(t.Context(), "run-1", contract, Completion{Result: &recorded}, inspector)
+	if err != nil || !reflect.DeepEqual(result, recorded) {
+		t.Fatalf("recovered result = (%+v, %v)", result, err)
+	}
+	failure := Failure{Code: "worker_failed", Message: "Worker failed", Retryable: true}
+	if _, err := RecoverCompletion(t.Context(), "run-1", contract, Completion{Failure: &failure}, inspector); FailureFrom(err) != failure {
+		t.Fatalf("recovered failure = %v", err)
+	}
+	for name, completion := range map[string]Completion{
+		"empty":         {},
+		"both":          {Result: &recorded, Failure: &failure},
+		"blank failure": {Failure: &Failure{Code: "worker_failed"}},
+	} {
+		_, err := RecoverCompletion(t.Context(), "run-1", contract, completion, inspector)
+		if got := FailureFrom(err); got.Code != "planner_session_invalid" || got.Retryable {
+			t.Errorf("%s completion = %+v", name, got)
+		}
+	}
+	missing := "missing"
+	unreadable := recorded.Clone()
+	unreadable.Artifacts["report"] = contracts.ArtifactRef{Namespace: "builder", Name: "report", Revision: &missing}
+	if _, err := RecoverCompletion(t.Context(), "run-1", contract, Completion{Result: &unreadable}, inspector); err == nil {
+		t.Fatal("recorded result with an unreadable artifact was accepted")
+	}
+}
+
+func TestPassthroughFailedCompletionWriteKeepsFailureRetryability(t *testing.T) {
+	sessions := &memorySessions{completeHook: func(context.Context, Completion) error {
+		return errors.New("database write failed")
+	}}
+	factory, err := NewPassthroughFactory(
+		sessions,
+		&recordingWorker{err: NewError("worker_input_required", "Worker requires input", false, nil)},
+		&fakeInspector{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	instance, err := factory.Create(testInvocation())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = instance.Run(t.Context())
+	var failure *Error
+	if !errors.As(err, &failure) || failure.Code != "planner_session_unavailable" || failure.Retryable ||
+		sessions.completeCalls != 1 {
+		t.Fatalf("unwritten non-retryable completion = %v, calls = %d", err, sessions.completeCalls)
+	}
+}
+
+func passthroughTestTelemetry(
+	t *testing.T, invocation Invocation,
+) (telemetry.PlannerTelemetry, <-chan []byte) {
+	t.Helper()
+	payload := make(chan []byte, 1)
+	collector := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		const maxFixtureOTLPBytes = 65 << 20
+		body, err := io.ReadAll(io.LimitReader(request.Body, maxFixtureOTLPBytes+1))
+		if err != nil || len(body) > maxFixtureOTLPBytes {
+			t.Error("invalid or oversized OTLP fixture payload")
+			response.WriteHeader(http.StatusRequestEntityTooLarge)
+			return
+		}
+		payload <- body
+		response.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(collector.Close)
+	registry, err := telemetry.NewBuiltinPlannerAdapterRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter, err := registry.Create(telemetry.PlannerAdapterOTLPHTTP, telemetry.PlannerAdapterSettings{
+		Endpoint: collector.URL + "/v1/traces", Headers: map[string]contracts.SecretString{},
+		FlushTimeout: time.Second, RunMetadataLabels: runlabels.RunMetadataLabels{},
+		Resource: telemetry.PlannerResource{
+			RunID: invocation.RunID, StageExecutionID: invocation.StageExecutionID,
+			PlannerRef: resolved.PassthroughPlanner,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(adapter.Close)
+	return adapter, payload
+}
+
+func TestPassthroughPlannerRejectsInvalidArtifactResults(t *testing.T) {
+	tests := []struct {
+		name       string
+		mutate     func(*stageresult.StageContentResult)
+		mediaTypes map[string]string
+		wantCode   string
+	}{
+		{
+			name: "unversioned",
+			mutate: func(result *stageresult.StageContentResult) {
+				ref := result.Artifacts["report"]
+				ref.Revision = nil
+				result.Artifacts["report"] = ref
+			},
+			wantCode: "invalid_worker_result",
+		},
+		{
+			name: "unknown slot",
+			mutate: func(result *stageresult.StageContentResult) {
+				result.Artifacts["unknown"] = result.Artifacts["report"]
+				delete(result.Artifacts, "report")
+			},
+			wantCode: "result_contract_violation",
+		},
+		{
+			name: "missing required slot",
+			mutate: func(result *stageresult.StageContentResult) {
+				delete(result.Artifacts, "report")
+			},
+			wantCode: "result_contract_violation",
+		},
+		{
+			name:   "incompatible media type",
+			mutate: func(*stageresult.StageContentResult) {},
+			mediaTypes: map[string]string{
+				"builder/report/result-r1": "text/plain",
+			},
+			wantCode: "result_contract_violation",
+		},
+		{
+			name: "reserved Memory binding",
+			mutate: func(result *stageresult.StageContentResult) {
+				ref := result.Artifacts["report"]
+				ref.Name = "memory.report"
+				result.Artifacts["report"] = ref
+			},
+			mediaTypes: map[string]string{
+				"builder/memory.report/result-r1": "application/json",
+			},
+			wantCode: "invalid_worker_result",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			revision := "result-r1"
+			candidate := stageresult.StageContentResult{
+				APIVersion: contracts.APIVersion,
+				Outcome:    stageresult.StageSucceeded, Summary: "result",
+				Artifacts: map[string]contracts.ArtifactRef{
+					"report": {Namespace: "builder", Name: "report", Revision: &revision},
+				},
+			}
+			test.mutate(&candidate)
+			sessions := &memorySessions{}
+			worker := &recordingWorker{result: workerCompletionFromCandidate(candidate)}
+			inspector := &fakeInspector{mediaTypes: test.mediaTypes}
+			factory, _ := NewPassthroughFactory(sessions, worker, inspector)
+			instance, err := factory.Create(testInvocation())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			result, err := instance.Run(context.Background())
+			var plannerError *Error
+			if !errors.As(err, &plannerError) || plannerError.Code != test.wantCode {
+				t.Fatalf("Run = (%+v, %v), want %s", result, err, test.wantCode)
+			}
+			if sessions.completion == nil || sessions.completion.Failure == nil ||
+				sessions.completion.Result != nil {
+				t.Fatalf("invalid candidate was not recorded as a Planner failure: %+v", sessions.completion)
+			}
+		})
+	}
+}
+
+func TestPassthroughPlannerRecordsTypedFailureAndDoesNotRetryInvocation(t *testing.T) {
+	sessions := &memorySessions{}
+	worker := &recordingWorker{err: NewError(
+		"worker_input_required", "Worker requires unsupported input", false, nil,
+	)}
+	factory, _ := NewPassthroughFactory(sessions, worker, &fakeInspector{})
+	invocation := testInvocation()
+	instance, _ := factory.Create(invocation)
+
+	_, err := instance.Run(context.Background())
+	var plannerError *Error
+	if !errors.As(err, &plannerError) || plannerError.Code != "worker_input_required" {
+		t.Fatalf("Run error = %v", err)
+	}
+	report, ok := instance.(ReportProvider).ExecutionReport()
+	if !ok || len(report.ToolCalls) != 1 ||
+		report.ToolCalls[0].Outcome != reporting.ToolCallFailed ||
+		len(report.Errors) != 1 || report.Errors[0].Code != "worker_input_required" {
+		t.Fatalf("failed Planner report = (%+v, %t)", report, ok)
+	}
+	assertZeroModelUsage(t, report)
+	recovered, _ := factory.Create(invocation)
+	_, err = recovered.Run(context.Background())
+	if !errors.As(err, &plannerError) || plannerError.Code != "worker_input_required" ||
+		worker.calls != 1 {
+		t.Fatalf("recovery error/calls = (%v, %d)", err, worker.calls)
+	}
+}
+
+func TestPassthroughPlannerMapsWorkerFailureToFailedCandidate(t *testing.T) {
+	sessions := &memorySessions{}
+	worker := &recordingWorker{result: contracts.WorkerCompletion{
+		APIVersion: contracts.APIVersion,
+		Failure: &contracts.WorkerFailure{
+			Code: "worker_budget_exhausted", Message: "Worker budget was exhausted", Retryable: true,
+		},
+		InvocationID: "worker-invocation-failed", StateRevision: 7,
+	}}
+	factory, _ := NewPassthroughFactory(sessions, worker, &fakeInspector{})
+	instance, _ := factory.Create(testInvocation())
+
+	result, err := instance.Run(context.Background())
+	if err != nil || result.Outcome != stageresult.StageFailed || result.Error == nil ||
+		result.Error.Code != "worker_budget_exhausted" || !result.Error.Retryable {
+		t.Fatalf("Run = (%+v, %v)", result, err)
+	}
+	if sessions.completion == nil || sessions.completion.Result == nil ||
+		sessions.completion.Failure != nil {
+		t.Fatalf("Planner completion = %+v", sessions.completion)
+	}
+	report, ok := instance.(ReportProvider).ExecutionReport()
+	if !ok || report.ToolCalls[0].Outcome != reporting.ToolCallFailed ||
+		report.ToolCalls[0].Error == nil || report.ToolCalls[0].Error.Code != "worker_budget_exhausted" {
+		t.Fatalf("Planner report = (%+v, %t)", report, ok)
+	}
+	assertZeroModelUsage(t, report)
+}
+
+// A passthrough Planner whose session never starts still reports, and its
+// report states zero model usage like every other passthrough report: the
+// Planner never calls a model, so no reader has to derive the zeros
+// (EVM-R81).
+func TestPassthroughPlannerReportsZeroModelUsageWhenItsSessionFails(t *testing.T) {
+	worker := &recordingWorker{}
+	factory, err := NewPassthroughFactory(failingSessions{err: errors.New("session store unavailable")}, worker, &fakeInspector{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	instance, err := factory.Create(testInvocation())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := instance.Run(t.Context()); err == nil || worker.calls != 0 {
+		t.Fatalf("Run error = %v after %d Worker calls, want a session failure before any call", err, worker.calls)
+	}
+	report, ok := instance.(ReportProvider).ExecutionReport()
+	if !ok || !strings.HasPrefix(report.ReportID, "planner-unavailable-") || len(report.ToolCalls) != 0 {
+		t.Fatalf("Planner report = (%+v, %t), want the report of a Planner without a session", report, ok)
+	}
+	assertZeroModelUsage(t, report)
+}
+
+// assertZeroModelUsage requires the explicit zero model calls and tokens that
+// every passthrough report states (EVM-R81).
+func assertZeroModelUsage(t *testing.T, report reporting.ExecutionReport) {
+	t.Helper()
+	if cost := report.Metrics.LLMCost; cost == nil || cost.Validate() != nil || cost.Calls != 0 || len(cost.Groups) != 0 {
+		t.Fatal("model-free Planner did not report its known zero LLM cost")
+	}
+	for name, counter := range map[string]*int64{
+		"model calls": report.Metrics.ModelCalls, "input tokens": report.Metrics.InputTokens,
+		"output tokens": report.Metrics.OutputTokens, "total tokens": report.Metrics.TotalTokens,
+	} {
+		if counter == nil || *counter != 0 {
+			t.Fatalf("Passthrough %s must explicitly report zero, got %v", name, counter)
+		}
+	}
+}
+
+func TestPassthroughPlannerDeadlineIsBoundedAndPersisted(t *testing.T) {
+	sessions := &memorySessions{}
+	worker := &recordingWorker{waitForContext: true}
+	factory, _ := NewPassthroughFactory(sessions, worker, &fakeInspector{})
+	invocation := testInvocation()
+	invocation.Deadline = time.Now().Add(25 * time.Millisecond)
+	instance, _ := factory.Create(invocation)
+
+	started := time.Now()
+	_, err := instance.Run(context.Background())
+	var plannerError *Error
+	if !errors.As(err, &plannerError) || plannerError.Code != "worker_deadline_exceeded" {
+		t.Fatalf("Run error = %v", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("deadline took %s", elapsed)
+	}
+	if sessions.completion == nil || sessions.completion.Failure == nil ||
+		sessions.completion.Failure.Code != "worker_deadline_exceeded" {
+		t.Fatalf("deadline completion = %+v", sessions.completion)
+	}
+}
+
+func TestPassthroughFactoryRequiresOneMatchingWorker(t *testing.T) {
+	factory, _ := NewPassthroughFactory(&memorySessions{}, &recordingWorker{}, &fakeInspector{})
+	invocation := testInvocation()
+	invocation.Workers["second"] = invocation.Workers["builder"]
+	if _, err := factory.Create(invocation); err == nil {
+		t.Fatal("factory accepted multiple Workers")
+	}
+
+	invocation = testInvocation()
+	invocation.Stage.Planner = resolved.PlannerRef{PlannerID: "streamline", Version: "1"}
+	if _, err := factory.Create(invocation); err == nil {
+		t.Fatal("factory accepted a Stage configured for another PlannerFactory")
+	}
+}
+
+func testInvocation() Invocation {
+	inputRevision := "input-r1"
+	templateRef := contracts.AgentTemplateRef{
+		TemplateID: "artifact_builder", Version: "1", Digest: "sha256:" + repeat("a", 64),
+	}
+	runtimeRef := contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"}
+	return Invocation{
+		StageExecutionID: "stage-execution-1",
+		RunID:            "run-1",
+		Stage: resolved.ResolvedStage{
+			Objective: "Build a report",
+			Instructions: contracts.ResolvedInstructions{
+				Ref: "instructions/report.md", Digest: "sha256:" + repeat("b", 64),
+				Text: "Read the source and write the report.",
+			},
+			Planner: resolved.PlannerRef{PlannerID: "passthrough", Version: "1"},
+			Agents: map[string]resolved.ResolvedAgentBinding{
+				"builder": {
+					Template:  contracts.ResolvedAgentTemplate{Ref: templateRef, Runtime: runtimeRef},
+					Namespace: "builder",
+				},
+			},
+			Context: resolved.StageContext{Artifacts: map[string]resolved.ContextArtifact{
+				"source": {Namespace: "inputs", Name: "source", Required: true},
+				"notes":  {Namespace: "inputs", Name: "notes", Required: false},
+			}},
+			Result: resolved.StageResultContract{Artifacts: map[string]resolved.ArtifactSlot{
+				"report": {
+					Required: true, MediaTypes: []string{"application/json"},
+					From: &resolved.ArtifactBinding{Namespace: "builder", Name: "report"},
+				},
+			}},
+		},
+		Context: StageContext{
+			Parameters: map[string]string{"mode": "strict"},
+			Artifacts: map[string]*contracts.ArtifactRef{
+				"source": {Namespace: "inputs", Name: "source", Revision: &inputRevision},
+				"notes":  nil,
+			},
+		},
+		Workers: map[string]contracts.WorkerHandle{
+			"builder": {
+				AllocationID: "allocation-1", AgentTemplateRef: templateRef,
+				WorkerRuntimeRef: runtimeRef, AgentCard: map[string]any{"name": "builder"},
+				LeaseExpiresAt: time.Now().Add(5 * time.Second),
+			},
+		},
+		Deadline: time.Now().Add(30 * time.Second),
+	}
+}
+
+type memorySessions struct {
+	beginCalls    int
+	requestCalls  int
+	completeCalls int
+	completeHook  func(context.Context, Completion) error
+	facts         RequestFacts
+	completion    *Completion
+}
+
+func (s *memorySessions) Begin(_ context.Context, stageExecutionID string) (SessionStart, error) {
+	s.beginCalls++
+	identity := SessionIdentity{
+		SessionID: "session-1", StageExecutionID: stageExecutionID, InvocationID: "invocation-1",
+	}
+	if s.completion != nil {
+		return SessionStart{Identity: identity, Completion: s.completion}, nil
+	}
+	return SessionStart{Identity: identity, Invoke: true}, nil
+}
+
+func (s *memorySessions) RecordRequest(
+	_ context.Context, _ SessionIdentity, facts RequestFacts,
+) error {
+	s.requestCalls++
+	s.facts = facts
+	return nil
+}
+
+func (s *memorySessions) Complete(
+	ctx context.Context, _ SessionIdentity, completion Completion,
+) error {
+	s.completeCalls++
+	if s.completeHook != nil {
+		if err := s.completeHook(ctx, completion); err != nil {
+			return err
+		}
+	}
+	s.completion = &completion
+	return nil
+}
+
+type recordingWorker struct {
+	calls          int
+	binding        string
+	handle         contracts.WorkerHandle
+	request        contracts.StageContentRequest
+	deadline       time.Time
+	result         contracts.WorkerCompletion
+	err            error
+	waitForContext bool
+}
+
+func (w *recordingWorker) Invoke(
+	ctx context.Context,
+	binding string,
+	handle contracts.WorkerHandle,
+	request contracts.StageContentRequest,
+) (contracts.WorkerCompletion, error) {
+	w.calls++
+	w.binding, w.handle, w.request = binding, handle, request
+	w.deadline, _ = ctx.Deadline()
+	if w.waitForContext {
+		<-ctx.Done()
+		return contracts.WorkerCompletion{}, ctx.Err()
+	}
+	return w.result, w.err
+}
+
+func workerCompletionFromCandidate(candidate stageresult.StageContentResult) contracts.WorkerCompletion {
+	return contracts.WorkerCompletion{
+		APIVersion: contracts.APIVersion,
+		Result: &contracts.WorkerResult{
+			SubtaskID: "0", Result: candidate.Summary,
+			Observations: contracts.WorkerObservations{
+				Profile: contracts.WorkerObservationProfileLeanV1,
+				Tools:   map[string]contracts.ToolObservationCount{},
+			},
+			Artifacts: candidate.Artifacts, Summarized: false,
+		},
+		InvocationID: "worker-invocation-1", StateRevision: 2,
+	}
+}
+
+type fakeInspector struct {
+	mediaTypes map[string]string
+}
+
+func (i *fakeInspector) Inspect(
+	_ context.Context, _ string, ref contracts.ArtifactRef,
+) (ArtifactMetadata, error) {
+	if ref.Revision == nil {
+		return ArtifactMetadata{}, artifacts.ErrExactRevisionRequired
+	}
+	mediaType, ok := i.mediaTypes[ref.Namespace+"/"+ref.Name+"/"+*ref.Revision]
+	if !ok {
+		return ArtifactMetadata{}, artifacts.ErrArtifactNotFound
+	}
+	return ArtifactMetadata{MediaType: mediaType}, nil
+}
+
+func repeat(value string, count int) string {
+	result := ""
+	for range count {
+		result += value
+	}
+	return result
+}

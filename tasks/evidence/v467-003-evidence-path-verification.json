@@ -1,0 +1,103 @@
+{
+  "date": "2026-11-14",
+  "base_commit": "f9eabdec2a37f87c56cc17792907dbc79f828a45",
+  "branch": "codex/graphify-hotspot-fixes",
+  "environment": "macOS arm64, Python 3.13.16, Node 24.20.0; locked dependencies",
+  "database": "No database tests required or configured for these Runtime/UI changes",
+  "heavy_io": "Not enabled",
+  "task": "V467-003",
+  "checks": {
+    "runtime": {
+      "tests": 354,
+      "passed": 353,
+      "skipped": 1
+    },
+    "real_tree": "4000 files; no payload read or digest; external path changes and all four storage/mode combinations covered",
+    "ownership": "Cancelled projection joins before workspace close",
+    "bounds": "Readability exclusions and binary/managed-text upper-bound classification preserve the complete-snapshot view",
+    "make_lint": "passed"
+  },
+  "before": [
+    {
+      "files": 100,
+      "source_bytes": 1638400,
+      "calls": 3,
+      "file_reads": 300,
+      "source_bytes_read": 4915200,
+      "seconds": [
+        0.007827750174328685,
+        0.006411624839529395,
+        0.005964291049167514
+      ],
+      "median_ms": 6.411624839529395
+    },
+    {
+      "files": 1000,
+      "source_bytes": 16384000,
+      "calls": 3,
+      "file_reads": 3000,
+      "source_bytes_read": 49152000,
+      "seconds": [
+        0.06350350007414818,
+        0.06041033403016627,
+        0.05993312504142523
+      ],
+      "median_ms": 60.41033403016627
+    },
+    {
+      "files": 4000,
+      "source_bytes": 65536000,
+      "calls": 3,
+      "file_reads": 12000,
+      "source_bytes_read": 196608000,
+      "seconds": [
+        0.2617528750561178,
+        0.2695446249563247,
+        0.2559787090867758
+      ],
+      "median_ms": 261.7528750561178
+    }
+  ],
+  "after": [
+    {
+      "files": 100,
+      "source_bytes": 1638400,
+      "calls": 3,
+      "file_reads": 0,
+      "source_bytes_read": 0,
+      "seconds": [
+        0.002396457828581333,
+        0.0017022921238094568,
+        0.0016350001096725464
+      ],
+      "median_ms": 1.7022921238094568
+    },
+    {
+      "files": 1000,
+      "source_bytes": 16384000,
+      "calls": 3,
+      "file_reads": 0,
+      "source_bytes_read": 0,
+      "seconds": [
+        0.014657458988949656,
+        0.01449779188260436,
+        0.013891750015318394
+      ],
+      "median_ms": 14.49779188260436
+    },
+    {
+      "files": 4000,
+      "source_bytes": 65536000,
+      "calls": 3,
+      "file_reads": 0,
+      "source_bytes_read": 0,
+      "seconds": [
+        0.05864054197445512,
+        0.056580083910375834,
+        0.05711229215376079
+      ],
+      "median_ms": 57.11229215376079
+    }
+  ],
+  "measurement_note": "Three synthetic repetitions per size on the same machine; no live-system performance claim"
+}

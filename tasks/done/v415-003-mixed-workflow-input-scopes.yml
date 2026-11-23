@@ -1,0 +1,67 @@
+schema_version: "1.0"
+id: V415-003
+title: Resolve each Workflow input in its declared source scope
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: scan-tools
+kind: defect
+introduced_by: V415-001
+priority: P2
+status: completed
+depends_on: [V415-001]
+languages: [typescript, markdown]
+goal: A Project Workflow with ordinary inputs and an owner rulepack selects, uploads, previews and validates each input in its own scope.
+context:
+  severity: medium
+  specification:
+    - docs/spec/configuration/workflows.md#WFL-R88
+    - docs/spec/ui/ui.md#UI-R120
+    - docs/spec/tools/scanners.md#SCN-R238
+  finding: >-
+    ui/src/routes/workflows/run-form.tsx:271-277 sets inputProjectId to
+    undefined for the entire form when any input declares sourceScope user.
+    A valid Workflow with both rulepack and a required source_code input
+    consequently selects and uploads source_code in Library, while Run
+    admission resolves it in ProjectScope and returns not_found. Offline
+    catalog validation accepts this mixed-input Workflow.
+  siblings: >-
+    The shared Run form owns standalone, Project drawer, direct Project and
+    repeat setup. Inventory pagination, input validation, draft metadata,
+    preview links and upload/Git dialogs must preserve each input's scope.
+    Recommendations already omit owner-scoped candidates; Server admission
+    already resolves sourceScope per slot and requires no change.
+scope:
+  in:
+    - Keep independent paged UserScope and ProjectScope inventories and choose one per input.
+    - Keep retained exact metadata and validation per input so equal refs across scopes cannot overwrite one another.
+    - Route previews and uploads by the selected slot while preserving Project Run submission.
+    - Add real form regressions for mixed inputs, pagination, uploads and retained drafts.
+    - Clarify the per-input scope guarantee in the UI specification.
+  out:
+    - Changing catalog sourceScope restrictions, Server admission or scanner execution.
+acceptance_criteria:
+  - id: A1
+    text: A mixed Project form reads both inventories, keeps their pagination and choices independent, and submits the exact selected refs to the Project Run endpoint.
+  - id: A2
+    text: Preview and upload use ProjectScope for ordinary slots and Library for rulepack, including retained selections with equal exact ref keys in different scopes.
+  - id: A3
+    text: The mixed-input regression fails before the fix, and existing standalone, Project-only and owner-only form tests pass.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: make ui-browser-mocked
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: ab8dfc63a5f21ed470bdcf42319dc8bf28d03d77
+verification:
+  date: "2026-10-24"
+  passed:
+    - make ui-verify; 196 test files, 2393 passing tests and one expected failure; production build passed on Node 24.20.0 and pnpm 11.24.0.
+    - make ui-browser-mocked; 91 browser tests passed across 23 specs.
+    - make lint; task, specification, layer, architecture and other lint checks passed.
+  scope: >-
+    The mixed-input regression failed before the fix because the Project
+    inventory was not read. It now verifies independent pagination and
+    previews, uploads in both scopes, same-scope upload reuse, retained
+    metadata with equal exact ref keys across scopes and Project Run
+    submission. Server and scanner execution contracts are unchanged.

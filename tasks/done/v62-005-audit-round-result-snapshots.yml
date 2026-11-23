@@ -1,0 +1,373 @@
+schema_version: '1.0'
+id: V62-005
+title: Supply complete immutable settled-Round snapshots to declared consumers
+milestone: audit-iterative-composition-2026-10
+epic: audits
+kind: feature
+priority: P2
+status: completed
+reactivation:
+  date: '2026-10-24'
+  previous_status: deferred
+  reason: Explicit user request to queue the reviewed proposal 0045 tasks as pending.
+  execution_rule: Implementation may start after declared dependencies complete; this update starts no implementation.
+previous_deferral:
+  date: '2026-09-20'
+  previous_status: pending
+  reason: Iterative assessment snapshots are not required for the first OpenAPI-to-scan journey.
+  reactivate_when: Explicit user approval after the first scan slice demonstrates useful results; define
+    the snapshot contract in this task before execution.
+implementation_commit: dde27360126ef1f6b2e93a2616142f44fe73f3cf
+depends_on:
+- V62-004
+- V410-010
+languages:
+- go
+- json
+- sql
+goal: Give a declared assessment Workflow an exact complete view of a settled Round, with bounded indexed
+  construction and durable authorized inputs; future research context builders reuse this snapshot without
+  changing its completeness or interpreting research payloads here.
+context:
+  authority: >-
+    On 2026-10-24 the user explicitly requested pending status for the reviewed
+    proposal 0045 plan, including shared V62 prerequisites. The earlier deferral
+    is historical; dependency completion still gates implementation start.
+  proposal:
+  - docs/proposals/0045-audit-hypothesis-search.md
+  - docs/proposals/0033-autonomous-pentest-audits.md
+  design: docs/plans/2026-09-20-audit-workflow-composition.md
+  specification:
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/scans.md
+  - docs/spec/audits/execution.md
+  - docs/spec/audits/review-and-reports.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/lifecycle.md
+  replan_history: Deferred on 2026-09-20 outside the delivered OpenAPI/preparation slice; the original
+    deferral record is preserved. The 2026-10-24 review at b523ae77 confirmed that this iterative capability
+    was still absent. The initial proposal 0045 plan retained deferral; the user subsequently queued this reviewed task as pending. Completed
+    V62 preparation/API/UI/release tasks and their original milestone remain unchanged.
+  ownership: Generic iterative Audit composition owns these contracts. V64-001 defines research contracts,
+    V64-003 owns opt-in research lifecycle, V64-004 consumes exact context, V64-006 owns the base research-to-ordinary-AuditItem
+    adapter, and V64-018 adds only its pentest specialization. These are consumers, not dependencies of
+    generic V62.
+  boundary: V62-004 provides preparation/inventory foundations. V410-010 owns common history retention;
+    this task registers its new snapshot and selected-result holders through that mechanism. A consistent
+    public Audit detail read is not a settled-Round snapshot.
+scope:
+  in:
+  - Define the versioned round-results manifest/page contract, exact result selection, review revision
+    pinning, source classification and finite collection/byte bounds.
+  - Construct complete canonical snapshots from settled item, execution/receipt, coverage/gap, finding
+    and accepted result-attachment descriptors; include explicit absence and technical failures.
+  - Wire snapshot construction and round-results materialization into the production assessment dispatch
+    path in this task, with declared profile binding validation and real-process fixture consumers.
+  - Retain and enumerate exact required sources before publication, materialize only authorized declared
+    inputs and preserve original-to-consumer refs/digests.
+  - Recover interrupted page construction and publication under existing Audit ownership and keyed mutation/collection
+    semantics; integrate holders with eviction and purge.
+  - 'Implement the Audit-owned exact-page materializer and its durable source-to-Run closure: one declared
+    bounded round-results input descriptor points to authorized exact Run-local pages, without one Workflow
+    mapping per page or generic recursive input handling.'
+  out:
+  - Hypothesis registry, interpretation of research assessment payloads, ranking, selective research prompts
+    or a new execution phase; future V64 consumers own these.
+  - Arbitrary Project access, model-issued human decisions, live mutable state during assessment or changing
+    default deterministic profiles to require snapshots.
+  - Recursive generic Run-creation dereferencing, arbitrary cross-Run reads, one Workflow input mapping
+    per snapshot page, or a new broad Project/Artifact access grant.
+deliverables:
+- path: internal/auditdomain
+  description: Canonical snapshot manifest/page contracts and strict shared fixtures.
+- path: internal/auditservice
+  description: Production source capture, exact retention and Audit-owned bounded page-closure materialization
+    into a single declared consumer descriptor plus Run-local artifacts.
+- path: internal/auditcontroller
+  description: Declared assessment snapshot barrier and actual dispatch integration.
+- path: internal/auditstore
+  description: Indexed source/page reads, accepted snapshot identity and purge integration.
+- path: docs/spec/audits/scans.md
+  description: Owning round-results mappings and limits, with related lifecycle/error registry updates.
+- path: tests/e2e
+  description: Real assessment consumer fixture, more-than-128-page retrieval, input-fence and snapshot
+    recovery assertions in the Audit composition gate.
+acceptance_criteria:
+- id: A1
+  given: A settled multi-batch Round with retry, supported and inconclusive results, failures, cancellation
+    and accepted typed attachments
+  when: The declared assessment role consumes round-results through the real controller
+  then: Every item appears once with the exact selected attempt/receipt or explicit absence; attachment
+    descriptors remain attributable and no research semantics or finding confirmation are invented.
+- id: A2
+  given: Concurrent analyst revisions and interrupted page construction
+  when: Snapshot capture resumes or publication races another controller
+  then: One coherent accepted source/review generation and complete manifest is consumed; incomplete or
+    mixed-generation pages cannot dispatch an assessment.
+- id: A3
+  given: The admitted Round ceiling, a 100,000-item containing Audit and metadata near each byte bound
+  when: Snapshot pages and dependencies are built with deterministic work counters
+  then: Only selected indexed rows are examined within per-slice/DescribeExact limits; oversize snapshots
+    fail explicitly without truncation and exact authorized Run input mappings are preserved.
+- id: A4
+  given: Protected exact sources, concurrent eviction, deleted producer Runs and lost fork/publication
+    replies
+  when: The assessment is prepared, replayed, cancelled and the populated Audit is later deleted
+  then: Exactly the retained source bytes remain readable or an explicit unavailable outcome occurs; no
+    latest fallback, duplicate child/evidence debit or orphan holder remains after purge.
+- id: A5
+  given: Direct Runs and deterministic Audit profiles without round-results consumers
+  when: Ordinary execution, retry, cancel and completion paths run
+  then: No snapshot phase or research requirement is introduced and original item membership, coverage
+    and terminal behavior are preserved.
+- id: A6
+  given: A valid settled snapshot with more than 128 pages, bounded to the 256-page/byte ceilings, one
+    declared round-results Workflow input and a reader with only ordinary Run-scoped artifact access
+  when: The actual Audit materializer initializes the child, recovers a lost fork acknowledgement and
+    the real assessment consumer follows the supplied exact local page refs
+  then: Every required page is usable through ordinary Run-local reads with correct source/digest attribution,
+    one declared input mapping and bounded work. No extra per-page Workflow mappings, implicit recursive
+    Run-creation dereference, live/cross-Run reads or partially schedulable input state occurs; missing/denied
+    page closure fails explicitly.
+tests:
+- command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditservice ./internal/auditstore/...
+    ./internal/auditcontroller ./internal/auditimport ./internal/artifacts
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make test-audit-composition-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+test_prerequisites:
+- Disposable PostgreSQL is mandatory for store cases. Set CONTRACTOR_TEST_DATABASE_URL; absent or unreachable
+  required infrastructure, skipped mandatory cases and zero matched tests fail the dedicated gate.
+- Tests use isolated testdata, not the live configs tree. Process cases use actual Server/Runtime and
+  scripted local model/provider fixtures; no paid models or live targets are needed.
+- Run the complete suites of every touched package. Shared schema changes update every reader, owning
+  numbered specifications, limit/error/lifecycle registries and cross-language fixtures in the same implementation
+  change.
+verification_requirements:
+- Use PostgreSQL and actual production dispatch/fork readers, compare exact source and consumer refs/digests
+  and inject capture/publication faults. Fakes and summary-count-only assertions are insufficient.
+- V62-013 adds the combined iterative release gate; this task must already wire its production writer
+  and assessment reader and execute its focused process cases.
+- The process gate must retrieve and inspect content from more than 128 actual Run-local pages using the
+  normal scoped Artifact tools. Counting a manifest or checking that forks exist is insufficient; inspect
+  input mapping count, exact local refs and the no-allocation-before-complete-closure fence.
+requirements:
+- id: R1
+  text: A snapshot covers every accepted item of exactly one settled Round once, ordered by immutable
+    item identity/ordinal. Pin selected accepted attempt/result and exact collection receipt, or an explicit
+    failed, cancelled, blocked or missing-result outcome. Run success alone never establishes an assessment.
+- id: R2
+  text: Capture a coherent source/review generation, then construct bounded immutable pages from indexed
+    reads. Check generation before accepted publication; concurrent relevant review changes cannot mix
+    revisions. A complete manifest names all pages, counts, digests and source watermark. Incomplete pages
+    are never a consumable snapshot.
+- id: R3
+  text: Preserve typed accepted attachment descriptors, exact evidence provenance and conservative source
+    classification without interpreting unknown research schemas. A source descriptor is not an access
+    grant; the authorized consumer projection must filter prohibited source-derived material before model-visible
+    metadata or content.
+- id: R4
+  text: Acquire legitimate exact holds before sources can disappear, atomically against V410-010 eviction.
+    Register snapshot pages, selected dependencies and pending/accepted snapshot holders in the owning
+    inventory. Reuse Audit retained bindings and existing lifecycle machinery, not another hold or receipt
+    table.
+- id: R5
+  text: 'Profile/config validation and the actual assessment dispatch reader ship together. One declared
+    round-results Workflow input carries a bounded consumer descriptor. Before the Run becomes schedulable,
+    the Audit-owned materializer validates the exact accepted page closure, acquires its legitimate holds
+    and forks authorized pages/required dependencies into a trusted controller-owned Run-local artifact
+    namespace through existing ArtifactStore capabilities. The materializer derives a consumer descriptor
+    with rewritten exact Run-local refs and explicit original-to-retained-to-consumer mappings/digests;
+    it never rewrites the accepted source snapshot. Pages are ordinary Run-local artifacts readable through
+    the existing scoped Artifact tools, not additional Workflow input slots. Generic Run creation keeps
+    ART-R80: it neither follows JSON refs nor creates these domain-specific forks.'
+- id: R6
+  text: Keep direct Runs and deterministic Audits without a round-results consumer on their existing paths.
+    Freeze complete snapshots only for declared consumers; future V64-004 may select a bounded projection
+    but cannot relabel that subset as the complete Round.
+- id: R7
+  text: Normalize the cardinality values below into one owning limit definition/shared fixtures before
+    implementation. Failed schema/limit validation publishes no accepted snapshot; retry and source retention
+    accounting cannot repeat target work or double-charge evidence.
+- id: R8
+  text: Persist exact materialization intent/progress using existing child-Run/Audit identities and receipt
+    mechanisms; stage bounded page/fork work behind the existing non-schedulable input-initialization
+    fence. Only the complete validated consumer closure and descriptor make the Run schedulable. Required
+    page refs always resolve locally; provenance-only or omitted evidence refs grant no read authority.
+    The explicit closure holder registration protects required Run-local revisions, including JSON-backed
+    refs, until the existing Run/Audit lifecycle releases them. Replayed materialization reuses exact
+    source/page identities and cannot expose partial input or silently refresh a page.
+failure_outcomes:
+- operation: Capture, page and publish a settled-Round snapshot
+  permanent: Unsettled membership, invalid trusted payload, missing required exact source or exceeded
+    hard bound produces an explicit blocked/collection-contract-invalid outcome under the owning Audit
+    contract; never an empty or partial successful snapshot. No new HTTP endpoint is introduced.
+  retryable: Existing bounded storage_transaction_conflict/503 retries retain the same source generation
+    and operation identity; shared artifact_history_maintenance_pending obeys V410-010 at most three caller
+    attempts within the original deadline.
+  ambiguous: Reconcile existing keyed mutation/accepted snapshot publication identity and exact page digests.
+    Reuse committed pages only under the same source generation; a lost reply does not append duplicate
+    accepted snapshots.
+  cancelled: Audit owner fences new work, joins in-flight storage/fork work and follows existing drain;
+    accepted snapshots stay immutable and unaccepted construction state has bounded lifecycle cleanup.
+  timeout: Existing finite snapshot construction/collection attempt allowance bounds bookkeeping independently
+    of target request time; leave explicit resumable progress or a classified terminal outcome, never
+    poll forever.
+- operation: Materialize round-results into an assessment Run
+  permanent: Foreign, denied, missing, corrupt or media-incompatible exact sources fail declared input
+    preparation without latest substitution; protected-history conflict is permanent.
+  retryable: Use ordinary bounded exact-fork/storage recovery within the input preparation deadline; do
+    not restart a target check to recover context.
+  ambiguous: Reconcile exact accepted source/page closure, durable materialization progress, consumer
+    descriptor and existing child-Run intent. Resume only missing exact forks under the same identity;
+    no duplicate child, changed source revision or partially schedulable Run.
+  cancelled: Join materialization before allocation/owner cleanup; incomplete child input state remains
+    non-schedulable and purges through its existing Run lifecycle. Accepted Audit source holds survive
+    normal drain and do not become authority for a cancelled allocation.
+  timeout: Run input preparation/materialization owns its deadline separately from snapshot capture and
+    assessment execution.
+cardinality:
+- collection: Round members inside the containing Audit
+  expected: Tens to hundreds of items; many settled historical Rounds may belong to the same Audit.
+  maximum: Existing LIM-AUX-10 maximum 4,096 admitted inventory items, tighter pinned per-Round/remaining-total
+    limits, and LIM-AUD-25 maximum 100,000 Audit items.
+  bound: Read only the selected Round by indexed keyset pages of at most 128 item/receipt/review descriptors
+    and 256 KiB encoded metadata; dependency descriptor work is separately included in each transaction
+    budget, never an N+1 whole-Audit scan.
+- collection: Snapshot manifest/pages and explicit dependencies
+  expected: One manifest and a few pages, with evidence payloads outside metadata pages.
+  maximum: Proposed source root manifest and consumer descriptor each at most 256 KiB, each page at most
+    256 KiB, at most 256 pages; total retained snapshot metadata including manifests/descriptors remains
+    at most 64 MiB, with tighter maxEvidenceBytes and artifact/input bounds applying. The one declared
+    descriptor consumes one Workflow mapping; pages do not consume extra mapping slots.
+  bound: At most 128 primary records, 512 total related descriptors and 1 MiB metadata per transaction/tick
+    slice; DescribeExact at most 32 refs per statement. Materialize page closure in bounded batches under
+    the non-schedulable input fence, and read exact Run-local pages through existing tool byte/page limits.
+    Existing RunScope insert/history limits still apply. Complete results that cannot fit fail explicitly
+    without silent truncation, extra Workflow mappings or larger unbounded transactions.
+- collection: Unaccepted snapshot progress and exact retention
+  expected: One construction generation for the owning Round.
+  maximum: One accepted immutable snapshot for the captured source/review generation and bounded staged
+    pages under the same page/byte ceilings.
+  bound: Reuse current Audit claims and bounded cleanup; obsolete generations are not retained without
+    a reader. Existing maxEvidenceBytes charges distinct retained revisions once and existing ArtifactStore
+    history admission remains authoritative.
+lifecycle:
+- entity: Pending and accepted settled-Round snapshot
+  delete: Owning Audit deletion after drain removes its snapshot records and bindings; ordinary source
+    Run deletion cannot delete held accepted sources.
+  cascade: Register every new row/ref holder in Audit purge, including incomplete page construction. Release
+    only the owning lifecycle obligation; preserve independently retained versions.
+  retention: No new TTL. Accepted snapshot bytes and included review/result pins remain stable for the
+    Audit lifetime; later reviews cannot rewrite them. Unaccepted pages never confer availability to consumers.
+- entity: Consumer descriptor, Run-local snapshot pages and materialization progress
+  delete: Existing child Run deletion/cancellation cleanup owns incomplete and complete Run-local copies;
+    the materializer cannot make a partially initialized Run runnable.
+  cascade: Register page-closure holders and source-to-child mappings with the existing Run/Audit cleanup
+    paths. Run-local forks purge with the Run; source snapshots remain under their independent Audit retention.
+  retention: The accepted source snapshot stays immutable. A derived consumer descriptor pins exact local
+    page revisions, protected through registered authoritative closure holders; a bare JSON mention is
+    not a hold or a cross-scope access grant.
+
+implementation_notes:
+- Source capture seals a coherent complete item/review generation before immutable Artifact publication; later reviews do not rewrite that seal.
+- Construction keeps bounded source pages on the Round and one indexed next-page read. Publication verifies protected frozen exact bytes and drops the duplicate staging payload atomically.
+- The Audit-owned consumer materializer is integrated by the coordinator through the ordinary initializing child fence; generic Run creation does not traverse JSON.
+verification_progress:
+  date: '2026-10-26'
+  commands:
+  - go test ./internal/auditdomain ./internal/config/auditprofile -count=1 passed.
+  - go test ./internal/auditstore/internal/pgstore -run '^TestPostgresRoundResults' -count=1 passed against isolated PostgreSQL, including 4096 selected items inside a 100000-item Audit and more than 128 real captured pages.
+  - go test ./internal/persistence/postgres -run '^TestPostgresRoundResultsMigrationPreservesBusinessRows$' -count=1 passed against isolated PostgreSQL.
+  - go test -tags=e2e ./tests/e2e -run '^TestAuditRoundResultsAcrossProductionProcesses$' -count=1 -timeout=10m passed in 49.292 seconds with actual Server and locked Runtime; 129 full exact local page reads, restart, one child/mapping and no Stage before closure.
+  - Python shared Round fixture test and Ruff passed in the task's isolated locked environment.
+  remaining: Required complete touched-package suites, combined composition gate, cross-language gate and make lint remain for integrated coordinator verification; task is not completed.
+
+verification:
+  date: '2026-10-26'
+  result: passed
+  environment: >-
+    Go 1.26.9 with GOMAXPROCS=2 and GOFLAGS=-p=2; locked CPython 3.13 Runtime;
+    Node 24.20 and locked pnpm; dedicated disposable PostgreSQL 17 databases.
+    Initial base e452486d51128612d20e6b866f422406017fec96; integrated current
+    main 0e7d2b54295c41b323b8ccf60a64f7626b39a935 before delivery.
+  actuality: >-
+    The base had no accepted settled-Round manifest/page contract, declared
+    round-results dispatch reader or durable exact page-to-Run initialization
+    fence. Existing claims, artifact lineage and child submission identities
+    were reused; no receipt, lease or broad cross-scope reader was added.
+  commands:
+  - command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditservice ./internal/auditstore/... ./internal/auditcontroller ./internal/auditimport ./internal/artifacts ./internal/runservice ./internal/artifactpolicy ./internal/config/...
+    result: passed with real PostgreSQL enabled for every store case.
+  - command: go test -count=1 ./internal/runstore
+    result: passed.
+  - command: go test -tags=integration -count=1 ./internal/auditservice ./internal/auditimport
+    result: passed again after exact dependency recovery and permanent collection classification changes.
+  - command: go test -count=1 ./internal/persistence/postgres
+    result: passed after registering the new column-scoped triggers and qualifiers in the schema inventory.
+  - command: make test-audit-composition-e2e
+    result: passed; 40 mandatory store cases, 10 mandatory process cases, a real browser journey and zero skips.
+  - command: make test-wire-cross-language
+    result: passed; repeated after main integration with 280 fixtures, 329 Go and 225 Python shared tests.
+  - command: make lint
+    result: passed; repeated after main integration, including layers, test-only exports, generated documents and task checks.
+  - command: make ui-verify
+    result: passed; 195 UI test files, 2427 passing tests and one expected-failure assertion, server tests and production build.
+  - command: make verify-public-api
+    result: passed with complete selected public-operation coverage.
+  - command: go test -tags=e2e ./tests/e2e -run '^TestAuditRoundResultsAcrossProductionProcesses$' -count=1 -timeout=10m
+    result: passed again after integrating the Runtime archive cache from main.
+  - command: go test -count=1 ./internal/artifacts ./internal/httpapi/privateartifacts
+    result: passed after main integration.
+  - command: cd runtime && uv run pytest tests/test_security_findings_toolset.py tests/test_shared_round_results.py
+    result: passed, 33 tests.
+  - command: go test -count=1 ./internal/runservice
+    result: passed again after anchoring input timeout to the original durable intent; first-slice rollback cannot reset it.
+  - command: go vet ./internal/runservice ./internal/auditdomain ./internal/auditservice
+    result: passed after the deadline correction, together with gofmt, specification and shared-fixture source checks.
+  evidence: >-
+    Indexed capture includes all 4096 selected items inside a 100000-item Audit
+    and 205 actual pages. Concurrent review capture, publication replay, populated
+    and interrupted purge, metadata bounds and exact retention are covered on
+    PostgreSQL. The process consumer reads every byte of 129 local pages through
+    ordinary scoped tools, uses one declared input, and allocates no Stage before
+    the complete closure; Server restart reuses the child. A separate real-store
+    65-dependency test commits 32 forks, loses acknowledgement, rolls back the
+    next chunk, then completes 64/65 exact forks with verified payloads and one
+    child/debit. Generic fence cases cover transient and permanent failure,
+    restart, original deadline, exact 262144-byte state, oversize, immutable
+    identity and stale CAS. Permanent input failures settle once without a
+    target retry or changed collection receipt.

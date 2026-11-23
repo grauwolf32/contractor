@@ -1,0 +1,186 @@
+{
+  "schema_version": "2.0",
+  "policy": {
+    "orchestration": "Durable accepted Tasks dispatch only through ordinary RunService under existing fenced claims.",
+    "settlement": "A terminal Run and a retained Task result are separate outcomes. Empty paused Audits do not auto-complete.",
+    "retention": "Exact ordinary outputs and Finding contributions survive producer Run deletion.",
+    "reporting": "Collected work may have no verdict, hypothesis or Finding. Coordination completion makes no security-certification claim.",
+    "isolation": "Trusted Server context derives Task/hypothesis identity; bounded inputs and existing Artifact scope enforce authority."
+  },
+  "cases": [
+    {
+      "id": "start",
+      "category": "configuration",
+      "acceptance": [
+        "A1",
+        "A2"
+      ],
+      "expected": "A common pinned program starts atomically and replays its original receipt.",
+      "test": {
+        "source": "internal/auditservice/service_postgres_test.go",
+        "kind": "go_test",
+        "name": "TestCommonAuditDraftStartAndOriginalReplay",
+        "gate": "hardening"
+      }
+    },
+    {
+      "id": "selection",
+      "category": "exact-inputs",
+      "acceptance": [
+        "A1",
+        "A4"
+      ],
+      "expected": "Task inputs keep exact ownership and revisions across edits to Project materials.",
+      "test": {
+        "source": "internal/auditstore/internal/pgstore/task_acceptance_postgres_test.go",
+        "kind": "go_test",
+        "name": "TestSharedPostgresCommonTaskInputsStayExactAcrossProjectEdits",
+        "gate": "hardening"
+      }
+    },
+    {
+      "id": "pause_handoff",
+      "category": "controls",
+      "acceptance": [
+        "A1",
+        "A3"
+      ],
+      "expected": "Pause drains admitted work, accepts an explicit exact handoff and resumes ordinary Run dispatch.",
+      "test": {
+        "source": "internal/auditcontroller/tasks_postgres_test.go",
+        "kind": "go_test",
+        "name": "TestPostgresCommonControllerPauseHandoffResume",
+        "gate": "hardening"
+      }
+    },
+    {
+      "id": "claim",
+      "category": "replay",
+      "acceptance": [
+        "A2",
+        "A3"
+      ],
+      "expected": "Lost creation acknowledgement reconciles the existing ordinary Run.",
+      "test": {
+        "source": "internal/auditcontroller/tasks_postgres_test.go",
+        "kind": "go_test",
+        "name": "TestPostgresCommonControllerReconcilesLostCreationAcknowledgement",
+        "gate": "hardening"
+      }
+    },
+    {
+      "id": "failure",
+      "category": "collection",
+      "acceptance": [
+        "A1",
+        "A2"
+      ],
+      "expected": "Transient reads create no receipt; permanent input failure is classified.",
+      "test": {
+        "source": "internal/auditimport/tasks_test.go",
+        "kind": "go_test",
+        "name": "TestCommonImporterReadOutageCreatesNoTechnicalReceipt",
+        "gate": "hardening"
+      }
+    },
+    {
+      "id": "finding",
+      "category": "findings",
+      "acceptance": [
+        "A1",
+        "A4"
+      ],
+      "expected": "Batch members derive trusted Task/hypothesis origin and bounded Finding references.",
+      "test": {
+        "source": "internal/findingintake/provenance_lookup_failure_test.go",
+        "kind": "go_test",
+        "name": "TestPostgresFindingBatchTaskOriginAndBoundedResultReferences",
+        "gate": "hardening"
+      }
+    },
+    {
+      "id": "scale",
+      "category": "limits",
+      "acceptance": [
+        "A4",
+        "A6"
+      ],
+      "expected": "Sparse 100,000-Task pages and purge remain bounded.",
+      "test": {
+        "source": "internal/auditstore/internal/pgstore/task_scale_postgres_test.go",
+        "kind": "go_test",
+        "name": "TestSharedPostgresCommonTaskPagesAndPurgeAtCeiling",
+        "gate": "hardening"
+      }
+    },
+    {
+      "id": "core_process",
+      "category": "process",
+      "acceptance": [
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "expected": "Two ordinary Workflows hand off an exact retained material through the public API.",
+      "test": {
+        "source": "tests/e2e/audit_basic_process_test.go",
+        "kind": "go_test",
+        "name": "TestAuditBasicExactHandoffAcrossProductionProcesses",
+        "gate": "process"
+      }
+    },
+    {
+      "id": "prepared_process",
+      "category": "prepared",
+      "acceptance": [
+        "A2",
+        "A3",
+        "A6"
+      ],
+      "expected": "256 prepared entries reconcile bounded slices through restart and cancellation.",
+      "test": {
+        "source": "tests/e2e/audit_common_prepared_process_test.go",
+        "kind": "go_test",
+        "name": "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
+        "gate": "process"
+      }
+    },
+    {
+      "id": "browser",
+      "category": "browser",
+      "acceptance": [
+        "A1",
+        "A4"
+      ],
+      "expected": "Paged Tasks and exact results fit both viewports and all themes.",
+      "test": {
+        "source": "ui/e2e/audits.spec.ts",
+        "kind": "test_title",
+        "name": "common Audit tasks and exact retained results at ${width}px in ${theme}",
+        "gate": "browser"
+      }
+    }
+  ],
+  "gates": [
+    {
+      "id": "matrix",
+      "command": "make test-audits-matrix"
+    },
+    {
+      "id": "hardening",
+      "command": "make test-audits-hardening"
+    },
+    {
+      "id": "process",
+      "command": "make test-audit-basic-e2e"
+    },
+    {
+      "id": "browser",
+      "command": "make test-audits-browser"
+    },
+    {
+      "id": "release",
+      "command": "make test-audits-e2e"
+    }
+  ]
+}

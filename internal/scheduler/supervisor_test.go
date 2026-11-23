@@ -1,0 +1,813 @@
+package scheduler
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"slices"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
+	"github.com/grauwolf32/contractor/internal/stageresult"
+	"github.com/grauwolf32/contractor/internal/telemetry"
+)
+
+func TestSchedulerSupervisorBoundsDistinctRunLanes(t *testing.T) {
+	store := newLaneTestStore("run-1", "run-2", "run-3")
+	settings := newMutableSchedulerSettings(2, 500*time.Millisecond)
+	scheduler := newLaneTestScheduler(t, store, settings, 500*time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- scheduler.Run(ctx) }()
+
+	first := receiveString(t, store.claimed, time.Second, "first claim")
+	second := receiveString(t, store.claimed, time.Second, "second claim")
+	if first == second {
+		t.Fatalf("two lanes claimed the same Run %q", first)
+	}
+	assertNoString(t, store.claimed, 100*time.Millisecond, "third claim exceeded limit two")
+	store.unblock(first)
+	third := receiveString(t, store.claimed, time.Second, "third claim after one lane completed")
+	if third == first || third == second {
+		t.Fatalf("replacement lane claimed prior Run %q", third)
+	}
+	store.unblock(second)
+	store.unblock(third)
+	store.waitReleased(t, 3, time.Second)
+	cancel()
+	if err := receiveError(t, done, time.Second, "Scheduler shutdown"); err != nil {
+		t.Fatal(err)
+	}
+	if active, maximum := store.counts(); active != 0 || maximum != 2 {
+		t.Fatalf("lane counts active=%d maximum=%d, want 0/2", active, maximum)
+	}
+}
+
+func TestSchedulerSupervisorResizesDrainsAndRecoversLostWake(t *testing.T) {
+	poll := 60 * time.Millisecond
+	store := newLaneTestStore("run-1", "run-2", "run-3", "run-4")
+	settings := newMutableSchedulerSettings(1, poll)
+	scheduler := newLaneTestScheduler(t, store, settings, poll)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- scheduler.Run(ctx) }()
+
+	first := receiveString(t, store.claimed, time.Second, "initial serial claim")
+	settings.drainReads()
+	settings.set(2)
+	scheduler.Wake()
+	settings.waitRead(t, 2, time.Second)
+	second := receiveString(t, store.claimed, time.Second, "claim after increase")
+
+	settings.drainReads()
+	settings.set(1)
+	scheduler.Wake()
+	settings.waitRead(t, 1, time.Second)
+	store.unblock(first)
+	store.waitReleased(t, 1, time.Second)
+	assertNoString(t, store.claimed, 2*poll, "decrease started a replacement before drain")
+	store.unblock(second)
+	third := receiveString(t, store.claimed, time.Second, "single replacement after drain")
+
+	settings.drainReads()
+	settings.set(2)
+	// Deliberately lose the process-local wake. Periodic refresh must still
+	// observe the durable value and fill the second lane.
+	settings.waitRead(t, 2, time.Second)
+	fourth := receiveString(t, store.claimed, time.Second, "periodic increase without wake")
+	store.unblock(third)
+	store.unblock(fourth)
+	store.waitReleased(t, 4, time.Second)
+	cancel()
+	if err := receiveError(t, done, time.Second, "Scheduler shutdown"); err != nil {
+		t.Fatal(err)
+	}
+	if active, maximum := store.counts(); active != 0 || maximum > 2 {
+		t.Fatalf("resized lane counts active=%d maximum=%d", active, maximum)
+	}
+}
+
+func TestSchedulerSupervisorFailsClosedAndShutdownReleasesClaim(t *testing.T) {
+	t.Run("settings unavailable before admission", func(t *testing.T) {
+		store := newLaneTestStore("run-1")
+		settings := newMutableSchedulerSettings(1, time.Second)
+		settings.setError(errors.New("settings unavailable"))
+		scheduler := newLaneTestScheduler(t, store, settings, 20*time.Millisecond)
+		err := scheduler.Run(t.Context())
+		if err == nil || store.claimCalls() != 0 {
+			t.Fatalf("Run = %v, claims = %d", err, store.claimCalls())
+		}
+	})
+
+	t.Run("cancelled process releases active claim", func(t *testing.T) {
+		store := newLaneTestStore("run-1")
+		settings := newMutableSchedulerSettings(1, time.Second)
+		scheduler := newLaneTestScheduler(t, store, settings, 500*time.Millisecond)
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- scheduler.Run(ctx) }()
+		_ = receiveString(t, store.claimed, time.Second, "active claim")
+		cancel()
+		if err := receiveError(t, done, time.Second, "cancelled Scheduler"); err != nil {
+			t.Fatal(err)
+		}
+		if active, _ := store.counts(); active != 0 {
+			t.Fatalf("shutdown leaked %d active claims", active)
+		}
+	})
+}
+
+type claimHandoffStore struct {
+	*memorySchedulerStore
+	onRelease func(runID string)
+}
+
+func (s *claimHandoffStore) ReleaseRunClaim(ctx context.Context, runID, claimID string) error {
+	err := s.memorySchedulerStore.ReleaseRunClaim(ctx, runID, claimID)
+	s.onRelease(runID)
+	return err
+}
+
+// Releasing a claim lets another lane of this process claim the same Run.
+// The finishing lane must stop routing interrupts to itself before release
+// and must not remove the next lane's cancellation afterwards.
+func TestSchedulerReleasedClaimKeepsNextLaneCancellable(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	store := &claimHandoffStore{memorySchedulerStore: harness.store}
+	scheduler, err := New(
+		store, harness.persistence, harness.artifacts, harness.allocator,
+		harness.workers, harness.planners, harness.scheduler.options,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var nextCause error
+	registeredAtRelease := false
+	store.onRelease = func(runID string) {
+		scheduler.activeMu.Lock()
+		_, registeredAtRelease = scheduler.active[runID]
+		scheduler.activeMu.Unlock()
+		scheduler.registerActiveRun(runID, "claim-next-lane", func(cause error) { nextCause = cause })
+	}
+
+	worked, err := scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	if registeredAtRelease {
+		t.Fatal("released claim still routed in-process interrupts to the finished lane")
+	}
+	scheduler.Cancel("run-1")
+	if !errors.Is(nextCause, ErrRunCancellationRequested) {
+		t.Fatalf("next lane cancellation cause = %v", nextCause)
+	}
+}
+
+func TestSchedulerSupervisorRotatesDeferredOwnerWithoutHotLoop(t *testing.T) {
+	poll := 250 * time.Millisecond
+	store := newLaneTestStore("paused-run-1", "paused-run-2", "runnable-run")
+	store.deferRuns("paused-run-1", "paused-run-2")
+	store.pendingRuns("runnable-run")
+	scheduler := newLaneTestScheduler(t, store, newMutableSchedulerSettings(2, poll), poll)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- scheduler.Run(ctx) }()
+
+	for range 2 {
+		claimed := receiveString(t, store.claimed, time.Second, "initial paused-owner claim")
+		if claimed == "runnable-run" {
+			t.Fatalf("runnable Run was unexpectedly ahead of paused fixtures: %q", claimed)
+		}
+	}
+	// Deferred lanes must wait for poll/wake. Replacing them eagerly would let
+	// an incompatible owner consume CPU and database claims in a hot loop.
+	assertNoString(t, store.claimed, 80*time.Millisecond, "deferred lane hot-looped")
+
+	var runnableClaimed bool
+	for range 2 {
+		if receiveString(t, store.claimed, time.Second, "rotated claim") == "runnable-run" {
+			runnableClaimed = true
+			break
+		}
+	}
+	if !runnableClaimed {
+		t.Fatal("deferred owner prevented runnable owner from progressing")
+	}
+	store.unblock("runnable-run")
+	cancel()
+	if err := receiveError(t, done, time.Second, "Scheduler shutdown after rotation"); err != nil {
+		t.Fatal(err)
+	}
+	if active, maximum := store.counts(); active != 0 || maximum > 2 {
+		t.Fatalf("rotating lane counts active=%d maximum=%d", active, maximum)
+	}
+}
+
+func newLaneTestScheduler(
+	t *testing.T,
+	store *laneTestStore,
+	settings SchedulerSettingsReader,
+	poll time.Duration,
+) *Scheduler {
+	t.Helper()
+	sequence := 0
+	scheduler, err := New(
+		store, laneNoopPersistence{}, laneNoopArtifacts{}, laneNoopAllocator{},
+		laneNoopWorkers{}, laneNoopPlanners{}, Options{
+			PlannerSessions: uncompletedSessions{},
+			PollInterval:    poll, ClaimDuration: time.Hour, OperationTimeout: 250 * time.Millisecond,
+			PlannerTimeout: time.Second, FinalizationTimeout: time.Second, AbortTimeout: time.Second,
+			LeaseScanInterval: time.Second,
+			RuntimeTransport: RuntimeTransportSettings{
+				ArtifactAPIURL: "https://control.test/private/v1", RequestTimeoutSeconds: 1,
+			},
+			Reports: store, Settings: settings, Clock: &unsynchronizedLaneClock{now: time.Now().UTC()},
+			NewID: func(prefix string) (string, error) {
+				sequence++
+				return fmt.Sprintf("%s%d", prefix, sequence), nil
+			},
+			Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return scheduler
+}
+
+// unsynchronizedLaneClock deliberately has mutable, unguarded state. The
+// supervisor tests run it under the race detector to enforce Scheduler's
+// synchronization boundary for injected clocks.
+type unsynchronizedLaneClock struct {
+	now   time.Time
+	calls int
+}
+
+func (c *unsynchronizedLaneClock) Now() time.Time {
+	c.calls++
+	return c.now.Add(time.Duration(c.calls) * time.Microsecond)
+}
+
+func (c *unsynchronizedLaneClock) After(duration time.Duration) <-chan time.Time {
+	c.calls++
+	return time.After(duration)
+}
+
+type mutableSchedulerSettings struct {
+	mu        sync.Mutex
+	value     settingsstore.SchedulerSettings
+	err       error
+	reads     chan int
+	toolReads chan int
+	advance   time.Duration
+}
+
+// newMutableSchedulerSettings sizes the model pool to value and the tool
+// pool to one lane; reads and toolReads report each read of the model and
+// the tool pool size.
+func newMutableSchedulerSettings(value int, advance time.Duration) *mutableSchedulerSettings {
+	return &mutableSchedulerSettings{
+		value: settingsstore.SchedulerSettings{
+			MaxConcurrentRuns: value, MaxConcurrentToolRuns: 1, Revision: 1, UpdatedAt: time.Now().UTC(),
+		},
+		reads: make(chan int, 64), toolReads: make(chan int, 64), advance: advance,
+	}
+}
+
+func (s *mutableSchedulerSettings) GetSchedulerSettings(ctx context.Context) (settingsstore.SchedulerSettings, error) {
+	if err := ctx.Err(); err != nil {
+		return settingsstore.SchedulerSettings{}, err
+	}
+	s.mu.Lock()
+	value, err := s.value, s.err
+	s.mu.Unlock()
+	select {
+	case s.reads <- value.MaxConcurrentRuns:
+	default:
+	}
+	select {
+	case s.toolReads <- value.MaxConcurrentToolRuns:
+	default:
+	}
+	return value, err
+}
+
+func (s *mutableSchedulerSettings) set(value int) {
+	s.mu.Lock()
+	s.value.MaxConcurrentRuns = value
+	s.value.Revision++
+	s.value.UpdatedAt = s.value.UpdatedAt.Add(s.advance)
+	s.err = nil
+	s.mu.Unlock()
+}
+
+func (s *mutableSchedulerSettings) setToolLanes(value int) {
+	s.mu.Lock()
+	s.value.MaxConcurrentToolRuns = value
+	s.value.Revision++
+	s.value.UpdatedAt = s.value.UpdatedAt.Add(s.advance)
+	s.err = nil
+	s.mu.Unlock()
+}
+
+func (s *mutableSchedulerSettings) setError(err error) {
+	s.mu.Lock()
+	s.err = err
+	s.mu.Unlock()
+}
+
+func (s *mutableSchedulerSettings) drainReads() {
+	for {
+		select {
+		case <-s.reads:
+		case <-s.toolReads:
+		default:
+			return
+		}
+	}
+}
+
+func (s *mutableSchedulerSettings) waitRead(t *testing.T, value int, timeout time.Duration) {
+	t.Helper()
+	waitSettingRead(t, s.reads, "maxConcurrentRuns", value, timeout)
+}
+
+func (s *mutableSchedulerSettings) waitToolRead(t *testing.T, value int, timeout time.Duration) {
+	t.Helper()
+	waitSettingRead(t, s.toolReads, "maxConcurrentToolRuns", value, timeout)
+}
+
+func waitSettingRead(t *testing.T, reads <-chan int, name string, value int, timeout time.Duration) {
+	t.Helper()
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	for {
+		select {
+		case read := <-reads:
+			if read == value {
+				return
+			}
+		case <-deadline.C:
+			t.Fatalf("Scheduler did not read %s %d", name, value)
+		}
+	}
+}
+
+type laneTestStore struct {
+	mu            sync.Mutex
+	runs          []string
+	started       map[string]bool
+	claims        map[string]string
+	gates         map[string]chan struct{}
+	unblocked     map[string]bool
+	deferred      map[string]bool
+	wasDeferred   map[string]bool
+	states        map[string]runstore.WorkflowRunState
+	classes       map[string]resolved.LaneClass
+	activeByClass map[resolved.LaneClass]int
+	maxByClass    map[resolved.LaneClass]int
+	active        int
+	maximum       int
+	claimCount    int
+	releaseCount  int
+	claimed       chan string
+	releasedCount chan int
+}
+
+func newLaneTestStore(runIDs ...string) *laneTestStore {
+	store := &laneTestStore{
+		runs: append([]string(nil), runIDs...), started: make(map[string]bool),
+		claims: make(map[string]string), gates: make(map[string]chan struct{}),
+		unblocked: make(map[string]bool), deferred: make(map[string]bool),
+		wasDeferred: make(map[string]bool), states: make(map[string]runstore.WorkflowRunState),
+		classes: make(map[string]resolved.LaneClass), activeByClass: make(map[resolved.LaneClass]int),
+		maxByClass:    make(map[resolved.LaneClass]int),
+		claimed:       make(chan string, len(runIDs)+8),
+		releasedCount: make(chan int, len(runIDs)+8),
+	}
+	for _, runID := range runIDs {
+		store.gates[runID] = make(chan struct{})
+	}
+	return store
+}
+
+// ClaimRunnableRun claims only Runs of laneClass; a Run is of class model
+// unless toolRuns marked it.
+func (s *laneTestStore) ClaimRunnableRun(
+	ctx context.Context, claimID string, _ time.Duration, excludedRunIDs []string, laneClass resolved.LaneClass,
+) (runstore.WorkflowRun, error) {
+	if err := ctx.Err(); err != nil {
+		return runstore.WorkflowRun{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.claimCount++
+	priority := func(runID string) int {
+		if s.states[runID] == runstore.RunCancelling {
+			return 0
+		}
+		if s.wasDeferred[runID] {
+			return 3
+		}
+		if s.states[runID] == runstore.RunPending {
+			return 2
+		}
+		return 1
+	}
+	chosen, rank := "", 4
+	for _, runID := range s.runs {
+		if !s.started[runID] && !slices.Contains(excludedRunIDs, runID) && s.classOf(runID) == laneClass &&
+			priority(runID) < rank {
+			chosen, rank = runID, priority(runID)
+		}
+	}
+	if chosen != "" {
+		runID := chosen
+		s.started[runID] = true
+		s.claims[runID] = claimID
+		s.active++
+		if s.active > s.maximum {
+			s.maximum = s.active
+		}
+		s.activeByClass[laneClass]++
+		s.maxByClass[laneClass] = max(s.maxByClass[laneClass], s.activeByClass[laneClass])
+		s.claimed <- runID
+		ownerID := "runnable-owner"
+		if s.deferred[runID] {
+			ownerID = "paused-owner"
+		}
+		state := s.states[runID]
+		if state == "" {
+			state = runstore.RunRunning
+		}
+		return runstore.WorkflowRun{RunID: runID, OwnerID: ownerID, State: state, SchedulerLaneClass: laneClass}, nil
+	}
+	return runstore.WorkflowRun{}, runstore.ErrNoWork
+}
+
+func (s *laneTestStore) classOf(runID string) resolved.LaneClass {
+	if class, ok := s.classes[runID]; ok {
+		return class
+	}
+	return resolved.LaneClassModel
+}
+
+func (s *laneTestStore) toolRuns(runIDs ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, runID := range runIDs {
+		s.classes[runID] = resolved.LaneClassTool
+	}
+}
+
+// classCounts returns the active and the largest number of claims held at
+// once by lanes of class.
+func (s *laneTestStore) classCounts(class resolved.LaneClass) (int, int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.activeByClass[class], s.maxByClass[class]
+}
+
+func (s *laneTestStore) RenewRunClaim(context.Context, string, string, time.Duration) (runstore.WorkflowRunState, error) {
+	return runstore.RunRunning, nil
+}
+
+func (s *laneTestStore) ReleaseRunClaim(_ context.Context, runID, claimID string) error {
+	return s.releaseRunClaim(runID, claimID, false)
+}
+
+func (s *laneTestStore) DeferRunClaim(_ context.Context, runID, claimID string) error {
+	return s.releaseRunClaim(runID, claimID, true)
+}
+
+func (s *laneTestStore) releaseRunClaim(runID, claimID string, deferred bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.claims[runID] != claimID {
+		return runstore.ErrConflict
+	}
+	delete(s.claims, runID)
+	s.active--
+	s.activeByClass[s.classOf(runID)]--
+	s.wasDeferred[runID] = deferred
+	if s.deferred[runID] {
+		s.started[runID] = false
+		for index, candidate := range s.runs {
+			if candidate == runID {
+				s.runs = append(append(s.runs[:index:index], s.runs[index+1:]...), runID)
+				break
+			}
+		}
+	}
+	s.releaseCount++
+	s.releasedCount <- s.releaseCount
+	return nil
+}
+
+func (s *laneTestStore) GetRun(ctx context.Context, runID string) (runstore.WorkflowRun, error) {
+	s.mu.Lock()
+	gate, exists := s.gates[runID]
+	deferred := s.deferred[runID]
+	s.mu.Unlock()
+	if !exists {
+		return runstore.WorkflowRun{}, runstore.ErrNotFound
+	}
+	if deferred {
+		return runstore.WorkflowRun{}, runstore.ErrQueuePaused
+	}
+	select {
+	case <-ctx.Done():
+		return runstore.WorkflowRun{}, ctx.Err()
+	case <-gate:
+		return runstore.WorkflowRun{RunID: runID, State: runstore.RunSucceeded}, nil
+	}
+}
+
+// GetRunState is a progression attempt's first read, so it holds the lane
+// until the test unblocks the Run, as GetRun does.
+func (s *laneTestStore) GetRunState(ctx context.Context, runID string) (runstore.WorkflowRunState, error) {
+	run, err := s.GetRun(ctx, runID)
+	return run.State, err
+}
+
+func (s *laneTestStore) GetOwnerQueueControl(_ context.Context, ownerID string) (runstore.OwnerQueueControl, error) {
+	return runstore.OwnerQueueControl{OwnerID: ownerID}, nil
+}
+
+func (s *laneTestStore) deferRuns(runIDs ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, runID := range runIDs {
+		s.deferred[runID] = true
+	}
+}
+
+func (s *laneTestStore) cancellingRuns(runIDs ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, runID := range runIDs {
+		s.states[runID] = runstore.RunCancelling
+	}
+}
+
+func (s *laneTestStore) pendingRuns(runIDs ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, runID := range runIDs {
+		s.states[runID] = runstore.RunPending
+	}
+}
+
+func (s *laneTestStore) GetActiveStageExecution(context.Context, string) (runstore.StageExecution, error) {
+	return runstore.StageExecution{}, errors.New("unexpected active Stage read")
+}
+
+func (s *laneTestStore) HasStageExecutions(context.Context, string) (bool, error) {
+	return false, errors.New("unexpected Stage history probe")
+}
+
+func (s *laneTestStore) ListStageLineage(context.Context, string, string) ([]runstore.StageLineage, error) {
+	return nil, errors.New("unexpected Stage lineage read")
+}
+
+func (s *laneTestStore) ListStageExecutionsWithUnreleasedAllocations(context.Context, string) ([]runstore.StageExecution, error) {
+	return nil, errors.New("unexpected unreleased Stage list")
+}
+
+func (s *laneTestStore) HasSummaryEscalation(context.Context, string, string) (bool, error) {
+	return false, errors.New("unexpected summary escalation lookup")
+}
+
+func (s *laneTestStore) ListTerminalStageExecutionsWithAllocations(context.Context, []string) ([]runstore.StageExecution, error) {
+	return nil, nil
+}
+
+func (s *laneTestStore) GetStageExecution(context.Context, string) (runstore.StageExecution, error) {
+	return runstore.StageExecution{}, errors.New("unexpected Stage read")
+}
+
+func (s *laneTestStore) RecordStageAllocation(context.Context, runstore.StageAllocation) error {
+	return errors.New("unexpected allocation write")
+}
+
+func (s *laneTestStore) ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error) {
+	return nil, nil
+}
+
+func (s *laneTestStore) ListStageAllocationsBatch(context.Context, []string) (map[string][]runstore.StageAllocation, error) {
+	return nil, errors.New("unexpected allocation batch read")
+}
+
+func (s *laneTestStore) MarkStageAllocationReleaseAttempt(context.Context, ...string) error {
+	return errors.New("unexpected release attempt")
+}
+
+func (s *laneTestStore) MarkStageAllocationReleased(context.Context, ...string) error {
+	return errors.New("unexpected release completion")
+}
+
+func (s *laneTestStore) RecordStageOutputPublicationFailure(context.Context, string, string) error {
+	return errors.New("unexpected output publication failure")
+}
+
+func (s *laneTestStore) RecordAllocationReport(context.Context, telemetry.AllocationReportEnvelope) error {
+	return errors.New("unexpected Stage report")
+}
+
+func (s *laneTestStore) RecordPlannerReport(context.Context, telemetry.PlannerReportEnvelope) error {
+	return errors.New("unexpected Planner report")
+}
+
+func (s *laneTestStore) RebuildStageMetrics(context.Context, string, string) (telemetry.StageMetricsRecord, error) {
+	return telemetry.StageMetricsRecord{}, errors.New("unexpected metric rebuild")
+}
+
+func (s *laneTestStore) unblock(runID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.unblocked[runID] {
+		close(s.gates[runID])
+		s.unblocked[runID] = true
+	}
+}
+
+func (s *laneTestStore) waitReleased(t *testing.T, count int, timeout time.Duration) {
+	t.Helper()
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	for {
+		s.mu.Lock()
+		current := s.releaseCount
+		s.mu.Unlock()
+		if current >= count {
+			return
+		}
+		select {
+		case <-s.releasedCount:
+		case <-deadline.C:
+			t.Fatalf("released %d Runs, want %d", current, count)
+		}
+	}
+}
+
+func (s *laneTestStore) counts() (int, int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.active, s.maximum
+}
+
+func (s *laneTestStore) claimCalls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.claimCount
+}
+
+type laneNoopPersistence struct{}
+
+func (laneNoopPersistence) CreateStageWithContext(context.Context, runstore.CreateStageExecutionParams, []ContextPin) (runstore.StageExecution, error) {
+	return runstore.StageExecution{}, errors.New("unexpected persistence call")
+}
+func (laneNoopPersistence) EnterFinalizingWithResult(context.Context, runstore.EnterFinalizingParams) error {
+	return errors.New("unexpected persistence call")
+}
+func (laneNoopPersistence) EnterAbortingWithTermination(context.Context, string, runstore.EnterAbortingParams) error {
+	return errors.New("unexpected persistence call")
+}
+func (laneNoopPersistence) CommitResultProgression(context.Context, ResultProgression) error {
+	return errors.New("unexpected persistence call")
+}
+func (laneNoopPersistence) AcceptResultDuringCancellation(context.Context, string, string, stageresult.StageContentResult) error {
+	return errors.New("unexpected persistence call")
+}
+func (laneNoopPersistence) CommitTerminationProgression(context.Context, TerminationProgression) error {
+	return errors.New("unexpected persistence call")
+}
+func (laneNoopPersistence) CommitTerminationAndFinishRun(context.Context, string, string, runstore.WorkflowRunState, runstore.WorkflowRunState, runstore.Reason) error {
+	return errors.New("unexpected persistence call")
+}
+
+func (laneNoopPersistence) FailRunWithActiveStages(context.Context, string, runstore.WorkflowRunState, runstore.WorkflowRunState, runstore.Reason, runstore.StageTermination, string) error {
+	return errors.New("unexpected persistence call")
+}
+
+func (laneNoopPersistence) FinishCancelledRun(context.Context, string) error {
+	return errors.New("unexpected persistence call")
+}
+
+type laneNoopArtifacts struct{}
+
+func (laneNoopArtifacts) Resolve(context.Context, string, contracts.ArtifactRef) (ResolvedArtifact, error) {
+	return ResolvedArtifact{}, errors.New("unexpected artifact resolution")
+}
+
+func (laneNoopArtifacts) SaveSummary(context.Context, string, string, string, string) (contracts.ArtifactRef, error) {
+	return contracts.ArtifactRef{}, errors.New("summary publication is unavailable")
+}
+
+type laneNoopAllocator struct{}
+
+func (laneNoopAllocator) ReserveAllContext(context.Context, controlplane.ReservationRequest) ([]controlplane.Reservation, error) {
+	return nil, errors.New("unexpected allocation")
+}
+func (laneNoopAllocator) GetGrant(string) (controlplane.AllocationGrant, error) {
+	return controlplane.AllocationGrant{}, controlplane.ErrAllocationNotFound
+}
+func (laneNoopAllocator) GetReservation(string) (controlplane.Reservation, error) {
+	return controlplane.Reservation{}, controlplane.ErrAllocationNotFound
+}
+func (laneNoopAllocator) SetWriteFence(string) error { return errors.New("unexpected fence") }
+func (laneNoopAllocator) DiscardUnprepared(string) error {
+	return errors.New("unexpected placement discard")
+}
+func (laneNoopAllocator) PollAllocationLosses() []controlplane.AllocationLoss {
+	return nil
+}
+
+type laneNoopWorkers struct{}
+
+func (laneNoopWorkers) PrepareAll(context.Context, []controlplane.Reservation, map[string]runtimesettings.WorkerExecutionSettings) (map[string]contracts.WorkerHandle, error) {
+	return nil, errors.New("unexpected Worker preparation")
+}
+func (laneNoopWorkers) FinalizeAll(context.Context, []controlplane.Reservation, string, time.Time) (map[string]reporting.AllocationFinalReport, error) {
+	return nil, errors.New("unexpected Worker finalization")
+}
+func (laneNoopWorkers) AbortAll(context.Context, []controlplane.Reservation, string, contracts.TerminationError, time.Time) (map[string]reporting.AllocationFinalReport, error) {
+	return nil, errors.New("unexpected Worker abort")
+}
+func (laneNoopWorkers) ReleaseAll(context.Context, []controlplane.Reservation) error {
+	return errors.New("unexpected Worker release")
+}
+
+type laneNoopPlanners struct{}
+
+func (laneNoopPlanners) Create(string, planner.Invocation) (planner.Planner, error) {
+	return nil, errors.New("unexpected Planner creation")
+}
+
+func receiveString(t *testing.T, channel <-chan string, timeout time.Duration, operation string) string {
+	t.Helper()
+	select {
+	case value := <-channel:
+		return value
+	case <-time.After(timeout):
+		t.Fatalf("timeout waiting for %s", operation)
+		return ""
+	}
+}
+
+func assertNoString(t *testing.T, channel <-chan string, duration time.Duration, operation string) {
+	t.Helper()
+	select {
+	case value := <-channel:
+		t.Fatalf("%s: received %q", operation, value)
+	case <-time.After(duration):
+	}
+}
+
+func receiveError(t *testing.T, channel <-chan error, timeout time.Duration, operation string) error {
+	t.Helper()
+	select {
+	case err := <-channel:
+		return err
+	case <-time.After(timeout):
+		t.Fatalf("timeout waiting for %s", operation)
+		return nil
+	}
+}
+
+// awaitValue receives one value from channel before ctx, the test's own
+// deadline, ends. It sets no budget of its own, so a loaded host slows the
+// test instead of failing it (AGENTS.md 3.5).
+func awaitValue[T any](t *testing.T, ctx context.Context, channel <-chan T, operation string) T {
+	t.Helper()
+	select {
+	case value := <-channel:
+		return value
+	case <-ctx.Done():
+		t.Fatalf("%s did not happen before the test deadline: %v", operation, context.Cause(ctx))
+		var zero T
+		return zero
+	}
+}
+
+func (laneNoopPersistence) AdmitStage(context.Context, string, string) (runstore.StageExecution, error) {
+	return runstore.StageExecution{}, errors.New("unexpected admission")
+}
+func (laneNoopPersistence) DiscardUnadmittedPlacement(context.Context, string, string, func() error) error {
+	return errors.New("unexpected placement discard")
+}
+
+func (laneNoopPersistence) ReconcileModelWait(context.Context, string, string, string) error {
+	return nil
+}

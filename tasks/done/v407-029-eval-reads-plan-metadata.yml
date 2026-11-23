@@ -1,0 +1,255 @@
+schema_version: '1.0'
+id: V407-029
+title: Use bounded Eval plan metadata and precomputed readiness for polled views
+milestone: server-runtime-review-2026-10
+epic: evals
+kind: chore
+introduced_by: V38-005
+priority: P2
+status: completed
+depends_on: []
+languages:
+- go
+goal: Metadata-only Eval views avoid loading the frozen document and recomputing immutable readiness,
+  while preserving strict read/output validation and public fields.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/evals/managed-evals.md
+  finding: internal/evalservice/selected_views.go:61,166, review.go:78 and public.go:224 load FrozenPlan
+    although they use Setup/SHA256; FrozenPlanMetadata already exists at evalstore/experiments.go:170.
+    Get reads the full document and nativeReadiness iterates immutable members (public.go:84-113; readiness.go:34-84).
+    Separately public.go:136 validates the assembled Experiment response; that is not revalidation of
+    the portable plan and protects a different boundary.
+  siblings: Any other FrozenPlan caller (grep) that uses only metadata.
+  validation: Full-document reads and readiness recomputation are verified by call graph, not a measured
+    latency incident. Removing all per-read validation is not justified by immutable storage and conflicts
+    with the strict-read rule. This task optimizes data selection without weakening response or metadata
+    validation.
+plan:
+- Use FrozenPlanMetadata for consumers that need only Setup/SHA256; inventory the remaining callers and
+  preserve those that genuinely need the document.
+- Materialize bounded readiness from the strictly validated native plan at freeze and expose it through
+  the existing owned metadata row, with a named production reader and appropriate immutable/read validation.
+  If persistence needs a migration, follow the project migration test rules and preserve all existing
+  data.
+- Have Get use that projection for native plans; retain draft/preparing, unprepared deletion and external
+  readiness behavior. Keep Validate(Experiment) at the response boundary and reject malformed stored metadata.
+- Test column/read counts against real PostgreSQL and readiness equivalence with current conformance fixtures,
+  including the native ceiling. Do not introduce a test-only exported hook into production.
+scope:
+  in:
+  - Metadata reads, bounded stored readiness, any necessary owned-row migration, and behavior-preserving
+    query/conformance tests.
+  out:
+  - Removing strict read/response validation, changing public Experiment fields or external readiness,
+    or adding an unowned readiness table.
+acceptance_criteria:
+- id: A1
+  text: Get for a frozen plan and the identified metadata-only views do not fetch the document column
+    or recompute readiness from it; counted query/projection tests distinguish the original implementation.
+- id: A2
+  text: Readiness and public fields match the current fixtures for native/external/draft/deletion cases,
+    and any migration preserves existing business data.
+- id: A3
+  text: Malformed stored metadata and invalid assembled responses are still rejected at their validation
+    boundaries; schema validation is not disabled or moved only into tests.
+- id: A4
+  text: Memory/row/byte bounds for the materialized projection are documented and tested at the admitted
+    native ceiling.
+tests:
+- command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/evalservice/...
+    ./internal/evalstore/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/httpapi/public/...
+  covers:
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A3
+  - A4
+decisions:
+- >-
+  Finding re-verified on 9cc34c0b: Service.Get read FrozenPlan (internal/evalservice/public.go:84) and
+  rebuilt readiness from the whole document on every poll (nativeReadiness, readiness.go:34-84);
+  withSelectedView (selected_views.go:61), Report (selected_views.go:166), Review (review.go:78) and
+  GetCommand (public.go:224) loaded the document although they use only Setup and SHA256. They now read
+  FrozenPlanMetadata, and Get reads the new FrozenPlanView. Response validation of the assembled
+  Experiment (public.go:136) is unchanged.
+- >-
+  Inventory of the remaining FrozenPlan callers: CollectView's comparison publication
+  (internal/evalservice/collection.go:51) reads the native pins from the document to verify the
+  required-equal dimensions (collection_pins.go) once per publication, which
+  TestSharedPostgresNativeTickTrustsStoredPlanAtMemberCeiling already bounds to one full read per tick;
+  it is no polled view and stays a genuine document reader. Tests use FrozenPlan to inspect stored
+  bytes. Every other plan reader already used FrozenPlanMetadata (service.go:296, record_ingestion.go:32,
+  collection.go:92, evalstore selections.go:45, records.go:100, commands.go:40, submissions.go:73), and
+  the summary page SQL selects only setup.
+- >-
+  Materialized readiness lives in the owned eval_frozen_plans row (new nullable column readiness,
+  migration 000034_eval_plan_readiness.sql), written by persistPlan in the same INSERT as the plan, so
+  the freeze transaction and its rollback cover it and eval_plans_immutable protects it. The readiness
+  computation and its types moved from evalservice to evaldomain (NativeReadiness, Readiness), so the
+  store derives readiness from the very document it stores and validates it against the closed
+  Readiness schema before any freeze write. Checks: native plans have readiness and registrations have
+  none (eval_frozen_plans_readiness_kind_check); 2 to 1,048,576 bytes (eval_frozen_plans_readiness_check).
+  Rejected: computing readiness in the service and passing it to FreezePrepared (the store could not
+  guarantee it matches the document); aggregating eval_members on every read (a scan of up to 1,000
+  rows per poll that still derives pins from the document); a side table (scope.out and AGENTS 3.7).
+- >-
+  Read validation: FrozenPlanView decodes the stored readiness with strictjson and required tags
+  (unknown, duplicate, missing members and trailing data fail) and returns an unclassified error, so a
+  corrupt row answers 500 instead of leaking or being reported as a client error. The closed schema is
+  still enforced at the response boundary by Validate("Experiment"), which rejects a decodable but
+  schema-invalid readiness with eval_invalid as before. Validating the schema in the reader as well
+  would repeat that work on every poll.
+- >-
+  One rule, three implementations (AGENTS 3.1): evaldomain.NativeReadiness, the freeze write path and
+  the SQL backfill of migration 000035 are all held to the new shared fixture
+  api/testdata/evals/readiness-cases.json (covered by the existing evals/ readers entry). Its mixed case
+  orders the dimensions a-b, a.b, a0, a_b, ab, which en_US collation sorts differently, so the backfill's
+  COLLATE "C" is tested; it also covers operator_supplied and unavailable origins, missing pins, null
+  and empty values, a dimension only one arm pins and a required dimension no arm pins.
+- >-
+  Bounds (LIM-EVM-19, EVM-R242): a native plan pins at most 1,024 dimensions for each of its two arms, so
+  the stored readiness has at most 2,048 pins and 2 arm rows whatever the member count; with every
+  string at its schema maximum it encodes to 543,169 bytes, within the 1 MiB column bound. A plan that
+  pins more dimensions under further variants yields a readiness the schema rejects, so the freeze
+  fails instead of storing it. At the 1,000-member native ceiling Get transfers about 6.2 KB of setup
+  and 2.0 KB of readiness instead of the 444 KB document.
+- >-
+  Report keeps a second FrozenPlanMetadata read inside withSelectedView instead of changing the
+  callback signature of five views; both reads are bounded metadata in one snapshot.
+- >-
+  Review amendment (2026-10-24), NUL escapes: PostgreSQL rejects a JSON NUL escape (\u0000) with SQLSTATE
+  22P05 wherever it occurs in a document, for json as for jsonb: probed on PostgreSQL 17.11, the json
+  cast succeeds but every operator and set function on the value (->, ->>, json_each,
+  json_object_keys, json_array_elements) fails. Parsing with ::json, as the review suggested,
+  therefore does not help. A plan or setup may hold the escape in any free string (draft parameters, plan
+  extensions, pin values), so one such plan rolled back the whole migration batch. The backfill now
+  reads each stored document through a helper function, created and dropped inside the migration,
+  that rewrites decoded strings injectively before the jsonb cast. Every backslash, however it is
+  spelled (\\ or \u005c), becomes two backslashes, then every NUL becomes a backslash and a zero. Each
+  regular expression matches an escape only after an even run of backslashes. Ids, dimensions, origins
+  and eligibility match ^[a-z0-9][a-z0-9._-]*$ or an enum in the portable common schema, so they and
+  their byte order are unchanged; pin values are only compared, and they are equal after the rewrite
+  exactly when they are equal decoded, as NativeReadiness compares them. Native pin values are strings
+  or null (internal/evalservice/plan.go:21). Rejected: a Go backfill (the migration runner applies
+  embedded SQL files only, and a Server-side backfill of NULL rows would be a legacy read path);
+  dropping NULs (not injective). The shared fixture gains escaped-pin-values: a NUL in an extension
+  and in pin values; a NUL against its six-character escape text, a doubled backslash and its absence;
+  and a backslash, a backslash before a NUL, e-acute, a surrogate pair and a quote against their
+  other spellings. NativeReadiness, the freeze path and the backfill all match it. The migration
+  test setup also carries a NUL.
+- >-
+  Review amendment (2026-10-24), parse count: PostgreSQL pulled up the plan subquery, so every pin
+  and member lookup parsed the document again (the explained statement converted stored documents
+  25 times). Both subqueries are now fenced with OFFSET 0. The plan subquery parses each document and
+  setup once, and the join carries only the readiness. TestSharedPostgresEvalPlanReadinessMigrationParsesEachPlanOnceAtTheNativeCeiling
+  explains the migration's own UPDATE and requires exactly two conversions (it fails with 25 without
+  the fences). It then backfills four 568-574 KB plans with 1,000 members and 1,024 or 2,048
+  pins, and their readiness equals NativeReadiness. Measured, not asserted, on a loaded laptop: 40
+  such worst-case plans migrate in 3.3 s, about 84 ms per plan. Plans with tens of pins cost mostly
+  the regular expressions and the parse, about 5-10 ms per MiB of document. The widest
+  readiness is 543,169 bytes as the freeze encodes it and 563,670 bytes as jsonb text in a backfilled
+  row, both checked by tests and below the 1 MiB column bound (LIM-EVM-19 updated).
+- >-
+  Siblings of the NUL class, outside this task's scope and not changed: production reads that cast stored
+  Eval JSON to jsonb fail the same way when it holds a NUL escape. These are the experiment list
+  (internal/evalstore/public_read_sql.go:42-43, setup or draft and summary), comparison pages
+  (comparison_pages_sql.go:45-46) and report sources (report_sources_sql.go:17-22). A follow-up task
+  should decide whether Eval writes reject the escape or these reads avoid jsonb.
+verification:
+  date: '2026-10-24'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with pnpm, the locked Runtime venv;
+    isolated PostgreSQL 17.11 database contractor_test_c with per-test schemas and all 33 migrations.
+  commands:
+  - >-
+    test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1
+    ./internal/evalservice/... ./internal/evalstore/... passed (evalservice 47 s, evalstore 29 s),
+    including TestSharedPostgresExperimentViewReadsStoredReadinessAtNativeCeiling (1,000 members; Get
+    and GetCommand each send 1 metadata read of eval_frozen_plans and 0 reads that select the document;
+    the stored readiness equals what the plan document yields, arms 500/500, 15 pins; 6,223 setup and
+    2,036 readiness bytes instead of the 444,150 byte document),
+    TestSharedPostgresSelectedViewsReadPlanMetadataOnly (get, members, pairs, pair, quality chart,
+    report and review of a drained experiment read no document),
+    TestSharedPostgresExperimentViewRejectsMalformedStoredReadiness (unknown member, missing arms and a
+    wrong JSON type fail as non-domain internal errors; an undeclared status fails Validate(Experiment)
+    with eval_invalid), TestSharedPostgresFreezeStoresNativeReadinessForTheView (each shared fixture
+    case frozen through persistPlan stores the fixture readiness; FrozenPlanView is one query and
+    owner-scoped; external registrations store none),
+    TestSharedPostgresStoredReadinessIsImmutableAndDecodedStrictly (immutable trigger, kind and size
+    checks, strict decode of six malformed values) and the existing
+    TestSharedPostgresNativeTickTrustsStoredPlanAtMemberCeiling.
+  - >-
+    test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1
+    ./internal/httpapi/public/... passed, including
+    TestSharedEvalPostgresExperimentViewFieldsAcrossPlanStates (draft and preparing show draft only;
+    ready shows setup, planSha256 and readiness equal to the stored plan and to the readiness its
+    document yields; a deleted unprepared draft shows its authoring setup without readiness or plan; an
+    external registration has setup and planSha256 and no readiness; a malformed stored readiness
+    answers 500 and a schema-invalid one 422 eval_invalid).
+  - >-
+    A1: with public.go, selected_views.go, review.go and readiness.go of evalservice restored from
+    9cc34c0b, the new tests failed deterministically: Get read 1 plan document and 0 metadata
+    projections; get, members, pairs, pair, chart and review each read 1 document and report 2; a
+    readiness with an unknown member was not rejected (the document was used instead), and GET returned
+    200 instead of 500. The files were restored afterwards. No elapsed-time assertion is used.
+  - >-
+    go test -count=1 ./internal/evaldomain/... passed (TestSharedEvalNativeReadinessMatchesFixtures,
+    TestSharedEvalNativeReadinessIsBoundedByPinnedDimensions: 2 x 1,024 pinned dimensions give 2,048
+    schema-valid pins, the widest schema-valid readiness encodes to 543,169 bytes, 3,072 pins are
+    rejected; TestSharedEvalNativeReadinessRejectsAnotherPlanKind).
+  - >-
+    go test -count=1 ./internal/persistence/postgres/... passed, including
+    TestSharedPostgresEvalPlanReadinessMigrationBackfillsNativePlans (the migrations before it, two
+    fixture native plans with members and an external registration, then 000035: backfilled readiness equals the
+    fixture and NativeReadiness and is schema-valid, external stays NULL, plan and member rows are
+    byte-identical before and after, the immutable trigger is enabled again and a native plan without
+    readiness is rejected by eval_frozen_plans_readiness_kind_check).
+  - >-
+    go test -count=1 ./internal/persistence passed except the known pre-existing
+    TestSQLAccessFollowsTableOwnership failure at internal/cli/scan_sweep_remote.go:196 (named in the
+    brief as failing on the base); TestSQLStateLiteralsLiveOnlyInTheClassifier and
+    TestSQLPlacementKeepsLongStatementsInSQLFiles passed.
+  - >-
+    go test -count=1 ./internal/evalcoordinator/... passed.
+  - >-
+    make docs-erd regenerated docs/spec/database-erd.html at schema version 33 (its scratch database was
+    dropped); make docs-dependencies regenerated docs/spec/audit-workflow-dependencies.html without
+    changes.
+  - >-
+    make test-wire-cross-language passed (contracts packages, Runtime contract tests 300 passed, shared
+    fixture gate 251 fixtures with 246 Go and 185 Python shared tests, including the new
+    api/testdata/evals/readiness-cases.json readers).
+  - >-
+    make lint passed, including vet, staticcheck U1000, unused-export checks, SQL placement, spec, ERD,
+    release graph and task checks.
+  - >-
+    After the migration moved to 000035 (V407-025 takes 000034) and claude/review-v407-v409 was merged
+    (b5bb1628; the migration directory then has 000032 followed by 000035, which the runner accepts
+    because it only requires increasing versions): go test -tags=integration -count=1
+    ./internal/evalservice/... ./internal/evalstore/... ./internal/persistence/postgres/... passed;
+    go test -tags=integration -count=1 ./internal/httpapi/public/... passed; make lint passed; make
+    docs-dependencies and make docs-erd regenerated their pages unchanged at schema version 000035.
+  - >-
+    Review fixes (1b74b738): TestSharedPostgresEvalPlanReadinessMigrationBackfillsNativePlans now covers the
+    escaped-pin-values fixture case and a NUL in the setup. Before the fix it failed with "unsupported
+    Unicode escape sequence (SQLSTATE 22P05)"; it passes now.
+    TestSharedPostgresEvalPlanReadinessMigrationParsesEachPlanOnceAtTheNativeCeiling passes with 2
+    conversions in the explained UPDATE and fails with 25 when the OFFSET 0 fences are removed. Then
+    go test -tags=integration -count=1 ./internal/evalservice/... ./internal/evalstore/...
+    ./internal/evaldomain/... ./internal/persistence/postgres/... ./internal/httpapi/public/... passed
+    against contractor_test_c, including the escaped case through NativeReadiness and the freeze path.
+    make lint passed; make test-wire-cross-language passed (253 fixtures, 263 Go and 185 Python shared
+    tests); make docs-erd and make docs-dependencies regenerated their pages unchanged.
+  database_tests_configured: true
+implementation_commit: 1b74b73835c11d93737405cbf4f096e728979c13
+notes:
+- Migration numbers in this record were renumbered (+1) on 2026-10-24 when main's 000033_audit_snapshot_labels was merged into the integration branch.

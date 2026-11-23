@@ -1,0 +1,278 @@
+schema_version: '1.0'
+id: V409-014
+title: Reduce Eval comparison-page and composed recovery query round trips
+milestone: sql-review-2026-10
+epic: evals
+kind: chore
+introduced_by: V38-006
+priority: P3
+status: completed
+implementation_commit: ddeb2f1daaf9ed4c179efc8ba1fd77e23a4bc890
+depends_on:
+- V407-028
+- V407-029
+- V409-009
+languages:
+- go
+- sql
+goal: Read Eval comparison pages in one bounded statement and share recovery authority reads inside
+  existing composed transactions while keeping selected-view results, fences and replay unchanged.
+context:
+  review: docs/research/2026-10-23-sql-review.md, C comparison pages and recovery() per member, plus
+    D FindEvalReceipt. Split from V409-011 on 2026-10-23; that portion had earlier moved there from
+    the original V409-009.
+  specification:
+  - docs/spec/platform/persistence.md
+  - docs/spec/evals/managed-evals.md#EVM-R108
+  - docs/spec/evals/managed-evals.md#EVM-R110
+  - docs/spec/evals/managed-evals.md#EVM-R164
+  - docs/spec/evals/managed-evals.md#EVM-R168
+  - docs/spec/evals/managed-evals.md#EVM-R214
+  - docs/spec/evals/managed-evals.md#EVM-R216
+  finding: evalstore/comparison_pages.go:76-90 performs separate count and page statements, and
+    selectedMemberPageSQL extracts JSON filter fields before the limit. evalservice/execution_operations.go:59-65
+    and driver.go:159-167 already compose multiple recovery-aware store methods in the same database
+    transaction; those methods repeat authority reads. These are verified repeated operations, not
+    measured production latency incidents.
+  validation: Revalidated on main 1d533b2db885e0162ebabb01d36470f139546009. Existing 10000 directly
+    seeded comparison fixture passed with two SQL queries per page and maximum serialized page 632876
+    bytes. No reachable cross-Project Eval receipt ambiguity was demonstrated.
+  siblings: Eval PairPage/SelectedMemberPage including empty/foreign-owner/filter cases; composed
+    BindExecution+ResolveSuboperation and ObserveTokens+Settle transactions. V409-009 owns purge
+    only; V407-028/029 own member insertion and FrozenPlan metadata reads. Execution-side batching
+    belongs to V409-011.
+  provenance: Comparison pages come from 9fc021501ce34389ecc7f35ca65bdf7959a25ce9 (V38-006).
+  decisions:
+  - EvalReceiptProject is a retained-receipt Project lookup after an addressed experiment disappears,
+    not a Create collection lookup. Service-generated experiment IDs use 128-bit randomness; external
+    PortableID is distinct. Leave it unchanged. Reopen duplicate-receipt handling only with a reachable
+    production writer or demonstrated corruption-detection requirement; adding ProjectID would be
+    circular for this lookup.
+  - Full PublishView projection redesign and persisted next_ordinal remain outside accepted work
+    for the reasons recorded in V409-009. Their omission is a documented decision, not an implementation
+    claim. Reuse within current transactions must never create a transaction across an intent commit,
+    ordinary Run/Audit side effect and acknowledgement.
+plan:
+- Replace Eval count-plus-page round trips with one statement that returns both the exact filtered
+  total and a bounded page, including an empty after-cursor page. Restrict full output document transfer/decoding
+  to selected page rows and the necessary bounded lookahead. Exact counting may still examine the
+  filtered cohort; do not claim total work proportional only to page size. If filter/member identity
+  columns are projected, maintain them at the existing projection write boundary and add a real migration/backfill
+  consistency test.
+- Preserve view-generation snapshot, owner/filter binding, full experiment summary, ordering/tie
+  breaks and HasMore. Pair/MemberView payloads remain complete. Do not omit data just to meet a statement-text
+  assertion; include the exact empty-page FilteredCount and foreign-owner behavior in query equivalence
+  tests.
+- Share repeated recovery authority work only inside already-composed database-only transactions
+  such as BindExecution+ResolveSuboperation and ObserveTokens+Settle. Pass a transaction-bound capability
+  or composed operation, not a reusable cached authorization across transactions. Refresh mutable
+  state and recheck live-claim/fence conditions where the old protocol requires them; no read saved
+  at the cost of admitting work after cancellation or losing intent durability.
+- Extend existing comparison page tests at an admitted native ceiling and retain the explicitly store-seeded
+  10000-member defensive fixture. Add deterministic SQL-count tests for the composed recovery transactions.
+  Compare query counts within defined operations, not elapsed time, and preserve pause/cancel, expired-claim,
+  restart and lost-acknowledgement tests.
+scope:
+  in:
+  - Single-statement Eval comparison pages and bounded output-document reads.
+  - Recovery-query reuse only inside existing composed database transactions, with focused query-count
+    and equivalence tests.
+  out:
+  - Eval receipt lookup behavior, full PublishView redesign, persistent admission cursor and full-tick
+    transactions.
+  - Eval purge (V409-009), member INSERT batching/FrozenPlan metadata (V407-028/029), execution-side
+    lock/marker batching (V409-011), new external API fields or changed comparison denominators.
+acceptance_criteria:
+- id: A1
+  text: Given any supported Eval pair/member filter and cursor, including empty/end/foreign-owner
+    pages, when the page is read, then one SQL statement returns the same exact filtered total, full
+    summary identity, complete bounded items, ordering and continuation as before; full output documents
+    are fetched only for selected page rows and bounded lookahead.
+- id: A2
+  text: Given a composed recovery transaction that encounters cancellation, claim loss, an ambiguous
+    side-effect acknowledgement or retry, when shared authority reads are used, then every original
+    fence/replay outcome remains valid and no transaction spans an external service call; counted
+    duplicate queries decrease only within the specified existing transaction boundaries.
+- id: A3
+  text: Given retained Eval receipts, when existing receipt paths are exercised, then their scope
+    resolution is unchanged.
+- id: A4
+  text: Given the original implementations, when comparison/composed-operation count regressions run,
+    then the relevant old operation counts fail their new assertions; preservation tests may already
+    pass and are not claimed as reproduced defects. Migration/backfill tests pass against real PostgreSQL
+    if projected filter columns are added.
+tests:
+- command: CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set an isolated disposable
+    PostgreSQL URL}" go test -tags=integration -count=1 ./internal/evaldomain/... ./internal/evalstore/...
+    ./internal/evalservice/... ./internal/evalcoordinator/... ./internal/persistence/... ./internal/httpapi/public/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make verify-public-api
+  covers:
+  - A1
+  - A3
+- command: make lint
+  covers: []
+  purpose: Static layering, formatting, SQL placement, migration/task/specification checks only;
+    does not prove fence preservation, counts or failure semantics.
+manual_verification:
+- check: Record before/after statement counts and representative custom/generic query plans with
+    dataset cardinalities; confirm any new projected columns have an atomic writer/backfill and every
+    retained/rejected original subclaim has its disposition. Do not force index scans or report preservation
+    tests as initially failing defects.
+  covers:
+  - A1
+  - A2
+  - A4
+verification:
+  date: '2026-10-23'
+  environment: >-
+    macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local); locked Node 24.20 and Runtime
+    venv; local PostgreSQL 17.11 database contractor_test_c with isolated
+    per-test schemas and all migrations through 000038 (000036 is pending on
+    another branch); worktree branch claude/rv-c on base ba0f4415.
+  re_verification: >-
+    The findings held on base ba0f4415: PairPage and SelectedMemberPage sent a
+    count statement and a page statement over the same materialized cohort,
+    and the member cohort decoded every pair document of the generation with
+    convert_from(...)::jsonb before its filter and limit; each recovery step
+    (recovery() in submissions.go) locked the evaluation Project FOR SHARE,
+    the experiment FOR UPDATE and the claim FOR UPDATE again although the
+    composed transactions in execution_operations.go (BindExecution then
+    ResolveSuboperation) and driver.go (ObserveTokens then Settle) already
+    held them.
+  design_decision: >-
+    Pages (EVM-R245): the immutable pair row gains, per side, the member's
+    frozen ordinal, variant, eligibility, execution state (NULL without an
+    execution), assessment and conflict flag. projectComparison writes them
+    with the document in the same CopyFrom of the PublishView transaction;
+    migration 000037_eval_view_pair_filters backfills retained rows from the
+    row's own document and eval_members, disabling eval_view_pairs_immutable
+    only around its UPDATE, turning \u0000 into \u0001 before the jsonb cast
+    (PostgreSQL rejects the NUL escape in json and jsonb; only free strings
+    can carry it), then sets NOT NULL. One statement evaluates the
+    materialized cohort once for both the count and a LIMIT n+1 candidate
+    list; a scalar subquery reads the document by primary key only for page
+    rows whose pair is first in the page, so the lookahead row and a
+    member page's second side read none. The owner check became an EXISTS
+    that runs once. The member page decodes its side from the pair document
+    in Go. Rejected alternatives: a side table (a second writer and table,
+    AGENTS 3.7); generated columns (the document is bytea, a cast fails on
+    NUL escapes and the ordinal needs a join); keeping jsonb extraction at
+    read time (decodes the cohort and fails with 22P05). Reversal: a member
+    filter on another field adds its column with the same writer and a
+    backfill. Recovery (EVM-R246): Store.RecoverMember returns a
+    MemberRecovery bound to the store's transaction; the first step takes
+    the three locks (LockMember and RegisterExecutionProject keep their
+    workspace Project lock between the evaluation Project and the
+    experiment), every later step runs one statement that proves the claim
+    live at its epoch and rereads state and deletion_requested_at, so an
+    earlier statement of the same transaction that cancels or requests
+    deletion still fences new side effects. LockMember after another step
+    fails (lock order). Transaction boundaries are unchanged: every
+    capability is created inside its d.tx closure, so a retried transaction
+    starts over. Rejected: re-taking the locks per step (two extra statements
+    per later step, no added guarantee) and trusting the first step without
+    a per-step claim proof (PER-R25 requires each write to prove its lease).
+    Reversal: a step in a savepoint that can roll back the first step, or in
+    another transaction, takes the authority again.
+  regression_before_fix: >-
+    A4 on a temporary worktree at ba0f4415 (git worktree add, removed
+    afterwards): TestSharedPostgresEvalComposedRecoveryTakesItsAuthorityOnce
+    rewritten to the base API failed with BindExecution+ResolveSuboperation
+    11 statements (authority project 2, experiment 2, claim 2), replayed
+    acknowledgement 10 and ObserveTokens+Settle 15, against the new
+    assertions 9, 8 and 13 with each lock once plus one refresh; the base
+    10,000-member page test with the new one-statement assertion failed with
+    "unbounded page 2 5000 100". The equivalence, decoding, migration and
+    native-ceiling tests need the new columns or API and cannot run on the
+    base; the preservation tests (pause/cancel, expired claim, restart, lost
+    acknowledgement in evalservice and evalstore) already passed there and
+    are not claimed as reproduced defects.
+  manual_verification: >-
+    Statement counts: pair or member page 2 -> 1 statement (service read 7 ->
+    6 statements of its repeatable-read transaction: begin, Get, LatestView,
+    FrozenPlanMetadata, page, commit); BindExecution+ResolveSuboperation 11
+    -> 9, replay 10 -> 8, ObserveTokens+Settle 15 -> 13; the rejection,
+    tombstone, cancellation and audit-workspace compositions save two
+    statements per later step. Plans on the directly seeded 10,000-member
+    fixture (5,000 pairs, ANALYZE run; custom plans with actual rows and
+    buffers, generic plans logged with the same shape): base pair count and
+    page each Seq Scan eval_view_pairs 5,000 rows, 897 blocks, the page
+    transferring 101 documents; base member count and page each 10,000 side
+    rows with jsonb decoding of every document and a Memoize index scan of
+    eval_members, 40,897 blocks each. New pair page: one Seq Scan of 5,000
+    rows (961 blocks), count and LIMIT 101 over the CTE, 100 primary-key
+    document lookups (300 blocks), 1,261 blocks in total; middle page sorted
+    by difference 2,500 rows, 1,270 blocks; member page 10,000 side rows
+    (961 blocks) with 50 document lookups (150 blocks), 1,111 blocks;
+    failed-filter member page 1,250 rows, 1,261 blocks. The test asserts at
+    most 5,000 + limit examined pair rows. Writer and backfill: the columns
+    are written only by projectComparison in the PublishView transaction
+    (same CopyFrom as the document) and by the migration backfill in the
+    migration transaction; eval_view_pairs_immutable keeps them immutable
+    and the purge column list includes them. Subclaim dispositions: separate
+    count and page statements - fixed; JSON extraction before the limit -
+    fixed (no stored document decoded in SQL by the page statement);
+    repeated authority reads in composed recovery transactions - fixed for
+    every composition; D FindEvalReceipt - unchanged by decision (A3);
+    PublishView redesign, persisted next_ordinal and whole-tick
+    transactions - out of scope by decision. Exact counting still examines
+    the filtered cohort; no claim of page-proportional total work.
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://ruslan@localhost:5432/contractor_test_c?sslmode=disable
+      go test -tags=integration -count=1 ./internal/evaldomain/...
+      ./internal/evalstore/... ./internal/evalservice/...
+      ./internal/evalcoordinator/... ./internal/persistence/...
+      ./internal/httpapi/public/... passed in every package except
+      internal/persistence, which fails only TestSQLAccessFollowsTableOwnership
+      (internal/cli/scan_sweep_remote.go:196); it fails identically on base
+      ba0f4415 (temporary worktree, removed). -v runs showed the new tests
+      passing and none skipped:
+      TestSharedPostgresEvalSelectedPagesMatchTheTwoStatementReference (1,546
+      pages of every pair and member filter, suite, variant, bin, metric,
+      absolute sort and cursor, plus whole, beyond-the-end, foreign-owner and
+      superseded-generation pages, compared with the verbatim base
+      statements), TestSharedPostgresEvalSelectedPagesDecodeOnlyTheirOwnDocuments,
+      TestSharedPostgresEvalTenThousandSelectedMembersBoundedPages (now one
+      statement per page and the empty after-cursor page),
+      TestSharedPostgresEvalComposedRecoveryTakesItsAuthorityOnce,
+      TestSharedPostgresEvalComposedRecoveryRechecksItsFences,
+      TestSharedPostgresSelectedPagesAtNativeCeilingReadOneStatementPerPage
+      (1,000 admitted native members collected through CollectView) and
+      TestSharedPostgresEvalViewPairFiltersMigrationBackfillsMemberColumns.
+    - >-
+      Mutant, reverted: removing the \u0000 replacement from the backfill fails
+      the migration test with SQLSTATE 22P05.
+    - make verify-public-api passed.
+    - make lint passed (after make tasks-backlog, make docs-erd and make docs-dependencies).
+  database_tests_configured: true
+  siblings_reviewed: >-
+    Readers of eval_view_pairs: PairPage and SelectedMemberPage (rewritten),
+    the pair-deltas chart (uses PairPage), ViewPair (one row by pair ID, no
+    count), ChartCohort (eval_view_charts) and report sources (still cast
+    pair and record documents to jsonb, see remaining_jsonb_casts). Writers:
+    only projectComparison. Recovery compositions: resolveOperation,
+    rejectPreparation, the tombstone, cancelling, rejected and token
+    observation transactions of the Driver, the inputs and audit-workspace
+    transactions of memberResources and the token rotation in service.go
+    all use one MemberRecovery per transaction. Ruled out: collection
+    (LockCollection then ProjectMember) is collection authority, not
+    recovery, and takes its locks once already; admission (Admit) and
+    command paths are single-step.
+  remaining_jsonb_casts: >-
+    The rewritten page statement casts no stored document. Unchanged and
+    owned by the separate 22P05 task: public_read_sql.go lines 42-43 (setup
+    or draft and the projection summary) and report_sources_sql.go lines
+    17-18 (pair documents) and 22 (record documents).
+  ids_added: >-
+    EVM-R245 (one-statement pages over projected pair columns) and EVM-R246
+    (recovery authority shared inside one composed transaction), both with
+    their decision rationale; migration 000037_eval_view_pair_filters. No new
+    limit, error code or failure outcome; FAIL-EVM-3 now also cites EVM-R246.
+notes:
+- Migration numbers in this record were renumbered (+1) on 2026-10-24 when main's 000033_audit_snapshot_labels was merged into the integration branch.

@@ -1,0 +1,38 @@
+{
+  "source": "01252a32068a7c1787ceeac23dba897f420620e9",
+  "integration_source": "da4309f211ca33651db044c34d2b7f5235bf532f",
+  "target": "744d93ae5fddbc5834aa9f3cc5c7e45f2e4236a2",
+  "primary": {
+    "head_before": "a0fe5dbcd085df17ca03a220a5d6bde1d5e9a78e",
+    "head_after": "a0fe5dbcd085df17ca03a220a5d6bde1d5e9a78e",
+    "dirty_paths": 40,
+    "changed_paths": [],
+    "index_unchanged": true
+  },
+  "results": {
+    "go_race_postgres": "passed",
+    "runtime_focused": {
+      "passed": 701,
+      "skipped": 0
+    },
+    "wire": {
+      "fixtures": 415,
+      "go_shared": 469,
+      "python_shared": 293,
+      "optional_heavy_io_skips": 1
+    },
+    "e2e_matrices": "passed",
+    "trace_process": "passed",
+    "lint": "passed"
+  },
+  "cleanup": {
+    "owned_database_removed": true,
+    "owned_cluster_removed": true
+  },
+  "delivery": {
+    "no_remote_publication": true,
+    "no_deployment": true,
+    "merge_commit": "e6c149962036662a253de3e9e63695dbc2c94ecd",
+    "local_main_contains_source": true
+  }
+}

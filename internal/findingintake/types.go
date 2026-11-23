@@ -1,0 +1,392 @@
+// Package findingintake owns allocation-bound candidate finding receipts.
+// It deliberately grants no Audit mutation, review, or scheduling authority.
+package findingintake
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/apierror"
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+)
+
+const (
+	APIVersion = contracts.APIVersion
+	// The proposal keeps its 8 MiB document ceiling. The complete private
+	// submission can additionally carry selected HTTP evidence (LIM-FND-32).
+	MaxRequestBytes      = artifacts.MaxPayloadSize
+	MaxEvidenceRefs      = auditdomain.MaximumEvidencePerItem
+	proposalMediaType    = "application/json"
+	MaxFactEvidenceRefs  = auditdomain.MaximumFactEvidence
+	MaxFactAuthoredBytes = 32 << 10
+)
+
+// The public API answers these errors with the Kind each one reports
+// (apierror); the private API keeps its own finding codes for the Runtime.
+var (
+	ErrProjectRequired  = fmt.Errorf("%w: finding requires an active Project", ErrInvalid)
+	ErrEvidenceRequired = fmt.Errorf("%w: finding requires selected exact evidence", ErrInvalid)
+	ErrInvalid          = apierror.New(apierror.InvalidRequest, "finding proposal request is invalid")
+	ErrNotFound         = apierror.New(apierror.NotFound, "finding proposal receipt was not found")
+	ErrConflict         = apierror.New(apierror.Conflict, "finding proposal submission conflicts with its receipt")
+	ErrAccessDenied     = errors.New("finding proposal access is denied")
+	ErrToolNotSelected  = errors.New("security finding tool is not selected")
+	ErrAuditClosed      = errors.New("finding proposal destination Audit is closed")
+	// ErrCollectionKeyConflict reports a finding collection clientKey that is
+	// already bound to another selection. Like a reused Idempotency-Key it is
+	// permanent: only a new clientKey can publish the changed selection.
+	ErrCollectionKeyConflict = apierror.Narrow(ErrConflict, apierror.IdempotencyConflict,
+		"finding collection clientKey is bound to another selection")
+)
+
+var identityPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
+
+type Submission struct {
+	Incidental               bool                              `json:"incidental,omitempty"`
+	ItemKey                  *string                           `json:"itemKey,omitempty"`
+	DerivedAnchors           json.RawMessage                   `json:"derived_anchors,omitempty"`
+	APIVersion               string                            `json:"apiVersion"`
+	InvocationID             string                            `json:"invocationId"`
+	SubmissionID             string                            `json:"submissionId"`
+	Proposal                 auditdomain.FindingProposal       `json:"proposal"`
+	EvidenceRefs             []contracts.ArtifactRef           `json:"evidenceRefs"`
+	HTTPEvidence             *auditdomain.CapturedHTTPExchange `json:"httpEvidence,omitempty"`
+	HTTPEvidenceInvocationID string                            `json:"httpEvidenceInvocationId,omitempty"`
+}
+
+func (input *Submission) UnmarshalJSON(data []byte) error {
+	type plain Submission
+	if err := strictjson.Decode(data, (*plain)(input)); err != nil {
+		return err
+	}
+	// A missing selection is omitted, never an explicitly unknown capture.
+	// Decode only its raw token; all fields were strictly checked above.
+	var fields struct {
+		HTTPEvidence             json.RawMessage `json:"httpEvidence"`
+		HTTPEvidenceInvocationID json.RawMessage `json:"httpEvidenceInvocationId"`
+		ItemKey                  json.RawMessage `json:"itemKey"`
+		Incidental               json.RawMessage `json:"incidental"`
+	}
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	if string(fields.Incidental) == "null" || string(fields.HTTPEvidence) == "null" || string(fields.ItemKey) == "null" {
+		return ErrInvalid
+	}
+	if len(fields.HTTPEvidenceInvocationID) != 0 && input.HTTPEvidence == nil {
+		return ErrInvalid
+	}
+	return nil
+}
+
+// ExactArtifact is the shared exact-content descriptor. Receipts always
+// record media type and size, so their JSON carries all four fields.
+type ExactArtifact = contracts.ExactArtifact
+
+type WorkflowOrigin struct {
+	Name             string `json:"name"`
+	Version          string `json:"version"`
+	SchemaVersion    string `json:"schemaVersion"`
+	ConfigurationRef struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	} `json:"configurationRef"`
+	ClosureDigest string `json:"closureDigest"`
+}
+
+type AuditOrigin struct {
+	HypothesisSnapshot *ExactArtifact               `json:"hypothesisSnapshot,omitempty"`
+	AuditID            string                       `json:"auditId"`
+	ExecutionID        string                       `json:"executionId"`
+	TaskID             string                       `json:"taskId,omitempty"`
+	Hypothesis         *auditcontract.HypothesisRef `json:"hypothesis,omitempty"`
+}
+
+type Origin struct {
+	Operation        string                     `json:"operation,omitempty"`
+	Scan             *artifacts.ExecutionOrigin `json:"scan,omitempty"`
+	RunID            string                     `json:"runId"`
+	StageExecutionID string                     `json:"stageExecutionId"`
+	AllocationID     string                     `json:"allocationId,omitempty"`
+	InvocationID     string                     `json:"invocationId"`
+	LogicalAgentName string                     `json:"logicalAgentName,omitempty"`
+	Workflow         WorkflowOrigin             `json:"workflow"`
+	Audit            *AuditOrigin               `json:"audit,omitempty"`
+	RunDeleted       bool                       `json:"runDeleted"`
+}
+
+// RetentionState is what keeps a stored receipt's proposal: its source Run,
+// an Audit hold after that Run's deletion, or nothing.
+type RetentionState string
+
+const (
+	RetentionSourceHeld  RetentionState = "source-held"
+	RetentionProjectHeld RetentionState = "project-held"
+	RetentionDiscarded   RetentionState = "discarded"
+)
+
+func (r RetentionState) valid() bool {
+	return r == RetentionSourceHeld || r == RetentionProjectHeld || r == RetentionDiscarded
+}
+
+type AuditHold struct {
+	AuditID   string          `json:"auditId"`
+	ProjectID string          `json:"projectId"`
+	Proposal  ExactArtifact   `json:"proposal"`
+	Evidence  []ExactArtifact `json:"evidence"`
+	CreatedAt time.Time       `json:"createdAt"`
+}
+
+type Receipt struct {
+	ProjectID            *string                             `json:"projectId,omitempty"`
+	PublicationRequested bool                                `json:"publicationRequested"`
+	PublicationError     string                              `json:"publicationError,omitempty"`
+	FindingID            *string                             `json:"findingId,omitempty"`
+	ProjectProposal      *ExactArtifact                      `json:"projectProposal,omitempty"`
+	ProjectEvidence      []ExactArtifact                     `json:"projectEvidence,omitempty"`
+	Anchors              auditdomain.FindingAnchorProjection `json:"-"`
+	Fingerprint          auditdomain.FindingFingerprint      `json:"-"`
+	ReceiptID            string                              `json:"receiptId"`
+	ProposalID           string                              `json:"proposalId"`
+	RequestDigest        string                              `json:"requestDigest"`
+	ClientKey            string                              `json:"clientKey"`
+	Proposal             ExactArtifact                       `json:"proposal"`
+	Document             auditdomain.FindingProposal         `json:"document"`
+	Evidence             []ExactArtifact                     `json:"evidence"`
+	Origin               Origin                              `json:"origin"`
+	Retention            RetentionState                      `json:"retention"`
+	AuditHolds           []AuditHold                         `json:"auditHolds"`
+	CreatedAt            time.Time                           `json:"createdAt"`
+}
+
+type SubmissionResponse struct {
+	FindingID  *string         `json:"findingId,omitempty"`
+	APIVersion string          `json:"apiVersion"`
+	ProposalID string          `json:"proposalId"`
+	ReceiptID  string          `json:"receiptId"`
+	Proposal   ExactArtifact   `json:"proposal"`
+	Evidence   []ExactArtifact `json:"evidence"`
+	Replayed   bool            `json:"replayed"`
+}
+
+type ListQuery struct {
+	AfterCreatedAt *time.Time
+	AfterReceiptID string
+	Limit          int
+}
+
+type ImportRequest struct {
+	OwnerID  string
+	AuditID  string
+	RunID    string
+	Proposal contracts.ArtifactRef
+}
+
+type canonicalSubmission struct {
+	anchorProjection []byte
+	checksProjection []byte
+	request          Submission
+	proposalBytes    []byte
+	// reportProjection is the canonical report projection of the proposal,
+	// stored with the receipt so Audit reports never read the proposal back.
+	reportProjection []byte
+	digest           string
+}
+
+func canonicalize(input Submission) (canonicalSubmission, error) {
+	if input.ItemKey != nil {
+		if _, valid := auditcontract.ExecutionItemOrdinal(*input.ItemKey); !valid {
+			return canonicalSubmission{}, ErrInvalid
+		}
+	}
+
+	if len(input.DerivedAnchors) != 0 {
+		derived, err := auditdomain.DecodeFindingAnchorDerivation(input.DerivedAnchors)
+		if err != nil {
+			return canonicalSubmission{}, fmt.Errorf("%w: derived anchors", ErrInvalid)
+		}
+		input.DerivedAnchors, err = strictjson.Canonical(derived)
+		if err != nil {
+			return canonicalSubmission{}, err
+		}
+	}
+	if input.APIVersion != APIVersion || !validIdentity(input.InvocationID) ||
+		!validIdentity(input.SubmissionID) || len(input.EvidenceRefs) > MaxEvidenceRefs {
+		return canonicalSubmission{}, ErrInvalid
+	}
+	if (input.HTTPEvidence == nil) != (input.HTTPEvidenceInvocationID == "") ||
+		(input.HTTPEvidence != nil && !validIdentity(input.HTTPEvidenceInvocationID)) {
+		return canonicalSubmission{}, fmt.Errorf("%w: HTTP evidence requires its capture invocation", ErrInvalid)
+	}
+	if err := auditdomain.ValidateFindingLimitations(input.Proposal.Limitations); err != nil {
+		return canonicalSubmission{}, fmt.Errorf("%w: proposal limitations", ErrInvalid)
+	}
+	proposalBytes, err := auditdomain.EncodeFindingProposal(input.Proposal)
+	if err != nil {
+		return canonicalSubmission{}, fmt.Errorf("%w: proposal document", ErrInvalid)
+	}
+	if input.Proposal.SeveritySuggestion == "informational" {
+		count := len(input.EvidenceRefs)
+		if input.HTTPEvidence != nil {
+			count++
+		}
+		if count == 0 || count > MaxFactEvidenceRefs || len(proposalBytes) > MaxFactAuthoredBytes {
+			return canonicalSubmission{}, fmt.Errorf("%w: informational payload/evidence limits", ErrInvalid)
+		}
+	}
+	reportProjection, err := auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(input.Proposal))
+	if err != nil {
+		return canonicalSubmission{}, fmt.Errorf("%w: proposal report projection", ErrInvalid)
+	}
+	refs := append([]contracts.ArtifactRef(nil), input.EvidenceRefs...)
+	for _, ref := range refs {
+		if err := ref.ValidateExact(); err != nil ||
+			ref.Namespace == artifactpolicy.FindingProposalNamespace || artifactpolicy.IsModelHiddenBinding(ref.Namespace, ref.Name) {
+			return canonicalSubmission{}, fmt.Errorf("%w: evidence reference", ErrInvalid)
+		}
+	}
+	sort.Slice(refs, func(i, j int) bool {
+		if refs[i].Namespace != refs[j].Namespace {
+			return refs[i].Namespace < refs[j].Namespace
+		}
+		if refs[i].Name != refs[j].Name {
+			return refs[i].Name < refs[j].Name
+		}
+		return *refs[i].Revision < *refs[j].Revision
+	})
+	for index, ref := range refs {
+		if index > 0 && refs[index-1].SameExact(ref) {
+			return canonicalSubmission{}, fmt.Errorf("%w: duplicate evidence reference", ErrInvalid)
+		}
+	}
+	if len(input.Proposal.EvidenceIDs) != len(refs) {
+		return canonicalSubmission{}, fmt.Errorf("%w: evidence identity count", ErrInvalid)
+	}
+	for index, value := range input.Proposal.EvidenceIDs {
+		if value != fmt.Sprintf("evidence-%d", index+1) {
+			return canonicalSubmission{}, fmt.Errorf("%w: evidence identity", ErrInvalid)
+		}
+	}
+	wantSubmission := stableSubmissionID(input.InvocationID, input.Proposal.ClientKey)
+	if input.SubmissionID != wantSubmission {
+		return canonicalSubmission{}, fmt.Errorf("%w: submission correlation", ErrInvalid)
+	}
+	input.EvidenceRefs = refs
+	if input.HTTPEvidence != nil {
+		name := auditdomain.HTTPExchangeArtifactName(input.HTTPEvidenceInvocationID, input.HTTPEvidence.Source, input.HTTPEvidence.RequestID)
+		for _, ref := range refs {
+			if ref.Namespace == artifactpolicy.HTTPExchangeNamespace && ref.Name == name {
+				return canonicalSubmission{}, fmt.Errorf("%w: duplicate HTTP evidence selection", ErrInvalid)
+			}
+		}
+		if len(refs) >= MaxEvidenceRefs || auditdomain.ValidateCapturedHTTPExchange(*input.HTTPEvidence) != nil {
+			return canonicalSubmission{}, fmt.Errorf("%w: HTTP evidence", ErrInvalid)
+		}
+		input.Proposal.EvidenceIDs = append(append([]string(nil), input.Proposal.EvidenceIDs...), fmt.Sprintf("evidence-%d", len(refs)+1))
+		if snapshot := findingHTTPSnapshot(*input.HTTPEvidence, fmt.Sprintf("evidence-%d", len(refs)+1)); snapshot != nil {
+			input.Proposal.HTTPExchange = snapshot
+		}
+		proposalBytes, err = auditdomain.EncodeFindingProposal(input.Proposal)
+		if err != nil {
+			return canonicalSubmission{}, fmt.Errorf("%w: HTTP proposal document", ErrInvalid)
+		}
+		reportProjection, err = auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(input.Proposal))
+		if err != nil {
+			return canonicalSubmission{}, fmt.Errorf("%w: HTTP report projection", ErrInvalid)
+		}
+	}
+	digestValue := struct {
+		ItemKey                  *string                           `json:"itemKey,omitempty"`
+		Incidental               bool                              `json:"incidental,omitempty"`
+		DerivedAnchors           json.RawMessage                   `json:"derived_anchors,omitempty"`
+		Proposal                 json.RawMessage                   `json:"proposal"`
+		EvidenceRefs             []contracts.ArtifactRef           `json:"evidenceRefs"`
+		HTTPEvidence             *auditdomain.CapturedHTTPExchange `json:"httpEvidence,omitempty"`
+		HTTPEvidenceInvocationID string                            `json:"httpEvidenceInvocationId,omitempty"`
+	}{ItemKey: input.ItemKey, Incidental: input.Incidental, DerivedAnchors: input.DerivedAnchors, Proposal: proposalBytes, EvidenceRefs: refs, HTTPEvidence: input.HTTPEvidence, HTTPEvidenceInvocationID: input.HTTPEvidenceInvocationID}
+	encoded, err := json.Marshal(digestValue)
+	if err != nil {
+		return canonicalSubmission{}, fmt.Errorf("canonicalize finding submission: %w", err)
+	}
+	anchorProjection, _ := auditdomain.EncodeFindingAnchors(auditdomain.UnavailableFindingAnchors("not_provided"))
+	checks, err := auditdomain.BuildFindingChecksProjection(proposalBytes, input.Proposal)
+	if err != nil {
+		return canonicalSubmission{}, fmt.Errorf("%w: finding check index", ErrInvalid)
+	}
+	checksProjection, err := auditdomain.EncodeFindingChecksProjection(checks)
+	if err != nil {
+		return canonicalSubmission{}, fmt.Errorf("%w: finding check index", ErrInvalid)
+	}
+	return canonicalSubmission{
+		anchorProjection: anchorProjection,
+		checksProjection: checksProjection,
+		request:          input, proposalBytes: proposalBytes, reportProjection: reportProjection,
+		digest: auditdomain.DigestBytes(encoded),
+	}, nil
+}
+
+func findingHTTPSnapshot(capture auditdomain.CapturedHTTPExchange, evidenceID string) *auditdomain.FindingHTTPExchange {
+	if capture.Source != "http" {
+		return nil
+	}
+	id, _ := strconv.ParseInt(capture.RequestID, 10, 64)
+	result := &auditdomain.FindingHTTPExchange{RequestID: id, RequestTag: capture.RequestTag}
+	for _, attempt := range capture.Attempts {
+		if attempt.Request.Message.Kind != "structured" {
+			return nil
+		}
+		value := auditdomain.FindingHTTPAttempt{Method: attempt.Request.Method, URL: attempt.Request.URL,
+			Headers: *attempt.Request.Message.Headers, BodyBase64: *attempt.Request.Message.BodyBase64}
+		if response := attempt.Response; response != nil {
+			status := response.Status
+			value.Status = &status
+			if response.Message.Headers != nil {
+				value.ResponseHeaders = *response.Message.Headers
+			}
+			if response.Message.BodyBase64 != nil && *response.Message.BodyBase64 != "" {
+				result.ResponseBodyEvidenceID = evidenceID
+			}
+		} else {
+			if attempt.Error != "transport_error" && attempt.Error != "timeout" && attempt.Error != "cancelled" {
+				return nil
+			}
+			value.Error = "transport_error"
+			if attempt.Error == "cancelled" {
+				value.Error = "cancelled"
+			}
+		}
+		result.Attempts = append(result.Attempts, value)
+	}
+	return result
+}
+
+func stableSubmissionID(invocationID, clientKey string) string {
+	digest := sha256.Sum256([]byte("contractor.finding.submission.v1\x00" + invocationID + "\x00" + clientKey))
+	return "finding-" + hex.EncodeToString(digest[:])
+}
+
+func deterministicID(prefix string, values ...string) string {
+	input := "contractor.finding.identity.v1\x00" + prefix
+	for _, value := range values {
+		input += "\x00" + value
+	}
+	digest := sha256.Sum256([]byte(input))
+	return prefix + "-" + hex.EncodeToString(digest[:])
+}
+
+func validIdentity(value string) bool {
+	return value == strings.TrimSpace(value) && identityPattern.MatchString(value)
+}

@@ -1,0 +1,103 @@
+schema_version: '1.0'
+id: V474-002
+title: Serve bounded UTF-8 text through the common read_artifact tool
+milestone: runtime-artifact-cache-2026-10
+epic: projects-artifacts
+kind: feature
+priority: P1
+status: completed
+depends_on: []
+languages:
+- python
+- go
+- yaml
+goal: A Worker can use an exact artifact as text immediately and continue a long line without decoding
+  bytes.
+demonstration: Use a configured Worker fixture with an exact revision, fetch a multibyte line across two
+  bounded pages and recover its full text using only the returned continuation.
+context:
+  authority: User decision 2026-11-21 approves one model-facing read_artifact for text and images,
+    including delivery of images to vision-capable models. This task delivers the text path.
+    V474-005 extends that reader for images.
+  verification_grouping: >-
+    Agent execution decision 2026-11-22 follows the user's request to minimize passes. This task
+    runs focused real-process regressions; V474-010 owns the unchanged mandatory full process
+    gate on the combined implementation. Failed/cancelled earlier full runs are not passes.
+  specification:
+  - docs/spec/artifacts/artifact-store.md#ART-R31
+  - docs/spec/artifacts/artifact-store.md#ART-R117
+  - docs/spec/tools/toolsets.md#TLS-R4
+  consumers: run_artifacts/tools.py:137 exposes dataBase64 even though it accepts only UTF-8. text_artifacts/tools.py:90
+    already owns bounded line windows. Check artifact_builder@2, fact_extractor@1, the findings analysts,
+    the hypothesis generator, and document@1 recovery allowlists in Go and Python. V2-001 recorded the
+    earlier byte-tool contract.
+scope:
+  in:
+  - Reuse the current text-window and exact-cache implementation. Return the exact ref, text and continuation.
+    Migrate read_text_artifact callers to read_artifact and remove the redundant model-visible export.
+    Preserve each caller's read grants and selections when updating toolsets, recovery allowlists,
+    profiles and prompts. Retain write_text_artifact for text authoring.
+  - Publish changed shipped manifests and instruction paths under fresh identities, repin dependent configurations
+    and Eval fixtures, and validate the catalog lock. Update the owning specs in the same implementation.
+  out:
+  - Image transport belongs to V474-005. Exact byte writes and copy callers belong to V474-003.
+requirements:
+- id: R1
+  text: Preserve metadata-first rejection, hidden binding checks, current Run grants, pinned revisions,
+    cache accounting and cancellation.
+failure_outcomes:
+- operation: Read an exact UTF-8 page
+  permanent: Invalid continuation or unsupported media gives the existing bounded input error. A denied
+    binding yields no content.
+  retryable: Preserve transport error classification and existing read budgets.
+  ambiguous: Continue on the resolved exact revision, even if the current binding moves.
+  cancelled: Join derivation and discard cancelled state per ART-R117.
+  timeout: Allocation read deadline remains authoritative.
+cardinality:
+- collection: One page of one exact revision
+  bound: Reuse the text window of at most 128 KiB, maximum 400 requested lines, the existing exact artifact
+    and index budgets.
+lifecycle:
+- entity: Exact read cache
+  retention: Allocation-owned with existing eviction, close and provenance semantics.
+acceptance_criteria:
+- id: A1
+  text: A Worker Gateway transcript shows ordinary UTF-8 text and its exact ref, and two pages recover
+    a long non-ASCII line without gaps, duplicates or base64 content.
+- id: A2
+  text: Tests cover empty content, limits, read after revision change, hidden or denied binding, invalid
+    UTF-8 and binary metadata. Reject known unsupported binary media before payload download.
+- id: A3
+  text: All selected readers and document recovery consumers agree in Runtime, Server, shipped catalog
+    and isolated tests. Capture the selected Gateway declarations for a migrated fixture. It sees one
+    read_artifact and can resume the returned page using its exact ref. Catalog pins remain immutable.
+tests:
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-config
+  covers:
+  - A3
+- command: go test -tags=e2e -count=1 ./tests/e2e -run '^(TestLocalGoToPythonArtifactCopy|TestFactExtractionAuditEvalAcrossProcesses)$'
+  covers:
+  - A1
+  - A3
+- command: make lint
+  covers:
+  - A3
+- command: go test -count=1 ./tests/eval/project_facts ./tests/e2e
+  covers: [A3]
+- command: go test -tags=e2e -count=1 ./tests/ui-stack -run '^TestManagedEvalAssertionsUseCurrentDomainContract$'
+  covers: [A3]
+implementation_commit: b5d60d94bd3f9b12adf9cbaa29b7d7eacd38c02d
+verification:
+  date: '2026-11-22'
+  result: >-
+    Full Runtime tests passed (6383 passed, 135 declared skips), including the actual Worker/Gateway
+    multibyte paging transcript. Configuration, recipe, fixture and UI contract helper checks passed.
+    Both listed real-process roots passed in 77.765 seconds after fixing the current Eval recipe
+    selector. Final make lint passed with all four import contracts kept. Frozen v1 recipe bytes
+    remain unchanged. Full combined acceptance remains required by V474-010; earlier failed full
+    process runs are not passing evidence.

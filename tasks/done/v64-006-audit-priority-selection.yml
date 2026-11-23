@@ -1,0 +1,217 @@
+schema_version: '1.0'
+id: V64-006
+title: Select feasible experiments deterministically and admit exact work
+milestone: audit-check-prioritization
+epic: audits
+kind: feature
+priority: P2
+status: archived
+depends_on:
+- V64-000
+- V64-002
+- V64-004
+- V64-013
+- V62-007
+languages:
+- go
+- json
+goal: Choose useful next experiments from a bounded eligible frontier with transparent budgets and diversity,
+  without requiring LLM scores or a minimum round size.
+context:
+  authority: On 2026-10-24 the user explicitly requested pending status for the reviewed proposal 0045
+    plan, including shared V62 prerequisites. The earlier deferral is historical; dependency completion
+    still gates implementation start. On 2026-10-31 the user accepted common hypotheses for all Audit
+    assertion checks, with optional research creating new hypotheses, and authorized removing almost all
+    formal approvals. This supersedes conflicting earlier scope and acceptance; replacement task boundaries
+    remain open. The user also defined findings as hypothesis confirmations/refutations, required deduplication
+    and hypothesis links for later selection, and made reducing or controlling Audit complexity the primary
+    design constraint. Findings retain Audit/Run origin and an exact hypothesis link when present; exploratory
+    tasks can produce findings without a prior hypothesis. On 2026-10-31 the user required automatic task/finding
+    association with hypothesis identity and revision, without manually assembling that pair.
+  redesign_requirement: Task selection automatically binds the exact selected hypothesis revision. Creation/retry
+    reconciles that pin; source edits cannot rebind an accepted task to latest.
+  decision_needed: The target Finding is a research conclusion with Audit/Run origin and optional exact
+    hypothesis association. Preserve deduplication and all source contributions without a universal security-issue,
+    mandatory hypothesis or human-confirmation gate. Before implementation, reconcile this task scope,
+    dependencies and gates with proposal 0050. Keep this task pending and do not execute its superseded
+    research-only scope. Select tasks for fixed and generated hypotheses through the common coordinator;
+    compare fixed source order with contextual deterministic selection and replace the old direct-inventory
+    bypass and item-approval gates.
+  proposal: docs/proposals/0045-audit-hypothesis-search.md
+  design:
+  - docs/plans/2026-10-24-audit-hypothesis-search.md
+  - docs/proposals/0050-audit-common-hypothesis-model.md
+  - docs/plans/2026-10-31-audit-redesign.md
+  specification:
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/execution.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/platform/persistence.md
+  deterministic_boundary: All Audit assertion checks use common hypotheses. Fixed checklist/standard seeds
+    remain deterministic without generation, ranking or a separate research phase. Direct Runs and supporting
+    non-assertion work need no hypotheses.
+  implementation_boundary: Each new table, state, export and schema must have its named production writer/reader
+    in this task; include the smallest actual integration caller, not a test-only placeholder waiting
+    for another task.
+  previous_definition:
+    revision: a31579d33e81315818a277b822e3b087ce5c76c1
+    path: tasks/v64-006-audit-priority-selection.yml
+    title: Select exact top-N candidates and reject incomplete or undersized admission
+    depends_on:
+    - V64-000
+    - V64-002
+    note: The former fixed-checklist/minimum-ten integration scope is replaced by this task. Its original
+      definition and deferral history remain in Git; completed V64-000 is unchanged.
+scope:
+  in:
+  - Implement deterministic feasibility, shortlist formation, policy evaluation and selection as separate
+    operations with stable input/output identities.
+  - Select one or more useful plans under count/cost/approval/coverage constraints; record considered
+    and unconsidered candidates and reasons accurately.
+  - Select a bounded indexed frontier using the registry/plan indexes and exact context from V64-004;
+    include a versioned exploration/aging rule. V64-015 later extends this working selector with incremental
+    feedback readiness, never the reverse dependency.
+  - Bind the accepted decision to V62-007 routing/admission with hypothesis-plan provenance; retain the
+    current receipt source and direct inventory bypass.
+  - Rework V64-000 pure selector APIs where needed; remove minimum-ten, fixed-membership and whole-pool
+    assumptions from the new policy, without changing completed-task history.
+  out:
+  - Executing a model ranker, finding confirmation, mutable accepted Rounds, or scheduling Runtime allocations.
+  - Implementation during this planning change, changing existing task statuses, or modifying completed/in-progress
+    task records.
+requirements:
+- id: R1
+  text: Priority is not finding severity, confidence is not a calibrated probability, and deferred high-priority
+    work retains its verdict.
+- id: R2
+  text: An exact accepted decision and its authorization/reservations are required for admission; a plain
+    selection artifact cannot schedule work.
+- id: R3
+  text: No selected work distinguishes exhaustion, unmet prerequisite, unavailable capacity, waiting review
+    and budget stop. New observations alone do not invalidate the frozen cycle.
+- id: R4
+  text: Optional model verdicts are an input adapter; deterministic policies do not invoke or depend on
+    that adapter.
+- id: R5
+  text: Human-requested high verification priority participates in eligibility and shortlist construction
+    before optional scoring, so a large automatic pool cannot hide it. Prefer it over otherwise comparable
+    automated work, with stable ordering among human requests. Models cannot lower this attention; scope,
+    capability, approval, prerequisites and remaining budgets still gate admission and produce visible
+    waiting/block reasons. An explicit human edit is recorded; high attention never implies stronger evidence.
+failure_outcomes:
+- operation: Shortlist capture, selection reservation and immutable Round admission
+  permanent: Invalid, foreign, unsupported or oversized input is rejected with the owning V64-001/standard
+    contract reason; deterministic ErrInvalid is never endlessly retried and no partial authoritative
+    result is accepted.
+  retryable: Use existing bounded transient storage/provider retries for the owning operation; retry attempt/deadline
+    limits are explicit and do not switch research policies or models.
+  ambiguous: Reconcile the same existing keyed mutation, accepted producer association or exact result;
+    never create another logical effect or repeat target activity to repair acknowledgement loss.
+  cancelled: Existing Audit/Run owner fences and join/drain rules apply; allow authorized terminal collection,
+    block new dispatch and release resources only after in-flight work is joined.
+  timeout: Use the owning operation/Run deadline. Audit admission deadline pauses and drains; non-time
+    budget exhaustion follows bounded finalization with gaps.
+cardinality:
+- collection: Pool, shortlist and selected experiments
+  expected: 1,000 stored hypotheses, 32 shortlist candidates, 16 selected plans
+  maximum: 10,000 stored identities, 128 shortlisted/selected plans, remaining Audit execution limits
+  bound: Index eligibility and freeze shortlist; transaction 128 primary/512 total descriptors/1 MiB;
+    never score/download the entire pool per tick.
+lifecycle:
+- entity: Task-owned research records, exact artifacts and projections
+  delete: Audit/Project ownership and existing deletion gates apply; accepted evidence used by work is
+    retained, not removed by settling or withdrawing a candidate.
+  cascade: Use the owning Audit relations and existing artifact hold lifecycle; register any new holder
+    inventory entry in this change and leave no independent cleanup owner.
+  retention: Preserve exact accepted inputs/results and history through permitted source Run deletion,
+    pause and recovery; release only through the owning lifecycle. Stateless validation/read-only outputs
+    acquire no artificial persistent state.
+acceptance_criteria:
+- id: A1
+  given: Equivalent candidate rows in different order with equal priorities
+  when: the deterministic policy selects
+  then: Canonical selected membership, reasons and digest are identical, including a valid single-plan
+    choice.
+- id: A2
+  given: A huge pool with few ready plans and small budget
+  when: a cycle forms its shortlist
+  then: Only indexed bounded work is processed, exploration rules are observable and out-of-shortlist
+    records are not labeled low priority.
+- id: A3
+  given: Concurrent or stale selection, exhausted budgets or invalid prerequisites
+  when: admission runs
+  then: Exactly one valid decision binds to immutable work; failures preserve explicit reasons without
+    partial unknown reservations or backfill.
+- id: A4
+  given: Model ranker is absent and a normal deterministic profile is also executed
+  when: both paths select/dispatch
+  then: Research uses its deterministic policy and the existing profile bypasses research entirely with
+    original membership/coverage.
+- id: A5
+  given: Human-submitted high-priority hypotheses coexist with a large automatic pool and one blocked
+    human request
+  when: shortlist and selection run with or without a model evaluator
+  then: Feasible human requests retain elevated attention and are selected ahead of comparable automatic
+    work; the blocked request keeps its priority and explicit reason, without bypassing policy or budget.
+tests:
+- command: make require-database
+- command: go test -race ./internal/auditpriority ./internal/auditdomain
+  covers:
+  - A1
+  - A2
+  - A5
+- command: go test -tags=integration -count=1 ./internal/auditservice ./internal/auditstore/... ./internal/auditcontroller
+  covers:
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make lint
+implementation_commit: null
+reactivation:
+  date: '2026-10-24'
+  previous_status: deferred
+  reason: Explicit user request to queue the reviewed proposal 0045 tasks as pending.
+  execution_rule: Implementation may start after declared dependencies complete; this update starts no
+    implementation.
+previous_deferral:
+  date: '2026-10-21'
+  previous_status: pending
+  previous_priority: P1
+  reason: User deferred the remaining V64 integration to focus on authenticated HTTP continuity and completion
+    of the existing V62 audit journey.
+  reactivate_when: Explicit user authorization to implement this reviewed proposal 0045 scope, after its
+    declared dependencies are completed. Replanning alone does not activate it.
+  previous_reactivate_when: Explicit user decision after cookies and V62 are delivered and representative
+    audit measurements show that model-based prioritization improves useful-result yield or time/cost
+    over fixed ordering.
+deliverables:
+- path: internal/auditpriority
+  description: Policy selector with strict exact inputs and revised production API.
+- path: internal/auditservice
+  description: Eligibility/selection application and trusted source adapter into generic admission.
+- path: internal/auditstore
+  description: Decision reservation and admission associations used by the real selector.
+test_prerequisites:
+- Commands are implementation acceptance requirements, not results of this planning change. New named
+  gates must be created, registered and fail on zero matching cases.
+- Persistence/lifecycle acceptance uses disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; an
+  unavailable configured database or mandatory skipped case fails.
+- Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Shipped configuration
+  has its dedicated validation command.
+- Run complete suites for touched packages; use injected clocks and deterministic work counters. Put timing
+  measurements in benchmarks.
+verification_requirements:
+- Update owning numbered specifications, strict public/wire contracts and shared fixtures with implementation;
+  do not cite task IDs from normative specifications.
+- Record actual commands, case counts, required prerequisites and exact evidence after implementation.
+  Planning does not populate implementation_commit or fabricate successful checks.
+- Keep direct deterministic behavior, existing claims/receipts and source-to-consumer exact provenance
+  explicit in real-path assertions.
+archive:
+  date: '2026-10-31'
+  previous_status: pending
+  reason: User-requested Audit replanning replaces this separate execution/selection/cycle boundary with
+    the shared coordinator and ordinary task/Run path. Scope is merged, not implemented.
+  superseded_by:
+  - V64-012

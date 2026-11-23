@@ -1,0 +1,53 @@
+{
+  "date": "2026-11-06",
+  "task": "V64-009",
+  "stage": "design review, production implementation pending",
+  "projectId": "contractor-audit-design-20261106",
+  "conversationId": "e4316730-15e8-4e3b-abee-d02affa58f6f",
+  "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+  "modelUnchanged": true,
+  "gateway": "existing Contractor gateway through the bounded isolated relay",
+  "runs": [
+    {
+      "id": "8979848a-5298-48d7-ab2a-958cd7db5776",
+      "status": "succeeded",
+      "childExited": true,
+      "artifactCount": 0,
+      "deliverableValidation": "no_artifact"
+    },
+    {
+      "id": "216b550c-cdd2-4e91-9ff3-4346b06f733c",
+      "status": "succeeded",
+      "childExited": true,
+      "artifactCount": 0,
+      "deliverableValidation": "no_artifact"
+    },
+    {
+      "id": "ee4e7749-3d53-4952-91b4-26b843282f12",
+      "status": "succeeded",
+      "childExited": true,
+      "artifactCount": 1,
+      "deliverableValidation": "valid"
+    }
+  ],
+  "nativeHTML": "The native agent copied the host semantic seed without changes. OpenDesign authored audit.css; the host added separate token/selector repairs and synthetic interactions.",
+  "nativeOutputs": {
+    "index.html": "d457e7ec62e2b8261f502aba8b86959d223c340db4c5666b828fb9ecdba4f1fa",
+    "audit.css": "73d552c95c642bdcc68601e1539b62cfa96761a9504f7d208882dfa6a1c35903"
+  },
+  "frozenInputs": {
+    "seed.html": "d457e7ec62e2b8261f502aba8b86959d223c340db4c5666b828fb9ecdba4f1fa",
+    "theme.css": "3c5a55ebf2e2b7080e2c5dbc89c58f94823c793787d868835444d81cc7933faa",
+    "brief.md": "51c72cdb31b858afa317f734f42c20e52dcd8a604c275482efc053c78486623e"
+  },
+  "relayCleanup": {
+    "stopped": true,
+    "upstreamCredentialRemoved": true,
+    "requestsUsed": 15
+  },
+  "priorData": "Full private state archives and SQLite/file preservation reports retained outside Git; sanitized checks in preservation.json",
+  "noProductionAPICalls": true,
+  "noDemoDeployment": true,
+  "noHostRepositoryMount": true,
+  "networkInternalOnly": true
+}

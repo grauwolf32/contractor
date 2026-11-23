@@ -1,0 +1,101 @@
+schema_version: '1.0'
+id: V478-033
+title: Correct reviewed Audit evidence admission and recovery regressions
+milestone: audit-evidence-results-2026-11
+epic: audits
+kind: defect
+introduced_by: V478-004
+priority: P1
+status: completed
+implementation_commit: 5feb48cc6537cc14cb2f74e11165e9be2b0d80c6
+depends_on: [V478-002, V478-003, V478-004, V478-030]
+languages: [go, python, sql, markdown]
+goal: Audit conclusions survive ambiguous acknowledgements, locale differences and permanent read failures with bounded source work.
+context:
+  authority: 'User request 2026-11-23: fix the verified review findings and improvements in one continuous pass.'
+  finding: >-
+    evidence_sql.go:10 uses locale-dependent prefix ranges; collector.py:296 retains
+    completion readiness after unknown corrections; tasks.go:56 bypasses permanent
+    read-error classification; publisher.py:113 prepares sources before fact quota.
+  siblings: >-
+    Evidence and judgment receipt parsing share bounded reconciliation. Task and
+    attempt stop_record need the existing settled-history protection. Generic code
+    proofs and trace-call proofs need distinct schema identities. Scalar and batch
+    admission must avoid reading unrelated payloads while retaining strict validation.
+    V471-003 introduced the fact quota and V478-002 changed source preparation ordering;
+    V478-004 introduced durable judgment collection and stop metadata.
+  boundary: >-
+    Existing Artifact links remain the receipt and exact-content owner. Runtime owns
+    local acknowledgement/readiness and source preparation; Server owns authority,
+    generations, quotas and terminal collection. No new store, journal or endpoint.
+  decision: >-
+    Use indexed bytewise receipt ranges. Filter bounded receipt metadata before
+    reading payloads needed by the submitted members; validate selected exact bytes.
+    Terminal collection continues to validate all retained records. Unknown corrections
+    clear local readiness without guessing an accepted generation. Invalid successful
+    receipts consume the same two identical attempts as transport ambiguity; definite
+    API rejections are not repeated. Separate generic code-proof schema identity from
+    trace finding call receipts. Protect settled stop columns with ordinary triggers.
+    Land atomically with V478-034: the common stop-bound specification and full
+    persistence gate need its missing disposition entries.
+scope:
+  in:
+  - Fix all four reproduced defects and the three reviewed consistency/robustness gaps.
+  - Reduce repeated payload reads for scalar judgments using existing bounded provenance.
+  - Add real PostgreSQL, ADK Runner and source-publication regressions and update owning specs.
+  out:
+  - Live model calls, demo deployment, public API changes and unrelated pending work.
+acceptance_criteria:
+- id: A1
+  text: Evidence and judgment listing, corrections and quota enforcement work with C and ICU en-US; a matching bytewise index exists; settled stop metadata cannot change.
+- id: A2
+  text: Unknown correction acknowledgement clears local readiness; malformed successful receipts reconcile at most twice with identical bytes; definite rejections stay single-send.
+- id: A3
+  text: Missing or corrupt partial payloads produce an idempotent collection-contract-invalid receipt even during cancellation, without fabricating a semantic stop; transient failures remain retryable and accepted bytes are retained.
+- id: A4
+  text: Fact quota rejects before source reads/writes, counts failed repair attempts and preserves same-call reconciliation; code proof schema identity is unambiguous.
+- id: A5
+  text: Real-store scalar admission at twenty members and 118 annotations avoids unrelated payload reads, preserves exact authority and passes the touched package suites.
+tests:
+- command: go test -tags=integration -count=1 ./internal/auditservice ./internal/auditimport ./internal/auditstore/... ./internal/persistence/... ./internal/contracts/auditcontract ./internal/httpapi/privateartifacts
+  covers: [A1, A3, A5]
+- command: make test-runtime
+  covers: [A2, A4]
+- command: go test -tags=e2e -count=1 ./tests/e2e -run '^TestAudit(IncrementalEvidence|PartialJudgments)AcrossProcesses$'
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3, A4, A5]
+
+verification_notes: >-
+  Accepted 2026-11-23. All four reproduced defects and the three reviewed
+  consistency/robustness gaps are corrected. Actual C and ICU en-US database
+  tests cover corrections, membership and quota admission; the migration installs
+  the matching bytewise index and immutable settled stop guards. Twenty scalar
+  judgments with 118 annotations now read 118 payloads instead of 2550 (119 with
+  receipt replay). Exact authority, stale bases and bounded history remain validated.
+  Missing/corrupt partial payloads produce a durable collection-contract-invalid
+  receipt in active, paused and cancelling Audits; replay avoids rereads, transient
+  reads remain pending and accepted bytes survive without fabricated semantic stops.
+  New PostgreSQL and Runtime regressions fail with original production code.
+  Full touched Go/PostgreSQL integration suites passed, followed by complete final
+  auditservice, auditimport and runservice suites after the collection-path refinement.
+  Both real Server/Runtime process regressions passed. make lint passed; final
+  test-only Python refinements also passed Ruff and formatting. Complete make
+  test-runtime passed with 6649 tests, 134 explicit skips and 577 required compaction
+  cases. Optional heavy I/O was not enabled; skips are not passing coverage.
+  Runtime scanner tests used actual cached ffuf v2.3.0 built with upstream release
+  version flags; the temporary binary was removed and the system binary preserved.
+  All owned test databases, pools and processes stopped; the isolated PostgreSQL
+  cluster and diagnostic overlays were removed. No deployment or live model call.
+  Evidence: /tmp/contractor-fixes-go-final.log,
+  /tmp/contractor-fixes-collection-final.log, /tmp/contractor-fixes-e2e-final.log,
+  /tmp/contractor-fixes-runtime-final.log, /tmp/contractor-fixes-lint-final.log,
+  /tmp/contractor-fixes-runtime-before.log, /tmp/contractor-fixes-go-before.log and
+  /tmp/contractor-fixes-collection-before.log. Branch codex/v478-reviewed-recovery
+  was unmerged at acceptance.
+
+integration_notes: >-
+  User request 2026-11-23: merge codex/v478-reviewed-recovery into local main
+  with --no-ff. Main was an ancestor of the accepted branch, so integration
+  introduced no code or contract changes beyond the verified branch. Only these
+  task integration notes were updated during the merge.

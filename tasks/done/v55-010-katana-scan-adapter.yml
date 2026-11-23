@@ -1,0 +1,165 @@
+schema_version: "1.0"
+id: V55-010
+title: Add Katana as a bounded discovery adapter
+milestone: scan-tools-followups
+epic: scan-tools
+kind: feature
+priority: P2
+status: completed
+implementation_commit: 69b25836febfe37039417cb89dd60223214e59f1
+depends_on: [V55-007]
+languages: [python, go, yaml, markdown]
+goal: Reuse the scan adapter registry for Katana discovery and export prepared inputs for later scans.
+context:
+  authority: User wants to consider Katana after the simple ScanTools scenarios work.
+  design: docs/plans/2026-09-19-scan-tools.md
+scope:
+  in:
+    - Add independent Katana binary probe, typed bounded crawl inputs and matching server capability descriptor.
+    - Convert supported observations into target-list or RequestSet artifacts with source provenance.
+    - Preserve scope, depth, request/time limits, cleanup and explicit incomplete discovery accounting.
+  out:
+    - Unlimited crawling, browser installation and automatic execution of discovered scans.
+acceptance_criteria:
+  - id: A1
+    text: Katana integrates through the registry without changing common process lifecycle code; missing binary disables only its operation.
+  - id: A2
+    text: Local discovery fixture exports valid deterministic inputs and explicit coverage limits without spawning further scans.
+tests:
+  - command: runtime/.venv/bin/pytest -W error runtime/tests/test_scan_katana.py runtime/tests/test_scan_katana_lifecycle.py runtime/tests/test_scan_toolset.py runtime/tests/test_capabilities.py runtime/tests/test_tool_worker.py
+    covers: [A1, A2]
+  - command: go test ./internal/config ./internal/scanplan/...
+    covers: [A1, A2]
+  - command: KATANA_TEST_BINARY=/path/to/katana runtime/.venv/bin/pytest -W error runtime/tests/test_scan_katana_live.py
+    covers: [A1, A2]
+  - command: go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestKatanaDiscoveryAcrossProductionProcesses$'
+    environment: Katana 1.7.x on PATH, Runtime virtual environment and disposable CONTRACTOR_TEST_DATABASE_URL
+    covers: [A1, A2]
+progress:
+  - date: 2026-09-20
+    step: started
+    details: >-
+      User selected V55-010 after the verified V55-006 demo rollout. Started
+      isolated feat/v55-010-katana from main e1ea6209; unrelated workspace changes
+      remain outside this task. Reviewing the adapter registry, exact Artifact
+      publication and target-list planner contracts. Checking pinned Katana flags
+      and actual bounded loopback discovery before fixing the adapter contract.
+  - date: 2026-09-20
+    step: adapter_and_export_implemented
+    details: >-
+      Added independently probed scan_katana for the verified Katana 1.7 series,
+      matching Server descriptor and model-free katana-discovery Workflow.
+      Crawl scope is the seed HTTP origin with redirects/retries disabled, native
+      depth/page/rate/time bounds and private seed/config files. A seed file
+      prevents Katana's comma-separated URL flag from expanding query data into
+      additional targets. Allowlisted successful GET observations become a sorted,
+      deduplicated TargetList with exact ref/digest and bounded source provenance.
+      Reports expose incomplete coverage and never certify complete discovery.
+  - date: 2026-09-20
+    step: verification_in_progress
+    details: >-
+      Extended the ordinary tool Worker to carry explicitly declared additional
+      exact Artifact outputs through completion and durable receipt replay; old
+      single-report digests stay compatible. Added forged-ref, publication-failure
+      and no-rescan regressions. Unit/capability and Go catalog checks pass.
+      Real Katana loopback checks verified scope, page bounds and the private seed
+      behavior. Adjusted request/queue idle timeouts to reserve publication time;
+      reviewing cancellation while publishing and running a dedicated real
+      Server/Runtime/PostgreSQL integration without changing the demo stand.
+  - date: 2026-09-20
+    step: final_checks_passed
+    details: >-
+      Fixed publication lifecycle so close cancels and joins the finalizer and
+      concurrent invocations stay serialized until output publication completes;
+      common subprocess execution and cleanup code is unchanged. Preserved the
+      primary process error if a partial-result Artifact cannot be published.
+      The combined Runtime regression suite passed 411 tests plus the added
+      primary-error preservation regression; five real Katana loopback tests
+      passed. A dedicated Server/Runtime/PostgreSQL process gate passed in
+      47.190 seconds: four local requests, zero out-of-origin requests, two exact
+      outputs, zero model calls and no follow-up Runs. The exported TargetList
+      produced identical scan plans with five candidates/four selected jobs.
+      Go config/scanplan/planner/contracts/e2e tests, go vet, Ruff and diff checks
+      pass. Disposable test processes/database were removed; demo was untouched.
+  - date: 2026-09-20
+    step: completed
+    details: >-
+      Committed implementation as 69b25836febfe37039417cb89dd60223214e59f1.
+      Feature is based on current main with no rebase changes. Recorded exact
+      process outputs, target digest, pinned Katana checksum, test results and
+      retained evidence hashes in tasks/evidence/v55-010.json. A1 and A2 are
+      verified; V55-010 is completed. Installing Katana and deploying this new
+      catalog/Runtime to the demo remain separate deployment actions.
+  - date: 2026-09-20
+    step: integrated_into_main
+    details: >-
+      Fast-forwarded local main to 2c0beee3cc701ff29f210f001e6d146cd7324548.
+      Preserved 98 pre-existing dirty paths; one concurrently edited E2E helper
+      needed a conflict-free three-way merge of its uncommitted Server settings
+      changes with the committed scanner-selection helper. The other dirty files
+      and staged diff remained byte-identical. Retained private integration
+      snapshots and merge evidence under .local/evidence/v55-010/.
+remaining: []
+demo_deployment:
+  status: completed
+  requested_at: 2026-09-20
+  completed_at: 2026-09-20
+  revision: 1d66119636bd13578be24799d1ea70a7fb8eda97
+  release: .local/demo/releases/main-1d661196-20260920T123837Z
+  evidence: tasks/evidence/v55-010-demo.json
+  smoke_run: run_7d338556c85815d45a5363408920a9bb
+  progress:
+    - >-
+      User requested the demo restart with Katana. Preparing a pinned current-main
+      Server/Runtime release and rebuilding UI while preserving the 18 exact UI
+      files already deployed by the parallel Evals update. The tracked main
+      snapshot includes the newer Evals fixes and legacy-configuration cleanup.
+      Both Runtime slots are idle; queue is enabled and empty, all 185 existing
+      Runs and 11 Audits are terminal. Captured private configuration/secrets/unit
+      backups; preparing database restore preflight before service cutover.
+    - >-
+      Build, UI checks and database restore/readiness preflight passed with schema
+      version 61 unchanged. Before cutover an independently started XBOW evaluation
+      occupied Runtime A. The deployment guard left all services running; paused
+      new queue admissions using revision 32-to-33 and waiting for active Worker
+      completion. The queue's original enabled state is retained for restoration.
+    - >-
+      Waited for run_927d048ef0fbfd7862f6c0f69e9d2950 as requested; it reached
+      failed before any service restart and was not cancelled by deployment.
+      Restarted Server, UI and both Runtime services from the pinned release;
+      all are active with new PIDs and no automatic restarts. Both Runtime agents
+      retain every prior capability and advertise all five scan operations,
+      including Katana 1.7.0. Restored the enabled queue at revision 34.
+    - >-
+      Katana demo Run succeeded against a controlled loopback fixture: four
+      requests, four exported targets, zero out-of-origin requests and zero model
+      calls. Published exact report and TargetList revisions with matching digest;
+      report retains explicit incomplete-discovery accounting. All 185 previous
+      Run IDs and the count of 11 Audits are retained; the database now has 188 Runs.
+      Backup restore/readiness preflight passed; schema remains at version 61.
+    - >-
+      UI production build, typecheck and 11 static-server tests passed. Initial
+      unit run passed 495 of 500 tests under concurrent host load; all four affected
+      files passed on a single-worker recheck (33 tests), without source changes.
+      Preserved the 18 previously deployed Evals UI files. Ten browser/API smoke
+      checks passed, including seven scan Workflow contracts and desktop/mobile
+      login rendering. Authenticated browser pages were not exercised because no
+      browser password was available; real authenticated bearer API checks passed.
+      Recorded finalized service, data-retention and evidence checksums in the
+      deployment manifest. No user Run was cancelled or interrupted by deployment.
+verification:
+  - >-
+    Runtime regression suite: 411 passed across Katana parser/lifecycle,
+    scan registry/capabilities, tool Worker, FFUF, HTTP request, SQLMap request,
+    Wordlist and metrics tests; added primary-error preservation test also passed.
+  - >-
+    Official Katana 1.7.0 against controlled loopback fixtures: five adapter tests
+    passed for exact scope, depth/pages, comma-safe seed input, timeout and
+    transport failures. No external target was scanned.
+  - >-
+    Dedicated real Server/Runtime/PostgreSQL process test passed in 47.190s,
+    including missing capability placement and reusable exact TargetList output.
+  - >-
+    go test and go vet passed for config, scanplan, planner, contracts and e2e.
+    Ruff, gofmt, YAML validation and git diff --check passed.
+  - Evidence manifest is tasks/evidence/v55-010.json; retained files are under .local/evidence/v55-010/.

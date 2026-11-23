@@ -1,0 +1,57 @@
+schema_version: "1.0"
+id: V376-001
+title: Record the finding-only HTTP evidence scope and park traffic export
+milestone: http-finding-evidence-2026-10
+epic: http-tools
+kind: chore
+priority: P3
+status: completed
+implementation_commit: 8a904a8edf595cc3cf54017c229d20782a83cdd3
+depends_on: []
+languages: [markdown, yaml]
+goal: >-
+  Record the user's selected HTTP evidence scope, preserve the compressed
+  traffic archive idea as a deferred proposal, and prepare bounded Runtime
+  and UI implementation tasks without claiming that their behavior is shipped.
+context:
+  authority: >-
+    On 2026-10-13 the user chose to retain ordinary HTTP artifacts only for
+    exchanges participating in findings, keep the recent 128-exchange buffer,
+    use Caido for the remaining proxied traffic, and park the complete traffic
+    archive design in proposals before synchronizing the implementation scope.
+  specification:
+    - docs/spec/tools/http-caido.md
+    - docs/spec/findings/findings.md
+    - docs/spec/artifacts/artifact-store.md
+    - docs/spec/artifacts/blob-storage.md
+    - docs/spec/conventions.md
+scope:
+  in:
+    - Write a deferred proposal for compressed complete-traffic archival through the existing ArtifactStore, including failure boundaries and reopening criteria.
+    - Record the selected finding-only scope, existing behavior gaps, buffer semantics, Caido routing boundary and UI result in a dated implementation plan.
+    - Create separate pending Runtime and UI tasks with dependencies, failure outcomes, cardinality, lifecycle and verification requirements.
+    - Regenerate the task backlog and validate task and specification structure.
+  out:
+    - Runtime, Server, database, public API, UI and shipped configuration changes.
+    - An implemented traffic archive, an independent save-evidence tool or automatic retention of every HTTP request and response.
+    - Rewriting historical decisions or changing normative contracts ahead of their implementation.
+acceptance_criteria:
+  - id: A1
+    text: A proposal explicitly marks full traffic archival as deferred and describes the archive, selected evidence, buffer, failure bounds and reopening owner without enabling the capability.
+  - id: A2
+    text: The current plan says only finding evidence becomes ordinary HTTP artifacts, request is mandatory and response optional, the 128-exchange buffer remains, and direct HTTP traffic is not claimed to exist in Caido.
+  - id: A3
+    text: Pending implementation tasks cover both automatic HTTP response-body writes and Caido read/replay artifact writes, existing finding selection and exact evidence links, and bounded request/response previews in the UI.
+  - id: A4
+    text: Task layout, statuses, dependencies and generated backlog validate; the reference specification and all production behavior remain unchanged by this documentation task.
+tests:
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+  - command: git diff --check
+    covers: [A1, A2, A3, A4]
+verification:
+  result: Documentation and pending implementation tasks recorded; production code and the normative specification are unchanged.
+  checks:
+    - make lint passed, including task consistency, specification consistency and the release graph.
+    - Relative links in the new plan and proposal resolved to existing files.
+    - git diff --check passed.

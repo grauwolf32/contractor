@@ -1,0 +1,188 @@
+schema_version: "1.0"
+id: V425-033
+title: Remove standalone sweeps and use Audit-owned target scans
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: audits
+kind: defect
+introduced_by: V406-004
+priority: P1
+status: completed
+implementation_commit: 5392479eaa4ce0c5b2557f95a6d695e0b3e79dcc
+depends_on: [V406-018, V422-003, V425-035]
+languages: [go, python, sql, typescript, yaml, markdown]
+goal: Owners scan one target through an ordinary Project Audit and its selected Workflow, with no independent Sweep resource or orchestration left.
+demonstration: >-
+  Start the existing Web scan Audit in the real UI/API/Server/Runtime stack against
+  a local deterministic scanner fixture, first with installed rules and then a
+  custom rulepack. Show its selected Workflow, child Run, Allocation, retained
+  report and ordinary Audit result. Lost replies and cancellation preserve the
+  existing lifecycle; deleted sweep API/CLI paths and startup work are absent.
+context:
+  authority: >-
+    User decision 2026-10-31: Sweep should not exist. Scanning a concrete target
+    belongs inside an Audit and executes through a concrete Workflow. Reconsider
+    the approach and design instead of retaining a separate scan-sweep API.
+    This supersedes the older cross-Project sweep preservation decision and the
+    research recommendation to consolidate on the Server sweep.
+  design: docs/proposals/0049-audit-owned-target-scanning.md
+  review: docs/research/2026-10-31-architecture-simplification-research.md
+  specification:
+    - docs/spec/audits/scans.md#ASC-R151
+    - docs/spec/audits/scans.md#ASC-R152
+    - docs/spec/audits/scans.md#ASC-R153
+    - docs/spec/tools/scanners.md
+    - docs/spec/api/public-api.md
+    - docs/spec/platform/persistence.md
+    - docs/spec/platform/lifecycle.md
+  finding: >-
+    V406-004 introduced scanservice/scanstore/scancontroller, two tables and six
+    public operations in commit 248e91a408c4b27fec7809919b6bd4d1957c1175.
+    V406-002 added the local CLI manifest, and V406-009 the remote CLI.
+    V406-018 already moved the user-facing installed/custom Web scan into Audits
+    but explicitly excluded removing the old cross-Project API/CLI. The obsolete
+    routes remain at internal/httpapi/public/routes.go:25-30, while
+    internal/app/composition_scans.go:30 starts their independent orchestration.
+    Sweep-only overrides also remain in internal/runservice/types.go:109 and
+    public.go:251. Existing web-scan@1 and audit-web-nuclei-scan@1 supply the
+    replacement and must be demonstrated rather than rebuilt.
+  boundary: >-
+    Reuse Audit draft/start, baseline, check Workflow, ordinary child Runs,
+    Allocations, scanner adapters and Artifact collection. Delete both local and
+    durable sweeps rather than add a generic batch coordinator, scan resource,
+    scanner endpoint or compatibility route. Installed/custom rules are one
+    Audit check mode. Preserve generic Workflow/Run execution and technical
+    scanner fixtures; remove the primary standalone nuclei-web product launcher.
+    PinnedWorkflow remains because Evals uses it. General Audit setup/start CLI
+    work remains in V411-017 and is not a prerequisite of deleting scan-sweep.
+  lifecycle: >-
+    With the old single active Server stopped, upgrade removes exclusively
+    sweep-owned metadata and stops all pending sweep dispatch. Existing admitted
+    child Runs, their states, input/report Artifacts and ordinary cancellation
+    survive. Do not launch, replay, cancel all children, manufacture Audit history
+    or erase Project/source data during migration. Preservation covers history,
+    exact Artifact reads and ordinary cancellation; it does not keep the retired
+    standalone Workflow executable/repeatable on a new Runtime. This follows the
+    repository no-backward-compatibility policy; complete any needed standalone
+    work before a later upgrade. Shared blobs remain while
+    ordinary bindings reference them. No legacy reader or sweep cleanup loop
+    remains. Demo migration still follows the existing backup policy.
+  failure_outcomes: >-
+    Audit admission and active-check policy remain authoritative before traffic.
+    Existing Audit create/start keys reconcile lost replies. A later Project or
+    source edit cannot retarget an accepted Audit. Cancellation and unknown scan
+    outcomes follow existing Audit/Run and scanner journal rules; a successful
+    scanner process is not a clean assessment. Missing/unsupported rulepacks
+    retain existing permanent refusals and no installed-rule fallback.
+  bounds: >-
+    One target per bundled Web scan Audit, one inventory item and one job per
+    attempt, using existing scanner/Audit limits. Portfolio fan-out is removed.
+    No new global quota, receipt family, controller claim, journal or pagination
+    contract is introduced.
+  prerequisite_discovered: >-
+    The real custom-rule Audit demonstration exposed a pre-existing read-budget
+    mismatch: the 16 MiB rulepack verification request was rejected by the
+    adapter's 4 MiB plan/output ceiling. Stop extending this removal task;
+    V425-035 separately fixes and verifies that prerequisite before the final
+    installed/custom process demonstration. No Sweep compatibility path returns.
+  implementation_boundary: >-
+    Caller inventory during the real Audit demonstration found the removed primary
+    standalone Workflow was the only production declaration of the automatic
+    Nuclei template_manifest Worker output. That adapter advertisement caused
+    ordinary scan Planner invocations to fail as tool_output_invalid. Remove the
+    obsolete output advertisement with its launcher; preserve the published
+    manifest and exact templateManifest report provenance, generic additional
+    Artifact support (Katana) and strict Worker result validation. No new output
+    protocol or scanner-specific Planner branch is introduced.
+  integration: >-
+    V425-036 adapts this branch to main's later folded baseline: the same
+    retirement migration is now 000002 after baseline 000001, with its populated
+    regression using the production migrator. The originally recorded migration
+    65 and task V425-034 evidence below belongs to the pre-integration revision;
+    the independent prerequisite is now V425-035 to preserve main's identities.
+  verification: >-
+    2026-10-31: all listed Go, PostgreSQL, public API, browser/UI, deterministic
+    Nuclei Audit process, catalog, architecture and lint commands passed. The
+    process proof covers concrete audit-web-nuclei-scan@1 children and Allocations,
+    installed/custom rules, absent installation, exact accepted inputs after
+    Project/source changes, create/start reply replay, unknown scanner results,
+    ordinary cancellation and retained results after child deletion. Migration
+    65 passed against populated active/terminal sweeps with pending/admitted
+    members; complete stored child Run rows are unchanged and shared input/report
+    payloads remain readable. Only dedicated disposable databases were used.
+    The full Runtime gate passed natively in a non-root Linux VM: 5841 passed,
+    89 skipped by platform/optional-integration conditions, and the report verifier
+    passed. Runtime source bytes match this checkout. No live scanner/model or
+    demo deployment was run.
+  verification_notes: >-
+    Initial Go startup checks shared a database with an active process-test Server
+    and hit its single-active-Server lease; the complete suite passed with a
+    separate database. The initial macOS Runtime gate had 5795 passed, 133 skipped
+    and two failures outside this change: the encoded graph-result ceiling and
+    local filesystem Unicode-name tests. A minimal Linux container was unsuitable
+    for the full backend suite (root execution and missing Go); it was stopped.
+    The complete supported Linux VM gate then passed without changing or excluding
+    tests. These attempts are not reported as successful gates.
+  reduction: >-
+    Measured against the prerequisite-complete parent: production sources remove
+    2,698 lines and add 76 (including the new migration), a net reduction of 2,622.
+    Tests decrease by about 2,250 lines and generated clients by 3,426. Catalog,
+    contracts and documentation are updated separately; generated Go reordering
+    is not counted as additional handwritten production work.
+  related_replanning: >-
+    V425-005 no longer repairs the removed sweep ID CHECK or ownership placement.
+    V411-017 stays an ordinary Audit API/CLI consumer and cannot restore scanner
+    resources. Completed V406 task records remain historical; the newer user
+    decision governs the new implementation.
+scope:
+  in:
+    - Remove scanservice, scanstore, scancontroller, Server composition and sweep retention/startup work.
+    - Delete all six scan-sweep routes, OpenAPI-only DTOs and schemas, and regenerate both clients with the normal generators.
+    - Delete local/remote scan-sweep CLI commands, manifest persistence, locking and exclusively used helpers.
+    - Remove sweep-only Run creation overrides/APIs, receipt helpers and Artifact retention hooks after checking every remaining caller.
+    - Remove primary standalone nuclei-web catalog/presentation/instructions where exclusively owned; preserve the existing Audit profile, check Workflow and shared scanner adapters.
+    - Add a migration and real-store populated-data regression for the two sweep tables and exclusively owned auxiliary state, preserving child Runs and ordinary Artifacts.
+    - Retire obsolete requirements/registries and update table ownership, persistence owner docs, ERD, architecture, catalog/dependency documentation and generated outputs.
+    - Retarget scanner process/browser/public API coverage and Make/CI selectors; preserve actual installed/custom rule and Audit lifecycle proofs.
+  out:
+    - A new Scan, Sweep, generic batch or multi-Project execution resource, controller, table or replacement API.
+    - Implementing general Audit authoring CLI from V411-017 or expanding HTTP/browser/pentest subsystems.
+    - Changing generic Run/Scheduler capabilities, banning tools by scanner name, or deleting shared Evals pinning.
+    - Running migrations or scans against demo/external targets as part of implementation verification.
+acceptance_criteria:
+  - id: A1
+    given: An ordinary Project, one explicit target, installed or exact custom rules and the existing Web scan profile.
+    when: The owner starts the check through UI and ordinary Audit APIs.
+    then: An Audit selects the concrete scan Workflow and owns its child Run, Allocation, report, coverage and result, with exact accepted inputs and no separate Scan/Sweep resource.
+  - id: A2
+    given: The complete Server/API/CLI/catalog removal.
+    when: Public API generation, operation coverage, compilation and source/caller inventory run.
+    then: All six routes and their exclusively owned schemas/clients, both CLI paths, controllers/stores, startup loops, sweep-only helpers and primary standalone launcher are gone without compatibility fallbacks; shared Evals and scanner callers remain valid.
+  - id: A3
+    given: A migrated database populated with active/terminal sweeps, pending members, admitted child Runs and shared retained rule inputs.
+    when: The new migration and Server revision are applied in an isolated real-store test.
+    then: Sweep-owned metadata retires, pending sweep work cannot dispatch, child Runs/inputs/reports remain usable, and migration neither replays traffic nor fabricates Audit provenance.
+  - id: A4
+    given: Lost Audit create/start replies, changed Project/source data, active-check refusal, cancellation, scanner failure and ambiguous outcomes.
+    when: The real components reconcile the existing Audit path.
+    then: Existing keys and exact baselines prevent duplicate or retargeted work, cancellation/result states stay truthful, and failed or unknown execution does not become a clean finding result.
+  - id: A5
+    given: The revised product boundary and remaining technical scanner capabilities.
+    when: Owning specs, limits/failure/lifecycle registries, schema docs, catalogs, tests and gates are reviewed.
+    then: Active contracts require Audit-owned target scanning and contain no obsolete sweep guarantees; generated artifacts and all named test selectors are current, every gate selects tests, required checks pass and line reduction is recorded.
+tests:
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-go
+    covers: [A1, A2, A3, A4, A5]
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-postgres verify-public-api verify-public-api-postgres
+    covers: [A2, A3, A4, A5]
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-nuclei-web-e2e test-web-scan-ui-stack
+    covers: [A1, A2, A4, A5]
+  - command: make test-runtime
+    covers: [A1, A2, A4, A5]
+  - command: make ui-verify
+    covers: [A1, A2, A5]
+  - command: go run ./cmd/contractor server config validate --root ./configs
+    covers: [A1, A2, A5]
+  - command: make verify-architecture
+    covers: [A2, A5]
+  - command: make lint
+    covers: [A2, A5]

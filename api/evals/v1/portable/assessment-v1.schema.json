@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:playground:portable:assessment/v1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "playground.assessment/v1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "maxLength": 128
+    },
+    "member_id": {
+      "$ref": "urn:playground:portable:common#/$defs/MemberId"
+    },
+    "result_ref": {
+      "$ref": "urn:playground:portable:common#/$defs/DocumentRef"
+    },
+    "suite_ref": {
+      "$ref": "urn:playground:portable:common#/$defs/DocumentRef"
+    },
+    "scorer_pins": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:playground:portable:common#/$defs/ScorerPin"
+      },
+      "maxItems": 128,
+      "minItems": 0
+    },
+    "expected_refs": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]*$",
+        "maxLength": 128
+      },
+      "additionalProperties": {
+        "$ref": "urn:playground:portable:common#/$defs/BlobRef"
+      },
+      "maxProperties": 128
+    },
+    "created_at": {
+      "$ref": "urn:playground:portable:common#/$defs/Timestamp"
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:playground:portable:common#/$defs/Check"
+      },
+      "maxItems": 128,
+      "minItems": 0
+    },
+    "decision": {
+      "enum": [
+        "error",
+        "fail",
+        "incomplete",
+        "pass"
+      ]
+    },
+    "extensions": {
+      "$ref": "urn:playground:portable:common#/$defs/Extensions"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "member_id",
+    "result_ref",
+    "suite_ref",
+    "scorer_pins",
+    "expected_refs",
+    "created_at",
+    "checks",
+    "decision"
+  ],
+  "additionalProperties": false
+}

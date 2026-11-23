@@ -1,0 +1,378 @@
+schema_version: '1.0'
+id: V410-001
+title: Publish a bounded Project sitemap through one authorized reducer
+milestone: project-sitemap-2026-10
+epic: projects-artifacts
+kind: feature
+priority: P1
+status: completed
+depends_on:
+- V410-010
+languages:
+- go
+- sql
+- json
+- yaml
+- markdown
+goal: Deliver a usable owner-facing sitemap service over ordinary ArtifactStore revisions, with deterministic identity,
+  safe metadata, reversible edits and shared ArtifactStore retention policy on every publication path.
+context:
+  authority: User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
+    this task records planned work, not implementation or verification evidence. The same-day follow-up selects
+    oldest-unpinned eviction at the retained-history limit, preserving existing exact retention obligations.
+    The subsequent user clarification removes both per-Run sitemap publication caps and selects automatic
+    per-logical-artifact retention for all scopes, implemented by dependency V410-010.
+  proposal: docs/proposals/0042-live-project-sitemap.md
+  proposal_sections: 'Sections 2-4, 6-11: representation, projection, identities, source replacement, suppression,
+    CAS, quotas and lifecycle.'
+  specification:
+  - docs/spec/artifacts/project-sitemap.md#SMT-R1
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/artifacts/projects.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/api/public-api.md
+  - docs/spec/platform/security.md
+  boundary: The live sitemap is shared research context, not current Audit coverage, complete traffic archival or
+    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or V61/V62/V64
+    work.
+  code:
+  - internal/artifacts
+  - internal/projectstore
+  - internal/projectlifecycle
+  - internal/httpapi/public
+  - internal/cli
+  - internal/contracts
+  - internal/persistence/migrations
+  - api/openapi/contractor-public-v1.yaml
+  - api/testdata
+  - internal/archtest/layers_test.go
+scope:
+  in:
+  - Create the owning normative sitemap specification, strict versioned document/typed mutation schemas, canonical
+    fixtures and one domain reducer, with a classified layer and a production service caller in this task.
+  - Ship owner-bound Project read/mutation operations and matching CLI/public-client callers; endpoint and export
+    additions cannot be left referenced only by tests.
+  - Implement safe ingress projection, trusted source/content-kind provenance, engagement-local or Run-local context
+    keys, bounded concrete members and loss-aware regrouping; user-supplied facts cannot fabricate trusted HTTP
+    observations.
+  - Implement conditional creation, append merges, expected-revision manual edits, guarded source replacement, suppression/restore
+    and bounded source/global gaps.
+  - Consume V410-010 automatic per-binding retention through ordinary ArtifactStore writes/forks/rebinds;
+    sitemap owns map semantics, not policy registration, family ledgers, history accounting or generic GC.
+    A separate logical sitemap partition is an ordinary binding with its own history; no aggregate Project cap.
+  - Integrate safe selected context/proof materialization with the existing exact-reference protection APIs
+    established by V410-010, preserving source-generation CAS and source-mode boundaries.
+  - Integrate ordinary Run deletion and Project purge without breaking independently held evidence; define wire/public
+    errors, limits and failure outcomes alongside code.
+  out:
+  - Runtime allocation grants and model tools (V410-002).
+  - Automatic collectors and source adapters (V410-003 through V410-005).
+  - Reimplementation of V410-010 common retention, generic holder inventory or writer/error adapters; a second
+    sitemap database, receipt/claim/hold-lease system, manual pin API, delta storage or TTL history expiry.
+  - Any sitemap-specific cumulative publication-byte/count budget or replacement rate quota on a producer Run.
+  - UI sitemap graph, complete traffic archival and pentest enforcement.
+requirements:
+- id: R1
+  text: Keep the domain current-map limit of 32 MiB and the proposal's nested/input/page bounds in the owning
+    schema; use common ArtifactStore size, admission, CAS, receipts, grants and retention contracts. Publish each
+    rule once in its owning registry/schema and test shared consumers against fixtures. Missing binding is empty;
+    malformed bytes are a permanent error and are never replaced implicitly. Coalescing/flush boundaries, bounded
+    inputs and existing operation deadlines/generic backpressure bound work without a per-Run sitemap quota.
+- id: R2
+  text: Project identity and producer/source attribution come from authenticated service context. Safe projection
+    runs before public keys/digests/examples and removes secret-bearing path/query/body/header/structural values
+    without storing raw-secret hashes. Omitted data has bounded reason metadata.
+- id: R3
+  text: Contexts include trusted engagement/baseline identity plus local identityId, or Run-scoped/unknown identity
+    for ordinary Runs; aliases or labels do not merge principals. Concrete-member inventory is distinct from representative
+    examples; overflow cannot support lossless later regrouping.
+- id: R4
+  text: Preserve member-scoped metadata and suppression through regrouping. Ambiguous split/merge conflicts instead
+    of widening an edit, resurrecting a suppressed member or assigning discarded observations to a new route.
+- id: R5
+  text: A source replacement checks stable sourceId/deployment attribution and its expected generation, exact predecessor
+    ref/digest and policy digest. A stale pinned computation may be retained privately but cannot adopt a fresh
+    generation and retry its old source as current.
+- id: R6
+  text: Use existing keyed mutation receipts and Artifact CAS, with at most three CAS retries inside the owning
+    deadline for rebasable observation batches. Manual/source conflicts stay permanent; lost acknowledgements never
+    create another accepted revision.
+- id: R7
+  text: Use V410-010 automatic ArtifactStore history policy for each logical (scope, namespace, name) binding,
+    exactly as ordinary User/Project/Run artifacts do. No registration, name/type special case, family ledger,
+    aggregate Project history quota or domain-owned accounting is permitted.
+- id: R8
+  text: Domain collectors call ordinary ArtifactStore operations with bounded inputs, coalescing/flush work,
+    attempts and deadlines. Do not add a per-Run sitemap publication-byte/count or rate quota. The separate
+    V410-010-preserved RunScope lifetime insert limit does not apply to producer-originated Project writes.
+- id: R9
+  text: Preserve legitimate exact refs through V410-010 holder acquisition/release; ordinary map observations,
+    provenance mentions and CAS successors create no implicit pin or predecessor lineage chain.
+- id: R10
+  text: Map publication uses ordinary caller-owned ArtifactStore CAS/admission. Propagate its atomic successful
+    swap or unchanged failed publication, including shared protected-history conflict; no domain retention SQL.
+- id: R11
+  text: Propagate V410-010 bounded maintenance/backpressure and use its existing continuation/deadline contract.
+    Do not rescan history, change generic scan/GC limits or reinterpret maintenance as a new map publication.
+- id: R12
+  text: Reuse existing keyed receipts after history eviction without republishing or charging again. Exact
+    source absence remains explicit; durable proof/context materialization must win atomic existing hold
+    acquisition or require explicit caller reselection, never use a cache or latest substitution.
+failure_outcomes:
+- operation: Owner read or typed mutation, including public Artifact bypass attempts
+  permanent: Reject invalid/unsupported documents and projection input with documented 400 sitemap validation errors;
+    owner-safe 404 for foreign Project; 409 for manual/source conflict or shared artifact_history_protected.
+    Failed attempts preserve current/holds/counters; no automatic retry of permanent retention conflicts. Evicted exact refs preserve existing 404 mapping (private artifact_not_found, public
+    not_found), never latest; artifact_content_missing remains the distinct existing missing-blob outcome.
+  retryable: Classified storage_transaction_conflict/unavailable storage follows existing bounded retry policy;
+    artifact_history_maintenance_pending 503 advertises Retry-After and permits at most three attempts within the
+    original deadline. Deterministic rejection is never retried and incomplete scans stay retryable, not all-pinned.
+  ambiguous: Reuse the existing keyed receipt and original committed exact ref, even after eviction; replay never
+    recreates or pins missing bytes and never recharges usage. Report already committed maintenance separately.
+  cancelled: Join service work before returning cancellation; a committed publication remains discoverable by receipt.
+  timeout: The API operation deadline owns storage/reducer work; expiry does not authorize recreating a binding
+    or resetting counters.
+- operation: Selected exact context/proof materialization racing ordinary Artifact retention
+  permanent: Preserve V410-010 missing-ref mappings (private artifact_not_found/public not_found 404) and shared
+    protected-history conflict. Never reconstruct an evicted exact source from cache or weaken its existing hold.
+  retryable: Use V410-010 storage/backpressure classification and bounds within the original materialization deadline.
+  ambiguous: Reconcile the original exact ref and existing materialization receipt, without another publication.
+  cancelled: Join materialization work before release; a committed protected reference remains authoritative.
+  timeout: Existing operation timeout does not authorize substituting latest or extending a source's retention.
+- operation: Run deletion or Project purge racing a publication
+  permanent: Deleting/fenced scope rejects publication; source evidence that no longer exists is unavailable rather
+    than an empty successful ref.
+  retryable: Use existing Project deletion claim/recovery and bounded purge batches.
+  ambiguous: Reconcile through existing lifecycle state and exact Artifact identities, not an added journal.
+  cancelled: Deletion uses existing cancel/drain/release gates before purging scope data.
+  timeout: Lifecycle deadlines and claims retain their existing owners; a timed-out batch resumes from committed
+    state.
+cardinality:
+- collection: Current map, concrete members, sources, rules, suppression and provenance
+  expected: 100-1000 groups and 1-10 writers
+  maximum: Proposal 0042 section 10 ceilings; the encoded document bound independently caps all nested state
+  bound: Bound one reducer request by batch rows/bytes and one map; reject conflicting or over-limit edits atomically
+    and aggregate omission counters without per-event growth.
+- collection: Sitemap binding history consumed through ordinary ArtifactStore APIs
+  expected: Coalesced revisions and sequential Runs over an ordinary Project binding
+  maximum: V410-010 per-logical-artifact limits, with no aggregate Project or producer-Run publication quota
+  bound: Domain code never scans or accounts for history; shared ArtifactStore admission/maintenance owns that work.
+lifecycle:
+- entity: Project sitemap binding and domain source generations
+  delete: Ordinary V410-010 retention manages unprotected history; Project purge owns complete deletion and
+    domain entry removal remains reversible suppression.
+  cascade: Project purge removes owned map/domain state through existing lifecycle APIs; producer Run deletion
+    leaves self-contained Project history and independently held references intact.
+  retention: Each logical binding follows automatic common retention. Source metadata and selected proofs do
+    not gain a special history quota, bypass, TTL or implicit hold from being part of a sitemap.
+- entity: Member/group edits and suppression markers
+  delete: Authenticated owner edits require expected revision; restore is explicit.
+  cascade: Regrouping carries exact membership selection and rejects ambiguous widening.
+  retention: Bound markers and notes with the current map; retained revisions remain immutable until authorized
+    oldest-unpinned eviction. Removing an entry does not unpin evidence or rewrite history.
+acceptance_criteria:
+- id: A1
+  given: An empty owned Project and strict valid/invalid document fixtures
+  when: The production CLI/API creates, reads and edits its sitemap
+  then: The same canonical reducer is used, malformed documents fail without replacement, and no endpoint/export
+    lacks a production caller.
+- id: A2
+  given: Secret canaries, repeated identity labels across engagements and member/context overflow
+  when: Observations or manual metadata enter through every public mutation path
+  then: Secrets and raw-secret hashes never enter keys/artifact bytes, principals remain distinct and discarded
+    data has bounded explicit gaps.
+- id: A3
+  given: Two source replacements for old/new exact schemas plus concurrent append observations
+  when: The new source commits before the older patch retries
+  then: Append observations survive; the old source transition conflicts and cannot refresh its expected predecessor
+    automatically.
+- id: A4
+  given: A populated member inventory and suppressions
+  when: Late templates/fixed routes split or merge groups after inventory overflow
+  then: Retained member identity survives, excluded members stay excluded, unrelated members are not suppressed
+    and discarded membership remains unknown.
+- id: A5
+  given: A Project sitemap with mixed protected/unprotected history and a controlled non-Audit producer Run
+  when: The real domain API publishes more than 256 MiB cumulatively and more than 256 accepted updates in that Run
+  then: Updates succeed within current-map and common per-binding history limits; no removed per-Run quota,
+    family registration or aggregate Project cap remains. Ordinary history conflict/backpressure is propagated,
+    and an evicted-result receipt confirms its commit without republishing, charging or latest substitution.
+- id: A6
+  given: A populated Project with independently retained evidence and deleted producer Runs
+  when: Run deletion and Project deletion race readers/writers
+  then: Map metadata survives Run deletion, evidence availability is truthful, fenced writes fail and complete Project
+    purge removes only its owned state. Concurrent proof selection either acquires the legitimate indexed hold
+    atomically or reports the exact ref unavailable, and ordinary provenance/CAS does not pin the entire chain.
+- id: A7
+  given: A sitemap publication or exact context selection under V410-010 maintenance pressure and concurrent unpin
+  when: The domain integration receives shared conflict/backpressure, cancellation or a lost response
+  then: Existing common policy and receipts decide the outcome; no domain rescan, retention SQL or new retry
+    budget appears. Selected exact protection is atomic, error mappings remain truthful and current map/source
+    generations are unchanged by failed attempts. Generic scope/holder/GC matrices are owned by V410-010.
+deliverables:
+- path: internal/projectsitemap
+  description: New classified domain service/reducer with actual owner API/CLI callers; reuse existing Artifact
+    and keyed mutation services.
+- path: docs/spec/artifacts/project-sitemap.md
+  description: New owning normative contract with stable requirement IDs, linked registries and existing-spec boundary
+    updates. Reference the common ArtifactStore retention contract from V410-010 rather than copying policy,
+    holder inventory, accounting, limits or shared error definitions into the domain spec.
+- path: make/features.mk
+  description: Register new test-project-sitemap-postgres with require-database and complete touched-package tests;
+    include it in the mandatory release graph.
+- path: api/testdata
+  description: Versioned canonical/projection/reducer fixtures; V410-002 adds the Runtime reader to the shared-reader
+    manifest without inventing an unused Runtime implementation here.
+tests:
+- command: make test-project-sitemap-postgres
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+  - A7
+- command: make verify-public-api verify-public-api-postgres
+  covers:
+  - A1
+  - A5
+  - A6
+  - A7
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+  - A7
+test_prerequisites:
+- test-project-sitemap-postgres is a required new target delivered here, not an existing passing check. It must
+  fail when the disposable PostgreSQL prerequisite is missing/unreachable or a selected suite matches zero tests.
+- Run complete touched domain, Artifact/Project integration, public API and CLI packages. Generic migrations,
+  holder/writer coverage and shared-blob GC belong to completed dependency V410-010; retain its required gates
+  when integration changes those boundaries. Regenerate generated clients through repository targets.
+
+implementation_decisions:
+- date: 2026-10-26
+  decision: The owner API assigns the fixed manual source owner and reserves the Project sitemap namespace
+    against generic Artifact writes. Automatic producer authority is established separately by allocation composition;
+    the public mutation body cannot manufacture HTTP observations or select a transport source identity.
+- date: 2026-10-26
+  decision: Shared keyed receipts retain only the bounded safe structural selector choices needed to recognize
+    their accepted intent after regrouping or history eviction. They do not retain a map, raw credential values,
+    removed-value hashes or an implicit Artifact hold. Replay confirms the original exact ref even when its
+    unprotected bytes are no longer available.
+- date: 2026-10-26
+  decision: Selected complete-map context uses existing exact Project-to-Run input forks and indexed lineage
+    protection. A narrower source-mode projection belongs to the allocation toolset dependency; a live metadata
+    read creates no hold. Publication and separately committed maintenance use ordinary ArtifactStore APIs.
+
+execution:
+  branch: codex/v410-sitemap
+  claimed_on: "2026-10-26"
+  note: >-
+    Taken into work by Codex at the user's explicit request. The seven-task
+    batch is reserved together; implementation proceeds in dependency order,
+    and dependent tasks do not start implementation before their prerequisites
+    complete. Status records assignment, not completed implementation or tests.
+
+implementation_commit: a39cc43c9e1e7b642a1aa887c5bcca352a6902b5
+verification:
+  date: '2026-10-26'
+  environment: >-
+    macOS arm64; Go 1.26.9; locked Python 3.13 Runtime; Node 24.20.0 and
+    pnpm 11.24.0; dedicated PostgreSQL 17 test database contractor_v410_test
+    with per-test schemas and 47 migrations; canonical TMPDIR=/private/tmp.
+    Final integration includes main through 5e2787956064b88edcf44843f8cb8529650d983d.
+  commands:
+  - >-
+    make test-project-sitemap-postgres passed on the combined tree: 11 complete
+    packages and eight mandatory real-store cases with zero mandatory skips.
+    One producer Run accepted 257 updates and 360501946 cumulative encoded
+    publication bytes; ordinary retention kept two revisions / 2980786 bytes.
+    The package run also includes the real Run deletion regression preserving
+    Project metadata/receipts and the populated Project purge regression.
+  - >-
+    make verify-public-api verify-public-api-postgres passed, including owner
+    mutations, reserved-namespace refusal, exact/replayed/evicted outcomes,
+    generated clients, operation coverage and race-enabled PostgreSQL handlers.
+  - >-
+    make test-artifact-history-postgres test-artifact-history-e2e passed after
+    main integration; the production Server/Runtime history scenario ran in
+    34.6 seconds. Existing ordinary artifact protections and error adapters
+    remain authoritative.
+  - >-
+    make lint passed after main integration: generated clients, staticcheck,
+    testonlyexports, release graph, shared fixture sources, tasks/spec/ERD,
+    Runtime Ruff and import contracts. The new gate is registered with the
+    release graph from its actual package selection.
+  - >-
+    make ui-verify passed after main integration: generation check, formatting,
+    lint, both TypeScript projects, unit/static-server tests and production build.
+  - >-
+    go test -tags=integration -count=1 ./internal/projectlifecycle passed in full
+    with canonical TMPDIR before the final combined package gate. A direct run
+    using macOS /var/folders failed the existing filesystem symlink guard;
+    resolving TMPDIR as the repository documents fixed the environment.
+  limitations:
+  - >-
+    Allocation source-mode projections and Runtime tools belong to V410-002;
+    automatic collection and structured import callers belong to V410-003/004/005.
+    No Runtime collector, full traffic archive or full V410 release claim is made.
+  - >-
+    Complete-map selected context uses ordinary exact input-fork lineage. Narrow
+    projections require the authorized materializer in the dependent tool task.
+  - >-
+    Initial closure was on codex/v410-sitemap before main integration.
+    Subsequent coordinated migration numbers and verified integration are
+    recorded in main_integration below.
+
+main_integration:
+  requested_on: '2026-10-26'
+  base_main: 8309914fbfaf4c8bb59d86188fd7b3cf69e98c45
+  verified_commit: c55a0d0a708433c8cd143088ae2bd119fe947b5b
+  migrations:
+  - 000049_project_sitemap_receipts.sql
+  - 000050_context_projection_lineage.sql
+  evidence:
+  - >-
+    Existing main migrations 000001 through 000048 remain byte-identical.
+    The real PostgreSQL upgrade preserves all 48 existing ledger entries
+    and an existing receipt, applies 000049/000050, permits sitemap receipts
+    and applies nothing on the next startup. A new regression is
+    TestPostgresProjectSitemapMigrationsPreserveMainLedgerAndReceipts.
+  - >-
+    make test-project-sitemap-postgres passed on the combined tree:
+    13 complete packages, 14 mandatory cases, zero mandatory skips.
+  - >-
+    make test-project-sitemap-tools-e2e test-artifact-history-e2e passed
+    through actual Server/Runtime/PostgreSQL processes.
+  - >-
+    make verify-public-api verify-public-api-postgres passed. The API
+    coverage selection preserves the existing Worker session-mode check
+    and adds the sitemap owner operations.
+  - >-
+    GOFLAGS='-p=2' make test-wire-cross-language passed: 285 fixtures,
+    341 Go shared tests, 237 Python shared tests. An earlier unconstrained
+    run failed two unrelated PostgreSQL cases; both passed separately,
+    then the entire bounded gate passed without code or timeout changes.
+  - >-
+    make ui-verify passed: 196 test files, 2433 passed tests and one declared
+    expected failure, plus generated types, lint, static-server checks and build.
+  - >-
+    Runtime sitemap/contracts/capability and affected Audit/OpenAPI/finding
+    suites passed: 599 tests. make lint passed, including generation checks,
+    staticcheck, import ownership, tasks/specs and the release graph.
+  - >-
+    Generated clients, dependency graph, ERD and backlog were regenerated.
+    Main's DEL-R66 remains intact; the unlanded sitemap purge requirement
+    is assigned DEL-R67 to avoid an ID collision.
+  scope: >-
+    User-authorized main delivery covers V410-001 and V410-002 only.
+    V410-003 through V410-007 remain pending and unimplemented.

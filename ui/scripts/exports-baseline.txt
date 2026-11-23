@@ -1,0 +1,5 @@
+# Exports of UI production modules that make lint tolerates without a
+# production importer, each until the open task it names resolves it. A line
+# is "<file>:<export> <task ID>"; the rules are in check-exports.mjs. The
+# check fails when an entry is no longer needed or its task is finished or
+# missing, so the list only shrinks.

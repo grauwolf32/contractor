@@ -1,0 +1,19 @@
+# The independent UI image consumes only these two source trees.
+*
+!ui/
+!api/
+
+# Keep local credentials, dependency caches and generated test output out of
+# both the image layer and any context sent to a remote builder.
+**/.git/
+**/.local/
+**/.venv/
+**/node_modules/
+ui/dist/
+ui/coverage/
+ui/test-results/
+ui/playwright-report/
+**/.env
+**/.env.*
+**/*.env
+**/*.env.*

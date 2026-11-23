@@ -1,0 +1,177 @@
+schema_version: "1.0"
+id: V471-005
+title: Show focused Project facts separately while reusing Finding sources and hypothesis grounds
+milestone: project-facts-2026-11
+epic: ui
+kind: feature
+priority: P1
+status: completed
+depends_on: [V471-003]
+languages: [typescript, javascript, json, yaml, markdown]
+goal: >-
+  Users can inspect informational Project Findings in the Facts view, filter
+  the common records by severity, see their sources and select exact grounds
+  for hypotheses without facing a global tangled graph.
+demonstration: >-
+  A Project has a technology fact with two sources, a memory-derived inference and
+  an informational security issue, a low-severity issue and a record of unknown
+  severity. Facts shows the informational records from either facade. Needs review
+  includes the unassessed low and unknown records. Opening a record shows
+  exact evidence and the existing submission history. Independent submissions with
+  equal evidence contents appear as one card with their source history. A later hypothesis
+  explicitly selects one source and exposes its exact grounds and check results.
+context:
+  execution_group: 2
+  authority: >-
+    User decision 2026-11-21 resumes implementation and delivery into main after
+    the interface discussion. Preserve existing item_key/incidental semantics;
+    introduce no link_hypothesis parameter. Local request_id applies to ordinary
+    finding, HTTP finding and record_fact alike.
+    User decisions 2026-11-20: provide a separate facts interface with the same
+    Project Finding beneath it, include technology observations, preserve clarity
+    and produce diagrams. Focused lists, exact-source navigation and bounded local
+    views are agent proposals. User decision 2026-11-20 fixes optional LLM
+    extraction as a separate passthrough@1 Stage; the user asks to update and
+    merge the planning package into main. This task remains planned, not assigned
+    for implementation; the execution choice does not add a UI engine selector.
+    User follow-up 2026-11-20 prefers severity filters over a separate fact/finding
+    discriminator and proposes excluding all informational records from needs
+    review. V471-001 owns the common predicate and labelled severity provenance.
+    User decision 2026-11-20 accepts exact assertion deduplication, grouping by
+    material version and optional Task/hypothesis association. Reverse navigation
+    from a fact to hypotheses is deferred. Update diagrams/tasks and merge the plan
+    into main. The UI slice covers lists, exact materials and source provenance.
+    Latest user decision 2026-11-21 reactivates V471-004 for basic evidence-only
+    deduplication on existing Finding correlation. Equal complete evidence contents
+    share one informational Finding regardless of title, with independent receipts.
+    This supersedes the blanket deferral and title-plus-evidence proposal. Title
+    matching, semantic/provider rules, material groups and possible-duplicate states
+    remain outside the first slice. Optional origins and exact sources stay as agreed.
+    User request 2026-11-21 organizes these six tasks into two groups of three,
+    each executed in one continuous pass. The dependency-based allocation and
+    group entry/exit rules live in the proposal; this task keeps its own acceptance,
+    required checks and implementation commit. Grouping adds no functional scope.
+    Latest user request 2026-11-21 explicitly assigns implementation of group 2
+    (V471-003, V471-005, V471-006) in one continuous pass and merging into main.
+    This supersedes earlier planning-only restrictions for these tasks. Existing
+    Project requirements and evidence-only correlation remain unchanged; live
+    model calls, configured model changes and deployment remain unassigned.
+    Latest user decisions 2026-11-21 supersede mandatory quote/locator checks:
+    keep the model interface simple, let the model describe a fact in its own
+    words and select an existing memory by name, and attach the original memory
+    deterministically. Use the vocabulary memories and memory_name, not a new
+    notes API or note_name. Reuse common record_fact, without an extraction-only
+    creation facade. After pausing group 2 to discuss interfaces, the user explicitly resumes
+    implementation while preserving incidental and postponing the broader redesign.
+    The user also requests local request identifiers for HTTP/Caido and removal
+    of caido_request_id from finding and record_fact. V471-007 owns that separate
+    prerequisite; broader authoring-interface redesign is for later discussion.
+  reader_decision: >-
+    Agent implementation decision 2026-11-21: reuse the existing bounded Project
+    Finding reader and a fixed informational preset at /facts. Counts describe
+    loaded records; each explicit load reads at most five ordinary pages. The
+    Issues view retains the common severity filters. Opening a fact uses the same
+    canonical detail and exact Artifact reader. No new API or Fact discriminator.
+    Memory snapshots remain ordinary source previews with a reported-statement
+    annotation, without another parser, validation engine or source registry.
+  proposal: docs/proposals/0055-project-facts-through-findings.md
+  specification:
+    - docs/spec/ui/ui.md
+    - docs/spec/ui/journeys.md
+    - docs/spec/findings/findings.md#FND-R213
+    - docs/spec/findings/findings.md#FND-R216
+    - docs/spec/audits/hypotheses.md#HG-R16
+  design:
+    - docs/design/ui/README.md
+    - ui/src/ui/README.md
+scope:
+  in:
+    - Add a Project Facts list and fact-oriented detail presentation over existing Finding IDs/readers.
+    - Use informational severity as the Facts view preset and expose the common severity filters with their suggested or analyst-assessed provenance.
+    - Apply the Server needs-review predicate consistently to lists and counts, including informational and unknown severity cases.
+    - Display context, source quality, exact evidence and existing paged submissions with their optional Task/hypothesis origin.
+    - Connect exact source selection and hypothesis grounds through existing material/selection interfaces.
+    - Show results separately from grounds and use bounded pagination for every list and picker.
+    - Update the UI version and new shipped configuration identities only where actual consumers change.
+  out:
+    - Graph views, reverse fact-to-hypothesis navigation, semantic-match suggestions, arbitrary edge editors or new UI-owned state.
+    - A fact-purpose discriminator, fabricated verification badges or treating informational classification or fact selection as confirmation.
+    - A second facts backend, a new approval inbox or mandatory model calls for viewing records.
+    - Material-group readers/views, unique-material counters, possible-duplicate states or a separate deduplication interface.
+requirements:
+  - id: R1
+    text: >-
+      Views use the shared V471-001 severity and needs-review projections with the
+      canonical Finding identity. Facts includes every informational record. Show
+      producer suggestion separately from analyst assessment. Memory-derived evidence
+      is labelled as a statement from memories. Unknown severity remains visible in
+      needs review while unassessed. Authoritative severity changes update view
+      membership and counts while preserving identity and exact sources.
+  - id: R2
+    text: >-
+      Main navigation is list -> selected record -> existing submission history ->
+      original memories and exact evidence. Display the canonical cards and source entries
+      actually returned by Server: equal evidence contents share one card, while
+      independent source receipts retain their original titles/evidence. Use existing
+      source counts and pages, without unique-material counters or grouping. An
+      absent Task/hypothesis is valid Run-level origin. Show an existing explicit
+      origin link when present. Searching for hypotheses which later selected the
+      fact is deferred. Hypothesis pages retain direct navigation to their selected
+      exact grounds through ordinary material readers.
+  - id: R3
+    text: >-
+      Hypotheses show grounds separately from performed checks. Version changes,
+      unavailable sources and stale selection conflicts remain visible and are
+      not repaired with an implicit latest revision.
+  - id: R4
+    text: Follow V3B UI language/tokens; verify 390 px and light/dark/black themes, accessible controls, honest loading/errors and terminal refresh behavior.
+failure_outcomes:
+  - operation: Read facts/sources or submit an exact material selection
+    permanent: Denied/deleted source and invalid or stale exact selection show the Server reason without substituting another record.
+    retryable: Existing bounded read backoff and storage conflict behavior; no repeated selection writes on every render.
+    ambiguous: Keep the existing selection/idempotency key and reconcile the same intent before repeat.
+    cancelled: Abort obsolete reads and prevent stale responses from replacing the selected record.
+    timeout: Existing UI/API deadlines apply; an unavailable source never receives a verified/loaded claim.
+cardinality:
+  - collection: Finding pages, existing submission history and exact ground selections
+    expected: One 50-row list page and one selected record; containing Project may have 10000 records.
+    maximum: At most 64 source receipt rows per page. Other lists use public page and byte limits.
+    bound: All pickers follow every page explicitly. Load existing source history on demand with bounded pagination.
+lifecycle:
+  - entity: Read-only views and existing exact selection artifacts
+    delete: Respect existing Project/source removal and owner checks; UI creates no new lifecycle owner.
+    cascade: Invalidate affected queries after authoritative mutations without claiming premature cancellation/deletion.
+    retention: Source links preserve their pinned revisions and ordinary retention; merely opening a panel adds no hold.
+acceptance_criteria:
+  - id: A1
+    given: Informational records from both facades, unassessed low and unknown records, and a subsequent analyst assessment
+    when: Users navigate severity views, needs review and source pages
+    then: Server severity controls placement, informational records are excluded from needs review, counts match the paged selection, and assessment refreshes views while preserving Finding IDs and source provenance.
+  - id: A2
+    given: More than one picker page, independent fact submissions with equal evidence and different titles, absent optional origin fields, a changed revision and an unavailable source
+    when: The user selects fact grounds and opens the hypothesis
+    then: Equal-evidence submissions appear as one Server card with both source receipts and their original titles, without client-side deduplication. Run-level facts render normally, selected grounds remain exact, conflicts are explicit and the hypothesis links to its selected grounds. No grouping or possible-duplicate UI is added.
+  - id: A3
+    given: A 10000-record fixture and responsive theme variants
+    when: The UI loads at desktop and 390 px widths
+    then: Requests/layout remain bounded, controls are accessible, and no global graph or invented Server state appears.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: make test-project-facts-ui
+    covers: [A1, A2, A3]
+  - command: make verify-public-api
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+test_prerequisites:
+  - Add the named browser target in this task with nonzero cases; scripted mocks do not replace the real process/storage acceptance in V471-006.
+  - UI tests use testdata/fixtures and theme tokens; do not read the live configs tree outside permitted process suites.
+
+implementation_commit: 06c59b1d2881acdc11d1d874bc4dcc4ebb45ec1f
+verification:
+  - make ui-verify passed: 228 files, 2572 passing tests and one declared expected negative test, plus typecheck, format, lint, static-service tests and production build.
+  - make test-project-facts-ui passed 16 browser cases across Facts, independent sources and hypothesis versions, with no skips.
+  - make verify-public-api and make lint passed. No public contract or generated client was changed.
+  - The 10000-record fixture proves five 50-row pages per explicit load, canonical informational placement, low/unknown needs review, later analyst assessment, two paged source receipts, unavailable-source retry, exact memory revision and safe literal text.
+  - Inspected 390px black and 1440px light screenshots; all three themes at both widths passed overflow and accessible-control checks. The shared Issues suites passed again after the final copy change (83 tests); all 17 static-service tests passed.

@@ -1,0 +1,20 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: sitemap-metadata, version: "1"}
+spec:
+  description: Read complete sitemap metadata even when no surface entries remain.
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  sitemap:
+    version: sitemap-access@1
+    collectObservations: false
+  toolsets:
+    - ref: sitemap@1
+      tools: [list_sitemap_entries]
+  execution:
+    tool: list_sitemap_entries
+    arguments:
+      scope: {source: literal, value: metadata}
+      limit: {source: literal, value: 100}
+    resultArtifact: report
+    timeoutSeconds: 30

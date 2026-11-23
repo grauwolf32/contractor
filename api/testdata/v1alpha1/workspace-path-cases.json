@@ -1,0 +1,339 @@
+{
+  "description": "The relative workspace path grammar (WSP-R13) shared by the Go Server (contracts.RelativePathProblem) and the Python Runtime (contracts.base.relative_path_problem): NFC UTF-8, no leading slash, backslash, NUL or URI, components neither empty, '.' nor '..' and free of control characters, and no Windows drive (an ASCII letter and a colon) as the first component. Workspace targets and the files a Worker reports use the workspaceTarget bounds and may be '' (the workspace root); Worker State paths use the workerStatePath bounds and must not be empty. A case gives its value directly or as unit repeated count times followed by suffix, and the verdict of each rule.",
+  "rules": {
+    "workspaceTarget": {
+      "emptyAllowed": true,
+      "maxBytes": 1024,
+      "maxComponents": 32
+    },
+    "workerStatePath": {
+      "emptyAllowed": false,
+      "maxBytes": 4096,
+      "maxComponents": 128
+    }
+  },
+  "cases": [
+    {
+      "name": "workspace root",
+      "value": "",
+      "workspaceTarget": true,
+      "workerStatePath": false
+    },
+    {
+      "name": "file",
+      "value": "README.md",
+      "workspaceTarget": true,
+      "workerStatePath": true
+    },
+    {
+      "name": "nested path",
+      "value": "src/app/main.go",
+      "workspaceTarget": true,
+      "workerStatePath": true
+    },
+    {
+      "name": "non-ASCII letter before a colon",
+      "value": "\u0436:docs",
+      "workspaceTarget": true,
+      "workerStatePath": true
+    },
+    {
+      "name": "Greek letter before a colon",
+      "value": "\u03bb:x",
+      "workspaceTarget": true,
+      "workerStatePath": true
+    },
+    {
+      "name": "Kelvin sign before a colon is not NFC",
+      "value": "\u212a:docs",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "drive letter",
+      "value": "C:",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "drive letter and path",
+      "value": "c:/windows",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "drive letter without separator",
+      "value": "C:docs",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "colon in a later component",
+      "value": "docs/c:",
+      "workspaceTarget": true,
+      "workerStatePath": true
+    },
+    {
+      "name": "colon after two letters",
+      "value": "ab:c",
+      "workspaceTarget": true,
+      "workerStatePath": true
+    },
+    {
+      "name": "digit before a colon",
+      "value": "1:x",
+      "workspaceTarget": true,
+      "workerStatePath": true
+    },
+    {
+      "name": "leading slash",
+      "value": "/etc",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "UNC prefix",
+      "value": "//server/share",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "trailing slash",
+      "value": "src/",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "empty component",
+      "value": "a//b",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "dot",
+      "value": ".",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "leading dot component",
+      "value": "./a",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "trailing dot component",
+      "value": "a/.",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "parent",
+      "value": "..",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "parent inside",
+      "value": "a/../b",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "dot-prefixed names",
+      "value": ".git/config",
+      "workspaceTarget": true,
+      "workerStatePath": true
+    },
+    {
+      "name": "three dots",
+      "value": "...",
+      "workspaceTarget": true,
+      "workerStatePath": true
+    },
+    {
+      "name": "backslash",
+      "value": "a\\b",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "NUL",
+      "value": "a\u0000b",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "URI",
+      "value": "file://etc",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "URI in a later component",
+      "value": "a/http://x",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "tab",
+      "value": "a\tb",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "newline",
+      "value": "a\nb",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "information separator",
+      "value": "a\u001cb",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "delete",
+      "value": "a\u007fb",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "C1 control is text",
+      "value": "a\u0085b",
+      "workspaceTarget": true,
+      "workerStatePath": true
+    },
+    {
+      "name": "space component",
+      "value": " ",
+      "workspaceTarget": true,
+      "workerStatePath": true
+    },
+    {
+      "name": "inner space",
+      "value": "a b/c d",
+      "workspaceTarget": true,
+      "workerStatePath": true
+    },
+    {
+      "name": "NFC",
+      "value": "caf\u00e9",
+      "workspaceTarget": true,
+      "workerStatePath": true
+    },
+    {
+      "name": "NFD",
+      "value": "cafe\u0301",
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "astral character",
+      "value": "\ud83d\ude00.txt",
+      "workspaceTarget": true,
+      "workerStatePath": true
+    },
+    {
+      "name": "1024 bytes",
+      "repeat": {
+        "unit": "a",
+        "count": 1024,
+        "suffix": ""
+      },
+      "workspaceTarget": true,
+      "workerStatePath": true
+    },
+    {
+      "name": "1025 bytes",
+      "repeat": {
+        "unit": "a",
+        "count": 1025,
+        "suffix": ""
+      },
+      "workspaceTarget": false,
+      "workerStatePath": true
+    },
+    {
+      "name": "1024 bytes of two-byte letters",
+      "repeat": {
+        "unit": "\u0436",
+        "count": 512,
+        "suffix": ""
+      },
+      "workspaceTarget": true,
+      "workerStatePath": true
+    },
+    {
+      "name": "1025 bytes with two-byte letters",
+      "repeat": {
+        "unit": "\u0436",
+        "count": 512,
+        "suffix": "a"
+      },
+      "workspaceTarget": false,
+      "workerStatePath": true
+    },
+    {
+      "name": "4096 bytes",
+      "repeat": {
+        "unit": "a",
+        "count": 4096,
+        "suffix": ""
+      },
+      "workspaceTarget": false,
+      "workerStatePath": true
+    },
+    {
+      "name": "4097 bytes",
+      "repeat": {
+        "unit": "a",
+        "count": 4097,
+        "suffix": ""
+      },
+      "workspaceTarget": false,
+      "workerStatePath": false
+    },
+    {
+      "name": "32 components",
+      "repeat": {
+        "unit": "a/",
+        "count": 31,
+        "suffix": "a"
+      },
+      "workspaceTarget": true,
+      "workerStatePath": true
+    },
+    {
+      "name": "33 components",
+      "repeat": {
+        "unit": "a/",
+        "count": 32,
+        "suffix": "a"
+      },
+      "workspaceTarget": false,
+      "workerStatePath": true
+    },
+    {
+      "name": "128 components",
+      "repeat": {
+        "unit": "a/",
+        "count": 127,
+        "suffix": "a"
+      },
+      "workspaceTarget": false,
+      "workerStatePath": true
+    },
+    {
+      "name": "129 components",
+      "repeat": {
+        "unit": "a/",
+        "count": 128,
+        "suffix": "a"
+      },
+      "workspaceTarget": false,
+      "workerStatePath": false
+    }
+  ]
+}

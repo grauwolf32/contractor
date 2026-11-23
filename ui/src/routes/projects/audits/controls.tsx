@@ -1,0 +1,454 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRef, useState, type ReactNode } from "react";
+
+import {
+  auditMutationAudit,
+  mutateAudit,
+  type Audit,
+  type AuditMutationAction,
+} from "../../../api/audits";
+import { usePublicAPI } from "../../../api/context";
+import { invalidateCrossProject } from "../../../api/cross-project";
+import { queryKeys } from "../../../api/query-keys";
+import { ErrorNotice } from "../../../app/error-notice";
+import { Icon } from "../../../app/icon";
+import { checkStateLabel } from "../../../app/vocabulary";
+import { MutationDraftKeyring } from "../../../mutations/idempotency";
+import { checkKeys } from "./check-data";
+import { auditProfileLabel } from "./labels";
+import { AuditTimeLimitDialog } from "./time-limit-dialog";
+import { AlertDialog, Button, Facts } from "../../../ui";
+
+import { ConflictNotice } from "../../../app/conflict-notice";
+import { OPEN_AUDIT_STATES } from "../../../api/states";
+
+import "./checks.css";
+
+export function AuditMutationNotice({ error }: { error: unknown }) {
+  return (
+    <>
+      <ErrorNotice error={error} reconcileWrite />
+      <ConflictNotice error={error} subject="The check" />
+    </>
+  );
+}
+
+type DestructiveAuditAction = Extract<AuditMutationAction, "cancel" | "delete">;
+
+/** States that accept Stop (cancel). */
+const STOPPABLE: readonly Audit["state"][] = OPEN_AUDIT_STATES;
+
+/**
+ * What Delete does in each state. The Server accepts it in every state:
+ * drafts and ended checks are deleted directly, running work is stopped
+ * first and the deletion intent kept (REV-R163), also while a report waits
+ * for a decision (AUD-R222); a deleting check is already under way.
+ */
+const DELETION: Readonly<
+  Record<Audit["state"], "direct" | "stops-first" | "under-way">
+> = {
+  draft: "direct",
+  active: "stops-first",
+
+  paused: "stops-first",
+  finalizing: "stops-first",
+  cancelling: "stops-first",
+  completed: "direct",
+  cancelled: "direct",
+  failed: "direct",
+  deleting: "under-way",
+};
+
+function auditActionAllowed(
+  audit: Audit,
+  action: DestructiveAuditAction,
+): boolean {
+  return action === "cancel"
+    ? STOPPABLE.includes(audit.state)
+    : DELETION[audit.state] !== "under-way";
+}
+
+function AuditMutationDialog({
+  action,
+  audit,
+  projectName,
+  error,
+  pending,
+  onClose,
+  onConfirm,
+}: {
+  action: DestructiveAuditAction;
+  audit: Audit;
+  projectName: string | undefined;
+  error: unknown;
+  pending: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const allowed = auditActionAllowed(audit, action);
+  const stopping = action === "cancel";
+  const state = checkStateLabel(audit.state).label;
+  return (
+    <AlertDialog
+      className="checks-dialog"
+      title={stopping ? "Stop this check?" : "Delete this check?"}
+      closeLabel="Close confirmation"
+      cancelLabel={stopping ? "Keep the check running" : "Keep the check"}
+      confirmLabel={stopping ? "Stop check" : "Delete check"}
+      pendingLabel={stopping ? "Stopping…" : "Deleting…"}
+      pending={pending}
+      confirmDisabled={!allowed}
+      details={
+        <>
+          <Facts
+            layout="list"
+            className="checks-dialog-facts"
+            items={[
+              {
+                term: "Project",
+                value: (
+                  <>
+                    {projectName ?? audit.projectId}{" "}
+                    <code className="ui-mono">{audit.projectId}</code>
+                  </>
+                ),
+              },
+              {
+                term: "Check",
+                value: <code className="ui-mono">{audit.auditId}</code>,
+              },
+              {
+                term: "Check type",
+                value: (
+                  <>
+                    {auditProfileLabel(audit)}{" "}
+                    <code className="ui-mono">
+                      {audit.profile.name}@{audit.profile.version}
+                    </code>
+                  </>
+                ),
+              },
+              {
+                term: "Current state",
+                value: `${state} · revision ${audit.revision}`,
+              },
+            ]}
+          />
+          {!allowed ? (
+            <div className="checks-notice" data-tone="warning" role="status">
+              <strong>This action is no longer available.</strong>
+              <p>
+                The check is now {state.toLocaleLowerCase()}. Close this
+                confirmation and review its current state.
+              </p>
+            </div>
+          ) : null}
+        </>
+      }
+      error={error === null ? null : <AuditMutationNotice error={error} />}
+      onCancel={onClose}
+      onConfirm={onConfirm}
+    >
+      <p>
+        {stopping
+          ? "Stop this check and cancel its running work. Results already collected stay available. Stopping may take a moment."
+          : DELETION[audit.state] === "stops-first"
+            ? "Stop this check's running work, then permanently delete the check, its results and retained evidence. This cannot be undone. Stopping and deletion run in the background and may take a moment."
+            : "Permanently delete this check, its results and retained evidence. This cannot be undone. Deletion runs in the background and may take a moment."}
+      </p>
+    </AlertDialog>
+  );
+}
+
+interface ControlButton {
+  action: AuditMutationAction;
+  /** Visible text. */
+  text: string;
+  /** Accessible name; starts with the visible text. */
+  name: string;
+  title: string;
+  icon: ReactNode;
+  variant: "primary" | "secondary" | "ghost" | "danger";
+}
+
+function controlButtons(audit: Audit): ControlButton[] {
+  const buttons: ControlButton[] = [];
+  if (audit.state === "draft")
+    buttons.push({
+      action: "start",
+      text: "Start check",
+      name: "Start check",
+      title: "Start check",
+      icon: <Icon name="play" />,
+      variant: "primary",
+    });
+  if (audit.state === "active")
+    buttons.push({
+      action: "pause",
+      text: "Pause new Audit Runs",
+      name: "Pause new Audit Runs",
+      title: "Pause new Audit Runs; admitted work can finish and collect",
+      icon: <Icon name="pause" />,
+      variant: "secondary",
+    });
+  if (audit.state === "paused")
+    buttons.push({
+      action: "resume",
+      text: "Continue",
+      name: "Continue check",
+      title: "Continue check",
+      icon: <Icon name="play" />,
+      variant: "primary",
+    });
+  if (STOPPABLE.includes(audit.state))
+    buttons.push({
+      action: "cancel",
+      text: "Stop",
+      name: "Stop check",
+      title: "Stop check",
+      icon: <Icon name="stop" />,
+      variant: "ghost",
+    });
+  if (auditActionAllowed(audit, "delete"))
+    buttons.push({
+      action: "delete",
+      text: "Delete check",
+      name: "Delete check",
+      title: "Delete check",
+      icon: <Icon name="delete" />,
+      variant: "danger",
+    });
+  return buttons;
+}
+
+/** Why Delete is unavailable: only while the check is being deleted. */
+const DELETING_HINT = "Deleting the check and its retained results…";
+
+/**
+ * Start, Pause new work, Continue, Stop and Delete for one check, as its
+ * state allows; Delete in every state but deleting, as the Server accepts.
+ * Start and Continue ask for a time limit; Stop and Delete ask
+ * for confirmation. Nothing changes before the Server answers; the check and
+ * its project lists are read again afterwards, and the cross-project lists
+ * (Checks, Inbox, the projects list and overview) refresh alongside, also
+ * after a refused request.
+ *
+ * `compact`: labeled icon buttons for list rows. Delete stays visible in every
+ * view; it never needs a single-action overflow menu.
+ */
+export function AuditControls({
+  audit,
+  projectName,
+  compact = false,
+}: {
+  audit: Audit;
+  projectName: string | undefined;
+  compact?: boolean;
+}) {
+  const api = usePublicAPI();
+  const queryClient = useQueryClient();
+  const [confirmation, setConfirmation] = useState<DestructiveAuditAction>();
+  const destructiveRequestInFlight = useRef(false);
+  const [timeAction, setTimeAction] = useState<"start" | "resume">();
+  const [keyring] = useState(
+    () =>
+      new MutationDraftKeyring<{
+        action: AuditMutationAction;
+        auditId: string;
+        revision: number;
+        deadlineSeconds?: number;
+      }>("mutate-audit"),
+  );
+  const mutation = useMutation({
+    mutationFn: ({
+      action,
+      deadlineSeconds,
+    }: {
+      action: AuditMutationAction;
+      deadlineSeconds?: number;
+    }) => {
+      const draft = {
+        action,
+        auditId: audit.auditId,
+        revision: audit.revision,
+        ...(deadlineSeconds === undefined ? {} : { deadlineSeconds }),
+      };
+      return mutateAudit(api, action, {
+        auditId: audit.auditId,
+        expectedRevision: audit.revision,
+        idempotencyKey: keyring.keyFor(draft),
+        ...(deadlineSeconds === undefined ? {} : { deadlineSeconds }),
+      });
+    },
+    onSuccess: async (result) => {
+      setConfirmation(undefined);
+      setTimeAction(undefined);
+      const updated = auditMutationAudit(result);
+      // An in-flight detail fetch started before the mutation would otherwise
+      // overwrite the newer revision when it resolves.
+      await queryClient.cancelQueries({
+        queryKey: queryKeys.audits.detail(updated.auditId),
+        exact: true,
+      });
+      queryClient.setQueryData(
+        queryKeys.audits.detail(updated.auditId),
+        updated,
+      );
+      // The cross-project lists (Checks, Inbox, Issues, Reports, the projects
+      // list and a project's overview) follow; the controls do not wait for
+      // every project's checks to be read again.
+      void invalidateCrossProject(queryClient);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.projects.audits.all(updated.projectId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.audits.allItems(updated.auditId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.audits.allCoverage(updated.auditId),
+          // URL-pinned coverage belongs to its original revision.
+          predicate: (query) => query.queryKey.at(-1) === null,
+        }),
+        // The current counts; list rows read theirs when the list sees the
+        // new revision.
+        queryClient.invalidateQueries({
+          queryKey: checkKeys.workspace(updated.auditId),
+          exact: true,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.audits.report(updated.auditId),
+        }),
+      ]);
+    },
+    onError: async () => {
+      // A refused or lost request may still have changed the check.
+      void invalidateCrossProject(queryClient);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.audits.detail(audit.auditId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.projects.audits.all(audit.projectId),
+        }),
+      ]);
+    },
+    onSettled: () => {
+      destructiveRequestInFlight.current = false;
+    },
+  });
+  function closeConfirmation(): void {
+    if (mutation.isPending) return;
+    mutation.reset();
+    setConfirmation(undefined);
+  }
+  function confirmDestructiveAction(): void {
+    if (
+      confirmation === undefined ||
+      mutation.isPending ||
+      destructiveRequestInFlight.current ||
+      !auditActionAllowed(audit, confirmation)
+    ) {
+      return;
+    }
+    destructiveRequestInFlight.current = true;
+    mutation.reset();
+    mutation.mutate({ action: confirmation });
+  }
+  function activate(button: ControlButton): void {
+    if (button.action === "cancel" || button.action === "delete") {
+      mutation.reset();
+      setConfirmation(button.action);
+    } else if (button.action === "start" || button.action === "resume") {
+      mutation.reset();
+      setTimeAction(button.action);
+    } else {
+      mutation.mutate({ action: button.action });
+    }
+  }
+  const buttons = controlButtons(audit);
+  function renderButton(button: ControlButton) {
+    const iconOnly = compact;
+    return (
+      <Button
+        key={button.action}
+        size="sm"
+        variant={
+          iconOnly && button.variant === "ghost" ? "secondary" : button.variant
+        }
+        icon={button.icon}
+        data-icon-only={iconOnly ? "" : undefined}
+        aria-label={
+          iconOnly || button.name !== button.text ? button.name : undefined
+        }
+        title={button.title}
+        aria-haspopup={button.action === "pause" ? undefined : "dialog"}
+        disabled={mutation.isPending}
+        onClick={() => activate(button)}
+      >
+        {iconOnly ? null : <span>{button.text}</span>}
+      </Button>
+    );
+  }
+  const deleteButton = buttons.find((button) => button.action === "delete");
+  return (
+    <div
+      className="ui-toolbar checks-controls"
+      data-layout={compact ? "compact" : undefined}
+    >
+      {buttons.map((button) => renderButton(button))}
+      {deleteButton === undefined ? (
+        <Button
+          size="sm"
+          variant="danger"
+          data-icon-only={compact ? "" : undefined}
+          aria-label="Delete check"
+          title={DELETING_HINT}
+          icon={<Icon name="delete" />}
+          disabled
+        >
+          {compact ? null : <span>Delete check</span>}
+        </Button>
+      ) : null}
+      {confirmation === undefined &&
+      timeAction === undefined &&
+      mutation.error !== null ? (
+        <div className="checks-controls-error">
+          <AuditMutationNotice error={mutation.error} />
+        </div>
+      ) : null}
+      {timeAction === undefined ? null : (
+        <AuditTimeLimitDialog
+          audit={audit}
+          action={timeAction}
+          pending={mutation.isPending}
+          error={mutation.error}
+          onClose={() => {
+            if (!mutation.isPending) {
+              mutation.reset();
+              setTimeAction(undefined);
+            }
+          }}
+          onConfirm={(seconds) => {
+            if (!mutation.isPending)
+              mutation.mutate({
+                action: timeAction,
+                ...(seconds === undefined ? {} : { deadlineSeconds: seconds }),
+              });
+          }}
+        />
+      )}
+      {confirmation === undefined ? null : (
+        <AuditMutationDialog
+          action={confirmation}
+          audit={audit}
+          projectName={projectName}
+          error={mutation.error}
+          pending={mutation.isPending}
+          onClose={closeConfirmation}
+          onConfirm={confirmDestructiveAction}
+        />
+      )}
+    </div>
+  );
+}

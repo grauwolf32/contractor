@@ -1,0 +1,97 @@
+schema_version: '1.0'
+id: V407-016
+title: Reduce idle claim probes and bound terminal-release head-of-line work
+milestone: server-runtime-review-2026-10
+epic: execution-core
+kind: chore
+introduced_by: V400-001
+priority: P3
+status: completed
+implementation_commit: 51d627a9dc9b6c5a2d092e10238f1168d18011c7
+depends_on: []
+languages:
+- go
+goal: Reduce empty-poll database work and let independent terminal releases progress under bounded concurrency
+  without reducing configured lane utilization.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/execution/scheduler.md
+  finding: internal/scheduler/supervisor.go:65-70 starts all available lanes on an idle refill, giving
+    one serialized claim per lane rather than one empty probe per class. allocation_release.go:103-115
+    returns after one worked/error execution, so a slow live peer can delay recovery for other terminal
+    executions across monitor iterations. ReleaseAll already fans out allocations within a Stage under
+    a cleanup deadline. A fast HTTP409 returns immediately at runtime_client.go:199-201; a lost Runtime
+    may be reclaimed by ReleaseLost, so neither implies a full cleanup timeout on every pass.
+  validation: 'Validated against main dc7012e8 on 2026-10-23. Default 1+2 lanes and maximum 32+32 bound
+    the current idle claims to 3/64 per poll. The serial recovery mechanism is present, but an N-times-timeout-per-pass
+    claim is inaccurate: one pass normally processes one worked execution. supervisor result.worked is
+    reported after progressOneClaim, not immediately on claim admission.'
+  siblings: Preserve independent model/tool pools, claim renewal/release and terminal release ownership
+    shared with active lanes. The Eval coordinator already issues one batch claim per poll; no speculative
+    rewrite of that loop is needed.
+plan:
+- Introduce a refill protocol that stops after an empty claim for a class but exposes successful claim
+  admission separately from completion, allowing all configured lanes to fill while their work is still
+  running.
+- Process terminal recovery with an explicitly bounded number of concurrent Stage operations, keeping
+  the existing per-Stage gate, release_attempted_at rotation, operation budgets and per-batch cleanup
+  deadlines. Choose and document the bound with a maximum in-flight work test.
+- Use barriers and an injected clock to show an empty pool makes one claim per class, a busy pool fills
+  all lanes before the first completion, and a healthy terminal Stage progresses while another peer remains
+  deliberately blocked.
+- Cover immediate409, lease-lost reclamation, timeout, storage error and shutdown separately; do not infer
+  a network delay from an HTTP conflict.
+- Exercise claim/refill admission and release_attempted_at rotation against real PostgreSQL with synchronized
+  peers; a run with the database unset or the integration suites excluded cannot satisfy acceptance.
+scope:
+  in:
+  - Idle claim probing/refill coordination and bounded independent terminal release progression.
+  out:
+  - Changing lane limits, claim/lease semantics, Runtime release protocol, cleanup durations or configured
+    polling intervals.
+acceptance_criteria:
+- id: A1
+  text: One idle poll with 1 model and 2 tool lanes issues two claim attempts; after successful claim
+    admissions, all configured lanes can be active before any Stage completes. Counts and synchronization
+    establish both properties.
+- id: A2
+  text: With one deliberately blocked live-peer release and healthy independent terminal work, the healthy
+    release progresses before the blocked operation is allowed to finish; observed in-flight Stage operations
+    never exceed the documented bound.
+- id: A3
+  text: Immediate409 handling, ReleaseLost, per-Stage duplicate-call prevention, retry rotation, cancellation
+    and shutdown retain their existing outcomes; tests use injected clocks and synchronization rather
+    than elapsed-time thresholds. Claim/refill and release rotation are covered against real PostgreSQL;
+    skipped database tests do not satisfy this criterion.
+tests:
+- command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/scheduler/...
+    ./internal/controlplane/...
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local); local PostgreSQL 17.11 database contractor_test_d with isolated per-test schemas and all migrations.
+  revalidation: 'Re-verified on base 07b3ddcd: supervisor.go fillLanes started every free lane of both pools on each poll and wake (1 model + 2 tool lanes: three claim probes per idle poll, at most 64 at the maximum lane sizes); allocation_release.go recoverTerminalRelease returned after the first Stage that worked or failed, so one Stage whose Runtime Agent held its release until the cleanup deadline delayed every other terminal release of the listing. A fast HTTP 409 and ReleaseLost already returned without a cleanup timeout. All claims held.'
+  commands:
+  - 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/scheduler/... ./internal/controlplane/... passed (scheduler, controlplane); the same run with -v reported 325 passing tests, no failure and no skip.'
+  - go test -race -tags=integration -count=1 ./internal/scheduler/ passed; the new lane and pacing tests also passed repeatedly with -race -count=40 -cpu 1,2,8.
+  - go build ./... and go vet -tags=integration,e2e ./internal/scheduler/... ./internal/controlplane/... passed.
+  - make lint passed (after make docs-dependencies and make tasks-backlog).
+  - 'Regression evidence (old behaviour restored in place, then the files restored): with the old fill (every free lane at each poll), TestSchedulerSupervisorIdlePoolsClaimOncePerRound failed ("round 1 claims = map[tool:2]") and TestPostgresSchedulerSupervisorClaimsOncePerIdleRoundAndFillsLanes failed ("idle round 2 claims = map[tool:2]"); TestSchedulerSupervisorFillsEveryLaneBeforeAnyCompletes passes on both versions and guards utilization. With the old serial recovery monitor, all three TestPostgresTerminalReleaseRecovery* tests failed (two waiting for a Runtime release behind the blocked Stage, one waiting for the healthy durable release).'
+  database_tests_configured: true
+  evidence:
+    A1: 'TestSchedulerSupervisorIdlePoolsClaimOncePerRound (1 model + 2 tool lanes, manual poll clock, four rounds): exactly one claim attempt per pool per round, 4 + 4 in total. TestSchedulerSupervisorFillsEveryLaneBeforeAnyCompletes (2 and 3 tool lanes): every Run is held in its lane, no lane ends and every configured lane claimed before any completion. TestPostgresSchedulerSupervisorClaimsOncePerIdleRoundAndFillsLanes on the real store: two idle rounds cost 2 + 2 claim statements; with five runnable Runs all three lanes claim and hold their Runs before any completes (model 3, tool 4 attempts in total) and the Runs stay running without a claim after shutdown. TestSchedulerSupervisorRotatesDeferredOwnerWithoutHotLoop still holds: a deferred lane is not replaced before the next poll.'
+    A2: 'TestPostgresTerminalReleaseRecoveryBoundsOperationsAndPassesBlockedPeer: ten terminal attempts on PostgreSQL through the production RuntimeBatchController, the first four blocked in their Runtime release; exactly four operations start and no other Stage is called; after three are let go, the other nine Stages are released (one Runtime call each) while the first stays blocked; the sampled maximum of Stage operations in flight is 4 (LIM-SCH-20) and the monitor listed 11 times.'
+    A3: 'TestPostgresTerminalReleaseRecoveryRotatesFailuresBehindUnattemptedStages: a failed listing waits for the poll; an immediate HTTP 409 frees its slot without listing again and without a cleanup timeout; after the poll the order is healthy, lost (ReleaseLost removes the grant of an expired control lease), then the 409 Stage, rotated by release_attempted_at; a release past its cleanup deadline keeps its grant and is retried; per-Stage calls are 409 x3, timeout x2, others x1, in flight never above 4. TestPostgresTerminalReleaseRecoveryStopJoinsOperations: stopping does not return while an operation is in its release, the operation then completes its durable marker, a Stage whose gate a lane holds is never called. Existing TestTerminalReleaseRecoverySkipsStageOwnedByRunLane, TestTerminalReleaseRecoveryMarksExpiredUnreachableRuntimeReleased, TestTerminalReleaseRecoveryForgetsPreparationSecrets, TestPostgresCancellationCleanupFailuresKeepRetries, the claim-loss, cancellation and Immediate409 tests pass. All tests use a manual clock and channels; no elapsed-time assertion.'
+  cardinality: 'Idle claims: one per pool per poll or wake (was one per free lane, up to 32 per pool). Terminal release recovery: at most 4 Stage operations at once (LIM-SCH-20), each over the existing bounded least-recently-attempted listing and one release batch per Stage.'
+  siblings: 'The lane release path (releaseTerminal) and its forget call are unchanged; recovery still forgets kept preparation secrets first in recoverTerminalExecution, now reached by every recovery operation, and the monitor joins every operation on stop. The Eval coordinator already issues one batch claim per poll (ruled out by the task). Audit and Eval controller claims use ControllerClaims and are unaffected. RunOnce keeps its deterministic single-lane tick; its recovery helper runs the same bounded operations serially.'
+  spec: 'New SCH-R180 (bounded terminal release recovery, with decision, alternative and reopen condition), SCH-R181 (fill rounds, with decision and reopen condition), LIM-SCH-20 and LIM-SCH-21; FAIL-SCH-9 now specifies the bounded retry and the cancelled outcome. No migration.'
+  declined: 'The paced recovery tests use a fake Control Plane registry and Runtime behind the production RuntimeBatchController so release calls can be blocked; real ReleaseLost reclamation stays covered by TestTerminalReleaseRecoveryMarksExpiredUnreachableRuntimeReleased. Batching release markers per owned Stage is left to V409-011. Lane limits, claim and lease semantics, the Runtime release protocol, cleanup durations and polling intervals are unchanged (scope.out).'

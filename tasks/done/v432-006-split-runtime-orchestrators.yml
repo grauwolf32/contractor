@@ -1,0 +1,102 @@
+schema_version: "1.0"
+id: V432-006
+title: "Separate invocation execution and allocation resource operations"
+milestone: runtime-ownership-2026-11
+epic: execution-core
+kind: chore
+introduced_by: V17-002
+priority: P3
+status: completed
+depends_on: ["V432-001", "V432-002", "V432-003", "V432-004", "V432-005", "V432-007"]
+languages: [python]
+goal: "Worker and Allocation orchestrators expose their lifecycle clearly through focused ownership, execution, completion and resource-operation modules."
+context:
+  authority: >-
+    User decision 2026-11-02: implement the accepted points 1–5 from the Runtime
+    review: shared async joining, typed resources, CAS reconciliation, HTTP rules
+    and responsibility-based orchestrator extraction. Confirmed lifecycle and
+    HTTP defects have their own tasks in this package.
+  specification:
+    - docs/spec/execution/runtime-agent.md
+    - docs/spec/execution/worker.md
+    - docs/spec/platform/failure-model.md
+  finding: "worker/runtime.py (~1900 lines) and allocation/service.py (~1300) combine independent responsibilities; existing sessions, budget, completion and cleanup mechanisms must remain the owners."
+  integration_prerequisite: >-
+    V432-007 repairs the inherited stale export-exception owners that prevent
+    make lint reaching Runtime checks; it changes no Go behavior or exception count.
+  boundary: >-
+    Common modules own mechanics; callers retain deadlines, fencing, authority,
+    failure classification and semantic completion. Keep the model finalizer,
+    configured model, Artifact API and allocation state/idempotency contracts.
+    No generic retry or lifecycle framework and no new wire fields.
+  scale_and_failure: >-
+    No new concurrent fan-out or unbounded collection reads. Join only work
+    already owned under the existing operation deadline; retain caller error
+    precedence on success, failure, cancellation and timeout. CAS replays exact
+    bytes once and reads under the current domain byte ceiling.
+scope:
+  in:
+    - "Extract invocation ownership, ADK execution and completion into concrete collaborators with explicit inputs; keep the Runtime facade and existing completion contracts."
+    - "Extract allocation preparation/resource cleanup operations; AllocationService retains slot transitions, idempotency and terminal reports."
+    - "Document ownership boundaries and run all Runtime tests except the two independently tracked macOS baseline defects; run lint and architecture contracts."
+  out:
+    - Removing the model result finalizer, Memory read parallelism, A2A retention and Gateway/OTLP response limits.
+    - Reopening V425-034, changing public/wire contracts or modifying unrelated macOS baseline failures V425-001/002.
+acceptance_criteria:
+  - id: A1
+    text: "Extract invocation ownership, ADK execution and completion into concrete collaborators with explicit inputs; keep the Runtime facade and existing completion contracts."
+  - id: A2
+    text: "Extract allocation preparation/resource cleanup operations; AllocationService retains slot transitions, idempotency and terminal reports."
+  - id: A3
+    text: "Document ownership boundaries and run all Runtime tests except the two independently tracked macOS baseline defects; run lint and architecture contracts."
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_allocation.py tests/test_podman_allocation.py tests/test_adapter_host.py tests/test_agent_skill_lifecycle.py tests/test_workspace_provider.py
+    covers: [A1, A2, A3]
+  - command: cd runtime && uv run ruff check . && uv run ruff format --check . && uv run lint-imports --no-cache --no-logo
+    covers: [A1, A2, A3]
+  - command: cd runtime && uv run pytest -W error tests --deselect=tests/test_projectfs_local_io.py::test_limits_deadline_names_and_binary_classification --deselect=tests/test_code_analysis_graph.py::test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_notes:
+  - >-
+    InvocationLifecycle owns the lock, task, absolute deadline and budget through
+    joined session release. AdkTurnRunner owns SDK events and history settlement.
+    WorkerCompletionPipeline owns ordinary/Audit completion, finalizer, terminal
+    summarization and result policy. The Runtime keeps admission, phase sequencing,
+    compaction, terminal State and stop; no Runtime proxy or mixin was introduced.
+  - >-
+    AllocationPreparation exposes typed partial acquisitions to the existing
+    service rollback and returns a complete uncommitted context. Resource cleanup
+    closes/erases the context; AllocationService retains slot transitions, command
+    replay, fencing, cleanup task retry and reports. Existing V425-034 is not taken
+    over or closed. Callers use narrow dependencies and callbacks.
+  - >-
+    Compared with the reviewed f4a9f6277 source, worker/runtime.py changes from
+    1907 to 1112 lines and allocation/service.py from 1301 to 881 lines. Extracted
+    modules add explicit construction/imports; no overall code-size or speedup
+    claim is made. docs/development.md records the ownership with two diagrams.
+  - >-
+    The model finalizer and wire contracts remain in place. Regression checks
+    also preserve cleanup-child cancellation handling and immediate failed-session
+    fencing after switching from shield to the shared outcome-neutral join.
+verification: >-
+  Required Allocation selection: 133 passed, 15 Linux/Podman-only skips. Worker
+  extraction selection: 305 passed. Additional cleanup-cancellation policy
+  selection: 202 passed. Final complete Runtime selection with warnings as
+  errors: 5812 passed, 133 skipped, 2 explicitly deselected in 351.59 seconds.
+  The deselections are the independently tracked macOS baseline failures
+  V425-001 (APFS opaque-leaf normalization) and V425-002 (Trailmark PATH_MAX);
+  they are not counted as passes or repaired here. Runtime skips retain their
+  existing Linux/Podman and explicit real-engine/process/live-Gateway gates.
+  make lint passed, including generated files, Go vet/staticcheck, export
+  ownership, UI checks, deploy gates, spec/tasks and all four Runtime import
+  contracts. The script unit-test portion reports one existing skip. The
+  pinned Ansible tools ran from the existing uv cache with UV_OFFLINE=1 and
+  UV_PYTHON=3.13 after an online PyPI connection timeout; no check was disabled.
+  Ruff check/format, generated dependency graph and git diff --check pass.
+implementation_commit: f881749bb6b5761cd8615b286430b565d8397ef8
+renumbering: >-
+  Integration 2026-11-02: main independently allocated V429-001 through
+  V429-018 to UI work. Preserve those published identities and move this
+  Runtime package to V432 with original implementation commits unchanged.

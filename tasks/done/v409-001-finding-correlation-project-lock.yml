@@ -1,0 +1,240 @@
+schema_version: "1.0"
+id: V409-001
+title: "Retry definite transaction conflicts in Audit finding import and retention"
+milestone: sql-review-2026-10
+epic: findings
+kind: defect
+introduced_by: V397-003
+priority: P2
+status: completed
+depends_on: []
+languages: [go, sql]
+goal: "Apply the existing finite retry policy to replay-safe Audit finding intake transactions while preserving Project correlation and deletion fences."
+context:
+  review: "docs/research/2026-10-23-sql-review.md, finding A1; narrowed by independent validation on 2026-10-23."
+  specification:
+    - docs/spec/findings/findings.md#FND-R177
+    - docs/spec/findings/findings.md#FND-R178
+    - docs/spec/platform/persistence.md
+    - docs/spec/platform/failure-model.md
+    - docs/spec/artifacts/retention-and-deletion.md
+  severity: medium
+  validation: >-
+    Partial finding on main 1d533b2db885e0162ebabb01d36470f139546009.
+    A real PostgreSQL transaction holding Project FOR SHARE made
+    ImportIntoAudit return SQLSTATE 40001 without a local retry. The actual
+    Worker Service.Submit succeeded under the same lock: it creates a
+    proposal receipt, not an Audit hold or correlation membership. The
+    missing finite retry is confirmed; a model-facing failure and a need
+    to remove the Project fence are not. Relevant source is unchanged at
+    main e4480ace5ba68e665535a30ee23f4eb4c3a0ceb6.
+  finding: >-
+    internal/findingintake/postgres.go:372,445 use InTx for ImportIntoAudit
+    and retainAuditCollectionPrefix. Both reach
+    lockFindingImportAuthority at :519-550, including the early Project
+    NOWAIT lock at :547. Migration
+    000024_finding_automatic_correlation.sql:147-164 converts contention
+    on that lock into the existing retryable 40001. FND-R177 explicitly
+    requires finite transaction retries; these two callbacks currently
+    return the first conflict to the owner import or collection caller.
+    internal/auditimport/importer.go:372 and
+    internal/auditcontroller/collection.go:18-25 already retain the
+    retryable failure rather than silently dropping the proposal.
+  provenance: >-
+    V397-003, commit 6b5cc04e07a1c76f2eb8df3cd42f9222171cc98a,
+    introduced the early correlation fence at postgres.go:543-548 into
+    the existing non-retrying transaction boundaries. Earlier retention
+    chunking and deterministic rejection belong to V282-001 and must stay.
+  siblings: >-
+    RetainAuditCollectionBatch may call retainAuditCollectionPrefix again
+    to isolate one permanently invalid proposal; that is distinct from a
+    storage-conflict retry. RejectAuditCollection at postgres.go:699 has
+    only the Audit lock and a rejection event, not this Project correlation
+    fence; do not change it merely because it uses InTx.
+    collection_publication.go:51 already uses InTxWithRetry. Worker
+    submission in service.go:133-269/privateartifacts/finding_handlers.go:47-64
+    is outside this failure path. Existing correlation, source deletion,
+    review and purge writers must retain their FND-R177/R178 invalidations.
+    V407-002 and V407-005 touch the same retention/authority boundaries;
+    preserve their current guarantees if they land first.
+plan:
+  - >-
+    Before editing, trace both complete callbacks and their artifact,
+    finding, event and AfterCommit effects. Record why they can be replayed
+    after a definite PostgreSQL abort. Reuse InTxWithRetry with its current
+    three-attempt maximum and operation context; reset captured hold,
+    replayed and committed state at each attempt. Do not wrap a whole
+    already-partly-committed collection page in a new transaction.
+  - >-
+    Keep Run then Audit authority, the early Project FOR NO KEY UPDATE
+    NOWAIT lock, the existing Project revision field and all statement
+    invalidation semantics. Retain MaxAuditReceiptBatchSize=200 and the
+    existing 512-work threshold: start another proposal only below the
+    threshold, allowing the last complete proposal to cross it. Retry one
+    such transaction without recounting earlier committed chunks.
+  - >-
+    Add real-store service-path tests with transaction/tracer barriers:
+    release a contested Project lock after the first definite abort and
+    before the next attempt; separately retain contention through all
+    attempts. Check committed receipts, holds, artifacts, findings,
+    revisions and events, including replay and a permanently invalid
+    proposal between valid proposals. A deadline only guards a hung test;
+    correctness uses observed attempts and synchronization, not elapsed time.
+  - >-
+    Cover Project deletion with competing parent/Audit locks, cancellation
+    and the existing error mappings. Keep the correlation contract tests
+    for review, additional contribution, source deletion and purge. Test
+    ambiguous commit classification with the existing transaction helper
+    fault mechanism; no external effect or uncertain commit may cause a
+    blind callback replay.
+failure_outcomes:
+  - operation: One owner-import or collection-prefix transaction
+    success: "One atomic commit; exact replay returns the existing result without another membership, revision or event."
+    permanent: "Validation, closed/deleting authority and business conflicts retain their existing classes and do not consume storage retries. Per-proposal deterministic rejection still isolates that proposal."
+    retryable: "Only definite PostgreSQL 40001/40P01 aborts retry, at most three transactions within the original context. Exhaustion remains classified for the existing HTTP 503 with Retry-After or controller retry."
+    ambiguous: "Transport or uncertain commit errors are returned unchanged; reconcile the existing receipt/natural key before another mutation."
+    cancelled: "Stop new attempts, finish rollback/join, and preserve earlier committed collection chunks."
+    timeout: "Keep the existing operation/transaction budget and error classification; no extra retry deadline or reset per attempt."
+scope:
+  in:
+    - "Replay-safe finite retries for ImportIntoAudit and retainAuditCollectionPrefix, with real-store contention, replay, chunk-progress and deletion regression tests."
+    - "Preservation tests for existing correlation revisions, exact artifact retention and caller error classification."
+  out:
+    - "New fence tables, advisory locks, claims, timestamp-derived revisions or changes to correlation membership/review/purge invalidation."
+    - "Runtime proposal-client retry policy, arbitrary-contention zero-conflict promises, or trigger cleanup unrelated to the retry defect."
+acceptance_criteria:
+  - id: A1
+    given: "A valid owner import or collection prefix, with the first Project fence attempt forced to abort on real PostgreSQL and the lock released before the next attempt."
+    when: "The real service operation completes under a synchronized schedule."
+    then: "It retries and commits exactly once, returns the correct result and advances revisions/events only for committed mutations; replay is a no-op. The retry assertion fails on the original InTx paths."
+  - id: A2
+    given: "Persistent fence contention, a cancelled context, a permanent validation/authority error, or an injected ambiguous commit error."
+    when: "The same service entry points run."
+    then: "Persistent definite conflicts start no more than three transactions; cancellation prevents further attempts; permanent and ambiguous errors do not retry. Existing public/controller classifications remain intact and rollback is joined."
+  - id: A3
+    given: "A 200-receipt collection page spanning multiple bounded transactions, including a permanently invalid receipt and a later forced storage conflict."
+    when: "Collection resumes and the existing natural keys are replayed."
+    then: "Earlier committed progress remains, each valid receipt is retained once, only the invalid proposal is rejected, and the existing per-transaction work threshold and allowed final-proposal overshoot are unchanged."
+  - id: A4
+    given: "Synchronized Project deletion versus intake, and existing review, contribution, source-deletion and Audit-purge fixtures."
+    when: "The real mutations run, including deletion after authority is acquired."
+    then: "The early nonblocking fence prevents the parent/Audit lock cycle, no forbidden late write commits, and every required Project/Audit revision change and replay exception remains correct."
+  - id: A5
+    given: "The completed change and regenerated task backlog."
+    when: "Repository lint and architecture/SQL-placement checks run."
+    then: "They pass without adding production-only test hooks, new lock mechanisms or stale task metadata."
+tests:
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?set a disposable PostgreSQL database URL}" go test -tags=integration -count=1 ./internal/findingintake/... ./internal/auditimport/... ./internal/auditcontroller/... ./internal/auditstore/... ./internal/projectstore/... ./internal/httpapi/public/... ./internal/persistence/postgres/...'
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A5]
+implementation_commit: 3b654ad7e6798d7b331a843866057757998e863d
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local); PostgreSQL 17.11 database contractor_test_a
+    with disposable per-test schemas; branch claude/rv-a on base d7b825c4, with claude/review-v407-v409 (07b3ddcd,
+    including V409-005) merged before the review follow-up.
+  commands:
+  - CONTRACTOR_TEST_DATABASE_URL=postgres://.../contractor_test_a go test -tags=integration -count=1
+    ./internal/findingintake/... ./internal/auditimport/... ./internal/auditcontroller/... ./internal/auditstore/...
+    ./internal/projectstore/... ./internal/httpapi/public/... ./internal/persistence/postgres/... passed (every
+    package with tests ok; the new tests run with -v report PASS and no SKIP).
+  - make lint passed (after make tasks-backlog), including staticcheck U1000, testonlyexports, spec, task and
+    release-graph checks.
+  - go test -count=1 ./internal/archtest/... passed; go test -count=1 ./internal/persistence/ fails only the
+    pre-existing TestSQLAccessFollowsTableOwnership (internal/cli/scan_sweep_remote.go:196 reads projects), which
+    also fails on the base and is untouched here; with that test skipped the package, including SQL placement,
+    passes.
+  - go vet (with and without -tags=integration) of internal/findingintake, internal/auditimport and
+    internal/httpapi/public passed.
+  - 'Review follow-up (after merging claude/review-v407-v409): the task integration command above passed again;
+    CONTRACTOR_TEST_DATABASE_URL=... go test -tags=integration -count=1 ./internal/auditservice/... passed;
+    TestPostgresFindingDecisionReplaysProjectFenceConflict run with -v reports every subtest PASS and no SKIP;
+    go test -count=1 ./internal/archtest/... passed and ./internal/persistence/ fails only the pre-existing
+    TestSQLAccessFollowsTableOwnership; make lint passed.'
+  database_tests_configured: true
+  evidence:
+  - 'A1: TestPostgresOwnerImportReplaysProjectFenceConflict holds the Project FOR SHARE through a real Run creation,
+    releases it after the first fence abort and sees exactly two transactions, one committed hold, one finding,
+    one finding.proposed event and one Audit and correlation revision step; an exact replay changes nothing. The
+    collection prefix case is the transient subtest of TestPostgresCollectionPageReplaysOnlyItsConflictedTransaction.'
+  - 'A2: TestPostgresFindingIntakeReplaysOnlyDefiniteConflicts (owner import and collection): persistent contention
+    starts exactly three transactions, returns the transaction conflict, releases the Audit lock and changes no
+    state; cancellation after the first conflict starts no second transaction; invalid input, a foreign owner and a
+    closed Audit keep ErrInvalid / ErrNotFound / ErrAuditClosed without a retry; a lost commit response (pool
+    DialFunc fault after the commit message is sent) is returned once, unclassified as a conflict, with the commit
+    applied on the server and reconciled by an exact replay. TestPostgresProjectFenceConflictKeepsExecutionCollecting
+    (auditimport) shows exhaustion keeps the execution collecting with the proposal source-held, and the next Collect
+    accepts it; TestTransactionConflictResponsesConformToOpenAPI now covers the import endpoint (503
+    storage_transaction_conflict, retryable).'
+  - 'A3: TestPostgresCollectionPageReplaysOnlyItsConflictedTransaction retains a 200-receipt page (199 children with
+    8 evidence revisions each, one with a missing evidence revision) in transactions of 20, 52, 52, 52 and 23 holds.
+    A conflict forced on the fourth transaction replays only it; a persistent one leaves the first three transactions
+    (72 holds and the one rejection) committed, and a resumed collection retains the rest. Every hold is distinct,
+    the invalid receipt is rejected once, and no proposal starts at or above 512 work.'
+  - 'A4: TestPostgresFindingIntakeSerializesWithProjectDeletion runs the real BeginDeletion against an import that
+    holds the source Run and the Audit: the fence aborts the import without a deadlock, deletion commits, and the
+    replayed attempt fails ErrScopeDeleting with no late write; with cancellation it stops after one transaction;
+    an import that took the fence first commits before deletion. Existing correlation, contribution, source-deletion,
+    review and purge suites in findingintake pass unchanged.'
+  - 'Commits: 2cd8e347 retried finding intake; after the review, c040204a retried DecideFinding and 3b654ad7 made
+    its test detect attempts through the shared advisory helpers (TestKeyedMutationsUseTheSharedHelpers), which
+    makes 3b654ad7 the implementation commit.'
+  - 'Every new findingintake test fails with importTransaction reverted to InTx (temporary local change, restored):
+    the owner and collection conflict cases return 40001 after one transaction. The deletion cases also fail with the
+    early fence removed (40P01 deadlock between deletion and the import, and no fence before deletion). The auditimport
+    and public contract tests also pass on InTx: they guard the caller classifications, not the retry.'
+  - 'Review follow-up, DecideFinding: TestPostgresFindingDecisionReplaysProjectFenceConflict (auditservice) holds
+    the Project FOR SHARE through a real child Run creation in that Project. Released after the first projection
+    abort, the decision commits once in two attempts (one decision, one review.decided event, a decided request, one
+    finding, Audit and Project correlation revision step) and its idempotent replay changes nothing; persistent
+    contention returns the conflict after three attempts with no state change and the still-pending request decides
+    after release; cancellation after the conflict stops after one attempt; a stale request revision is
+    ErrPrecondition in one attempt. With DecideFinding back on InTx the first three subtests fail (40001 after one
+    attempt). Replay safety: the advisory lock, decision with its idempotency key, request, finding and Audit
+    revisions and events are statements of the aborted transaction, nothing leaves the process before commit, and
+    decisionID, requestID, findingID, replayed and expired are reset per attempt.'
+  - 'Replay safety: every effect of both callbacks is a statement of the aborted transaction (locks, exact forks,
+    frozen direct-verification writes, holds and trigger rows); AfterCommit effects are discarded on rollback; a
+    filesystem candidate blob of an aborted attempt is an ordinary orphan; the direct-verification cache keeps only
+    immutable terminal Run output or non-conflict read errors; hold, replayed and committed are reset per attempt.'
+  siblings_changed:
+  - ImportIntoAudit and retainAuditCollectionPrefix (internal/findingintake/postgres.go) share importTransaction,
+    which uses InTxWithRetry.
+  - 'Review follow-up: auditservice DecideFinding (finding_review.go) uses InTxWithRetry. Its ProjectFindingDecision
+    (auditstore pgstore review_write.go) updates audit_findings, whose statement trigger
+    contractor_finding_correlation_updated takes the NOWAIT Project fence; FND-R177 and FAIL-REV-1 now include it.'
+  - docs/spec/platform/failure-model.md FAIL-REV-7 and FAIL-AUX-3 state permanent, retryable, ambiguous, cancelled
+    and timeout outcomes; AUX-R49 and FND-R177 state that only the aborted transaction replays. No requirement ID
+    was added.
+  siblings_ruled_out:
+  - 'The fence is taken only by the migration 000024 statement triggers: an INSERT, DELETE or changed UPDATE of
+    audit_findings, an INSERT or DELETE of audit_finding_contributions, and a change of
+    finding_proposal_receipts.source_run_deleted_at (the hold-admission trigger inserts findings and contributions).
+    Their Go writers are finding intake (now retried), DecideFinding (now retried), the Audit collection receipt,
+    direct assessment inside finding intake, Audit purge and Run deletion.'
+  - RejectAuditCollection takes no Project fence and keeps InTx, per the task.
+  - collection_publication.go already uses InTxWithRetry. Run deletion (rundeletion.Deleter, MarkSourceRunDeleted)
+    and Audit purge (ClaimStore.PurgeClaimed) run through persistencepostgres.Within on the pool, which is
+    InTxWithRetry.
+  - 'The Audit collection receipt (ClaimStore.Collect, collectAuditExecutionSQL updating audit_findings) is one
+    statement on the pool; a fence conflict leaves the execution collecting without a receipt for the next
+    reconcile (AUX-R96, FAIL-AUX-2), as TestPostgresProjectFenceConflictKeepsExecutionCollecting shows for
+    retention.'
+  - 'These InTx transactions never reach the fence. CreateFindingReview (finding_review.go:29) locks the finding
+    FOR UPDATE, which fires no trigger, and writes only review requests, review events and the Audit revision.
+    DecideActionReview (action_review.go:29) decides item-action and report requests and writes review requests and
+    decisions, execution items, the Audit and events, never a finding table. Audit start (start.go:65) and start
+    staging (start.go:127) write a starting Audit, which has no findings or holds; their artifact admissions take
+    the Project row only FOR SHARE through contractor_require_active_project, the waiting side of the fence.'
+  declined:
+  - 'failure_outcomes.retryable says exhaustion keeps "HTTP 503 with Retry-After"; storage_transaction_conflict
+    never had a Retry-After header in the Server or OpenAPI. FND-R177, FND-R179 and FAIL-FND-6 now name the
+    retryable 503 storage_transaction_conflict (PER-R16) without Retry-After; adding the header would be a separate
+    API change for every endpoint.'
+  observations:
+  - 'A lost commit response surfaces from pgx as a "conn closed" error that persistencepostgres.Classify returns as
+    ClassNone, so the public API answers the retryable 500 internal_error (API-R73). PER-R13 classes a lost or
+    refused connection as unavailable, so Classify and PER-R13 disagree for pgconn.ErrConnClosed-style errors. That
+    classification is shared by every transaction and is not changed here; the integrator tracks it as a follow-up
+    task.'

@@ -1,0 +1,6 @@
+{
+  "description": "Sanitized Caido sitemap shapes. Repeat the root or descendant node with unique decimal IDs for each cardinality; no live target, endpoint or credentials are retained.",
+  "cardinalities": [0, 100, 101, 107, 1000],
+  "root": {"id":"1","label":"target.example","kind":"DOMAIN","hasDescendants":true,"metadata":{"isTls":true,"port":443}},
+  "descendant": {"id":"2","label":"api","kind":"PATH","hasDescendants":false,"parentId":"1","metadata":{}}
+}

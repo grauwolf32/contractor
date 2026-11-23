@@ -1,0 +1,405 @@
+{
+  "modelPolicies": [
+    {
+      "model": "worker-model",
+      "ref": {
+        "policyId": "minimal",
+        "version": "1",
+        "digest": "sha256:3d82b53bd86f9f3605c780ebbb6936b48f38cb724f09a4b1ba91c3f6562536f1"
+      }
+    },
+    {
+      "model": "worker-model",
+      "ref": {
+        "policyId": "bounded",
+        "version": "2026.10+b1",
+        "digest": "sha256:8991b1238e1b8b3a67b652ba1bf0541bd5184db614444aeb65b5075a3f284090"
+      },
+      "contextWindowTokens": 131072,
+      "maxOutputTokens": 4096,
+      "maxModelCalls": 8,
+      "maxToolCalls": 16,
+      "maxWorkerCalls": 4,
+      "maxTotalTokens": 32768,
+      "temperature": 0.1
+    },
+    {
+      "model": "worker-model",
+      "ref": {
+        "policyId": "zero-temperature",
+        "version": "1",
+        "digest": "sha256:88ba7ac80ba7daa78d79b6cbd2e4cdc0945c12d27d2d477a9c230a87f36010ac"
+      },
+      "temperature": 0.0
+    },
+    {
+      "model": "worker-model",
+      "ref": {
+        "policyId": "integral-temperature",
+        "version": "1",
+        "digest": "sha256:cf417a2ed108c26e666e64eb18a3585dee1f067f95c68fb9a90865bd9e74b3ce"
+      },
+      "temperature": 1.0
+    },
+    {
+      "model": "worker-model",
+      "ref": {
+        "policyId": "binary-fraction",
+        "version": "1",
+        "digest": "sha256:7884227814dea07a0bbe028919c4b4331b72694579acf43710676267074fbf11"
+      },
+      "temperature": 0.30000000000000004
+    },
+    {
+      "model": "worker-model",
+      "ref": {
+        "policyId": "small-temperature",
+        "version": "1",
+        "digest": "sha256:d7108a018bd9c6a6091d4f60771d8f9e6502250993c8f64e3db22fcc28e066dd"
+      },
+      "temperature": 1e-07
+    },
+    {
+      "model": "worker-model",
+      "supportsImages": true,
+      "ref": {
+        "policyId": "vision-confirmed",
+        "version": "1",
+        "digest": "sha256:10c5ce67c078c875215a74963c957909f4978823d736687790c84cdea784ae49"
+      }
+    },
+    {
+      "model": "worker-model",
+      "supportsImages": false,
+      "ref": {
+        "policyId": "vision-text-only",
+        "version": "1",
+        "digest": "sha256:f6056f859e4f69f73f48659bb15c18d6774da0fab354f33d9e9210234410b172"
+      }
+    },
+    {
+      "model": "worker-model",
+      "supportsImages": null,
+      "ref": {
+        "policyId": "vision-unconfirmed",
+        "version": "1",
+        "digest": "sha256:bb4d475655e3aac7379243dfe66007d73dbc6979dd428ae4980a05c9889bc6a9"
+      }
+    }
+  ],
+  "llmGatewayConfigs": [
+    {
+      "credentialManager": {
+        "implementation": "litellm-virtual-keys@1",
+        "managementUrl": "http://127.0.0.1:4000"
+      },
+      "protocol": "openai-compatible@1",
+      "ref": {
+        "digest": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+        "gatewayId": "local-litellm",
+        "version": "1"
+      },
+      "url": "http://127.0.0.1:4000/v1"
+    },
+    {
+      "credentialManager": {
+        "implementation": "litellm-virtual-keys@1",
+        "managementUrl": "http://127.0.0.1:4000"
+      },
+      "failureSignatures": {
+        "modelUnavailable": [
+          {
+            "messageEquals": "model 'worker' not found",
+            "status": 404
+          },
+          {
+            "litellmWrapped": "Model is unloaded.",
+            "status": 400
+          }
+        ],
+        "permanentCodes": [
+          "insufficient_quota",
+          "context_length_exceeded"
+        ]
+      },
+      "protocol": "openai-compatible@1",
+      "ref": {
+        "digest": "sha256:97f0f00d0df645eb9d249fe1b56634324e135c7b6b7b8f4062209cc6d7c6f7a1",
+        "gatewayId": "local-litellm",
+        "version": "1"
+      },
+      "url": "http://127.0.0.1:4000/v1"
+    },
+    {
+      "credentialManager": {
+        "implementation": "litellm-virtual-keys@1",
+        "managementUrl": "http://127.0.0.1:4000"
+      },
+      "failureSignatures": {
+        "modelUnavailable": [
+          {
+            "status": 409,
+            "messageEquals": "Модель загружается ✓ \"quoted\" \\ backslash"
+          }
+        ],
+        "permanentCodes": [
+          "context_length_exceeded"
+        ]
+      },
+      "protocol": "openai-compatible@1",
+      "ref": {
+        "gatewayId": "unicode-gateway",
+        "version": "1",
+        "digest": "sha256:cff5ab2ccdec56d7750555dcf36bf395e34217611cfdc801913a96f63856848f"
+      },
+      "url": "http://127.0.0.1:4000/v1"
+    }
+  ],
+  "agentTemplates": [
+    {
+      "description": "Builds the requested artifact",
+      "instructions": {
+        "digest": "sha256:d466cfabe73bc48195969f5d79f4828bbc4d42d2a9a35bc48d96ee17cc479429",
+        "ref": "instructions/artifact-builder.md",
+        "text": "Read the declared input and write the requested result."
+      },
+      "ref": {
+        "digest": "sha256:7681bbb78dcac0b1f84dfa781de00cd385932573c3073a32c1d30c5a8c585673",
+        "templateId": "artifact_builder",
+        "version": "1"
+      },
+      "runtime": {
+        "runtimeId": "adk",
+        "version": "1"
+      },
+      "sandboxProfile": {
+        "sandboxProfileId": "local-workdir",
+        "version": "1"
+      },
+      "toolsets": [
+        {
+          "ref": {
+            "toolsetId": "run-artifacts",
+            "version": "1"
+          },
+          "tools": [
+            "read_artifact",
+            "write_artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "description": "Scan one supplied target with installed nuclei templates.",
+      "execution": {
+        "arguments": {
+          "rate_limit": {
+            "source": "literal",
+            "value": 10
+          },
+          "url": {
+            "name": "target",
+            "source": "parameter"
+          }
+        },
+        "resultArtifact": "report",
+        "timeoutSeconds": 300,
+        "tool": "scan_nuclei"
+      },
+      "ref": {
+        "digest": "sha256:9c95c918d7c6bf31bf347aa0bddf7a9ed3540fa2e5c03dca1c1224cae89f2673",
+        "templateId": "nuclei-scan",
+        "version": "1"
+      },
+      "runtime": {
+        "runtimeId": "tool",
+        "version": "1"
+      },
+      "sandboxProfile": {
+        "sandboxProfileId": "local-workdir",
+        "version": "1"
+      },
+      "toolsets": [
+        {
+          "ref": {
+            "toolsetId": "scan",
+            "version": "1"
+          },
+          "tools": [
+            "scan_nuclei"
+          ]
+        }
+      ]
+    },
+    {
+      "description": "Reviews the requested artifact",
+      "instructions": {
+        "digest": "sha256:d31b4d8f86757e6c9f5fdd7d67c4bcc6fc09a7bc0c58d5a9d12d9d7676cc790e",
+        "ref": "instructions/artifact-reviewer.md",
+        "text": "Review the declared input using the selected skills."
+      },
+      "ref": {
+        "digest": "sha256:3d829026338e0e4ae56bb19c62af003f3d64f4e8fc429a13bd9353af68e8932f",
+        "templateId": "artifact_reviewer",
+        "version": "1"
+      },
+      "runtime": {
+        "runtimeId": "adk",
+        "version": "1"
+      },
+      "sandboxProfile": {
+        "sandboxProfileId": "local-workdir",
+        "version": "1"
+      },
+      "skills": [
+        {
+          "name": "analysis2",
+          "namespace": "skills"
+        },
+        {
+          "name": "review",
+          "namespace": "skills"
+        }
+      ],
+      "toolsets": []
+    },
+    {
+      "description": "Builds the requested artifact with terminal summarization",
+      "instructions": {
+        "digest": "sha256:c038791c2f52c3fc4a7bf983526e6d4c87b4831db5176ce310a90a2f630ddb9f",
+        "ref": "instructions/worker-summarizer.md",
+        "text": "Use the selected tools to complete the requested task."
+      },
+      "ref": {
+        "digest": "sha256:20bd00bf184c7203b6201e704a7e6532066c423175a44b9eff5476d991902773",
+        "templateId": "summarizer_enabled_worker",
+        "version": "1"
+      },
+      "runtime": {
+        "runtimeId": "adk",
+        "version": "1"
+      },
+      "sandboxProfile": {
+        "sandboxProfileId": "local-workdir",
+        "version": "1"
+      },
+      "summarizer": {
+        "contextWindowRatio": 0.9,
+        "cumulativeBudget": 20000,
+        "instructions": {
+          "digest": "sha256:a0dc969a70d9d7bf7fb44af48ff1fdc5993d148c0554ecffe345baf0187bc0cb",
+          "ref": "instructions/terminal-summary.md",
+          "text": "Составь итог {subtaskId}. Return only the structured result.\n"
+        },
+        "includeReasoning": false
+      },
+      "toolsets": [
+        {
+          "ref": {
+            "toolsetId": "text-artifacts",
+            "version": "1"
+          },
+          "tools": [
+            "write_text_artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "description": "Ревью ✓ \"quoted\" \\ path line\ttab 🚀",
+      "instructions": {
+        "digest": "sha256:c038791c2f52c3fc4a7bf983526e6d4c87b4831db5176ce310a90a2f630ddb9f",
+        "ref": "instructions/worker-summarizer.md",
+        "text": "Use the selected tools to complete the requested task."
+      },
+      "ref": {
+        "templateId": "unicode_worker",
+        "version": "1",
+        "digest": "sha256:fdcd80786394937f50cde499bb5a95b1df0ccaa2a5ded35a403e60854745b1d5"
+      },
+      "runtime": {
+        "runtimeId": "adk",
+        "version": "1"
+      },
+      "sandboxProfile": {
+        "sandboxProfileId": "local-workdir",
+        "version": "1"
+      },
+      "summarizer": {
+        "contextWindowRatio": 0.75,
+        "cumulativeBudget": 20000,
+        "instructions": {
+          "digest": "sha256:a0dc969a70d9d7bf7fb44af48ff1fdc5993d148c0554ecffe345baf0187bc0cb",
+          "ref": "instructions/terminal-summary.md",
+          "text": "Составь итог {subtaskId}. Return only the structured result.\n"
+        },
+        "includeReasoning": false
+      },
+      "toolsets": [
+        {
+          "ref": {
+            "toolsetId": "filesystem",
+            "version": "1"
+          },
+          "tools": [
+            "glob",
+            "grep",
+            "read_file"
+          ]
+        },
+        {
+          "ref": {
+            "toolsetId": "text-artifacts",
+            "version": "1"
+          },
+          "tools": [
+            "read_text_artifact",
+            "write_text_artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "description": "Builds the requested artifact with terminal summarization",
+      "instructions": {
+        "digest": "sha256:c038791c2f52c3fc4a7bf983526e6d4c87b4831db5176ce310a90a2f630ddb9f",
+        "ref": "instructions/worker-summarizer.md",
+        "text": "Use the selected tools to complete the requested task."
+      },
+      "ref": {
+        "digest": "sha256:ed6f79522dd6ffd1389c4ab2800f96db6234c992227c02de93b0973159bac80d",
+        "templateId": "reasoning_summarizer_worker",
+        "version": "1"
+      },
+      "runtime": {
+        "runtimeId": "adk",
+        "version": "1"
+      },
+      "sandboxProfile": {
+        "sandboxProfileId": "local-workdir",
+        "version": "1"
+      },
+      "summarizer": {
+        "contextWindowRatio": 0.9,
+        "includeReasoning": true,
+        "cumulativeBudget": 20000,
+        "instructions": {
+          "digest": "sha256:a0dc969a70d9d7bf7fb44af48ff1fdc5993d148c0554ecffe345baf0187bc0cb",
+          "ref": "instructions/terminal-summary.md",
+          "text": "Составь итог {subtaskId}. Return only the structured result.\n"
+        }
+      },
+      "toolsets": [
+        {
+          "ref": {
+            "toolsetId": "text-artifacts",
+            "version": "1"
+          },
+          "tools": [
+            "write_text_artifact"
+          ]
+        }
+      ]
+    }
+  ]
+}

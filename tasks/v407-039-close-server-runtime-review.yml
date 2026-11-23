@@ -1,0 +1,123 @@
+schema_version: '1.0'
+id: V407-039
+title: Close the validated Server and Runtime review with explicit dispositions and verification
+milestone: server-runtime-review-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: in_progress
+depends_on:
+- V407-001
+- V407-002
+- V407-003
+- V407-004
+- V407-005
+- V407-006
+- V407-007
+- V407-008
+- V407-009
+- V407-010
+- V407-011
+- V407-012
+- V407-013
+- V407-014
+- V407-015
+- V407-016
+- V407-017
+- V407-018
+- V407-019
+- V407-020
+- V407-021
+- V407-022
+- V407-023
+- V407-024
+- V407-025
+- V407-026
+- V407-027
+- V407-028
+- V407-029
+- V407-030
+- V407-031
+- V407-032
+- V407-033
+- V407-034
+- V407-035
+- V407-037
+- V407-038
+languages:
+- go
+- python
+goal: Every original finding has an evidence-backed disposition, accepted implementation work is complete,
+  and the landing revision has a recorded release-gate result.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  finding: The initial review grouped about 75 claims into V407-001 through V407-038. Revalidation on
+    dc7012e8 found real defects, behavior-preserving optimizations, false subclaims, existing protections
+    and intentional contracts. The task records have been corrected without implementing them. The remaining
+    gate is to track each retained implementation and each declined or unproven claim honestly, including
+    outstanding real-store/scale and lifecycle questions.
+  validation: This is an exit gate, not the thirty-ninth defect. Correcting a task or declining one subclaim
+    does not complete its retained implementation. Archived/deferred tasks do not satisfy dependencies.
+    Current retained tasks stay pending; if a whole task is later declined, its status/location, review
+    disposition, exit dependencies and backlog must change together before closure can start.
+plan:
+- Maintain the report disposition ledger using confirmed defect, optimization/chore, explicit design change,
+  already covered, not reproduced and declined categories. For each rejected claim retain the reason and
+  evidence; for an accepted risk state the owning component, enforcement/detection and reopening condition.
+- Use the validated answers in the report rather than treating all seven original questions as unanswered.
+  Resolve the remaining PostgreSQL query counts, inventory-generator bounds, claim-clock-skew question
+  and platform-specific test gaps with production-path evidence; create a separate task only if a new
+  defect is actually demonstrated.
+- 'Before starting exit verification, reconcile dependencies with the retained scope: every accepted implementation
+  dependency must be completed; an entire declined task must be explicitly archived with its reason and
+  removed from this depends_on list in the same metadata change. Never treat archived/deferred as completed
+  or silently waive a pending fix.'
+- Run make release-verify on the landing revision, record command/revision/result and any real skipped-environment
+  limitations, and run task/spec consistency checks. Keep the research index entry while any open task
+  cites it.
+scope:
+  in:
+  - Finding dispositions, remaining evidence, accepted-work dependency reconciliation and final release
+    verification.
+  out:
+  - Implementing fixes in this gate, claiming all original findings were real, or completing pending tasks
+    merely because their descriptions were corrected.
+acceptance_criteria:
+- id: A1
+  text: Every original B-G finding has a recorded evidence-backed disposition and owner; retained work
+    links to a completed task, while rejected subclaims name a concrete reason without pretending implementation
+    occurred.
+- id: A2
+  text: All original open questions have either a verified answer or an explicit risk decision with owner,
+    enforcement/detection and reopening condition; no unmeasured SQL/latency or unrun platform test is
+    reported as a pass.
+- id: A3
+  text: The dependency list contains only retained accepted implementation tasks, all completed; any full-task
+    decline has an archived record, updated links/disposition and removed dependency, consistent with
+    execution_policy.
+- id: A4
+  text: make release-verify succeeds for the recorded landing revision and make lint accepts the task
+    layout, links and generated backlog.
+tests:
+- command: make release-verify
+  covers:
+  - A4
+- command: make lint
+  covers:
+  - A3
+  - A4
+- command: python3 scripts/check_spec.py
+  covers:
+  - A4
+manual_verification:
+- check: Review every B1-G15 ledger row and Q1-Q7 answer against the linked task, recorded implementation
+    commit or explicit decline/risk evidence; record reviewer, landing revision and result in the report.
+    Lint/spec scripts cannot establish these semantic conclusions.
+  covers:
+  - A1
+  - A2
+- check: Compare the retained dependency list against completed task records and reconcile every whole-task
+    decline with its archived record, removed edge and updated report.
+  covers:
+  - A3

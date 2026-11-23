@@ -1,0 +1,98 @@
+{
+  "task": "V64-036",
+  "date": "2026-11-05",
+  "status": "completed",
+  "implementation_commit": "8c4ae67ef076f01f8079727b33cfc5d7c4309d53",
+  "branch": "codex/audit-hypothesis-generation",
+  "merged_to_main": false,
+  "outcome": "Artifact-owned checked selection and prepared exact handoff replace duplicated material traversal and reconstruction. Existing Task retention, receipts and limits remain.",
+  "shared_owners": {
+    "check_and_prepare": "internal/artifacts/input_materials.go: CheckInputMaterials / MaterializeInputs / PreparedInputs",
+    "persisted_mapping": "internal/artifacts/input_mapping.go: DescribeInputMaterials",
+    "domain_boundary": "Workflow interpretation and exclusions remain in callers; importer validates Task/execution/source membership; common Task admission retains through its existing fences."
+  },
+  "removed_computations": [
+    "Task admission and Run preflight no longer implement separate set/singleton metadata, origin and budget loops.",
+    "Proposal context no longer rereads or decodes prepared material-set JSON, queries singleton metadata, restores sources, matches by local artifact names or rebuilds the budget.",
+    "Audit Run/context handoff replaces parallel forks/localInputs/originalMaterials with PreparedInputs.",
+    "Importer adapter no longer implements metadata/lineage/original-version reconstruction; it delegates to the Artifact owner.",
+    "MaterializeInputSet, ValidateInputSet, InputSetMaterials, preflightMaterialSets and the standalone forkInput copy path were removed."
+  ],
+  "regressions": [
+    "All V64-035 PostgreSQL cases remain green, including pause/history reclamation/resume and native Run-produced manifests.",
+    "32 distinct sources plus singleton/set aliases pass; 33 independent equal-byte sources reject.",
+    "Changed ordinary input revisions reject, including an identical-byte rewrite under a new revision.",
+    "Foreign Run, omitted set member and same-name/same-byte non-input lookalike reject.",
+    "Fresh ArtifactStore reconstructs valid saved set correspondence without a preparation object.",
+    "32-source checking uses two bounded metadata batches and one descriptor payload read; materialization adds no metadata/payload reads.",
+    "Initial and additional own-Run materials use the common checked selection and cumulative budget."
+  ],
+  "checks": [
+    {
+      "command": "make require-database; go test -p 2 -tags=integration -count=1 ./internal/artifacts/... ./internal/auditservice ./internal/auditimport ./internal/runservice/... ./internal/auditcontroller ./internal/httpapi/public",
+      "status": "passed",
+      "result": "All complete selected owner packages passed with real disposable PostgreSQL.",
+      "log": "/tmp/v64036-owners-final.log",
+      "log_digest": "sha256:2aa2a101cb134a113e704dfdf06d77474f06a8201c84613c54a0338f4ea4f8c3"
+    },
+    {
+      "command": "make test-audit-basic-e2e",
+      "status": "passed",
+      "result": "All 12 mandatory cases passed on clean committed source; zero selected skips.",
+      "log": "/tmp/v64036-process.log",
+      "log_digest": "sha256:1a270b3aeea115fcbb00a8a1f033a73b2d792441d225e9cd7660c13fbff78980"
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "status": "passed",
+      "result": "389 wire tests; 375 fixtures, 414 Go and 264 Python shared tests; 1491 selected Runtime cases passed.",
+      "log": "/tmp/v64036-wire.log",
+      "log_digest": "sha256:4e5e0b9004239795dc6786af9d3d13f5781ee285b2be33097f5f222bf5b9c7b4"
+    },
+    {
+      "command": "make lint",
+      "status": "passed",
+      "result": "Full generated checks, Go vet/staticcheck, layers, Runtime import contracts, repository scripts and UI lint checks passed.",
+      "log": "/tmp/v64036-lint-final.log",
+      "log_digest": "sha256:3502aba5a9067ba6b4626ee9188fbacf61f1ecb6a4bf90c6e87ada3633d77798"
+    }
+  ],
+  "process_evidence": {
+    "status": "passed",
+    "case_set": "core",
+    "source": {
+      "revision": "8c4ae67ef076f01f8079727b33cfc5d7c4309d53",
+      "dirty": false
+    },
+    "matrix": {
+      "path": "scripts/audit-basic-matrix.json",
+      "digest": "sha256:cc6c09a9ebc9196c3946c31fd2832a925a3c8fc7b24b9ab8b6246d72ccae811a"
+    },
+    "go": [
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditBasicExactHandoffAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditBasicExactHandoffAcrossProductionProcesses/finding_false",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditBasicExactHandoffAcrossProductionProcesses/finding_true",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonObservationProfilesAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonObservationProfilesAcrossProductionProcesses/observe",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonObservationProfilesAcrossProductionProcesses/trace",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditFixedHypothesesAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditHypothesisContinuationAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditHypothesisContinuationAcrossProductionProcesses/initial=false",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditHypothesisContinuationAcrossProductionProcesses/initial=true",
+      "github.com/grauwolf32/contractor/tests/e2e/TestWorkflowMaterialSetsAcrossProductionProcesses"
+    ],
+    "reports": {
+      "go.jsonl": "sha256:41a0cac79e794bf8c454ec9767902b09d4f8bd1ae577d70ef33188a14f2c73e0"
+    }
+  },
+  "process_path": ".local/audit-basic-gate/run-yikwb4_o/executed.json",
+  "scope": [
+    "No new table, receipt, material state, recursive resolver or public/wire protocol.",
+    "No model change, deployment or main merge."
+  ],
+  "prior_attempt": {
+    "log": "/tmp/v64036-owners.log",
+    "result": "Existing API fake lacked the newly used DescribeExact method; its complete bounded implementation was added and the entire selected owner command reran successfully."
+  }
+}

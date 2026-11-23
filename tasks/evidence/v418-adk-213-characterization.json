@@ -1,0 +1,273 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-25",
+  "status": "Reproducible V418-001 baseline/candidate characterization; not release acceptance",
+  "source_revision": "8b694724d93ced63339564ff3cc05e522f414f93",
+  "source_files_sha256": {
+    "runtime/src/contractor_runtime/llm/openai.py": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0",
+    "runtime/tests/test_adk_runtime.py": "9c1ea59eb6f5a87fb5801fa03226437d72911ce3fe5f5316c8d5b347ba094467",
+    "runtime/tests/test_openai_gateway_llm.py": "8d5b886da7a08205c3b64c264ce95553ebb2b04d81ef09c1f7e59f1cd4e29ec7",
+    "runtime/tests/test_adk_migration_contracts.py": "2576745250fd8745202ffb0e111bc9a0a571bf1d91fa7ac91c28b8e03df44c29"
+  },
+  "baseline_lock_sha256": "0188d1b5106c7ccf763f4ab3c9639131b172fc6e2bf63ad944a0695bf4d8014e",
+  "python": "3.13.16",
+  "platform": "Darwin arm64",
+  "baseline": {
+    "versions": {
+      "google-adk": "2.8.0",
+      "google-genai": "2.20.0",
+      "authlib": "1.7.2"
+    },
+    "exit_code": 0,
+    "collected": 283,
+    "passed": 283,
+    "failed": 0,
+    "skipped": 0,
+    "failures": []
+  },
+  "candidate": {
+    "versions": {
+      "google-adk": "2.13.0",
+      "google-genai": "2.33.0",
+      "authlib": "1.9.1"
+    },
+    "method": "Isolated exact SDK/genai/authlib package overlay on baseline venv; production lock unchanged. Final migration acceptance must use committed lock and fresh install.",
+    "exit_code": 1,
+    "collected": 283,
+    "passed": 270,
+    "failed": 13,
+    "skipped": 0,
+    "failures": [
+      "tests/test_adk_runtime::test_adk_worker_counts_unknown_model_tool_without_retaining_its_name",
+      "tests/test_adk_runtime::test_tool_budget_does_not_poison_next_invocation_payload[shared-False]",
+      "tests/test_adk_runtime::test_tool_budget_does_not_poison_next_invocation_payload[shared-True]",
+      "tests/test_adk_runtime::test_cancelled_tool_call_does_not_poison_next_shared_invocation",
+      "tests/test_adk_runtime::test_deadline_passing_at_a_step_boundary_starts_no_next_call[next_model_call]",
+      "tests/test_audit_completion_continuation::test_real_runner_continuation_preserves_one_invocation_and_tool_order",
+      "tests/test_audit_completion_runtime::test_real_runner_continues_once_with_one_owner_and_publishes_on_last_allowed_call",
+      "tests/test_audit_completion_runtime::test_missing_partial_invalid_results_cannot_be_bypassed_by_prose[missing]",
+      "tests/test_audit_completion_runtime::test_missing_partial_invalid_results_cannot_be_bypassed_by_prose[partial]",
+      "tests/test_audit_completion_runtime::test_missing_partial_invalid_results_cannot_be_bypassed_by_prose[invalid]",
+      "tests/test_adk_migration_contracts::test_runner_preserves_raw_artifact_integer_rejection[1.0-offset]",
+      "tests/test_adk_migration_contracts::test_runner_preserves_raw_artifact_integer_rejection[1.0-length]",
+      "tests/test_adk_migration_contracts::test_runner_preserves_raw_integer_list_rejection[values0]"
+    ]
+  },
+  "baseline_defect": {
+    "owner": "V418-008",
+    "introduced_by": "V83-001",
+    "finding": "Missing responses were falsely described as proven not executed. Use conservative unknown outcome when no evidence exists; execution-owned sealing in V418-002 may supply stronger known results."
+  },
+  "decisions": [
+    {
+      "id": "D1",
+      "guarantee": "One logical Contractor invocation spans several uniquely identified SDK turns; Runtime explicitly authorizes current turn. State/collector/artifact/capture/business tool identities remain logical, with a delegated business ToolContext.",
+      "alternative": "Reusing SDK invocation ID loses reminders on2.13; assigning a new logical invocation resets ownership/budgets and is rejected.",
+      "reversal": "Only revisit if a future public Runner provides equivalent new-message admission with proven lifecycle/identity semantics."
+    },
+    {
+      "id": "D2",
+      "guarantee": "Before next SDK model projection, Runtime-owned unwind seals missing tool responses with admission/outcome evidence, preserving completed siblings; unresolved dispatched effects remain cancelled/unknown.",
+      "alternative": "Gateway-only balancing runs after ADK2.13 pruning and cannot recover source calls; blindly declaring all missing calls unexecuted is false.",
+      "reversal": "Only remove when upstream supplies equivalent public truthful complete-group projection and tests prove all interruption cases."
+    },
+    {
+      "id": "D3",
+      "guarantee": "Every admitted model/tool attempt obeys original deadline before charge or span. Unknown tools normalize before retention and consume one bounded attempted-tool charge on supported2.13 path.",
+      "alternative": "Provider-request counts alone miss cancelled callback charges; callback ordering is not an allowlist.",
+      "reversal": "Only change the counted-attempt contract with its owning budgets/telemetry specs and cross-phase regressions."
+    },
+    {
+      "id": "D4",
+      "guarantee": "Original numeric values reach owning domain validation unchanged; preserve SDK structured-value conversion for other types. No global extra-key policy inferred from this migration.",
+      "alternative": "Default2.13 integral-float coercion bypasses strict callable validation; blanket numeric casting/strict TypeAdapter changes domain behavior.",
+      "reversal": "When public SDK preprocessing can explicitly preserve raw domain values without custom specialization."
+    }
+  ],
+  "commands": [
+    "cd runtime && uv run --locked pytest -W error tests/test_adk_runtime.py tests/test_audit_completion_continuation.py tests/test_audit_completion_runtime.py tests/test_openai_gateway_llm.py tests/test_instrumentation.py tests/test_run_artifacts_toolset.py tests/test_adk_migration_contracts.py",
+    "Candidate: same selected files using isolated exact package overlay and baseline Python; preserve nonzero exit and XML case outcomes."
+  ],
+  "full_runtime_darwin": {
+    "command": "make test-runtime",
+    "collected": 4850,
+    "passed": 4704,
+    "failed": 107,
+    "skipped": 39,
+    "exit_code": 2,
+    "note": "Existing Darwin Linux-only socket/pidfd/proc prerequisites and unrelated baseline cases failed. Not acceptance; repeat in owned Linux container. No skip introduced."
+  },
+  "upstream": {
+    "new_message_dedup": "https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/runners.py",
+    "history_projection": "https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/flows/llm_flows/context/_contents.py",
+    "numeric_preprocessing": "https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/utils/_schema_utils.py"
+  },
+  "limitations": [
+    "No live model claims",
+    "Candidate overlay is characterization only",
+    "Full locked Runtime/process/release acceptance remains required",
+    "No temporary directory or this chat is a required reproduction input"
+  ],
+  "public_history_proof": {
+    "kind": "test-only public Runner/session proof; not release acceptance",
+    "adk": "2.13.0",
+    "script_sha256": "38506d56e77647271d52ece6e00b5ee0e566e7fbad91ddaa702f6774f6111810",
+    "source_sha256": {
+      "runners.py": "ecb6feebdc516a8226179a30230d33116e64ef714de827b3707b0d03886d2181",
+      "flows/llm_flows/base_llm_flow.py": "6d0e89d9d9e657e749fb833ef32534ee9aec099906c64f4696729423afc3a699",
+      "flows/llm_flows/core/_finalizer.py": "2c040489d08129357dfdcf4b85145406acadbb08fe72f37e34f708367306e26e",
+      "flows/llm_flows/tools/_caller.py": "687f3e70bffd4e93ddf10cba09388aebc44411cf40eb9ccaa3d5d2aa0a9bfd37",
+      "flows/llm_flows/tools/_batch_executor.py": "3239c562bef3db167ae8fd8ffda0bd4e437270e728f6fb9f4ac20eb89334d10f",
+      "sessions/in_memory_session_service.py": "b3880e1b65fd0ec4bac6023a36c67ba2d97e6019a5fc4d5e989d88dd1ec4b952"
+    },
+    "results": [
+      {
+        "case": "budget-rejected-sibling",
+        "passed": true,
+        "model_requests": 2,
+        "source_calls": 2,
+        "native_responses_before_seal": 1,
+        "sealed_responses": 1,
+        "effect_count": 1,
+        "paired_next_request": true,
+        "real_sibling_result_preserved": true,
+        "initially_missing_ids": false,
+        "sdk_assigned_ids_observed": false,
+        "public_callback_id_normalization": false,
+        "lost_ack_reconciled": false,
+        "hook_order": [
+          "event:FC",
+          "before:completed-first",
+          "after:completed-first",
+          "before:rejected-second",
+          "event:FR",
+          "event:text",
+          "event:text"
+        ]
+      },
+      {
+        "case": "cancelled-dispatched-sibling",
+        "passed": true,
+        "model_requests": 2,
+        "source_calls": 2,
+        "native_responses_before_seal": 0,
+        "sealed_responses": 2,
+        "effect_count": 2,
+        "paired_next_request": true,
+        "real_sibling_result_preserved": true,
+        "initially_missing_ids": false,
+        "sdk_assigned_ids_observed": false,
+        "public_callback_id_normalization": false,
+        "lost_ack_reconciled": false,
+        "hook_order": [
+          "event:FC",
+          "before:completed-first",
+          "after:completed-first",
+          "before:wait",
+          "cancelled:wait",
+          "event:text"
+        ]
+      },
+      {
+        "case": "finalized-empty-ids",
+        "passed": false,
+        "error_type": "AssertionError",
+        "message": "SDK-generated adk-* IDs were removed from the custom-model projection; payload IDs were empty."
+      },
+      {
+        "case": "lost-seal-acknowledgement",
+        "passed": true,
+        "model_requests": 2,
+        "source_calls": 2,
+        "native_responses_before_seal": 0,
+        "sealed_responses": 2,
+        "effect_count": 2,
+        "paired_next_request": true,
+        "real_sibling_result_preserved": true,
+        "initially_missing_ids": false,
+        "sdk_assigned_ids_observed": false,
+        "public_callback_id_normalization": false,
+        "lost_ack_reconciled": true,
+        "hook_order": [
+          "event:FC",
+          "before:completed-first",
+          "after:completed-first",
+          "before:wait",
+          "cancelled:wait",
+          "event:text"
+        ]
+      },
+      {
+        "case": "missing-ids-public-hook-normalization",
+        "passed": true,
+        "model_requests": 2,
+        "source_calls": 2,
+        "native_responses_before_seal": 1,
+        "sealed_responses": 1,
+        "effect_count": 1,
+        "paired_next_request": true,
+        "real_sibling_result_preserved": true,
+        "initially_missing_ids": true,
+        "sdk_assigned_ids_observed": false,
+        "public_callback_id_normalization": true,
+        "lost_ack_reconciled": false,
+        "hook_order": [
+          "event:FC",
+          "before:completed-first",
+          "after:completed-first",
+          "before:rejected-second",
+          "event:FR",
+          "event:text",
+          "event:text"
+        ]
+      }
+    ],
+    "exit_code": 1,
+    "interpretation": "Four design-proof cases pass; the unnormalized empty-ID control remains an observed incompatibility, not green acceptance. V418-002 must normalize absent IDs through the public model callback and retain full real-Runtime regressions."
+  },
+  "additional_findings": [
+    {
+      "id": "CALLABLE-CACHE-3",
+      "source": "google.adk.utils._callable_utils._get_type_hints_for_unwrapped",
+      "finding": "New lru_cache(1024) strongly retains allocation-local closures after the existing two caches are cleared. Clearing the third cache allows weakrefs to disappear in an isolated ownership probe.",
+      "owner": "V418-002 atomic cleanup, V418-003 lifecycle regressions"
+    },
+    {
+      "id": "FEATURE-POLICY",
+      "finding": "FUNCTION_TOOL_ARG_VALIDATION, IN_MEMORY_SESSION_SERVICE_LIGHT_COPY and native SKILL_LIFECYCLE must not silently become enabled on the supported Runtime path.",
+      "owner": "V418-002 supported-feature admission, V418-003 negative probes"
+    }
+  ],
+  "full_runtime_linux": {
+    "command": "make test-runtime",
+    "exit_code": 0,
+    "report_verifier_exit_code": 0,
+    "collected": 4852,
+    "passed": 4797,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 55,
+    "skip_classification": "39 existing opt-in/live/real-Podman/process-harness plus16 optional external scanner binaries; mandatory migration and PID-publication cases executed.",
+    "platform": "Linux aarch64, nonroot UID1000, Python3.13.5, Go1.26.9; owned disposable Podman test container",
+    "source_revision": "7b5a1fd14cd7930b8a99d3d272ac4e09ce0b15bd",
+    "untracked_inputs": [
+      "runtime/tests/test_adk_migration_contracts.py",
+      "tasks/evidence/v418-adk-213-characterization.json"
+    ],
+    "source_manifest_sha256": "21f67e9f6284ed5c9602edb86119544ec7c4731c7bb1b444928f182f3b7eb7e7",
+    "junit_sha256": "6c962d7aedfcdd0a5f1b92a9d423551c49dc4abf133b76df2454b6a54f4ddd9a",
+    "baseline_defect_fixes": [
+      "V418-008",
+      "V418-009"
+    ],
+    "interpretation": "Successful supported-platform baseline on the exact snapshot; not a candidate2.13/release acceptance result."
+  },
+  "baseline_mutation_control": {
+    "owner": "V418-008",
+    "case": "tests/test_adk_runtime.py::test_cancelled_tool_call_does_not_poison_next_shared_invocation",
+    "mutated_behavior": "Replace synthetic unknown outcome with old not-executed claim in an isolated pytest plugin.",
+    "test_exit_code": 1,
+    "harness_exit_code": 0,
+    "result": "Exactly the selected regression failed on the old false claim; production files unchanged."
+  }
+}

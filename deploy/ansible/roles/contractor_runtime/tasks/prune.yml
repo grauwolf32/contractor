@@ -1,0 +1,31 @@
+---
+# The entire reference scan succeeds before the first deletion. Omission from
+# this inventory is not permission to retire an instance or its release.
+- name: Install the release ownership checker
+  ansible.builtin.copy:
+    src: release_pruning.py
+    dest: "{{ contractor_runtime_prefix }}/tools/release_pruning.py"
+    mode: "0644"
+
+- name: Check retained units and plan release cleanup
+  ansible.builtin.command:
+    argv: ["{{ __contractor_runtime_python }}", -I, "{{ contractor_runtime_prefix }}/tools/release_pruning.py"]
+    stdin: >-
+      {{ {'prefix': contractor_runtime_prefix, 'home': contractor_runtime_home,
+          'config_dir': contractor_runtime_config_dir, 'current': __contractor_runtime_release_dir,
+          'keep': contractor_runtime_keep_releases | int,
+          'instances': __contractor_runtime_ready | map(attribute='name') | list,
+          'systemctl': __contractor_runtime_systemctl} | to_json }}
+  register: __contractor_runtime_pruning
+  changed_when: false
+
+- name: Report deferred release cleanup
+  ansible.builtin.debug:
+    msg: "Release cleanup deferred: retained restart markers require a completed restart."
+  when: (__contractor_runtime_pruning.stdout | from_json).deferred
+
+- name: Remove unreferenced excess releases
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ (__contractor_runtime_pruning.stdout | from_json).remove }}"

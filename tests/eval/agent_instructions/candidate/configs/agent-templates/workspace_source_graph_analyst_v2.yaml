@@ -1,0 +1,32 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: workspace_source_graph_analyst
+  version: "2"
+
+spec:
+  description: Inspects a hydrated project workspace with bounded structural graph analysis and publishes evidenced Markdown
+  runtime: adk@1
+  instructions:
+    ref: instructions/workspace-source-graph-analyst-worker-v2.md
+  modelPolicy: domain_worker@1
+  toolsets:
+    - ref: filesystem@1
+      tools: [ls, glob, read_file, grep]
+    - ref: code-analysis@1
+      tools:
+        - search_def
+        - list_symbols
+        - graph_summary
+        - find_symbol
+        - find_callers
+        - find_callees
+        - paths_between
+        - entrypoint_paths_to
+        - attack_surface
+        - complexity_hotspots
+        - functions_that_raise
+    - ref: text-artifacts@1
+      tools: [read_text_artifact, write_text_artifact]
+  sandboxProfile: local-workdir@1

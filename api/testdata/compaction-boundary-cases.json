@@ -1,0 +1,22 @@
+{
+  "tails": [
+    {"groups": 0, "keep": 4, "covered": 0, "eligible": 0},
+    {"groups": 1, "keep": 4, "covered": 0, "eligible": 0},
+    {"groups": 2, "keep": 4, "covered": 0, "eligible": 0},
+    {"groups": 3, "keep": 4, "covered": 0, "eligible": 0},
+    {"groups": 4, "keep": 4, "covered": 0, "eligible": 0},
+    {"groups": 5, "keep": 4, "covered": 0, "eligible": 1},
+    {"groups": 6, "keep": 4, "covered": 0, "eligible": 2},
+    {"groups": 5, "keep": 4, "covered": 1, "eligible": 0},
+    {"groups": 6, "keep": 4, "covered": 1, "eligible": 1},
+    {"groups": 4, "keep": 1, "covered": 2, "eligible": 1}
+  ],
+  "summaries": [
+    {"previous": "é", "repeat": 450, "extraRawBytes": -1, "valid": true},
+    {"previous": "é", "repeat": 450, "extraRawBytes": 0, "valid": true},
+    {"previous": "é", "repeat": 450, "extraRawBytes": 1, "valid": true},
+    {"previous": "é", "repeat": 450, "extraRawBytes": 899, "valid": true},
+    {"previous": "é", "repeat": 450, "extraRawBytes": 900, "valid": false},
+    {"previous": "é", "repeat": 450, "extraRawBytes": 901, "valid": false}
+  ]
+}

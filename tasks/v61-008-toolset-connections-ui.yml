@@ -1,0 +1,115 @@
+schema_version: "1.0"
+id: V61-008
+title: Select and create reusable toolset connections from the Run form
+milestone: toolset-runtime-configuration
+epic: runtime-config
+kind: feature
+priority: P1
+status: deferred
+deferral:
+  date: "2026-10-11"
+  previous_status: pending
+  reason: >-
+    Implemented and verified on 2026-09-20 on branch
+    feat/v61-toolset-runtime-configuration but never merged; main has since
+    moved about 1,700 commits (contract package split, credential table
+    folds, V3B UI, layer checks). V62 and V64 do not depend on it, so the
+    port is postponed instead of resolving 35 conflicts now.
+  reactivate_when: >-
+    Explicit user decision that external MCP tools are needed (for example
+    for autonomous pentest Audits, proposal 0033); then port the branch onto main
+    rather than reimplementing, renumber its migration and rerun the V61-009
+    release gate.
+  branch_commit: "2f2e6eca42262a810f3af104cacd39301f75214c"
+implementation_commit: null
+depends_on: [V61-007, V37-008]
+languages: [typescript, css, markdown]
+goal: >-
+  Let users satisfy workflow toolset requirements through existing runtimeLabels
+  and safely resume the credential/config/binding creation flow after failures.
+context:
+  authority: User requests launch-time tool configuration with minimal YAML and reuse of current Operations bindings.
+  design: docs/plans/2026-09-19-toolset-runtime-configuration.md
+  specification:
+    - docs/spec/configuration/runtime-config.md
+    - docs/spec/ui/journeys.md
+  reuse: Current Operations dialogs/forms, query/mutation infrastructure, MutationDraftKeyring, runtime-label selection and in-memory Run draft/Repeat behavior.
+  revalidated: >-
+    2026-10-24 on b523ae77: still deferred, not superseded; main has no MCP or generic
+    worker.toolsets code or specification. The work remains on the unmerged branch
+    origin/feat/v61-toolset-runtime-configuration (head f6dfd6ed16240574ed3565bc6460f737fd072b49,
+    merge base c41a5989, 18 commits). Main is now 2,850 commits past that merge base and git
+    merge-tree reports 75 conflicting paths (35 at deferral), including modify/delete conflicts on
+    files main removed: docs/spec/01-agent-template.md, 02-runtime-and-a2a.md,
+    06-server-ui-and-operations.md, 07-runtime-labels-and-infrastructure-config.md, 19-audits.md,
+    29-tool-workers.md and ui-user-stories.md (retired for the domain documents by af85cc54),
+    internal/config/descriptors.go (now internal/config/resolved/descriptors.go, c8cbf2e1),
+    internal/contracts/agent.go (now internal/contracts/control/agent.go, ToolsetCapability at line
+    26, 6d277c5c), internal/runtimeconfig/principal.go (Agent principal labels now in
+    internal/agentprincipal, 3ecd3f2f) and
+    api/descriptor-parity/toolset-infrastructure-channels.yaml (replaced by
+    api/testdata/toolset-descriptors.json under TLS-R38, 35f59294). The example in reactivate_when
+    no longer applies: proposal 0033 section 14 says V61 MCP configuration is not a prerequisite of
+    the V411 HTTP/API pentest delivery, its section 4.3 keeps MCP tools out of the controlled-proof
+    path without their own gate, and V411-001 explicitly excludes V61 reactivation, so reactivation
+    needs a user decision that names a concrete MCP consumer. Task-specific:
+    ui/src/routes/workflows/run-form.tsx was split into run-form-fields.tsx, run-form-settings.tsx,
+    run-form-state.ts, run-form-readiness.ts and run-form-inventories.ts; shared building blocks now
+    live in ui/src/ui with colours only from ui/src/app/theme.css tokens (V385-001); a port must
+    check 390 px width and the light, dark and black themes and bump ui/package.json.
+    ui/src/run-drafts and the Operations credentials and runtime-configs directories still exist but
+    conflict.
+scope:
+  in:
+    - Display required toolsets, selected tools/logical consumers, default inheritance, chosen profiles, missing settings and deterministic conflicts on the Run form.
+    - Select a profile once through current runtimeLabels even when it covers multiple requirements; retain invisible/paginated selections and expose mixed-profile effects.
+    - Add an MCP form for endpoint, optional existing/new mcp-headers credential and advanced CA/connect/RPC settings using registered form components.
+    - Reuse create credential, publish RuntimeConfig and create label mutations with stable per-step idempotency keys and completed-step refs for retries.
+    - Preserve current shared-label revision rules and require explicit existing Operations actions to retarget a shared binding.
+    - Keep secret input ephemeral and absent from Run drafts, URLs and persistent browser storage; handle incomplete publication without unsafe resource deletion.
+    - Show preparation outcome and safe errors from actual Runtime execution; preserve Repeat binding-change review and Run submission generation/idempotency.
+    - Extend Operations configuration/credential display and editing for the new type with accessible dialog/error/focus behavior.
+  out:
+    - Universal JSON Schema form generation, browser MCP connection checks, a new preflight job or a second persistent connections resource.
+    - Per-agent selection, implicit shared-label mutation or secret recovery/readback after a lost browser session.
+deliverables:
+  - path: ui/src/routes/workflows/run-form.tsx
+    description: Toolset requirements and reusable configuration selection over existing runtimeLabels.
+  - path: ui/src/routes/operations/runtime-configs
+    description: Typed MCP configuration fields and mixed-profile effects using existing Operations forms.
+  - path: ui/src/routes/operations/credentials
+    description: Write-only MCP header credential form and validation.
+  - path: ui/src/run-drafts
+    description: Existing selection continuity plus transient multi-step mutation progress without stored secrets.
+  - path: ui/src/routes/workflows/toolset-configurations.test.tsx
+    description: New requirement/selection/conflict and failed-step recovery scenarios.
+  - path: docs/spec/ui/journeys.md
+    description: User journey for selecting/creating a connection and interpreting preparation failures.
+requirements:
+  - id: R1
+    text: The Run-create payload continues using runtimeLabels; the draft never becomes a second store of endpoint/settings or credential plaintext.
+  - id: R2
+    text: Same-value profiles deduplicate using server valueDigest, conflicting values show both sources, and a selected mixed profile retains its LLM/telemetry effects.
+  - id: R3
+    text: Lost replies and partial mutation success resume the unfinished step with the same operation identity; retry cannot duplicate a credential or silently move an existing binding.
+  - id: R4
+    text: An expired/reloaded browser draft can recover safe completed refs or request fresh secret entry; it never promises to recover a write-only secret.
+acceptance_criteria:
+  - id: A1
+    text: A user selects one existing profile for two consumers and submits the current Run contract; inherited default, clear, missing, conflicting and equal-value cases are shown correctly.
+  - id: A2
+    text: Creating an anonymous or authenticated MCP connection completes credential/config/binding/select steps and errors at each boundary can be retried without duplicate effects.
+  - id: A3
+    text: Shared profiles, pagination, changed/deleted labels, Run draft continuity and Repeat notices preserve current semantics without dropping other configured sections.
+  - id: A4
+    text: Secret values are absent from persistent drafts/URLs/queries; dialogs remain accessible and runtime connection/auth/schema failures are shown without a false preflight success claim.
+  - id: A5
+    text: Strict generated API contracts, focused UI regressions and production build pass; ordinary workflows without configurable toolsets retain their existing launch path.
+tests:
+  - command: cd ui && corepack pnpm test --run src/routes/workflows/toolset-configurations.test.tsx src/routes/workflows/workflows.test.tsx src/routes/operations/operations.test.tsx src/run-drafts/idempotency.test.ts src/api/operations.test.ts src/api/runtime-configuration.test.ts
+    covers: [A1, A2, A3, A4, A5]
+  - command: make ui-generate-check ui-lint ui-typecheck ui-build
+    covers: [A4, A5]
+verification_requirements:
+  - Test lost response after each successful mutation separately from a rejected request, including re-render/navigation and stale Run submission completion.
+  - V61-009 owns real-browser evidence over the production API; component/API mocks alone are not release evidence.

@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "task": "V60-030",
+  "status": "completed",
+  "verified_at": "2026-09-20T10:45:42.957934+00:00",
+  "baseline_commit": "8c426a747ef69dac9fddc011b33ebca730fde56b",
+  "file": "internal/planner/worker_handle_test.go",
+  "before_sha256": "160fade6862da7429ca2dbe0445a445a62a422394840e7f336a63fb835cb783e",
+  "after_sha256": "d6b37dda9b5e8706cd4fcac8afb18eb9011f3952a55a77c1af173b1a2c58132b",
+  "before_gofmt_diff": "diff internal/planner/worker_handle_test.go.orig internal/planner/worker_handle_test.go\n--- internal/planner/worker_handle_test.go.orig\n+++ internal/planner/worker_handle_test.go\n@@ -9,7 +9,7 @@\n \n func TestCloneWorkerHandleDetachesAgentCard(t *testing.T) {\n \toriginal := contracts.WorkerHandle{AgentCard: map[string]any{\n-\t\t\"name\": \"worker\",\n+\t\t\"name\":                \"worker\",\n \t\t\"supportedInterfaces\": []any{map[string]any{\"url\": \"https://original.example/a2a\"}},\n \t}}\n \tcloned := CloneWorkerHandle(original)\n@@ -50,7 +50,7 @@\n func TestCloneWorkerHandleRejectsNonJSONCardWithoutSharingIt(t *testing.T) {\n \toriginal := contracts.WorkerHandle{\n \t\tAllocationID: \"allocation-1\",\n-\t\tAgentCard: map[string]any{\"unsupported\": make(chan struct{})},\n+\t\tAgentCard:    map[string]any{\"unsupported\": make(chan struct{})},\n \t}\n \tcloned := CloneWorkerHandle(original)\n \tif cloned.AgentCard != nil || cloned.AllocationID != original.AllocationID {\n",
+  "after_gofmt_diff": "",
+  "commands": [
+    {
+      "command": "gofmt -w internal/planner/worker_handle_test.go",
+      "exit_code": 0
+    },
+    {
+      "command": "gofmt -d internal/planner/worker_handle_test.go",
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "command": "git diff --ignore-all-space --exit-code -- internal/planner/worker_handle_test.go",
+      "exit_code": 0,
+      "output": ""
+    }
+  ],
+  "behavior_changes": false,
+  "release_verification": {
+    "source_commit": "9cfd09ccfc5517518b3c7491b55bc4c14b56b950",
+    "command": "make --trace release-verify verify-public-api test-audits-hardening test-findings-e2e test-audits-browser test-lifecycle-controls-browser",
+    "lint_prerequisite": "PASS: gofmt, go vet and Runtime lint completed; trace advances to the next target",
+    "lint_segment": ".local/v60-review/v60-030-lint-after.log",
+    "lint_segment_sha256": "938d6b277c1517338d87b84cb6f052e08d51f1dc9d4426aa2858888469fd85d0",
+    "full_log": ".local/v60-review/v60-final-release.log",
+    "full_log_sha256": "cfc06dfd4b86066556d67e80eefdb4e0edcb3c4e27f48f6897447b6b42c081e9",
+    "overall_exit_code": 2,
+    "boundary": "The full invocation later failed the production Memory fixture (V60-033). This record closes only the required lint correction; overall release verification remains owned by V60-009."
+  },
+  "implementation_commit": "9cfd09ccfc5517518b3c7491b55bc4c14b56b950"
+}

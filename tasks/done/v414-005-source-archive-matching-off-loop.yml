@@ -1,0 +1,146 @@
+schema_version: "1.0"
+id: V414-005
+title: "Match and sort source-archive list and search paths off the event loop"
+milestone: review-v407-v409-followups-2026-10
+epic: workspaces
+kind: defect
+introduced_by: V2-002
+priority: P2
+status: completed
+implementation_commit: b3f04f659dc1fd2d5c515b596d5621836ae1824f
+depends_on: []
+languages: [python]
+goal: >-
+  list_source_files and search_source compile their glob once and run path
+  matching, sorting and page selection over the opened archive in a worker
+  thread that the session joins on cancellation, so a large admitted archive
+  never stalls the Runtime event loop.
+context:
+  review: >-
+    tasks/done/v407-034-workspace-listing-and-export-cost.yml, declined: "Moving
+    the source-archive list/search matching off the event loop was not done; it
+    only stopped re-normalizing its glob per member."
+  specification:
+    - docs/spec/tools/workspace.md#WSP-R74
+    - docs/spec/tools/workspace.md#WSP-R131
+    - docs/spec/artifacts/git-import.md#GIT-R93
+    - docs/spec/platform/limits.md
+  severity: low
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/source_analysis/tools.py:263-278
+    (_SourceArchiveSession.list_files) runs _path_matcher(pattern) over every
+    archive file, sorts the matches and slices the page inline on the event
+    loop while holding the session lock; :280-301 (search) filters and sorts the
+    same set inline and only offloads the content scan through
+    WorkspaceOperationGuard.run. The archive admits up to
+    RuntimeSettings.sourceArchiveLimits.maxEntries files (LIM-GIT-16: default
+    10,000, configurable to 50,000; paths up to 512 UTF-8 bytes, patterns up to
+    256 characters). Reproduction on 19f7477f (scratchpad probe calling
+    _validate_pattern, _path_matcher and the same filter+sort): 10,000 paths of
+    depth 8 take 0.05 s ("**/*.py") to 0.12 s (40 "**/d*" components); 50,000
+    paths of depth 8 take 0.24-0.66 s; 50,000 paths of depth 30 take 0.71 s for
+    "**/*.py" and 4.59 s for a 242-character "**/d*/**/d*..." pattern. Every
+    such call blocks the loop that also serves A2A, heartbeats and other tools
+    (AGENTS 3.3). V407-034 moved the filesystem@1 ls/glob page work off the loop
+    (_listing_page through to_thread_until_done) but left this sibling.
+  siblings: >-
+    filesystem@1 ls/glob/grep: already offloaded by V407-034 (out of scope).
+    source-analysis open_source_archive: extraction already runs through the
+    guard; building the _files dict after it is O(entries) dictionary work and
+    is moved with the listing only if it shares the helper. read_source: the
+    file read already runs through the guard; bounded_line_window over at most
+    MAX_READ_LINES/128 KiB stays inline. compile_project_glob has no other
+    caller (grep of runtime/src). code-analysis@1 parses off the loop
+    (CAN-R59) and is not affected.
+  provenance: >-
+    git blame on source_analysis/tools.py:263-301 attributes the inline
+    list/search filtering to 33732236 ("feat(runtime): add safe source archive
+    tools"), the implementation_commit of tasks/done/v2-002-source-analysis-toolset.yml
+    (V2-002). 9b37df76 (V60-013) added the guard around the content scan and
+    e9810db5 (V407-034) only changed the matcher construction.
+scope:
+  in:
+    - "Run list_files' match, sort and page slice, and search's file selection and sort, in one
+      worker-thread step through the session's existing WorkspaceOperationGuard (which joins the
+      thread before close or fence completes), over an immutable snapshot of the file table taken
+      under the session lock."
+    - "Keep pattern validation, page validation and the error codes on the caller side; results,
+      ordering, totals, truncation and cursor-free paging stay byte-for-byte identical."
+    - "State the rule for the allocation-private source-analysis@1 reader in docs/spec/tools/workspace.md
+      next to WSP-R131 (or extend WSP-R74 to name it) without renumbering."
+    - "A deterministic regression test at the default 10,000-entry bound and at a 50,000-entry
+      configured bound."
+  out:
+    - "Changing source archive admission limits, the glob grammar, result shapes or tool schemas."
+    - "Making the search content scan cooperative or changing MAX_SEARCH_SECONDS."
+    - "Filesystem@1 listing (already offloaded by V407-034)."
+failure_outcomes:
+  - operation: "list_source_files / search_source path selection in a worker thread"
+    permanent: "Invalid pattern, offset or limit is rejected before any thread starts with the
+      existing ToolInputError codes."
+    retryable: "Not applicable; no external call."
+    ambiguous: "Not applicable; the step reads an immutable file table and mutates nothing."
+    cancelled: "Cancellation of the tool call does not release the session lock or let close()
+      remove the extracted tree until the thread joins (existing guard semantics, FAIL-WSP-3)."
+    timeout: "The existing per-operation deadline of the guard (_deadline) owns it; a fenced or
+      closed session answers the existing unavailable error."
+acceptance_criteria:
+  - id: A1
+    given: "An opened archive with 10,000 entries and another with 50,000 entries (configured
+      sourceArchiveLimits.maxEntries) whose paths reach the 512-byte path limit"
+    when: "list_source_files and search_source run with \"**/*\", a selective glob and a 256-character
+      multi-\"**\" glob"
+    then: "every path match and the sort run on a non-loop thread (recorded thread ident), and a
+      concurrent loop task makes progress while a barrier holds the matching step"
+  - id: A2
+    given: "The same archives"
+    when: "the tools page through every result"
+    then: "files, sizes, offset, limit, total, truncated and search matches equal the former inline
+      implementation for every pattern in the test"
+  - id: A3
+    given: "A matching step held by a barrier"
+    when: "the tool call is cancelled and the session is closed concurrently"
+    then: "close() waits until the thread finishes, the call raises CancelledError, and no thread
+      outlives the session"
+  - id: A4
+    given: "The unfixed implementation (19f7477f)"
+    when: "the A1 and A3 regression tests run"
+    then: "they fail because matching runs on the loop thread"
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_source_analysis_toolset.py tests/test_filesystem_toolset.py"
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A2]
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9 and Node 24.20 (portable copies under /private/tmp),
+    the locked Runtime venv and a pnpm UI install for make lint; branch
+    claude/v414-rt with main 030e195a merged (45b32a82), head b3f04f65.
+  commands:
+    - >-
+      cd runtime && uv run --locked pytest -q -W error
+      tests/test_source_analysis_toolset.py tests/test_filesystem_toolset.py:
+      47 passed, 0 skipped, on 576e9506 and again on b3f04f65.
+    - >-
+      A4: the new A1 and A3 regressions fail against the unfixed tools.py
+      (unchanged since 19f7477f), because the held path match blocks the
+      loop thread.
+    - "make lint: exit 0 on 45b32a82."
+    - >-
+      make test-runtime on 45b32a82, run while six other lanes were testing
+      on the same machine: 4581 passed, 39 skipped, 111 failed. 104 of the
+      failures are the macOS set that V401-007 records (97 in
+      test_podman_*.py, and the code_analysis, local_direct_faults[socket],
+      projectfs_local_direct, projectfs_local_io, tool_process and
+      trailmark_child cases). The other seven,
+      test_owned_mutation_blocks_allocation_release_and_slot_reuse[False],
+      test_retained_read_edit_tree_and_newline_behavior[overlay-memory] and
+      test_capabilities_check_each_binary_independently (5 cases), pass when
+      rerun on their own (7 passed); they touch no source-analysis code.
+  notes: >-
+    Under the same load the 50,000-entry case first failed with
+    workspace_unavailable, because its held match ran under the 30 s
+    requestTimeoutSeconds operation deadline of the test settings.
+    b3f04f65 gives that test a 600 s deadline; it checks which thread
+    matches and sorts paths, not how fast.

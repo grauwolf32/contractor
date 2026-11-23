@@ -1,0 +1,132 @@
+package config
+
+import (
+	"path/filepath"
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+)
+
+func TestSemanticDigestsIgnoreYAMLPresentationAndToolOrder(t *testing.T) {
+	t.Parallel()
+
+	baselineRoot := copyCoreFixture(t)
+	variantRoot := copyCoreFixture(t)
+	writePresentationVariant(t, variantRoot)
+
+	baseline := mustLoad(t, baselineRoot)
+	variant := mustLoad(t, variantRoot)
+	baselinePolicy, _ := baseline.ModelPolicy("test-worker@1")
+	variantPolicy, _ := variant.ModelPolicy("test-worker@1")
+	if baselinePolicy.Ref.Digest != variantPolicy.Ref.Digest {
+		t.Fatalf("presentation changed ModelPolicy digest: %s != %s", baselinePolicy.Ref.Digest, variantPolicy.Ref.Digest)
+	}
+	baselineTemplate, _ := baseline.agentTemplateForTest("artifact_builder@1")
+	variantTemplate, _ := variant.agentTemplateForTest("artifact_builder@1")
+	if baselineTemplate.Ref.Digest != variantTemplate.Ref.Digest {
+		t.Fatalf("presentation changed AgentTemplate digest: %s != %s", baselineTemplate.Ref.Digest, variantTemplate.Ref.Digest)
+	}
+}
+
+func TestSemanticAndInstructionChangesAlterDigests(t *testing.T) {
+	t.Parallel()
+
+	baselineRoot := copyCoreFixture(t)
+	writePresentationVariant(t, baselineRoot)
+	semanticRoot := copyCoreFixture(t)
+	writePresentationVariant(t, semanticRoot)
+	replaceFile(t, filepath.Join(semanticRoot, "model-policies/test-worker.yaml"), "maxOutputTokens: 4096", "maxOutputTokens: 4097")
+	instructionRoot := copyCoreFixture(t)
+	writePresentationVariant(t, instructionRoot)
+	appendFile(t, filepath.Join(instructionRoot, "instructions/artifact-builder.md"), "\n")
+
+	baseline := mustLoad(t, baselineRoot)
+	semantic := mustLoad(t, semanticRoot)
+	instruction := mustLoad(t, instructionRoot)
+	baselinePolicy, _ := baseline.ModelPolicy("test-worker@1")
+	semanticPolicy, _ := semantic.ModelPolicy("test-worker@1")
+	instructionPolicy, _ := instruction.ModelPolicy("test-worker@1")
+	if baselinePolicy.Ref.Digest == semanticPolicy.Ref.Digest {
+		t.Fatal("semantic ModelPolicy change did not alter its digest")
+	}
+	if baselinePolicy.Ref.Digest != instructionPolicy.Ref.Digest {
+		t.Fatal("instruction change unexpectedly altered ModelPolicy digest")
+	}
+
+	baselineTemplate, _ := baseline.agentTemplateForTest("artifact_builder@1")
+	semanticTemplate, _ := semantic.agentTemplateForTest("artifact_builder@1")
+	instructionTemplate, _ := instruction.agentTemplateForTest("artifact_builder@1")
+	if baselineTemplate.Ref.Digest != semanticTemplate.Ref.Digest {
+		t.Fatal("ModelPolicy change altered AgentTemplate digest")
+	}
+	if baselineTemplate.Ref.Digest == instructionTemplate.Ref.Digest {
+		t.Fatal("instruction byte change did not alter AgentTemplate digest")
+	}
+	if baselineTemplate.Instructions.Digest == instructionTemplate.Instructions.Digest {
+		t.Fatal("instruction byte change did not alter instruction digest")
+	}
+}
+
+func TestEachWorkerBudgetChangesPolicyWithoutChangingTemplateDigest(t *testing.T) {
+	t.Parallel()
+
+	baseline := mustLoad(t, copyCoreFixture(t))
+	baselinePolicy, _ := baseline.ModelPolicy("test-worker@1")
+	baselineTemplate, _ := baseline.agentTemplateForTest("artifact_builder@1")
+	for _, test := range []struct{ field, from, to string }{
+		{"maxModelCalls", "maxModelCalls: 8", "maxModelCalls: 9"},
+		{"maxToolCalls", "maxToolCalls: 16", "maxToolCalls: 17"},
+		{"maxTotalTokens", "maxTotalTokens: 32768", "maxTotalTokens: 32769"},
+	} {
+		t.Run(test.field, func(t *testing.T) {
+			root := copyCoreFixture(t)
+			replaceFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), test.from, test.to)
+			variant := mustLoad(t, root)
+			policy, _ := variant.ModelPolicy("test-worker@1")
+			template, _ := variant.agentTemplateForTest("artifact_builder@1")
+			if policy.Ref.Digest == baselinePolicy.Ref.Digest ||
+				template.Ref.Digest != baselineTemplate.Ref.Digest {
+				t.Fatalf("changing %s must alter only the policy digest", test.field)
+			}
+		})
+	}
+}
+
+func TestInstructionDigestUsesExactBytes(t *testing.T) {
+	t.Parallel()
+
+	first := []byte("same text\n")
+	second := []byte("same text\r\n")
+	if contentdigest.Bytes(first) == contentdigest.Bytes(second) {
+		t.Fatal("line-ending normalization affected exact-byte digest")
+	}
+}
+
+func writePresentationVariant(t *testing.T, root string) {
+	t.Helper()
+	writeFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), []byte(`# key order and scalar spelling are intentionally different
+kind: ModelPolicy
+apiVersion: contractor/v1alpha1
+spec:
+  temperature: 0.10
+  maxOutputTokens: 4096
+  maxModelCalls: 8
+  maxToolCalls: 16
+  maxTotalTokens: 32768
+  model: worker-model
+metadata: {version: "1", name: test-worker}
+`))
+	writeFile(t, filepath.Join(root, "agent-templates/artifact_builder.yaml"), []byte(`# Toolset/tool ordering is semantically unordered.
+kind: AgentTemplate
+metadata: {version: "1", name: artifact_builder}
+apiVersion: contractor/v1alpha1
+spec:
+  sandboxProfile: local-workdir@1
+  toolsets:
+    - tools: [write_artifact, read_artifact, list_artifacts]
+      ref: run-artifacts@1
+  instructions: {ref: instructions/artifact-builder.md}
+  runtime: adk@1
+  description: "Reads a declared input and writes the requested result"
+`))
+}

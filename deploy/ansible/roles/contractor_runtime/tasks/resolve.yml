@@ -1,0 +1,18 @@
+---
+# Raw input, intermediate instance dictionaries and failed loop items remain
+# private. The rescue publishes only allowlisted identity/field/category data.
+- name: Resolve Runtime configuration with private inputs
+  block:
+    - name: Resolve and validate private configuration
+      ansible.builtin.include_tasks:
+        file: resolve_private.yml
+        apply:
+          no_log: true
+      no_log: true
+  rescue:
+    - name: Report the rejected configuration safely
+      ansible.builtin.fail:
+        msg: >-
+          {{ ansible_failed_result | contractor_resolution_failure(
+               ansible_failed_task.name, __contractor_runtime_literal_errors | default([]),
+               __contractor_runtime_input_errors | default([])) }}

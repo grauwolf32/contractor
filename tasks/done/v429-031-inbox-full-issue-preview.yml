@@ -1,0 +1,78 @@
+schema_version: "1.0"
+id: V429-031
+title: Reuse the full Issues workspace in the Inbox Decide preview
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: completed
+depends_on: [V429-030]
+languages: [typescript, javascript, css]
+goal: The user can inspect the same complete issue information and evidence from Inbox Decide as from Issues, without leaving the queue.
+demonstration: Render the actual Issues IssueDetail component inside the revised Inbox preview, replacing only its duplicate list-navigation chrome with the existing Inbox context and navigation; exercise the preserved synthetic HTTP and source-code issue examples through Summary, Evidence and History.
+context:
+  authority: User 2026-11-04 asks for the complete Issues information in the Decide view. Prior instructions retain OpenDesign data, shared typography, queue navigation and a reviewable preview before production transfer.
+  specification: docs/spec/ui/ui.md#UI-R39
+  design: docs/design/ui/README.md
+  references:
+    - ui/src/routes/issues/README.md
+    - ui/src/routes/decisions/README.md
+  proposal: Use the existing IssueDetail and its existing source/evidence/decision owners directly. Keep Inbox previous/next and return context, hide only the redundant Issues-list header, and scope existing Issues styling to the right pane. Preserve previous previews; no new native generation is required for sharing an already-reviewed component.
+  boundary: Issues owns information layout, tab/source reads, exact evidence and review presentation. Inbox owns selection, keyboard order, return context, focus and late decision navigation. The preview adapter supplies context, not a second issue renderer or domain controller.
+scope:
+  in:
+    - A new retained preview revision using the actual full IssueDetail, Summary, Evidence, History and review composer.
+    - Schema-valid retained examples with HTTP evidence and escaped saved source snippets, exact Project revisions, independent sources and duplicate target selection.
+    - Queue navigation, tab deep links, error states, responsive themes and paired Issues/Inbox verification.
+  out:
+    - Production transfer/main merge, new API/domain/correlation behavior, real decisions, live data or model calls.
+requirements:
+  - id: R1
+    text: Decide shows the same identity, narrative, impact, limitations, references, evidence and independent-source History as the existing Issues component.
+  - id: R2
+    text: Inbox continues to own previous/next, J/K, mobile Back and late decision navigation; tab changes retain the selected item and Open in Issues retains its tab and return context.
+  - id: R3
+    text: There is one existing FindingDecision review composer; proposals, source check results and human verdicts remain distinct. Missing evidence or failed reads stay explicit, and no inferred source code or verification result is introduced.
+  - id: R4
+    text: Existing fonts/themes, exact scope/revision reads and bounded inline snippets remain with their existing owners; prior native and host artifacts are unchanged and every preview mutation is rejected locally.
+failure_outcomes:
+  - operation: Full issue and retained evidence reads
+    permanent: Reuse current Issues error/unknown UI with no source-scope fallback or invented result.
+    retryable: Existing query retry controls refetch the fixed synthetic response; no separate retry loop is added.
+    ambiguous: Existing exact Project Artifact identities and Finding revision remain authoritative.
+    cancelled: Existing query keys isolate source/selection changes so a late answer cannot populate another issue.
+    timeout: Existing read/backoff behavior remains; no live network work or model call is created.
+cardinality:
+  - collection: Synthetic review sources and evidence
+    expected: Two existing issue examples, one retained source each and a few saved evidence files.
+    maximum: Twenty-four Inbox rows, two selected issue examples, four read outcomes and existing paged source/target readers.
+    bound: Reuse exact schema-valid fixture files and shared metadata/preview admission; at most the first two eligible text files auto-preview within the existing 64 KiB inline bound.
+lifecycle:
+  - entity: Full issue preview
+    delete: Keep prior previews, native projects, CSS, inputs and history untouched.
+    cascade: Only new experiment files and ignored generated preview modules are authored.
+    retention: Keep prior file hashes, direct component provenance, browser results and review captures.
+acceptance_criteria:
+  - id: A1
+    text: Actual full IssueDetail is reused directly and paired review proves its issue content matches Issues across Summary, Evidence and History, including a saved snippet and HTTP evidence.
+  - id: A2
+    text: Tab/queue navigation, J/K, mobile Back, explicit links, duplicate target selection and the review composer work at 1440/1100/390/320px in light/dark/black without overflow or unintended writes.
+  - id: A3
+    text: Read failures stay explicit, original experiment/source hashes remain unchanged, no browser error or live API request occurs, and the new preview is opened for the user.
+tests:
+  - command: node docs/design/ui/experiments/inbox-full-issue-2026-11-04/verify.mjs
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A3]
+  - command: git diff --check
+    covers: [A1, A2, A3]
+
+implementation_commit: a50e1386cdc7be27219a3bbdfe08b4ef0506e949
+verification:
+  date: "2026-11-04"
+  browser: verify.mjs passes forty-six layout/scenario samples and twelve paired Issues/Inbox content/typography comparisons; tabs, queue/keyboard navigation, direct links/return state, duplicate targets, retained draft, mobile Back, exact downloads and credential masking work with no browser errors or live API requests.
+  preservation: All 138 protected prior experiment and production-source files retain their hashes. The reviewed synthetic Issues data is reused; no native model call or production edit is made.
+  preview: Full source-code issue loaded and retained in browser tab 38, with the existing IssueDetail showing its source snippets and review context inside Decide.
+  repository: Task/spec checks and git diff --check pass. Branch codex/inbox-design is unmerged; production transfer remains a subsequent request.

@@ -1,0 +1,120 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-26",
+  "source_revision": "8f875adcac145f2d71ac3015de9a05d345a42cb6",
+  "production_changes": false,
+  "scope": "Deterministic test-local SDK/session/Gateway proof; no live model, production compact@1, process A2A or final release claim.",
+  "task": "V420-001",
+  "decision": "tasks/evidence/v420-001-planner-compaction-contract.md",
+  "adapter": "Public BeforeModel request projection; SessionService.Get supplies current session because callback Session() is unsupported. Explicit outer-owner checkpoint/continuation; no Scheduler state changes.",
+  "versions": {
+    "go": "go1.26.9 darwin/arm64",
+    "google.golang.org/adk/v2": "v2.6.0"
+  },
+  "adk_module": {
+    "Path": "google.golang.org/adk/v2",
+    "Version": "v2.6.0",
+    "Sum": "h1:ZgMfKWzzB1H3qQ/6JV3pGkm7rcfNZFRMkgvOLBtmJTk=",
+    "GoModSum": "h1:Z3nLJKDFE1UzbEs3JXiTnAtWjS92kXo4cI8S8FFLRrc="
+  },
+  "module_graph_sha256": "269807b777c899b92586863c59d3c0ee8940caab546a8a32b0c682a880987e2e",
+  "source_sha256": {
+    "go.mod": "39814d7a347628f48a62289abba63beba81db20dd51d1acf233d308e654bb937",
+    "go.sum": "33d3b901321b8f39d44e379736d2c9a42b8a0fcb7455ad6c20594ef5417cc195",
+    "internal/planner/streamline/compaction_spike_test.go": "deba45fc7561c1ce0b7793261d6bc5c183cf8c8773e50c1aacae63eb116b0091",
+    "internal/planner/streamline/compaction_contract_spike_test.go": "c90e870e56aa0d3080757bf2d625918d28052ee64b696235e48fb8d430d25388"
+  },
+  "commands": [
+    {
+      "command": "go test -race -count=1 -json ./internal/planner/...",
+      "exit_code": 0,
+      "passed_records": 690,
+      "passed_top_level": 238,
+      "passed_spike_records": 52,
+      "failed_records": 0,
+      "skipped_records": 0,
+      "passed_packages": 8,
+      "sha256": "1603932d71b45feaeb693373f8b7a496a53f3d0621d3ebf12c8a4df5475b0d44",
+      "note": "Full Planner packages with required real PostgreSQL cases. Final test-only policy/framing/retention refinements are covered by the later full changed-package suite."
+    },
+    {
+      "command": "go test -race -count=1 -json ./internal/planner/streamline",
+      "exit_code": 0,
+      "passed_records": 283,
+      "passed_top_level": 83,
+      "passed_spike_records": 54,
+      "failed_records": 0,
+      "skipped_records": 0,
+      "passed_packages": 1,
+      "sha256": "6649bc8d58cf6d4c8ca8cda1276f3dc6b7e27a05a3786bf61ed4e91491f52dbf",
+      "note": "Final frozen changed-package sources, including closed-union null/missing-discriminator regressions."
+    },
+    {
+      "command": "make test-streamline",
+      "exit_code": 0,
+      "passed_packages": 3,
+      "log_sha256": "d9158778a6f69ccfb480581697075d3e7e619e086657c821b0f339036e27e201",
+      "boundary": "Actual PostgreSQL; integration suite uses its fake WorkerInvoker, not a real Runtime process."
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "log_sha256": "2e49ff3e0075930f08888dd2c56c27125b2145d328db1dc2b0460256dd590915"
+    }
+  ],
+  "database": "Agent-owned disposable PostgreSQL17 database, canonical TMPDIR; all required Planner/store cases executed without skip.",
+  "properties": {
+    "logical_owner": 1,
+    "sdk_turns": 3,
+    "accepted_checkpoints": 2,
+    "main_calls": 5,
+    "compactor_calls": 2,
+    "worker_effects": 4,
+    "charged_tokens": 126,
+    "source_groups_fixture": 4096,
+    "page_encoded_bytes": 32768,
+    "page_items_max": 8,
+    "fragment_utf8_bytes_max": 16384,
+    "exact_result_envelope": {
+      "text_bytes": 65536,
+      "payload_bytes": 262144,
+      "refs": 128
+    }
+  },
+  "registry_boundary": "Values and stable codes are frozen in design evidence. V420-002 installs owning numbered specifications/registries together with enforcement; no planned feature is described as shipped.",
+  "accounting": "Received rejected responses retain known usage. Missing usage fails as existing planner_gateway_invalid_response and charges the admitted call without inventing tokens.",
+  "historical_finding": "Finish-before-required-append-error was already fixed by V419-006; existing ordinary/final/PostgreSQL/cancellation regressions ran in full Planner suites.",
+  "design_limits": {
+    "summary_utf8_bytes": 16384,
+    "recent_tail_serialized_bytes": 1048576,
+    "aggregate_retained_bytes": 33554432,
+    "retained_groups": 4096,
+    "accounted_peak_bytes": 67108864,
+    "gateway_request_bytes": 4194304,
+    "cycles_default": 8,
+    "cycles_max": 16,
+    "recent_default": 4,
+    "recent_max": 16,
+    "ratio_default": 0.75,
+    "cursor_chains": 8
+  },
+  "accepted_assumptions": {
+    "token_bound": "Full serialized UTF-8 request byte count bounds non-overlapping byte-preserving text tokenization; add bounded framing (1024, or1024+128/message above8messages) and output reserve. Unknown expansion/framing routes require an exact supported tokenizer or fail before transport. Operator route/token capacity metadata remains trusted.",
+    "peak": "Accounted serialized/backing data and structural reserves, not a Go heap/RSS promise. Shared backing counts once; every actual copy counts separately.",
+    "oversized_group": "Exact UTF-8 document fragments for archive retrieval; active prompt groups never split. A required tail/input that exceeds its containing ceiling fails without truncation."
+  },
+  "reversal_condition": "SDK, route/tokenizer/framing, source grouping, callback/append timing or ledger-envelope changes require reevaluation before production.",
+  "frozen_source_lint": {
+    "command": "make lint",
+    "exit_code": 0,
+    "log_sha256": "2e49ff3e0075930f08888dd2c56c27125b2145d328db1dc2b0460256dd590915",
+    "note": "Full mandatory gate after all test-code changes; no production/dependency changes."
+  },
+  "delivery": {
+    "branch": "codex/compaction-spikes",
+    "merged_to_main": false,
+    "pushed": false,
+    "deployment": false,
+    "main_claim_commit": "9d46711d56e41a30043f86e1f7b76a0c943cfc36"
+  }
+}

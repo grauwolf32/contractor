@@ -1,0 +1,66 @@
+schema_version: "1.0"
+id: V455-001
+title: Fold transition decisions and manual continuation receipts into Stage executions
+milestone: hub-audit-structure-2026-10
+epic: execution-core
+kind: chore
+introduced_by: V1-003
+priority: P3
+status: completed
+implementation_commit: 3ed272688628191ee56a1803cb0849ceebccedfa
+depends_on: []
+languages: [go, sql]
+goal: Remove two dependent RunStore tables while retaining immutable progression history and safe idempotent manual continuation.
+context:
+  authority: User 2026-11-07 requests implementing both reviewed RunStore consolidation steps together from current main.
+  base: 5d53197574e3f75c70b580584a727783041f88a3
+  specification: [docs/spec/execution/runs.md, docs/spec/execution/scheduler.md, docs/spec/artifacts/artifact-store.md, docs/spec/platform/persistence.md]
+  finding: internal/runstore/transition_store.go:15 stores one decision per source Stage in a dependent table; internal/runstore/resume_store.go:76 and :128 store a separate continuation receipt although the target Stage already records its source.
+  boundary: RunStore owns progression and continuation authority. Keep decisions on their source Stage and continuation receipt fields on their target Stage. The target retains unique source identity, attribution, original receipt timestamp and transaction identity; ArtifactStore permits output thaw only using a target created by the current transaction. No authority moves into process memory.
+  origin: V1-003 introduced automatic transitions; commit 16c41112c introduced manual continuation with no identifiable task, as recorded by V431-002.
+  alternatives: Retain both dependent tables and their foreign-key cycles. Folding them removes redundant identities and joins while keeping the same durable contracts. Reopen physical separation only for demonstrated row contention or read amplification.
+  cardinality: At most 1024 Stage attempts per Run; at most one automatic decision and one manual successor per source. Existing bounded Run deletion and cascade semantics remain applicable.
+  failure_outcomes: Progression and continuation roll back atomically on rejection or cancellation; retryable storage conflicts follow existing classification. A lost successful Resume response returns the original target before mutable eligibility checks, including after another failure or Project deletion begins. Old receipt transactions cannot thaw later bindings.
+scope:
+  in:
+    - Forward populated migration preserving every decision and continuation field and removing both old tables, validation functions and redundant foreign keys without compatibility readers.
+    - Update RunStore SQL, column-scoped immutability, exact target constraints, transaction-scoped thaw authority and all affected tests.
+    - Update normative contracts, ownership, ERD metadata and generated diagram; verify migration, real-store lifecycle, replay and purge.
+  out:
+    - Changes to public API, Scheduler policy, controller claims, Gateway recovery, UI, live-model runs or demo deployment.
+acceptance_criteria:
+  - id: A1
+    text: Fresh and populated migrations remove both dependent tables and preserve all Stage/Run business facts, transition actions/targets/escalation/timestamps and continuation attribution/timestamp/transaction identity.
+  - id: A2
+    text: Decisions remain single-write immutable and exact-target validated. Continuations copy their source, uniquely identify it and replay before mutable eligibility without creating another attempt; source history is unchanged.
+  - id: A3
+    text: Outputs thaw only in the transaction that creates the manual target, preserving exact revisions. Missing, malformed, old or forged receipt authority is rejected, and cancelled or rolled-back continuation leaves no partial state.
+  - id: A4
+    text: Base/escalated continuation, automatic progression, restart and deletion pass on real PostgreSQL; the full suites of changed packages and lint pass, and schema documents agree with the migrated database.
+tests:
+  - command: go test -p=2 -race -tags=integration -count=1 ./internal/runstore ./internal/scheduler ./internal/artifacts/postgres ./internal/runservice ./internal/httpapi/public ./internal/persistence ./internal/persistence/postgres
+    covers: [A1, A2, A3, A4]
+  - command: make docs-erd verify-architecture
+    covers: [A1, A4]
+  - command: make verify-public-api lint
+    covers: [A1, A2, A3, A4]
+
+verification:
+  results:
+    - Final seven-package PostgreSQL command passed with integration tags, race detector and count=1; complete RunStore, Scheduler, ArtifactStore, RunService, public HTTP, persistence and migration suites passed.
+    - Populated migration preserves every decision kind, exhausted escalation, all Stage and Run fields, events, original continuation attribution/timestamp/xid8 and a manual target that has already terminated. Fresh-schema and drift verification pass.
+    - Real-store regressions prove one decision under eight simultaneous writers, immutable decision and receipt columns, exact foreign-Run target rejection, forged owner/transaction rejection, rollback with no partial attempt or output thaw, and old receipt refusal while its target is still preparing.
+    - Existing concurrent Resume, late replay after another failure or Project deletion, base/escalated attempts, exact pins, Scheduler restart, terminal source history and Run deletion pass.
+    - make docs-erd verify-architecture passed; the generated ERD has 60 application tables and 70 foreign keys. make docs-dependencies regenerated the owning specification fingerprint.
+    - make verify-public-api lint passed, including API/schema generation checks, Go vet/staticcheck, test-only exports, task/spec/ERD/layer checks, script/deployment checks, UI lint, Ruff and Runtime import boundaries.
+    - Initial schema-coupled fixture expectations were updated for inline receipts, the transition-history index and the additional column-scoped decision guard; the final complete PostgreSQL run is green.
+  cleanup: Owned disposable database contractor_test_v455_stage was explicitly dropped after every Go process and pool stopped; its absence was verified. No demo database was changed.
+  limitations: Optional heavy-I/O fixtures were not enabled. Full release-verify, live models and additional Runtime/UI/process suites were not run; their coverage is not claimed.
+delivery:
+  date: '2026-11-07'
+  branch: codex/runstore-stage-owned-state
+  base_main: 5d53197574e3f75c70b580584a727783041f88a3
+  merged_into_main: true
+  integrated_head: 5f3e30037593712f05cc48290a16497074f2db2f
+  integration: User-authorized fast-forward into main on 2026-11-07; reviewed code is unchanged. Review reran complete RunStore, Scheduler, PostgreSQL persistence and Run deletion suites with integration tags and the race detector on a disposable PostgreSQL database; all passed and the database was dropped.
+  migration: 000016_stage_owned_state.sql

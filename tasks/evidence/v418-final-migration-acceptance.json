@@ -1,0 +1,258 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-25",
+  "task": "V418-007",
+  "status": "ADK2.13 migration accepted through historical broad migration evidence and user-authorized targeted acceptance of the patched final lock. This is not a complete final release-verify run.",
+  "authority": "User explicitly directed no full rerun after the final certifi/OTel patch. Remaining complete release stages were stopped; only listed012 checks executed once and are reused by attribution here.",
+  "final_runtime": {
+    "adk": "2.13.0",
+    "lock_sha256": "feb5a55a9097fc6224384a99b7c506467196ab87435ba3a83ac0a230023bb027",
+    "dependency_acceptance": "tasks/evidence/v418-patched-dependency-acceptance.json",
+    "dependency_implementation_commit": "d3f10fcb8c6016ae18bbb885686a3a7b1a4fe63c",
+    "verification_provenance_sha256": "fb1b0187556881dd4ecde25d14d495d31637a852c7798e167420e609c784241a",
+    "runtime_count_note": "Initial smoke5 and combined10-module323 both passed; smoke5 are also included in323, not328unique tests.",
+    "runtime_passed": 323,
+    "native_passed_leaves": 11,
+    "telemetry": {
+      "passed_records_including_subtests": 121,
+      "passed_top_level_tests": 49,
+      "skipped_test_cases": [
+        "TestPlannerOTLPCollectorProjection"
+      ]
+    },
+    "production_dependency_advisories": 0,
+    "full_release_executed": false
+  },
+  "finding_dispositions": [
+    {
+      "finding": "SDK turn/reminder identity and strict raw numeric tool admission",
+      "owners": [
+        "V418-002"
+      ],
+      "result": "resolved with passing real-path regressions at the evidence-specific source/lock",
+      "evidence": "tasks/evidence/v418-adk-213-migration.json"
+    },
+    {
+      "finding": "Interrupted history, completed siblings, unknown outcomes and bounded repair",
+      "owners": [
+        "V418-008",
+        "V418-002"
+      ],
+      "result": "resolved with passing real-path regressions at the evidence-specific source/lock",
+      "evidence": "tasks/evidence/v418-adk-213-boundary-probes.json"
+    },
+    {
+      "finding": "Unknown tools, empty responses, deadline/usage accounting and optional SDK feature admission",
+      "owners": [
+        "V418-002"
+      ],
+      "result": "resolved with passing real-path regressions at the evidence-specific source/lock",
+      "evidence": "tasks/evidence/v418-adk-213-migration.json"
+    },
+    {
+      "finding": "Skill32/33 aggregate byte bounds and all three strong callable caches",
+      "owners": [
+        "V418-003"
+      ],
+      "result": "resolved with passing real-path regressions at the evidence-specific source/lock",
+      "evidence": "tasks/evidence/v418-adk-213-skills-lifecycle.json"
+    },
+    {
+      "finding": "Gateway conversion, custom OTLP and strict content redaction",
+      "owners": [
+        "V418-004"
+      ],
+      "result": "resolved with passing real-path regressions at the evidence-specific source/lock",
+      "evidence": "tasks/evidence/v418-adk-213-gateway-telemetry.json"
+    },
+    {
+      "finding": "A2A child cancellation, deadline/cleanup ownership and release-replay",
+      "owners": [
+        "V418-010",
+        "V418-005"
+      ],
+      "result": "resolved with passing real-path regressions at the evidence-specific source/lock",
+      "evidence": "tasks/evidence/v418-adk-213-native-process-faults.json"
+    },
+    {
+      "finding": "Atomic cross-process fixture readiness markers",
+      "owners": [
+        "V418-009"
+      ],
+      "result": "resolved with passing real-path regressions at the evidence-specific source/lock",
+      "evidence": "tasks/evidence/v418-adk-213-process-spine.json"
+    },
+    {
+      "finding": "Native Runner default500 versus Contractor policy1000",
+      "owners": [
+        "V418-011"
+      ],
+      "result": "resolved with passing real-path regressions at the evidence-specific source/lock",
+      "evidence": "tasks/evidence/v418-adk-213-call-limits.json"
+    },
+    {
+      "finding": "Long shared/isolated history, allocation cycles and finite containing bounds",
+      "owners": [
+        "V418-006"
+      ],
+      "result": "resolved with passing real-path regressions at the evidence-specific source/lock",
+      "evidence": "tasks/evidence/v418-adk-213-scale-conformance.json"
+    },
+    {
+      "finding": "CA trust and matched fixed OTel API/SDK outside ADK declared metadata cap",
+      "owners": [
+        "V418-012"
+      ],
+      "result": "resolved with passing real-path regressions at the evidence-specific source/lock",
+      "evidence": "tasks/evidence/v418-patched-dependency-acceptance.json"
+    }
+  ],
+  "historical_broad": {
+    "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+    "runtime": {
+      "total": 5086,
+      "passed": 5031,
+      "allowed_skipped": 55,
+      "failed": 0,
+      "junit_sha256": "c991a0fee02ed843b1f6b443ed583225a8a2aa381c34f42578fcfffb444d6f02",
+      "provenance_sha256": "a3dcd35585842216678df5a9977bfa736f60a1bb7ef391c29fd26c7e1673f372"
+    },
+    "process": {
+      "passed_parents": 26,
+      "passed_unique_records": 68,
+      "skipped": 0,
+      "failed": 0,
+      "source_revision": "a308c695e83d561ae67a303447851c89883ea5c8",
+      "report_sha256": "b1ba225b4a360fc1cc42ba1389c190ebcceb6d43944f8cbe049babc61d8f1af1",
+      "provenance_sha256": "5dd7d167d7c50d17feca44b9f3c4d472b6f855dfd7d0853612075d790d49e6cd"
+    },
+    "interpretation": "Keep original exact source/lock; neither result is promoted as a full run on the patched final lock."
+  },
+  "first_release_attempt": {
+    "source_revision": "871d704a1601f9b59a275b491c4991b957751aa8",
+    "provenance_sha256": "07564bece8052bee4851c091ff1fcc0ee3363e0538ffdcfdcb8898a78e9431fe",
+    "advisory_result": "Actual failure: certifi2026.7.22/PYSEC-2026-4320 and OTelAPI1.42.1/CVE-2026-114603. Both resolved in012; original failure is retained.",
+    "ui": "Actual PASS195files2426tests plus1existing expected-failure; Node17tests; generation/lint/typecheck/build pass on original871 inputs.",
+    "stages": [
+      {
+        "note": "Historical evidence only; no full-release/current-lock promotion",
+        "old_lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+        "original_revision": "871d704a1601f9b59a275b491c4991b957751aa8",
+        "post_patch_full_stage_executed": false,
+        "pre_patch_status": "never_started",
+        "stage": "release-verify-lint"
+      },
+      {
+        "note": "Historical evidence only; no full-release/current-lock promotion",
+        "old_lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+        "original_revision": "871d704a1601f9b59a275b491c4991b957751aa8",
+        "post_patch_full_stage_executed": false,
+        "pre_patch_status": "never_started",
+        "stage": "release-verify-unit"
+      },
+      {
+        "note": "Historical evidence only; no full-release/current-lock promotion",
+        "old_lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+        "original_revision": "871d704a1601f9b59a275b491c4991b957751aa8",
+        "post_patch_full_stage_executed": false,
+        "pre_patch_status": "executed_pass",
+        "stage": "release-verify-ui"
+      },
+      {
+        "note": "Historical evidence only; no full-release/current-lock promotion",
+        "old_lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+        "original_revision": "871d704a1601f9b59a275b491c4991b957751aa8",
+        "post_patch_full_stage_executed": false,
+        "pre_patch_status": "never_started",
+        "stage": "release-verify-families"
+      },
+      {
+        "note": "Historical evidence only; no full-release/current-lock promotion",
+        "old_lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+        "original_revision": "871d704a1601f9b59a275b491c4991b957751aa8",
+        "post_patch_full_stage_executed": false,
+        "pre_patch_status": "never_started",
+        "stage": "release-verify-browser-a"
+      },
+      {
+        "note": "Historical evidence only; no full-release/current-lock promotion",
+        "old_lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+        "original_revision": "871d704a1601f9b59a275b491c4991b957751aa8",
+        "post_patch_full_stage_executed": false,
+        "pre_patch_status": "never_started",
+        "stage": "release-verify-browser-b"
+      },
+      {
+        "note": "Historical evidence only; no full-release/current-lock promotion",
+        "old_lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+        "original_revision": "871d704a1601f9b59a275b491c4991b957751aa8",
+        "post_patch_full_stage_executed": false,
+        "pre_patch_status": "never_started",
+        "stage": "release-verify-race"
+      },
+      {
+        "note": "Historical evidence only; no full-release/current-lock promotion",
+        "old_lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+        "original_revision": "871d704a1601f9b59a275b491c4991b957751aa8",
+        "post_patch_full_stage_executed": false,
+        "pre_patch_status": "never_started",
+        "stage": "release-verify-race-discovered"
+      },
+      {
+        "note": "Historical evidence only; no full-release/current-lock promotion",
+        "old_lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+        "original_revision": "871d704a1601f9b59a275b491c4991b957751aa8",
+        "post_patch_full_stage_executed": false,
+        "pre_patch_status": "never_started",
+        "stage": "release-verify-integration"
+      },
+      {
+        "note": "Historical evidence only; no full-release/current-lock promotion",
+        "old_lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+        "original_revision": "871d704a1601f9b59a275b491c4991b957751aa8",
+        "post_patch_full_stage_executed": false,
+        "pre_patch_status": "verified_reused_for_871_only",
+        "stage": "release-verify-process-a"
+      },
+      {
+        "note": "Historical evidence only; no full-release/current-lock promotion",
+        "old_lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+        "original_revision": "871d704a1601f9b59a275b491c4991b957751aa8",
+        "post_patch_full_stage_executed": false,
+        "pre_patch_status": "verified_reused_for_871_only",
+        "stage": "release-verify-process-b"
+      },
+      {
+        "note": "Historical evidence only; no full-release/current-lock promotion",
+        "old_lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+        "original_revision": "871d704a1601f9b59a275b491c4991b957751aa8",
+        "post_patch_full_stage_executed": false,
+        "pre_patch_status": "verified_reused_for_871_only",
+        "stage": "release-verify-process-c"
+      }
+    ],
+    "never_started_full_goals": [
+      "release-verify-lint",
+      "release-verify-unit",
+      "release-verify-families",
+      "release-verify-browser-a",
+      "release-verify-browser-b",
+      "release-verify-race",
+      "release-verify-race-discovered",
+      "release-verify-integration"
+    ]
+  },
+  "current_behavior": {
+    "compaction": "V417/V420 implementation remains separate and disabled; V417-002 now uses the accepted supported closure. No compaction activation is claimed.",
+    "consult": "Proposal0047 remains a proposal.",
+    "scheduler": "No production Scheduler behavior change.",
+    "live_models": "Not changed; no live-model quality claim.",
+    "delivery": "Local codex/adk-runtime-213 branch; not merged to main, not pushed or deployed. Server Go migration follows Runtime acceptance."
+  },
+  "verification_limitations": [
+    "No complete final release graph, full Runtime or global E2E after patched lock, per user instruction.",
+    "External Collector test is explicitly skipped and is not accepted.",
+    "Two explicit ADK metadata-cap overrides are documented and verified; this does not claim upstream declared compatibility.",
+    "Informational Runtime measurements do not demonstrate overall speedup or model quality."
+  ]
+}

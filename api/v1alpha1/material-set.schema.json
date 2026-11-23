@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/material-set.schema.json",
+  "title": "Exact material set",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "materials"
+  ],
+  "x-maxSelectedMaterials": 32,
+  "x-maxDescriptorBytes": 1048576,
+  "properties": {
+    "schema": {
+      "const": "contractor.material-set.v1"
+    },
+    "materials": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/material"
+      }
+    }
+  },
+  "$defs": {
+    "material": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope_kind",
+        "scope_id",
+        "ref",
+        "digest",
+        "media_type",
+        "size_bytes"
+      ],
+      "properties": {
+        "scope_kind": {
+          "enum": [
+            "user",
+            "project",
+            "audit",
+            "run"
+          ]
+        },
+        "scope_id": {
+          "allOf": [
+            {
+              "$ref": "common.schema.json#/$defs/opaqueId"
+            },
+            {
+              "not": {
+                "pattern": "\u0000"
+              }
+            }
+          ]
+        },
+        "ref": {
+          "$ref": "common.schema.json#/$defs/exactArtifactRef"
+        },
+        "digest": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "media_type": {
+          "$ref": "common.schema.json#/$defs/mediaType"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 67108864
+        }
+      }
+    }
+  }
+}

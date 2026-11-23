@@ -1,0 +1,132 @@
+package settingsstore
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"math"
+	"strconv"
+
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
+)
+
+type PostgresStore struct {
+	db persistencepostgres.DBTX
+}
+
+func NewPostgresStore(db persistencepostgres.DBTX) *PostgresStore {
+	return &PostgresStore{db: db}
+}
+
+// PostgresTxStore is a PostgresStore bound to the caller's transaction. Its
+// own methods take row locks that must last until the caller commits, so they
+// exist only on a store that cannot be backed by a pool.
+type PostgresTxStore struct {
+	*PostgresStore
+	tx pgx.Tx
+}
+
+// NewPostgresTxStore binds a PostgresStore to the caller's transaction tx.
+func NewPostgresTxStore(tx pgx.Tx) *PostgresTxStore {
+	return &PostgresTxStore{PostgresStore: NewPostgresStore(tx), tx: tx}
+}
+
+func (s *PostgresStore) GetSchedulerSettings(ctx context.Context) (SchedulerSettings, error) {
+	if s == nil || s.db == nil {
+		return SchedulerSettings{}, ErrInvariant
+	}
+	settings, err := scanSchedulerSettings(s.db.QueryRow(ctx, `
+SELECT max_concurrent_runs, max_concurrent_tool_runs, revision::text, updated_at
+FROM scheduler_settings
+WHERE singleton = true`))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return SchedulerSettings{}, fmt.Errorf("%w: singleton row is missing", ErrInvariant)
+	}
+	if err != nil {
+		return SchedulerSettings{}, fmt.Errorf("read Scheduler settings: %w", err)
+	}
+	return settings, nil
+}
+
+// LockSchedulerSettings locks the settings row FOR UPDATE until the caller's
+// transaction ends and returns it. A settings change then commits either
+// before the transaction reads the row, which returns the changed value, or
+// after the transaction ends: an Audit dispatch reservation and the setting it
+// reads are ordered this way (AUX-R6).
+func (s *PostgresTxStore) LockSchedulerSettings(ctx context.Context) (SchedulerSettings, error) {
+	if s == nil || s.tx == nil {
+		return SchedulerSettings{}, ErrInvariant
+	}
+	settings, err := scanSchedulerSettings(s.tx.QueryRow(ctx, `
+SELECT max_concurrent_runs, max_concurrent_tool_runs, revision::text, updated_at
+FROM scheduler_settings
+WHERE singleton = true
+FOR UPDATE`))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return SchedulerSettings{}, fmt.Errorf("%w: singleton row is missing", ErrInvariant)
+	}
+	if err != nil {
+		return SchedulerSettings{}, fmt.Errorf("lock Scheduler settings: %w", err)
+	}
+	return settings, nil
+}
+
+func (s *PostgresStore) UpdateSchedulerSettings(
+	ctx context.Context,
+	params UpdateSchedulerSettingsParams,
+) (SchedulerSettings, error) {
+	if !validConcurrentRuns(params.MaxConcurrentRuns) ||
+		(params.MaxConcurrentToolRuns != nil && !validConcurrentToolRuns(*params.MaxConcurrentToolRuns)) ||
+		params.ExpectedRevision == 0 || params.ExpectedRevision == math.MaxUint64 {
+		return SchedulerSettings{}, ErrInvalid
+	}
+	if s == nil || s.db == nil {
+		return SchedulerSettings{}, ErrInvariant
+	}
+	settings, err := scanSchedulerSettings(s.db.QueryRow(ctx, updateSchedulerSettingsSQL,
+		params.MaxConcurrentRuns, strconv.FormatUint(params.ExpectedRevision, 10), params.MaxConcurrentToolRuns))
+	if err == nil {
+		return settings, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return SchedulerSettings{}, fmt.Errorf("update Scheduler settings: %w", err)
+	}
+	current, getErr := s.GetSchedulerSettings(ctx)
+	if getErr != nil {
+		return SchedulerSettings{}, getErr
+	}
+	if current.Revision != params.ExpectedRevision || current.MaxConcurrentRuns != params.MaxConcurrentRuns ||
+		(params.MaxConcurrentToolRuns != nil && current.MaxConcurrentToolRuns != *params.MaxConcurrentToolRuns) {
+		return SchedulerSettings{}, ErrPrecondition
+	}
+	return SchedulerSettings{}, fmt.Errorf("%w: current row was not returned by exact update", ErrInvariant)
+}
+
+type rowScanner interface {
+	Scan(...any) error
+}
+
+func scanSchedulerSettings(row rowScanner) (SchedulerSettings, error) {
+	var result SchedulerSettings
+	var revision string
+	if err := row.Scan(&result.MaxConcurrentRuns, &result.MaxConcurrentToolRuns, &revision, &result.UpdatedAt); err != nil {
+		return SchedulerSettings{}, err
+	}
+	parsedRevision, err := strconv.ParseUint(revision, 10, 64)
+	if err != nil || parsedRevision == 0 || !validConcurrentRuns(result.MaxConcurrentRuns) ||
+		!validConcurrentToolRuns(result.MaxConcurrentToolRuns) || result.UpdatedAt.IsZero() {
+		return SchedulerSettings{}, ErrInvariant
+	}
+	result.Revision = parsedRevision
+	result.UpdatedAt = result.UpdatedAt.UTC()
+	return result, nil
+}
+
+func validConcurrentRuns(value int) bool {
+	return value >= MinimumConcurrentRuns && value <= MaximumConcurrentRuns
+}
+
+func validConcurrentToolRuns(value int) bool {
+	return value >= MinimumConcurrentToolRuns && value <= MaximumConcurrentToolRuns
+}

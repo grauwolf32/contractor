@@ -1,0 +1,30 @@
+FROM docker.io/library/node:24.20.0-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS build
+
+RUN npm install --global corepack@0.36.0 \
+    && corepack enable \
+    && corepack prepare pnpm@11.24.0 --activate
+
+WORKDIR /workspace/ui
+COPY ui/package.json ui/pnpm-lock.yaml ui/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+
+COPY ui/ ./
+COPY api/ /workspace/api/
+RUN pnpm generate \
+    && pnpm typecheck \
+    && pnpm build
+
+FROM docker.io/library/node:24.20.0-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS runtime
+
+ENV NODE_ENV=production \
+    CONTRACTOR_UI_HOST=0.0.0.0 \
+    CONTRACTOR_UI_PORT=4173
+
+WORKDIR /app/ui
+COPY --from=build --chown=node:node /workspace/ui/package.json ./package.json
+COPY --from=build --chown=node:node /workspace/ui/server/ ./server/
+COPY --from=build --chown=node:node /workspace/ui/dist/ ./dist/
+
+USER node
+EXPOSE 4173
+CMD ["node", "server/index.mjs"]

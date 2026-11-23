@@ -1,0 +1,198 @@
+schema_version: "1.0"
+id: V416-009
+title: "Extract the Nuclei preparation sequence into a private helper with an explicit result"
+milestone: main-review-2026-10-25
+epic: scan-tools
+kind: chore
+introduced_by: V406-003
+priority: P3
+status: completed
+depends_on: []
+languages: [python]
+goal: >-
+  Make the Nuclei preparation and provenance boundary reviewable in one
+  adjacent helper while preserving existing scanner inputs, outputs, failure
+  classifications, publication order, resource bounds and lifecycle behavior.
+context:
+  review: >-
+    Detailed read-only review of main on 2026-10-25, validated at
+    f9fda28f1c9ffa4baaf3052c141e652c8593a080; Runtime Nuclei simplification recommendation.
+  specification:
+    - docs/spec/tools/scanners.md#SCN-R225
+    - docs/spec/tools/scanners.md#SCN-R226
+    - docs/spec/tools/scanners.md#SCN-R227
+    - docs/spec/tools/scanners.md#SCN-R228
+    - docs/spec/tools/scanners.md#SCN-R229
+    - docs/spec/tools/scanners.md#SCN-R230
+    - docs/spec/tools/scanners.md#SCN-R238
+    - docs/spec/tools/scanners.md#SCN-R239
+    - docs/spec/tools/scanners.md#SCN-R240
+    - docs/spec/tools/scanners.md#SCN-R241
+    - docs/spec/tools/scanners.md#SCN-R242
+    - docs/spec/tools/scanners.md#SCN-R254
+    - docs/spec/tools/scanners.md#SCN-R255
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/scan/tools.py:403-633 combines
+    argument validation, mutable provenance closures, exact Artifact retrieval,
+    installed-package snapshotting, custom-pack materialization, version
+    probing, native validation, template selection, manifest publication,
+    target-file creation and observation formatting in NucleiTool.__call__.
+    Failure order and which provenance fields exist after each failure must
+    be inferred across nested callbacks mutating the same dictionary. This
+    is a maintenance recommendation; the review found no failing Nuclei
+    behavior requiring a semantic change in this task.
+  siblings: >-
+    Nuclei installed-unpinned, installed-pinned and owner-rulepack modes are
+    all in scope. Existing nuclei_package.py, nuclei_rulepack.py and
+    nuclei_inputs.py retain their domain responsibilities; _ScanSession retains
+    shared scanner serialization, deadline and scratch ownership. Other scanner
+    adapters, their probes and their target-policy semantics remain unchanged.
+  provenance: >-
+    V406-001, 83dcc737cf1a5321d05cbd699173dccd92e0eea9, added pinned installed
+    preparation; V406-003, 188940fd036dc7c4df92f4e5e2820d1647f54222, extended the
+    same nested preparation with custom source reads, whole-pack validation and
+    detailed provenance. introduced_by names V406-003 as the change producing
+    the combined boundary. V407-007, 815d6c3eff23dcdf0937e75c7e0d017f28011f9e,
+    subsequently moved scanner CPU/I/O work off the loop; preserve its guarantees.
+scope:
+  in:
+    - >-
+      Extract the adjacent Nuclei preparation sequence into one private helper
+      or small private collaborator whose explicit result carries prepared argv
+      and the provenance/manifest data needed by the observation. Make failure
+      provenance explicit too; retain the existing externally visible fields
+      available before a failed step.
+    - >-
+      Keep package parsing, hashing and manifest encoding in their existing
+      modules and make NucleiTool.__call__ coordinate the helper and the
+      existing _ScanSession execution path without a second source of policy.
+    - >-
+      Record the guarantee at the boundary in the helper's documentation:
+      source admission and exact verification precede native selection,
+      create-only manifest publication precedes target scanning, and no failed
+      preparation may launch a target scan.
+  out:
+    - >-
+      New generic scanner frameworks, registries, plugin APIs or exported
+      test-only hooks; all new helpers must have a production caller.
+    - Changes to tool signatures, emitted JSON/error codes, template trust or target policy.
+    - Changes to package digests, manifest schema, catalog identities or receipt semantics.
+    - New caching, retry policies, persistence entities or tighter/looser resource limits.
+failure_outcomes:
+  - operation: Existing Nuclei preparation and target scan
+    success: Preserve the same argv, private bytes, reports and exact manifest refs for each mode.
+    permanent: >-
+      Preserve invalid source/package/selection, output-exists and target-policy
+      classifications and the order in which they are observed; none launches
+      a target scan after a refused prerequisite.
+    retryable: Existing Artifact availability and transport classifications remain unchanged.
+    ambiguous: >-
+      A manifest publication whose result cannot be confirmed still prevents
+      target scanning; retain the existing Tool Worker invocation receipt and
+      do not add a second publication or scan attempt.
+    cancelled: >-
+      _ScanSession still serializes the whole call; all started preparation
+      threads and subprocesses are joined before scratch removal and unlock.
+    timeout: >-
+      Preserve one shared scanner deadline for preparation and scanning, the
+      bounded version probe, and the separate Worker deadline; no helper resets them.
+cardinality:
+  - collection: One invocation's installed package or owner rulepack and selection
+    expected: One chosen source and one create-only manifest for a pinned/custom invocation.
+    maximum: >-
+      Keep SCN-R227 installed bounds (50000 files, 512 MiB aggregate, 16 MiB
+      per file, 16 MiB canonical manifest) and SCN-R239/240 custom bounds
+      (16 MiB archive, 64 MiB expanded, 1000 files, 1 MiB per file,
+      100000 YAML tokens and depth 64).
+    bound: >-
+      The helper must not introduce an additional complete payload/package copy,
+      per-file thread submissions, an unbounded queue or retained cross-call state.
+lifecycle:
+  - entity: Nuclei invocation scratch and published manifest
+    delete: Existing _ScanSession and _Scratch ownership remains authoritative.
+    cascade: Cancellation and close join work before removing scratch and releasing the lock.
+    retention: Published manifests remain ordinary immutable Run Artifacts with existing purge behavior.
+acceptance_criteria:
+  - id: A1
+    text: >-
+      The installed/custom preparation sequence has one adjacent private owner
+      and an explicit result; NucleiTool.__call__ delegates to it, every new
+      helper has a production caller, and there is no new framework or duplicate
+      source of scanner policy.
+  - id: A2
+    text: >-
+      Existing tests for all three Nuclei source modes, package mismatch,
+      whole-pack validation, exact source refs, selection, compact/detailed
+      manifests, failure provenance, output-name refusal, ambiguous publication
+      and receipt replay pass without weakening assertions. Test edits are
+      limited to moved private symbols or equivalent test injection points.
+  - id: A3
+    text: >-
+      Existing deterministic deadline, held-thread, cancellation, close and
+      off-loop scanner tests continue to pass; process coverage proves that
+      required manifest publication still precedes target scanning and every
+      preparation failure prevents it. No resource limit or observable error
+      classification changes.
+  - id: A4
+    text: >-
+      Existing sibling scanner suites pass as full files because the helper
+      remains inside the shared _ScanSession contract; no behavior-mirroring
+      unit tests of the extracted helper replace the real adapter/process cases.
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_scan_toolset.py tests/test_scan_error_codes.py tests/test_tool_worker.py tests/test_threads.py"
+    covers: [A1, A2, A3]
+  - command: "cd runtime && uv run --locked pytest -q tests/test_scan_katana.py tests/test_scan_katana_lifecycle.py tests/test_scan_katana_live.py tests/test_scan_ffuf.py tests/test_scan_ffuf_live.py tests/test_scan_sqlmap_request.py tests/test_scan_sqlmap_live.py tests/test_scan_wordlist.py tests/test_scan_http_request.py"
+    covers: [A3, A4]
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" make test-nuclei-web-e2e'
+    covers: [A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification:
+  date: '2026-10-25'
+  decisions:
+    - >-
+      One adjacent private _NucleiPreparation collaborator owns each invocation.
+      Its explicit _NucleiPreparationResult carries target argv and optional
+      confirmed provenance fields; fields are populated at the same successful
+      steps as before, so later failure keeps the earlier evidence without
+      implying an unconfirmed manifest was published. NucleiTool.__call__ only
+      coordinates it with the existing _ScanSession and observation format.
+    - >-
+      The helper stays in scan/tools.py to avoid a new cross-module abstraction
+      or moving shared scanner exceptions and process injection points. Existing
+      package, rulepack and input modules remain the policy owners. The full
+      sequence, error mappings, per-call manifest ref, argv, shared deadline,
+      thread submissions and publication-before-scan order are preserved.
+    - >-
+      V416-008 was applied before extraction. This chore does not change its
+      rulepack metadata helper, fixture or validation semantics. No tests were
+      edited and no helper-only tests replace existing real adapter/process tests.
+  commands:
+    - >-
+      cd runtime && uv run --locked pytest -q tests/test_scan_toolset.py
+      tests/test_scan_error_codes.py tests/test_tool_worker.py tests/test_threads.py
+      -o addopts='' --tb=short passed all 204 tests on the final extraction.
+    - >-
+      cd runtime && uv run --locked pytest -q tests/test_scan_katana.py
+      tests/test_scan_katana_lifecycle.py tests/test_scan_katana_live.py
+      tests/test_scan_ffuf.py tests/test_scan_ffuf_live.py
+      tests/test_scan_sqlmap_request.py tests/test_scan_sqlmap_live.py
+      tests/test_scan_wordlist.py tests/test_scan_http_request.py
+      -o addopts='' --tb=short passed all 356 tests.
+    - >-
+      Changed Runtime source passes Ruff check and format checks; lint-imports
+      --no-cache --no-logo passes all four contracts. Task, specification and
+      shared-fixture source checks pass after running their generators.
+  integration: Full make lint passed on the integrated implementation.
+
+process_verification:
+  command: make test-nuclei-web-e2e
+  environment: Dedicated UTF-8 PostgreSQL v416_runtime, real Server and Runtime processes.
+  result: passed (tests/e2e 174.970s).
+
+implementation_commit: d22ca2b8e12bdbbdb2fdd73d710933016f760c5f
+integration_verification:
+  date: "2026-10-25"
+  revision: c2b8774febc4750146ab9af6e03da054c18a46e5
+  command: make lint
+  result: passed

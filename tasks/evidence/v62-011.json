@@ -1,0 +1,91 @@
+{
+  "task": "V62-011",
+  "date": "2026-10-21",
+  "ui_version": "0.7.0",
+  "layout": {
+    "overview": "A",
+    "endpoint_details": "B"
+  },
+  "boundary": "Production React components with contract-validated synthetic API responses; production process acceptance belongs to V62-012.",
+  "checks": [
+    {
+      "command": "cd ui && corepack pnpm test --run src/routes/projects/audits src/api/audits.test.ts",
+      "result": "passed"
+    },
+    {
+      "command": "make ui-typecheck ui-test ui-build",
+      "result": "passed",
+      "react": {
+        "passed": 2173,
+        "expected_failure": 1
+      },
+      "node": {
+        "passed": 16,
+        "failed": 0
+      }
+    },
+    {
+      "command": "cd ui && corepack pnpm exec playwright test e2e/audits.spec.ts",
+      "result": "passed",
+      "passed": 6,
+      "skipped": 0,
+      "browser": "Chromium 151.0.7922.34",
+      "base_url": "http://127.0.0.1:4173"
+    },
+    {
+      "command": "make lint",
+      "result": "passed"
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "docs/design/ui/screenshots/v62/implementation/endpoint-black.png",
+      "sha256": "c79cacf7afeaa7ab045fbef0d1ecdd39ee932c92406b2602b138cb7fc99852d1"
+    },
+    {
+      "path": "docs/design/ui/screenshots/v62/implementation/endpoint-dark.png",
+      "sha256": "a07e8ed2853d8f191675721909f6edf014ac53fd5c569389b480e7a427b3460a"
+    },
+    {
+      "path": "docs/design/ui/screenshots/v62/implementation/endpoint-light.png",
+      "sha256": "d60814060f6795cf35968799bd14cff51ca7e3196d82c47b47960c9e302d722e"
+    },
+    {
+      "path": "docs/design/ui/screenshots/v62/implementation/endpoint-mobile.png",
+      "sha256": "34bc642de88f826de73ee2783686f7a273b42feb7ed3514029891e260da72dd7"
+    },
+    {
+      "path": "docs/design/ui/screenshots/v62/implementation/overview-black.png",
+      "sha256": "3511ca03ea1326e70baf0f4594b604b337acdcb09eb78ae0310298e6acbf10ce"
+    },
+    {
+      "path": "docs/design/ui/screenshots/v62/implementation/overview-dark.png",
+      "sha256": "9d917779b8ac8f12b72d2a3eb506afe41cd085d70da8db87ff875afb66136bc6"
+    },
+    {
+      "path": "docs/design/ui/screenshots/v62/implementation/overview-light.png",
+      "sha256": "1fecce4f4715e24206d84dee1e7f7ab7a4168e5bbf333332984db23c876d5986"
+    },
+    {
+      "path": "docs/design/ui/screenshots/v62/implementation/overview-mobile.png",
+      "sha256": "892c27ab502924b6790e8f91a54fb368870ce82ba4bade1330aa347b8820b5f9"
+    },
+    {
+      "path": "docs/design/ui/screenshots/v62/implementation/preparation-failed.png",
+      "sha256": "386d2df20dc6c650ebdff728e0ed512b4a9d6be7ff15dbeb918adff94cd157a5"
+    },
+    {
+      "path": "docs/design/ui/screenshots/v62/implementation/preparing.png",
+      "sha256": "03660810ee4720133fbc4b82f1a8d80db2dccebf647e0b3a9791d3e2b83133bd"
+    }
+  ],
+  "observed": [
+    "start without a Round",
+    "pending and failed inventory",
+    "accepted generated materials",
+    "request and URL scan provenance",
+    "saved report read and keyboard focus return",
+    "desktop and 390 px",
+    "light, dark and black themes"
+  ]
+}

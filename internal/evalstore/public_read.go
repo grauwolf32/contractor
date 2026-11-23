@@ -1,0 +1,183 @@
+package evalstore
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"strings"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/evaldomain"
+	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
+)
+
+// ScopeForMutation also finds retained receipts after experiment purge. It
+// authenticates the owner before revealing a Project or replaying a mutation.
+func (s *Store) ScopeForMutation(ctx context.Context, owner, id, operation, key string) (Scope, error) {
+	var project string
+	lookupID := id
+	if operation == "submission" || operation == "result" || operation == "assessment" || operation == "checks" {
+		separator := strings.LastIndex(id, ":")
+		if separator < 1 || evaldomain.Validate("MemberID", bytesOf(id[separator+1:])) != nil {
+			return Scope{}, evaldomain.Failure("eval_invalid")
+		}
+		lookupID = id[:separator]
+	}
+	err := s.db.QueryRow(ctx, `SELECT project_id FROM eval_experiments WHERE owner_id=$1 AND experiment_id=$2`,
+		owner, lookupID).Scan(&project)
+	if errors.Is(err, pgx.ErrNoRows) {
+		var found bool
+		project, found, err = pg.EvalReceiptProject(ctx, s.db, owner, id, operation, key)
+		if err == nil && !found {
+			err = pgx.ErrNoRows
+		}
+	}
+	return Scope{OwnerID: owner, ProjectID: project}, normalize(err)
+}
+
+func (s *Store) CommandRecord(ctx context.Context, owner, id, command string) (CommandRecord, error) {
+	var c CommandRecord
+	err := s.db.QueryRow(ctx, `
+SELECT c.command_id, c.experiment_id, c.kind, c.state, c.accepted_revision, c.diagnostic, c.created_at, c.finished_at
+FROM eval_commands c
+JOIN eval_experiments e USING(experiment_id)
+WHERE e.owner_id=$1
+    AND e.experiment_id=$2
+    AND c.command_id=$3
+`, owner, id, command).Scan(&c.ID, &c.ExperimentID, &c.Kind, &c.State, &c.Revision, &c.Diagnostic, &c.CreatedAt, &c.FinishedAt)
+	return c, normalize(err)
+}
+
+type DatasetPage struct {
+	Revision int64
+	Items    []evaldomain.Dataset
+	HasMore  bool
+}
+
+func (s *Store) DatasetPage(ctx context.Context, scope Scope, afterID, afterRevision string, limit int, revision *int64) (DatasetPage, error) {
+	if limit < 1 || limit > evaldomain.MaxPageSize {
+		return DatasetPage{}, evaldomain.Failure("eval_invalid")
+	}
+	if _, err := s.project(ctx, scope, false); err != nil {
+		return DatasetPage{}, err
+	}
+	var result DatasetPage
+	var raw []byte
+	err := s.db.QueryRow(ctx, datasetPageSQL, scope.OwnerID, scope.ProjectID, afterID, afterRevision, limit+1).Scan(&result.Revision, &raw)
+	if err != nil {
+		return result, err
+	}
+	if revision != nil && *revision != result.Revision {
+		return result, evaldomain.Failure("eval_view_changed")
+	}
+	if err = json.Unmarshal(raw, &result.Items); err != nil {
+		return result, err
+	}
+	if len(result.Items) > limit {
+		result.HasMore = true
+		result.Items = result.Items[:limit]
+	}
+	return result, nil
+}
+
+// SummaryPageParams selects a page of the owner's experiment list: every
+// Project of the owner, or ProjectID alone, newest first (EVM-R247). It pages
+// by the immutable (created_at, experiment_id) key AfterCreatedAt, AfterID;
+// updated_at moves on usage ticks that do not fence the collection revision.
+// Revision, when set, is the collection revision the cursor was read at.
+type SummaryPageParams struct {
+	OwnerID, ProjectID string
+	Limit              int
+	Revision           *int64
+	AfterCreatedAt     *time.Time
+	AfterID            string
+}
+
+type PublicSummary struct {
+	ExperimentSummary
+	ExecutionKind string              `json:"executionKind"`
+	UpdatedAt     time.Time           `json:"updatedAt"`
+	Variants      []PublicVariant     `json:"variants"`
+	DatasetID     string              `json:"datasetId,omitempty"`
+	CaseCount     *int                `json:"caseCount,omitempty"`
+	Repetitions   *int                `json:"repetitions,omitempty"`
+	Summary       *evaldomain.Summary `json:"summary"`
+	Freshness     string              `json:"freshness"`
+}
+
+type PublicVariant struct {
+	ID       string `json:"id"`
+	Selector string `json:"selector"`
+}
+
+type SummaryPage struct {
+	Revision int64
+	Items    []PublicSummary
+	HasMore  bool
+	// LastCreatedAt is the keyset position of the last returned item.
+	LastCreatedAt time.Time
+}
+
+func (s *Store) SummaryPage(ctx context.Context, p SummaryPageParams) (SummaryPage, error) {
+	if p.OwnerID == "" || p.Limit < 1 || p.Limit > evaldomain.MaxPageSize {
+		return SummaryPage{}, evaldomain.Failure("eval_invalid")
+	}
+	if p.ProjectID != "" {
+		if _, err := s.project(ctx, Scope{p.OwnerID, p.ProjectID}, false); err != nil {
+			return SummaryPage{}, err
+		}
+	}
+	var result SummaryPage
+	var raw []byte
+	query, args := summaryPageQuery(p)
+	err := s.db.QueryRow(ctx, query, args...).Scan(&result.Revision, &raw)
+	if err != nil {
+		return result, err
+	}
+	if p.Revision != nil && *p.Revision != result.Revision {
+		return result, evaldomain.Failure("eval_view_changed")
+	}
+	var rows []struct {
+		PublicSummary
+		CreatedAt time.Time `json:"pageCreatedAt"`
+	}
+	if err = json.Unmarshal(raw, &rows); err != nil {
+		return result, err
+	}
+	if len(rows) > p.Limit {
+		result.HasMore = true
+		rows = rows[:p.Limit]
+	}
+	result.Items = make([]PublicSummary, len(rows))
+	for i, row := range rows {
+		// PostgreSQL's JSON timestamps carry the session offset; public
+		// managed-Eval Timestamp values are UTC regardless of that setting.
+		row.UpdatedAt = row.UpdatedAt.UTC()
+		result.Items[i] = row.PublicSummary
+		result.LastCreatedAt = row.CreatedAt
+	}
+	return result, nil
+}
+
+// summaryPagePredicates marks where summaryPageQuery adds predicates to
+// summaryPageSQL.
+const summaryPagePredicates = " /* predicates */"
+
+// summaryPageQuery returns one of the four summary page statements and its
+// arguments: $1 is the owner, $2 the Project (empty for every Project; it
+// also names the collection revision), $3 the limit plus one, and $4, $5 the
+// keyset cursor when p has one. A statement holds only the predicates p
+// needs, so the Project and the cursor are index conditions of the
+// created-order page indexes in custom and generic plans alike (EVM-R247).
+func summaryPageQuery(p SummaryPageParams) (string, []any) {
+	predicates, args := "", []any{p.OwnerID, p.ProjectID, p.Limit + 1}
+	if p.ProjectID != "" {
+		predicates += " AND project_id = $2"
+	}
+	if p.AfterCreatedAt != nil {
+		predicates += " AND (created_at, experiment_id) < ($4, $5)"
+		args = append(args, *p.AfterCreatedAt, p.AfterID)
+	}
+	return strings.Replace(summaryPageSQL, summaryPagePredicates, predicates, 1), args
+}

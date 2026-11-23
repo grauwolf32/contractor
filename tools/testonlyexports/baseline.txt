@@ -1,0 +1,10 @@
+# Exported identifiers that make lint tolerates without a production
+# reference, each until the open task it names resolves it. A line is
+# "<identifier> <task ID>"; the rules are in main.go. The check fails when an
+# entry has a production reference again or no longer exists, and when its
+# task is finished or missing, so the list only shrinks.
+
+# The Audit priority library has no production importer yet; its callers
+# arrive with the priority verdict and selection tasks.
+internal/auditpriority.BindVerdict V64-005
+internal/auditpriority.DecodeVerdict V64-005

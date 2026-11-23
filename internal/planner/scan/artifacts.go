@@ -1,0 +1,142 @@
+// Package scan executes frozen, bounded scan plans through ordinary tool Workers.
+package scan
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	contractscan "github.com/grauwolf32/contractor/internal/contracts/scan"
+	"github.com/grauwolf32/contractor/internal/planner"
+)
+
+// ArtifactStore receives a trusted Run ID from the immutable invocation. It
+// never resolves a scope, filename or arbitrary revision from scanner output.
+type ArtifactStore interface {
+	Read(context.Context, string, contracts.ArtifactRef, int) (artifacts.Payload, error)
+	Resolve(context.Context, string, contracts.ArtifactRef) (contracts.ArtifactRef, error)
+	Create(context.Context, string, contracts.ArtifactRef, artifacts.Payload) (contracts.ArtifactRef, error)
+	Replace(context.Context, string, contracts.ArtifactRef, artifacts.Payload, string) (contracts.ArtifactRef, error)
+}
+
+type ServiceArtifacts struct{ service *artifacts.Service }
+
+// Replace advances only an already observed result binding. Exact revisions
+// retained by previous Stage attempts remain immutable and readable.
+func (s *ServiceArtifacts) Replace(ctx context.Context, runID string, target contracts.ArtifactRef, payload artifacts.Payload, expected string) (contracts.ArtifactRef, error) {
+	if target.Validate() != nil || target.Revision != nil || expected == "" {
+		return contracts.ArtifactRef{}, fmt.Errorf("invalid scan result replacement: %w", contracts.ErrValidation)
+	}
+	if len(payload.Data) > planner.MaxScanArtifactBytes {
+		return contracts.ArtifactRef{}, blob.ErrTooLarge
+	}
+	store, err := s.service.Run(runID)
+	if err != nil {
+		return contracts.ArtifactRef{}, err
+	}
+	written, err := store.Write(ctx, target, payload, &expected)
+	if err != nil {
+		return contracts.ArtifactRef{}, err
+	}
+	return written.Ref.Clone(), nil
+}
+
+func NewServiceArtifacts(service *artifacts.Service) (*ServiceArtifacts, error) {
+	if service == nil {
+		return nil, fmt.Errorf("scan planner requires an Artifact service")
+	}
+	return &ServiceArtifacts{service: service}, nil
+}
+
+// Resolve pins the report binding authored for one specific stage/job. It is
+// used only when a failed Worker response omits the report it already wrote.
+func (s *ServiceArtifacts) Resolve(ctx context.Context, runID string, target contracts.ArtifactRef) (contracts.ArtifactRef, error) {
+	if target.Validate() != nil || target.Revision != nil {
+		return contracts.ArtifactRef{}, fmt.Errorf("invalid scan report binding")
+	}
+	store, err := s.service.Run(runID)
+	if err != nil {
+		return contracts.ArtifactRef{}, err
+	}
+	metadata, err := store.Metadata(ctx, target)
+	if err != nil {
+		return contracts.ArtifactRef{}, err
+	}
+	if metadata.Ref.ValidateExact() != nil || metadata.Ref.Namespace != target.Namespace || metadata.Ref.Name != target.Name {
+		return contracts.ArtifactRef{}, fmt.Errorf("scan report binding differs")
+	}
+	return metadata.Ref.Clone(), nil
+}
+
+func (s *ServiceArtifacts) Read(ctx context.Context, runID string, ref contracts.ArtifactRef, limit int) (artifacts.Payload, error) {
+	if ref.ValidateExact() != nil || limit < 1 || limit > max(planner.MaxScanArtifactBytes, contractscan.MaxNucleiRulepackZIPBytes) {
+		return artifacts.Payload{}, fmt.Errorf("invalid exact scan artifact read: %w", contracts.ErrValidation)
+	}
+	store, err := s.service.Run(runID)
+	if err != nil {
+		return artifacts.Payload{}, err
+	}
+	metadata, err := store.Metadata(ctx, ref.Clone())
+	if err != nil {
+		return artifacts.Payload{}, err
+	}
+	if !metadata.Ref.SameExact(ref) || metadata.Size < 0 {
+		return artifacts.Payload{}, fmt.Errorf("scan artifact metadata differs: %w", blob.ErrIntegrity)
+	}
+	if metadata.Size > int64(limit) {
+		return artifacts.Payload{}, fmt.Errorf("scan artifact exceeds its bound: %w", blob.ErrTooLarge)
+	}
+	result, err := store.Read(ctx, ref.Clone())
+	if err != nil {
+		return artifacts.Payload{}, err
+	}
+	if !result.Ref.SameExact(ref) || result.Payload.MediaType != metadata.MediaType || int64(len(result.Payload.Data)) != metadata.Size || len(result.Payload.Data) > limit {
+		return artifacts.Payload{}, fmt.Errorf("scan artifact revision or content differs: %w", blob.ErrIntegrity)
+	}
+	return artifacts.Payload{MediaType: result.Payload.MediaType, Data: append([]byte(nil), result.Payload.Data...)}, nil
+}
+
+// Create uses stable bindings and create-only writes. A lost acknowledgement can
+// be recovered by comparing the existing immutable payload, never by overwriting
+// an artifact that another invocation or Worker may have changed.
+func (s *ServiceArtifacts) Create(ctx context.Context, runID string, target contracts.ArtifactRef, payload artifacts.Payload) (contracts.ArtifactRef, error) {
+	if target.Validate() != nil || target.Revision != nil {
+		return contracts.ArtifactRef{}, fmt.Errorf("invalid scan artifact creation: %w", contracts.ErrValidation)
+	}
+	if len(payload.Data) > planner.MaxScanArtifactBytes {
+		return contracts.ArtifactRef{}, blob.ErrTooLarge
+	}
+	store, err := s.service.Run(runID)
+	if err != nil {
+		return contracts.ArtifactRef{}, err
+	}
+	result, err := store.Write(ctx, target, payload, nil)
+	if err == nil {
+		if result.Ref.ValidateExact() != nil || result.Ref.Namespace != target.Namespace || result.Ref.Name != target.Name || result.MediaType != payload.MediaType || result.Size != int64(len(payload.Data)) {
+			return contracts.ArtifactRef{}, fmt.Errorf("scan artifact creation returned inconsistent metadata: %w", blob.ErrIntegrity)
+		}
+		return result.Ref.Clone(), nil
+	}
+	if !errors.Is(err, artifacts.ErrArtifactConflict) {
+		return contracts.ArtifactRef{}, err
+	}
+	metadata, err := store.Metadata(ctx, target)
+	if err != nil {
+		return contracts.ArtifactRef{}, err
+	}
+	if metadata.Ref.ValidateExact() != nil || metadata.Ref.Namespace != target.Namespace || metadata.Ref.Name != target.Name || metadata.MediaType != payload.MediaType || metadata.Size != int64(len(payload.Data)) {
+		return contracts.ArtifactRef{}, fmt.Errorf("existing scan artifact does not match its immutable input: %w", blob.ErrIntegrity)
+	}
+	current, err := s.Read(ctx, runID, metadata.Ref, max(1, len(payload.Data)))
+	if err != nil {
+		return contracts.ArtifactRef{}, err
+	}
+	if current.MediaType != payload.MediaType || !bytes.Equal(current.Data, payload.Data) {
+		return contracts.ArtifactRef{}, fmt.Errorf("existing scan artifact content differs: %w", blob.ErrIntegrity)
+	}
+	return metadata.Ref.Clone(), nil
+}

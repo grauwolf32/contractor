@@ -1,0 +1,64 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: streamline-copy
+  version: '1'
+
+spec:
+  parameters:
+    mode:
+      required: true
+
+  inputs:
+    source:
+      required: true
+      mediaTypes: [text/plain]
+
+  outputs:
+    result:
+      primary: true
+      required: true
+      mediaTypes: [text/plain]
+
+  executionConfig:
+    planner:
+      modelPolicy: planner@1
+      llmGateway: local-litellm@1
+      credential: development-planner
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+      modelPolicy: worker@1
+
+  entryStage: copy
+  stages:
+    copy:
+      objective: STREAMLINE_E2E_GLOBAL author a report with one prepared Worker
+      instructions:
+        ref: instructions/report-planner.md
+      planner: streamline@1
+      agents:
+        builder:
+          template: artifact_builder@1
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+      result:
+        artifacts:
+          copied:
+            required: true
+            mediaTypes: [text/plain]
+            from: {namespace: builder, name: copied}
+      workflowOutputs:
+        result: copied
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

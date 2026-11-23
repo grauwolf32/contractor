@@ -1,0 +1,92 @@
+schema_version: "1.0"
+id: V429-023
+title: Refine the New check editor through a second OpenDesign pass
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: completed
+depends_on: [V429-022]
+languages: [html, css, javascript]
+goal: Make the reviewed New check editor more composed and polished through a real OpenDesign pass, while retaining one empty initial item and the project's visual language.
+demonstration: Compare the preserved manual V4 candidate with a genuinely generated refinement in empty, editing and applied checklist states on desktop and phone, without creating a check or a persistent material.
+context:
+  authority: >-
+    User request 2026-11-02 asks for further improvements and whether OpenDesign
+    was used. Last checklist corrections were explicitly manual. Run an actual
+    second OpenDesign pass, preserve all data/model/fonts/themes, keep the
+    one-empty-item choice and show the reviewed preview before production transfer.
+  design: docs/design/ui/README.md
+  decision: >-
+    Use a fresh isolated OpenDesign project with a snapshot of the current
+    synthetic candidate and a focused CSS-only brief. Native model output,
+    exact prompt/input, rationale, predecessor and before/after backups remain
+    separately retained. Model can change visual hierarchy and spacing, never
+    scripts, fixtures, controls, ownership, launch behavior or authorization.
+    The existing Contractor gateway and configured model remain the only allowed
+    model destination. No new Skill or dependency is installed.
+scope:
+  in:
+    - A genuine focused OpenDesign CSS composition pass for editor, actions and summary.
+    - Empty/draft/applied, source/API/checklist/Engagement and shared theme/mobile fidelity review.
+    - Exact script preservation, browser/domain verification, immutable provenance and backups.
+  out:
+    - Production UI/API/schema/catalog changes, real saves/uploads/launches, model changes and new dependencies.
+requirements:
+  - id: R1
+    text: New checklist starts with one empty item and calm guidance; all existing controls, facts, exact selections, profile variants and local readiness remain usable.
+  - id: R2
+    text: Shared theme tokens and font families remain authoritative; readable labels/actions survive desktop and 390px layouts and light/dark/black themes.
+  - id: R3
+    text: A successful native OpenDesign run and its raw contributions are retained; previous projects/files/history and manual candidates remain identical and recoverable.
+failure_outcomes:
+  - operation: Bounded isolated design generation
+    permanent: Keep partial artifacts and attempt identity, report the actual outcome and do not change model.
+    retryable: At most one focused continuation within the same expiring single-model relay budget.
+    ambiguous: Reconcile the client request and native run before any resubmission.
+    cancelled: Stop the owned relay and preserve all prior project data.
+    timeout: Use the independent gateway timeout without changing the configured model or discarding outputs.
+cardinality:
+  - collection: Model requests
+    expected: One focused CSS pass
+    maximum: Twenty-four requests in one hour, one active request
+    bound: Existing relay limits request/response bytes and allows only one existing gateway/model.
+  - collection: Review examples
+    expected: One-empty-item editor and one applied item, API/source and Engagement states
+    maximum: Existing four types/four scenarios, 128 checklist items
+    bound: Fixed synthetic inputs; no production API reads or target traffic.
+lifecycle:
+  - entity: Native project, conversation and local candidate version
+    delete: None; retain previous versions and all existing projects.
+    cascade: No Contractor business entity is introduced.
+    retention: Keep exact model contributions and verified complete state/sandbox backups; stop relay and remove its upstream credential.
+acceptance_criteria:
+  - id: A1
+    text: A real successful OpenDesign run produces CSS and an assembled HTML refinement from the preserved V4 input, with its original scripts and fixtures intact.
+  - id: A2
+    text: Empty/editing/applied editor and existing scenarios pass browser/theme/width and domain checks; the result is visually inspected and shown in the live preview.
+  - id: A3
+    text: Previous model/manual files and all prior native project files/history are unchanged, complete backups verify and relay cleanup is recorded.
+tests:
+  - command: node docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify-opendesign-pass.mjs
+    covers: [A1, A3]
+  - command: node docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify.mjs
+    covers: [A1, A2]
+  - command: node docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify-scope.mjs
+    covers: [A2]
+  - command: go run docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify-content.go
+    covers: [A2]
+  - command: python3 scripts/check_tasks.py
+    covers: [A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A2]
+  - command: git diff --check
+    covers: [A3]
+
+verification:
+  - Native OpenDesign run b9e7886e-3db6-41c8-b874-87f10c07f410 succeeded with the unchanged configured model; 11 of 24 relay requests used. CSS, assembled HTML, rationale, prompt and exact V4 input are retained.
+  - verify-opendesign-pass.mjs confirmed a CSS-only insertion and unchanged scripts/fixtures/tokens, native preservation and relay cleanup. Candidate is byte-identical to the native output.
+  - verify.mjs and verify-scope.mjs passed 72 layouts and existing controls/limits; verify-content.go validated existing fixtures, typed Engagement and sixteen browser-authored checklist documents.
+  - make lint, task/spec checks and git diff --check passed. Native desktop/390px editor and before-pass comparison were inspected; light/black and applied captures were reviewed.
+  - Complete pre/post backups passed integrity. All 155 prior project files and every previous Project/Conversation/Message row remain identical. Relay stopped and upstream credential removed. Preview is open; no production transfer or main merge.
+implementation_commit: babfaf1a666e17bce4a360042af7be883741ce40

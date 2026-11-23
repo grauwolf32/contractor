@@ -1,0 +1,65 @@
+schema_version: "1.0"
+id: V471-010
+title: Update offline Audit Eval checks to the published Project Finding profile versions
+milestone: project-facts-2026-11
+epic: quality
+kind: chore
+introduced_by: V471-001
+priority: P1
+status: completed
+depends_on: [V471-001]
+languages: [go, yaml, markdown]
+goal: Offline Audit Eval tests validate the actual published immutable profiles after their common Finding tool contract update.
+context:
+  authority: >-
+    User request 2026-11-21 authorizes group 2 implementation and main delivery.
+    Its full release gate exposed two stale consumers of V471-001's published
+    version-2 Audit profiles. This prerequisite repairs test references only.
+  finding: >-
+    tests/eval/audit_programs/common_catalog_test.go:22 and
+    tests/eval/audit_programs/http_engagement_test.go:40 request removed @1
+    profiles; the latter also creates a draft with Version 1 at line 103.
+    V471-001 commit 41fc498a7 published the affected identities at version 2.
+  generated_diagram: >-
+    Completion reopened during final acceptance: correcting current README
+    selectors also changes the dependency visualization source digest. Regenerate
+    the existing diagram through make docs-dependencies and rerun lint before
+    accepting this chore; no diagram renderer or catalog rule is changed.
+  specification:
+    - docs/spec/configuration/catalog.md
+    - docs/spec/audits/audits.md
+  siblings: >-
+    Inspect every reference in the offline Audit Eval package. Assertion profiles
+    and both HTTP draft selectors move together. Unaffected profiles retain their
+    exact versions. Test-only fixture roots with their own version-1 profiles
+    remain unchanged. Current README selectors follow manifest version 2; the
+    older Memory reset map is labelled historical rather than promising that its
+    retired identities remain unavailable after later publications. Runtime
+    catalog manifests and frozen migration identities are not changed.
+scope:
+  in:
+    - Pin assertion profile checks and HTTP engagement draft selectors to the actual published version-2 identities.
+    - Correct current README selectors and label the pre-reset Memory rollout map as historical; do not republish manifests or rewrite frozen Eval catalogs.
+    - Run the whole offline Audit Eval package, required fixtures and lint.
+  out:
+    - Changing production behavior, runtime catalog manifests, model selection, single-Server lease rules or adding latest-version fallbacks.
+acceptance_criteria:
+  - id: A1
+    text: Every exact assertion profile resolves with the existing Runtime completion contract; unaffected profile checks remain explicit.
+  - id: A2
+    text: Both WSTG HTTP profiles reject generic JSON engagement and start with their exact typed trusted engagement at the published version.
+  - id: A3
+    text: The full tests/eval/audit_programs suite and lint pass with no legacy profile identities reintroduced.
+tests:
+  - command: go test -count=1 ./tests/eval/audit_programs
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+
+implementation_commit: 77c9570bf6684bc85b280049a611bb11bc417170
+verification:
+  - The complete tests/eval/audit_programs package passed against PostgreSQL, including both typed WSTG HTTP profiles (1.151 s).
+  - make lint passed; task/specification and whitespace checks also passed after the final non-normative selector documentation correction.
+  - The whole internal/app package independently passed once the other Server process gate finished (14.843 s). Its initial lease failures were test scheduling interference, not a production lease change.
+  - Frozen Eval/mock catalogs and runtime manifests were not changed. The old Memory reset inventory is labelled historical rather than used as the current selector authority.
+  - Final make lint passed after make docs-dependencies regenerated the existing visualization fingerprint. Its nodes, edges and other diagram data are unchanged.

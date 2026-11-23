@@ -1,0 +1,5 @@
+---
+# Characters systemd would reinterpret in an unquoted unit-file value:
+# whitespace, quotes, backslash, '$' (environment expansion), '%'
+# (specifiers) and ';' (command separator).
+__contractor_runtime_unsafe_value: '[\s"''\\$%;]'

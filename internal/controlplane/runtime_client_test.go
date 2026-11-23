@@ -1,0 +1,1066 @@
+package controlplane
+
+import (
+	"bytes"
+	"context"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
+	"errors"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"reflect"
+	"slices"
+	"strconv"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/helpers/requestid"
+	"github.com/grauwolf32/contractor/internal/localpki"
+	"github.com/grauwolf32/contractor/internal/mtls"
+	"github.com/grauwolf32/contractor/internal/mtlstest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+)
+
+func TestRuntimeControlClientRejectsDifferentCAValidPrincipalBeforeRequest(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "pki")
+	generator := localpki.Generator{}
+	ca, err := generator.InitCA(root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf := localpki.LeafOptions{
+		DNSNames: []string{"localhost"}, IPAddresses: []net.IP{net.ParseIP("127.0.0.1")},
+	}
+	controlPlane, err := generator.IssueControlPlane(root, localpki.ControlPlaneOptions{LeafOptions: leaf})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedAgent, err := generator.IssueAgent(root, "expected-agent", leaf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrongEndpoint, err := generator.IssueAgent(root, "wrong-endpoint", leaf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	serverTLS, err := mtlstest.AgentServerConfig(mtlstest.Files{
+		Certificate: wrongEndpoint.Certificate, PrivateKey: wrongEndpoint.PrivateKey, CA: ca.Certificate,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var requests atomic.Int32
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		requests.Add(1)
+	}))
+	server.TLS = serverTLS
+	server.StartTLS()
+	defer server.Close()
+
+	client, err := NewMTLSRuntimeControlClient(mtls.Files{
+		Certificate: controlPlane.Certificate, PrivateKey: controlPlane.PrivateKey, CA: ca.Certificate,
+	}, 2*time.Second, &projectionGrantReader{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reservation := testReservation(
+		"allocation_principal", "builder", server.URL, server.URL,
+		testTemplate(t), time.Now().Add(time.Minute),
+	)
+	reservation.Grant.RuntimeAgentID = runtimePrincipalFromCertificate(t, expectedAgent.Certificate)
+	err = client.Release(context.Background(), reservation)
+	if err == nil || requests.Load() != 0 {
+		t.Fatalf("different-SPKI release = error %v, requests %d", err, requests.Load())
+	}
+}
+
+func runtimePrincipalFromCertificate(t *testing.T, path string) string {
+	t.Helper()
+	encoded, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(encoded)
+	if block == nil {
+		t.Fatal("certificate is not PEM")
+	}
+	certificate, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	principal, err := mtls.RuntimeAgentID(certificate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return principal
+}
+
+func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
+	template := testTemplate(t)
+	template.Skills = []contracts.ArtifactRef{{Namespace: contracts.AgentSkillNamespace, Name: "review"}}
+	workerPolicy := testWorkerPolicy(t)
+	workerPolicy.ContextWindowTokens = 131_072
+	cumulativeBudget := workerPolicy.MaxTotalTokens - 1
+	summaryPolicy := contracts.ResolvedModelPolicy{
+		Ref: contracts.ModelPolicyRef{
+			PolicyID: "terminal-summarizer", Version: "1",
+			Digest: "sha256:" + strings.Repeat("f", 64),
+		},
+		Model: "worker-summarizer-model", ContextWindowTokens: 131_072,
+		MaxOutputTokens: 1024, MaxModelCalls: 1,
+	}
+	template.Summarizer = &contracts.WorkerSummarizerConfig{
+		ContextWindowRatio: 0.9, CumulativeBudget: &cumulativeBudget,
+	}
+	effectivePolicy := workerPolicy
+	effectivePolicy.Ref = contracts.ModelPolicyRef{
+		PolicyID: "worker-strong", Version: "2", Digest: "sha256:" + strings.Repeat("d", 64),
+	}
+	effectivePolicy.Model = "worker-strong-model"
+	effectivePolicy.MaxModelCalls++
+	summaryPolicy = summaryPolicy.Clone()
+	summaryPolicy.Model = "selected-summary-model"
+	summaryPolicy.Ref.PolicyID = "selected_summary"
+	settings := testRuntimeSettings()
+	lease := time.Date(2026, 8, 29, 13, 0, 0, 0, time.UTC)
+	var received control.PrepareAllocationRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost || request.URL.Path != "/private/v1/allocations/allocation_1/prepare" {
+			t.Errorf("unexpected request %s %s", request.Method, request.URL.Path)
+		}
+		if request.Header.Get(requestid.Header) != "scheduler-request-1" {
+			t.Errorf("request ID = %q", request.Header.Get(requestid.Header))
+		}
+		decoder := json.NewDecoder(request.Body)
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&received); err != nil {
+			t.Errorf("decode prepare request: %v", err)
+		}
+		response := control.PrepareAllocationResponse{
+			APIVersion: contracts.APIVersion,
+			WorkerHandle: contracts.WorkerHandle{
+				AllocationID: "allocation_1", AgentTemplateRef: template.Ref,
+				WorkerRuntimeRef: template.Runtime, LeaseExpiresAt: lease,
+				AgentCard: testAgentCard(
+					"builder", "allocation_1",
+					serverURL(request)+"/private/v1/allocations/allocation_1/a2a",
+				),
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+	reservation := testReservation("allocation_1", "builder", server.URL, server.URL, template, lease)
+	reservation.PerformanceCollectionPolicy = reporting.PerformanceCollectionRequested
+	reservation.PerformanceMetrics = reservation.PerformanceCollectionPolicy.Request()
+	reservation.ProjectID = "project-prepare"
+	reservation.RunMetadataLabels = runlabels.RunMetadataLabels{
+		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a",
+	}
+	skillRevision := "run-review-1"
+	reservation.ResolvedSkills = []contracts.ResolvedSkill{{
+		Name: "review",
+		Artifact: contracts.ArtifactRef{
+			Namespace: contracts.AgentSkillNamespace, Name: "review", Revision: &skillRevision,
+		},
+		PackageDigest: "sha256:" + strings.Repeat("e", 64),
+	}}
+	workspaceRevision := "source-revision-1"
+	reservation.Workspace = &contracts.AllocationWorkspaceSpec{
+		Mode: contracts.WorkspaceModeOverlay,
+		Sources: []contracts.AllocationWorkspaceSource{{
+			Artifact: contracts.ArtifactRef{
+				Namespace: "inputs", Name: "source", Revision: &workspaceRevision,
+			},
+			Target: "project",
+		}},
+	}
+	client, err := NewRuntimeControlClient(server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handle, err := client.Prepare(
+		requestid.With(context.Background(), "scheduler-request-1"), reservation,
+		runtimesettings.WorkerExecutionSettings{
+			ModelPolicy: effectivePolicy, SummarizerModelPolicy: &summaryPolicy, RuntimeSettings: settings,
+			ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
+		},
+	)
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	if handle.AllocationID != reservation.Grant.AllocationID ||
+		handle.RuntimeAgentID != reservation.Grant.RuntimeAgentID || received.Spec.LeaseExpiresAt != lease {
+		t.Fatalf("handle/request = (%+v, %+v)", handle, received.Spec)
+	}
+	if received.Spec.AgentTemplate.Ref != template.Ref ||
+		received.Spec.WorkerSessionMode != contracts.WorkerSessionIsolated ||
+		!reflect.DeepEqual(received.Spec.RunMetadataLabels, reservation.RunMetadataLabels) ||
+		received.Spec.ProjectID == nil || *received.Spec.ProjectID != reservation.ProjectID ||
+		received.Spec.ModelPolicy.Ref != effectivePolicy.Ref ||
+		received.Spec.AgentTemplate.Summarizer == nil ||
+		received.Spec.SummarizerModelPolicy.Ref != summaryPolicy.Ref ||
+		received.Spec.AgentTemplate.Summarizer.CumulativeBudget == nil ||
+		*received.Spec.AgentTemplate.Summarizer.CumulativeBudget != cumulativeBudget ||
+		received.Spec.AgentTemplate.Summarizer.ContextWindowRatio != 0.9 ||
+		len(received.Spec.ResolvedSkills) != 1 ||
+		received.Spec.ResolvedSkills[0].Artifact.Revision == nil ||
+		*received.Spec.ResolvedSkills[0].Artifact.Revision != skillRevision ||
+		received.Spec.SummarizerModelPolicy == nil ||
+		!reflect.DeepEqual(*received.Spec.SummarizerModelPolicy, summaryPolicy) ||
+		received.Spec.ModelPolicy.Ref != effectivePolicy.Ref ||
+		received.Spec.ModelPolicy.Model != effectivePolicy.Model ||
+		received.Spec.Workspace == nil || len(received.Spec.Workspace.Sources) != 1 ||
+		received.Spec.Workspace.Sources[0].Artifact.Revision == nil ||
+		*received.Spec.Workspace.Sources[0].Artifact.Revision != workspaceRevision ||
+		received.Spec.PerformanceMetrics == nil ||
+		received.Spec.PerformanceMetrics.Version != reporting.PerformanceMetricsVersion ||
+		received.Spec.PerformanceMetrics.IntervalSeconds != reporting.PerformanceMetricsIntervalSeconds ||
+		received.Spec.RuntimeSettings.LLMGatewayToken.Reveal() != settings.LLMGatewayToken.Reveal() {
+		t.Fatalf("prepare request lost resolved inputs: %+v", received.Spec)
+	}
+}
+
+func TestRuntimeControlClientPrepareRejectsSecretBearingHandle(t *testing.T) {
+	template := testTemplate(t)
+	settings := testRuntimeSettings()
+	lease := wireTime(time.Now().Add(time.Minute).UTC())
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		response := control.PrepareAllocationResponse{
+			APIVersion: contracts.APIVersion,
+			WorkerHandle: contracts.WorkerHandle{
+				AllocationID: "allocation_1", AgentTemplateRef: template.Ref,
+				WorkerRuntimeRef: template.Runtime, LeaseExpiresAt: lease,
+				AgentCard: testAgentCard(
+					settings.LLMGatewayToken.Reveal(), "allocation_1", serverURL(request)+"/a2a",
+				),
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+	client, _ := NewRuntimeControlClient(server.Client())
+	reservation := testReservation("allocation_1", "builder", server.URL, server.URL, template, lease)
+
+	_, err := client.Prepare(context.Background(), reservation, runtimesettings.WorkerExecutionSettings{
+		ModelPolicy: testWorkerPolicy(t), RuntimeSettings: settings,
+		ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
+	})
+	if err == nil || bytes.Contains([]byte(err.Error()), []byte(settings.LLMGatewayToken.Reveal())) {
+		t.Fatalf("secret-bearing WorkerHandle error = %v", err)
+	}
+}
+
+func TestWorkerHandleAcceptsOriginalLeaseOnRenewedPrepare(t *testing.T) {
+	template := testTemplate(t)
+	original := wireTime(time.Now().Add(time.Minute))
+	renewed := original.Add(time.Minute)
+	reservation := testReservation(
+		"allocation_1", "builder", "https://runtime.example", "https://runtime.example",
+		template, renewed,
+	)
+	reservation.initialLeaseExpiresAt = original
+	handle := contracts.WorkerHandle{
+		AllocationID: "allocation_1", AgentTemplateRef: template.Ref,
+		WorkerRuntimeRef: template.Runtime, LeaseExpiresAt: original,
+		AgentCard: testAgentCard(
+			"builder", "allocation_1",
+			"https://runtime.example/private/v1/allocations/allocation_1/a2a",
+		),
+	}
+	if err := validateWorkerHandle(handle, reservation, testRuntimeSettings()); err != nil {
+		t.Fatalf("original WorkerHandle lease on replay: %v", err)
+	}
+	for _, invalid := range []time.Time{original.Add(-time.Second), renewed.Add(time.Second)} {
+		handle.LeaseExpiresAt = invalid
+		if err := validateWorkerHandle(handle, reservation, testRuntimeSettings()); err == nil {
+			t.Fatalf("accepted WorkerHandle lease %s outside issued range", invalid)
+		}
+	}
+}
+
+func TestWorkerHandleSecretScanIgnoresFixedCardAndReservationStrings(t *testing.T) {
+	template := testTemplate(t)
+	lease := wireTime(time.Now().Add(time.Minute))
+	reservation := testReservation(
+		"allocation_1", "builder", "https://runtime.example", "https://runtime.example", template, lease,
+	)
+	card := testAgentCard("builder", "allocation_1",
+		"https://runtime.example/private/v1/allocations/allocation_1/a2a")
+	card["version"] = template.Ref.Version
+	card["description"] = template.Description
+	skill := card["skills"].([]any)[0].(map[string]any)
+	skill["name"] = "Execute Contractor stage content"
+	skill["description"] = "Execute one strict Contractor StageContentRequest."
+	skill["tags"] = []any{"contractor", "stage"}
+	card["securitySchemes"].(map[string]any)["mutualTLS"].(map[string]any)["mtlsSecurityScheme"].(map[string]any)["description"] =
+		"Deployment-CA mutual TLS with a Contractor Control Plane peer"
+	handle := contracts.WorkerHandle{
+		AllocationID: reservation.Grant.AllocationID, AgentTemplateRef: template.Ref,
+		WorkerRuntimeRef: template.Runtime, AgentCard: card, LeaseExpiresAt: lease,
+	}
+	for _, value := range []string{"1", "1.0", "JSONRPC", "contractor", "stage", "adk"} {
+		t.Run(value, func(t *testing.T) {
+			settings := testRuntimeSettings()
+			settings.Telemetry = &runtimesettings.TelemetrySettings{
+				Adapter:             runtimesettings.RuntimeAdapterOTLPHTTP,
+				Endpoint:            "https://telemetry.example/v1/traces",
+				Headers:             map[string]contracts.SecretString{"X-Scope-OrgID": contracts.NewSecretString(value)},
+				FlushTimeoutSeconds: 1,
+			}
+			settings.HTTPProxy = &runtimesettings.HTTPProxySettings{
+				Adapter: runtimesettings.RuntimeAdapterHTTPProxy, ProxyURL: "https://proxy.example",
+				BasicAuth: &runtimesettings.HTTPProxyBasicAuth{
+					Username: contracts.NewSecretString(value), Password: contracts.NewSecretString("safe-password"),
+				},
+				Targets: []runtimesettings.HTTPProxyTarget{runtimesettings.ProxyTargetLLMGateway},
+			}
+			settings.HTTPOriginTarget = &runtimesettings.HTTPOriginTargetSettings{
+				URL: "https://origin.example",
+				BasicAuth: &runtimesettings.HTTPProxyBasicAuth{
+					Username: contracts.NewSecretString(value), Password: contracts.NewSecretString("safe-password"),
+				},
+			}
+			if err := validateWorkerHandle(handle, reservation, settings); err != nil {
+				t.Fatalf("fixed card string %q triggered a false secret match: %v", value, err)
+			}
+		})
+	}
+	settings := testRuntimeSettings()
+	settings.Telemetry = &runtimesettings.TelemetrySettings{
+		Adapter: runtimesettings.RuntimeAdapterOTLPHTTP, Endpoint: "https://telemetry.example/v1/traces",
+		Headers:             map[string]contracts.SecretString{"X-Scope-OrgID": contracts.NewSecretString("stage")},
+		FlushTimeoutSeconds: 1,
+	}
+	card["description"] = "stage"
+	if err := validateWorkerHandle(handle, reservation, settings); err == nil {
+		t.Fatal("accepted a short secret in Runtime-chosen card description")
+	}
+	card["description"] = template.Description
+	card["extension"] = "stage"
+	if err := validateWorkerHandle(handle, reservation, settings); err == nil {
+		t.Fatal("accepted a short secret in an unrecognized card field")
+	}
+	delete(card, "extension")
+	card["skills.0.tags.1"] = "stage"
+	if err := validateWorkerHandle(handle, reservation, settings); err == nil {
+		t.Fatal("accepted a short secret under a lookalike card field")
+	}
+	delete(card, "skills.0.tags.1")
+	longSecret := "recognizable-private-header-value"
+	settings.Telemetry.Headers["X-Scope-OrgID"] = contracts.NewSecretString(longSecret)
+	card["description"] = "prefix-" + longSecret + "-suffix"
+	if err := validateWorkerHandle(handle, reservation, settings); err == nil {
+		t.Fatal("accepted a long secret substring in Runtime-chosen card text")
+	}
+}
+
+func TestWorkerHandleSecretScanDoesNotMatchShortCredentialAgainstJSONKeys(t *testing.T) {
+	t.Parallel()
+
+	template := testTemplate(t)
+	lease := wireTime(time.Now().Add(time.Minute).UTC())
+	reservation := testReservation(
+		"allocation_1", "builder", "https://runtime.example", "https://runtime.example",
+		template, lease,
+	)
+	settings := testRuntimeSettings()
+	settings.HTTPProxy = &runtimesettings.HTTPProxySettings{
+		Adapter: runtimesettings.RuntimeAdapterHTTPProxy, ProxyURL: "https://proxy.example",
+		BasicAuth: &runtimesettings.HTTPProxyBasicAuth{
+			Username: contracts.NewSecretString("worker"),
+			Password: contracts.NewSecretString("short"),
+		},
+		Targets: []runtimesettings.HTTPProxyTarget{runtimesettings.ProxyTargetLLMGateway},
+	}
+	handle := contracts.WorkerHandle{
+		AllocationID: "allocation_1", AgentTemplateRef: template.Ref,
+		WorkerRuntimeRef: template.Runtime, LeaseExpiresAt: lease,
+		AgentCard: testAgentCard(
+			"builder", "allocation_1",
+			"https://runtime.example/private/v1/allocations/allocation_1/a2a",
+		),
+	}
+	if err := validateWorkerHandle(handle, reservation, settings); err != nil {
+		t.Fatalf("low-entropy credential collided with a JSON key: %v", err)
+	}
+}
+
+type agentCardSecretScanCases struct {
+	TrustedValues []struct {
+		Path   []string `json:"path"`
+		Values []string `json:"values"`
+	} `json:"trustedValues"`
+	Card  map[string]any `json:"card"`
+	Cases []struct {
+		Name   string `json:"name"`
+		Secret string `json:"secret"`
+		Set    []struct {
+			Path  []string `json:"path"`
+			Value any      `json:"value"`
+		} `json:"set"`
+		Leak bool `json:"leak"`
+	} `json:"cases"`
+}
+
+// The trusted path table and the leak cases are shared with the Python Runtime.
+func TestSharedWorkerHandleSecretScanSharedCases(t *testing.T) {
+	t.Parallel()
+
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "agent-card-secret-scan-cases.json")
+	var fixture agentCardSecretScanCases
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	template := testTemplate(t)
+	lease := wireTime(time.Now().Add(time.Minute))
+	reservation := testReservation(
+		"allocation_1", "builder", "https://runtime.example", "https://runtime.example", template, lease,
+	)
+	render := strings.NewReplacer(
+		"{allocationId}", reservation.Grant.AllocationID,
+		"{logicalAgentName}", reservation.Grant.LogicalAgentName,
+		"{description}", template.Description,
+		"{version}", template.Ref.Version,
+		"{endpoint}", "https://runtime.example/private/v1/allocations/allocation_1/a2a",
+	)
+
+	want := make(map[string][]string, len(fixture.TrustedValues))
+	for _, entry := range fixture.TrustedValues {
+		path, _ := json.Marshal(entry.Path)
+		values := make([]string, 0, len(entry.Values))
+		for _, value := range entry.Values {
+			values = append(values, render.Replace(value))
+		}
+		want[string(path)] = values
+	}
+	if got := workerCardTrustedValues(reservation); !reflect.DeepEqual(got, want) {
+		t.Fatalf("trusted Agent Card values = %v, shared table = %v", got, want)
+	}
+
+	if len(fixture.Cases) == 0 {
+		t.Fatal("shared fixture has no cases")
+	}
+	for _, test := range fixture.Cases {
+		t.Run(test.Name, func(t *testing.T) {
+			card, ok := renderAgentCardValue(fixture.Card, render).(map[string]any)
+			if !ok {
+				t.Fatal("shared card is not an object")
+			}
+			for _, operation := range test.Set {
+				path := make([]string, 0, len(operation.Path))
+				for _, element := range operation.Path {
+					path = append(path, render.Replace(element))
+				}
+				setAgentCardValue(t, card, path, renderAgentCardValue(operation.Value, render))
+			}
+			settings := testRuntimeSettings()
+			settings.Telemetry = &runtimesettings.TelemetrySettings{
+				Adapter: runtimesettings.RuntimeAdapterOTLPHTTP, Endpoint: "https://telemetry.example/v1/traces",
+				Headers: map[string]contracts.SecretString{
+					"X-Scope-OrgID": contracts.NewSecretString(render.Replace(test.Secret)),
+				},
+				FlushTimeoutSeconds: 1,
+			}
+			handle := contracts.WorkerHandle{
+				AllocationID: reservation.Grant.AllocationID, AgentTemplateRef: template.Ref,
+				WorkerRuntimeRef: template.Runtime, AgentCard: card, LeaseExpiresAt: lease,
+			}
+			err := validateWorkerHandle(handle, reservation, settings)
+			if test.Leak {
+				if err == nil || !strings.Contains(err.Error(), "exposed RuntimeSettings secret") {
+					t.Fatalf("expected a secret leak, got %v", err)
+				}
+			} else if err != nil {
+				t.Fatalf("expected an accepted handle, got %v", err)
+			}
+		})
+	}
+}
+
+func renderAgentCardValue(value any, render *strings.Replacer) any {
+	switch typed := value.(type) {
+	case string:
+		return render.Replace(typed)
+	case []any:
+		result := make([]any, 0, len(typed))
+		for _, item := range typed {
+			result = append(result, renderAgentCardValue(item, render))
+		}
+		return result
+	case map[string]any:
+		result := make(map[string]any, len(typed))
+		for key, item := range typed {
+			result[render.Replace(key)] = renderAgentCardValue(item, render)
+		}
+		return result
+	default:
+		return value
+	}
+}
+
+func setAgentCardValue(t *testing.T, card map[string]any, path []string, value any) {
+	t.Helper()
+	var current any = card
+	for index, element := range path {
+		last := index == len(path)-1
+		switch typed := current.(type) {
+		case map[string]any:
+			if last {
+				typed[element] = value
+				return
+			}
+			next, ok := typed[element]
+			if !ok {
+				next = map[string]any{}
+				typed[element] = next
+			}
+			current = next
+		case []any:
+			position, err := strconv.Atoi(element)
+			if err != nil || position < 0 || position >= len(typed) {
+				t.Fatalf("invalid list index %q in %v", element, path)
+			}
+			if last {
+				typed[position] = value
+				return
+			}
+			current = typed[position]
+		default:
+			t.Fatalf("path %v crosses a scalar", path)
+		}
+	}
+}
+
+func TestSharedRuntimeControlClientReadsWorkerStateAndRevalidatesETag(t *testing.T) {
+	fixture := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json")
+	const etag = `"contractor-agent-state-v1-7"`
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		requests.Add(1)
+		if request.Method != http.MethodGet ||
+			request.URL.Path != "/private/v1/allocations/allocation_1/agent-state" {
+			t.Errorf("unexpected State request %s %s", request.Method, request.URL.Path)
+		}
+		if request.Header.Get("Content-Type") != "" || request.Header.Get("Accept") != "application/json" {
+			t.Errorf("State request headers = %+v", request.Header)
+		}
+		body, _ := io.ReadAll(request.Body)
+		if len(body) != 0 {
+			t.Errorf("State request body = %q", body)
+		}
+		w.Header().Set("Cache-Control", "private, no-cache")
+		w.Header().Set("ETag", etag)
+		if request.Header.Get("If-None-Match") == etag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture)
+	}))
+	defer server.Close()
+
+	client, _ := NewRuntimeControlClient(server.Client())
+	handle := stateWorkerHandle(server.URL, "allocation_1")
+	first, err := client.ReadWorkerState(context.Background(), handle, "")
+	if err != nil || first.Snapshot == nil || first.NotModified || first.ETag != etag ||
+		first.Snapshot.State.StateRevision != 7 {
+		t.Fatalf("first Worker State read = (%+v, %v)", first, err)
+	}
+	second, err := client.ReadWorkerState(context.Background(), handle, first.ETag)
+	if err != nil || second.Snapshot != nil || !second.NotModified || second.ETag != etag {
+		t.Fatalf("conditional Worker State read = (%+v, %v)", second, err)
+	}
+	if requests.Load() != 2 {
+		t.Fatalf("State request count = %d", requests.Load())
+	}
+}
+
+func TestSharedRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testing.T) {
+	valid := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json")
+	tests := []struct {
+		name        string
+		status      int
+		etag        string
+		cache       string
+		body        []byte
+		conditional string
+		wantCode    string
+	}{
+		{name: "oversized", status: http.StatusOK, etag: `"contractor-agent-state-v1-7"`, cache: "private, no-cache", body: bytes.Repeat([]byte("x"), reporting.MaxAgentStateSnapshotBytes+1), wantCode: "worker_state_response_invalid"},
+		{name: "wrong etag", status: http.StatusOK, etag: `"contractor-agent-state-v1-8"`, cache: "private, no-cache", body: valid, wantCode: "worker_state_response_invalid"},
+		{name: "missing cache policy", status: http.StatusOK, etag: `"contractor-agent-state-v1-7"`, body: valid, wantCode: "worker_state_response_invalid"},
+		{name: "false not modified", status: http.StatusNotModified, etag: `"contractor-agent-state-v1-8"`, cache: "private, no-cache", conditional: `"contractor-agent-state-v1-7"`, wantCode: "worker_state_response_invalid"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if test.cache != "" {
+					w.Header().Set("Cache-Control", test.cache)
+				}
+				if test.etag != "" {
+					w.Header().Set("ETag", test.etag)
+				}
+				if test.status == http.StatusOK {
+					w.Header().Set("Content-Type", "application/json")
+				}
+				w.WriteHeader(test.status)
+				_, _ = w.Write(test.body)
+			}))
+			defer server.Close()
+			client, _ := NewRuntimeControlClient(server.Client())
+			_, readErr := client.ReadWorkerState(
+				context.Background(), stateWorkerHandle(server.URL, "allocation_1"), test.conditional,
+			)
+			var typed *reporting.WorkerStateReadError
+			if !errors.As(readErr, &typed) || typed.Code != test.wantCode ||
+				strings.Contains(readErr.Error(), server.URL) {
+				t.Fatalf("Worker State failure = %#v", readErr)
+			}
+		})
+	}
+
+	client, _ := NewRuntimeControlClient(&http.Client{})
+	_, err := client.ReadWorkerState(
+		context.Background(), stateWorkerHandle("http://127.0.0.1:1", "allocation_1"), "",
+	)
+	var typed *reporting.WorkerStateReadError
+	if !errors.As(err, &typed) || typed.Code != "worker_state_transport_failed" ||
+		strings.Contains(err.Error(), "127.0.0.1") {
+		t.Fatalf("safe transport failure = %#v", err)
+	}
+}
+
+// A Runtime response with a case alias or a duplicate key is invalid, at the
+// top level and inside nested report and State objects (API-R71 applies the
+// same strict decoding to the private wire).
+func TestSharedRuntimeControlClientRejectsCaseAliasesAndDuplicateKeys(t *testing.T) {
+	state := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json")
+	for name, body := range map[string]string{
+		"valid":            string(state),
+		"nested alias":     strings.Replace(string(state), `"schemaVersion"`, `"SchemaVersion"`, 1),
+		"top-level alias":  strings.Replace(string(state), `"apiVersion"`, `"APIVersion"`, 1),
+		"duplicate key":    strings.Replace(string(state), `{`, `{"apiVersion":"contractor/v1alpha1",`, 1),
+		"nested duplicate": strings.Replace(string(state), `"schemaVersion":2`, `"schemaVersion":2,"schemaVersion":2`, 1),
+	} {
+		t.Run("Worker State "+name, func(t *testing.T) {
+			if name != "valid" && body == string(state) {
+				t.Fatal("mutation did not apply")
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Cache-Control", "private, no-cache")
+				w.Header().Set("ETag", `"contractor-agent-state-v1-7"`)
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, body)
+			}))
+			defer server.Close()
+			client, _ := NewRuntimeControlClient(server.Client())
+			_, readErr := client.ReadWorkerState(
+				context.Background(), stateWorkerHandle(server.URL, "allocation_1"), "",
+			)
+			var typed *reporting.WorkerStateReadError
+			if name == "valid" {
+				if readErr != nil {
+					t.Fatalf("valid Worker State rejected: %v", readErr)
+				}
+			} else if !errors.As(readErr, &typed) || typed.Code != "worker_state_response_invalid" {
+				t.Fatalf("Worker State with %s = %#v", name, readErr)
+			}
+		})
+	}
+
+	encoded, err := json.Marshal(reporting.AllocationFinalResponse{
+		APIVersion: contracts.APIVersion, Report: testExecutionReport("allocation_1"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{
+		"valid":            string(encoded),
+		"nested alias":     strings.Replace(string(encoded), `"reportId"`, `"ReportId"`, 1),
+		"duplicate key":    strings.Replace(string(encoded), `{`, `{"apiVersion":"contractor/v1alpha1",`, 1),
+		"nested duplicate": strings.Replace(string(encoded), `"reportId"`, `"allocationId":"allocation_1","reportId"`, 1),
+	} {
+		t.Run("finalize "+name, func(t *testing.T) {
+			if name != "valid" && body == string(encoded) {
+				t.Fatal("mutation did not apply")
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, body)
+			}))
+			defer server.Close()
+			client, _ := NewRuntimeControlClient(server.Client())
+			reservation := testReservation(
+				"allocation_1", "builder", server.URL, server.URL,
+				testTemplate(t), time.Now().Add(time.Minute).UTC(),
+			)
+			_, finalizeErr := client.Finalize(
+				context.Background(), reservation, "finalization_1", time.Now().Add(time.Minute),
+			)
+			if (finalizeErr == nil) != (name == "valid") {
+				t.Fatalf("finalize response with %s = %v", name, finalizeErr)
+			}
+		})
+	}
+}
+
+func TestRuntimeControlClientRejectsMismatchedWorkerStateEndpointBeforeRequest(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		requests.Add(1)
+	}))
+	defer server.Close()
+	handle := stateWorkerHandle(server.URL, "allocation_1")
+	interfaces := handle.AgentCard["supportedInterfaces"].([]any)
+	interfaces[0].(map[string]any)["url"] = server.URL + "/unrelated/allocation_1/a2a"
+	client, _ := NewRuntimeControlClient(server.Client())
+
+	_, err := client.ReadWorkerState(context.Background(), handle, "")
+	var typed *reporting.WorkerStateReadError
+	if !errors.As(err, &typed) || typed.Code != "worker_state_endpoint_invalid" ||
+		requests.Load() != 0 || strings.Contains(err.Error(), server.URL) {
+		t.Fatalf("mismatched Worker State endpoint = (%#v, requests %d)", err, requests.Load())
+	}
+}
+
+func TestValidateA2AAgentCardRequiresMutualTLS(t *testing.T) {
+	registeredURL := "https://runtime.example"
+	endpoint := "https://runtime.example/private/v1/allocations/allocation_1/a2a"
+	card := testAgentCard("builder", "allocation_1", endpoint)
+	delete(card, "securityRequirements")
+
+	err := validateA2AAgentCard(card, "allocation_1", registeredURL)
+	if err == nil || err.Error() != "Runtime Agent A2A Agent Card does not require mutual TLS" {
+		t.Fatalf("validateA2AAgentCard error = %v", err)
+	}
+}
+
+func TestValidateA2AAgentCardRejectsAnotherPathOnRegisteredOrigin(t *testing.T) {
+	registeredURL := "https://runtime.example"
+	card := testAgentCard(
+		"builder", "allocation_1", "https://runtime.example/unrelated/allocation_1/a2a",
+	)
+
+	err := validateA2AAgentCard(card, "allocation_1", registeredURL)
+	if err == nil || err.Error() != "Runtime Agent returned an A2A Agent Card for another endpoint" {
+		t.Fatalf("validateA2AAgentCard error = %v", err)
+	}
+}
+
+func TestRuntimeControlClientFinalizeAndReleaseProtocol(t *testing.T) {
+	template := testTemplate(t)
+	lease := time.Now().Add(time.Minute).UTC()
+	var operations []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		operations = append(operations, request.URL.Path)
+		if stringsHasSuffix(request.URL.Path, "/release") {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		response := reporting.AllocationFinalResponse{
+			APIVersion: contracts.APIVersion,
+			Report:     testExecutionReport("allocation_1"),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+	client, _ := NewRuntimeControlClient(server.Client())
+	reservation := testReservation("allocation_1", "builder", server.URL, server.URL, template, lease)
+	if _, err := client.Finalize(context.Background(), reservation, "finalization_1", time.Now().Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Release(context.Background(), reservation); err != nil {
+		t.Fatal(err)
+	}
+	if len(operations) != 2 {
+		t.Fatalf("operations = %v", operations)
+	}
+}
+
+func TestRuntimeControlClientRetainsCompactUTF8Telemetry(t *testing.T) {
+	path := strings.Repeat("<>&\u2028\u2029", 300)
+	report := testExecutionReport("allocation_1")
+	report.Worker.ToolCalls = []reporting.ToolCallRecord{{
+		CallID: "call-1", Tool: "read_source_file",
+		Arguments: map[string]any{"path": path}, Outcome: reporting.ToolCallSucceeded,
+	}}
+	escaped, err := json.Marshal(report.Worker.ToolCalls[0].Arguments)
+	if err != nil || len(escaped) <= 4096 {
+		t.Fatalf("test case must exceed the HTML-escaped argument limit: %d, %v", len(escaped), err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(reporting.AllocationFinalResponse{
+			APIVersion: contracts.APIVersion, Report: report,
+		})
+	}))
+	defer server.Close()
+	client, _ := NewRuntimeControlClient(server.Client())
+	reservation := testReservation(
+		"allocation_1", "builder", server.URL, server.URL,
+		testTemplate(t), time.Now().Add(time.Minute).UTC(),
+	)
+	deadline := time.Now().Add(time.Minute)
+	finalized, err := client.Finalize(context.Background(), reservation, "finalization_1", deadline)
+	if err != nil {
+		t.Fatalf("valid Runtime finalize report was rejected: %v", err)
+	}
+	aborted, err := client.Abort(
+		context.Background(), reservation, "abort_1",
+		contracts.TerminationError{Code: "run_cancelled", Message: "cancelled"}, deadline,
+	)
+	if err != nil {
+		t.Fatalf("valid Runtime abort report was rejected: %v", err)
+	}
+	for _, received := range []reporting.AllocationFinalReport{finalized, aborted} {
+		if len(received.Worker.ToolCalls) != 1 ||
+			received.Worker.ToolCalls[0].Arguments["path"] != path {
+			t.Fatalf("Runtime report detail was lost: %+v", received.Worker.ToolCalls)
+		}
+	}
+}
+
+func testReservation(
+	allocationID, logicalName, controlURL, a2aURL string,
+	template contracts.ResolvedAgentTemplate,
+	lease time.Time,
+) Reservation {
+	return Reservation{
+		Grant: AllocationGrant{
+			AllocationID: allocationID, RuntimeAgentID: strings.Repeat("a", 64),
+			RuntimeInstanceID: "runtime_" + logicalName,
+			RunID:             "run_1", StageExecutionID: "stage_1", LogicalAgentName: logicalName,
+			Namespace: logicalName, ReadPolicy: ReadCurrentRun, WritePolicy: WriteInputsAndIntermediates,
+		},
+		ControlURL: controlURL, A2AURL: a2aURL, WorkerSessionMode: contracts.WorkerSessionIsolated,
+		ContextManagement: contracts.EffectiveContextManagement(
+			contracts.WorkerContextManagement{Strategy: contracts.ContextStrategyTemplate}, template),
+		AgentTemplate: template, LeaseExpiresAt: lease,
+		PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled,
+	}
+}
+
+// Finalize and Abort apply the one resource policy definition
+// (reporting.RuntimeReport.ApplyResourcePolicy) to what the Runtime sent.
+func TestRuntimeResourcesAreIsolatedFromLifecycleTruth(t *testing.T) {
+	const partial = `{"version":1,"scope":"runtime_process","status":"partial","durationSeconds":1}`
+	const malformed = `{"version":2,"scope":"runtime_process","status":"partial"}`
+	duration := 1.0
+	reason := reporting.ResourceInvalidReport
+	kept := &reporting.RuntimeResources{Version: 1, Scope: "runtime_process", Status: reporting.ResourcePartial, DurationSeconds: &duration}
+	sentinel := &reporting.RuntimeResources{Version: 1, Scope: "runtime_process", Status: reporting.ResourceUnavailable, Reason: &reason}
+	for _, test := range []struct {
+		name      string
+		policy    reporting.PerformanceCollectionPolicy
+		resources string
+		want      *reporting.RuntimeResources
+	}{
+		{name: "requested valid", policy: reporting.PerformanceCollectionRequested, resources: partial, want: kept},
+		{name: "requested malformed", policy: reporting.PerformanceCollectionRequested, resources: malformed, want: sentinel},
+		{name: "requested absent", policy: reporting.PerformanceCollectionRequested},
+		{name: "disabled valid", policy: reporting.PerformanceCollectionDisabled, resources: partial},
+		{name: "unsupported malformed", policy: reporting.PerformanceCollectionUnsupported, resources: malformed},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			body := string(mustMarshal(t, reporting.AllocationFinalResponse{
+				APIVersion: contracts.APIVersion, Report: testExecutionReport("allocation_1"),
+			}))
+			if test.resources != "" {
+				body = strings.Replace(body, `"runtime":{`, `"runtime":{"resources":`+test.resources+`,`, 1)
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, body)
+			}))
+			defer server.Close()
+			client, _ := NewRuntimeControlClient(server.Client())
+			reservation := testReservation(
+				"allocation_1", "builder", server.URL, server.URL,
+				testTemplate(t), time.Now().Add(time.Minute).UTC(),
+			)
+			reservation.PerformanceCollectionPolicy = test.policy
+			deadline := time.Now().Add(time.Minute)
+			finalized, err := client.Finalize(context.Background(), reservation, "finalization_1", deadline)
+			if err != nil {
+				t.Fatalf("Finalize: %v", err)
+			}
+			aborted, err := client.Abort(
+				context.Background(), reservation, "abort_1",
+				contracts.TerminationError{Code: "run_cancelled", Message: "cancelled"}, deadline,
+			)
+			if err != nil {
+				t.Fatalf("Abort: %v", err)
+			}
+			for _, report := range []reporting.AllocationFinalReport{finalized, aborted} {
+				if !reflect.DeepEqual(report.Runtime.Resources, test.want) || report.Runtime.ResourcesError != nil ||
+					!report.Runtime.Complete || !report.Worker.Complete {
+					t.Fatalf("resources = %+v, diagnostic %v; want %+v", report.Runtime.Resources, report.Runtime.ResourcesError, test.want)
+				}
+			}
+		})
+	}
+}
+
+func mustMarshal(t *testing.T, value any) []byte {
+	t.Helper()
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return encoded
+}
+
+func testRuntimeSettings() runtimesettings.RuntimeSettings {
+	token := contracts.NewSecretString("recognizable-runtime-secret")
+	return runtimesettings.RuntimeSettings{
+		LLMGatewayURL: "https://llm.example/v1", LLMGatewayToken: &token,
+		ArtifactAPIURL: "https://control.example/private/v1", RequestTimeoutSeconds: 30,
+	}
+}
+
+func testWorkerExecutionSettings(
+	t *testing.T,
+	runtime runtimesettings.RuntimeSettings,
+	logicalNames ...string,
+) map[string]runtimesettings.WorkerExecutionSettings {
+	result := make(map[string]runtimesettings.WorkerExecutionSettings, len(logicalNames))
+	for _, name := range logicalNames {
+		result[name] = runtimesettings.WorkerExecutionSettings{
+			ModelPolicy: testWorkerPolicy(t), RuntimeSettings: runtime,
+			ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
+		}
+	}
+	return result
+}
+
+func testRuntimeProvenance() runtimesettings.ResolvedRuntimeConfigProvenance {
+	gateway := llmgateway.LLMGatewayConfigRef{
+		GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
+	}
+	return runtimesettings.ResolvedRuntimeConfigProvenance{
+		Default: runtimesettings.RuntimeLabelBindingProvenance{
+			Label: "default", BindingRevision: 1,
+			Config: runtimesettings.RuntimeConfigRef{
+				Name: "contractor-empty", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
+			},
+		},
+		RunLabels:       []runtimesettings.RuntimeLabelBindingProvenance{},
+		AgentLabels:     []runtimesettings.RuntimeLabelBindingProvenance{},
+		RuntimeAdapters: []runtimesettings.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
+		RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
+	}
+}
+
+func testExecutionReport(allocationID string) reporting.AllocationFinalReport {
+	now := time.Now().UTC()
+	return reporting.AllocationFinalReport{
+		ReportID: "allocation-final-" + allocationID, AllocationID: allocationID,
+		StartedAt: now.Add(-time.Second), FinishedAt: now,
+		Worker: reporting.ExecutionReport{
+			ReportID: "worker-" + allocationID, Complete: true,
+			Metrics:   reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}},
+			ToolCalls: []reporting.ToolCallRecord{}, Errors: []reporting.ExecutionError{},
+		},
+		Runtime: reporting.RuntimeReport{Complete: true},
+	}
+}
+
+func TestRuntimeAdapterMetricsAreFilteredAgainstPinnedReservation(t *testing.T) {
+	t.Parallel()
+
+	reservation := Reservation{ResolvedRuntimeConfig: &runtimeconfig.ResolvedRuntimeConfig{
+		RequiredRuntimeAdapters: []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP},
+	}}
+	report := reporting.RuntimeReport{
+		Complete: true,
+		Adapters: map[runtimesettings.RuntimeAdapterRef]reporting.RuntimeAdapterMetrics{
+			runtimesettings.RuntimeAdapterOTLPHTTP:  {Operations: 2},
+			runtimesettings.RuntimeAdapterHTTPProxy: {Operations: 1},
+		},
+	}
+	sanitizeRuntimeAdapterMetrics(&report, reservation)
+	if report.Complete {
+		t.Fatal("unexpected adapter attribution did not mark telemetry incomplete")
+	}
+	if len(report.Adapters) != 1 || report.Adapters[runtimesettings.RuntimeAdapterOTLPHTTP].Operations != 2 {
+		t.Fatalf("trusted adapter metrics were not retained: %+v", report.Adapters)
+	}
+
+	report = reporting.RuntimeReport{Complete: true}
+	sanitizeRuntimeAdapterMetrics(&report, reservation)
+	if report.Complete || len(report.Adapters) != 0 {
+		t.Fatalf("missing expected adapter metrics remained complete: %+v", report)
+	}
+}
+
+func serverURL(request *http.Request) string {
+	return "http://" + request.Host
+}
+
+func TestRuntimeSettingSecretsIncludesProjectOriginAuthorization(t *testing.T) {
+	t.Parallel()
+	token := contracts.NewSecretString("project-origin-secret")
+	settings := runtimesettings.RuntimeSettings{
+		HTTPOriginTarget: &runtimesettings.HTTPOriginTargetSettings{
+			URL: "https://app.example.test", BearerToken: &token,
+		},
+	}
+	if !slices.Contains(settings.SecretValues(), "project-origin-secret") {
+		t.Fatal("Project origin credential is absent from WorkerHandle leak detection")
+	}
+}
+
+func testAgentCard(name, allocationID, endpoint string) map[string]any {
+	return map[string]any{
+		"name": name,
+		"supportedInterfaces": []any{map[string]any{
+			"url": endpoint, "protocolBinding": "JSONRPC", "protocolVersion": "1.0",
+			"tenant": allocationID,
+		}},
+		"defaultInputModes":  []any{stageContentMediaType},
+		"defaultOutputModes": []any{workerCompletionMediaType},
+		"skills": []any{map[string]any{
+			"id": "contractor_stage_content", "inputModes": []any{stageContentMediaType},
+			"outputModes": []any{workerCompletionMediaType},
+		}},
+		"securitySchemes": map[string]any{
+			"mutualTLS": map[string]any{"mtlsSecurityScheme": map[string]any{}},
+		},
+		"securityRequirements": []any{map[string]any{
+			"schemes": map[string]any{"mutualTLS": map[string]any{}},
+		}},
+	}
+}
+
+func stringsHasSuffix(value, suffix string) bool {
+	return len(value) >= len(suffix) && value[len(value)-len(suffix):] == suffix
+}
+
+func stateWorkerHandle(baseURL, allocationID string) contracts.WorkerHandle {
+	return contracts.WorkerHandle{
+		AllocationID: allocationID,
+		AgentCard: testAgentCard(
+			"worker", allocationID,
+			strings.TrimRight(baseURL, "/")+"/private/v1/allocations/"+allocationID+"/a2a",
+		),
+	}
+}

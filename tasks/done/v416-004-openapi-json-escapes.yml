@@ -1,0 +1,198 @@
+schema_version: "1.0"
+id: V416-004
+title: "Read OpenAPI JSON seeds with JSON escape semantics"
+milestone: main-review-2026-10-25
+epic: workflows
+kind: defect
+introduced_by: V414-003
+priority: P1
+status: completed
+depends_on: []
+languages: [python, go]
+goal: >-
+  An application/json OpenAPI seed with legal JSON escapes loads and can be
+  edited in openapi@1 with the same string values Server preparation and the
+  Audit inventory read, while invalid JSON and the existing document bounds
+  remain strict.
+context:
+  review: >-
+    Detailed read-only review of main on 2026-10-25, validated at
+    f9fda28f1c9ffa4baaf3052c141e652c8593a080; Runtime OpenAPI JSON finding.
+  specification:
+    - docs/spec/tools/scanners.md#SCN-R123
+    - docs/spec/tools/scanners.md#SCN-R124
+    - docs/spec/tools/scanners.md#SCN-R253
+    - docs/spec/tools/scanners.md#SCN-R257
+    - docs/spec/execution/runtime-agent.md#RTA-R115
+    - docs/spec/audits/audits.md#AUD-R143
+    - docs/spec/audits/audits.md#AUD-R146
+  severity: medium
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/openapi/tools.py:1278 constructs
+    _StrictSafeLoader for every seed, including application/json. The loader
+    removes the solidus escape at :1190-1194 and the tree validator rejects
+    surrogate code points at :1359-1363. A valid JSON OpenAPI document with
+    a server URL spelled "https:\/\/example.test" raises tool_input_invalid
+    ("OpenAPI document is not valid YAML or JSON"); a title spelled
+    "\ud83d\ude00" also rejects instead of reading the single character U+1F600.
+    At the reviewed head, internal/scanplan/document.go:32 chooses the JSON
+    parser for application/json and accepts both inputs. A temporary Go test
+    of the production parseDocument function accepted both, while direct
+    production Python parser calls rejected both; executing the previous
+    Python parser from 7da21d86^ accepted both. The failing user path is
+    load_openapi of an otherwise valid application/json Artifact seed.
+  siblings: >-
+    In scope: openapi@1 seed decode and DocumentSession.load's propagation of
+    source format; escaped member names as well as values; load into the same
+    binding and copy into another binding; YAML output and subsequent reload;
+    shared fixture consumers in internal/scanplan and internal/auditdomain.
+    The two Go readers already use a JSON reader for application/json and
+    provide the expected JSON semantics. Existing YAML scalar/key and writer
+    cases must retain their verdicts. LikeC4 uses DocumentSession too and must
+    retain its format handling if that shared boundary changes. Other PyYAML
+    users such as Nuclei rulepacks and Skill manifests read other formats and
+    are not changed. UI preview does not determine Runtime seed acceptance.
+  provenance: >-
+    7da21d86313d6a756a86ffe06161f05eca670387, V414-003, introduced the changed
+    escape and surrogate behavior. Its completion notes already acknowledge
+    valid surrogate-pair JSON seeds as an open lexical residual needing a
+    separate JSON path; this task supplies that owner and also covers the
+    reproduced solidus regression. V414-001 owns the separate inventory
+    per-string bound and is neither a duplicate nor a prerequisite.
+scope:
+  in:
+    - >-
+      Give application/json seeds a strict JSON decoding path, preserving
+      duplicate-member, nonstandard-number, trailing-value, Unicode and
+      exact numeric-magnitude checks before accepting the resulting tree.
+      Use the declared seed media type at the format boundary; invalid JSON
+      must not fall back to YAML. Keep existing YAML parsing rules intact.
+    - >-
+      Add shared escape cases with explicit source media type and accepted
+      value or rejection, consumed by Runtime authoring, scan preparation and
+      the Audit inventory; register any new fixture in api/testdata/readers.json.
+    - >-
+      Exercise load_openapi and a subsequent edit/write/reload through the
+      production Toolset session, including same-binding and copied seeds,
+      rather than testing only a standalone decoder.
+    - >-
+      Clarify SCN-R257 so its YAML lexical restrictions are not described or
+      implemented as restrictions on legal JSON escapes, without relaxing
+      SCN-R124 or SCN-R253.
+  out:
+    - Changing OpenAPI output media type, catalog defaults or document limits.
+    - The V414-001 inventory string-bound correction and unrelated YAML tab syntax.
+    - Public API fields, persistence schema or new compatibility readers.
+failure_outcomes:
+  - operation: Decode, validate and adopt an OpenAPI seed
+    success: >-
+      Decode legal JSON escapes to their Unicode string values, validate the
+      complete document and use existing exact Artifact/CAS publication rules.
+    permanent: >-
+      Duplicate names, lone/reversed surrogates, invalid escapes, malformed or
+      trailing JSON, nonfinite/out-of-range numbers and exceeded document
+      limits return non-retryable tool_input_invalid before adopting or writing
+      a candidate. The previous loaded document remains usable.
+    retryable: Existing Artifact transport and CAS error classifications are unchanged.
+    ambiguous: Existing document-write exact-binding reconciliation remains the only receipt.
+    cancelled: >-
+      Joined off-loop decoding/validation finishes before session cleanup;
+      cancellation cannot adopt a partly decoded candidate or start a later write.
+    timeout: Existing operation/invocation deadlines retain ownership; no new timeout is added.
+cardinality:
+  - collection: One seed document and its parsed JSON tree
+    expected: One ordinary OpenAPI document per session.
+    maximum: >-
+      2 MiB source bytes, depth 64 and 100000 nodes, counting member names as
+      SCN-R253 specifies; no additional retained document history or parser cache.
+    bound: >-
+      Preserve existing predecode byte checks and bounded structural validation;
+      numeric spelling must not be rounded into range by a float-only decoder.
+lifecycle:
+  - entity: OpenAPI document session
+    delete: Existing session close releases the document and candidate.
+    cascade: Close and cancellation join preparation before dropping Artifact authority.
+    retention: Existing immutable Artifact revision and ordinary Run retention rules are unchanged.
+acceptance_criteria:
+  - id: A1
+    given: >-
+      application/json OpenAPI seeds containing escaped solidus and a valid
+      surrogate pair in both member values and extension member names
+    when: Runtime load_openapi and both Server source readers process them
+    then: >-
+      All read the intended string values; Runtime load, edit, YAML publication
+      and reload preserve those values for same-binding and copied seeds.
+  - id: A2
+    given: Invalid JSON, duplicate decoded member names, lone surrogates and boundary-sized documents
+    when: Each relevant JSON path processes them
+    then: >-
+      Invalid inputs fail with existing permanent classifications and without
+      writes or document replacement; byte/depth/node and exact numeric bounds
+      remain enforced. Shared YAML scalar and writer fixtures still pass.
+  - id: A3
+    given: A held off-loop decode and an already loaded document
+    when: The call is cancelled or the session closes
+    then: >-
+      Cancellation joins preparation without adopting or writing the candidate.
+      Close waits for an ordinary in-flight load before clearing session state;
+      no preparation outlives cleanup. Use deterministic synchronization.
+  - id: A4
+    given: The regression cases and unchanged reviewed Runtime parser
+    when: The new production-path tests run against the unfixed code
+    then: >-
+      They fail on the legal escaped-solidus and surrogate-pair seeds; record
+      this evidence separately from ordinary successful suite results.
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_openapi_toolset.py tests/test_likec4_toolset.py tests/test_tool_operation_ownership.py tests/test_local_direct_tool_consumers.py"
+    covers: [A1, A2, A3, A4]
+  - command: "go test -count=1 ./internal/scanplan/... ./internal/auditdomain/..."
+    covers: [A1, A2]
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" make test-wire-cross-language'
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification:
+  date: '2026-10-25'
+  decisions:
+    - >-
+      Declared application/json selects strict JSON decoding; all accepted YAML
+      media types keep the existing YAML reader. Source numeric spelling is
+      checked before conversion, while integer tokens keep unchanged YAML output.
+    - >-
+      A3 follows RTA-R115: ordinary load preparation is joined by close, not
+      cancelled by it. Cancellation of the load prevents adoption and write;
+      close then clears state after preparation finishes. The task wording was
+      corrected to distinguish these existing guarantees, without changing the
+      shared DocumentSession shutdown contract.
+  commands:
+    - >-
+      cd runtime && uv run --locked pytest -q tests/test_openapi_toolset.py
+      tests/test_likec4_toolset.py tests/test_tool_operation_ownership.py
+      tests/test_local_direct_tool_consumers.py -o addopts='' --tb=short passed:
+      140 tests, including cancelled load with and without concurrent close,
+      and close joining an uncancelled load before clearing its state.
+    - >-
+      Before production changes, cd runtime && uv run --locked pytest -q
+      tests/test_openapi_toolset.py -k json_seed_escapes --tb=short failed all
+      four cases: escaped solidus and a surrogate pair, each loaded at the same
+      binding and copied to a different binding.
+    - >-
+      go test -count=1 ./internal/scanplan/... ./internal/auditdomain/... passed;
+      each reader exercises the 20 shared declared-JSON escape and strictness cases.
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL set to an isolated disposable PostgreSQL
+      database: make test-wire-cross-language passed (271 fixtures, 321 Go and
+      212 Python shared tests; 313 wire tests and 1214 fixture-selected Runtime
+      tests passed).
+    - >-
+      Runtime Ruff checks and all four import contracts passed. make
+      docs-dependencies regenerated the implementation-derived graph;
+      scripts/check_spec.py and shared_fixture_gate.py --sources-only passed.
+  integration: The coordinating branch completed the required make lint; see integration_verification.
+implementation_commit: 3d90aeb95c46d260dc050320ad46a0346ede2ccf
+integration_verification:
+  date: "2026-10-25"
+  revision: 4923b9000d57cfa042733c6f5bf512f5e01444f5
+  command: make lint
+  result: passed
+  scope: Integrated implementation and required task-specific suites passed; no platform-limited full Runtime result is substituted for this task's required checks.

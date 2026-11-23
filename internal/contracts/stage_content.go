@@ -1,0 +1,96 @@
+package contracts
+
+import (
+	"strings"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
+)
+
+type StageContentRequest struct {
+	APIVersion      string                 `json:"apiVersion" strictjson:"required"`
+	SubtaskID       string                 `json:"subtaskId" strictjson:"required"`
+	Objective       string                 `json:"objective" strictjson:"required"`
+	Instructions    string                 `json:"instructions" strictjson:"required"`
+	Parameters      map[string]string      `json:"parameters" strictjson:"required"`
+	Artifacts       map[string]ArtifactRef `json:"artifacts" strictjson:"required"`
+	ResultArtifacts map[string]ArtifactRef `json:"resultArtifacts,omitempty"`
+	// Deadline is the Planner's effective Worker-call deadline (WRK-R6):
+	// Runtime control data that never enters the model prompt.
+	Deadline time.Time `json:"deadline" strictjson:"required"`
+}
+
+// Clone returns a copy that shares no map or revision with r.
+func (r StageContentRequest) Clone() StageContentRequest {
+	result := r
+	result.Parameters = clone.Map(r.Parameters)
+	result.Artifacts = CloneArtifactRefs(r.Artifacts)
+	result.ResultArtifacts = CloneArtifactRefs(r.ResultArtifacts)
+	return result
+}
+
+func (r StageContentRequest) Validate() error {
+	if err := ValidateAPIVersion(r.APIVersion); err != nil {
+		return err
+	}
+	if err := ValidateWorkerSubtaskID(r.SubtaskID); err != nil {
+		return err
+	}
+	if strings.TrimSpace(r.Objective) == "" || strings.TrimSpace(r.Instructions) == "" {
+		return Invalidf("objective and instructions must not be empty")
+	}
+	if r.Deadline.IsZero() {
+		return Invalidf("StageContentRequest requires a deadline")
+	}
+	// The schema requires both maps, so Go never sends the null a nil map
+	// encodes to, which the Runtime would reject.
+	if r.Parameters == nil || r.Artifacts == nil {
+		return Invalidf("parameters and artifacts must be non-null maps")
+	}
+	for key := range r.Parameters {
+		if err := ValidateOpaqueID("parameter name", key); err != nil {
+			return err
+		}
+	}
+	for key, ref := range r.Artifacts {
+		if err := ValidateOpaqueID("artifact context name", key); err != nil {
+			return err
+		}
+		if err := ref.ValidateExact(); err != nil {
+			return err
+		}
+	}
+	for key, ref := range r.ResultArtifacts {
+		if err := ValidateOpaqueID("result artifact slot", key); err != nil {
+			return err
+		}
+		if err := ref.Validate(); err != nil {
+			return err
+		}
+		if ref.Revision != nil {
+			return Invalidf("result artifact binding must be versionless")
+		}
+	}
+	// The Runtime measures the same compact UTF-8 encoding (WRK-R37), so a
+	// request the Planner sends is never rejected by the Worker for its size.
+	size, err := ResultJSONSize(r)
+	if err != nil || size > MaxStageRequestBytes {
+		return Invalidf("StageContentRequest exceeds its bounded contract")
+	}
+	return nil
+}
+
+// TerminationError is a classified termination cause: the reason of an
+// AbortAllocationRequest, and the error of a failed Stage result.
+type TerminationError struct {
+	Code      string `json:"code" strictjson:"required"`
+	Message   string `json:"message" strictjson:"required"`
+	Retryable bool   `json:"retryable" strictjson:"required"`
+}
+
+func (e TerminationError) Validate() error {
+	if strings.TrimSpace(e.Code) == "" || strings.TrimSpace(e.Message) == "" {
+		return Invalidf("termination error code/message must not be empty")
+	}
+	return nil
+}

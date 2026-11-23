@@ -1,0 +1,402 @@
+import type { ComponentType, ReactNode } from "react";
+import type { RouteObject } from "react-router";
+
+import { AuthenticatedRoute } from "../routes/guard";
+import { LoginRoute } from "../routes/login";
+import { NotFoundRoute, RouteChunkLoading } from "../routes/placeholders";
+import { RouteErrorPanel } from "./route-error";
+import { ApplicationShell } from "./shell";
+
+type RouteModule = Record<string, unknown>;
+
+/**
+ * Route-level code splitting: each route module is a separate chunk that the
+ * router loads on first navigation, so the eager bundle carries only the
+ * shell, the guard and the shared API layer.
+ */
+function lazyRoute<M extends RouteModule, K extends keyof M>(
+  load: () => Promise<M>,
+  name: K,
+): NonNullable<RouteObject["lazy"]> {
+  // React Router awaits a lazy route function as the navigation handler,
+  // surfacing a rejected import to the nearest route error boundary.
+  return async () => ({ Component: (await load())[name] as ComponentType });
+}
+
+function lazyElement<M>(
+  load: () => Promise<M>,
+  render: (module: M) => ReactNode,
+): NonNullable<RouteObject["lazy"]> {
+  return async () => ({ element: render(await load()) });
+}
+
+const projectSections = () => import("../routes/projects/sections");
+const projectFindings = () => import("../routes/projects/audits/findings");
+const inbox = () => import("../routes/inbox");
+const checks = () => import("../routes/checks");
+const startCheck = () => import("../routes/checks/start");
+const issues = () => import("../routes/issues");
+const reports = () => import("../routes/reports");
+
+function projectSection(
+  section:
+    "overview" | "artifacts" | "workflows" | "runs" | "audits" | "settings",
+): NonNullable<RouteObject["lazy"]> {
+  return lazyElement(projectSections, ({ ProjectSectionRoute }) => (
+    <ProjectSectionRoute section={section} />
+  ));
+}
+
+/** A fresh route table of the application (the browser router's, or a test's). */
+export function applicationRoutes(): RouteObject[] {
+  return [
+    { path: "/login", element: <LoginRoute /> },
+    {
+      element: <AuthenticatedRoute />,
+      errorElement: <RouteErrorPanel />,
+      children: [
+        {
+          element: <ApplicationShell />,
+          errorElement: <ApplicationShell error={<RouteErrorPanel />} />,
+          hydrateFallbackElement: <RouteChunkLoading />,
+          children: [
+            { index: true, lazy: lazyRoute(inbox, "InboxRoute") },
+            { path: "/checks", lazy: lazyRoute(checks, "ChecksRoute") },
+            // A static segment outranks any `/checks/:param` route.
+            {
+              path: "/checks/new",
+              lazy: lazyRoute(startCheck, "StartCheckRoute"),
+            },
+            // Issues and Reports keep the selected item in the path. A list
+            // and its item route share one component, so selecting an item
+            // keeps the list mounted.
+            { path: "/issues", lazy: lazyRoute(issues, "IssuesRoute") },
+            {
+              path: "/issues/:projectId/:findingId",
+              lazy: lazyRoute(issues, "IssuesRoute"),
+            },
+            { path: "/reports", lazy: lazyRoute(reports, "ReportsRoute") },
+            {
+              path: "/reports/:auditId",
+              lazy: lazyRoute(reports, "ReportsRoute"),
+            },
+            {
+              path: "/projects",
+              lazy: lazyRoute(
+                () => import("../routes/projects/list"),
+                "ProjectListRoute",
+              ),
+            },
+            {
+              path: "/projects/:projectId",
+              lazy: lazyRoute(
+                () => import("../routes/projects/detail"),
+                "ProjectDetailRoute",
+              ),
+              children: [
+                { index: true, lazy: projectSection("overview") },
+                { path: "artifacts", lazy: projectSection("artifacts") },
+                { path: "workflows", lazy: projectSection("workflows") },
+                { path: "runs", lazy: projectSection("runs") },
+                { path: "audits", lazy: projectSection("audits") },
+                {
+                  path: "findings",
+                  lazy: lazyElement(
+                    projectFindings,
+                    ({ ProjectFindingsRoute }) => <ProjectFindingsRoute />,
+                  ),
+                },
+                {
+                  path: "facts",
+                  lazy: lazyElement(
+                    projectFindings,
+                    ({ ProjectFindingsRoute }) => (
+                      <ProjectFindingsRoute facts />
+                    ),
+                  ),
+                },
+                { path: "settings", lazy: projectSection("settings") },
+              ],
+            },
+            {
+              path: "/projects/:projectId/artifacts/:namespace/:name",
+              lazy: lazyRoute(
+                () => import("../routes/projects/artifact-detail"),
+                "ProjectArtifactDetailRoute",
+              ),
+            },
+            {
+              path: "/projects/:projectId/workflows/:name/:version/run",
+              lazy: lazyRoute(
+                () => import("../routes/projects/workflow-run"),
+                "ProjectWorkflowRunRoute",
+              ),
+            },
+            {
+              path: "/projects/:projectId/audits/:auditId",
+              lazy: lazyRoute(
+                () => import("../routes/projects/audits/detail"),
+                "ProjectAuditDetailRoute",
+              ),
+            },
+            {
+              path: "/projects/:projectId/audits/:auditId/:section",
+              lazy: lazyRoute(
+                () => import("../routes/projects/audits/detail"),
+                "ProjectAuditDetailRoute",
+              ),
+            },
+            {
+              path: "/evals",
+              lazy: lazyRoute(
+                () => import("../routes/evals/list"),
+                "EvalListRoute",
+              ),
+            },
+            {
+              path: "/evals/workspaces",
+              lazy: lazyRoute(
+                () => import("../routes/projects/list"),
+                "EvaluationListRoute",
+              ),
+            },
+            {
+              path: "/evals/new",
+              lazy: lazyRoute(
+                () => import("../routes/evals/setup"),
+                "EvalNewRoute",
+              ),
+            },
+            {
+              path: "/evals/datasets",
+              lazy: lazyRoute(
+                () => import("../routes/evals/datasets"),
+                "EvalDatasetsRoute",
+              ),
+            },
+            {
+              path: "/evals/experiments/:experimentId",
+              lazy: lazyRoute(
+                () => import("../routes/evals/detail"),
+                "EvalDetailRoute",
+              ),
+            },
+            {
+              path: "/evals/experiments/:experimentId/:section",
+              lazy: lazyRoute(
+                () => import("../routes/evals/detail"),
+                "EvalDetailRoute",
+              ),
+            },
+            {
+              path: "/evals/experiments/:experimentId/pairs/:pairId",
+              lazy: lazyRoute(
+                () => import("../routes/evals/pair"),
+                "EvalPairRoute",
+              ),
+            },
+            {
+              path: "/evals/workspaces/:projectId",
+              lazy: lazyRoute(
+                () => import("../routes/projects/detail"),
+                "EvaluationDetailRoute",
+              ),
+            },
+            {
+              path: "/evals/workspaces/:projectId/artifacts/:namespace/:name",
+              lazy: lazyRoute(
+                () => import("../routes/projects/artifact-detail"),
+                "EvaluationArtifactDetailRoute",
+              ),
+            },
+            {
+              path: "/artifacts",
+              lazy: lazyRoute(
+                () => import("../routes/artifacts/list"),
+                "ArtifactListRoute",
+              ),
+            },
+            {
+              path: "/artifacts/:namespace/:name",
+              lazy: lazyRoute(
+                () => import("../routes/artifacts/detail"),
+                "ArtifactDetailRoute",
+              ),
+            },
+            {
+              path: "/runs",
+              lazy: lazyRoute(() => import("../routes/runs"), "RunsRoute"),
+            },
+            {
+              path: "/runs/:runId",
+              lazy: lazyRoute(
+                () => import("../routes/runs/detail"),
+                "RunDetailRoute",
+              ),
+            },
+            {
+              path: "/runs/:runId/artifacts/:namespace/:name",
+              lazy: lazyRoute(
+                () => import("../routes/runs/artifacts"),
+                "RunArtifactDetailRoute",
+              ),
+            },
+            {
+              path: "/catalog/studio",
+              lazy: lazyRoute(() => import("../routes/studio"), "StudioRoute"),
+            },
+            {
+              path: "/catalog",
+              lazy: lazyRoute(
+                () => import("../routes/catalog/layout"),
+                "CatalogLayoutRoute",
+              ),
+              children: [
+                {
+                  index: true,
+                  lazy: lazyRoute(
+                    () => import("../routes/catalog/layout"),
+                    "CatalogIndexRedirect",
+                  ),
+                },
+                {
+                  path: "workflows/:name?/:version?",
+                  lazy: lazyRoute(
+                    () => import("../routes/workflows/list"),
+                    "WorkflowListRoute",
+                  ),
+                },
+                {
+                  path: "agents/:name?/:version?",
+                  lazy: lazyRoute(
+                    () => import("../routes/catalog/agents"),
+                    "AgentListRoute",
+                  ),
+                },
+                {
+                  path: "audit-presets/:name?/:version?",
+                  lazy: lazyRoute(
+                    () => import("../routes/catalog/audit-presets"),
+                    "AuditPresetListRoute",
+                  ),
+                },
+                {
+                  path: "skills",
+                  lazy: lazyRoute(
+                    () => import("../routes/skills"),
+                    "SkillsRoute",
+                  ),
+                },
+              ],
+            },
+            {
+              path: "/operations",
+              lazy: lazyRoute(
+                () => import("../routes/operations/layout"),
+                "OperationsLayoutRoute",
+              ),
+              children: [
+                {
+                  index: true,
+                  lazy: lazyRoute(
+                    () => import("../routes/operations/overview"),
+                    "OperationsOverviewRoute",
+                  ),
+                },
+                {
+                  path: "runtime-agents",
+                  lazy: lazyRoute(
+                    () => import("../routes/operations/runtime-agents"),
+                    "RuntimeAgentListRoute",
+                  ),
+                },
+                {
+                  path: "allocations",
+                  lazy: lazyRoute(
+                    () => import("../routes/operations/allocations"),
+                    "AllocationListRoute",
+                  ),
+                },
+                {
+                  path: "allocations/completed",
+                  lazy: lazyRoute(
+                    () => import("../routes/operations/allocations/completed"),
+                    "CompletedAllocationListRoute",
+                  ),
+                },
+                {
+                  path: "performance",
+                  lazy: lazyRoute(
+                    () => import("../routes/operations/performance"),
+                    "OperationsPerformanceRoute",
+                  ),
+                },
+                {
+                  path: "configuration",
+                  lazy: lazyRoute(
+                    () => import("../routes/operations/runtime-configs/layout"),
+                    "RuntimeConfigurationLayout",
+                  ),
+                  children: [
+                    {
+                      index: true,
+                      lazy: lazyRoute(
+                        () => import("../routes/operations/runtime-configs"),
+                        "RuntimeConfigurationRoute",
+                      ),
+                    },
+                    {
+                      path: ":name/:version",
+                      lazy: lazyRoute(
+                        () =>
+                          import("../routes/operations/runtime-configs/detail"),
+                        "RuntimeConfigDetailRoute",
+                      ),
+                    },
+                  ],
+                },
+                {
+                  path: "configurations",
+                  lazy: lazyRoute(
+                    () => import("../routes/operations/llm-configurations"),
+                    "ConfigurationListRoute",
+                  ),
+                },
+                {
+                  path: "configurations/:kind/:name/:version",
+                  lazy: lazyRoute(
+                    () =>
+                      import("../routes/operations/llm-configurations/detail"),
+                    "ConfigurationDetailRoute",
+                  ),
+                },
+                {
+                  path: "credentials",
+                  lazy: lazyRoute(
+                    () => import("../routes/operations/credentials"),
+                    "CredentialListRoute",
+                  ),
+                },
+                {
+                  path: "credentials/:credentialId",
+                  lazy: lazyRoute(
+                    () => import("../routes/operations/credentials/detail"),
+                    "CredentialDetailRoute",
+                  ),
+                },
+                {
+                  path: "settings",
+                  lazy: lazyRoute(
+                    () => import("../routes/operations/settings"),
+                    "OperationsSettingsRoute",
+                  ),
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    { path: "*", element: <NotFoundRoute /> },
+  ];
+}

@@ -1,0 +1,217 @@
+{
+  "schema_version": "1.0",
+  "task": "V419-006",
+  "status": "Supported-pin Planner write repair integrated after completed Runtime acceptance, preserving exact tested Go source/module hashes and prior owner/race/store evidence.",
+  "baseline_evidence": "tasks/evidence/v419-finish-append-baseline.json",
+  "baseline_probe_commit": "b3f6d23664b9909d89a2c3d0edb008933f176e6f",
+  "isolated_repair_authorization_commit": "07e0e9912fa56591ad28e106d6851390cadbc7e8",
+  "fixed_source_sha256": {
+    "internal/planner/session/adk.go": "42ed9a561b42c77f1e725a3dd4710aa552a7a5b913a8995668245c5c6b6b057d",
+    "internal/planner/streamline/planner.go": "e2cffdf5c9a163de2e1fc39ce9976deb80396cffe7b9ffc1f4f2c54b26494c3d",
+    "internal/planner/streamline/finish_append_precedence_postgres_test.go": "19130b77f49cea188f4cd2fbd25fc648daf98f96d7fb78ac0f975ef498b09244",
+    "go.mod": "6f8dab15cba2869800cd671d985960e6749da4a345f4856115527fc6b83792eb",
+    "go.sum": "ea03800c1d809062d80cb639aa8bc6716f3381a75659f1eeb53cbe60bcd818a8"
+  },
+  "stop_refinement_negative_control": {
+    "exit_code": 1,
+    "leaf_failed": 4,
+    "leaf_passed": 0,
+    "leaf_skipped": 0,
+    "cases": [
+      "TestPostgresModeledPlannerFinalOutcomeSurvivesAppendCancellation/router/invalid",
+      "TestPostgresModeledPlannerFinalOutcomeSurvivesAppendCancellation/router/unavailable",
+      "TestPostgresModeledPlannerFinalOutcomeSurvivesAppendCancellation/streamline/invalid",
+      "TestPostgresModeledPlannerFinalOutcomeSurvivesAppendCancellation/streamline/unavailable"
+    ],
+    "source_sha256": {
+      "internal/planner/session/adk.go": "42ed9a561b42c77f1e725a3dd4710aa552a7a5b913a8995668245c5c6b6b057d",
+      "internal/planner/streamline/planner.go": "a444a479fd74b0aad51ae7978b9b5b5937a64362c7e973fdbc028e05d0f3e483",
+      "internal/planner/streamline/finish_append_precedence_postgres_test.go": "80958bdd23b26cea0efa8b4dfdff345ac80510647a3dcfa3a83018c66dd9ce7f"
+    },
+    "report_sha256": "733d166920dda72987b092909621b20f53fa4c7e21678986d1b5eb883e666023",
+    "observed": "Actual PostgreSQL failure precedes genuine caller cancellation; the first isolated repair returned/stored planner_cancelled but failed the nonretryability and original PostgreSQL cause assertions. The unchanged full20 matrix had passed, so these4rows close the combined-outcome gap before acceptance."
+  },
+  "focused_fixed_run": {
+    "command": "GOMAXPROCS=1 go test -p=1 -json -count=1 -timeout=8m ./internal/planner/streamline -run '^(TestPostgresModeledPlannerAppendFailurePrecedence|TestModeledPlannerCancellationKeepsCompletionOwnership|TestPostgresModeledPlannerFinalOutcomeSurvivesAppendCancellation)$'",
+    "storage": "Owned disposable PostgreSQL, configuredURLset; no skipped required cases",
+    "exit_code": 0,
+    "leaf_passed": 24,
+    "parent_passed": 3,
+    "leaf_failed": 0,
+    "leaf_skipped": 0,
+    "cases": [
+      "TestModeledPlannerCancellationKeepsCompletionOwnership/router/before-finish",
+      "TestModeledPlannerCancellationKeepsCompletionOwnership/router/completion-write",
+      "TestModeledPlannerCancellationKeepsCompletionOwnership/streamline/before-finish",
+      "TestModeledPlannerCancellationKeepsCompletionOwnership/streamline/completion-write",
+      "TestPostgresModeledPlannerAppendFailurePrecedence/router/finish/failed-final/invalid",
+      "TestPostgresModeledPlannerAppendFailurePrecedence/router/finish/failed-final/unavailable",
+      "TestPostgresModeledPlannerAppendFailurePrecedence/router/finish/failed-retryable/invalid",
+      "TestPostgresModeledPlannerAppendFailurePrecedence/router/finish/failed-retryable/unavailable",
+      "TestPostgresModeledPlannerAppendFailurePrecedence/router/finish/succeeded/invalid",
+      "TestPostgresModeledPlannerAppendFailurePrecedence/router/finish/succeeded/unavailable",
+      "TestPostgresModeledPlannerAppendFailurePrecedence/router/ordinary/none/invalid",
+      "TestPostgresModeledPlannerAppendFailurePrecedence/router/ordinary/none/unavailable",
+      "TestPostgresModeledPlannerAppendFailurePrecedence/streamline/finish/failed-final/invalid",
+      "TestPostgresModeledPlannerAppendFailurePrecedence/streamline/finish/failed-final/unavailable",
+      "TestPostgresModeledPlannerAppendFailurePrecedence/streamline/finish/failed-retryable/invalid",
+      "TestPostgresModeledPlannerAppendFailurePrecedence/streamline/finish/failed-retryable/unavailable",
+      "TestPostgresModeledPlannerAppendFailurePrecedence/streamline/finish/succeeded/invalid",
+      "TestPostgresModeledPlannerAppendFailurePrecedence/streamline/finish/succeeded/unavailable",
+      "TestPostgresModeledPlannerAppendFailurePrecedence/streamline/ordinary/none/invalid",
+      "TestPostgresModeledPlannerAppendFailurePrecedence/streamline/ordinary/none/unavailable",
+      "TestPostgresModeledPlannerFinalOutcomeSurvivesAppendCancellation/router/invalid",
+      "TestPostgresModeledPlannerFinalOutcomeSurvivesAppendCancellation/router/unavailable",
+      "TestPostgresModeledPlannerFinalOutcomeSurvivesAppendCancellation/streamline/invalid",
+      "TestPostgresModeledPlannerFinalOutcomeSurvivesAppendCancellation/streamline/unavailable"
+    ],
+    "report_sha256": "ba3c6707c0d705bf97ae424920af9e97fd90da1b742a14420727b79ec9d1558d"
+  },
+  "repair": {
+    "typed_boundary": "Only the production reduced-event append failure receives ADKEventWriteError, preserving errors.Is/As of its store cause. No arbitrary model/SDK error is relabeled as a storage outage.",
+    "precedence": "Only a required write failure is checked before the in-memory terminal candidate. The owning outcome retryability is reused; original non-write terminal/context ordering stays unchanged.",
+    "stop_merge": "Cancellation/deadline chooses its existing stopcode, but ANDs its retryability with the known failure and retains both stop and write causes through errors.Join. The same merge branch handles either stopkind; no new deadline clock or independent retry policy is introduced.",
+    "completion": "The existing bounded WithoutCancel completion policy writes the classified failure and completed recovery never dispatches again. Successful finalFR followed by callercancel duringComplete retains its prior behavior."
+  },
+  "full_gate_status": "Passed on frozen implementation source; task closure changes metadata only.",
+  "delivery": "Isolated only; no Root Server pin or production integration before Runtime V418-007 exit. Safe evidence retains no raw candidate/provider payload, PostgreSQL credentials or environment dump.",
+  "implementation_commit": "360ae86aca038f68b5938367fdcb23f78e28f094",
+  "final_gates": [
+    {
+      "command": "GOMAXPROCS=1 go test -p=1 -json -count=1 -timeout=15m ./internal/planner/... ./internal/scheduler/...",
+      "exit_code": 0,
+      "top_level_passed": 433,
+      "passed_including_subtests": 1014,
+      "skipped": [],
+      "failed": 0,
+      "packages": {
+        "github.com/grauwolf32/contractor/internal/planner": {
+          "top_level_passed": 32,
+          "passed_including_subtests": 76
+        },
+        "github.com/grauwolf32/contractor/internal/planner/a2a": {
+          "top_level_passed": 32,
+          "passed_including_subtests": 137
+        },
+        "github.com/grauwolf32/contractor/internal/planner/router": {
+          "top_level_passed": 7,
+          "passed_including_subtests": 7
+        },
+        "github.com/grauwolf32/contractor/internal/planner/scan": {
+          "top_level_passed": 40,
+          "passed_including_subtests": 90
+        },
+        "github.com/grauwolf32/contractor/internal/planner/session": {
+          "top_level_passed": 32,
+          "passed_including_subtests": 54
+        },
+        "github.com/grauwolf32/contractor/internal/planner/stageresult": {
+          "top_level_passed": 6,
+          "passed_including_subtests": 31
+        },
+        "github.com/grauwolf32/contractor/internal/planner/stateview": {
+          "top_level_passed": 5,
+          "passed_including_subtests": 7
+        },
+        "github.com/grauwolf32/contractor/internal/planner/streamline": {
+          "top_level_passed": 64,
+          "passed_including_subtests": 168
+        },
+        "github.com/grauwolf32/contractor/internal/scheduler": {
+          "top_level_passed": 215,
+          "passed_including_subtests": 444
+        }
+      },
+      "report_sha256": "d74d35ee4822c893afac17ce066dc1ebe65af95c5419b863246fca981316f8fa"
+    },
+    {
+      "command": "GOMAXPROCS=1 go test -p=1 -race -json -count=1 -timeout=15m ./internal/planner/...",
+      "exit_code": 0,
+      "top_level_passed": 218,
+      "passed_including_subtests": 570,
+      "skipped": [],
+      "failed": 0,
+      "packages": {
+        "github.com/grauwolf32/contractor/internal/planner": {
+          "top_level_passed": 32,
+          "passed_including_subtests": 76
+        },
+        "github.com/grauwolf32/contractor/internal/planner/a2a": {
+          "top_level_passed": 32,
+          "passed_including_subtests": 137
+        },
+        "github.com/grauwolf32/contractor/internal/planner/router": {
+          "top_level_passed": 7,
+          "passed_including_subtests": 7
+        },
+        "github.com/grauwolf32/contractor/internal/planner/scan": {
+          "top_level_passed": 40,
+          "passed_including_subtests": 90
+        },
+        "github.com/grauwolf32/contractor/internal/planner/session": {
+          "top_level_passed": 32,
+          "passed_including_subtests": 54
+        },
+        "github.com/grauwolf32/contractor/internal/planner/stageresult": {
+          "top_level_passed": 6,
+          "passed_including_subtests": 31
+        },
+        "github.com/grauwolf32/contractor/internal/planner/stateview": {
+          "top_level_passed": 5,
+          "passed_including_subtests": 7
+        },
+        "github.com/grauwolf32/contractor/internal/planner/streamline": {
+          "top_level_passed": 64,
+          "passed_including_subtests": 168
+        }
+      },
+      "report_sha256": "082f7b979346e74f54f5633551a032d164c2bfa6aa846012b46c596528d7b4b7"
+    },
+    {
+      "command": "GOMAXPROCS=1 GOFLAGS=\"-json -p=1\" make -j1 test-streamline",
+      "exit_code": 0,
+      "top_level_passed": 97,
+      "passed_including_subtests": 223,
+      "skipped": [
+        "github.com/grauwolf32/contractor/tests/integration/streamline:TestLiveGatewayToolCall",
+        "github.com/grauwolf32/contractor/tests/integration/streamline:TestLiveRouterWorkflow"
+      ],
+      "failed": 0,
+      "packages": {
+        "github.com/grauwolf32/contractor/internal/planner/streamline": {
+          "top_level_passed": 64,
+          "passed_including_subtests": 168
+        },
+        "github.com/grauwolf32/contractor/internal/planner/session": {
+          "top_level_passed": 32,
+          "passed_including_subtests": 54
+        },
+        "github.com/grauwolf32/contractor/tests/integration/streamline": {
+          "top_level_passed": 1,
+          "passed_including_subtests": 1
+        }
+      },
+      "report_sha256": "ccb9c8e7329b17c7969484eaf8c5b4a852a33c92f4d13a5689be580aec997ad3"
+    },
+    {
+      "command": "GOMAXPROCS=1 GOFLAGS=\"-p=1\" make -j1 lint",
+      "exit_code": 0,
+      "report_sha256": "aecae7e071d312ac27406fff22ce736e0a28364eb9e897068de116a7ddecbe1e",
+      "result": "Complete gate passed after generating dependency graph through make docs-dependencies; Contracts4kept/0broken."
+    }
+  ],
+  "optional_skip_rule": "Only the two explicitly opt-in live Gateway tests were skipped in test-streamline. All required deterministic PostgreSQL/Runner cases passed; no configured-database skip was accepted.",
+  "source_immutability": "Verified every frozen source hash after all final gates. go.mod/go.sum remain byte-identical to the supported v1.6 baseline; Runtime source and root checkout were not changed.",
+  "verification_preparation": {
+    "runtime": "Fresh own non-symlink venv, uv sync --project runtime --locked; no shared sync.",
+    "ui": "Owned ui/node_modules installed from offline pinned pnpm store with --frozen-lockfile.",
+    "generated_graph": "make docs-dependencies regenerated the stale spec dependency graph after owning contract edits; no generated file was edited manually."
+  },
+  "primary_integration": {
+    "runtime_exit_completed": true,
+    "after_runtime_exit_commit": "22332f65f8229ab6633241cfb4ff72635c7015f0",
+    "component_implementation_commit": "360ae86aca038f68b5938367fdcb23f78e28f094",
+    "patch_sha256": "3adf30fa85dee1f05f22168c3739711bcda7cf2a5337080da2cd8bbb2a4d39c8",
+    "source_equivalence": "All three tested Go production/test files and go.mod/go.sum exactly match the passing supported-pin component. This is attribution of existing owner verification, not a repeated global run after the Runtime patch."
+  }
+}

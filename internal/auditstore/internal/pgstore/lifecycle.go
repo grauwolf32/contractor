@@ -1,0 +1,179 @@
+package pgstore
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstore"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
+)
+
+// ReleaseDispatchHold releases only the Audit-level future-dispatch hold.
+// Per-Run credential references and retained evidence have independent
+// lifetimes and are intentionally untouched.
+func (s *ClaimStore) ReleaseDispatchHold(
+	ctx context.Context, claim auditstore.ControllerClaim,
+) (auditstore.Audit, bool, error) {
+	if err := validateClaimIdentity(claim); err != nil {
+		return auditstore.Audit{}, false, err
+	}
+	audit, err := scanAudit(s.db.QueryRow(ctx, releaseDispatchHoldSQL+prefixedAuditColumns("changed")+` FROM changed`,
+		claim.AuditID, claim.HolderID, claim.Epoch,
+	))
+	if err == nil {
+		return audit, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return auditstore.Audit{}, false, fmt.Errorf("release Audit dispatch hold: %w", err)
+	}
+	if live, liveErr := s.claimLive(ctx, claim); liveErr != nil {
+		return auditstore.Audit{}, false, liveErr
+	} else if !live {
+		return auditstore.Audit{}, false, auditstore.ErrClaimLost
+	}
+	existing, getErr := s.getAuditTrusted(ctx, claim.AuditID)
+	if getErr != nil {
+		return auditstore.Audit{}, false, getErr
+	}
+	if existing.Hold == auditstore.HoldReleased || existing.Hold == auditstore.HoldPending || existing.Dispatch == auditstore.DispatchClosed {
+		return existing, false, nil
+	}
+	return auditstore.Audit{}, false, auditstore.ErrPrecondition
+}
+
+// NextLiveRunForDeletion returns one still-present child Run after collection.
+// run_id remains on AuditExecution as tombstone provenance after hard deletion.
+func (s *ClaimStore) NextLiveRunForDeletion(
+	ctx context.Context, claim auditstore.ControllerClaim,
+) (string, bool, error) {
+	if err := validateClaimIdentity(claim); err != nil {
+		return "", false, err
+	}
+	var runID string
+	err := s.db.QueryRow(ctx, nextLiveRunForDeletionSQL, claim.AuditID, claim.HolderID, claim.Epoch).Scan(&runID)
+	if err == nil {
+		return runID, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return "", false, fmt.Errorf("list Audit child Runs for deletion: %w", err)
+	}
+	if live, liveErr := s.claimLive(ctx, claim); liveErr != nil {
+		return "", false, liveErr
+	} else if !live {
+		return "", false, auditstore.ErrClaimLost
+	}
+	audit, getErr := s.getAuditTrusted(ctx, claim.AuditID)
+	if getErr != nil {
+		return "", false, getErr
+	}
+	if audit.State != auditstore.AuditDeleting {
+		return "", false, auditstore.ErrPrecondition
+	}
+	return "", false, nil
+}
+
+// PurgeClaimed removes a bounded batch of one drained Audit's owned artifacts,
+// protected Project bindings and domain rows. The claim row is cascaded last,
+// so the caller treats a
+// subsequent ReleaseClaim miss as the expected successful terminal outcome.
+func (s *ClaimStore) PurgeClaimed(
+	ctx context.Context, claim auditstore.ControllerClaim, namespace string,
+) error {
+	if err := validateClaimIdentity(claim); err != nil {
+		return err
+	}
+	if namespace != auditdomain.ArtifactNamespace(claim.AuditID) {
+		return invalidf("Audit purge namespace is invalid")
+	}
+	if s.purgeDependencies == nil {
+		return invalidf("Audit purge requires dependent-row cleanup")
+	}
+	return persistencepostgres.Within(ctx, s.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		return purgeClaimedAudit(ctx, tx, claim, namespace, s.purgeDependencies, s.storage)
+	})
+}
+
+func purgeClaimedAudit(
+	ctx context.Context, tx pgx.Tx, claim auditstore.ControllerClaim, namespace string, purgeDependencies auditstore.PurgeDependencies,
+	storage *artifactpostgres.Storage,
+) error {
+	if err := auditClaims.Lock(ctx, tx, claim.AuditID, claim.HolderID, int64(claim.Epoch)); err != nil {
+		if errors.Is(err, persistencepostgres.ErrControllerClaimLost) {
+			return auditstore.ErrClaimLost
+		}
+		return err
+	}
+	var projectID string
+	err := tx.QueryRow(ctx, purgeClaimedAuditSQL, claim.AuditID, claim.HolderID, claim.Epoch).Scan(&projectID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return auditstore.ErrPrecondition
+	}
+	if err != nil {
+		return fmt.Errorf("lock drained Audit for purge: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT set_config('contractor.lifecycle_purge', 'audit', true)`); err != nil {
+		return persistencepostgres.WrapError("enable Audit lifecycle purge", err)
+	}
+	remaining := persistencepostgres.CleanupBatchRows
+	for _, statement := range purgeAuditDomainSQL {
+		limit := remaining
+		tag, err := tx.Exec(ctx, statement, claim.AuditID, limit)
+		if err != nil {
+			return persistencepostgres.WrapError("purge Audit domain batch", err)
+		}
+		remaining -= int(tag.RowsAffected())
+		if remaining == 0 {
+			return nil
+		}
+	}
+	removed, err := purgeDependencies(ctx, tx, claim.AuditID, remaining)
+	if err != nil {
+		return err
+	}
+	if removed < 0 || removed > remaining {
+		return invalidf("Audit purge dependency exceeded its row bound")
+	}
+	remaining -= removed
+	if remaining == 0 {
+		return nil
+	}
+	removed, err = persistencepostgres.DeleteAuditReceiptsBatch(ctx, tx, claim.AuditID, remaining)
+	if err != nil || removed == remaining {
+		return err
+	}
+	// References from decided history are gone before releasing holds; held
+	// material remains available until every hold has been released.
+	purger, err := storage.Purger(tx)
+	if err != nil {
+		return err
+	}
+	complete, err := purger.PurgeAudit(ctx, claim.AuditID)
+	if err != nil || !complete {
+		return err
+	}
+	complete, err = purger.PurgeAuditNamespace(ctx, projectID, namespace)
+	if err != nil {
+		return fmt.Errorf("purge Audit artifacts: %w", err)
+	}
+	if !complete {
+		return nil
+	}
+	tag, err := tx.Exec(ctx, `
+DELETE FROM audits AS audit
+ USING audit_controller_claims AS claim
+ WHERE audit.audit_id = $1 AND audit.state = 'deleting'
+   AND claim.audit_id = audit.audit_id
+   AND `+auditClaims.HeldCondition("claim", "$2", "$3"),
+		claim.AuditID, claim.HolderID, claim.Epoch)
+	if err != nil {
+		return fmt.Errorf("delete drained Audit: %w", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return auditstore.ErrClaimLost
+	}
+	return nil
+}

@@ -1,0 +1,58 @@
+schema_version: "1.0"
+id: V439-004
+title: "Organize Registry lifecycle and compile immutable capability lookups"
+milestone: controlplane-review-2026-11
+epic: execution-core
+kind: chore
+introduced_by: V370-011
+priority: P2
+status: completed
+implementation_commit: 31fe1fe3c2c3e41a54efe8902ae3545da426a90b
+depends_on: [V439-003, V439-005]
+languages: [go]
+goal: "Registry responsibilities and state invariants are locally readable and repeated matching avoids rebuilding immutable tool capability maps."
+context:
+  integration_note: "Renumbered from V438-004 during the user-requested 2026-11-02 main merge: main independently assigned V438-001 to the Scheduler review. Existing implementation commits are retained."
+  authority: "User decision 2026-11-02: fix the two reviewed controlplane defects and implement the proposed refactoring; engagementadapter is a child package of controlplane."
+  specification:
+    - docs/spec/execution/control-plane.md#CTL-R87
+    - docs/spec/execution/control-plane.md#CTL-R88
+    - docs/spec/execution/control-plane.md#CTL-R162
+  finding: >-
+    registry.go combines registration, heartbeat, reservation, grants, release and principal lifecycle in 1658 lines. isCompatible rebuilds nested tool maps for each binding-candidate pair, including repeated checks under the Registry mutex.
+  siblings: >-
+    Optimistic placement, exact matching under lock, waiting-model holds and transaction rechecks share capability matching. Mutable RuntimeConfig/principal observations retain attempt-scoped caching and transactional re-read.
+  decision: >-
+    Split files within the same package along existing responsibilities, document orthogonal state invariants, and compile immutable advertised tool capabilities at registration for Registry matching. Add an early impossible-cardinality return before optimistic edge resolution. Keep the complete injective matcher and all existing lock/lease guarantees; benchmark representative fleets without claiming unmeasured speedups.
+scope:
+  in:
+    - "Separate Registry registration/heartbeat, reservations, grant/release and principal code without extra packages."
+    - "Reuse immutable capability indexes during locked matching and prove equivalent specialist/generalist behavior."
+    - "Reject impossible cardinality before candidate resolution and verify the complete review slice."
+  out:
+    - "No wire schema, user configuration, database schema or Runtime execution behavior changes."
+acceptance_criteria:
+  - {id: A1, text: "Registry files follow their lifecycle responsibilities and explain lease, observation, authority and fencing invariants."}
+  - {id: A2, text: "Matching retains exact capability and complete injective assignment behavior while reusing immutable tool indexes."}
+  - {id: A3, text: "A Stage with more bindings than candidates performs no candidate configuration reads."}
+  - {id: A4, text: "Integrated lint, package tests, PostgreSQL regressions and the native prepare scenario pass; verification limitations are recorded explicitly."}
+tests:
+  - {command: "go test -race -count=1 ./internal/controlplane/... ./internal/contracts/control ./internal/scheduler ./internal/auditservice ./internal/app ./internal/archtest", covers: [A1, A2, A3, A4]}
+  - {command: "go test -run ^$ -bench ^BenchmarkCapabilityMatching -benchtime=100ms ./internal/controlplane", covers: [A2]}
+  - {command: "make lint", covers: [A1, A2, A3, A4]}
+verification:
+  result: >-
+    Full Go package suites for controlplane/..., contracts/control, scheduler, auditservice,
+    app and archtest passed with PostgreSQL and -race. Final make lint passed after V439-005.
+    Full integration-tagged controlplane suite, native metadata prepare and the complete
+    Server/Runtime HTTP identity-session process scenario passed. make test-wire-cross-language
+    passed with 373 fixtures, 395 Go shared tests and 289 Python shared tests; Python batches
+    reported 385 contract tests and 1589 shared tests passed.
+  structure: "registry.go is 178 lines; registration, reservations, grants, principals and validation have separate files in the same package."
+  cardinality: "The real PostgreSQL regression proves no RuntimeConfig version/binding/credential reads or pinning transaction for two bindings and one slot. A 32-binding, 256-slot regression preserves unique complete assignment."
+  benchmark: >-
+    On this host the isolated repeated compatibility benchmark with 16 Toolsets measured
+    9877 ns/op, 29408 B/op and 66 allocations/op when rebuilding versus 130.8 ns/op,
+    16 B/op and one allocation/op with the immutable index. The 32x256 complete graph
+    benchmark measured 1.13 ms/op. These are microbenchmarks, not end-to-end latency claims.
+  followup: "V439-005 advances exact native fixture grants after allocation identity changes; no production check was relaxed."

@@ -1,0 +1,150 @@
+schema_version: '1.0'
+id: V407-035
+title: Cache bounded text decoding for Artifact pages without changing reader interfaces
+milestone: server-runtime-review-2026-10
+epic: projects-artifacts
+kind: chore
+introduced_by: V218-001
+priority: P3
+status: completed
+implementation_commit: 8e5d096069f3fd53ca462757d1d07a152a730264
+depends_on: []
+languages:
+- python
+goal: Reuse UTF-8 validation and line indexing across pages of one exact Artifact revision while preserving
+  existing outputs, limits and LikeC4 behavior.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/artifacts/artifact-store.md
+  finding: runtime/src/contractor_runtime/toolsets/common/artifact_read_cache.py:14,30-64 retains one
+    bounded exact payload, but text_artifacts/tools.py:156-160 fully decodes and splits it on every page
+    and run_artifacts/tools.py:208 fully decodes it again to check UTF-8. Reading all fixed-size pages
+    therefore repeats O(payload size) work per page on the loop. LikeC4 tools.py:188 already calls common/line_window.py;
+    :725-729 is only argument-validation duplication. Its existing description :394-396 explicitly returns
+    a prefix for a line beyond 128 KiB. A decoded cache must budget raw bytes, text storage and any line
+    index instead of quietly multiplying the existing 64-MiB payload allowance.
+  siblings: Text and Run Artifact tools share allocation_artifact_read_cache and close/invalidation behavior.
+    Text already has line_offset continuation; preserve it. Inspect other cache consumers before changing
+    entry ownership. LikeC4 is compatibility coverage, not a new reader API.
+  validation: 'Confirmed repeated work on dc7012e8: ten calls to either Artifact reader downloaded one
+    payload but decoded it ten times. LikeC4 already uses the shared line-window helper; its documented
+    long-line prefix limitation is not a hidden data-corruption defect and adding continuation is out
+    of scope.'
+plan:
+- Extend the one-entry exact Artifact cache with reusable UTF-8 validation and a compact text/line representation
+  prepared lazily through threads.to_thread_until_done. Avoid one Python string/object per line where
+  a compact offset index or byte-backed window suffices.
+- Define and enforce a finite cache budget covering retained raw data and derived text/index storage,
+  including worst-case Unicode and many-short-line inputs up to the accepted Artifact limit. Preserve
+  supported input sizes; use a bounded representation rather than silently refusing previously valid artifacts.
+- Page using cached validation/index state and decode only bounded windows where possible. Run-artifacts
+  binary refusal and base64 byte slices, text line boundaries, UTF-8 continuation offsets and error codes
+  remain identical.
+- Join lazy preparation on cancellation before eviction/close; coalesce concurrent preparation for the
+  same exact revision, replace all derived state when the revision changes, and preserve content-observation
+  accounting on cache hits.
+- Test ten pages of a valid 32-MiB Artifact using decode/index counters and deterministic synchronization.
+  Keep current LikeC4 long-line behavior and tool signatures unchanged; do not fold distinct continuation
+  APIs merely to remove superficially similar helper names.
+scope:
+  in:
+  - Bounded shared decoded/validated Artifact cache state, line indexing and lifecycle; behavior-preserving
+    use by text and Run Artifact readers.
+  out:
+  - New LikeC4 line_offset or continuation feature, changes to partialLine behavior, tool signatures,
+    accepted media types or page sizes.
+  - Claims that LikeC4 duplicates its window implementation; unrelated argument-validator cleanup.
+  - Unbounded decoded-text/line-object retention or relaxation of exact-revision/provenance checks.
+acceptance_criteria:
+- id: A1
+  text: Ten pages of a 32-MiB exact Artifact perform one payload read and at most one full UTF-8 validation/index
+    preparation; subsequent work is limited to the requested window. Counters distinguish full-payload
+    work from bounded page decoding and fail on the old implementation.
+- id: A2
+  text: Raw bytes plus decoded/index state obey the documented finite cache budget for worst-case Unicode
+    and many-short-line fixtures; all previously accepted Artifact sizes remain readable with the existing
+    output limits.
+- id: A3
+  text: Cancellation, concurrent first reads, exact-revision replacement and close join work and discard
+    the appropriate derived state; cached reads retain correct content observations and do not leak an
+    old revision.
+- id: A4
+  text: Existing text line_offset, line-number and Run Artifact byte-page outputs remain equivalent, including
+    invalid UTF-8 errors. LikeC4 preserves its documented overlong-line prefix limitation and unchanged
+    schema; tests introduce no wall-clock thresholds.
+tests:
+- command: cd runtime && uv run --locked pytest -q tests/test_text_artifacts_toolset.py tests/test_run_artifacts_toolset.py
+    tests/test_likec4_toolset.py tests/test_common_line_window.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A2
+  - A4
+verification:
+  date: '2026-10-23'
+  revision: 8e5d096069f3fd53ca462757d1d07a152a730264
+  environment: Worktree contractor-wt/r3, branch claude/rv-r3 on base 74254de7, macOS arm64 (Darwin),
+    Python 3.13 via uv sync --locked, Node 24.20 with Corepack pnpm. The change is Runtime-only and has
+    no PostgreSQL tests, so CONTRACTOR_TEST_DATABASE_URL was not used.
+  database_tests_configured: false
+  source_recheck: 'Re-verified on 74254de7: artifact_read_cache.py retained one exact ArtifactValue;
+    text_artifacts/tools.py decoded the whole payload and ran split_lines on every page; run_artifacts/tools.py
+    decoded the whole payload on every page only to check UTF-8, both on the event loop. LikeC4 already
+    used common/line_window.py and documents its overlong-line prefix; it is not changed. The only cache
+    consumers are read_artifact and read_text_artifact.'
+  results:
+  - 'A1: ExactArtifactReadCache derives per cached revision, through to_thread_until_done, a chunked
+    UTF-8 validation (1 MiB chunks, ASCII fast path, the decoded text is discarded) and, for read_text_artifact,
+    a LineIndex that counts line starts before every 4,096-byte block. A text page finds its first line
+    with a bisect plus at most one block scan, extends over whole lines by scanning at most its 128 KiB
+    window and decodes only that window. test_ten_pages_of_a_32_mib_artifact_prepare_once_and_decode_only_their_windows
+    reads ten pages (eight continued, middle, last) of a 32 MiB multi-byte artifact and counts 1 download,
+    1 validation, 1 index build, 0 whole-payload decodes (CountingPayload.decode), 0 split_lines calls
+    and ten decoded windows equal to the returned text, each at most 128 KiB. test_ten_byte_pages_of_a_32_mib_artifact_validate_utf8_once
+    counts 1 download, 1 validation, 0 index builds and 0 whole-payload decodes for ten read_artifact
+    pages.'
+  - 'A1 fail-before: the new tests run against base 74254de7 (own venv, temporary worktree removed afterwards)
+    fail; a probe with the same CountingPayload and a counting split_lines measured 10 whole-payload decodes
+    and 10 splits for ten read_text_artifact pages and 10 decodes for ten read_artifact pages on the base,
+    and 0 and 0 on this branch, each with one download.'
+  - 'A2: LIM-ART-7 (docs/spec/platform/limits.md) and ART-R117 define the budget: one payload of at
+    most 64 MiB plus 16,385 eight-byte counts, 67,239,944 bytes; decoded text is never retained. The cache
+    admits a revision only when payload plus its index size fit (_cacheable). test_cache_budget_holds_for_worst_case_inputs_of_the_largest_artifact
+    reads 64 MiB fixtures of line breaks only (67,108,864 lines), ASCII with one astral character and
+    astral characters only: first, last and tail pages are correct, the index is exactly the 131,080-byte
+    budget for each, payload plus index stays within LIM-ART-7 and tracemalloc peak during the reads stays
+    below 16 MiB (the former reader allocated the whole decoded text, up to 256 MiB, plus one string per
+    line). test_cache_budget_is_the_documented_limit pins the value.'
+  - 'A3: derivation runs under the cache lock. test_concurrent_first_reads_share_one_preparation holds
+    the preparation thread with events: two reads of one revision share one preparation and one download,
+    a read of another revision waits until the preparation ends and then replaces the entry, and observations
+    record the download and the cached read. test_cancelled_preparation_is_joined_discarded_and_blocks_close
+    shows that a cancelled read does not finish before its thread, discards the derived state while the
+    payload stays cached (next read prepares again without downloading), and that close waits for a cancelled
+    preparation and leaves the cache empty. test_replaced_revision_takes_no_derived_state_from_its_predecessor
+    alternates two revisions of one binding and checks line counts, downloads, index builds and cached-read
+    observations. test_run_and_text_readers_share_one_utf8_validation shows read_artifact validating
+    once and read_text_artifact adding only the index.'
+  - 'A4: test_indexed_pages_match_whole_text_pages compares more than 5,000 read_text_artifact calls
+    with the former whole-text algorithm (kept in the test) over 128 documents of CR, LF, CRLF, U+2028,
+    NEL, form feed and 2- to 4-byte characters, with 3-byte index blocks and a 9-byte window, including
+    every line_offset and the error messages. test_utf8_validation_spans_chunks_and_rejects_like_strict_decoding
+    accepts a character across a validation chunk boundary and rejects a truncated sequence and an encoded
+    surrogate with "artifact is not valid UTF-8"; the Run reader keeps its binary refusal message. Reader
+    signatures are pinned; test_read_likec4_keeps_its_prefix_only_long_line_interface pins the LikeC4
+    signature and description, and its existing partialLine tests pass unchanged. No test asserts elapsed
+    time; event waits carry only 60 s hang guards.'
+  - 'cd runtime && uv run --locked pytest -q tests/test_text_artifacts_toolset.py tests/test_run_artifacts_toolset.py
+    tests/test_likec4_toolset.py tests/test_common_line_window.py: 78 passed. tests/test_tool_input_errors.py:
+    41 passed.'
+  - 'make test-runtime: 4357 passed, 104 failed, 39 skipped. All failures are the known macOS environment
+    set: 95 podman_* tests plus tool_process (2), trailmark_child (2), projectfs_local_direct (2), projectfs_local_io
+    (1), local_direct_faults socket (1) and code_analysis_graph (1, fixture path over 1024 characters);
+    none touches the changed modules.'
+  - 'make lint: passed (ruff check and format, import-linter 4 kept / 0 broken, check_spec, check_tasks
+    and the rest).'

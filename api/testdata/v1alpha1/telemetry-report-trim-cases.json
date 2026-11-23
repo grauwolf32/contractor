@@ -1,0 +1,1680 @@
+{
+  "description": "Bounded execution-report trimming (OBS-R41, OBS-R110): when a report's compact UTF-8 JSON (OBS-R42) exceeds maximumBytes, the oldest tool-call record is removed first, the oldest error only after no tool-call record remains, and truncated becomes true; the result is the first report of that sequence that fits. bytes is the size of the untrimmed report; each limit gives the retained suffixes (toolCallsFrom, errorsFrom), truncated and the retained size, or aggregateTooLarge when even the report without detail exceeds the limit. The limits are every size of the removal sequence, that size minus one byte and the untrimmed size plus one. Go checks telemetry Policy.NormalizeExecutionReport, Python telemetry.metrics.trim_report_detail. Both sides measure every report at bytes: an empty arguments object counts as absent and a number counts as the literal the Runtime wrote. Go also checks that its own normalization (OBS-R27) leaves every record unchanged. The case with runtimeInputs holds the records the Runtime's MetricsState builds from those tool calls, which Python rebuilds and compares: redaction placeholders, derived sizes, sensitive names, depth, list, map and text bounds, an argument summary, a failure and numbers of every exponent range. redaction.sensitiveNames holds every name the Server's rule treats as sensitive (each exact name, each fragment inside a name, each suffix); the Runtime must treat each as sensitive too, so the Server never redacts what the Runtime kept. redaction.safeDerivedSizeNames is the list of derived size names both sides keep a non-negative integer under (OBS-R27). argumentNumbers pins LIM-OBS-16 in the form the Runtime writes: kept numbers stay as written, every replaced number (and NaN or an infinity) becomes the marker in a summary the Runtime builds, and the Server rejects it when received.",
+  "redaction": {
+    "sensitiveNames": [
+      "apikey",
+      "authorization",
+      "body",
+      "bytes",
+      "content",
+      "cookie",
+      "data",
+      "databaseurl",
+      "llmgatewaytoken",
+      "password",
+      "payload",
+      "proxyauthorization",
+      "secret",
+      "setcookie",
+      "token",
+      "xapikeyx",
+      "xauthorizationx",
+      "xbase64x",
+      "xcookiex",
+      "xpasswordx",
+      "xsecretx",
+      "xtokenx",
+      "xbody",
+      "xbytes",
+      "xcontent",
+      "xdata",
+      "xpayload"
+    ],
+    "safeDerivedSizeNames": [
+      "content_bytes",
+      "description_bytes",
+      "result_content_bytes",
+      "result_description_bytes"
+    ]
+  },
+  "argumentNumbers": {
+    "minExponent": -7,
+    "maxExponent": 19,
+    "marker": "[NUMBER_OUT_OF_RANGE]",
+    "kept": [
+      "0",
+      "0.0",
+      "-0.0",
+      "1e-07",
+      "-1e-07",
+      "0.0001",
+      "65535",
+      "1700000000000",
+      "9007199254740993",
+      "1e+16",
+      "1.5e+19",
+      "9.999999999999998e+19",
+      "99999999999999999999",
+      "-99999999999999999999"
+    ],
+    "replaced": [
+      "1e-08",
+      "-1e-08",
+      "1e+20",
+      "-1e+20",
+      "100000000000000000000",
+      "-100000000000000000000",
+      "5e-324",
+      "1.7976931348623157e+308"
+    ]
+  },
+  "cases": [
+    {
+      "name": "ASCII detail, calls removed before errors",
+      "bytes": 1157,
+      "report": {
+        "reportId": "worker-ascii",
+        "complete": true,
+        "metrics": {
+          "durationMs": 12,
+          "modelCalls": 3,
+          "tools": {
+            "read_source_file": {
+              "calls": 5
+            }
+          }
+        },
+        "toolCalls": [
+          {
+            "callId": "call-00",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "path": "src/module_0.py",
+              "line": 0
+            }
+          },
+          {
+            "callId": "call-01",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "path": "src/module_1.py",
+              "line": 7
+            }
+          },
+          {
+            "callId": "call-02",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "path": "src/module_2.py",
+              "line": 14
+            }
+          },
+          {
+            "callId": "call-03",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "path": "src/module_3.py",
+              "line": 21
+            }
+          },
+          {
+            "callId": "call-04",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "path": "src/module_4.py",
+              "line": 28
+            }
+          }
+        ],
+        "errors": [
+          {
+            "code": "model_call_failed",
+            "message": "Model call failed (attempt 0)",
+            "retryable": true
+          },
+          {
+            "code": "model_call_failed",
+            "message": "Model call failed (attempt 1)",
+            "retryable": true
+          },
+          {
+            "code": "model_call_failed",
+            "message": "Model call failed (attempt 2)",
+            "retryable": true
+          }
+        ],
+        "truncated": false
+      },
+      "limits": [
+        {
+          "maximumBytes": 170,
+          "aggregateTooLarge": true
+        },
+        {
+          "maximumBytes": 171,
+          "toolCallsFrom": 5,
+          "errorsFrom": 3,
+          "truncated": true,
+          "bytes": 171
+        },
+        {
+          "maximumBytes": 257,
+          "toolCallsFrom": 5,
+          "errorsFrom": 3,
+          "truncated": true,
+          "bytes": 171
+        },
+        {
+          "maximumBytes": 258,
+          "toolCallsFrom": 5,
+          "errorsFrom": 2,
+          "truncated": true,
+          "bytes": 258
+        },
+        {
+          "maximumBytes": 345,
+          "toolCallsFrom": 5,
+          "errorsFrom": 2,
+          "truncated": true,
+          "bytes": 258
+        },
+        {
+          "maximumBytes": 346,
+          "toolCallsFrom": 5,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 346
+        },
+        {
+          "maximumBytes": 433,
+          "toolCallsFrom": 5,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 346
+        },
+        {
+          "maximumBytes": 434,
+          "toolCallsFrom": 5,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 434
+        },
+        {
+          "maximumBytes": 577,
+          "toolCallsFrom": 5,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 434
+        },
+        {
+          "maximumBytes": 578,
+          "toolCallsFrom": 4,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 578
+        },
+        {
+          "maximumBytes": 722,
+          "toolCallsFrom": 4,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 578
+        },
+        {
+          "maximumBytes": 723,
+          "toolCallsFrom": 3,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 723
+        },
+        {
+          "maximumBytes": 867,
+          "toolCallsFrom": 3,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 723
+        },
+        {
+          "maximumBytes": 868,
+          "toolCallsFrom": 2,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 868
+        },
+        {
+          "maximumBytes": 1011,
+          "toolCallsFrom": 2,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 868
+        },
+        {
+          "maximumBytes": 1012,
+          "toolCallsFrom": 1,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 1012
+        },
+        {
+          "maximumBytes": 1156,
+          "toolCallsFrom": 1,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 1012
+        },
+        {
+          "maximumBytes": 1157,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": false,
+          "bytes": 1157
+        },
+        {
+          "maximumBytes": 1158,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": false,
+          "bytes": 1157
+        }
+      ]
+    },
+    {
+      "name": "multibyte and escaped detail",
+      "bytes": 1681,
+      "report": {
+        "reportId": "worker-multibyte",
+        "complete": true,
+        "metrics": {
+          "durationMs": 99,
+          "modelCalls": 4,
+          "inputTokens": 1200,
+          "outputTokens": 300,
+          "totalTokens": 1500,
+          "tools": {
+            "list_symbols": {
+              "calls": 1,
+              "succeeded": 1,
+              "failed": 0
+            },
+            "read_source_file": {
+              "calls": 2,
+              "succeeded": 1,
+              "failed": 1
+            },
+            "search_text": {
+              "calls": 2,
+              "succeeded": 2,
+              "failed": 0
+            }
+          },
+          "workerBudget": {
+            "maxModelCalls": 8,
+            "maxToolCalls": 16,
+            "maxTotalTokens": 32768,
+            "observedModelCalls": 4,
+            "observedToolCalls": 5,
+            "observedTotalTokens": 1500,
+            "tokenUsageUnavailable": 0
+          }
+        },
+        "toolCalls": [
+          {
+            "callId": "call-00",
+            "tool": "search_text",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "pattern": "Привет, 漢字 😀  line para <>& \"q\" \\ \n\t\u0001",
+              "limit": 20
+            },
+            "durationMs": 4
+          },
+          {
+            "callId": "call-01",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "failed",
+            "arguments": {
+              "path": "докум/漢字/😀.md"
+            },
+            "error": {
+              "code": "tool_failed",
+              "message": "Tool read_source_file failed (OSError) — ошибка 😀",
+              "retryable": false
+            }
+          },
+          {
+            "callId": "call-02",
+            "tool": "list_symbols",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "query": "                  <a href=\"x\">&amp;</a>"
+            },
+            "resultSizeBytes": 2048
+          },
+          {
+            "callId": "call-03",
+            "tool": "search_text",
+            "argumentsTruncated": false,
+            "outcome": "succeeded"
+          },
+          {
+            "callId": "call-04",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "path": "a\\b\\c",
+              "items": [
+                "ж",
+                "界",
+                "😀",
+                1,
+                true
+              ]
+            }
+          }
+        ],
+        "errors": [
+          {
+            "code": "tool_search_text_failed",
+            "message": "Ошибка поиска: 界界界 😀 ",
+            "retryable": false
+          },
+          {
+            "code": "worker_budget_exhausted",
+            "message": "Worker invocation budget exhausted (tool_calls)"
+          }
+        ],
+        "truncated": false
+      },
+      "limits": [
+        {
+          "maximumBytes": 533,
+          "aggregateTooLarge": true
+        },
+        {
+          "maximumBytes": 534,
+          "toolCallsFrom": 5,
+          "errorsFrom": 2,
+          "truncated": true,
+          "bytes": 534
+        },
+        {
+          "maximumBytes": 627,
+          "toolCallsFrom": 5,
+          "errorsFrom": 2,
+          "truncated": true,
+          "bytes": 534
+        },
+        {
+          "maximumBytes": 628,
+          "toolCallsFrom": 5,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 628
+        },
+        {
+          "maximumBytes": 737,
+          "toolCallsFrom": 5,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 628
+        },
+        {
+          "maximumBytes": 738,
+          "toolCallsFrom": 5,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 738
+        },
+        {
+          "maximumBytes": 898,
+          "toolCallsFrom": 5,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 738
+        },
+        {
+          "maximumBytes": 899,
+          "toolCallsFrom": 4,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 899
+        },
+        {
+          "maximumBytes": 989,
+          "toolCallsFrom": 4,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 899
+        },
+        {
+          "maximumBytes": 990,
+          "toolCallsFrom": 3,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 990
+        },
+        {
+          "maximumBytes": 1206,
+          "toolCallsFrom": 3,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 990
+        },
+        {
+          "maximumBytes": 1207,
+          "toolCallsFrom": 2,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 1207
+        },
+        {
+          "maximumBytes": 1470,
+          "toolCallsFrom": 2,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 1207
+        },
+        {
+          "maximumBytes": 1471,
+          "toolCallsFrom": 1,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 1471
+        },
+        {
+          "maximumBytes": 1680,
+          "toolCallsFrom": 1,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 1471
+        },
+        {
+          "maximumBytes": 1681,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": false,
+          "bytes": 1681
+        },
+        {
+          "maximumBytes": 1682,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": false,
+          "bytes": 1681
+        }
+      ]
+    },
+    {
+      "name": "error-only overflow",
+      "bytes": 554,
+      "report": {
+        "reportId": "worker-errors",
+        "complete": true,
+        "metrics": {
+          "durationMs": 12,
+          "modelCalls": 3,
+          "tools": {
+            "read_source_file": {
+              "calls": 0
+            }
+          }
+        },
+        "toolCalls": [],
+        "errors": [
+          {
+            "code": "model_call_failed",
+            "message": "Model call failed (HTTP 503) 界",
+            "retryable": true
+          },
+          {
+            "code": "model_call_failed",
+            "message": "Model call failed (HTTP 503) 界界",
+            "retryable": true
+          },
+          {
+            "code": "model_call_failed",
+            "message": "Model call failed (HTTP 503) 界界界",
+            "retryable": true
+          },
+          {
+            "code": "model_call_failed",
+            "message": "Model call failed (HTTP 503) 界界界界",
+            "retryable": true
+          }
+        ],
+        "truncated": false
+      },
+      "limits": [
+        {
+          "maximumBytes": 171,
+          "aggregateTooLarge": true
+        },
+        {
+          "maximumBytes": 172,
+          "toolCallsFrom": 0,
+          "errorsFrom": 4,
+          "truncated": true,
+          "bytes": 172
+        },
+        {
+          "maximumBytes": 270,
+          "toolCallsFrom": 0,
+          "errorsFrom": 4,
+          "truncated": true,
+          "bytes": 172
+        },
+        {
+          "maximumBytes": 271,
+          "toolCallsFrom": 0,
+          "errorsFrom": 3,
+          "truncated": true,
+          "bytes": 271
+        },
+        {
+          "maximumBytes": 367,
+          "toolCallsFrom": 0,
+          "errorsFrom": 3,
+          "truncated": true,
+          "bytes": 271
+        },
+        {
+          "maximumBytes": 368,
+          "toolCallsFrom": 0,
+          "errorsFrom": 2,
+          "truncated": true,
+          "bytes": 368
+        },
+        {
+          "maximumBytes": 461,
+          "toolCallsFrom": 0,
+          "errorsFrom": 2,
+          "truncated": true,
+          "bytes": 368
+        },
+        {
+          "maximumBytes": 462,
+          "toolCallsFrom": 0,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 462
+        },
+        {
+          "maximumBytes": 553,
+          "toolCallsFrom": 0,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 462
+        },
+        {
+          "maximumBytes": 554,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": false,
+          "bytes": 554
+        },
+        {
+          "maximumBytes": 555,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": false,
+          "bytes": 554
+        }
+      ]
+    },
+    {
+      "name": "records the Runtime built",
+      "bytes": 8125,
+      "runtimeInputs": {
+        "reportId": "worker-runtime-built",
+        "durationMs": 21,
+        "workerBudget": {
+          "maxModelCalls": 8,
+          "maxToolCalls": 16,
+          "maxTotalTokens": 32768
+        },
+        "completion": {
+          "kind": "audit-check-results@1",
+          "phase": "collecting",
+          "acceptedCount": 1,
+          "totalCount": 2,
+          "reminderCount": 0
+        },
+        "toolCalls": [
+          {
+            "tool": "list_files",
+            "arguments": {}
+          },
+          {
+            "tool": "rank_candidates",
+            "arguments": {
+              "smallExponent": 5e-05,
+              "tinyExponent": 1e-07,
+              "largeExponent": 1e+16,
+              "hugeExponent": 1e+21,
+              "negativeZero": -0.0,
+              "integralFloat": 1.0,
+              "integralLargeFloat": 1000000000000000.0,
+              "negativeTiny": -1.5e-300,
+              "largestFloat": 1.7976931348623157e+308,
+              "fraction": 0.1,
+              "integerAbove2To53": 9007199254740993,
+              "integerBeyondFloat": 1180591620717411303424,
+              "negativeInteger": -42
+            }
+          },
+          {
+            "tool": "write_file",
+            "arguments": {
+              "path": "notes/a.txt",
+              "content": "plain text"
+            }
+          },
+          {
+            "tool": "http_request",
+            "arguments": {
+              "content_bytes": 120,
+              "Description Bytes": 7,
+              "result_content_bytes": 4096,
+              "Result-Description-Bytes": 0,
+              "password": null,
+              "data": [
+                1,
+                2
+              ],
+              "Set-Cookie": "a=b",
+              "api.key": "x",
+              "database_url": "postgres://db.example.test/app",
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxtoken": "v",
+              "accessToken": "opaque"
+            }
+          },
+          {
+            "tool": "replay_request",
+            "arguments": {
+              "token": {
+                "redacted": true,
+                "size": 5
+              },
+              "body": {
+                "redacted": true,
+                "size": null
+              }
+            }
+          },
+          {
+            "tool": "nested",
+            "arguments": {
+              "a": {
+                "b": {
+                  "c": {
+                    "d": {
+                      "e": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "tool": "list_items",
+            "arguments": {
+              "items": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                25,
+                26,
+                27,
+                28,
+                29,
+                30,
+                31,
+                32,
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39
+              ]
+            }
+          },
+          {
+            "tool": "wide_map",
+            "arguments": {
+              "fields": {
+                "k00": 0,
+                "k01": 1,
+                "k02": 2,
+                "k03": 3,
+                "k04": 4,
+                "k05": 5,
+                "k06": 6,
+                "k07": 7,
+                "k08": 8,
+                "k09": 9,
+                "k10": 10,
+                "k11": 11,
+                "k12": 12,
+                "k13": 13,
+                "k14": 14,
+                "k15": 15,
+                "k16": 16,
+                "k17": 17,
+                "k18": 18,
+                "k19": 19,
+                "k20": 20,
+                "k21": 21,
+                "k22": 22,
+                "k23": 23,
+                "k24": 24,
+                "k25": 25,
+                "k26": 26,
+                "k27": 27,
+                "k28": 28,
+                "k29": 29,
+                "k30": 30,
+                "k31": 31,
+                "k32": 32,
+                "k33": 33,
+                "k34": 34,
+                "k35": 35,
+                "k36": 36,
+                "k37": 37,
+                "k38": 38,
+                "k39": 39
+              }
+            }
+          },
+          {
+            "tool": "search_text",
+            "arguments": {
+              "pattern": " <>&é😀\"\\\n\t\u0001",
+              "url": "https://user:pw@example.test/p?q=1",
+              "plain": "https://example.test/path"
+            }
+          },
+          {
+            "tool": "read_source_file",
+            "arguments": {
+              "path": "missing.txt"
+            },
+            "failed": true
+          },
+          {
+            "tool": "search_text",
+            "arguments": {
+              "pattern": "界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界"
+            }
+          },
+          {
+            "tool": "search_text",
+            "arguments": {
+              "pattern": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ]
+      },
+      "report": {
+        "reportId": "worker-runtime-built",
+        "complete": true,
+        "metrics": {
+          "llmCost": {
+            "currency": "USD",
+            "calls": 0,
+            "groups": []
+          },
+          "durationMs": 21,
+          "modelCalls": 0,
+          "tools": {
+            "http_request": {
+              "calls": 1,
+              "succeeded": 1,
+              "failed": 0
+            },
+            "list_files": {
+              "calls": 1,
+              "succeeded": 1,
+              "failed": 0
+            },
+            "list_items": {
+              "calls": 1,
+              "succeeded": 1,
+              "failed": 0
+            },
+            "nested": {
+              "calls": 1,
+              "succeeded": 1,
+              "failed": 0
+            },
+            "rank_candidates": {
+              "calls": 1,
+              "succeeded": 1,
+              "failed": 0
+            },
+            "read_source_file": {
+              "calls": 1,
+              "succeeded": 0,
+              "failed": 1
+            },
+            "replay_request": {
+              "calls": 1,
+              "succeeded": 1,
+              "failed": 0
+            },
+            "search_text": {
+              "calls": 3,
+              "succeeded": 3,
+              "failed": 0
+            },
+            "wide_map": {
+              "calls": 1,
+              "succeeded": 1,
+              "failed": 0
+            },
+            "write_file": {
+              "calls": 1,
+              "succeeded": 1,
+              "failed": 0
+            }
+          },
+          "workerBudget": {
+            "maxModelCalls": 8,
+            "maxToolCalls": 16,
+            "maxTotalTokens": 32768,
+            "observedModelCalls": 0,
+            "observedToolCalls": 0,
+            "observedTotalTokens": 0,
+            "tokenUsageUnavailable": 0
+          }
+        },
+        "toolCalls": [
+          {
+            "callId": "tool-00000001",
+            "tool": "list_files",
+            "argumentsTruncated": false,
+            "outcome": "succeeded"
+          },
+          {
+            "callId": "tool-00000002",
+            "tool": "rank_candidates",
+            "arguments": {
+              "smallExponent": 5e-05,
+              "tinyExponent": 1e-07,
+              "largeExponent": 1e+16,
+              "hugeExponent": "[NUMBER_OUT_OF_RANGE]",
+              "negativeZero": -0.0,
+              "integralFloat": 1.0,
+              "integralLargeFloat": 1000000000000000.0,
+              "negativeTiny": "[NUMBER_OUT_OF_RANGE]",
+              "largestFloat": "[NUMBER_OUT_OF_RANGE]",
+              "fraction": 0.1,
+              "integerAbove2To53": 9007199254740993,
+              "integerBeyondFloat": "[NUMBER_OUT_OF_RANGE]",
+              "negativeInteger": -42
+            },
+            "argumentsTruncated": true,
+            "outcome": "succeeded"
+          },
+          {
+            "callId": "tool-00000003",
+            "tool": "write_file",
+            "arguments": {
+              "path": "notes/a.txt",
+              "content": {
+                "redacted": true,
+                "size": 10
+              }
+            },
+            "argumentsTruncated": false,
+            "outcome": "succeeded"
+          },
+          {
+            "callId": "tool-00000004",
+            "tool": "http_request",
+            "arguments": {
+              "content_bytes": 120,
+              "Description Bytes": 7,
+              "result_content_bytes": 4096,
+              "Result-Description-Bytes": 0,
+              "password": {
+                "redacted": true,
+                "size": null
+              },
+              "data": {
+                "redacted": true,
+                "size": 2
+              },
+              "Set-Cookie": {
+                "redacted": true,
+                "size": 3
+              },
+              "api.key": {
+                "redacted": true,
+                "size": 1
+              },
+              "database_url": {
+                "redacted": true,
+                "size": 30
+              },
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxtoken": {
+                "redacted": true,
+                "size": 1
+              },
+              "accessToken": {
+                "redacted": true,
+                "size": 6
+              }
+            },
+            "argumentsTruncated": false,
+            "outcome": "succeeded"
+          },
+          {
+            "callId": "tool-00000005",
+            "tool": "replay_request",
+            "arguments": {
+              "token": {
+                "redacted": true,
+                "size": 5
+              },
+              "body": {
+                "redacted": true,
+                "size": null
+              }
+            },
+            "argumentsTruncated": false,
+            "outcome": "succeeded"
+          },
+          {
+            "callId": "tool-00000006",
+            "tool": "nested",
+            "arguments": {
+              "a": {
+                "b": {
+                  "c": {
+                    "d": "[TRUNCATED]"
+                  }
+                }
+              }
+            },
+            "argumentsTruncated": true,
+            "outcome": "succeeded"
+          },
+          {
+            "callId": "tool-00000007",
+            "tool": "list_items",
+            "arguments": {
+              "items": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                25,
+                26,
+                27,
+                28,
+                29,
+                30,
+                31,
+                "[TRUNCATED]"
+              ]
+            },
+            "argumentsTruncated": true,
+            "outcome": "succeeded"
+          },
+          {
+            "callId": "tool-00000008",
+            "tool": "wide_map",
+            "arguments": {
+              "fields": {
+                "k00": 0,
+                "k01": 1,
+                "k02": 2,
+                "k03": 3,
+                "k04": 4,
+                "k05": 5,
+                "k06": 6,
+                "k07": 7,
+                "k08": 8,
+                "k09": 9,
+                "k10": 10,
+                "k11": 11,
+                "k12": 12,
+                "k13": 13,
+                "k14": 14,
+                "k15": 15,
+                "k16": 16,
+                "k17": 17,
+                "k18": 18,
+                "k19": 19,
+                "k20": 20,
+                "k21": 21,
+                "k22": 22,
+                "k23": 23,
+                "k24": 24,
+                "k25": 25,
+                "k26": 26,
+                "k27": 27,
+                "k28": 28,
+                "k29": 29,
+                "k30": 30,
+                "k31": 31,
+                "__truncated__": true
+              }
+            },
+            "argumentsTruncated": true,
+            "outcome": "succeeded"
+          },
+          {
+            "callId": "tool-00000009",
+            "tool": "search_text",
+            "arguments": {
+              "pattern": " <>&é😀\"\\\n\t\u0001",
+              "url": "[REDACTED_URL]",
+              "plain": "https://example.test/path"
+            },
+            "argumentsTruncated": true,
+            "outcome": "succeeded"
+          },
+          {
+            "callId": "tool-00000010",
+            "tool": "read_source_file",
+            "arguments": {
+              "path": "missing.txt"
+            },
+            "argumentsTruncated": false,
+            "outcome": "failed",
+            "error": {
+              "code": "synthetic_tool_failure",
+              "message": "Tool read_source_file failed (ToolFailure)",
+              "retryable": true
+            }
+          },
+          {
+            "callId": "tool-00000011",
+            "tool": "search_text",
+            "arguments": {
+              "summary": "[TRUNCATED]",
+              "originalSizeBytes": 4109
+            },
+            "argumentsTruncated": true,
+            "outcome": "succeeded"
+          },
+          {
+            "callId": "tool-00000012",
+            "tool": "search_text",
+            "arguments": {
+              "pattern": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "argumentsTruncated": false,
+            "outcome": "succeeded"
+          }
+        ],
+        "errors": [
+          {
+            "code": "tool_read_source_file_failed",
+            "message": "Tool read_source_file failed (ToolFailure)",
+            "retryable": true
+          }
+        ],
+        "truncated": false,
+        "completion": {
+          "kind": "audit-check-results@1",
+          "phase": "collecting",
+          "acceptedCount": 1,
+          "totalCount": 2,
+          "reminderCount": 0
+        }
+      },
+      "limits": [
+        {
+          "maximumBytes": 999,
+          "aggregateTooLarge": true
+        },
+        {
+          "maximumBytes": 1000,
+          "toolCallsFrom": 12,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 1000
+        },
+        {
+          "maximumBytes": 1110,
+          "toolCallsFrom": 12,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 1000
+        },
+        {
+          "maximumBytes": 1111,
+          "toolCallsFrom": 12,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 1111
+        },
+        {
+          "maximumBytes": 5233,
+          "toolCallsFrom": 12,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 1111
+        },
+        {
+          "maximumBytes": 5234,
+          "toolCallsFrom": 11,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 5234
+        },
+        {
+          "maximumBytes": 5392,
+          "toolCallsFrom": 11,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 5234
+        },
+        {
+          "maximumBytes": 5393,
+          "toolCallsFrom": 10,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 5393
+        },
+        {
+          "maximumBytes": 5640,
+          "toolCallsFrom": 10,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 5393
+        },
+        {
+          "maximumBytes": 5641,
+          "toolCallsFrom": 9,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 5641
+        },
+        {
+          "maximumBytes": 5848,
+          "toolCallsFrom": 9,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 5641
+        },
+        {
+          "maximumBytes": 5849,
+          "toolCallsFrom": 8,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 5849
+        },
+        {
+          "maximumBytes": 6265,
+          "toolCallsFrom": 8,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 5849
+        },
+        {
+          "maximumBytes": 6266,
+          "toolCallsFrom": 7,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 6266
+        },
+        {
+          "maximumBytes": 6484,
+          "toolCallsFrom": 7,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 6266
+        },
+        {
+          "maximumBytes": 6485,
+          "toolCallsFrom": 6,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 6485
+        },
+        {
+          "maximumBytes": 6625,
+          "toolCallsFrom": 6,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 6485
+        },
+        {
+          "maximumBytes": 6626,
+          "toolCallsFrom": 5,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 6626
+        },
+        {
+          "maximumBytes": 6811,
+          "toolCallsFrom": 5,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 6626
+        },
+        {
+          "maximumBytes": 6812,
+          "toolCallsFrom": 4,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 6812
+        },
+        {
+          "maximumBytes": 7363,
+          "toolCallsFrom": 4,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 6812
+        },
+        {
+          "maximumBytes": 7364,
+          "toolCallsFrom": 3,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 7364
+        },
+        {
+          "maximumBytes": 7532,
+          "toolCallsFrom": 3,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 7364
+        },
+        {
+          "maximumBytes": 7533,
+          "toolCallsFrom": 2,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 7533
+        },
+        {
+          "maximumBytes": 8027,
+          "toolCallsFrom": 2,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 7533
+        },
+        {
+          "maximumBytes": 8028,
+          "toolCallsFrom": 1,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 8028
+        },
+        {
+          "maximumBytes": 8124,
+          "toolCallsFrom": 1,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 8028
+        },
+        {
+          "maximumBytes": 8125,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": false,
+          "bytes": 8125
+        },
+        {
+          "maximumBytes": 8126,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": false,
+          "bytes": 8125
+        }
+      ]
+    },
+    {
+      "name": "numbers and an empty arguments object as received",
+      "bytes": 837,
+      "report": {
+        "reportId": "worker-numbers",
+        "complete": true,
+        "metrics": {
+          "durationMs": 12,
+          "modelCalls": 3,
+          "tools": {
+            "read_source_file": {
+              "calls": 4
+            }
+          }
+        },
+        "toolCalls": [
+          {
+            "callId": "call-00",
+            "tool": "list_files",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {}
+          },
+          {
+            "callId": "call-01",
+            "tool": "rank_candidates",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "smallExponent": 5e-05,
+              "largeExponent": 1e+16,
+              "negativeZero": -0.0,
+              "integralFloat": 3.0,
+              "integerAtUpperBound": 99999999999999999999
+            }
+          },
+          {
+            "callId": "call-02",
+            "tool": "list_files",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {},
+            "durationMs": 2
+          },
+          {
+            "callId": "call-03",
+            "tool": "rank_candidates",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "scores": [
+                2.5e-06,
+                1.25e+17,
+                -0.0,
+                7.0
+              ]
+            }
+          }
+        ],
+        "errors": [
+          {
+            "code": "model_call_failed",
+            "message": "Model call failed (attempt 1)",
+            "retryable": true
+          }
+        ],
+        "truncated": false
+      },
+      "limits": [
+        {
+          "maximumBytes": 172,
+          "aggregateTooLarge": true
+        },
+        {
+          "maximumBytes": 173,
+          "toolCallsFrom": 4,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 173
+        },
+        {
+          "maximumBytes": 259,
+          "toolCallsFrom": 4,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 173
+        },
+        {
+          "maximumBytes": 260,
+          "toolCallsFrom": 4,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 260
+        },
+        {
+          "maximumBytes": 404,
+          "toolCallsFrom": 4,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 260
+        },
+        {
+          "maximumBytes": 405,
+          "toolCallsFrom": 3,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 405
+        },
+        {
+          "maximumBytes": 509,
+          "toolCallsFrom": 3,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 405
+        },
+        {
+          "maximumBytes": 510,
+          "toolCallsFrom": 2,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 510
+        },
+        {
+          "maximumBytes": 745,
+          "toolCallsFrom": 2,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 510
+        },
+        {
+          "maximumBytes": 746,
+          "toolCallsFrom": 1,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 746
+        },
+        {
+          "maximumBytes": 836,
+          "toolCallsFrom": 1,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 746
+        },
+        {
+          "maximumBytes": 837,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": false,
+          "bytes": 837
+        },
+        {
+          "maximumBytes": 838,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": false,
+          "bytes": 837
+        }
+      ]
+    },
+    {
+      "name": "already truncated report",
+      "bytes": 648,
+      "report": {
+        "reportId": "worker-truncated",
+        "complete": true,
+        "metrics": {
+          "durationMs": 12,
+          "modelCalls": 3,
+          "tools": {
+            "read_source_file": {
+              "calls": 3
+            }
+          }
+        },
+        "toolCalls": [
+          {
+            "callId": "call-00",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "path": "жжж"
+            }
+          },
+          {
+            "callId": "call-01",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "path": "жжжж"
+            }
+          },
+          {
+            "callId": "call-02",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "path": "жжжжж"
+            }
+          }
+        ],
+        "errors": [
+          {
+            "code": "tool_report_failed",
+            "message": "Tool report publication failed",
+            "retryable": false
+          }
+        ],
+        "truncated": true
+      },
+      "limits": [
+        {
+          "maximumBytes": 174,
+          "aggregateTooLarge": true
+        },
+        {
+          "maximumBytes": 175,
+          "toolCallsFrom": 3,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 175
+        },
+        {
+          "maximumBytes": 264,
+          "toolCallsFrom": 3,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 175
+        },
+        {
+          "maximumBytes": 265,
+          "toolCallsFrom": 3,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 265
+        },
+        {
+          "maximumBytes": 393,
+          "toolCallsFrom": 3,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 265
+        },
+        {
+          "maximumBytes": 394,
+          "toolCallsFrom": 2,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 394
+        },
+        {
+          "maximumBytes": 521,
+          "toolCallsFrom": 2,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 394
+        },
+        {
+          "maximumBytes": 522,
+          "toolCallsFrom": 1,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 522
+        },
+        {
+          "maximumBytes": 647,
+          "toolCallsFrom": 1,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 522
+        },
+        {
+          "maximumBytes": 648,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 648
+        },
+        {
+          "maximumBytes": 649,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 648
+        }
+      ]
+    }
+  ]
+}

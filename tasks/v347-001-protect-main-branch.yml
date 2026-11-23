@@ -1,0 +1,55 @@
+schema_version: '1.0'
+id: V347-001
+title: Protect main with a required check
+milestone: review-process-2026-10-04
+epic: quality
+kind: chore
+priority: P1
+status: pending
+depends_on: [V334-001]
+languages: [yaml]
+goal: Stop merging changes that have not passed CI.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: high
+  finding: "GET /branches/main returns protected:false with no required status checks and no rulesets; PRs #512, #534 and #536 were merged 19-25 s after opening and #518 was merged while its PR run was still running (that run failed). Combined with a release gate that has never passed, every merge since 2026-05-29 is effectively ungated."
+  revalidated: >-
+    2026-10-24 on b523ae77, repository side only (no GitHub API access, so the
+    remote setting and A1 were not read back). Still accurate: V334-001 is
+    completed (ec9af537); .github/workflows/ci.yml:139-145 still defines the
+    pr-verify job that docs/research/2026-10-09-main-protection.json requires
+    (release-verify, ci.yml:147-153, reports for tags and manual runs), and
+    AGENTS.md section 7 still says branch protection is not in place. New
+    since the 2026-10-09 reassessment: the last PR merge on main is #551
+    (80d4f4fb, 2026-10-14); later merges on origin/main as last fetched
+    (725b863e, for example cba266ed, fd4eb8e2 and 39d89438) are local --no-ff
+    merges pushed directly, as AGENTS.md section 7 describes. The prepared request (strict pr-verify, enforce_admins true)
+    would reject those direct pushes, because a local merge commit carries no
+    pr-verify status. Applying it therefore needs the owner to choose between
+    merging through pull requests and a rule that lets the owner's local
+    merges through (a ruleset bypass, or enforce_admins false), and to update
+    the request file and AGENTS.md section 7 to match.
+scope:
+  in:
+    - Repository owner enables branch protection with the release check required (or a merge queue) once V334-001 makes the check reliable.
+  out:
+    - Code changes.
+acceptance_criteria:
+  - {id: A1, text: "main requires a passing CI check before merge."}
+tests:
+  - {command: "GitHub repository settings review", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: GitHub main is still unprotected. No GitHub API write credential is available in this environment; prepare a reviewable required-check configuration and keep acceptance open.
+
+prepared_change:
+  request: docs/research/2026-10-09-main-protection.json
+  required_check: pr-verify
+  enforcement: Up-to-date branch, including administrators; force pushes and deletion disabled.
+  last_readback:
+    date: "2026-10-09"
+    protected: false
+  remaining: Apply through a repository administrator and read back the required check settings.

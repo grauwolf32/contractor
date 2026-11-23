@@ -1,0 +1,189 @@
+schema_version: '1.0'
+id: V477-001
+title: Decode JSON containers through helpers selected by each tool
+milestone: model-runtime-guidance-2026-11
+epic: planner-worker
+kind: feature
+priority: P1
+status: completed
+depends_on:
+- V475-001
+languages:
+- python
+- markdown
+goal: A Worker can supply an object or array as a JSON value or serialized JSON at explicitly supported tool
+  arguments, without changing nested payload values or weakening canonical domain validation.
+demonstration: The real ADK Runner invokes http_request with serialized headers/query/form fields and submit_check_results
+  with serialized items. Tool-owned helpers decode the selected containers once; the local HTTP receiver observes
+  the intended request and the existing Audit collector records one canonical batch. Invalid containers cause
+  no send or collection update.
+context:
+  authority: 'User request 2026-11-22: plan common helpers for JSON containers, actionable argument errors
+    and HTTP body correction while retaining exact payloads. User clarification 2026-11-22: contracts belong
+    to individual tools; common utilities are explicitly added to every tool that needs them. This authorizes
+    task planning, not implementation, deployment or another live Audit. The concrete first consumers and structural
+    bounds below are agent proposals within that direction. User assignment 2026-11-22: review and implement
+    V477 with focused affected-component verification; no live Audit or deployment.'
+  baseline: d8b9f6d621a68e04c8a7dd86784529e27c0d93a9 on local main; Python ADK 2.15.0 is already merged.
+  specification:
+  - docs/spec/tools/toolsets.md#TLS-R29
+  - docs/spec/tools/toolsets.md#TLS-R39
+  - docs/spec/tools/http-caido.md#HTP-R23
+  - docs/spec/tools/http-caido.md#HTP-R27
+  - docs/spec/audits/worker-completion.md#AWC-R127
+  - docs/spec/audits/worker-completion.md#AWC-R129
+  - docs/spec/platform/limits.md
+  sources:
+  - runtime/src/contractor_runtime/strict_json.py
+  - runtime/src/contractor_runtime/toolsets/http/tools.py
+  - runtime/src/contractor_runtime/toolsets/http/controlled.py
+  - runtime/src/contractor_runtime/toolsets/audit_results/arguments.py
+  - runtime/src/contractor_runtime/toolsets/audit_results/v2.py
+  - runtime/src/contractor_runtime/worker/function_tools.py
+  boundary_decision: Put reusable decoding/bounds helpers in toolsets.common; each tool supplies expected container
+    type, permitted representation, field path and bounds at its own entry point. The tool also owns its declaration,
+    required/optional/default behavior and the domain validator called after decoding. Helpers have no tool-name
+    dispatch, domain field lists, authority or persistence. Keep the existing Worker unknown-argument guard
+    and SDK wrapper; no global coercion plugin, argument walker that repairs everything, policy registry or
+    JSON-schema interpreter is introduced. The simpler alternative is per-tool rejection with a repair hint;
+    selected one-layer decoding handles an unambiguous representation error without another model turn. Reopen
+    an individual opt-in if both string and container are legitimate semantic values; HTTP body's ambiguity
+    is resolved separately in V477-003.
+  implementation_boundary: Update owning numbered specs and limits with implementation. Canonical Audit documents,
+    stored records, public/wire inputs and RuntimeConfig retain strict readers; this is a declared model-tool
+    input representation, not a legacy-data fallback.
+scope:
+  in:
+  - Shared object/array decoding and bounded validation, reusing strict_json_loads and existing tool error
+    mechanisms.
+  - Explicit first object consumers in http_request headers, query and form body, with the same behavior in
+    ordinary direct/proxy and controlled sessions.
+  - Explicit array consumers in submit_check_result tested_conditions, limitations, evidence and http_request_ids,
+    plus submit_check_results items and its declared array fields.
+  - Actual ADK declarations accepting only the additional serialized representation selected by those tools;
+    typed native schemas remain informative and closed records remain closed.
+  out:
+  - HTTP json/text body semantics, owned by V477-003; new detailed error projection, owned by V477-002.
+  - Numeric, boolean or enum coercion; rewriting nested strings, URLs, credentials, IDs, refs, cursors, source
+    text or stored artifacts.
+  - Converting http_session_set auth/cookies, Caido replay, scanner request artifacts, native Skills or Go
+    Planner arguments without a separately justified caller.
+requirements:
+- id: R1
+  text: A selected argument accepts its native expected object/array or a UTF-8 string containing exactly one
+    JSON document of that type. Decode one layer only. Reject scalar/null/wrong-container results, trailing
+    content, duplicate keys, non-finite numbers including exponent overflow, invalid Unicode, Python literals
+    and Markdown fences. Absence, optional null and defaults are decided by the calling tool before decoding.
+    Do not recursively decode strings inside payloads, split strings into arrays, wrap scalars or discard fields.
+- id: R2
+  text: The same helper applies representation/structural bounds to native and serialized values. Check encoded
+    input bytes before parsing, then enforce bounded depth/node traversal without retaining copies beyond one
+    call. Proposed initial structural ceiling is 32 container levels and 65536 total JSON value nodes per selected
+    container, supplied explicitly by each initial tool and registered once with implementation. HTTP representation
+    bytes use the existing request-body ceiling; decoded headers/query/form retain their own tighter limits.
+    Before decoding individual Audit fields, the tool admits the entire supplied call under one aggregate representation-byte
+    ceiling using the existing MAX_COLLECTED_BYTES value, with bounded early-stop traversal for native inputs.
+    Do not allocate a full serialization merely to measure an oversized native input. MAX_ITEMS/MAX_VALUES/MAX_EVIDENCE
+    and the final aggregate collected-byte limit remain authoritative; independent per-field ceilings must
+    not multiply into unbounded batch work. Large parsing/walking runs through existing joined thread helpers
+    off the event loop, outside session/accounting locks; cancellation must join it before releasing input
+    memory.
+- id: R3
+  text: 'After decoding, rerun the owning tool''s complete validation before any network, collector or artifact
+    mutation. In Audit batches, reject undeclared keys inside decoded records and validate every item before
+    recording any; raw-string input must not bypass TLS-R39 or canonical evidence, verdict, receipt and item-key
+    rules. Preserve order and nested scalar types: a string amount remains a string; true, 1.0 and "1" cannot
+    become integer request IDs. Errors for malformed model input stay distinct from implementation/provider
+    exceptions.'
+- id: R4
+  text: Integrate with the callable-owned contract, including declared native-or-serialized argument types
+    and descriptions. Verify the actual pinned ADK path does not reject the supported string before the helper
+    or coerce nested values first. Existing root unknown-argument/context-injection checks still run. Native
+    closed-record checks remain strict, and parsed closed records receive equivalent owner validation. Do not
+    weaken every callable's annotation to Any or enable SDK-wide coercion to make the selected tools work.
+- id: R5
+  text: Helpers report whether representation normalization occurred; the tool can expose bounded Runtime-authored
+    type/path metadata in its existing result without echoing values. An accepted representation consumes one
+    ordinary call and performs at most one domain operation. A normalization is not a tool failure or a reason
+    to retry. Update selected descriptions and fixtures from the same tool contract. Common code may not import
+    HTTP or Audit owners.
+failure_outcomes:
+- operation: Decode and validate one selected tool argument before execution
+  permanent: Malformed, wrong-type or over-limit input returns the tool's existing nonretryable argument-error
+    contract before any external effect; a corrected model call may proceed.
+  retryable: Parsing itself has no retry; subsequent infrastructure failures retain their owning tool's classification.
+  ambiguous: No side effect occurs during decoding; subsequent sends/publications keep their existing possibly-sent
+    and receipt reconciliation rules.
+  cancelled: Existing invocation cancellation joins admitted parsing work and releases temporary values before
+    tool cleanup.
+  timeout: Existing invocation/call deadlines remain authoritative; there is no decoding retry timer or independent
+    watchdog.
+cardinality:
+- collection: One opted-in argument and its parsed container
+  expected: Small header/query maps or a bounded Audit item batch.
+  maximum: Explicit caller byte ceiling, 32 container levels, 65536 nodes, and unchanged owner collection/aggregate
+    limits.
+  bound: One parse and bounded traversal per selected container; total work remains linear in bounded supplied
+    bytes/nodes, including all fields of one bounded batch.
+lifecycle:
+- entity: Decoded arguments and normalization metadata
+  delete: Discard after the call settles and admitted parsing work joins.
+  cascade: Invocation release clears pending call resources through existing owners.
+  retention: No new persistent state or caches; only existing bounded/redacted results and telemetry survive.
+acceptance_criteria:
+- id: A1
+  given: Native and serialized headers/query/form arguments through the real ADK Runner
+  when: Ordinary and controlled http_request tools send to a counting local HTTP receiver
+  then: Equivalent intended values reach the receiver once; nested strings and owner-specific bounds retain
+    their meaning.
+- id: A2
+  given: Native and serialized single/batch Audit arrays with real collector state
+  when: Both selected tools decode and record results
+  then: Canonical results, order, replay/CAS behavior and evidence rules agree; any invalid item or extra decoded
+    key leaves the entire batch unmodified.
+- id: A3
+  given: Wrong roots, duplicate keys, non-finite numbers, extra encoding layers, fences, invalid Unicode and
+    oversized/deep/wide values
+  when: The helpers are invoked through selected tool boundaries
+  then: Rejection is bounded with zero send/publication, including a native batch whose individually valid
+    serialized fields exceed the whole-call byte bound; scalar types and nested serialized strings are never
+    repaired implicitly.
+- id: A4
+  given: Actual ADK declarations, raw unknown fields, untouched tools, concurrent calls and cancelled parsing
+  when: The selected tools execute under ordinary Worker accounting
+  then: Only explicit opt-ins decode; no bypass, double counting, event-loop blocking or unfinished parsing
+    work is introduced.
+tests:
+- command: cd runtime && uv run pytest tests/test_tool_arguments.py tests/test_worker_function_tools.py tests/test_tool_input_errors.py
+    tests/test_http_toolset.py tests/test_audit_http_credentials.py tests/test_audit_results_toolset.py tests/test_audit_result_collector.py
+    tests/test_audit_result_publication.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: cd runtime && uv run ruff check src/contractor_runtime/toolsets/common src/contractor_runtime/toolsets/http
+    src/contractor_runtime/toolsets/audit_results tests/test_tool_arguments.py
+  covers:
+  - A3
+  - A4
+- command: cd runtime && uv run lint-imports
+  covers:
+  - A4
+- command: python3 scripts/check_spec.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+verification_policy: Add test_tool_arguments.py with real selected callables and the pinned ADK Runner, including
+  a local socket receiver rather than helper-only tests. Run the complete listed owner test files, not just
+  new cases; add affected sibling suites if implementation touches another owner. Audit collector tests cover
+  pure admission/receipts; combined real-store/process coverage is V476-005. No live-model quality improvement
+  is claimed.
+implementation_commit: b27d1cc53ef774f7efd7f7987fb4e6496103619d
+verification:
+  date: '2026-11-22'
+  result: 249 focused owner cases passed; 38 new-file cases passed after formatting. Ruff, four import contracts
+    and specification check pass. Real ADK and local socket cases cover direct, proxy and controlled HTTP plus
+    canonical Audit publication; no live run or full suite.

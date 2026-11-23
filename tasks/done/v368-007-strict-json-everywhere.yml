@@ -1,0 +1,68 @@
+schema_version: "1.0"
+id: V368-007
+title: "Decode every untrusted JSON body strictly"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+priority: P1
+status: completed
+implementation_commit: "eaf2d4b927e4dd091257ec7a9bba38bce2851d30"
+depends_on: []
+languages: [go]
+goal: "Tests: a case alias and a duplicate key are rejected for one REST body, one WebSocket frame and one Runtime response."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), public API G4, F5; contracts G7; exec-state H; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Public REST bodies and WebSocket frames accept case aliases and
+    duplicate keys (httpapi/public/request.go:37-40,
+    events/protocol.go:159-163): {"Reason":"x"} passes and the last of two
+    reason keys wins. strictjson.Decode does not reject duplicate keys
+    (strictjson.go:22-35) although AGENTS.md section 6 says it does; Runtime
+    responses decode with it (controlplane/runtime_client.go:310, 361).
+    memory/codec.go:314-399 and runrepeat.Decode hand-roll strictness.
+  siblings: >-
+    Fixed: public decodeJSON/decodeJSONBounded and the request types that
+    decode themselves (createRuntimeCredentialRequest's envelope; Project,
+    labels and Audit time-limit requests through decodeStrictWithPresence);
+    every WebSocket client frame decode (discriminator, frame, stream,
+    cursor); Runtime lifecycle responses, Worker State and Runtime error
+    bodies; contracts.DecodeStrict, DecodePrivateStrict and
+    DecodeStrictObject; the nested reporting unmarshalers (RuntimeReport and
+    its adapter metrics, AllocationFinalReport, ExecutionReport, Worker
+    completion diagnostics, RuntimeResources, Worker State), whose duplicate
+    checks were per object; the Memory codec and runrepeat.Decode. Every other
+    strictjson.Decode caller (credentials, LiteLLM responses, persisted
+    config, RuntimeConfig publication, Planner session state, private
+    artifacts, Eval receipts) becomes strict without code changes. Ruled out:
+    Eval documents are duplicate-checked by evaldomain.StrictJSON and
+    schema-validated with exact property names before they are decoded; page,
+    Eval and bin cursors are MAC-sealed Server output; the remaining
+    json.Unmarshal calls in httpapi/public decode strings, string arrays or
+    maps after strictjson has rejected duplicate keys in the whole body.
+  decision: >-
+    strictjson.Decode scans the value once against the target's reflect.Type
+    (cached, following encoding/json's field rules) before encoding/json
+    decodes it, so case aliases, duplicate keys at any depth and trailing data
+    are rejected in one place, and a duplicate key is reported before a member
+    error, as the Python codec does. A type with its own UnmarshalJSON is
+    checked for duplicate keys only and must decode its members with Decode;
+    AGENTS.md section 6 says so. Alternatives: encoding/json/v2 rejects both
+    by default but needs GOEXPERIMENT=jsonv2 in Go 1.26; per-handler
+    RejectDuplicateKeys plus case checks (audit public-api F5) would repeat
+    the rule at every call site; a json.Decoder Token pre-pass allocates per
+    token. A fuzz test holds the scanner to json.Valid. Reversal: when
+    encoding/json/v2 ships without an experiment flag, its default
+    case-sensitive, duplicate-rejecting decoder can replace the scan.
+scope:
+  in:
+    - "strictjson.Decode rejects duplicate keys and case-mismatched names; public handlers, WebSocket frames, Runtime responses, memory and runrepeat use it; AGENTS.md section 6 states what strictjson enforces."
+  out:
+    - "Accepted request shapes."
+acceptance_criteria:
+  - id: A1
+    text: "Tests: a case alias and a duplicate key are rejected for one REST body, one WebSocket frame and one Runtime response."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/strictjson ./internal/httpapi/... ./internal/controlplane ./internal/memory ./internal/runrepeat"
+    covers: [A1]

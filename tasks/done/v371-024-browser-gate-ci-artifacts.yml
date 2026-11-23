@@ -1,0 +1,61 @@
+schema_version: "1.0"
+id: V371-024
+title: "Keep browser gate screenshots and traces where CI uploads them"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: completed
+implementation_commit: "bb71109ce9166e96254a49ae75d7bb6438fcc930"
+depends_on: []
+languages: [javascript, yaml]
+goal: "A failing mocked or Git-artifacts browser gate leaves its Playwright screenshots and traces in a path the CI artifact upload includes."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch: CI run 38171124353 (PR #544 at 4146eea), recorded 2026-10-12; verified on a07f5e9"
+  finding: >-
+    runBrowserGate (ui/server/browser-gate.mjs:75-140) builds each gate in
+    mkdtemp(tmpdir(), "contractor-ui-browser-") (line 78), points
+    Playwright's output at <work>/results through
+    CONTRACTOR_UI_E2E_OUTPUT_DIR (line 114) and removes the whole directory
+    in its finally block (line 138), on failure too. The CI upload
+    (.github/workflows/ci.yml:118-127) takes reports/, ui/test-results/ and
+    .local/audit-completion-gate/, so a failing Studio spec
+    (e2e/studio.spec.ts and e2e/studio-catalog.spec.ts of the mocked gate,
+    ui/server/mocked-browser-gate.mjs:8-55) leaves no screenshot or trace to
+    inspect. Predates the shallow history (boundary 6349621).
+  siblings: >-
+    Both callers of runBrowserGate: mocked-browser-gate.mjs and
+    git-artifacts-gate.mjs. The ui-stack process tests write to
+    test-results/ui-stack by default (ui/playwright.config.ts:5-6), which CI
+    already uploads.
+scope:
+  in:
+    - "Write gate results under ui/test-results/<gate> (or another uploaded path), keep them when the gate fails and remove only the temporary build."
+  out:
+    - "Gate selection and the report validation."
+acceptance_criteria:
+  - id: A1
+    given: "A mocked browser gate run with one failing spec"
+    when: "The gate exits"
+    then: "Its screenshots and traces remain under the uploaded path and the gate still fails."
+  - id: A2
+    text: "A passing run leaves no results a later run could mistake for its own."
+tests:
+  - command: "make ui-browser-mocked"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+verification:
+  date: "2026-10-23"
+  revision: "4925c9c78b9457bccca516060e789cb4bc939c25"
+  environment: >-
+    Integration branch integration/quick-wins-2026-10-23 on macOS arm64 with
+    Go 1.26.9, Node 24.20.0, pnpm 11.24.0, disposable PostgreSQL 17.11
+    (CONTRACTOR_TEST_DATABASE_URL set) and TMPDIR under /private/tmp.
+  merged_run:
+    - "make -k verify: lint after the dependency graph refresh, ui-verify (2,260 UI tests), test-config and build passed; make lint passed in full on the rerun."
+    - "make test-go: every package passed except internal/app TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder, which fails the same way on main because macOS PostgreSQL does not support tcp_user_timeout."
+    - "make test-runtime: the 102 failures it reports (Podman, Darwin process limits, sandbox) fail identically on main; test_scan_toolset::test_capabilities_check_each_binary_independently[scan_nuclei] is timing-dependent (V371-022 class) and passed on rerun."
+    - "make test-wire-cross-language (243 fixtures, 1,135 tests) and make verify-public-api passed."
+  task_commands:
+    - "make ui-browser-mocked: 64 of 65 specs passed; evals-comparison at 390px fails identically on main (keyboard selection in a native select under macOS Chromium), and that live failure kept its screenshots, traces and error context under ui/test-results/mocked-browser as A1 requires; A2 is covered by ui/server/browser-gate.test.mjs."

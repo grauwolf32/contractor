@@ -1,0 +1,109 @@
+{
+  "task": "V411-015",
+  "recorded_at": "2026-11-07T10:44:44.516211+00:00",
+  "status": "finished_with_investigation_gap",
+  "base_demo_release": "1142c2681d6520baa8c04bb0a90ca8fd224deb29",
+  "server_restart": "guarded idle restart; unchanged binary/database; no migrations",
+  "operator_config_root": "/Users/ruslan/src/contractor/.local/demo/releases/invoice-lab-v411015-configs",
+  "previous_server_config": "/Users/ruslan/src/contractor/.local/demo/run/invoice-lab-v411015-server-before.yaml",
+  "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+  "target": {
+    "url": "http://10.77.0.11:18081",
+    "ssh_host": "cloudru1",
+    "variant": "vulnerable",
+    "container": "contractor-invoice-lab-v411015",
+    "volume": "contractor-invoice-lab-v411015-data",
+    "image_id": "fa76d83c363634b99ba7566e444e36df71c66119b070447071b69032824fd13e",
+    "base_image_id": "c0e8df9380519cf514d5fbb5aeaa7aa5de5f32c50330badcadc05cdabaae5566",
+    "source_revision": "00d3be43113d8e79a4e1d0de86199051837f8ed7",
+    "source_files": {
+      "invoice_lab.py": "1f489116be97b884daf7489ef0012e90b448438c51ed3e92d4946e8d1a9c4c7e",
+      "start_target.py": "1825804cf7159385482976087d6d7701fc0b49a46bf673a2cacbd464a9b0f7f9"
+    },
+    "isolation": "read-only target image, named disposable data volume only, unprivileged UID, no capabilities, no private controls/oracle/host directories, mesh-only port",
+    "stop_command": "ssh cloudru1 sudo -n podman stop contractor-invoice-lab-v411015",
+    "start_command": "ssh cloudru1 sudo -n podman start contractor-invoice-lab-v411015",
+    "retention": "Keep the target and its synthetic data for this user-requested live demo; do not reset it to recover publication acknowledgements."
+  },
+  "project_id": "project_eeaea116fb0b26cc949a5576ec77d3e9",
+  "audit_id": "audit_e7a78e8a2d40eb09cde4fa8d53f98ee3",
+  "run_id": "run_e7c83a88520dd043674e62a8e5001f2d",
+  "workflow": "audit-http-investigation@1",
+  "audit_profile": "http-investigation@1",
+  "run_state": "succeeded",
+  "input_artifacts": {
+    "materials": {
+      "namespace": "invoice-lab",
+      "name": "materials",
+      "revision": "rev_fe2f9ae729925877ac9a25e00a1a70b1"
+    },
+    "engagement": {
+      "namespace": "invoice-lab",
+      "name": "engagement",
+      "revision": "rev_e173b36ce3cbf1fde59baba6661af0e7"
+    }
+  },
+  "credential_ids": {
+    "alice": {
+      "credentialId": "invoice-lab-alice-v411015",
+      "kind": "target-bearer@1"
+    },
+    "bob": {
+      "credentialId": "invoice-lab-bob-v411015",
+      "kind": "target-bearer@1"
+    }
+  },
+  "trace": {
+    "runtime_label": "invoice-lab-traces",
+    "config": {
+      "name": "invoice-lab-traces",
+      "version": "1",
+      "digest": "sha256:61795502f9232fe163eee4118fb89435e6e00474af61d0e9a2c3f0ae904b779d"
+    },
+    "endpoint": "http://10.77.0.10:16006/v1/traces",
+    "viewer": "http://127.0.0.1:6006",
+    "relay_pid_file": "/Users/ruslan/Documents/Codex/2026-11-07/x20/work/invoice-demo/trace-relay.pid",
+    "relay_log": "/Users/ruslan/Documents/Codex/2026-11-07/x20/work/invoice-demo/trace-relay.log",
+    "network_verified_from_cloudru2": true,
+    "observed_run_span_count": 187,
+    "note": "HTTP tools select sensitive-output suppression: allocation traces retain model/tool metadata; content capture does not override this rule.",
+    "trace_ids": [
+      "2b911d400a84387700a27b708d684dd3",
+      "980b35b65c64f46a48bb76823380be27"
+    ],
+    "export_flush_succeeded": true,
+    "export_dropped_spans": 0,
+    "correlation": "Audit ID on root spans, then shared trace_id; Run ID is not exported as an attribute"
+  },
+  "acceptance": "This live model Run does not complete deterministic V411-015 A1/A2/A3 acceptance.",
+  "finished_at": "2026-11-07T13:46:19.305472+03:00",
+  "findings": 0,
+  "investigation_outcome": {
+    "valid_http_responses": 0,
+    "target_requests": 40,
+    "http_error": "response_invalid",
+    "cause": "Invoice Lab Handler inherits HTTP/1.0 response protocol; BoundedHttp1Client rejects response versions other than HTTP/1.1.",
+    "target_side_count_including_two_setup_probes": 42,
+    "automatic_rerun": false,
+    "result_limitations": [
+      "No valid HTTP response was obtained from the target in any of the 40 permitted requests; the application could not be probed for authorization or input-handling behavior.",
+      "The failure mode (connection reset vs. malformed response vs. target unavailability) cannot be distinguished from the captured evidence because no response headers or body were retained.",
+      "No mutation endpoints (PATCH /me, POST /invoices/{id}/approve, POST /invoices/{id}/refund, POST /invoices/{id}/note, POST /settings/email) were tested since no baseline response was obtainable.",
+      "The engagement request budget (40) was fully consumed by reachability attempts; no further requests are permitted in this allocation."
+    ]
+  },
+  "http11_restart_2026_11_07": {
+    "evidence": "tasks/evidence/v455-003-invoice-http11-20261107.json",
+    "audit_id": "audit_b54394decf54943e4526c572d4ab82d3",
+    "run_id": "run_780569669abd9ff2027fc32bd2337579",
+    "target_source_commit": "2ae58c7d345834928157fe7fe2061ea7afc8bfd2",
+    "target_image_id": "c2a84c6152e571f6a672846247dd3dab676c0d8cf7be58fcc479f98f0362274a",
+    "state_preserved": true,
+    "run_final_state": "failed",
+    "failure_code": "worker_budget_exhausted",
+    "budget": "tool_calls",
+    "audit_task_gap": "execution-failed",
+    "finding_receipts": 0,
+    "worker_trace_and_call_detail": "unavailable in retained failed-attempt report; only planner trace was found"
+  }
+}

@@ -1,0 +1,148 @@
+schema_version: '1.0'
+id: V463-004
+title: Keep closed peer-reset sockets from poisoning HTTP bridge cleanup
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V410-030
+priority: P1
+status: completed
+implementation_commit: 76286a135bd5c6e24adeef42c0a32dd96a7e3892
+depends_on: [V410-030]
+languages: [python, markdown]
+goal: >-
+  A normal target TCP reset cannot remove a Runtime from service or lose its
+  execution report after the socket has actually closed. Genuine unconfirmed
+  cleanup still fences the allocation and retains the existing fatal policy.
+context:
+  authority: >-
+    User request 2026-11-09 asks to create a fix task after investigation of the
+    Invoice Lab HTTP bridge cleanup failure. This task records the confirmed
+    defect and the proposed correction; implementation and deployment are not
+    part of task creation. User assignment 2026-11-09 authorizes implementation
+    and deterministic verification of this task; deployment remains out of scope.
+    User request 2026-11-10 authorizes local integration into main with --no-ff.
+  severity: high
+  finding: >-
+    runtime/src/contractor_runtime/adapters/bridge/mitmproxy/lifecycle.py:44-52
+    awaits writer.wait_closed and retrieves the task result before removing the
+    writer from self.writers. CPython stores a peer reset in the completed close
+    waiter, so wait_closed repeatedly raises the same ConnectionResetError even
+    when the underlying socket is already closed (fileno=-1). The writer remains
+    retained. OwnedHandler.join at lifecycle.py:56-72 retries that writer outside
+    its gathered-task OSError filter; cleanup can never succeed. The native
+    _Pool.open_connection task (engine.py:318) also emits an unhandled exception.
+    MitmproxyEngine retains exclusive process state, and AllocationService's
+    existing unconfirmed-cleanup policy exits the Runtime with code 70.
+  reproduction: >-
+    Run run_fe3a40640c992ad626d2e36f9d74245e on release a5fb26d39598 failed
+    its tool budget, then runtime-local-3 exited during HTTP cleanup. Resets at
+    19:36:13 and 19:36:16 UTC matched early HTTP 404 responses to POST refund/note
+    with JSON bodies; cleanup failed at 19:36:26 UTC. Two isolated real-socket
+    probes reproduce the chain without an LLM. One uses an explicit TCP reset;
+    the other sends an early HTTP/1.1 404, leaves the POST body unread and closes
+    normally, with no SO_LINGER or mocked network I/O. Both observe a physically
+    closed descriptor, retained writer and failing cleanup; repeated waits return
+    the same error. Both scripts and observed results are retained in evidence.
+  siblings: >-
+    OwnedHandler is shared by outgoing _Pool and scanner-facing Ingress
+    (runtime/src/contractor_runtime/adapters/bridge/mitmproxy/ingress.py:117).
+    Inspect writer close after response, in connection/exchange retirement, idle
+    connection release and allocation-wide join. Cover plain HTTP and verified
+    TLS/native HTTP/2 paths, repeated/concurrent close and caller cancellation.
+    Preserve existing HTTP/2 stream isolation and no-replay behavior.
+  specification:
+    - docs/spec/tools/http-caido.md#HTP-R138
+    - docs/spec/tools/http-caido.md#HTP-R139
+    - docs/spec/tools/http-caido.md#HTP-R146
+    - docs/spec/execution/runtime-agent.md
+  evidence: tasks/evidence/v463-004-http-bridge-reset-cleanup.json
+  reproducer_commands:
+    - PYTHONPATH=runtime/tests:runtime/src runtime/.venv/bin/python tasks/evidence/v463-004-reset-reproduce.py
+    - PYTHONPATH=runtime/tests:runtime/src runtime/.venv/bin/python tasks/evidence/v463-004-unread-body-reproduce.py
+  prior_verification: >-
+    The existing 21 bridge lifecycle/retirement cases pass on the defective
+    revision; they cover graceful close and injected genuine cleanup errors,
+    but not this closed-socket reset. The production report was unavailable and
+    public metrics partial; the emergency trace flush retained all 404 spans.
+  boundary_decision: >-
+    Correct the classification of a completed socket close at its existing
+    lifecycle owner. Keep HTTP request outcome separate from resource cleanup.
+    Do not disable exit(70), globally suppress exceptions, treat is_closing alone
+    as proof of completion, or replace joined close with a fire-and-forget close.
+    The experimental descriptor check in evidence proves the failure; it is not
+    a prescribed production implementation or permission to discard live handles.
+scope:
+  in:
+    - Recognize expected peer-reset/broken-pipe termination only after socket close completion is established and retire its exact writer ownership.
+    - Observe and join native task outcomes so expected network termination does not leak unhandled task exceptions.
+    - Finish remaining resource cleanup and erase allocation-private state after confirmed closure; retain unconfirmed handles and fencing on genuine failure.
+    - Preserve complete HTTP responses, truthful partial-response failures and existing safe retry rules without replaying possibly sent requests.
+    - Add deterministic real-socket and allocation lifecycle regressions, including same-process reuse after cleanup, and clarify the owning specification.
+  out:
+    - Disabling the Runtime fatal cleanup policy or weakening allocation isolation.
+    - Changing models, prompts, Skills, tool budgets, target behavior or adding retry delays.
+    - New transport backends, global asyncio handlers, services, RPCs or compatibility paths.
+    - Demo deployment or a live LLM pentest as a substitute for deterministic regression coverage.
+acceptance_criteria:
+  - id: A1
+    text: >-
+      A real target that returns a complete HTTP/1.1 404 and closes with an unread
+      POST body preserves that response and completes bridge cleanup. No closed
+      writer remains retained, no unhandled native task exception is emitted and
+      a peer reset alone never triggers Runtime exit 70.
+  - id: A2
+    text: >-
+      Explicit TCP resets during and after response processing behave correctly
+      for outgoing HTTP and private scanner ingress, including verified TLS and
+      supported HTTP/2 behavior. An incomplete response remains a classified
+      request failure; cleanup success never fabricates request success or
+      automatically repeats a possibly sent request.
+  - id: A3
+    text: >-
+      Repeated/concurrent close, cancellation, abort, finalize, release and lease
+      loss join owned I/O and callbacks under the original deadline. Writers,
+      transport/parser/timer registries, native context/logging/TLS state and
+      temporary material are released; another allocation can use the same
+      Runtime process without inherited identity, cookies or engine state.
+  - id: A4
+    text: >-
+      A deterministic allocation-level regression uses the real HTTP engine,
+      preserves the original Worker outcome and execution report after a peer
+      reset, and admits a subsequent allocation without restarting the Runtime.
+  - id: A5
+    text: >-
+      Real unconfirmed joins, timeout, callback defects or file-removal failure
+      still retain exact ownership and fence/exit under existing policy. Existing
+      failed-cleanup retry tests remain meaningful; no blanket Exception/OSError
+      suppression or early global-state restoration hides these failures.
+  - id: A6
+    text: >-
+      New regressions fail on the investigated revision and pass after the fix.
+      They use owned real sockets and deterministic coordination, with no live
+      target, external LLM, timing assertions or reset-only mock replacing I/O.
+tests:
+  - command: cd runtime && uv run pytest tests/test_bridge_reset.py tests/test_bridge_lifecycle.py tests/test_bridge_retirement.py tests/test_bridge_establishment.py tests/test_bridge_ingress.py tests/test_http_proxy_bridge.py tests/test_allocation_stop.py
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make test-runtime
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5, A6]
+
+implementation_notes:
+  - The common native lifecycle joins one in-flight close per writer, then classifies only ConnectionResetError/BrokenPipeError with a closed original socket descriptor. Other errors retain ownership.
+  - Native connection tasks remain owned beyond ConnectionIO removal. Outcomes are observed, delivered once to joining owners, and successful/cancelled tasks are removed without connection-history retention.
+  - Removed the broad OSError filter from native joins; callback/retirement defects still surface even after their sockets close. Explicit establishment and idle joins retire already delivered outcomes before a cleanup retry.
+  - Request parsing, response completion, first-write/no-replay rules and allocation fatal policy remain with their existing owners; no API, schema, dependency or deployment changes.
+  - The private scanner bridge records each handler with its exact writer and retires both after joined cleanup, including cancellation before the handler starts; it does not repeat the classified raw close waiter.
+  - Scanner ingress uses the same OwnedHandler; outgoing response close, establishment retirement, idle release and allocation-wide join all use the corrected lifecycle.
+  - Real-socket tests cover early unread-body 404, explicit reset before/after response completion, verified TLS and HTTP/2, private scanner ingress, concurrent close/cancellation and same-process allocation reuse.
+  - Allocation tests use a real ADK Worker and native HTTP engine with a deterministic failure completion; they preserve the budget error/report, erase a learned cookie and verify that real cleanup defects still request exit 70.
+  - Verification evidence is tasks/evidence/v463-004-http-bridge-reset-verification.json.
+
+verification_results:
+  - The final focused command passed all 114 cases.
+  - make test-runtime passed 6181 cases with 135 declared platform/live/separate-process skips; its report guard passed. Skips are not passing coverage.
+  - make lint passed, including Go static checks, UI gates, task/spec checks, Ruff and import-layer contracts.
+  - Three real-socket/allocation regressions fail on the original production source; the pre-handler scanner cancellation additionally fails before the outer writer ownership correction.
+  - Implementation was verified on codex/v463-004-http-cleanup. The authorized local main integration preserves the verified source tree and is recorded by the Git no-fast-forward merge; demo deployment and live LLM checks were not performed.

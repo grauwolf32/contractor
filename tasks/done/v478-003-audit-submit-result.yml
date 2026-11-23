@@ -1,0 +1,385 @@
+schema_version: '1.0'
+id: V478-003
+title: Submit a thin attributed result over accumulated observations
+milestone: audit-evidence-results-2026-11
+epic: audits
+kind: feature
+priority: P1
+status: completed
+implementation_commit: f81aa2e98fbd09c12938c9187f8f01330abaf18b
+depends_on:
+- V478-001
+- V478-002
+- V478-015
+- V478-016
+- V477-002
+- V479-002
+languages:
+- go
+- python
+- json
+- markdown
+goal: The model records a bounded judgment for an assigned item without assembling evidence, provenance or
+  a final package, using the clear submit_result name.
+demonstration: After recording observations, call submit_result with item_key, rationale, optional hypothesis
+  verdict and limitations. Before sealing, correct the same item in a later model response without a revision
+  argument. Runtime assembles and accepts the exact result; a sibling item remains outstanding and an
+  invalid claim gets an actionable field error. In a companion scripted case publish an incidental evidenced
+  problem before the last result; the Server retains it without associating it with the unrelated hypothesis.
+context:
+  authority: 'User request 2026-11-22: prepare tasks for a concrete Audit check plan, evidence collected during
+    work, a thin result submission tool, and partial results on interruption without invented coverage conclusions.
+    The user corrected the assumption that limits reveal completed/remaining semantic steps: execution facts
+    do not establish semantic coverage. The user proposed submit_result and explicitly requested joint review
+    and agreement before merging these tasks into main. This is planning authorization only. The decisions below supersede the initial agent proposals.
+    User review question 2026-11-22: clarify the relationship between Project facts and check-specific evidence,
+    including whether a fact may serve as evidence. The user suggests facts as reusable system knowledge and
+    evidence as specific to a hypothesis; the distinction was initially proposed for joint review. User decision
+    2026-11-22: accept the distinction between reusable Project facts, exact observations/materials, and evidence
+    selected for a specific claim. Fact summaries do not automatically verify their claims; original exact
+    sources may be explicitly reused with applicability and attribution preserved. This agreement settles that
+    distinction only, not other open task choices, implementation or merge. User decision 2026-11-22: accept
+    sources as the shared model-facing selection of code, HTTP and exact artifact materials for record_evidence,
+    finding and record_fact. Evidence is a relation to the particular check/claim; a Finding need not consume
+    an Audit evidence record or have a hypothesis. Preserve independent owners and reuse exact material bytes.
+    This does not approve unrelated pending choices or authorize implementation/merge. User decision 2026-11-22:
+    publish evidenced security problems through finding even when unrelated to the assigned hypothesis, and
+    explicitly instruct the Worker how to use evidence. Publication must precede final result submission when
+    feasible; independent discoveries keep honest incidental origin. This approves publication/evidence guidance
+    in the task plan, not a new mandatory result flag, a minimum Finding count, semantic auto-detection, implementation
+    or merge. User decision 2026-11-22 supersedes the earlier fixed-plan proposal: decide how an Audit plans
+    its work separately. For this package make a small scenario-independent instruction improvement using existing
+    assignments; no mandatory frozen check-plan document, new criterion/step contract, per-endpoint Task expansion,
+    ReAct planner tools or automatic plan generation. Future options include scenario-specific coverage instructions,
+    Worker planner tools or executor discretion; none is selected here. User decision 2026-11-22: durably retain
+    explicitly selected sources through evidence, finding and fact, with the guarantee beginning at Server
+    acknowledgement. Rename the proposed record_evidence tool to evidence and the existing record_fact tool
+    to fact; no compatibility aliases. Automatic archival of every observation is not part of this package.
+    User decision 2026-11-22 accepts review points 3 and 4: inconclusive can settle an attempt and the Audit
+    can finish with visible unresolved conclusions, without mandatory automatic repeats. When an assigned hypothesis
+    check stops without an accepted conclusion, expose a system-authored inconclusive with observed stop reason
+    and source, meaning no conclusion was accepted. Preserve existing accepted judgments, keep hypothesis-free
+    exploration without a verdict, and never turn a failed/cancelled Run into success.
+    User request 2026-11-22: review this package against updated main and reconcile affected tasks. Apply
+    the already merged V479 contracts for Runtime-owned versions and correction generations; this review
+    does not assign feature implementation or change the agreed retention/stop policy.'
+  implementation_gate: 'User assignment 2026-11-22 supersedes the planning gate: implement the full reviewed V478 package in one continuous pass. Do not deploy or launch a live Audit. Earlier review gate follows as historical context. All product review decisions recorded below are settled for the task draft. Keep tasks
+    pending: this thread is planning/review, not an implementation assignment. Do not deploy or launch an Audit.
+    The user requested review before merging the task package into main; report the reconciled package before
+    integration. Implementation must follow these task contracts; an unforeseen consequential prerequisite
+    needs its own review, not silent scope growth.'
+  baseline: Reviewed main cd2974674def375c1838b496c8f288e86989dc8a, including completed V479-001 through
+    V479-009. The earlier Invoice Lab run motivates this package; it is not a current live quality benchmark.
+  specification:
+  - docs/spec/audits/common-contract.md
+  - docs/spec/audits/worker-completion.md
+  - docs/spec/audits/execution.md
+  - docs/spec/audits/review-and-reports.md
+  - docs/spec/findings/findings.md
+  - docs/spec/audits/hypotheses.md
+  - docs/spec/audits/worker-completion.md#AWC-R42
+  - docs/spec/audits/worker-completion.md#AWC-R46
+  - docs/spec/audits/worker-completion.md#AWC-R48
+  boundary: Extend existing common Task/hypothesis, Runtime collector, Artifact and Audit intake owners. Source
+    adapters own observation extraction; Server owns assignment, authority, exact retention and lifecycle.
+    No alternate execution engine or coverage ledger. Update numbered owning specs and all API/wire/schema
+    readers as part of implementation; these task drafts alone do not change runtime behavior.
+  sources:
+  - runtime/src/contractor_runtime/toolsets/audit_results/v2.py
+  - runtime/src/contractor_runtime/toolsets/audit_results/collector.py
+  - runtime/src/contractor_runtime/toolsets/audit_results/completion.py
+  boundary_decision: Tools record judgments, not Audit termination. The collector validates known structural
+    requirements and assembles exact facts; Audit intake remains authoritative. Thinness removes model-side
+    reconstruction, not validation or correction/idempotency guarantees. Shared argument helpers and safe diagnostics
+    remain tool-owned as in V477.
+  retirement_boundary: Replace active tool-name validators, completion wiring and current catalog callers.
+    Retain immutable historical snapshots as data only. Do not edit generated clients or historical completed-task
+    text to make a name search empty.
+  facts_evidence_decision: Observation/material is an exact retained source. A Project fact is a reusable attributed
+    statement about a scoped system, with its own sources and observation context; it is not universally true
+    merely because it is called a fact. Evidence is the explicit use of selected sources for an assigned check/claim
+    with a stated role and applicability. A fact may be a ground/context for a hypothesis; its exact underlying
+    sources may be reused as evidence after explicit authorized selection. A fact card or Memory summary is
+    not automatically independent evidence of its claim. Evidence may also support an exploratory observation
+    or a Finding without a hypothesis. These are semantic roles over existing owners/artifacts, not three new
+    stores.
+  sources_interface_decision: Use common sources with typed selectors for code, local HTTP request IDs
+    and artifact materials. Model artifact selectors reuse MaterialSelector (namespace/name only); assigned
+    source handles may refer to trusted input roles, never to a model-supplied revision. Reuse SelectedVersions
+    to resolve trusted inputs and successful content selections into exact internal refs; reject unknown,
+    hidden or ambiguous sources without looking up latest as a fallback. Metadata-only listings grant
+    no evidence selection. Code adapters preserve exact pinned source versus workspace capture and reject
+    unsupported mappings; HTTP adapters use actual local captures without replay. Runtime-issued cursors
+    remain exact read-continuation inputs, not replacement write/version preconditions. No universal obs_id,
+    new version registry or changes to every reader. Exact retained sources can support independent check/Finding/Fact
+    claims; shared bytes are not independent corroboration.
+  finding_publication_decision: Publish each distinct evidenced security problem immediately through finding,
+    including incidental discoveries unrelated to the assigned hypothesis. Complete required publications and
+    inspect their receipts before final submit_result/submit_results, since accepted final submissions can
+    end the Worker before another model call. A Finding is neither a fact nor a replacement for a scoped check
+    result. Server derives origin; incidental findings need no fabricated hypothesis. General semantic detection
+    or a new mandatory publication-declaration field is not part of this agreement.
+  worker_instruction_contract:
+  - Read the existing assigned objective, any hypothesis and allowed inputs first. Follow V478-001 general
+    investigation guidance within existing authorization; neither incidental discovery nor missing coverage
+    grants a wider target or active-testing scope.
+  - Select actual code, HTTP or artifact sources and call evidence during work when they help assess an assigned
+    check. Explain what the sources establish, under which conditions, and what remains uncertain. Inspect
+    the response before treating the evidence as durably recorded.
+  - As soon as selected sources support a concrete security problem, call finding with the problem, impact,
+    conditions and common sources. Do this even when the problem is unrelated to the current hypothesis; use
+    the existing incidental association mode and never invent a hypothesis or Task link.
+  - For a task-related problem select the actual item. For an independent problem incidental=true omits the
+    hypothesis; omit item_key when no Task association is intended, or select a real member only to retain
+    that Task origin. This applies to singleton and batch invocations.
+  - An incidental Finding may select sources directly; evidence for an unrelated check is not a prerequisite.
+    Reuse exact already retained sources rather than recopying evidence, replaying target requests or fabricating
+    a new independent observation.
+  - Publish problems through finding before final submit_result/submit_results. Text in a rationale, report,
+    Memory, fact or evidence does not create a problem Finding. Verify publication receipts; on a rejected/unknown
+    publication report that state honestly and use only bounded receipt reconciliation, never target replay.
+  - A new unrelated Finding does not resolve the assigned hypothesis or settle other assigned items. Positive
+    properties, inconclusive checks and unsupported suspicions are not mandatory problem Findings. Zero Findings
+    is a valid outcome when no evidenced security problem was observed; never invent a problem to satisfy completion.
+  - Submit the scoped check conclusion after evidence recording and applicable problem publication. Finding
+    publication does not itself set an analyst verdict or prove the broader system is secure.
+  planning_boundary: Audit planning is a separate open design question. This task consumes existing assignments/hypotheses
+    when present, and also supports exploration without a hypothesis. Do not introduce a frozen-plan requirement,
+    new criterion_key/step schema or semantic coverage gate as an evidence/result prerequisite. V478-001 provides
+    only general methodology guidance.
+  collection_decision: Explicit selection only through evidence, finding and fact; acknowledged Server acceptance
+    is the durability boundary. Unselected volatile captures or unsaved thoughts may be lost at stop. Retain
+    the selected sources using existing owners and quotas; do not build an automatic observation archive.
+  interface_decision: Use submit_result(item_key, rationale, limitations, optional verdict); submit_results
+    preserves the existing batch capability with the same judgment shape. No expected_revision, revision
+    or replacement flag. Before sealing, a later scalar for the same item replaces changed content and
+    identical content replays. Runtime owns generations; same-response conflicting changes cannot silently
+    overwrite, and technical retries cannot replay old content over a newer conclusion. Batch changed-existing
+    members still reject atomically. Evidence/condition notes come from earlier accepted records; no final
+    inventory, fixed-plan field or automatic semantic assessment.
+  main_reconciliation_2026_11_22: V479-002 has already removed expected_revision from submit_check_result.
+    Its collector freezes one starting item generation per model response, accepts sequential changed
+    scalar content and preserves identical replay plus atomic non-replacing batches. Thin submit_result/submit_results
+    must retain this behavior. Current recorded receipts remain invocation-local; V478-004 supplies durable
+    partial-result acceptance rather than treating those existing local receipts as Server acknowledgements.
+scope:
+  in:
+  - Rename both model-facing submission tools throughout declarations, selection validation, current templates/instructions,
+    runtime composition, diagnostics consumers, tests and owning specs.
+  - Assemble selected accumulated evidence, tested-condition annotations and Finding association in deterministic
+    code; expose their provenance separately from the model conclusion.
+  - Return bounded receipts with missing assigned items and unmet structural requirements through current completion
+    diagnostics.
+  - Preserve exploration without a fabricated hypothesis verdict, atomic batch validation and Runtime-owned
+    single-item correction generations.
+  - 'Update effective Worker instructions, tool docstrings and Workflow/template selections together for source,
+    HTTP, trace and batch callers: evidenced task-related and incidental problems are published before final
+    result submission, with explicit evidence handling and receipt semantics. Use new immutable catalog identities/paths;
+    do not modify the running demo as part of this task.'
+  out:
+  - A generic final-output tool for every unrelated Workflow, a new result publication owner or a model-authored
+    structured package.
+  - Old-name aliases, lenient stored readers, historical evidence rewrites or removal of batch capability without
+    an explicit decision.
+requirements:
+- id: R1
+  text: submit_result accepts item_key, rationale, limitations and optional verdict only; evidence and
+    trusted identity are assembled by Runtime. submit_results uses the same judgment shape and preserves
+    atomic batch validation. No model revision/expected_revision or replacement flag, including raw removed
+    arguments with null. Actual accepted revisions remain observable in receipts; internal preconditions
+    stay strict.
+- id: R2
+  text: The model supplies neither evidence ID inventories nor completed-step inventories in final submission.
+    The assembler freezes explicitly accepted evidence associations and attributed condition notes for that
+    item. Merely captured, incidental or ground-only material is not automatically check evidence. Later records
+    cannot mutate the exact accepted result revision.
+- id: R3
+  text: For a hypothesis require supported/refuted/inconclusive; exploration omits verdict. Nonempty evidence
+    is necessary where the contract requires it but never sufficient to claim independent semantic verification.
+- id: R4
+  text: Reject invalid membership, malformed fields, unavailable exact sources, stale internally admitted
+    generations or conclusive hypothesis results lacking selected evidence/tested conditions with safe
+    diagnostics. Correct a conflict with a later semantic scalar submission, never by asking the model
+    for a counter. These are structural guarantees; no mandatory evidence-role/criterion schema or arbitrary
+    reasoning detector. Uncertainty remains an attributed limitation or inconclusive judgment.
+- id: R5
+  text: The last accepted item may trigger existing normal Worker completion, but a submit receipt is not Audit-wide
+    success, conclusive coverage or a finding. An inconclusive conclusion remains a valid bounded attempt disposition.
+- id: R6
+  text: Remove old tool names from active code/contracts/callers atomically. Immutable catalog changes get
+    new identities and lock entries; retain historical run snapshots and completed-task evidence without creating
+    an old execution path. Go/Python/shared fixtures enforce the same result contract.
+- id: R7
+  text: Evidence assembly preserves source kind and relation to the claim. A selected fact summary, or a note
+    restating the checked hypothesis, must not acquire primary-observation or independent-verification status
+    merely by being stored. Validate declared membership/types; arbitrary semantic circularity or truth still
+    requires attributed judgment, not an invented deterministic detector.
+- id: R8
+  text: The effective model instructions require prompt publication of each distinct evidenced security problem
+    through finding, whether task-related or incidental, before final result submission. Expose the finding
+    tool in each affected security-investigation caller; a problem mentioned only in result text is not a published
+    Finding. Preserve the current incidental/item_key rules and machine-derived origin. Do not infer required
+    publication from verdict polarity.
+- id: R9
+  text: Teach the concrete sequence sources -> check evidence when relevant -> finding when a security problem
+    is supported -> submit_result. An incidental finding can bypass check evidence recording and does not settle
+    an unrelated check. Inspect source/Finding persistence responses; publication failure or ambiguity stays
+    an explicit limitation, not a success claim. No unconditional minimum findings, new semantic parser, final
+    LLM pass or mandatory publication flag is introduced by this instruction change.
+- id: R10
+  text: 'Preserve AWC-R42 through AWC-R48: create missing items; replay identical canonical content without
+    an increment; replace changed scalar content in a later response before seal. Different same-item
+    changes in one response share a starting generation and cannot both overwrite; independent items remain
+    admissible. A technical retry keeps original generation/content/identity and cannot restore an older
+    conclusion over a newer one. Changed existing batch members reject the whole batch and direct correction
+    to scalar submission. Compaction preserves generations without extending completion.'
+failure_outcomes:
+- operation: Record or correct a single judgment, or atomically record a batch
+  permanent: Reject invalid membership, foreign/exact-revision mismatches, quota violations and malformed input
+    before mutation using owning classified errors. No retry of deterministic invalid input; specify any new
+    public code/status in the owning error registry and OpenAPI in the implementation.
+  retryable: Use existing bounded storage_transaction_conflict 503 and Artifact retry contracts, original receipt
+    identity and owning deadline. Never retry target traffic to recover a persistence failure.
+  ambiguous: Reconcile the same natural Artifact binding or existing keyed Audit mutation receipt. Return unknown/unconfirmed
+    persistence if reconciliation fails; do not claim durable acceptance or create another logical effect.
+  cancelled: Honor existing allocation/Run/Audit fences. Join owned I/O before cleanup; retained committed
+    records survive. Do not send additional target/model calls to repair a partial result.
+  timeout: Use existing operation and invocation deadlines; terminal persistence uses only the existing owner-authorized
+    bounded drain/reconciliation path, never an unbounded extension of model execution.
+cardinality:
+- collection: Existing assigned items and explicitly selected evidence/annotations
+  expected: One exploratory task or a small existing multi-item assignment; tens of selected sources.
+  maximum: Keep the existing 64-item assignment and Audit collection bounds of 256 selected evidence records
+    / 8 MiB encoded evidence plus conclusions; Audit maxEvidenceBytes also applies. Independent Finding/Fact
+    callers retain their existing tighter or owner-specific limits, including four selected sources for informational
+    facts.
+  bound: Bound each operation by rows and bytes, use existing paged reads, and never hydrate the whole Audit
+    in one transaction. Repeated annotations and revisions consume their owning bounds; no new frozen-plan
+    denominator is introduced.
+lifecycle:
+- entity: Task/attempt-associated exact artifacts and results under existing Run/Audit/Project ownership
+  delete: Use ordinary drained deletion and purge authorization. A held evidence artifact must remain readable
+    after permitted producer Run deletion.
+  cascade: Register any added relation/read/hold in existing ownership and purge mechanisms; no independent
+    journal, queue, receipt store or retention service.
+  retention: Only acknowledged durable records carry a persistence guarantee. Release existing Audit-owned
+    holds through the ordinary Audit/Project lifecycle; volatile or unacknowledged observations may be unavailable.
+acceptance_criteria:
+- id: A1
+  given: Recorded observations for two items with distinct evidence and one hypothesis-free exploration
+  when: The real ADK declaration invokes single and batch submission including a correction/replay
+  then: Exact per-item results assemble without model evidence or revision arguments; exploration has
+    no invented verdict, batches remain atomic, and scalar replacement/replay preserve the Runtime-owned
+    generations.
+- id: A2
+  given: A foreign item, unavailable selected source, conclusive hypothesis result without selected evidence,
+    competing stale internal generation, removed revision argument (including null) or malformed arguments
+  when: submit_result is called
+  then: No result mutation occurs; tool-owned safe diagnostics allow repair and distinguish structural rejection
+    from semantic uncertainty.
+- id: A3
+  given: All active configurations and tooling after the incompatible rename
+  when: Catalog validation, real process completion and repository caller checks run
+  then: Only submit_result/submit_results are exposed; current callers resolve new immutable config identities
+    and historical pins/evidence are not rewritten.
+- id: A4
+  given: A hypothesis motivated by a Project fact, incidental captured traffic and a note repeating the hypothesis,
+    with no selected check evidence
+  when: submit_result assembles the result
+  then: Grounds and incidental materials are not silently promoted into selected check evidence; a conclusive
+    hypothesis result without evidence is rejected. If a reported statement is explicitly selected, its source
+    kind/uncertainty remain visible without an independent-verification claim or a fabricated semantic detector.
+- id: A5
+  given: Hypothesis-bound singleton and batch Workers with (a) an evidenced task-related problem, (b) an independent
+    evidenced problem and (c) no observed problem
+  when: Effective prompts/declarations are inspected and deterministic real-process scenarios invoke finding
+    before the final result tool
+  then: Guidance requires early publication and explains evidence selection. Cases (a)/(b) retain exact sources
+    and correct automatic origin; incidental mode does not acquire a hypothesis, even with an explicitly selected
+    Task. Case (c) completes without a fabricated Finding. Accepted final results need no subsequent model
+    turn for publication; scripted cases are not live quality evidence.
+- id: A6
+  given: An unsealed two-item collector, sequential corrections, conflicting siblings, identical duplicates,
+    mixed create/replay/change batches and an old ambiguous update
+  when: Actual model facades submit without revision arguments through compaction and final sealing
+  then: Sequential corrections and identical replay preserve V479 behavior, siblings cannot silently overwrite,
+    the batch is atomic, and an old technical retry cannot restore superseded content. No replacement
+    flag or additional model turn after completion is introduced.
+tests:
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: go test -tags=integration -count=1 ./internal/contracts/auditcontract/... ./internal/auditimport/...
+    ./internal/auditservice/... ./internal/config/... ./internal/findingintake/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-audit-completion-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make test-audit-basic-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make test-config
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A6
+- command: make verify-public-api-postgres
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-findings-e2e
+  covers:
+  - A5
+verification_notes: Listed commands are required implementation gates, not results of task planning. Use one
+  owned disposable PostgreSQL database, explicitly drop it after pools/processes stop, and never implicitly
+  enable CONTRACTOR_TEST_HEAVY_IO. Zero matched cases and skipped required database/process cases fail acceptance.
+verification_results: >-
+  make test-runtime passes 6620 tests and its 577 selected compaction cases;
+  134 declared skips are not passing coverage. All required real-PostgreSQL
+  auditcontract, auditimport, auditservice, config and findingintake packages
+  pass, as do full touched controlplane/runservice/config/resolved/auditprofile
+  packages. V478-016 verifies the full Scheduler and Planner packages.
+  Completion gate passes 199 Go and 465 Runtime cases, basic gate passes all
+  13 process cases, Findings passes all 25 required process cases and 310
+  Runtime contracts. test-config validates the locked shipped catalog;
+  wire passes 406 shared fixtures (460 Go/292 Python fixture reads) and its
+  selected Runtime cases; the optional heavy fixture skip is not coverage.
+  Public API PostgreSQL gate passes all nine race cases; full make lint passes.
+  Exact HTTP source/Finding reuse, actual scalar/batch argument correction and
+  observe/trace source processes also pass. No live model, deployment or merge.

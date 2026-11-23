@@ -1,0 +1,31 @@
+apiVersion: contractor/v1alpha1
+kind: AuditProfile
+metadata: {name: project-facts-eval, version: '1'}
+spec:
+  schema: contractor.audit.program.v1
+  inputs:
+    memories: {required: true, media_types: [application/json]}
+  workflows:
+    extract:
+      ref: fact-extraction-audit-eval@1
+      inputs:
+        memories: {source: audit-input, name: memories}
+        context: {source: task-context}
+      parameters: {}
+      outputs: {result: result}
+  hypotheses: {}
+  initial_work:
+    - {key: extract-facts, workflow: extract, objective: Select useful reported observations with exact original memories}
+  limits:
+    max_tasks: 1
+    max_iterations: 1
+    max_tasks_per_iteration: 1
+    batch_size: 1
+    max_submitted_runs: 2
+    max_attempts: 1
+    deadline_seconds: 600
+    max_evidence_bytes: 67108864
+    max_hypotheses: 1
+    max_hypothesis_revisions: 1
+    max_hypothesis_bytes: 32768
+  policy: {active_operations: prohibited}

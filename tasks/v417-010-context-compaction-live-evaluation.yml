@@ -1,0 +1,389 @@
+schema_version: '1.0'
+id: V417-010
+title: Measure compaction and reasoning choices with repeated frozen live experiments
+milestone: worker-context-compaction-quality-2026-10
+epic: evals
+kind: chore
+priority: P2
+status: in_progress
+depends_on:
+- V417-008
+- V417-009
+- V466-019
+- V466-020
+- V466-021
+languages:
+- python
+- yaml
+- markdown
+goal: Produce a reproducible quality and total-cost comparison that recommends measured compaction parameters,
+  reasoning settings and pilot Workflows, including an honest no-improvement result when supported by
+  the evidence.
+context:
+  authority: >-
+    User review 2026-11-14 requests simplifying the V417 implementation. The
+    accepted V417-008 consumer reuses Managed Eval members, usage and comparisons;
+    V466-013/V466-014 own summarizer accounting and normalizer version 4. This
+    dependent task consumes those views and adds no parallel accounting engine.
+    User request 2026-11-15 assigns V417-009 followed by V417-010. Agent-proposed
+    prerequisite V466-019 now recognizes complete negative measurements without
+    changing execution states, Server conclusions or frozen quality gates.
+    Agent-proposed V466-020 supplies the missing test-only live control adapter;
+    it performs offline preparation while this task waits for V417-009.
+    User decision 2026-11-15 explicitly authorizes one attempt to restore the
+    shared Gateway through existing egress.sh up, DNS/HTTPS checks and then
+    continuation of this task. That one operation was executed with available
+    noninteractive sudo; it exited 0 but did not restore provider connectivity.
+    User follow-up 2026-11-16 explicitly asks the agent to run and configure
+    the passwordless remote infrastructure itself. This authorizes completing
+    the bounded operational recovery, not waiting for another sudo approval.
+    Current configured model selections remain unchanged.
+    User decision 2026-11-16 renews both compact Worker call windows through V417-011.
+    This review does not resume the paused task. On explicit continuation, freeze a new
+    source revision and plan for the changed admission semantics before new dispatch;
+    never rewrite prior plans, results, comparisons or configured models.
+  proposal: docs/proposals/0046-workflow-context-compaction.md
+  specification:
+  - docs/spec/evals/format.md#EVF-R1
+  - docs/spec/evals/format.md#EVF-R30
+  - docs/spec/evals/format.md#EVF-R39
+  - docs/spec/evals/format.md#EVF-R73
+  - docs/spec/evals/managed-evals.md#EVM-R1
+  - docs/spec/evals/managed-evals.md#EVM-R63
+  - docs/spec/evals/managed-evals.md#EVM-R75
+  - docs/spec/execution/worker.md
+  - docs/spec/configuration/agent-templates.md
+  - docs/spec/platform/observability.md
+  - docs/spec/configuration/agent-templates.md#TPL-R76
+  - docs/spec/configuration/agent-templates.md#TPL-R77
+  design: docs/testing/live-models.md
+  implementation_boundary: Execute the V417-008 opt-in harness only after deterministic conformance V417-009
+    is complete. Reuse existing configured models, Gateway selections, Eval services, receipt and result
+    contracts. This task closes the separate quality milestone and is not a prerequisite for the deterministic
+    exit.
+  adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
+    Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
+    not 2.8 callback/identity assumptions.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: >-
+    Paused by explicit user request 2026-11-16 until their continue command.
+    R3 has verified native source/task pins for all60 pairs: three natural
+    failed Runs collected/scored,117 unsubmitted of120. Known usage123541
+    tokens and USD0.0239856091 reported. No active Run was cancelled. Own
+    credential revoked, processes joined and disposable database dropped after
+    retaining exact native exports and a private PostgreSQL archive. All prior
+    attempts/costs remain. No quality acceptance or recommendation.
+  prior_state_before_r3: >-
+    V417-009 is accepted and network recovery is complete. Attempt1 retains
+    one succeeded/unscored Run and119 unrun members. Attempt2 is stopped and
+    all four experiments cancelled:36 completed, one cancelled,83 unrun from
+    its frozen120. Known36-member usage is1377320 tokens and USD0.1930442420
+    reported; the cancelled member's complete usage/price are unavailable.
+    All60 native pairs carry pins-unverified: external registration does not
+    observe source/task equality. All native verdicts remain inconclusive.
+    The consumer preflight gap is corrected and tested before any new dispatch.
+    Prerequisite V466-021 completed at 57992a95412aea210a7d1936eba23b2953aa6f5f.
+    Resumed 2026-11-16 for a new frozen R3 identity on the unchanged protocol.
+    No live quality acceptance or policy recommendation yet.
+  prerequisite_authorized: >-
+    User decision 2026-11-16 approves V466-021 separately. This task remains
+    pending until that prerequisite completes, then resumes with a new frozen
+    plan and the configured model; previous attempts and costs remain retained.
+    That prerequisite is now complete, and this task resumes in_progress.
+  pause_authority: >-
+    User decision 2026-11-16: after the current Run, pause until an explicit
+    continue command. Keep status in_progress as a reservation; do not dispatch
+    or start another task. On continuation, inspect the retained frozen clocks,
+    lifecycle and credential state before deciding whether exact receipts can
+    be reused or a new frozen identity is required. Never rewrite old outcomes.
+  comparison_preflight_correction: >-
+    The assigned consumer now checks the native pair exclusions before its
+    first submission. A regression fails under the old implementation because
+    it dispatches an unverified plan; after correction all43 offline tests and
+    both Go packages pass. Read-only replay of the retained live plan rejects
+    pins-unverified after19 GETs with zero writes/model calls. The scoring
+    function, cases, truth, model, thresholds and context parameters are not
+    tuned; the scorer closure digest changes because it pins the whole consumer.
+  observer_launch_correction: >-
+    Agent correction 2026-11-16 within this task's evaluator implementation:
+    importlib.util loads the existing sibling client under isolated Python;
+    no duplicate client, runtime loop or accounting owner. The added test uses
+    the real harness.run_observer subprocess against bounded local HTTP/OTLP
+    fixtures. Before correction it errors, after correction it passes; the
+    same retained live Run also passes without another model call. Because the
+    original observer pin is unusable, attempt2 receives new frozen identities
+    and explicitly retains attempt1's incomplete120-member denominator.
+  development_calibration: >-
+    Agent decision based only on development02/03: soft6000 (ratio0.006 for
+    configured context1M) permits useful work after native compaction. Ordinary
+    development03 has three later tools, controlled compact five, masking16;
+    both controls recover the correct late answer. Finding identity matches
+    independent AST in all three, but only the controlled compact output
+    retains both hypothesis-ID sets, and extra finding metadata fails the
+    exact schema check. Keep those misses. Freeze the same generic methodology
+    instruction, models and sampling; use new template version4 for final
+    authored Workflows. No calibration result is a repeated quality comparison.
+    Identical-checkpoint replay remains unsupported.
+  observer_measurement_correction: >-
+    Development02 exposed an error in this task's new observer: text-artifact
+    pagination's truncated=true is a valid complete tool response, not the
+    telemetry owner's truncated/preview envelope. Check only that native
+    envelope on both arguments and output. Regression fixtures use the actual
+    native content encoder and protobuf projection; prior code errors on a
+    paginated read and falsely accepts truncated write arguments. Both fail
+    under the prior implementation and pass under the corrected observer.
+  implementation_decision: >-
+    Agent proposal executed within assigned scope: use a fourth controlled
+    native-compact/masking comparison, keeping its later-question protocol out
+    of ordinary arms. Reuse native Managed Eval submission, usage and comparison
+    owners. Remove the obsolete local file-copy replay/masking simulation.
+    Identical native checkpoint replay remains explicitly unsupported. Expanded
+    cases and independent scorers are fixed before any held-out submission;
+    common thresholds and build still require development measurement.
+    Agent preflight clarification before any held-out submission makes the
+    API task's required output shape explicit (tenant apiKey and optional query
+    parameters), matching its existing scorer. This prevents equally valid
+    but unspecified auth/body representations from becoming accidental misses;
+    no hidden answer or benchmark-specific Worker instruction is introduced.
+  recovery_decision: >-
+    The stale provider endpoint does not answer authenticated handshakes; its
+    SSH alias refuses connections. An existing operator-managed VPN server is reachable with sudo,
+    already hosts wg0 with an available client address, and reaches OpenRouter
+    over HTTPS. Within the user's configuration request, register one dedicated
+    Gateway peer in that existing wg0, preserve its current peer and policy,
+    and update only the Gateway's existing egress profile/metadata. Use native
+    WireGuard and existing owner scripts; verify DNS, HTTPS and fail-closed
+    namespace behavior, then resume development calibration. Reuse the Gateway
+    client identity, with no new service/model route or production mechanism.
+    Alternative restoration of the old peer is unavailable through its current
+    management route. Reopen if the existing KZ path cannot meet the checks.
+  network_recovered_2026_11_16: >-
+    Completed the authorized configuration through existing WireGuard owners.
+    Added one dedicated Gateway peer while preserving the existing server peer;
+    retained the Gateway client identity, namespace, mesh and model selections.
+    Updated both deployed and protected local egress profile/metadata, retaining
+    owner-only rollback backups. Container DNS resolves, Gateway readiness and
+    all four configured model aliases are available, and provider HTTPS is 200.
+    Existing owner check-kill-switch passes: HTTP200 before/after and no direct
+    egress while the tunnel is down. Resume isolated development calibration;
+    no additional user sudo action or replacement-profile input is needed.
+  recovery_attempt: >-
+    2026-11-15: inspected the deployed owner's pre-parameterization script;
+    its fixed network matches the deployment. One authorized up command exited
+    0. Installed script digest is
+    sha256:ffc1608d8cece6e4db9b0694ca4bd256fe5e0771af73c9ff2e57550bfeac8e6a.
+    Exact operational results are retained in the ignored owner-only local
+    runbook; no profile keys or concrete deployment addresses are published.
+  development_evidence:
+  - tasks/evidence/v417-010-development-20261115.json
+  - tasks/evidence/v417-010-development-20261116-02.json
+  - tasks/evidence/v417-010-development-20261116-03.json
+  - tasks/evidence/v417-010-protocol-attempt1-20261116.json
+  - tasks/evidence/v417-010-freeze-r2-20261116.json
+  - tasks/evidence/v417-010-protocol-attempt2-20261116.json
+  - tasks/evidence/v417-010-freeze-r3-20261116.json
+  - tasks/evidence/v417-010-protocol-paused-r3-20261116.json
+
+scope:
+  in:
+  - Frozen repeated live comparisons covering terminal reasoning on/off, configured streamline handoff,
+    compaction reasoning on/off and test-only observation masking.
+  - Held-out source-review, OpenAPI/LikeC4 dependency and negative-result memory cases with independent
+    scorer evidence.
+  - Paired continuation from the same controlled checkpoint where reproducible, reported separately from
+    end-to-end comparisons.
+  - Retained safe manifests, per-sample outcomes, cost/latency coverage, uncertainty and a measured parameter/pilot
+    recommendation.
+  out:
+  - Automatic model replacement, enabling compaction in existing active Runs or deployment of a recommended
+    pilot.
+  - A new production masking strategy, learned compression policy or benchmark-specific prompt/Skill hints.
+  - Guaranteeing improvement or changing thresholds after seeing held-out results.
+  - Live execution as a dependency of lint, verify or release-verify.
+requirements:
+- id: R1
+  text: Before any live submission freeze exact cases, visible inputs, private truth/scorer revisions,
+    models and policy/Gateway refs and digests, instructions, tools/Skills, thresholds, repetitions, execution
+    order, intended differences and sample/aggregate limits. Keep the configured models; if a model is
+    slow, prepare a new equal-budget plan with a longer explicit timeout instead of substituting a model.
+    Missing upstream model revision is recorded as unavailable, not inferred from an alias. Freeze exact
+    accepted ADK version, dependency lock digest and Runtime build; all comparable arms use the same SDK
+    closure. Do not attribute a 2.8-to-2.13 change to compaction or includeReasoning. Each production
+    arm selects a separately authored, published Workflow ref with exact closure pins. Do not add executionConfig
+    to Eval variants or Run-create requests, publish Workflows dynamically, or mutate a catalog entry
+    between samples. Test-only masking remains confined to the controlled adapter.
+- id: R2
+  text: Run at least five repeats per declared case/variant on fresh isolated fixtures. Compare terminal
+    includeReasoning=false/true, existing configured terminal-to-streamline handoff, compact@1 includeReasoning=false/true
+    and isolated experimental masking through existing two-arm comparisons. Record actual start-context
+    digests and provider reasoning availability; an absent reasoning provider is not evidence for or against
+    its inclusion.
+- id: R3
+  text: Use equal visible inputs, capabilities, configured model selections and whole-task token/call/tool/time
+    limits across comparable arms. Count all main, terminal summarizer, compactor, finalizer, handoff
+    Planner and retry overhead exactly once, including failed samples. Do not alter terminal runtime budget
+    semantics to make an experiment look equal; aggregate its separately accounted summarizer spend into
+    the experiment total. All internal Runner turns count toward the same logical task/member; no extra
+    samples or budget arise at continuation.
+- id: R4
+  text: Report final success, independently verified artifacts/findings, retained side constraints and
+    IDs, uncertain versus observed facts, repeat actions, archive retrieval, total role-level calls/tokens,
+    elapsed time and cost per successful result where measured. Report missing token usage and missing
+    prices with coverage; never turn missing usage into zero or claim token savings from byte compression.
+    Include latency/quality distributions and paired uncertainty rather than only the best run or an aggregate
+    mean.
+- id: R5
+  text: Use matched controlled environment state immediately before a checkpoint for paired continuation
+    probes where supported by the harness, with independent side-effect fixtures. State unsupported pairing
+    explicitly. Include later questions unknown at compaction time and a misleading reasoning hypothesis;
+    judge recovered facts and domain evidence, not the fluency or self-reported completeness of the summary.
+- id: R6
+  text: Keep all expected members, including blocked, unsupported, failed, cancelled, timed-out and unrun
+    members, in the frozen denominator and retain observed retry cost. Infrastructure failure is distinct
+    from a quality miss. Required samples cannot be silently replaced by favorable reruns; a new experiment
+    has a new frozen identity and retains its relation to the original. Incomplete execution remains incomplete
+    evidence.
+- id: R7
+  text: Keep hidden ground truth, held-out questions and scorer hooks outside all model-visible inputs
+    and tool-readable workspaces. Tune only general instructions or parameters on a separate development
+    set, then freeze them before held-out evaluation. Preserve credential and raw-reasoning boundaries
+    in reports and never publish the hidden answer corpus as a Workflow input.
+- id: R8
+  text: Recommend includeReasoning separately for the existing terminal summarizer and compactor; do not
+    infer one consumer's benefit from the other. Recommend thresholds, keepRecentGroups, maxCompactions
+    and pilot Workflows only when frozen measurements support them. Publish regressions, no-improvement
+    and inconclusive results honestly. Recommendations do not mutate active Run models or enable the policy
+    automatically; any catalog change requires its own reviewed implementation with exact pins.
+failure_outcomes:
+- operation: Live experiment preflight, submission and observation
+  permanent: Missing/floating pins, unavailable configured model, incompatible capabilities or invalid
+    equal-budget plan blocks execution without substitution or dropped members.
+  retryable: Existing bounded Gateway/Eval retries apply within frozen attempts and deadlines; every observed
+    attempt remains in cost accounting.
+  ambiguous: Reconcile the existing submission key and member execution receipt before any repeat; do
+    not create an extra sample to resolve acknowledgement loss.
+  cancelled: Cancel through existing Eval/Run ownership, stop new scheduling and join release before cleaning
+    isolated member fixtures.
+  timeout: Frozen member and whole-experiment deadlines apply; timed-out and unrun members remain recorded
+    and later success does not rewrite the earlier outcome.
+- operation: Assessment, comparison and publication of the measured report
+  permanent: Scorer corruption, missing mandatory provenance or truth leakage fails verification; no quality
+    recommendation is accepted from those records.
+  retryable: Retry only existing bounded storage/collection operations against the same exact result identity,
+    never scoring until a favorable outcome appears.
+  ambiguous: Reconcile exact assessment/report identity and digest through existing result or artifact
+    publication mechanisms.
+  cancelled: Preserve already settled safe evidence and mark the planned comparison incomplete; do not
+    publish a completed-experiment claim.
+  timeout: Use finite collection/scoring limits separate from model execution; unavailable measurements
+    stay explicitly unavailable.
+cardinality:
+- collection: Repeated live case/variant samples
+  expected: At least five repeats per case/variant across all three pilot classes and the declared comparison
+    matrix
+  maximum: The frozen finite matrix obeys portable limits and the stricter 1000-member native experiment
+    ceiling where applicable; no adaptive unbounded sample extension
+  bound: Freeze concurrency, total tokens/calls/actions, member and experiment deadlines before dispatch;
+    page existing Eval members at current row/byte limits.
+- collection: Retained results, assessments and report evidence
+  expected: One attributed selected result per expected member plus exact scorer/provenance records and
+    bounded comparison summaries
+  maximum: Existing Eval/Artifact document, evidence-ref, page and retention limits; no full raw transcript
+    or reasoning copy in public reports
+  bound: Aggregate paged records without repeated whole-corpus reads; retain only allowlisted diagnostics
+    and coverage statistics in the published report.
+lifecycle:
+- entity: Live experiments, isolated execution Projects and retained safe reports
+  delete: Use existing Eval/Project cancellation, deletion and artifact-hold rules; delete only task-owned
+    disposable environments after release is confirmed.
+  cascade: Existing member/Run/result ownership and receipt mechanisms apply; no separate scheduling or
+    recovery subsystem is introduced.
+  retention: Preserve exact safe manifests, all sample outcomes and scorer evidence under existing retention;
+    credentials and temporary workspaces follow their existing cleanup lifecycle.
+acceptance_criteria:
+- id: A1
+  given: Frozen complete plans for all declared variants, held-out cases and at least five repeats
+  when: the live harness executes with configured models
+  then: Every required comparison has repeat evidence with matching start inputs, pinned provenance, actual
+    role-level overhead and honest coverage of unavailable measurements. SDK/lock/build provenance matches
+    across arms and is included in the safe report.
+- id: A2
+  given: Paired checkpoint probes, later questions and misleading reasoning controls
+  when: independent scorers assess continuation and final results
+  then: The report distinguishes constraint/ID retention, retrieval, false factual support and repeated
+    work from summary fluency, with paired uncertainty and unsupported probes identified.
+- id: A3
+  given: Failures, timeouts, missing usage or a variant that is slower or less accurate
+  when: experiment results are aggregated
+  then: All members and observed costs remain in the denominator, missing values stay unavailable and
+    the conclusion records regressions or inconclusive evidence without an unsupported improvement claim.
+- id: A4
+  given: Held-out truth and complete safe experiment records
+  when: the measured report and recommendations are reviewed
+  then: Truth and secrets are absent from model-visible inputs and reports; terminal and compactor reasoning
+    recommendations are separate and no configured active model or Workflow is changed.
+tests:
+- command: make test-context-compaction-eval-fixtures
+  covers:
+  - A2
+  - A3
+  - A4
+- command: make eval-context-compaction-live
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A4
+deliverables:
+- path: docs/research/context-compaction-evaluation.md
+  description: Actual repeated-sample results, exact safe experiment references, coverage, uncertainty,
+    overhead and separate terminal/compactor recommendations.
+- path: tests/eval/context_compaction
+  description: Frozen final experiment manifests and safe reproducible provenance or references to retained
+    managed Eval records; hidden truth remains evaluator-private.
+test_prerequisites:
+- The make targets are delivered by V417-008; V417-009 deterministic conformance must be complete before
+  this task starts.
+- Live runs require the configured Gateway, locked Runtime dependencies and disposable authorized execution
+  fixtures; PostgreSQL is required wherever the existing harness uses managed Eval persistence.
+- Missing credentials or infrastructure keep the live acceptance incomplete; do not report skipped or
+  fabricated samples as a passing experiment.
+- At least five repeats are required per frozen case/variant; preserve both unsuccessful and successful
+  attempts and report actual executed counts.
+- Run integration acceptance on the exact ADK 2.13.0 closure accepted by V418-007; record Runtime revision
+  and lock digest. No separate old-SDK compaction implementation or version-switching production path.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.
+verification_requirements:
+- Record exact commands, manifest digests, case/member/repetition counts, configured-model provenance
+  and evidence locations after real execution.
+- The quality milestone may conclude with measured no-improvement or consumer-specific recommendations;
+  it cannot conclude from deterministic fixtures alone.
+- Do not change normative specifications or claim quality results during this planning edit; do not populate
+  implementation_commit until actual completion.
+
+verification:
+- command: make test-context-compaction-eval-fixtures
+  result: Passed preparation only; 43 offline cases, 105 recorded scored samples and both Go packages. No live quality claim.
+- command: make lint
+  result: Passed full make lint after the comparison-pin admission guard; task/spec/dependency and diff checks pass. Earlier rerun failed solely on concurrently stale generated BACKLOG, regenerated before the successful run.
+- command: make eval-context-compaction-live
+  result: >-
+    Incomplete, make exit2. Attempt1 retains1 succeeded/unscored and119 unrun.
+    Attempt2 retains36 completed,1 cancelled and83 unrun; all120 expected
+    members retained in each attempt. Missing native source/task observed pins
+    exclude every pair. No quality/savings recommendation; A1-A4 incomplete.
+    R3 is explicitly paused by the user after3 natural failures/scored members
+    and117 unsubmitted; all60 native pairs had verified source/task pins before
+    dispatch. Retain123541 known tokens and USD0.0239856091 reported. No active
+    Run cancelled; own key revoked, processes joined, private native/archive
+    evidence retained and owned database dropped. Await continue command.

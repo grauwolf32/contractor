@@ -1,0 +1,68 @@
+{
+  "description": "The counter precondition of the public API (API-R70): one strong entity tag (v1alpha1/strong-etag-cases.json) whose value is a positive revision counter in canonical decimal form, ASCII digits without sign or leading zero. httpx.ParseRevisionETag is its one reader; the public handlers of every RequiredIfMatch and IfMatch counter parameter answer anything else with 400 invalid_request, Managed Eval mutations with 422 eval_invalid, never with a revision conflict. A request that requires the precondition carries exactly one If-Match header and no If-None-Match header. valid pairs a header value with its revision; invalid values match neither the readers nor the OpenAPI pattern; outOfRange values match the OpenAPI pattern, which cannot bound magnitude, but exceed 2^64-1 and are rejected; repeatedHeaders are If-Match header sets that are not one header.",
+  "valid": [
+    {
+      "header": "\"1\"",
+      "revision": 1
+    },
+    {
+      "header": "\"42\"",
+      "revision": 42
+    },
+    {
+      "header": "\"9223372036854775807\"",
+      "revision": 9223372036854775807
+    }
+  ],
+  "invalid": [
+    "",
+    "1",
+    "\"\"",
+    "\"0\"",
+    "\"00\"",
+    "\"01\"",
+    "\"007\"",
+    "\"+1\"",
+    "\"-1\"",
+    "\"1.0\"",
+    "\"1e3\"",
+    "\"0x1\"",
+    "\"1_000\"",
+    "\"١\"",
+    "\"１\"",
+    "\" 1\"",
+    "\"1 \"",
+    "\"\t1\"",
+    " \"1\"",
+    "\"1\" ",
+    "\t\"1\"",
+    "W/\"1\"",
+    "w/\"1\"",
+    "W/ \"1\"",
+    "\"1\", \"2\"",
+    "\"1\",\"1\"",
+    "\"1\" \"1\"",
+    "*",
+    "\"1",
+    "1\"",
+    "'1'",
+    "`1`",
+    "\"\\x31\"",
+    "\"\\u0031\"",
+    "\"1\\\""
+  ],
+  "outOfRange": [
+    "\"18446744073709551616\"",
+    "\"99999999999999999999\""
+  ],
+  "repeatedHeaders": [
+    [
+      "\"1\"",
+      "\"1\""
+    ],
+    [
+      "\"1\"",
+      "\"2\""
+    ]
+  ]
+}

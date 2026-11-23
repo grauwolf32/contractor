@@ -1,0 +1,14 @@
+apiVersion: contractor/v1alpha1
+kind: LLMGatewayConfig
+
+metadata:
+  name: local-litellm
+  version: "1"
+
+spec:
+  protocol: openai-compatible@1
+  url: http://127.0.0.1:4000/v1
+  credentialManager:
+    implementation: litellm-virtual-keys@1
+    managementUrl: http://127.0.0.1:4000
+

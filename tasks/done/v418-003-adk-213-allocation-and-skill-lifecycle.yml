@@ -1,0 +1,187 @@
+schema_version: '1.0'
+id: V418-003
+title: Verify allocation cleanup and bounded Skills on ADK 2.13
+milestone: adk-213-upgrade-2026-10
+epic: agent-skills
+kind: chore
+priority: P1
+status: completed
+depends_on:
+- V418-002
+languages:
+- python
+- markdown
+goal: Prove that the updated SDK retains no released allocation graph and preserves the exact non-executing
+  Skill surface, disclosure limits and cleanup fences.
+context:
+  authority: 'User request on 2026-10-25: plan the ADK 2.13 upgrade with every identified compatibility
+    change, adjust the existing compaction series, and keep model consultation as a proposal. These pending
+    tasks do not start implementation or change the current delivery focus.'
+  review: tasks/evidence/v418-adk-213-review.json
+  verification_evidence: tasks/evidence/v418-adk-213-skills-lifecycle.json
+  specification:
+  - docs/spec/execution/runtime-agent.md#RTA-R90
+  - docs/spec/execution/runtime-agent.md#RTA-R91
+  - docs/spec/execution/runtime-agent.md#RTA-R116
+  - docs/spec/platform/security.md#SEC-R32
+  - docs/spec/tools/skills.md#SKL-R98
+  - docs/spec/tools/skills.md#SKL-R112
+  - docs/spec/platform/lifecycle.md
+  finding: The exploratory 37 Skill tests passed, but that does not establish all 2.13 lifecycle paths.
+    Both process-wide callable caches still exist for hashable tools; new callable/type-hint caches must
+    also be inspected. ContractorSkillToolset overrides native request processing, so native unload/pruning/lifecycle
+    is not an automatically usable feature.
+  implementation_boundary: Preserve the owning Contractor contracts; update numbered specs, limits/error/failure/lifecycle
+    registries and affected implementations together when an explicit clarification is necessary. No ADK-version
+    branches, legacy readers, dual production runtimes, model replacement, silent retries, new receipt
+    store or speculative public API. Read current code and re-establish the dated evidence before implementation.
+  provenance: V414-013/456727448b697c98efda05b23a7968f84e54f8d2 owns callable-cache release and guards;
+    V10-005/16afcd55b0f7d197ce6998fb60e89380ac839f33 owns the native Skill adapter. This task validates
+    existing guarantees after migration rather than claims an observed new leak.
+scope:
+  in:
+  - Real prepare/invoke/finalize-or-abort/release and failed-prepare rollback tests with weak references
+    and subsequent allocations.
+  - Native Skill probe, disclosure/work bounds, strict three-tool surface and private API contract checks;
+    fix any demonstrated 2.13 regression in the owning boundary.
+  out:
+  - Turning on Skill lifecycle modes, EAGER discovery, registry, script execution, extra tools or a second
+    Skill controller.
+  - Deleting the existing cache cleanup solely because the dependency version changed; new durable session
+    retention.
+acceptance_criteria:
+- id: A1
+  given: Used hashable and unhashable tools plus loaded pseudo-Skills
+  when: Real successful and failed allocation lifecycles complete
+  then: Weakrefs/ownership assertions prove release of every allocation graph and no test-side manual
+    cache eviction hides retention.
+- id: A2
+  given: Cancellation/timeout/failure in one cleanup component
+  when: Runner, plugin and Toolset cleanup unwind
+  then: Remaining cleanup is joined or the existing fence persists; retry cannot admit another allocation
+    prematurely.
+- id: A3
+  given: A second allocation after release
+  when: Its tools and Skills are invoked
+  then: Declarations, identities, credentials and activation/disclosure state are independent and correct.
+- id: A4
+  given: 32 Skills and multibyte/repeated disclosures at the cap
+  when: Real native tool dispatch runs
+  then: Exactly the permitted three tools are exposed and reservation, no-refund, inert-script and no-inline-binary
+    contracts hold.
+- id: A5
+  given: Fresh locked startup and tampered unsupported feature/probe fixture
+  when: Capabilities are reported
+  then: The supported path succeeds; incompatible SDK behavior fails explicitly instead of silently expanding
+    capabilities.
+tests:
+- command: cd runtime && uv run --locked pytest -W error tests/test_allocation.py tests/test_worker_state.py
+    tests/test_abort.py tests/test_lease_watchdog.py tests/test_agent_skill_package.py tests/test_agent_skill_toolset.py
+    tests/test_agent_skill_lifecycle.py tests/test_run_artifacts_toolset.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-agent-skills-runtime-hardening
+  covers:
+  - A4
+  - A5
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+requirements:
+- id: R1
+  text: Inventory every upstream cache reachable from used callable/Skill/model paths on the exact lock.
+    Retain cleanup for find_context_parameter and _build_declaration_cached while keys remain strong;
+    inspect new caches without indiscriminately clearing unrelated process state. Any cleanup change needs
+    a production caller and an explicit removal condition.
+- id: R2
+  text: On real prepare -> declaration/model invocation -> finalize/abort -> release and failed-prepare
+    rollback, prove tools, ArtifactClient, Toolset sessions, Worker State, MetricsState and allocation
+    secrets are no longer reachable. Use weakrefs and object ownership assertions, not RSS/time thresholds
+    or test-side cache_clear.
+- id: R3
+  text: Cancel release/Runner/plugin close at controlled points; remaining cleanup finishes under the
+    existing bounded lifecycle budget. Cleanup failure keeps the allocation fenced, is classified correctly
+    and permits only the existing idempotent cleanup retry. No task outlives session/workspace removal.
+- id: R4
+  text: The next allocation builds correct independent declarations and inherits no previous client, identity,
+    description, credential, Skill activation or disclosure counter. Cover consecutive allocations and
+    a cleanup-failure retry.
+- id: R5
+  text: Startup capability probe confirms exactly list_skills, load_skill and load_skill_resource under
+    the current supported configuration and SKL contract. No execution/registry/environment tools or dynamic
+    ordinary Toolsets become exposed. Script resources stay inert text, binary assets never turn into
+    inline_data.
+- id: R6
+  text: Exercise all 32 allowed Skills, multibyte descriptions/resources, repeated disclosures and exact/one-over
+    16-MiB reservation limits. Reservation remains before native dispatch with no refund or partial leaked
+    content. No live configs or real Skill catalog is read by unit tests.
+- id: R7
+  text: Record explicit checked defaults for discovery and lifecycle. Do not enable opt-in lifecycle/validation
+    features through ambient environment by accident; follow existing feature policy and reject unsupported
+    behavior in the capability probe rather than add silent fallbacks.
+- id: R8
+  text: Preserve the existing owning cleanup/lifecycle specs and private API guards; new helper exports
+    are test-local unless called by production. Future native lifecycle adoption requires a separate feature
+    decision and is outside this upgrade.
+test_prerequisites:
+- Commands below are future implementation acceptance gates, not checks already passed by this planning
+  change. A required command, selected case or dependency setup must not be skipped or match zero tests.
+- Run full suites of every touched package/module, in addition to focused regressions. Use real ADK dispatch
+  and controlled Gateway responses; persistence/process claims require disposable real PostgreSQL and
+  real Server/Runtime processes. Never read live configs from unit tests; use testdata and pseudo-Skills.
+- Use injected clocks, synchronization barriers, work/row/byte counters and bounded fixture sizes. Timing
+  samples are informational, never flaky wall-clock pass thresholds. Keep configured live models unchanged;
+  no live Gateway is part of these deterministic tasks.
+- Use the repository lock for acceptance, except the explicitly isolated candidate characterization in
+  V418-001. Preserve unrelated user changes. Record the tested revision, lock digest, command, executed
+  case count, skips and outcome. The 326-case exploratory run is not a substitute for make test-runtime
+  or a release gate.
+failure_outcomes:
+- operation: Runtime operation at the changed boundary
+  permanent: Strict invalid input or unsupported SDK behavior fails with the owning classified outcome;
+    no permissive fallback or endless retry. A required verification failure blocks completion.
+  retryable: Reuse the existing bounded transport/recovery or cleanup policy only; no SDK upgrade-specific
+    retry loop or rerun-until-green.
+  ambiguous: Reconcile existing receipts, trusted observations and the same operation identity. Test evidence
+    preserves the original uncertain outcome; never repeat an external append or side effect blindly.
+  cancelled: The existing invocation/allocation or fixture owner cancels and joins all work before cleanup;
+    no later dispatch or unowned callback may outlive release.
+  timeout: Execution deadline, per-request timeout, cleanup timeout and harness timeout remain distinct;
+    injected expiration cannot start a new admitted attempt.
+cardinality:
+- collection: Calls, event history, retained State/metrics and fixture cases
+  expected: Several sequential logical invocations, parallel tool batches and multiple internal Runner
+    turns; scale task adds long histories.
+  maximum: Existing owning model/tool/subtask/State/Skill byte and item ceilings; V418-006 must inventory
+    the containing limits before choosing maximum fixtures.
+  bound: Work follows admitted finite inputs and retained history; no unbounded full-catalog scan, private-history
+    copy or unrestricted per-callback rescan. Verify bytes/items/work counters, not only input length.
+lifecycle:
+- entity: Existing allocation-local sessions, clients, tools, callbacks and test evidence
+  delete: Existing invocation/allocation owner or isolated test harness owns teardown; never touch another
+    allocation or user database.
+  cascade: Join generators, tools, clients and serializers before deleting session/workspace state. Preserve
+    required publication receipts through their existing owner.
+  retention: No new durable runtime entity. Keep only bounded safe test evidence and ordinary published
+    results under existing retention policies.
+verification:
+  focused: Required selected modules161pass and make test-agent-skills-runtime-hardening76pass, warnings strict,
+    zero skips; 21 new real-path cases and a cache-release mutation control prove the tests can fail.
+  aggregate: Common native Linux make test-runtime and report verifier pass4984,55unchanged allowed skips,
+    zero failures; all21newSkill/lifecyclecases executed. Full make lint passes; exact hashes in linked evidence.
+implementation_commit: 18ad3a14aabb58a686419e3aee88de39adffe9fa

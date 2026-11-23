@@ -1,0 +1,140 @@
+schema_version: '1.0'
+id: V481-001
+title: Preserve reusable Project facts during source and HTTP research
+milestone: project-facts-2026-11
+epic: workflows
+kind: feature
+priority: P1
+status: completed
+depends_on: [V481-002]
+languages: [yaml, markdown, go]
+goal: >-
+  Project discovery, source review, operation tracing and HTTP research preserve
+  useful observations as Project facts with exact primary sources, so later
+  checks can reuse knowledge discovered during ordinary investigation.
+demonstration: >-
+  The shipped source-discovery Worker analyzes a pinned project workspace and
+  calls fact with an exact source region before publishing its normal report.
+  Real Server/Runtime execution retains the informational Project record and
+  source evidence. A projectless invocation still produces its normal report
+  after an explicit publication denial, without claiming that a fact was saved.
+context:
+  authority: >-
+    User request 2026-11-23: connect fact gathering with project analysis and
+    select observations useful to later project security work. Follow-up assigns
+    adding fact everywhere appropriate. Explicit user decision: edit existing
+    AgentTemplate, Audit and Workflow identities at @1 without version bumps
+    because this is pre-release. Regenerate only affected catalog lock entries
+    under this explicit exception; preserve runtime immutability and exact pins.
+  specification:
+    - docs/spec/findings/findings.md#FND-R241
+    - docs/spec/tools/toolsets.md#TLS-R43
+    - docs/spec/configuration/catalog.md#CAT-R74
+    - docs/spec/audits/worker-completion.md
+  boundary_decision: >-
+    Agent proposal within the assigned scope: investigation Workers select
+    useful observations while reading primary evidence; common fact and existing
+    Finding intake own publication, authority, receipts, correlation and retention.
+    Keep the ordinary reports and Audit evidence/conclusion paths. This avoids
+    another extraction pass over derived reports. Builders, validators, scanners,
+    hypothesis generation and existing-Finding reviewers keep their existing roles;
+    reopen only when a concrete missed observation justifies another producer.
+scope:
+  in:
+    - Select common security-findings@1 fact alongside specialized finding facades in source, trace, Audit and HTTP investigation templates, including callback investigation.
+    - Teach discovery/dependency stages and each selected Worker which observations aid future checks, with conditions, uncertainty, narrow primary sources and optional zero publication.
+    - Publish before final Audit submission; preserve existing item_key/incidental semantics and check-specific evidence requirements.
+    - Preserve projectless report completion on denied fact publication, without invented Project identifiers or a new capability API.
+    - Update affected catalog lock entries at existing identities, owning specification, catalog documentation and generated dependencies.
+    - Verify actual shipped discovery publication through a scripted Gateway and real Server/Runtime/PostgreSQL.
+  out:
+    - New tables, APIs, Runtime tools, enums, automatic semantic verification or automatic fact extraction hooks.
+    - Changing configured models, live Gateway experiments, deployment or resetting existing business data.
+requirements:
+  - id: R1
+    text: >-
+      Discovery/dependency, source review, source/standard Audit checking, operation
+      observation/tracing, taint analysis and HTTP/Caido/callback research select
+      common fact without widening their investigation or traffic authority.
+  - id: R2
+    text: >-
+      Instructions prefer observations that affect a later check's choice,
+      prerequisites or interpretation. Preserve exact primary sources, scope,
+      conditions, uncertainty and source quality. Zero facts is valid; avoid
+      converting every route, dependency, check result or report into a fact.
+  - id: R3
+    text: >-
+      Fact publication remains independent of Audit evidence and conclusions.
+      Save desired facts before final result submission, inspect receipts and
+      report denied/rejected/unknown publication honestly. Never replay target
+      traffic to repair publication or treat missing observations as safety.
+  - id: R4
+    text: >-
+      Existing @1 identities and unchanged pins remain; only the explicitly
+      changed shipped digests are regenerated under the user exception.
+failure_outcomes:
+  - operation: Existing common fact publication
+    permanent: Existing invalid-input and denied-Project errors remain permanent; report the limitation and continue the ordinary assigned result without claiming publication.
+    retryable: Existing storage conflict and transport handling own bounded retries under the original Worker budget.
+    ambiguous: Reconcile through existing tool-call/intake receipts and exact Artifact writes; never repeat HTTP traffic or invent a new observation.
+    cancelled: Existing Worker/allocation cancellation joins in-flight tools; accepted facts retain ordinary Project ownership.
+    timeout: Existing tool/Worker deadlines own publication; no additional timeout or background job.
+cardinality:
+  - collection: Facts selected during one investigation invocation
+    expected: Zero to five useful observations, without a minimum quota.
+    maximum: Existing Worker tool/model budgets and common Finding intake limits; snapshot extraction keeps its existing eight-call ceiling.
+    bound: At most four exact sources per fact; existing typed-source line/byte limits and intake bounds. No new collection scans or unbounded loops.
+lifecycle:
+  - entity: Existing informational Project Finding and exact sources
+    delete: Existing Project Finding/Project commands and authority remain authoritative.
+    cascade: Existing receipt, source and Project purge rules apply; no new entity or cascade.
+    retention: Accepted sources survive later report/Run failure through ordinary Finding retention; unpublished prepared artifacts remain ordinary Run materials.
+acceptance_criteria:
+  - id: A1
+    given: Shipped investigation templates and their existing specialized finding tools
+    when: Configuration is resolved and the Worker receives its tool schema
+    then: Appropriate investigators have fact alongside their existing tools, while builders/scanners/generators/review readers retain their roles and all identities remain unchanged.
+  - id: A2
+    given: A Project-bound source-discovery invocation over a pinned workspace
+    when: It publishes a source-selected fact and its ordinary report through the real processes
+    then: An informational Project record retains the exact source and claim with ordinary provenance and the workflow completes normally.
+  - id: A3
+    given: A projectless discovery invocation or no useful reusable observation
+    when: Publication is denied or zero observations are selected
+    then: The ordinary report can complete, no Project record is claimed and no extra target request or extraction Stage is required.
+  - id: A4
+    given: Audit research has useful observations and an assigned check
+    when: It records evidence, optional facts and its final conclusion
+    then: Instructions require fact publication before final submission, preserve check evidence and conditions, and never equate fact publication with a verdict or verification.
+tests:
+  - command: go test -count=1 ./internal/config/... ./internal/configload/...
+    covers: [A1, A3, A4]
+  - command: go run ./cmd/contractor-server config validate --root ./configs --require-catalog-lock
+    covers: [A1]
+  - command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^TestDiscoveryFactsAcrossProcesses$' -v
+    covers: [A1, A2, A3]
+  - command: cd runtime && uv run pytest -q tests/test_shared_finding_facades.py tests/test_trace_findings.py tests/test_memory_fact_sources.py
+    covers: [A2, A3, A4]
+  - command: python3 scripts/check_tasks.py && python3 scripts/check_spec.py && make docs-dependencies-check
+    covers: [A1, A4]
+  - command: python3 scripts/test-findings-e2e.py
+    covers: [A1, A2, A3, A4]
+  - command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestAuditCommonObservationProfilesAcrossProductionProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses|TestProjectWorkspaceLifecycleAcrossProductionProcesses|TestDomainGatewayFindsNamedInputAfterParameterBlock|TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure)$' -v
+    covers: [A1, A4]
+implementation_commit: 0d694aeedf5b4b3f51f480bfc56b77890b153a20
+verification:
+  passed:
+    - All internal/config and configload packages; shipped locked configuration validation.
+    - New discovery process test, including exact source proof, Project denial and zero facts.
+    - Common Findings gate with 310 Runtime tests and all 26 required process cases.
+    - Six consumer roots, including both Audit operation modes, heterogeneous HTTP/Caido, sitemap collection and full project workspace lifecycle.
+    - 131 focused shared-facade/trace/memory-source tests; prerequisite V481-002 additionally passed 263 affected Runtime tests and Ruff.
+    - Runtime import-linter (four contracts), task/spec/dependency graph checks and release graph coverage.
+    - Offline tests/eval/project_workflows package.
+  environment: Go 1.26.10, canonical TMPDIR (avoiding the existing macOS /var alias assertion), and one owned disposable PostgreSQL 17 cluster. All test processes joined; owned database dropped and cluster removed. Heavy I/O was not enabled.
+  unrelated_failure: >-
+    Additional go test -count=1 ./tests/eval/project_facts fails
+    TestFrozenMemoryExtractionRecipeUsesNativeContracts with corpus drift for
+    experiment-template-v5.json. That corpus and recipe were already modified
+    in the user's working tree before this task; neither is changed by V481.
+  limits: Scripted Gateway verification proves tool exposure, source capture and publication, not measured live-model selection quality. No deployment or full release gate was run. Changes are on the existing codex/reset-preproduction-baseline branch, not merged into main.

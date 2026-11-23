@@ -1,0 +1,178 @@
+schema_version: '1.0'
+id: V407-027
+title: Share controller claim-lifecycle plumbing without merging distinct scheduling policies
+milestone: server-runtime-review-2026-10
+epic: persistence
+kind: chore
+introduced_by: V38-004
+priority: P3
+status: completed
+depends_on:
+- V407-003
+languages:
+- go
+goal: Audit and Eval reuse common claim execution/release plumbing and injectable timing while retaining
+  their separate wake, fairness and operation-budget policies.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  finding: internal/auditcontroller/controller.go:41-77 and internal/evalcoordinator/coordinator.go:112-153
+    repeat bounded per-claim goroutine/release logic and suppress claim-lost on release. Their wake mechanisms,
+    options and tick policies differ. Direct time.Now/time.NewTimer also make some adapter/planner/controller
+    tests harder to control, but no incorrect outcome caused by those calls or duplicated loops was reproduced.
+  validation: This is maintenance and testability work. The common durable claim mechanism already exists;
+    another lease protocol is not needed. The no-wall-clock-assertions rule constrains tests, not every
+    production clock read. Extraction must preserve intentional differences rather than equating similar
+    loops.
+  specification:
+  - docs/spec/platform/persistence.md
+  - docs/spec/execution/scheduler.md
+plan:
+- Identify the identical claim handler/release lifecycle and extract the smallest shared helper below
+  both consumers, with each controller retaining its admission, immediate retry, wake and batch policy.
+  Avoid introducing an unused general-purpose controller framework.
+- Pass explicit timing/release-budget dependencies through the shared code and through the adapters whose
+  deterministic tests need them; keep production defaults and journaled cancellation RequestedAt semantics.
+- Add contract tests for both real consumers covering handler failure, claim loss, cancellation/join,
+  release failure and bounded concurrency. Use an injected clock or controlled channels, and retain existing
+  controller suites.
+scope:
+  in:
+  - Shared lifecycle plumbing, targeted clock injection and regression coverage for unchanged controller
+    behavior.
+  out:
+  - A new receipt/lease mechanism, a forced common scheduler policy, changing V407-003 batching semantics,
+    or banning all time.Now calls merely by grep.
+acceptance_criteria:
+- id: A1
+  text: Both production consumers use the shared identical lifecycle code; release remains bounded and
+    claim-lost handling/error aggregation match their prior behavior.
+- id: A2
+  text: Injected-time/synchronization tests cover both consumers without sleeps or elapsed-time assertions
+    and verify cancellation joins work before release.
+- id: A3
+  text: Existing fairness, wake, batch and adapter replay tests retain their outcomes, and architecture
+    layer tests accept the shared dependency placement.
+tests:
+- command: go test -count=1 ./internal/auditcontroller/... ./internal/evalcoordinator/... ./internal/evalservice/...
+    ./internal/planner/... ./internal/archtest/...
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A3
+decisions:
+- >-
+  Shared: internal/claimpass (foundation layer, standard library only) runs the claims one pass leased.
+  Each claim is handled in its own goroutine (concurrency = claims leased, bounded by each controller's
+  claim batch), its release runs only after its handler returned, under context.WithoutCancel(pass) and
+  a release budget, a release reporting the store's lost-claim error is not a failure, and the pass
+  returns once every claim was released, with whether any handler changed state and each claim's
+  handler and release failures joined in claim order (PER-R26, FAIL-PER-3). Both production consumers
+  call claimpass.Run: Controller.RunOnce (internal/auditcontroller/controller.go) and Coordinator.RunOnce
+  (internal/evalcoordinator/coordinator.go). persistencepostgres.ControllerClaims stays the only lease
+  mechanism (PER-R25); no table, receipt or lease was added.
+- >-
+  Kept per controller, unchanged: the lease call (admission query, batch bound, its operation budget),
+  handler budgets (an Audit step owns its snapshot or cleanup budget; an Eval tick runs under
+  OperationTimeout), release budgets (Audit OperationTimeout; Eval 5 s), Run pacing (Audit passes again
+  at once after work without error, otherwise waits PollInterval; Eval always waits PollInterval or a
+  wake hint), and the single-runner guards. A common Run loop or scheduler was rejected because merging
+  these policies would change when each controller works (PER-R26 rationale). Reopen if a third
+  controller needs the same per-pass fan-out (reuse claimpass) or one needs different release semantics
+  (keep its own lifecycle instead of parameterizing claimpass).
+- >-
+  Placement alternative rejected: putting the lifecycle in internal/persistence/postgres next to
+  ControllerClaims. It is goroutine and context plumbing over each controller's own claim type and store
+  method, touches no SQL, and is generic over the claim type anyway; the foundation layer keeps it free
+  of any store dependency.
+- >-
+  Observable differences, both intended: the Audit release context now derives from
+  context.WithoutCancel(pass) instead of context.Background(), so it keeps the pass's context values with
+  the same (absent) cancellation and the same deadline; the Eval poll wait uses Clock.After instead of
+  time.NewTimer plus Stop (an unfired Go timer is collected since Go 1.23).
+- >-
+  Clock injection is targeted: evalcoordinator.Options.Clock (After) drives the Eval poll wait (the Audit
+  controller already had Options.Clock); evalservice.Driver.Now stamps a member cancellation intent
+  (internal/evalservice/workflow_adapter.go and audit_adapter.go previously read time.Now). The time is
+  read once, when prepareOperation journals the intent, and every retry reuses the journaled request,
+  so the request and its time never change and a Run member's retry sends that time. An Audit member's
+  cancellation is a revision-checked Audit mutation whose idempotency key and request digest derive
+  from the journaled request and the expected Audit revision (internal/evalservice/audit_adapter.go):
+  a retry against the same revision repeats both, and a retry after the revision moved sends new ones
+  for the same journaled request (EVM-R115). Production defaults stay time.After and time.Now;
+  composition is unchanged.
+- >-
+  Ruled out: the Planner's time.Now and time.NewTimer uses (internal/planner/passthrough.go deadline
+  pre-check and durations, internal/planner/session_lifecycle.go 50 ms completion retry backoff). The
+  Planner deadline is enforced by context.WithDeadline on the runtime clock, so an injected clock would
+  split one deadline across two clocks, and no deterministic Planner test needs it (scope.out excludes
+  banning time.Now by grep). The durable sweep controller (internal/scancontroller/controller.go) keeps
+  its own pass: it leases one sweep per tick and joins that tick through Drain, so claimpass.Run's
+  per-pass fan-out does not fit it.
+- >-
+  Review fix: the sweep controller discarded every release error, so a refused release left the sweep
+  claimed for its one-minute lease with nothing recording why. It now releases through
+  claimpass.Release, the step claimpass.Run uses for each claim (exported for this second production
+  caller): under its own five-second budget without the tick's cancellation, a lost claim is not a
+  failure (PER-R25), and a definite failure joins the tick's error, which Run logs as "scan sweep tick
+  failed". scanstore.Release wraps its first statement's driver error with a static message like the
+  rest of the store, so the logged text names the sweep and the failed step but no statement or
+  database message (PER-R26, FAIL-PER-3, FAIL-SCN-15, SCN-R249). Reopen if the sweep controller leases
+  more than one sweep per tick (then use claimpass.Run).
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with pnpm, the locked Runtime
+    venv; isolated PostgreSQL 17.11 database contractor_test_b with per-test schemas and all migrations;
+    worktree branch claude/rv-b at base 37378d06.
+  commands:
+  - go test -count=1 ./internal/auditcontroller/... ./internal/evalcoordinator/... ./internal/evalservice/...
+    ./internal/planner/... ./internal/archtest/... (plus ./internal/claimpass/...) with CONTRACTOR_TEST_DATABASE_URL
+    set passed for every package.
+  - go test -tags integration -race -count=1 ./internal/auditcontroller/ ./internal/evalcoordinator/
+    ./internal/evalservice/ ./internal/claimpass/ passed.
+  - go test -tags integration -count=1 -v ./internal/auditcontroller/ ./internal/evalservice/ passed 137
+    top-level tests (87 PostgreSQL-backed) with none skipped, including the new
+    TestPostgresControllerReleasesTheClaimOfACancelledStep, TestPostgresControllerPassToleratesAClaimTakenOverDuringItsStep,
+    TestSharedPostgresCoordinatorReleasesTheClaimOfACancelledTick, TestSharedPostgresCoordinatorPassToleratesAClaimTakenOverDuringItsTick
+    and TestSharedPostgresCancellationReplaysItsJournaledRequestTime (workflow and audit), and the
+    retained fairness, wake, batch and replay suites (for example TestPostgresControllerSecondAuditProgressesBesideALargeDrain,
+    TestPostgresControllerDrainBatchStopsAtALostClaim, TestPostgresControllersConvergeWithoutDuplicateExecutionAttempts,
+    TestSharedPostgresNativeEightMembersRecoverLostResponsesAndRestart and TestSharedPostgresNativeBatchAdmissionTwoCoordinatorsDoNotOverfill).
+  - go test -race -count=1 ./internal/httpapi/public -run Eval passed (coordinator construction in the
+    public API harness).
+  - go test -count=1 ./internal/app/... passed (composition of both controllers with production defaults).
+  - 'Mutation checks on internal/claimpass, each restored before committing: releasing under the pass
+    context failed the join tests of claimpass, both consumers'' fake tests and both real-PostgreSQL
+    cancelled-pass tests; reporting a lost claim on release failed the per-claim failure tests and both
+    takeover tests; handling claims sequentially failed the three concurrency tests. A release triggered
+    concurrently by cancellation is caught only when it runs before the handler ends; the lifecycle calls
+    Release in the handler''s goroutine after Handle returns, which the order checks pin.'
+  - make lint passed, including go vet, staticcheck U1000, testonlyexports, the layer tests through
+    archtest, check_spec, the dependency graph check and check_tasks.
+  - 'Review fixes (2026-10-24, after merging claude/review-v407-v409): the task go test list plus
+    ./internal/claimpass/..., ./internal/scancontroller/..., ./internal/scanstore/... and
+    ./internal/scanservice/... passed; go test -tags integration -race -count=1 ./internal/auditcontroller/
+    ./internal/evalcoordinator/ ./internal/evalservice/ ./internal/claimpass/ passed; go test -race
+    -count=1 ./internal/app/... passed with no skipped test, including the new
+    TestPostgresScanSweepTickReportsADefiniteReleaseFailure (next tick and claim statements) and
+    TestPostgresScanSweepTickToleratesAClaimTakenOverDuringIt; TestReleaseReportsADefiniteFailureAndNotALostClaim
+    and the audit and audit-after-its-revision-moved cases of TestSharedPostgresCancellationReplaysItsJournaledRequestTime
+    passed; make lint passed.'
+  - 'Review-fix mutation checks, each restored: the previous controller (release errors discarded)
+    failed TestPostgresScanSweepTickReportsADefiniteReleaseFailure with a nil error; the previous
+    unwrapped first release statement failed it by rendering the database message; treating a lost
+    claim as a failure failed TestPostgresScanSweepTickToleratesAClaimTakenOverDuringIt.'
+  database_tests_configured: true
+  evidence: >-
+    No sleeps or elapsed-time assertions: the join tests hold handlers on channels past the pass's
+    cancellation, the pacing tests drive the Run loops through injected clocks that record each wait,
+    and the concurrency tests use a meeting barrier whose operation budget only turns a sequential
+    implementation into an error.
+  declined:
+  - >-
+    Planner clock injection and moving the durable sweep controller onto claimpass.Run (see decisions).
+implementation_commit: 62d5e1c5d51c24f8a5d3bff86050e3d28b64d724

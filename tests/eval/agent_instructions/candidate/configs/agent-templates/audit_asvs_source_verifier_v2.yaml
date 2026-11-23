@@ -1,0 +1,26 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: audit_asvs_source_verifier
+  version: "2"
+
+spec:
+  description: Evaluates one exact ASVS requirement under its immutable evidence contract
+  runtime: adk@1
+  instructions:
+    ref: instructions/audit-asvs-source-verifier-worker-v2.md
+  modelPolicy: domain_worker@2
+  toolsets:
+    - ref: run-artifacts@1
+      tools: [read_artifact, write_artifact]
+    - ref: source-analysis@1
+      tools: [open_source_archive, list_source_files, read_source, search_source]
+    - ref: security-findings@1
+      tools: [finding]
+    - ref: audit-results@1
+      tools: [read_audit_task, submit_check_result]
+  skills:
+    - namespace: skills
+      name: trace
+  sandboxProfile: local-workdir@1

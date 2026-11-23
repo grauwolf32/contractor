@@ -1,0 +1,243 @@
+package credentials
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func TestPostgresCredentialRepositoryEncryptedImmutableLifecyclePrimitives(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedCredentialPool(t, ctx, databaseURL)
+	repository := NewRepository(pool)
+
+	if count, err := repository.CountCredentials(ctx); err != nil || count != 0 {
+		t.Fatalf("empty credential count = (%d, %v)", count, err)
+	}
+	secret := "sk-postgres-plaintext-must-not-appear"
+	record, cipher := sealedTestRecord(t, "managed-worker", secret)
+	operation := Operation{
+		OperationID: "create:managed-worker:01", IdempotencyKey: "request-01",
+		RequestHash: "sha256:" + strings.Repeat("c", 64), CredentialID: record.CredentialID,
+		Kind: OperationCreate, Phase: OperationPrepared,
+		Request:   json.RawMessage(`{"credentialId":"managed-worker"}`),
+		CreatedAt: record.CreatedAt, UpdatedAt: record.CreatedAt,
+	}
+	unreserved, _ := sealedTestRecord(t, "managed-unreserved", "sk-unreserved")
+	if err := repository.InsertCredential(ctx, unreserved); err == nil {
+		t.Fatal("credential without a create operation was stored")
+	}
+	if err := repository.InsertOperation(ctx, operation); err != nil {
+		t.Fatalf("reserve credential ID with its create operation: %v", err)
+	}
+	if err := repository.InsertCredential(ctx, record); err != nil {
+		t.Fatalf("insert credential: %v", err)
+	}
+	if err := repository.InsertCredential(ctx, record); err != nil {
+		t.Fatalf("idempotent credential insert: %v", err)
+	}
+	if err := repository.VerifyActiveKey(ctx, cipher.KeyID()); err != nil {
+		t.Fatalf("verify active key: %v", err)
+	}
+	wrongCipher, _ := NewTokenCipher(bytes.Repeat([]byte{0x72}, 32))
+	if err := repository.VerifyActiveKey(ctx, wrongCipher.KeyID()); !errors.Is(err, ErrKeyUnavailable) {
+		t.Fatalf("wrong active key error = %v", err)
+	}
+	if count, err := repository.CountCredentials(ctx); err != nil || count != 1 {
+		t.Fatalf("credential count = (%d, %v)", count, err)
+	}
+
+	stored, err := repository.GetCredential(ctx, record.CredentialID)
+	if err != nil || !recordsEqual(stored, record) {
+		t.Fatalf("stored credential = (%+v, %v)", stored, err)
+	}
+	listed, err := repository.ListCredentials(ctx, "", 2)
+	if err != nil || len(listed) != 1 || listed[0].CredentialID != record.CredentialID {
+		t.Fatalf("listed credentials = (%+v, %v)", listed, err)
+	}
+	provider, err := NewEncryptedProvider(repository, cipher)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err := provider.ResolveLLMCredential(ctx, storedCredentialRef(stored), stored.LLMGateway)
+	if err != nil || token.Reveal() != secret {
+		t.Fatalf("resolved persisted credential = (%s, %v)", token, err)
+	}
+
+	var nonce, ciphertext, policy []byte
+	var keyID string
+	if err := pool.QueryRow(ctx, `
+SELECT nonce, ciphertext, gateway_policy::text::bytea, key_id
+FROM llm_credentials WHERE credential_id = $1`, record.CredentialID).Scan(
+		&nonce, &ciphertext, &policy, &keyID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if len(nonce) != 12 || bytes.Equal(ciphertext, []byte(secret)) || bytes.Contains(ciphertext, []byte(secret)) ||
+		bytes.Contains(policy, []byte(secret)) || keyID != cipher.KeyID() {
+		t.Fatalf("unsafe or malformed encrypted row: nonce=%d ciphertext=%d keyID=%q", len(nonce), len(ciphertext), keyID)
+	}
+	encoded, err := json.Marshal(stored)
+	if err != nil || bytes.Contains(encoded, []byte(secret)) || bytes.Contains(encoded, ciphertext) {
+		t.Fatalf("unsafe stored record JSON = (%s, %v)", encoded, err)
+	}
+
+	conflicting := record
+	conflicting.RemoteKeyID = strings.Repeat("b", 64)
+	if err := repository.InsertCredential(ctx, conflicting); !errors.Is(err, ErrConflict) {
+		t.Fatalf("conflicting immutable insert error = %v", err)
+	}
+	reuse := operation
+	reuse.OperationID, reuse.IdempotencyKey = "create:managed-worker:02", "request-reuse"
+	if err := repository.InsertOperation(ctx, reuse); !errors.Is(err, ErrConflict) {
+		t.Fatalf("duplicate reservation error = %v", err)
+	}
+	_, err = pool.Exec(ctx, `UPDATE llm_credentials SET label = 'changed' WHERE credential_id = $1`, record.CredentialID)
+	assertCredentialSQLState(t, err, persistencepostgres.SQLStateCheckViolation)
+
+	other, _ := sealedTestRecord(t, "managed-other", "sk-other")
+	other.RemoteKeyID = record.RemoteKeyID
+	otherOperation := operation
+	otherOperation.OperationID, otherOperation.IdempotencyKey = "create:managed-other:01", "request-other"
+	otherOperation.CredentialID = other.CredentialID
+	if err := repository.InsertOperation(ctx, otherOperation); err != nil {
+		t.Fatal(err)
+	}
+	if err := repository.InsertCredential(ctx, other); !errors.Is(err, ErrConflict) {
+		t.Fatalf("duplicate Gateway remote key error = %v", err)
+	}
+	if err := repository.AbandonOperation(ctx, otherOperation.OperationID, other.CreatedAt); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := repository.InsertOperation(ctx, operation); err != nil {
+		t.Fatalf("idempotent operation insert: %v", err)
+	}
+	conflictingOperation := operation
+	conflictingOperation.RequestHash = "sha256:" + strings.Repeat("d", 64)
+	if err := repository.InsertOperation(ctx, conflictingOperation); !errors.Is(err, ErrConflict) {
+		t.Fatalf("conflicting idempotency key error = %v", err)
+	}
+	gotOperation, err := repository.GetOperationByIdempotency(ctx, operation.Kind, operation.IdempotencyKey)
+	if err != nil || !operationsEqual(gotOperation, operation) {
+		t.Fatalf("stored operation = (%+v, %v)", gotOperation, err)
+	}
+	prepared, err := repository.ListPreparedOperations(ctx, 10)
+	if err != nil || len(prepared) != 1 || prepared[0].OperationID != operation.OperationID {
+		t.Fatalf("prepared operations = (%+v, %v)", prepared, err)
+	}
+	completedAt := record.CreatedAt.Add(time.Minute)
+	if err := repository.CompleteOperation(ctx, operation.OperationID, completedAt); err != nil {
+		t.Fatalf("complete operation: %v", err)
+	}
+	if err := repository.CompleteOperation(ctx, operation.OperationID, completedAt.Add(time.Minute)); err != nil {
+		t.Fatalf("idempotent operation completion: %v", err)
+	}
+	if prepared, err := repository.ListPreparedOperations(ctx, 10); err != nil || len(prepared) != 0 {
+		t.Fatalf("prepared operations after completion = (%+v, %v)", prepared, err)
+	}
+	if err := repository.AbandonOperation(ctx, operation.OperationID, completedAt.Add(time.Minute)); !errors.Is(err, ErrConflict) {
+		t.Fatalf("abandon completed operation error = %v", err)
+	}
+	deleteOperation := operation
+	deleteOperation.OperationID, deleteOperation.IdempotencyKey = "delete:managed-worker:01", "request-02"
+	deleteOperation.Kind = OperationDelete
+	if err := repository.InsertOperation(ctx, deleteOperation); err != nil {
+		t.Fatalf("insert delete operation: %v", err)
+	}
+	_, err = pool.Exec(ctx, `UPDATE credential_operations SET phase = 'abandoned' WHERE operation_id = $1`,
+		deleteOperation.OperationID)
+	assertCredentialSQLState(t, err, persistencepostgres.SQLStateCheckViolation)
+	if err := repository.CompleteOperation(ctx, deleteOperation.OperationID, completedAt); !errors.Is(err, ErrConflict) {
+		t.Fatalf("active/tombstone coexistence error = %v", err)
+	}
+	_, err = pool.Exec(ctx, `UPDATE credential_operations SET request_hash = $2 WHERE operation_id = $1`,
+		operation.OperationID, "sha256:"+strings.Repeat("e", 64))
+	assertCredentialSQLState(t, err, persistencepostgres.SQLStateCheckViolation)
+	_, err = pool.Exec(ctx, `DELETE FROM credential_operations WHERE operation_id = $1`, operation.OperationID)
+	assertCredentialSQLState(t, err, persistencepostgres.SQLStateCheckViolation)
+
+	if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		txRepository := NewRepository(tx)
+		if err := txRepository.DeleteCredential(ctx, record.CredentialID); err != nil {
+			return err
+		}
+		return txRepository.CompleteOperation(ctx, deleteOperation.OperationID, completedAt)
+	}); err != nil {
+		t.Fatalf("atomic active-to-tombstone transition: %v", err)
+	}
+	if _, err := repository.GetCredential(ctx, record.CredentialID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("deleted credential lookup error = %v", err)
+	}
+	if err := repository.VerifyActiveKey(ctx, wrongCipher.KeyID()); err != nil {
+		t.Fatalf("empty active set rejected valid key fingerprint: %v", err)
+	}
+	if got, err := repository.GetOperationByIdempotency(ctx, OperationDelete, deleteOperation.IdempotencyKey); err != nil || got.Phase != OperationCompleted {
+		t.Fatalf("tombstone delete operation = (%+v, %v)", got, err)
+	}
+	reuse.OperationID, reuse.IdempotencyKey = "create:managed-worker:03", "request-reuse-after-delete"
+	if err := repository.InsertOperation(ctx, reuse); !errors.Is(err, ErrConflict) {
+		t.Fatalf("reuse reservation error = %v", err)
+	}
+	if err := repository.InsertCredential(ctx, record); !errors.Is(err, ErrConflict) {
+		t.Fatalf("reuse active insert error = %v", err)
+	}
+	_, err = pool.Exec(ctx, `UPDATE credential_operations SET request = '{}' WHERE operation_id = $1`, deleteOperation.OperationID)
+	assertCredentialSQLState(t, err, persistencepostgres.SQLStateCheckViolation)
+	_, err = pool.Exec(ctx, `DELETE FROM credential_operations WHERE operation_id = $1`, deleteOperation.OperationID)
+	assertCredentialSQLState(t, err, persistencepostgres.SQLStateCheckViolation)
+}
+
+// reserveTestCredential stores the prepared create operation that reserves a
+// credential ID, as the create lifecycle does before it activates a record.
+func reserveTestCredential(t *testing.T, ctx context.Context, repository *Repository, credentialID string, at time.Time) {
+	t.Helper()
+	if err := repository.InsertOperation(ctx, Operation{
+		OperationID: "create:" + credentialID, IdempotencyKey: "reserve-" + credentialID,
+		RequestHash: "sha256:" + strings.Repeat("f", 64), CredentialID: credentialID,
+		Kind: OperationCreate, Phase: OperationPrepared,
+		Request:   json.RawMessage(`{"credentialId":"` + credentialID + `"}`),
+		CreatedAt: at, UpdatedAt: at,
+	}); err != nil {
+		t.Fatalf("reserve credential ID %q: %v", credentialID, err)
+	}
+}
+
+func isolatedCredentialPool(t *testing.T, ctx context.Context, databaseURL string) *pgxpool.Pool {
+	t.Helper()
+	pool := postgrestest.NewPool(t, ctx, databaseURL, postgrestest.Options{})
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
+		t.Fatal(err)
+	}
+	return pool
+}
+
+func storedCredentialRef(record Record) llmgateway.LLMCredentialRef {
+	return llmgateway.LLMCredentialRef{CredentialID: record.CredentialID}
+}
+
+func assertCredentialSQLState(t *testing.T, err error, want string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("SQL succeeded, want SQLSTATE %s", want)
+	}
+	if got := persistencepostgres.SQLState(err); got != want {
+		t.Fatalf("SQLSTATE = %q, want %q (error: %v)", got, want, err)
+	}
+}

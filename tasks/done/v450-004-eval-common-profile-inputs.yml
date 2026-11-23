@@ -1,0 +1,53 @@
+schema_version: "1.0"
+id: V450-004
+title: Render current common AuditProfile inputs in Eval setup
+milestone: ui-journey-usability
+epic: ui
+kind: defect
+introduced_by: V64-010
+priority: P2
+status: completed
+implementation_commit: 6f158637de17f078b339aaa6d0729009eb9a874c
+depends_on: []
+languages: [typescript]
+goal: Choosing a current check type in Eval setup displays its exact required inputs and media types without crashing the form; Workflow inputs retain their existing contract.
+context:
+  authority: User 2026-11-06 assigns V450-001's UI work. Its boundary requires separately recording production defects found while reconciling fixtures; the corrected common profile fixture exposed this second concrete consumer defect.
+  merge_authority: User 2026-11-06 explicitly authorizes merging codex/ui-browser-contracts into main.
+  specification: [docs/spec/ui/ui.md#UI-R196, docs/spec/audits/common-contract.md#ACT-R1]
+  finding: ui/src/routes/evals/variants.tsx:135 calls slot.mediaTypes.join for both Workflow and AuditProfile inputs. V64-010 (0b037b4c3) moved the latter to common media_types. A strict valid profile response now crashes the page immediately after choosing the A check family; two built browser cases at 390/1280px reproduce this with the corrected fixture.
+  siblings: Workflow inputs continue to use mediaTypes. The shared UI fixture must serve current common profiles and matching source ZIP inputs; strict API validation remains enabled. Other Library/check type consumers already read media_types.
+  boundary: The API owners retain their distinct Workflow and common AuditProfile contracts. This component projects the explicitly selected kind into its local display model; no compatibility fallback, API schema or authoritative validation changes.
+scope:
+  in:
+    - Adapt common profile input slots at the existing Eval variant read boundary and retain exact ref, required/optional labels and media type display.
+    - Unit coverage for both contract kinds, full Eval package tests, built setup journeys and a patch release bump.
+  out:
+    - Backend/CLI changes, new Eval preparation semantics, schema relaxation, legacy profile readers or unrelated UI design work.
+acceptance_criteria:
+  - id: A1
+    text: A valid common AuditProfile response displays its source input and media_types with the selected exact definition; setup remains usable through dataset selection, draft/reload and explicit preparation/start.
+  - id: A2
+    text: Workflow inputs still display mediaTypes; neither kind uses fallback fields and strict response validation remains unchanged.
+  - id: A3
+    text: The regression is reproduced on the original product by both Audit setup browser cases; corrected unit/package, type/lint and focused browser tests pass with no skips or flaky retries.
+tests:
+  - command: cd ui && corepack pnpm test --run src/routes/evals src/routes/evals-setup.test.tsx
+    covers: [A1, A2, A3]
+  - command: >-
+      node --input-type=module -e 'import { runBrowserGate } from "./ui/server/browser-gate.mjs";
+      await runBrowserGate("eval-common-inputs", "Eval common inputs", ["e2e/evals-setup.spec.ts"]);'
+    covers: [A1, A2, A3]
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2, A3]
+verification:
+  results:
+    - Both built Audit setup cases reproduced the original page crash after a valid common profile was selected at 390/1280px; Workflow cases remained successful.
+    - After the explicit kind-specific projection, all six built setup journeys passed, including Audit/Workflow, reload, explicit controls, ambiguous Start replay and private review material isolation.
+    - The entire Eval UI package plus root setup suite passed 104 tests across 20 files. New component cases exercise strict current AuditProfile media_types and unchanged Workflow mediaTypes.
+    - make ui-verify passed generation checks, lint, both typechecks, 213 test files with 2409 passing tests and one declared expected failure, 17 static-server tests and production build. Task/spec checks passed.
+  delivery: Merged into local main with V450-001 through the user-requested no-fast-forward integration on 2026-11-06. UI release 0.11.16; no API, CLI or persistence changes.

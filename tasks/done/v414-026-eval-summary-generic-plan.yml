@@ -1,0 +1,277 @@
+schema_version: "1.0"
+id: V414-026
+title: "Reduce the Eval experiment list to its Project filter and bound its pages by page size"
+milestone: review-v407-v409-followups-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-005
+priority: P2
+status: completed
+depends_on: [V414-017]
+languages: [go, sql, typescript, python]
+goal: >-
+  The managed Eval experiment list returns the newest experiments in all of
+  the owner's Projects or in one selected Project, takes no other filter, and
+  reads a number of experiments proportional to the page size in custom and
+  generic plans, with unchanged order, membership, revision check and cursor.
+context:
+  review: >-
+    tasks/done/v409-007-dead-and-redundant-indexes.yml (merged from
+    claude/review-v407-v409): the eval_experiments_owner_page_idx finding and the declined
+    note ("the eval summary pages' generic plans read all of the owner's
+    experiments with or without the dropped index, the optional-filter
+    class").
+  decision: >-
+    2026-10-24, the user decided: the Eval experiment list becomes "the
+    newest experiments in all Projects, or in one selected Project". Keep
+    the projectId filter, newest-first order (created_at DESC,
+    experiment_id DESC) and keyset pagination. Remove the state, datasetId
+    and controlMode filters through every layer, so the complexity really
+    leaves the system: UI controls and URL parameters, the UI API module,
+    the OpenAPI listEvalExperiments query parameters, the handler
+    (internal/httpapi/public/eval_handlers.go), evalservice and the
+    evalstore SQL. Hiding the UI controls alone is not enough. Rows and
+    cards keep showing state, dataset and control mode. This leaves four SQL
+    shapes (Project selected or not, cursor present or not), all served by
+    the existing created-order indexes eval_experiments_owner_created_page_idx
+    and eval_experiments_project_created_page_idx; no index is added.
+    Reversal condition: bring back a state filter only for a concrete
+    workflow that needs it, and only with an (owner_id, state, created_at
+    DESC, experiment_id DESC) index, so its page stays bounded in both plan
+    modes.
+  api_exception: >-
+    The user explicitly approved, on 2026-10-24 through the delivery
+    coordinator, breaking the additive-only /v1 rule (AGENTS.md 3.1 step 4,
+    docs/spec/api/public-api.md, UI-R5 to UI-R7 in docs/spec/ui/ui.md) for
+    this removal, because the project is pre-production and has no external
+    clients. The UI and the Server change in the same commit, so the release
+    stays coordinated.
+  specification:
+    - docs/spec/evals/managed-evals.md#EVM-R210
+    - docs/spec/evals/managed-evals.md#EVM-R217
+    - docs/spec/platform/limits.md (LIM-EVM-14, LIM-EVM-15, LIM-EVM-17)
+    - docs/spec/platform/persistence.md#PER-R21
+  severity: medium
+  finding: >-
+    internal/evalstore/public_read_sql.go:29-61 (summaryPageSQL, called by
+    Store.SummaryPage in public_read.go:116-127) filters with
+    ($2 = '' OR project_id = $2), ($3 = '' OR state = $3),
+    ($4 = '' OR dataset_id = $4), ($5 = '' OR control_mode = $5) and
+    ($6::timestamptz IS NULL OR (created_at, experiment_id) < ($6, $7)). The
+    statement is the same at 19f7477f and after merging V409-007, which drops
+    eval_experiments_owner_page_idx in migration 000039. V409-007 measured
+    it on 3 owners x 3,000 experiments (4 Projects, 1% paused, 1% and 10%
+    external, half naming one of 80 datasets): custom plans read 51 per page
+    through the created-order and filtered page indexes, but generic plans
+    read all of the owner's 3,001 experiments, before and after dropping
+    eval_experiments_owner_page_idx, because no optional predicate can become
+    an index condition and the keyset cursor sits behind IS NULL OR. The
+    Server uses pgx's default statement cache, so PostgreSQL may switch to
+    the generic plan after five executions. Experiments per owner have no
+    limit, so the read grows with the owner's whole Eval history while the
+    page is at most 100 (LIM-EVM-15).
+  siblings: >-
+    comparison_pages_sql.go optional filters ($4 suite, $5 or $6 subset, $10)
+    run inside one experiment and generation (bounded by the experiment's
+    members, LIM-EVM-3) after V409-014: ruled out. datasetPageSQL has no
+    optional filter. The allocation-history page has the same class and its
+    own task (V414-025). Other optional-filter statements in auditstore,
+    artifacts, runstore and projectstore are not measured here; the exit
+    task V414-027 records their disposition.
+  overlap: >-
+    The same statement's details CTE casts stored bytes to jsonb
+    (public_read_sql.go:42-43), which the NUL-escape task (V414-017)
+    changes or makes safe. Land that task first so both do not rewrite
+    summaryPageSQL concurrently; this task depends on it.
+  provenance: >-
+    The optional-filter predicates first appear in
+    d4c4e8854d73fe44f52c8b3f6d461cfc56dcbcc1 (V38-003, internal owner list)
+    and the public summary page that keeps them was added in
+    bb3c3bdbe6f3001728f32dec106f6832351fc079 (V38-005 implementation_commit).
+    V365-003 (16b29c9f) only moved the SQL into public_read_sql.go.
+scope:
+  in:
+    - >-
+      Remove the state, datasetId and controlMode query parameters of
+      GET /v1/eval-experiments end to end: the UI list route's controls and
+      URL parameters, the UI API module, scripts/sync-eval-openapi.py and the
+      OpenAPI document it writes, the regenerated UI and Go clients, the
+      handler, evalservice and evalstore (SummaryPageParams and the SQL).
+    - >-
+      Build summaryPageSQL in Go as one of four statements (Project selected
+      or not, cursor present or not) without an optional predicate, so the
+      Project filter and the keyset cursor on (created_at, experiment_id)
+      are index conditions in custom and generic plans.
+    - >-
+      Drop eval_experiments_state_page_idx, eval_experiments_dataset_page_idx
+      and eval_experiments_control_page_idx in a new migration, after
+      EXPLAIN shows that no other production statement and no foreign key
+      probe reads them.
+    - >-
+      Real PostgreSQL plan regressions with explaintest.ExplainPrepared in
+      Custom and Generic modes and Analysis.Reads budgets derived from the
+      page size, for the four shapes at the first page and at a deep cursor.
+    - >-
+      Spec (EVM list requirements, the API table), UI list tests and
+      Playwright specs, handler, service and store tests.
+  out:
+    - "New indexes (the reversal condition above names the one a returning state filter needs)."
+    - "The jsonb cast of stored setup and summary (V414-017)."
+    - "Comparison pages, chart reads and the projection model."
+    - "The allocation-history page (V414-025), which follows the choice recorded here unless its evidence differs."
+failure_outcomes:
+  - operation: "Eval experiment summary page read"
+    permanent: >-
+      eval_invalid (422) for bad parameters, now including the removed
+      state, datasetId and controlMode parameters, which the existing strict
+      query rule rejects like any undeclared parameter; eval_view_changed
+      (409) on a stale revision
+    retryable: "unchanged: storage_transaction_conflict and unavailable stay the documented 503"
+    ambiguous: "not applicable: read-only statement"
+    cancelled: "request context cancels the query"
+    timeout: "the existing statement timeout owns it"
+acceptance_criteria:
+  - id: A1
+    given: "an owner with at least 3,000 experiments in several Projects, states, datasets and control modes, plus other owners"
+    when: "a page of 26 (limit 25 plus one) is read in each of the four shapes (no filter or the Project filter, first page or deep cursor) in Custom and Generic plans"
+    then: "Analysis.Reads of eval_experiments stay within a budget derived from the page size, not the owner's total."
+  - id: A2
+    given: "the same fixture"
+    when: "the owner's list without a filter and with the Project filter is paged to the end and compared with the old statement"
+    then: "items, order, membership, cursor positions, hasMore, revision and the eval_view_changed outcome are identical."
+  - id: A3
+    given: "the old statement"
+    when: "the A1 Generic-plan budget runs against it"
+    then: "it fails (V409-007 measured 3,001 experiment reads per generic page)."
+  - id: A4
+    given: "a request to GET /v1/eval-experiments that still sends state, datasetId or controlMode"
+    when: "the handler reads its query"
+    then: "it answers what every Eval handler answers for an undeclared query parameter (the strict exactQuery rule: 422 eval_invalid), and reads no store."
+decisions:
+  - >-
+    Statement shapes chosen in Go, not pgx.QueryExecModeExec. Guarantee:
+    summaryPageQuery returns one of four statements (every Project or one,
+    first page or after the cursor) whose page selection holds only the
+    predicates it needs, so the Project and the cursor are index conditions
+    of eval_experiments_owner_created_page_idx and
+    eval_experiments_project_created_page_idx in custom and generic plans
+    (26 experiment reads for a page of 26 in all eight cases on 3 owners x
+    3,000 experiments). QueryExecModeExec was rejected: it bounds the page
+    only while no session forces generic plans (plan_cache_mode), plans
+    every request, and leaves the class in the statement where the
+    explaintest Generic budget still fails. Created-order indexes for the
+    state, dataset and control-mode filters were rejected by the user: no
+    workflow needs those filters, and each index would be maintained on
+    every experiment write. Reversal: a returning filter comes with its own
+    (owner_id, column, created_at DESC, experiment_id DESC) index. V414-025
+    has the same choice for the allocation-history page and follows "shapes
+    chosen in Go" unless its evidence differs.
+  - >-
+    A4 follows the existing rule: evalQuery calls exactQuery, which rejects
+    any undeclared query parameter, so state, datasetId and controlMode now
+    answer 422 eval_invalid (not retryable) before any store call, like
+    unknown=x did. The UI's Eval fixture enforces the same rule for the list
+    (limit, cursor, projectId), so a UI test fails if the UI sends a removed
+    filter, including from an older link that still carries one.
+  - >-
+    Index drop evidence (migration 000040). A scan of every production
+    statement that reads eval_experiments found predicates on state,
+    dataset_id or control_mode only in the summary page and in claimStatement
+    (state, without owner_id); the Project fence trigger
+    (contractor_eval_fence_project) tests state without owner_id. EXPLAIN
+    ANALYZE on 3 owners x 3,000 experiments with the three indexes present,
+    custom and generic plans alike: claimStatement reads the active and
+    paused states through eval_experiments_claim_active_idx and
+    eval_experiments_claim_paused_deadline_idx (1,800 reads); ProjectBlocked
+    and the (owner_id, project_id) foreign key probe read
+    eval_experiments_project_page_idx (750); purgeProjectSQL and the fence
+    trigger's selection scan the table (3,002 and 9,000); the dataset
+    revision foreign key probe reads eval_experiments_dataset_revision_idx
+    (75). None used eval_experiments_state_page_idx,
+    eval_experiments_dataset_page_idx or eval_experiments_control_page_idx.
+  - >-
+    TestSharedPostgresIndexConsolidationKeepsGuarantees compared the whole
+    catalog after ApplyMigrations, so any later migration that changed an
+    index would have failed it. It now applies migrations only through its
+    own (applyMigrationsThrough); the new
+    TestSharedPostgresEvalExperimentListIndexesDropOnlyTheFilterIndexes
+    checks the same way that 000040 drops exactly the three indexes and keeps
+    the created-order and foreign-key probe indexes and every constraint.
+  - >-
+    UI: the "Filter experiments" disclosure keeps one field, Evaluation
+    workspace; "Clear filters" is gone because All workspaces clears the only
+    filter, and the empty state names the workspace. EVAL_STATES lost its
+    only production caller (the Lifecycle options) and is removed (AGENTS
+    3.7); EVAL_STATE_LABELS is no longer exported, its Record type still
+    gives every generated state a label, and the OpenAPI conformance test
+    ties the Experiment, Summary and Receipt state enums to
+    api/testdata/evals/lifecycle-states.json directly.
+  - >-
+    Out of scope, reported for V414-027: purgeProjectSQL's first EXISTS and
+    the Project fence trigger's UPDATE scan eval_experiments (3,002 and 9,000
+    rows on this fixture), once per Project purge pass and per Project
+    deletion. Neither reads the dropped indexes.
+tests:
+  - command: >-
+      CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a
+      disposable PostgreSQL URL}" go test -count=1 ./internal/evalstore/...
+      ./internal/evalservice/... ./internal/httpapi/public/...
+    covers: [A1, A2, A3, A4]
+  - command: make verify-public-api
+    covers: [A4]
+  - command: make ui-verify
+    covers: [A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+implementation_commit: a3fd14805e5c207344a5b4334983ec7c32ca621a
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with pnpm and
+    Playwright Chromium, the locked Runtime venv; local PostgreSQL 17.11
+    database contractor_test_v414_evals with per-test schemas and all 40
+    migrations; branch claude/v414-evals with main c73ec319 merged (7a8bdcaf).
+  commands:
+    - >-
+      go test -count=1 ./internal/evalstore/... ./internal/evalservice/...
+      ./internal/httpapi/public/... with CONTRACTOR_TEST_DATABASE_URL passed
+      (evalstore 35 s, evalservice 35 s, httpapi/public 88 s, public/events
+      4 s), including TestPostgresEvalSummaryPagesReadPageSizedRows (A1, A2,
+      A3: 26 experiment reads for a page of 26 in all four shapes at the
+      first page and at a deep cursor, custom and generic plans; the replaced
+      statement read 3,000 at the deep cursor in the generic plan for both
+      shapes; every page of the owner's 3,000 and of one Project's 750
+      experiments returned the same revision and bytes as the replaced
+      statement, the same order as an independent read, and a stale revision
+      answered eval_view_changed), TestSummaryPageQueryHasFourShapes and
+      TestSharedEvalPostgresBoundedCollectionsRejectStaleAndForeignCursors
+      (A4: state, datasetId, controlMode, projectId with state, and an empty
+      projectId each answer 422 eval_invalid, not retryable).
+    - >-
+      go test -tags=integration -count=1 ./internal/evalstore/...
+      ./internal/evalservice/... ./internal/httpapi/public/...
+      ./internal/persistence/... ./internal/app/... passed (evalstore 56 s,
+      evalservice 60 s, httpapi/public 96 s, persistence/postgres 51 s with
+      TestSharedPostgresEvalExperimentListIndexesDropOnlyTheFilterIndexes and
+      TestSharedPostgresIndexConsolidationKeepsGuarantees, app 33 s).
+    - make verify-public-api passed.
+    - >-
+      make ui-verify passed: generate check, lint, typecheck, 196 test files
+      with 2,387 tests and 1 expected failure, 17 server tests, build.
+    - >-
+      make ui-browser-mocked passed: 91 browser tests across 23 specs,
+      evals-design at 390 and 1,280 px among them.
+    - make lint passed.
+    - >-
+      Can-fail checks (temporary edits, reverted): declaring state again in
+      the handler made the A4 case answer 200 and the test fail; forwarding
+      state from the URL in the UI list made "does not send the removed
+      filters of an older link" fail against the fixture's 422.
+    - >-
+      After merging main c73ec319 (task files only): go build ./..., the
+      summary page, handler and migration catalog tests above,
+      scripts/check_tasks.py and scripts/check_spec.py passed.
+    - >-
+      make docs-erd regenerated docs/spec/database-erd.html for migration
+      000040. make test-wire-cross-language was not run: no shared fixture
+      changed.

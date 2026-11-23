@@ -1,0 +1,86 @@
+schema_version: "1.0"
+id: V429-037
+title: Restore reviewed UI fidelity and stable context navigation
+milestone: ui-journey-usability
+epic: ui
+kind: defect
+introduced_by: V64-002
+priority: P2
+status: completed
+implementation_commit: 3addd3d3ab5d64a520682ae277274fae5723dc66
+depends_on: []
+languages: [typescript, css, markdown]
+goal: The main demo journeys retain the reviewed design, compact real-data presentation and stable context selection on current contracts.
+context:
+  main_merge_authority: User 2026-11-07 explicitly requests merging the completed UI polish into current main.
+  authority: >-
+    User 2026-11-07 requested comparing the major demo journeys with the preserved
+    OpenDesign references, then authorized polishing the observed differences and
+    showing a preview. The same-day follow-ups request correcting selection jumps across contexts including OpenAPI, reviewing demo details, and deploying the finished UI while the user is AFK. Preserve all original OpenDesign data and current APIs.
+  specification: [docs/spec/ui/ui.md]
+  design: [docs/design/ui/README.md, ui/src/ui/README.md]
+  finding: >-
+    ui/src/routes/checks/start/check-types.ts:138 and :430 reduce OWASP names/icons and scope to generic text after 9e803f2fc; scope.tsx:42 shows endpoint preparation for source-only checks. assertion-material-editor.tsx:107 replaces the reviewed one-empty-item composer with a large multiline form after V64-012.
+  related_origins: >-
+    V64-012 replaced assertion authoring; V429-003 introduced unbounded Project material presentation; V429-028 introduced the cramped configured-key Facts; V429-019 remounted Scalar by operation. These are presentation corrections in one UI release.
+  siblings: >-
+    Type chooser, selected type header, summary and scope must use one presentation definition. Existing exact input selection, partial pages, retries, create-only checklist material retention and context cancellation stay with their current owners.
+  boundary: >-
+    React presentation owns this correction. Existing public clients, exact Artifact
+    identities, mutation/CAS owners and common Audit assertions remain authoritative.
+    No backend, model call, legacy codec or demo business-data mutation is needed; the verified UI service is deployed independently.
+scope:
+  in:
+    - Restore concise known-profile names and distinct shared glyphs, keeping unknown profiles truthful.
+    - Remove generic source-only Scope and describe selected API/target/policy materials without invented endpoint counts or new automatic reads.
+    - Present one empty assertion row, explicit Add/remove, shared rationale and optional advanced conditions/evidence/version using the current assertion schema and retention owner.
+    - Retain stable item keys through edits/removals; preserve draft/error/busy/context fences and add actual-route/browser regression coverage.
+    - Update superseded UI requirements/README and patch release; show current components on the verified demo UI.
+    - Shorten only displayed long Project material references while preserving exact accessible identities, revisions, links and all rows; cover Timeline and pickers.
+    - Give the configured Settings SSH fingerprint a wide row with readable secondary metadata, keeping copy and existing credential owners unchanged.
+    - Keep Scalar mounted across operation changes and stabilize document, pane and API-navigation scrollbar geometry; preserve explicit anchors/mobile focus.
+    - Add real-browser long-name, configured-key and selection-continuity regressions and perform a reversible UI-only demo deployment after verification.
+  out:
+    - Backend/API changes, new live-model generation, changing original design files or demo business data.
+acceptance_criteria:
+  - id: A1
+    text: Known check types use readable labels and distinct shared icons; source-only checks have no separate Scope; any API scope describes exact selected inputs without claiming execution coverage.
+  - id: A2
+    text: Checklist authoring starts with one blank item, keeps stable keys and current required fields, saves exact common assertion material only on explicit Save, preserves failures/drafts and never starts an Audit implicitly.
+  - id: A4
+    text: Project long-name links and Timeline stay compact with exact identities; the configured Settings key uses a readable fingerprint row without altering credential behavior.
+  - id: A5
+    text: Selecting API operations keeps the renderer and outer scroll stable; context lists retain position and width across delayed details; explicit anchors and mobile navigation still work.
+  - id: A6
+    text: A verified reversible UI-only release is deployed to demo, with current Server, Runtime, models and business data retained and the actual main journeys inspected.
+  - id: A3
+    text: Actual route/browser regressions cover the correction, shared typography and 390px light/dark/black layouts; original archive hashes remain unchanged.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make ui-browser-mocked
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5, A6]
+verification:
+  results:
+    - VITEST_MAX_WORKERS=2 make ui-verify passed generated checks, lint, typecheck, 215 test files (2431 passed and one intentional expected failure), server tests and the production build.
+    - make ui-browser-mocked passed all 188 browser tests across 30 specs, including the new check composer, exact long material links, 40-row delayed context selection, three themes and narrow readers. A stronger populated-key/Project rerun passed 21 cases across two specs; make ui-gates ui-build passed on the final UI source.
+    - make lint passed the full repository gates. Task/spec validation and git diff --check passed after the final UI changes.
+    - Live demo review covered Project, New check, OpenAPI with 124 operations, Run, Audit, Inbox, Issues, Operations and configured SSH-key Settings at desktop and 390px. Normal OpenAPI clicks preserved outer scroll and list geometry; Inbox selection retained its 360px list and scroll position. No browser errors were observed. The live Issues list is empty; populated issue details were verified by the API-mocked gate.
+    - UI 0.11.19 was deployed independently to http://127.0.0.1:4174 from implementation commit 3addd3d3ab5d64a520682ae277274fae5723dc66. Served HTML/assets and old/new release hashes were verified; the complete previous UI was retained for rollback. Server and Runtime remain on 1142c2681d6520baa8c04bb0a90ca8fd224deb29; non-UI process IDs, configured model and business data were retained, with no schema migrations or review mutations.
+    - Original OpenDesign archive SHA-256 remains d3d80bd75e5cc45cf648e64fba6deb8a206943b794529003f3b390e9473877bd. Screenshots and gate logs are retained under .local/ui-design-audit-20261107; the operational deployment record is /Users/ruslan/src/contractor/.local/demo/run/ui-polish-20261107T072614Z.json.
+  delivery: Completed, deployed as UI 0.11.19 and merged into local main through the user-authorized no-fast-forward merge 1d2988b80a0244d806f6d609516ae8d1b46eaca5 on 2026-11-07. The independently deployed UI bytes stay unchanged; no further Server, Runtime or database deployment was performed for the Git integration.
+integration_verification:
+  date: "2026-11-07"
+  main_base: b1b22111f4cdf428043eb2306005780b7aa7e353
+  source_branch: codex/ui-design-polish
+  source_head: 17f740be7638826dff7c9fb8f45a1e809977d0ac
+  merged_into_main: true
+  merge_commit: 1d2988b80a0244d806f6d609516ae8d1b46eaca5
+  ancestry: Previous main is the merge first parent and the exact completed UI head is the second parent. Both were verified as ancestors of main; the clean main checkout was fast-forwarded to the prepared merge and the user's primary checkout stayed on its own branch without changes.
+  reconciliation: Only the generated tasks/BACKLOG.md conflicted; it was regenerated from the combined task records. UI files and the public OpenAPI contract are identical to the verified UI 0.11.19 tree. Independent Planner, HTTP fixture, specifications and task changes from current main are retained.
+  ui: VITEST_MAX_WORKERS=2 make ui-verify passed on the integrated candidate, including 215 files, 2431 passing tests, one intentional expected failure, generated checks, lint, typecheck, server tests and production build.
+  lint: UV_OFFLINE=1 make lint passed the complete combined-tree gate using the same cached pinned dependencies. The initial online attempt stopped at a PyPI connection timeout while resolving ansible-core; no code or dependency version was changed to make the retry pass.
+  browser: The 188 passing mocked browser tests and live demo review recorded above apply to identical UI and public-API bytes; browser tests were not repeated for this history-only merge.
+  evidence: .local/ui-design-audit-20261107/main-integration/

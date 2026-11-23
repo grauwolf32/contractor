@@ -1,0 +1,103 @@
+schema_version: '1.0'
+id: V407-008
+title: Align Planner artifact-failure classes and report rejected invocations correctly
+milestone: server-runtime-review-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: MVP-013
+priority: P1
+status: completed
+depends_on: []
+languages:
+- go
+goal: Give deterministic result-reference failures a non-retryable classification and make rejected-candidate
+  invocation metrics agree with the recorded error.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/execution/planners.md
+  validation: 'Revalidated against main dc7012e8 on 2026-10-23. Confirmed by a passthrough probe: ErrArtifactNotFound
+    yielded result_artifact_unavailable, retryable=true and a2a.invoke succeeded=1/failed=0. The report-level
+    Errors array already records the failure.'
+  severity: medium
+  finding: internal/planner/result.go:56-63 and streamline/tools.go:437-441 mark all inspector errors
+    retryable. Scheduler finalization instead treats missing/invalid artifact references and exact-revision
+    mismatch as deterministic (scheduler/stage_finalization.go:144-154). Invalid names are often rejected
+    earlier by result.Validate; a revision mismatch requires a violated inspector/store contract, while
+    the missing exact-reference probe directly reproduced the inconsistent class. passthrough.go:150-155
+    omits invokeFailure on candidate rejection, so finishReport counts a2a.invoke successful (208-227),
+    although the report Errors array still records the error (229-234). Unsorted map traversal in result.go:25,36,47
+    makes the selected rejection nondeterministic when several artifacts fail.
+  siblings: Use a common semantic classification for passthrough candidate validation, Streamline Worker-result/finish
+    validation and Scheduler revalidation without conflating their control flows. Streamline may return
+    a tool rejection and let its Planner continue; it must not be changed into an unconditional Stage
+    abort. Preserve Runtime result assembly.
+plan:
+- Introduce or reuse a typed artifact-verification classification at an allowed shared layer. Distinguish
+  fixed missing/invalid exact references and descriptor mismatch from transient storage failures; do not
+  classify by error-message matching.
+- Apply the same classification in both Planner validators and Scheduler finalization while retaining
+  each caller control flow, codes and retry policy. Test malformed refs rejected before storage as well
+  as typed store failures.
+- Iterate artifact names deterministically and set invokeFailure in the passthrough rejected-candidate
+  branch so a2a.invoke metrics, tool record and span agree with the existing report-level error.
+- Document planner/internal failure codes in their owning registry/spec surface. Verify how docs/spec/platform/errors.md
+  is generated before changing it; do not invent unused public HTTP API errors merely to populate that
+  table.
+- 'Add tests using the real passthrough path, Streamline tool flow, Scheduler finalization and a PostgreSQL-backed
+  artifact inspector: missing reference is deterministic, injected storage failure is retryable, and rejected
+  candidates produce one failed invocation metric.'
+scope:
+  in:
+  - Consistent semantic artifact-error classification across Planner and Scheduler boundaries.
+  - Correct rejected-candidate metrics, deterministic validation order and production-path regression
+    coverage.
+  out:
+  - Changing on.interrupted retry policy, successful result shapes or Runtime finalization.
+  - Forcing every Streamline tool rejection to terminate its Stage or claiming the whole ExecutionReport
+    currently hides failure.
+  - Adding public API error registrations without a production API caller.
+acceptance_criteria:
+- id: A1
+  text: Missing/invalid exact artifact references and exact-descriptor mismatch receive the same non-retryable
+    semantic class in both Planner validators and Scheduler validation; transient store errors remain
+    retryable. Streamline retains its existing tool-rejection/continuation flow.
+- id: A2
+  text: The passthrough rejected-candidate path records a2a.invoke Calls 1, Succeeded 0 and Failed 1,
+    a failed tool record and the existing report-level error without duplicating the invocation.
+- id: A3
+  text: Given multiple invalid artifacts, deterministic name order selects the same rejection across runs.
+    The owning planner/error documentation describes the actual exposed classes without unused public
+    API codes.
+- id: A4
+  text: Regression tests for missing-artifact retryability and the incorrect metric fail before the fix;
+    PostgreSQL-backed inspector tests and existing retry/continuation suites pass.
+tests:
+- command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/planner/...
+    ./internal/scheduler/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+implementation_commit: ab8ce42549ed394f64c38afb9f9a3120dda18d5d
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with the locked UI dependencies and the locked Runtime venv; local PostgreSQL 17.11 database contractor_test_d with isolated per-test schemas and all migrations.
+  revalidation: 'Re-verified on base ac982d28: internal/planner/result.go marked every inspector error retryable (result_artifact_unavailable) and iterated maps unsorted; internal/planner/streamline/tools.go did the same for Worker results and request artifacts and finish discarded the class; internal/scheduler/stage_finalization.go classified only ErrArtifactNotFound and ErrInvalidName as deterministic and made every summary-artifact lookup failure retryable; internal/planner/passthrough.go left invokeFailure nil on candidate rejection. All claims held.'
+  commands:
+  - 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/planner/... ./internal/scheduler/... passed (planner, a2a, router, scan, session, stageresult, stateview, streamline, scheduler).'
+  - go test -tags=integration -count=1 ./internal/artifacts/... ./internal/archtest ./internal/apierror passed with the database configured.
+  - 'make lint passed (after make docs-dependencies, because planners.md and scheduler.md feed the dependency graph fingerprint, and make tasks-backlog).'
+  - 'Regression evidence: on a temporary worktree at ac982d28 with the new tests copied in, TestValidateCandidateClassifiesResultArtifactVerification, TestValidateCandidateSelectsTheSameRejectionAcrossRuns, TestRecoverCompletionClassifiesResultArtifactVerification, TestPassthroughRejectedCandidateIsOneFailedInvocation (missing artifact code and a2a.invoke metrics), TestStreamlineClassifiesWorkerArtifactVerificationAndContinues, TestPostgresResultArtifactVerificationClassifiesMissingAndUnavailable, TestResultArtifactVerificationVerdictMatchesPlanner, TestSummaryArtifactVerificationKeepsItsClass and the new inexact-answer case of TestCandidateArtifactLookupErrorsKeepTheirMeaning failed; TestStreamlineFinishRejectionKeepsVerificationClass failed with the finish change reverted. All pass after the fix.'
+  - 'An intermediate run showed 35 filesystem-blob-backend failures in internal/artifacts and internal/scheduler (invalid artifact blob directory: artifact blob storage I/O failed); the identical failure set reproduced on the unmodified base worktree, and the final run of the same suites passed completely.'
+  database_tests_configured: true
+  siblings: 'Applied the shared artifacts.IsExactReferenceRejection to Passthrough and scan candidate validation and recovery (planner.ValidateCandidate/RecoverCompletion), Streamline and Router Worker request, Worker result and finish validation, Scheduler result and summary revalidation, ArtifactServiceResolver inexact answers and the StageContext pin check of commitNextStage. Ruled out: planner/scan report.go job-status mapping (scan coverage vocabulary, not a Planner retry class; owned by V407-001), and evalstore, auditimport, findingintake and auditcontroller artifact classifications (other domains with their own outcome vocabularies, outside the Planner/Scheduler boundary).'
+  review_followup: 'Review found PLN-R118 and PLN-R119 claiming more than the code does. Fixed in the spec (ab8ce425; code fix f1f4ed77 unchanged): PLN-R119 now states that the a2a.invoke call keeps the Planner''s verdict on the invocation when the later session write fails, and the report-level error becomes planner_session_unavailable (defined in PLN-R106, added to the error list and registry); TestPassthroughSessionWriteFailureKeepsInvocationVerdict covers accepted, rejected and unverifiable candidates followed by a failed write. PLN-R118 limits Worker request verification to the Streamline and Router current-subtask step (PLN-R42); Passthrough sends the Scheduler-resolved Stage request (SCH-R15). Re-ran go test -tags=integration ./internal/planner/... ./internal/scheduler/... against contractor_test_d (0 skips) and make lint: pass.'
+  declined: 'No public API error codes were added (A3); the new codes live in the assembled Other error and stop codes table only. on.interrupted retry policy, successful result shapes and Runtime finalization are unchanged (scope.out).'

@@ -1,0 +1,44 @@
+// Shared V3B building blocks. Styles: ./ui.css (imported from src/main.tsx).
+// API and examples: ./README.md.
+export type { StatusTone } from "../app/status-tone";
+
+export {
+  PaneLayout,
+  ListPane,
+  DetailPane,
+  DetailHeader,
+  type BreadcrumbItem,
+} from "./panes";
+export {
+  ListSection,
+  ListRow,
+  FilterChips,
+  type FilterChipOption,
+} from "./list";
+export {
+  StatusGlyph,
+  StatusChip,
+  ProgressSegments,
+  type ProgressSegment,
+} from "./status";
+export { MethodChip, Kbd, IdChip } from "./chips";
+export { LabelsEditor, type LabelEntry } from "./labels-editor";
+export {
+  TechnicalDetails,
+  ActivityLog,
+  EmptyState,
+  type ActivityEntry,
+} from "./content";
+export { DecisionBar } from "./decision-bar";
+export {
+  useShortcuts,
+  useListNavigation,
+  isApplePlatform,
+  modKeyLabel,
+  type ListNavigationContainerProps,
+} from "./shortcuts";
+export { shortenId } from "./format";
+export { Button, IconButton, ButtonLink } from "./button";
+export { AlertDialog } from "./alert-dialog";
+export { Facts } from "./facts";
+export { Field } from "./field";

@@ -1,0 +1,80 @@
+schema_version: "1.0"
+id: V372-004
+title: "Read the Audit reconcile snapshot through persistencepostgres.Within"
+milestone: hub-audit-defects-2026-10
+epic: audits
+kind: defect
+introduced_by: V370-022
+priority: P3
+status: completed
+implementation_commit: "87e5622752bacde6e9ae3252410757709a414278"
+depends_on: []
+languages: [go]
+goal: "The reconcile snapshot and the start staging lock use the one pool-or-transaction rule of PER-R18: no store branches on its handle's type at run time."
+context:
+  review: "Coordinator follow-up to V370-018 and V370-022 on the integration branch @ fc25b5d"
+  severity: low
+  specification:
+    - docs/spec/platform/persistence.md#PER-R18
+    - docs/spec/audits/execution.md#AUX-R95
+    - docs/spec/audits/audits.md#AUD-R225
+  finding: >-
+    internal/auditstore/read.go:651 (GetReconcileSnapshot) branches on
+    s.db.(*pgxpool.Pool) to choose between persistencepostgres.InTx with the
+    read-only REPEATABLE READ snapshotTransaction and the caller's
+    transaction. V370-018 made persistencepostgres.Within the one helper for
+    stores that serve both a pool and a caller's transaction (PER-R18), with
+    the acceptance that no such type check remains; V370-022 added this one
+    in parallel and it was missed. No test pinned the one-snapshot guarantee
+    of AUX-R95 on either handle.
+  siblings: >-
+    internal/auditstore/start_staging.go:19 (LockForStartStaging, added by
+    V370-027 in parallel with V370-018) refused a pool at run time with
+    s.db.(pgx.Tx). Its FOR KEY SHARE lock must last until the caller
+    commits, which is the lock-holding step of PER-R18; V370-018 enforces
+    that rule at compile time by putting such steps only on the
+    transaction-bound store built by a tx-only constructor
+    (auditstore.NewPostgresTxStore), not by a run-time check, so this task
+    moves the method there and removes the check (the rule is kept, the
+    mechanism becomes the intended one). Ruled out:
+    internal/artifacts/blob_context.go:178 (discardUnusedBlob) branches on
+    pgx.Tx to delay a blob unlink until an externally owned transaction
+    commits; that is cleanup timing, not a transaction requirement, as
+    V370-018 recorded. internal/persistence/postgres/tx.go (Within) and
+    savepoint.go are the helpers themselves. No other s.db.(...) type check
+    on a pool or transaction remains in internal/ or cmd/.
+  decision: >-
+    Guarantee: on a pool, GetReconcileSnapshot runs in one read-only
+    REPEATABLE READ transaction through Within (InTxWithRetry); such a
+    transaction takes no locks and cannot fail with a serialization
+    conflict, so the retry never triggers and the snapshot stays one commit
+    (AUX-R95). In a caller's transaction it runs inside that transaction,
+    whose isolation level the caller owns, as before. Evidence: a
+    PostgreSQL test commits a scheduler settings change from another
+    connection right after the snapshot's first statement and requires the
+    snapshot's dispatch window to keep the old value, on a pool and in a
+    caller's REPEATABLE READ transaction; it fails when the statements run
+    without one snapshot. A reflection test requires LockForStartStaging
+    only on the transaction-bound store.
+scope:
+  in:
+    - "GetReconcileSnapshot through persistencepostgres.Within with snapshotTransaction; the snapshotTransaction comment states why Within's retry never triggers."
+    - "LockForStartStaging only on auditstore.PostgresTxStore, without the run-time check; Audit start uses the transaction-bound store."
+    - "A PostgreSQL regression test of the one-snapshot guarantee on a pool and in a caller's transaction, and a test that the pool-capable store has no start staging lock."
+  out:
+    - "The snapshot's contents and statement count (V370-022)."
+    - "artifacts/blob_context.go cleanup timing."
+acceptance_criteria:
+  - id: A1
+    text: "Given a claimed Audit, when another connection commits a scheduler settings change after the snapshot's first statement, then GetReconcileSnapshot on a pool-backed store and on a store in a caller's REPEATABLE READ transaction both report the dispatch window from before the change."
+  - id: A2
+    text: "No auditstore code branches on its handle's type; LockForStartStaging exists on PostgresTxStore and not on PostgresStore, and Audit start keeps staging under the draft lock."
+  - id: A3
+    text: "The snapshot test fails when the snapshot's statements run outside one transaction."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/auditstore -run 'TestPostgresReconcileSnapshot|TestStartStagingLock'"
+    covers: [A1, A2, A3]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditservice -run 'TestPostgresAuditStart|Staging'"
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2, A3]

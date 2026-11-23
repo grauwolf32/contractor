@@ -1,0 +1,73 @@
+schema_version: "1.0"
+id: V429-033
+title: Keep the Inbox preview focused on actionable queue items
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: completed
+implementation_commit: a9c64ebfbe21d4466663e9145f32dc83eb8e87bc
+depends_on: [V429-032]
+languages: [javascript, typescript]
+goal: The Inbox preview omits the redundant Runs and capacity disclosure while retaining the actionable queue and complete issue/report readers.
+demonstration: Open the revised preview on desktop and mobile, navigate between an issue and a report, and confirm that the capacity disclosure and its optional readers are absent.
+context:
+  authority: User 2026-11-04 considers Runs and capacity unnecessary and says active test approval will be removed soon; account for that during a separately requested future main merge. No merge or approval removal is authorized now.
+  specification: docs/spec/ui/ui.md#UI-R39
+  design: docs/design/ui/README.md
+  boundary: Only the generated preview copy of InboxList changes. Existing Inbox queue/data/navigation and Issues/Reports owners stay authoritative. Production source and native OpenDesign artifacts are preserved.
+scope:
+  in:
+    - Remove the capacity disclosure and its unused optional readers from the latest generated preview list.
+    - Record future merge guidance to reconcile against then-current main and avoid restoring removed active-test approval paths.
+    - Check responsive themes and retain the complete issue/report preview behavior.
+  out:
+    - Main merge, production transfer, current active-test approval removal or API/domain changes.
+requirements:
+  - id: R1
+    text: The latest Inbox preview shows no Runs and capacity disclosure and imports no optional capacity readers; actionable Run rows and navigation remain available.
+  - id: R2
+    text: Existing issue/report readers, queue navigation, themes and mobile Back stay usable; previous native and production sources remain unchanged.
+  - id: R3
+    text: Future main integration must follow a separate user request and reconcile with main without restoring active-test approval if its owner has been removed there.
+failure_outcomes:
+  - operation: Preview generation and reads
+    permanent: Fail preparation if the expected capacity source boundary no longer matches instead of silently retaining the disclosure.
+    retryable: Existing queue/issue/report read and Retry behavior is unchanged.
+    ambiguous: No new mutation or decision is introduced.
+    cancelled: Existing selected-item and query ownership remains unchanged.
+    timeout: No new timeout or external request is introduced.
+cardinality:
+  - collection: Preview queue
+    expected: Existing fixed synthetic Inbox rows.
+    maximum: Existing bounded fixture of twenty-four rows and two report examples.
+    bound: No new collection reads; removing the disclosure also removes its optional Operations and Workflow readers.
+lifecycle:
+  - entity: Preview revision
+    delete: No live data or previous native artifact is deleted.
+    cascade: Only the latest ignored preview list and preparation/verification files change.
+    retention: Prior revisions remain in Git and original OpenDesign files remain unchanged.
+acceptance_criteria:
+  - id: A1
+    text: The preview has no capacity disclosure or optional capacity imports at all supported widths/themes, with no overflow or browser errors.
+  - id: A2
+    text: Full issue/report content, exact downloads, queue navigation and local mutation refusal still pass the browser verification.
+  - id: A3
+    text: Future merge guidance is recorded, no approval owner/production source is changed, and the updated preview opens directly.
+tests:
+  - command: node docs/design/ui/experiments/inbox-inline-report-2026-11-04/verify.mjs
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2, A3]
+  - command: git diff --check
+    covers: [A1, A2, A3]
+verification:
+  results:
+    - Browser verification passed 52 layout/state cases and four Reports parity comparisons, now also asserting absence of the disclosure and optional capacity readers.
+    - Full issue/report content, exact downloads, J/K, mobile Back and local decision refusal passed with no browser errors or live API requests; 168 protected hashes matched.
+    - Task/spec consistency and whitespace checks passed. The updated preview was opened and visibly verified in the in-app browser.
+    - Future active-test approval/main reconciliation is recorded in merge-notes.md; production source and current approval owners remain unchanged.
+  artifact: docs/design/ui/experiments/inbox-inline-report-2026-11-04/verification.json
+  delivery: Committed on codex/inbox-design; main merge awaits the user's separate request.

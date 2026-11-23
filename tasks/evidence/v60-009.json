@@ -1,0 +1,987 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-009",
+  "verified_on": "2026-09-20",
+  "base_commit": "8edeabf21194f5bba8dd258d53a072af713c630e",
+  "implementation_commit": "7c092eea759756c018df25547a8db225014ddda8",
+  "environment": {
+    "base": "8edeabf21194f5bba8dd258d53a072af713c630e",
+    "container": "contractor-v60-deep-review-db",
+    "node_bin": "/home/ruslan/.local/share/pnpm/store/v11/links/@/node/24.20.0/0520f9d6e7528abf408f91c68a98f2ae99c3c1b7765f065d4601595291d3bee2/node_modules/node/bin",
+    "db": "disposable PostgreSQL 17, loopback, random port, isolated schemas",
+    "go": "go1.25.6",
+    "python": "3.13 locked uv",
+    "GOFLAGS": "-p=2 -v",
+    "GOMAXPROCS": 2
+  },
+  "checks": [
+    {
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "./internal/auth",
+        "./internal/httpapi/public",
+        "./internal/mtls",
+        "-run",
+        "ReviewAmbiguous|Login|Cookie|CredentialedCORS|Authentication|SessionLifecycle|SessionRevocation|OriginPolicy|ManagedCredential|RuntimeCredential|Secret|MTLS"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 21.27,
+      "log": ".local/v60-review/v60-009-auth.log",
+      "go_passing_events": 53,
+      "go_skips": [],
+      "summaries": [],
+      "log_sha256": "bd9dc1ffa81576544eaea8820f72392b04121539818f46d276288fe2118a3ace"
+    },
+    {
+      "command": [
+        "make",
+        "test-mtls"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2.12,
+      "log": ".local/v60-review/v60-009-mtls.log",
+      "go_passing_events": 10,
+      "go_skips": [],
+      "summaries": [
+        "5 passed in 0.46s"
+      ],
+      "log_sha256": "bfcc0e974d2b025f5361552cf9ec13a8e756a89b84408424170623ea2459776a"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-tags=integration",
+        "-race",
+        "-count=1",
+        "./tests/integration/restore"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 17.59,
+      "log": ".local/v60-review/v60-009-restore.log",
+      "go_passing_events": 3,
+      "go_skips": [],
+      "summaries": [],
+      "log_sha256": "77d37d3b9438e236fef903d502438a25550d61e2341431622e44df2fd43fb933"
+    },
+    {
+      "command": [
+        "go",
+        "run",
+        "./tools/performancebench",
+        "-repetitions=3",
+        "-http-requests=10000",
+        "-collection-cycles=240",
+        "-profile-seconds=1"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 10.3,
+      "log": ".local/v60-review/v60-009-performance.log",
+      "go_passing_events": 0,
+      "go_skips": [],
+      "summaries": [],
+      "log_sha256": "c348e09a8901410bf310b09068967aa25678c91cbff0070d94d24cf610d82b1e"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-tags=integration",
+        "-race",
+        "-count=1",
+        "./tests/integration/restore"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 13.17,
+      "log": ".local/v60-review/v60-009-restore-final.log",
+      "go_passing_events": 3,
+      "go_skips": [],
+      "summaries": [],
+      "log_sha256": "df92187bbe594d620d05f16dbe9ad8f2691455b4a43f6ee01e75aa54b66314ef",
+      "source_commit": "9cfd09ccfc5517518b3c7491b55bc4c14b56b950"
+    },
+    {
+      "command": [
+        "make",
+        "--trace",
+        "release-verify",
+        "verify-public-api",
+        "test-audits-hardening",
+        "test-findings-e2e",
+        "test-audits-browser",
+        "test-lifecycle-controls-browser"
+      ],
+      "exit_code": 2,
+      "elapsed_seconds": 0.78,
+      "log": ".local/v60-review/v60-final-release-before-format.log",
+      "go_passing_events": 0,
+      "go_skips": [],
+      "summaries": [],
+      "log_sha256": "bba172679b05263e9173b251e9ad089c7c1dc74965508a79ddcd43aaa634f32c",
+      "source_commit": "8c426a747ef69dac9fddc011b33ebca730fde56b",
+      "disposition": "V60-030: pre-existing gofmt mismatch stops lint."
+    },
+    {
+      "command": [
+        "make",
+        "--trace",
+        "release-verify",
+        "verify-public-api",
+        "test-audits-hardening",
+        "test-findings-e2e",
+        "test-audits-browser",
+        "test-lifecycle-controls-browser"
+      ],
+      "exit_code": 2,
+      "elapsed_seconds": 2272.32,
+      "log": ".local/v60-review/v60-final-release.log",
+      "go_passing_events": 6813,
+      "go_skips": [
+        "--- SKIP: TestPinnedLiteLLMContract (0.00s)",
+        "--- SKIP: TestLocalNVIDIAGPU (0.00s)",
+        "--- SKIP: TestLiveProjectWorkflows (0.00s)",
+        "--- SKIP: TestLiveGatewayToolCall (0.00s)",
+        "--- SKIP: TestLiveRouterWorkflow (0.00s)",
+        "--- SKIP: TestPinnedLiteLLMContract (0.00s)"
+      ],
+      "summaries": [
+        "2407 passed, 34 skipped in 70.27s (0:01:10)",
+        " Test Files  69 passed (69)",
+        "      Tests  486 passed (486)",
+        "31 passed in 1.12s",
+        "214 passed in 2.40s",
+        " Test Files  5 passed (5)",
+        "      Tests  59 passed (59)",
+        "3 passed in 0.07s",
+        "23 passed, 44 deselected in 0.47s"
+      ],
+      "log_sha256": "cfc06dfd4b86066556d67e80eefdb4e0edcb3c4e27f48f6897447b6b42c081e9",
+      "source_commit": "9cfd09ccfc5517518b3c7491b55bc4c14b56b950",
+      "disposition": "V60-033: production-memory E2E staging omitted referenced summarizer instruction; no later targets claimed."
+    },
+    {
+      "command": [
+        "make",
+        "--trace",
+        "test-ui-stack",
+        "test-audits-browser",
+        "test-lifecycle-controls-browser",
+        "test-scheduler-concurrency-browser",
+        "test-performance-browser"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1107.48,
+      "log": ".local/v60-review/v60-final-browser.log",
+      "go_passing_events": 21,
+      "go_skips": [],
+      "summaries": [
+        "    stack_test.go:357: Playwright execution verified: 20 passed, 0 skipped/unexpected/flaky; required files=[e2e/stack.spec.ts e2e/audits.spec.ts e2e/lifecycle-controls.spec.ts e2e/project-workspace.spec.ts e2e/run-repeat.spec.ts e2e/scheduler-settings.spec.ts e2e/performance.spec.ts]; report SHA-256=99ae4c066f6919d73361aab515ca8a547b09a0558d23ad18f2ed0c940f02ddf5"
+      ],
+      "log_sha256": "7a2c7e17cc2f17c8b5eeb0534e9e721fdef08ac5652ef61f5bd4b9aa2cdd6831",
+      "source_commit": "45b31abfd848739a0a1b32d7027028989a911a25",
+      "scope": "Corrected shared browser prerequisite; required selection20cases/7files, native/external real process journeys, no selected skips. Nineteen cases use UI route fixtures."
+    },
+    {
+      "command": [
+        "make",
+        "--trace",
+        "-k",
+        "release-verify",
+        "verify-public-api",
+        "test-audits-hardening",
+        "test-findings-e2e",
+        "test-audits-browser",
+        "test-lifecycle-controls-browser"
+      ],
+      "exit_code": 2,
+      "elapsed_seconds": 4094.21,
+      "log": ".local/v60-review/v60-release-verified.log",
+      "go_passing_events": 13366,
+      "go_skips": [
+        "--- SKIP: TestPinnedLiteLLMContract (0.00s)",
+        "--- SKIP: TestLocalNVIDIAGPU (0.00s)",
+        "--- SKIP: TestLiveProjectWorkflows (0.00s)",
+        "--- SKIP: TestLiveGatewayToolCall (0.00s)",
+        "--- SKIP: TestLiveRouterWorkflow (0.00s)",
+        "--- SKIP: TestPinnedLiteLLMContract (0.00s)"
+      ],
+      "summaries": [
+        "31 passed in 1.26s",
+        "    stack_test.go:357: Playwright execution verified: 20 passed, 0 skipped/unexpected/flaky; required files=[e2e/stack.spec.ts e2e/audits.spec.ts e2e/lifecycle-controls.spec.ts e2e/project-workspace.spec.ts e2e/run-repeat.spec.ts e2e/scheduler-settings.spec.ts e2e/performance.spec.ts]; report SHA-256=0641a423e7d5c649618da8aeb1a2c4a1d0d551a73bc256e91b1a2e4c4a5a350f",
+        "214 passed in 2.46s",
+        " Test Files  5 passed (5)",
+        "      Tests  59 passed (59)",
+        "3 passed in 0.07s",
+        "23 passed, 44 deselected in 0.46s",
+        "7 passed in 0.74s",
+        "37 passed in 1.50s",
+        "90 passed in 1.36s",
+        "78 passed in 4.46s",
+        "44 passed in 2.77s",
+        "51 passed in 2.44s",
+        "133 passed in 10.13s",
+        "92 passed in 6.89s",
+        "193 passed in 0.45s",
+        "114 passed, 79 deselected in 0.35s",
+        "266 passed in 2.98s",
+        "1 passed, 24 deselected in 0.45s",
+        " Test Files  6 passed (6)",
+        "      Tests  34 passed (34)",
+        " Test Files  6 passed (6)",
+        "      Tests  45 passed (45)",
+        " Test Files  3 passed (3)",
+        "      Tests  34 passed (34)",
+        "331 passed in 5.44s",
+        "Audit completion gate passed: 173 Go cases, 331 Runtime cases; no selected skips.",
+        "86 passed, 22 deselected in 0.76s",
+        "48 passed in 0.63s",
+        "Findings gate passed: 13 required process cases and Runtime contracts."
+      ],
+      "log_sha256": "d8a18b05c55bc91fc73eb7e48dc0289b755f1a337f2fb98f4087615719260048",
+      "source_commit": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+      "disposition": "Failed full -k invocation. Confirmed fixture corrections036–039 and incomplete034 catalog removal; unexplained External Evals deadline retained separately. Independent remaining targets including public API, Audit completion and Findings executed successfully.",
+      "failed_test_events": [
+        "--- FAIL: TestManagedEvalsExternalStack (180.86s)",
+        "--- FAIL: TestAgentSkillsMVPProcesses (36.36s)",
+        "--- FAIL: TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses (2.53s)",
+        "--- FAIL: TestWorkerSummarizerProductionBoundaries (136.01s)",
+        "--- FAIL: TestProjectWorkspaceLifecycleAcrossProductionProcesses (56.97s)",
+        "--- FAIL: TestProjectWorkspaceLifecycleAcrossProductionProcesses (56.56s)",
+        "--- FAIL: TestAuditProgramsAcrossProductionProcesses (363.78s)"
+      ],
+      "cached_go_package_lines": 66
+    },
+    {
+      "command": [
+        "make",
+        "--trace",
+        "test-code-analysis-e2e",
+        "test-agent-skills-mvp",
+        "test-worker-summarizer-e2e",
+        "test-project-workspaces-e2e",
+        "test-audits-process",
+        "release-verify",
+        "verify-public-api",
+        "test-audits-hardening",
+        "test-findings-e2e",
+        "test-audits-browser",
+        "test-lifecycle-controls-browser"
+      ],
+      "exit_code": 2,
+      "elapsed_seconds": 559.54,
+      "log": ".local/v60-review/v60-release-integrated.log",
+      "go_passing_events": 1128,
+      "go_skips": [],
+      "summaries": [
+        "78 passed in 4.52s",
+        "92 passed in 7.13s"
+      ],
+      "log_sha256": "bf2d6577dbae0225b9ec13eed8c6405814b154c9dd9e1cc9e73760681f799dcc",
+      "source_commit": "747839c255fc3eef800281d837b1c57ab87f892d",
+      "disposition": "Affected-first invocation passed Code Analysis, Agent Skills and Summarizer, then stopped at a second stale Project Workspace artifact-binding assertion (V60-040). Budget check039 passed before that assertion; neither the full Project target nor any subsequent release/Audit target is claimed successful.",
+      "failed_test_events": [
+        "--- FAIL: TestProjectWorkspaceLifecycleAcrossProductionProcesses (56.39s)"
+      ]
+    },
+    {
+      "command": [
+        "make",
+        "--trace",
+        "test-project-workspaces-e2e",
+        "test-audits-process",
+        "release-verify",
+        "verify-public-api",
+        "test-audits-hardening",
+        "test-findings-e2e",
+        "test-audits-browser",
+        "test-lifecycle-controls-browser"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5072.16,
+      "log": ".local/v60-review/v60-release-complete.log",
+      "go_passing_events": 13507,
+      "go_skips": [
+        "--- SKIP: TestPinnedLiteLLMContract (0.00s)",
+        "--- SKIP: TestLocalNVIDIAGPU (0.00s)",
+        "--- SKIP: TestLiveProjectWorkflows (0.00s)",
+        "--- SKIP: TestLiveGatewayToolCall (0.00s)",
+        "--- SKIP: TestLiveRouterWorkflow (0.00s)",
+        "--- SKIP: TestPinnedLiteLLMContract (0.00s)"
+      ],
+      "summaries": [
+        "31 passed in 1.20s",
+        "    stack_test.go:356: Playwright execution verified: 20 passed, 0 skipped/unexpected/flaky; required files=[e2e/stack.spec.ts e2e/audits.spec.ts e2e/lifecycle-controls.spec.ts e2e/project-workspace.spec.ts e2e/run-repeat.spec.ts e2e/scheduler-settings.spec.ts e2e/performance.spec.ts]; report SHA-256=fe600f080b0855bc98553e91dc1f7050f9e3f5d3ce764e7331071eedbb392261",
+        "214 passed in 2.49s",
+        " Test Files  5 passed (5)",
+        "      Tests  59 passed (59)",
+        "3 passed in 0.07s",
+        "23 passed, 44 deselected in 0.47s",
+        "7 passed in 1.20s",
+        "37 passed in 2.32s",
+        "90 passed in 1.39s",
+        "78 passed in 4.59s",
+        "44 passed in 2.63s",
+        "51 passed in 2.39s",
+        "133 passed in 9.55s",
+        "92 passed in 8.36s",
+        "193 passed in 0.46s",
+        "114 passed, 79 deselected in 0.34s",
+        "266 passed in 2.97s",
+        "1 passed, 24 deselected in 0.46s",
+        " Test Files  6 passed (6)",
+        "      Tests  34 passed (34)",
+        " Test Files  6 passed (6)",
+        "      Tests  45 passed (45)",
+        " Test Files  3 passed (3)",
+        "      Tests  34 passed (34)",
+        "331 passed in 4.47s",
+        "Audit completion gate passed: 173 Go cases, 331 Runtime cases; no selected skips.",
+        "86 passed, 22 deselected in 0.81s",
+        "48 passed in 1.01s",
+        "Findings gate passed: 13 required process cases and Runtime contracts."
+      ],
+      "log_sha256": "a30015c8c3073845d11d0273712419f9e1877c5796e971fb58e41ff4f7a340df",
+      "source_commit": "e49c65230b185c0daf575a202a22e4508bb7ed4b",
+      "result_json": ".local/v60-review/v60-release-complete.json",
+      "result_json_sha256": "be21cce1fcc662bab7b180666d71c036e5e0e4d5af12afa92cb5e13b16a15c9e",
+      "cached_go_package_lines": 24,
+      "all_test_summaries": [
+        "4 passed in 0.95s",
+        "2468 passed, 39 skipped in 62.82s (0:01:02)",
+        " Test Files  70 passed (70)",
+        "      Tests  492 passed (492)",
+        "31 passed in 1.20s",
+        "    stack_test.go:356: Playwright execution verified: 20 passed, 0 skipped/unexpected/flaky; required files=[e2e/stack.spec.ts e2e/audits.spec.ts e2e/lifecycle-controls.spec.ts e2e/project-workspace.spec.ts e2e/run-repeat.spec.ts e2e/scheduler-settings.spec.ts e2e/performance.spec.ts]; report SHA-256=fe600f080b0855bc98553e91dc1f7050f9e3f5d3ce764e7331071eedbb392261",
+        "214 passed in 2.49s",
+        " Test Files  5 passed (5)",
+        "      Tests  59 passed (59)",
+        "3 passed in 0.07s",
+        "23 passed, 44 deselected in 0.47s",
+        "7 passed in 1.20s",
+        "37 passed in 2.32s",
+        "90 passed in 1.39s",
+        "78 passed in 4.59s",
+        "44 passed in 2.63s",
+        "51 passed in 2.39s",
+        "133 passed in 9.55s",
+        "92 passed in 8.36s",
+        "193 passed in 0.46s",
+        "114 passed, 79 deselected in 0.34s",
+        "266 passed in 2.97s",
+        "1 passed, 24 deselected in 0.46s",
+        " Test Files  6 passed (6)",
+        "      Tests  34 passed (34)",
+        " Test Files  6 passed (6)",
+        "      Tests  45 passed (45)",
+        " Test Files  3 passed (3)",
+        "      Tests  34 passed (34)",
+        "331 passed in 4.47s",
+        "Audit completion gate passed: 173 Go cases, 331 Runtime cases; no selected skips.",
+        "86 passed, 22 deselected in 0.81s",
+        "48 passed in 1.01s",
+        "Findings gate passed: 13 required process cases and Runtime contracts."
+      ],
+      "runtime_skip_reasons": [
+        "SKIPPED [1] tests/test_audit_completion_e2e.py:33: launched by make test-audit-completion-e2e with a real Go Artifact API",
+        "SKIPPED [1] tests/test_live_gateway.py:38: live LLM Gateway environment is not configured",
+        "SKIPPED [1] tests/test_live_gateway.py:87: live LLM Gateway environment is not configured",
+        "SKIPPED [1] tests/test_live_gateway.py:139: live LLM Gateway environment is not configured",
+        "SKIPPED [2] tests/test_podman_capabilities.py:318: explicit real-rootless startup capability gate",
+        "SKIPPED [1] tests/test_podman_deployment_integration.py:30: explicit real-rootless deployment/workflow gate",
+        "SKIPPED [1] tests/test_podman_execution_integration.py:50: explicit real-rootless command execution gate",
+        "SKIPPED [4] tests/test_podman_execution_integration.py:73: explicit real-rootless command execution gate",
+        "SKIPPED [1] tests/test_podman_owner_integration.py:36: explicit real-rootless owner-process gate",
+        "SKIPPED [2] tests/test_podman_owner_integration.py:56: explicit real-rootless owner-process gate",
+        "SKIPPED [3] tests/test_podman_release_integration.py:30: explicit real Podman release gate",
+        "SKIPPED [1] tests/test_podman_release_integration.py:173: explicit real Podman release gate",
+        "SKIPPED [1] tests/test_podman_release_integration.py:228: explicit real Podman release gate",
+        "SKIPPED [1] tests/test_podman_supervisor_integration.py:105: explicit real gate: make test-podman-supervisor",
+        "SKIPPED [4] tests/test_podman_supervisor_integration.py:127: explicit real gate: make test-podman-supervisor",
+        "SKIPPED [1] tests/test_podman_supervisor_integration.py:162: explicit real gate: make test-podman-supervisor",
+        "SKIPPED [1] tests/test_podman_supervisor_integration.py:195: explicit real gate: make test-podman-supervisor",
+        "SKIPPED [1] tests/test_podman_supervisor_integration.py:225: explicit real gate: make test-podman-supervisor",
+        "SKIPPED [1] tests/test_podman_supervisor_integration.py:242: explicit real gate: make test-podman-supervisor",
+        "SKIPPED [1] tests/test_podman_supervisor_integration.py:266: explicit real gate: make test-podman-supervisor",
+        "SKIPPED [1] tests/test_podman_supervisor_integration.py:291: explicit real gate: make test-podman-supervisor",
+        "SKIPPED [1] tests/test_scan_katana_live.py:119: optional Katana binary is absent",
+        "SKIPPED [1] tests/test_scan_katana_live.py:180: optional Katana binary is absent",
+        "SKIPPED [1] tests/test_scan_katana_live.py:204: optional Katana binary is absent",
+        "SKIPPED [1] tests/test_scan_katana_live.py:223: optional Katana binary is absent",
+        "SKIPPED [1] tests/test_scan_katana_live.py:246: optional Katana binary is absent",
+        "SKIPPED [3] tests/test_scan_sqlmap_live.py:21: optional sqlmap binary is absent"
+      ],
+      "make_targets": [
+        "Makefile:323: update target 'test-project-workspaces-e2e' due to: target is .PHONY",
+        "Makefile:360: update target 'test-audits-process' due to: target is .PHONY",
+        "Makefile:8: update target 'lint' due to: target is .PHONY",
+        "Makefile:63: update target 'test-hardening-matrices' due to: target is .PHONY",
+        "Makefile:17: update target 'test-go' due to: target is .PHONY",
+        "Makefile:20: update target 'test-runtime' due to: target is .PHONY",
+        "Makefile:515: update target 'build' due to: target is .PHONY",
+        "Makefile:500: update target 'ui-verify' due to: target is .PHONY",
+        "Makefile:235: update target 'verify-public-api-postgres' due to: target is .PHONY",
+        "Makefile:199: update target 'test-runtime-configuration-hardening' due to: target is .PHONY",
+        "Makefile:289: update target 'test-runtime-labels-e2e' due to: target is .PHONY",
+        "Makefile:472: update target 'ui-install' due to: target is .PHONY",
+        "Makefile:475: update target 'ui-browser-install' due to: target is .PHONY",
+        "Makefile:463: update target 'test-ui-stack' due to: target is .PHONY",
+        "Makefile:207: update target 'test-run-metadata-labels-hardening' due to: target is .PHONY",
+        "Makefile:212: update target 'test-run-metadata-labels-e2e' due to: target is .PHONY",
+        "Makefile:141: update target 'test-memory-contracts' due to: target is .PHONY",
+        "Makefile:178: update target 'test-shared-memory-faults' due to: target is .PHONY",
+        "Makefile:294: update target 'test-shared-memory-e2e' due to: target is .PHONY",
+        "Makefile:299: update target 'test-production-memory-e2e' due to: target is .PHONY",
+        "Makefile:145: update target 'test-agent-skill-contract' due to: target is .PHONY",
+        "Makefile:169: update target 'test-migrated-agent-skills-analysis' due to: target is .PHONY",
+        "Makefile:172: update target 'test-migrated-agent-skills-live' due to: target is .PHONY",
+        "Makefile:165: update target 'test-migrated-agent-skills' due to: target is .PHONY",
+        "Makefile:151: update target 'test-agent-skills-runtime-hardening' due to: target is .PHONY",
+        "Makefile:154: update target 'test-agent-skills-races' due to: target is .PHONY",
+        "Makefile:158: update target 'test-agent-skills-mvp' due to: target is .PHONY",
+        "Makefile:219: update target 'test-http-caido-runtime' due to: target is .PHONY",
+        "Makefile:222: update target 'test-http-caido-architecture' due to: target is .PHONY",
+        "Makefile:304: update target 'test-http-caido-e2e' due to: target is .PHONY",
+        "Makefile:71: update target 'test-code-analysis-hardening' due to: target is .PHONY",
+        "Makefile:74: update target 'test-code-analysis-e2e' due to: target is .PHONY",
+        "Makefile:81: update target 'test-taint-annotations-runtime' due to: target is .PHONY",
+        "Makefile:84: update target 'test-taint-annotations-hardening' due to: target is .PHONY",
+        "Makefile:87: update target 'test-taint-annotations-e2e' due to: target is .PHONY",
+        "Makefile:94: update target 'test-worker-observations-runtime' due to: target is .PHONY",
+        "Makefile:97: update target 'test-worker-observations-hardening' due to: target is .PHONY",
+        "Makefile:100: update target 'test-worker-observations-e2e' due to: target is .PHONY",
+        "Makefile:107: update target 'test-worker-summarizer-runtime' due to: target is .PHONY",
+        "Makefile:110: update target 'test-worker-summarizer-hardening' due to: target is .PHONY",
+        "Makefile:113: update target 'test-worker-summarizer-e2e' due to: target is .PHONY",
+        "Makefile:133: update target 'verify-wire-contracts' due to: target is .PHONY",
+        "Makefile:137: update target 'test-wire-cross-language' due to: target is .PHONY",
+        "Makefile:118: update target 'test-worker-session-modes-runtime' due to: target is .PHONY",
+        "Makefile:121: update target 'test-worker-session-modes-hardening' due to: target is .PHONY",
+        "Makefile:124: update target 'test-worker-session-modes-e2e' due to: target is .PHONY",
+        "Makefile:317: update target 'test-project-workspaces-hardening' due to: target is .PHONY",
+        "Makefile:335: update target 'test-lifecycle-controls-hardening' due to: target is .PHONY",
+        "Makefile:340: update target 'test-lifecycle-controls-e2e' due to: target is .PHONY",
+        "Makefile:407: update target 'test-scheduler-concurrency-hardening' due to: target is .PHONY",
+        "Makefile:411: update target 'test-scheduler-concurrency-process' due to: target is .PHONY",
+        "Makefile:355: update target 'test-audits-hardening' due to: target is .PHONY",
+        "Makefile:385: update target 'test-audit-program-library-matrix' due to: target is .PHONY",
+        "Makefile:388: update target 'test-audit-program-library-hardening' due to: target is .PHONY",
+        "Makefile:400: update target 'test-audit-completion-e2e' due to: target is .PHONY",
+        "Makefile:423: update target 'test-performance-matrix' due to: target is .PHONY",
+        "Makefile:426: update target 'test-performance-go' due to: target is .PHONY",
+        "Makefile:429: update target 'test-performance-runtime' due to: target is .PHONY",
+        "Makefile:434: update target 'test-performance-postgres' due to: target is .PHONY",
+        "Makefile:231: update target 'verify-public-api' due to: target is .PHONY",
+        "Makefile:546: update target 'test-findings-e2e' due to: target is .PHONY"
+      ],
+      "disposition": "PASS: one complete fail-fast invocation covers the full release graph and explicit public API, Audit hardening, Findings and browser aliases. Shared Make prerequisites run once except explicit recursive invocations."
+    },
+    {
+      "command": [
+        "bash",
+        ".local/v60-review/run-main-integration.sh"
+      ],
+      "exit_code": 2,
+      "elapsed_seconds": 1229.67,
+      "log": ".local/v60-review/v60-main-integration.log",
+      "go_passing_events": 1471,
+      "go_skips": [],
+      "summaries": [
+        "4 passed in 0.89s",
+        "48 passed in 0.60s"
+      ],
+      "source_commit": "43cea5b89ac8c9bf9d43101f399079c31aabd439",
+      "log_sha256": "9d141415570550744a2396d500ea5cc23e14ed66072fe7544db43b6dc993694f",
+      "command_file": ".local/v60-review/run-main-integration.sh",
+      "command_file_sha256": "f4c83c6a48a2e6bdc05ca0c304a6e8b26ad3229c458844390b541bc5e6887e9a",
+      "failed_test_events": [
+        "--- FAIL: TestFindingsReaderBoundariesAcrossProcesses/empty-is-explicit-success (10.66s)",
+        "--- FAIL: TestFindingsReaderBoundariesAcrossProcesses/interrupted-preparation-reuses-exact-ref (0.00s)",
+        "--- FAIL: TestFindingsReaderBoundariesAcrossProcesses/conflicting-document-fails (0.00s)",
+        "--- FAIL: TestFindingsReaderBoundariesAcrossProcesses/invalid-zip-fails (0.00s)",
+        "--- FAIL: TestFindingsReaderBoundariesAcrossProcesses (15.77s)"
+      ],
+      "disposition": "Post-merge invocation failed in Findings: boundary fixture omitted the six configured Memory tools (V60-041). Earlier focused regressions, catalog validation, DB race, Streamline recovery, build/compile and Memory/Project/Audit/Skills targets passed. UI stack was not reached. Only the boundary expected-tool list changes in c25b4b28; unaffected earlier results retain their source attribution."
+    },
+    {
+      "command": [
+        "make",
+        "--trace",
+        "test-findings-e2e",
+        "test-ui-stack"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1285.97,
+      "log": ".local/v60-review/v60-main-remainder.log",
+      "go_passing_events": 37,
+      "go_skips": [],
+      "summaries": [
+        "48 passed in 0.65s",
+        "Findings gate passed: 13 required process cases and Runtime contracts.",
+        "    stack_test.go:356: Playwright execution verified: 20 passed, 0 skipped/unexpected/flaky; required files=[e2e/stack.spec.ts e2e/audits.spec.ts e2e/lifecycle-controls.spec.ts e2e/project-workspace.spec.ts e2e/run-repeat.spec.ts e2e/scheduler-settings.spec.ts e2e/performance.spec.ts]; report SHA-256=665181aa9834d7a2115d5aed00766cab0b247636afabd9ce135bc17ebfad94de"
+      ],
+      "source_commit": "c25b4b28ed0e865dd54fb0bd74b917a1306e99f0",
+      "log_sha256": "d73edce00c53ace9614d111780bc9f38a4bf517438aeac329cd2464f0cb07de5",
+      "result_json": ".local/v60-review/v60-main-remainder.json",
+      "result_json_sha256": "cead7e8f164793d2c578d80cbf810d9bbb0fee37b43bb6c41afe04d8ef49b9be",
+      "disposition": "PASS: full Findings and complete UI stack after the one-line V60-041 expected-tool correction. Earlier integration checks remain attributed to 43cea5b8; the complete release remains attributed to e49c6523. No timeout or retry changes.",
+      "process_results": {
+        "findings_go_seconds": 177.265,
+        "findings_required_process_cases": 13,
+        "findings_runtime_cases": 48,
+        "browser_operations_seconds": 110.26,
+        "native_evals_seconds": 510.85,
+        "external_evals_seconds": 481.27
+      }
+    }
+  ],
+  "benchmark": {
+    "schemaVersion": "contractor.performance-benchmark.v1",
+    "generatedAt": "2026-09-20T10:38:08Z",
+    "goVersion": "go1.25.6",
+    "os": "linux",
+    "architecture": "amd64",
+    "logicalCPU": 8,
+    "scenarios": [
+      {
+        "name": "http_disabled",
+        "samples": [
+          {
+            "scenario": "http_disabled",
+            "operations": 10000,
+            "wallSeconds": 0.001590832,
+            "cpuSeconds": 0.0016480000000000002,
+            "rssBytes": 11399168,
+            "allocationsPerOp": 1.0002,
+            "throughputPerSecond": 6286018.888229555,
+            "p95Nanoseconds": 184
+          },
+          {
+            "scenario": "http_disabled",
+            "operations": 10000,
+            "wallSeconds": 0.003288989,
+            "cpuSeconds": 0.0023840000000000003,
+            "rssBytes": 11599872,
+            "allocationsPerOp": 1.0002,
+            "throughputPerSecond": 3040447.9917688994,
+            "p95Nanoseconds": 221
+          },
+          {
+            "scenario": "http_disabled",
+            "operations": 10000,
+            "wallSeconds": 0.001870004,
+            "cpuSeconds": 0.0019289999999999997,
+            "rssBytes": 11399168,
+            "allocationsPerOp": 1.0002,
+            "throughputPerSecond": 5347582.144209317,
+            "p95Nanoseconds": 208
+          }
+        ],
+        "summary": {
+          "throughputMean": 4891349.674735923,
+          "throughputCV": 0.278799660844111,
+          "p95MeanNanoseconds": 204.33333333333334,
+          "p95CV": 0.07500531114239901,
+          "cpuMeanSeconds": 0.0019870000000000005,
+          "rssMeanBytes": 11466069.333333334,
+          "allocationsMeanPerOp": 1.0002
+        }
+      },
+      {
+        "name": "http_enabled",
+        "samples": [
+          {
+            "scenario": "http_enabled",
+            "operations": 10000,
+            "wallSeconds": 0.008072559,
+            "cpuSeconds": 0.008558,
+            "rssBytes": 16285696,
+            "allocationsPerOp": 16.001,
+            "throughputPerSecond": 1238764.560283796,
+            "p95Nanoseconds": 1082
+          },
+          {
+            "scenario": "http_enabled",
+            "operations": 10000,
+            "wallSeconds": 0.01170745,
+            "cpuSeconds": 0.011572,
+            "rssBytes": 15831040,
+            "allocationsPerOp": 16.001,
+            "throughputPerSecond": 854156.9684260878,
+            "p95Nanoseconds": 1390
+          },
+          {
+            "scenario": "http_enabled",
+            "operations": 10000,
+            "wallSeconds": 0.01377185,
+            "cpuSeconds": 0.014027,
+            "rssBytes": 14761984,
+            "allocationsPerOp": 16.0011,
+            "throughputPerSecond": 726118.8583959308,
+            "p95Nanoseconds": 2928
+          }
+        ],
+        "summary": {
+          "throughputMean": 939680.1290352716,
+          "throughputCV": 0.2318327903830535,
+          "p95MeanNanoseconds": 1800,
+          "p95CV": 0.44859267821321164,
+          "cpuMeanSeconds": 0.011385666666666667,
+          "rssMeanBytes": 15626240,
+          "allocationsMeanPerOp": 16.001033333333336
+        }
+      },
+      {
+        "name": "collection_disabled",
+        "samples": [
+          {
+            "scenario": "collection_disabled",
+            "operations": 240,
+            "wallSeconds": 1.7627e-05,
+            "cpuSeconds": 3.099999999999978e-05,
+            "rssBytes": 10051584,
+            "allocationsPerOp": 0.004166666666666667,
+            "throughputPerSecond": 13615476.258013276,
+            "p95Nanoseconds": 40
+          },
+          {
+            "scenario": "collection_disabled",
+            "operations": 240,
+            "wallSeconds": 1.7414e-05,
+            "cpuSeconds": 4.49999999999999e-05,
+            "rssBytes": 10125312,
+            "allocationsPerOp": 0.004166666666666667,
+            "throughputPerSecond": 13782014.471115194,
+            "p95Nanoseconds": 47
+          },
+          {
+            "scenario": "collection_disabled",
+            "operations": 240,
+            "wallSeconds": 1.3905e-05,
+            "cpuSeconds": 3.300000000000004e-05,
+            "rssBytes": 10047488,
+            "allocationsPerOp": 0.004166666666666667,
+            "throughputPerSecond": 17259978.425026968,
+            "p95Nanoseconds": 30
+          }
+        ],
+        "summary": {
+          "throughputMean": 14885823.051385147,
+          "throughputCV": 0.1128696435507935,
+          "p95MeanNanoseconds": 39,
+          "p95CV": 0.1788756370637295,
+          "cpuMeanSeconds": 3.633333333333324e-05,
+          "rssMeanBytes": 10074794.666666666,
+          "allocationsMeanPerOp": 0.004166666666666667
+        }
+      },
+      {
+        "name": "collection_enabled",
+        "samples": [
+          {
+            "scenario": "collection_enabled",
+            "operations": 240,
+            "wallSeconds": 0.112569148,
+            "cpuSeconds": 0.115525,
+            "rssBytes": 15769600,
+            "allocationsPerOp": 2627.2125,
+            "throughputPerSecond": 2132.0228878342405,
+            "p95Nanoseconds": 1145234,
+            "retainedFrames": 240,
+            "retainedBytes": 625120,
+            "databaseReads": 60,
+            "databaseSizeReads": 12,
+            "historyWrites": 60
+          },
+          {
+            "scenario": "collection_enabled",
+            "operations": 240,
+            "wallSeconds": 0.10697959,
+            "cpuSeconds": 0.110786,
+            "rssBytes": 16109568,
+            "allocationsPerOp": 2627.2625,
+            "throughputPerSecond": 2243.418581058312,
+            "p95Nanoseconds": 1090701,
+            "retainedFrames": 240,
+            "retainedBytes": 625120,
+            "databaseReads": 60,
+            "databaseSizeReads": 12,
+            "historyWrites": 60
+          },
+          {
+            "scenario": "collection_enabled",
+            "operations": 240,
+            "wallSeconds": 0.105690413,
+            "cpuSeconds": 0.108528,
+            "rssBytes": 15876096,
+            "allocationsPerOp": 2627.266666666667,
+            "throughputPerSecond": 2270.7830652530424,
+            "p95Nanoseconds": 1038593,
+            "retainedFrames": 240,
+            "retainedBytes": 625120,
+            "databaseReads": 60,
+            "databaseSizeReads": 12,
+            "historyWrites": 60
+          }
+        ],
+        "summary": {
+          "throughputMean": 2215.4081780485317,
+          "throughputCV": 0.02708814473029011,
+          "p95MeanNanoseconds": 1091509.3333333333,
+          "p95CV": 0.039889496621541086,
+          "cpuMeanSeconds": 0.111613,
+          "rssMeanBytes": 15918421.333333334,
+          "allocationsMeanPerOp": 2627.2472222222223
+        }
+      },
+      {
+        "name": "pprof_off",
+        "samples": [
+          {
+            "scenario": "pprof_off",
+            "operations": 5068928,
+            "wallSeconds": 1.000008629,
+            "cpuSeconds": 0.979371,
+            "rssBytes": 10813440,
+            "allocationsPerOp": 3.945607434155703e-07,
+            "throughputPerSecond": 5068884.260597715,
+            "p95Nanoseconds": 303
+          },
+          {
+            "scenario": "pprof_off",
+            "operations": 5273984,
+            "wallSeconds": 0.999992313,
+            "cpuSeconds": 0.987069,
+            "rssBytes": 10739712,
+            "allocationsPerOp": 3.7921995971167146e-07,
+            "throughputPerSecond": 5274024.54142665,
+            "p95Nanoseconds": 302
+          },
+          {
+            "scenario": "pprof_off",
+            "operations": 5216512,
+            "wallSeconds": 1.000004088,
+            "cpuSeconds": 0.9822179999999999,
+            "rssBytes": 10805248,
+            "allocationsPerOp": 3.8339794866761546e-07,
+            "throughputPerSecond": 5216490.67498612,
+            "p95Nanoseconds": 307
+          }
+        ],
+        "summary": {
+          "throughputMean": 5186466.492336828,
+          "throughputCV": 0.01665820678104296,
+          "p95MeanNanoseconds": 304,
+          "p95CV": 0.007106075327201602,
+          "cpuMeanSeconds": 0.982886,
+          "rssMeanBytes": 10786133.333333334,
+          "allocationsMeanPerOp": 3.857262172649524e-07
+        }
+      },
+      {
+        "name": "pprof_idle",
+        "samples": [
+          {
+            "scenario": "pprof_idle",
+            "operations": 4658560,
+            "wallSeconds": 1.000009328,
+            "cpuSeconds": 0.991221,
+            "rssBytes": 12115968,
+            "allocationsPerOp": 4.293172139030087e-07,
+            "throughputPerSecond": 4658516.545357665,
+            "p95Nanoseconds": 327
+          },
+          {
+            "scenario": "pprof_idle",
+            "operations": 5163136,
+            "wallSeconds": 1.000021543,
+            "cpuSeconds": 0.987,
+            "rssBytes": 12079104,
+            "allocationsPerOp": 3.873614795349183e-07,
+            "throughputPerSecond": 5163024.772957317,
+            "p95Nanoseconds": 304
+          },
+          {
+            "scenario": "pprof_idle",
+            "operations": 4642944,
+            "wallSeconds": 1.000011939,
+            "cpuSeconds": 0.9770960000000001,
+            "rssBytes": 14716928,
+            "allocationsPerOp": 4.3076117222176275e-07,
+            "throughputPerSecond": 4642888.568553381,
+            "p95Nanoseconds": 310
+          }
+        ],
+        "summary": {
+          "throughputMean": 4821476.62895612,
+          "throughputCV": 0.050108148478706836,
+          "p95MeanNanoseconds": 313.6666666666667,
+          "p95CV": 0.031055556208719356,
+          "cpuMeanSeconds": 0.9851056666666667,
+          "rssMeanBytes": 12970666.666666666,
+          "allocationsMeanPerOp": 4.158132885532299e-07
+        }
+      },
+      {
+        "name": "pprof_active",
+        "samples": [
+          {
+            "scenario": "pprof_active",
+            "operations": 4419328,
+            "wallSeconds": 0.999911256,
+            "cpuSeconds": 0.983275,
+            "rssBytes": 13512704,
+            "allocationsPerOp": 3.394181196779239e-06,
+            "throughputPerSecond": 4419720.223651527,
+            "p95Nanoseconds": 336,
+            "profileResponseBytes": 2451
+          },
+          {
+            "scenario": "pprof_active",
+            "operations": 4528768,
+            "wallSeconds": 0.999990529,
+            "cpuSeconds": 0.9737410000000001,
+            "rssBytes": 13500416,
+            "allocationsPerOp": 3.3121590684265565e-06,
+            "throughputPerSecond": 4528810.892367962,
+            "p95Nanoseconds": 318,
+            "profileResponseBytes": 2443
+          },
+          {
+            "scenario": "pprof_active",
+            "operations": 4961024,
+            "wallSeconds": 1.000015961,
+            "cpuSeconds": 0.9892610000000001,
+            "rssBytes": 14974976,
+            "allocationsPerOp": 3.0235693276226844e-06,
+            "throughputPerSecond": 4960944.818359755,
+            "p95Nanoseconds": 312,
+            "profileResponseBytes": 2512
+          }
+        ],
+        "summary": {
+          "throughputMean": 4636491.978126415,
+          "throughputCV": 0.050405684565601405,
+          "p95MeanNanoseconds": 322,
+          "p95CV": 0.0316709286558558,
+          "cpuMeanSeconds": 0.9820923333333335,
+          "rssMeanBytes": 13996032,
+          "allocationsMeanPerOp": 3.243303197609493e-06
+        }
+      }
+    ]
+  },
+  "final_gate": "PASS: complete release and explicit additional targets on frozen source e49c65230b185c0daf575a202a22e4508bb7ed4b",
+  "boundaries": [
+    "Only disposable PostgreSQL, loopback services and fake Gateways; no live models or deployment.",
+    "Go pass events include parent tests and subtests.",
+    "Restore uses actual pg_dump/pg_restore, both payload backends and destroys original database and filesystem content before restoring. Keys, authentication bootstrap and operator/managed configuration are separately retained, not recovered by this database test.",
+    "Benchmark is host-specific and concurrent host activity makes small differences inconclusive; collection records logical IO from the harness.",
+    "Go pass-event counts can include cached package output from the standard verify prerequisite. The required database/process targets use explicit -count=1; cached output is not counted as a new physical execution."
+  ],
+  "optional_checks": {
+    "Go": [
+      "Pinned LiteLLM compatibility fixture not configured; no provider-specific compatibility claim.",
+      "Local NVIDIA GPU smoke is opt-in and not enabled.",
+      "Live project workflows, Streamline Gateway and routing tests not configured; real models outside authorized scope."
+    ],
+    "Runtime": "The initial V60-006 baseline had 34 opt-in skips:27 Podman and1 Audit bridge subsequently executed in separate actual gates;3 live-model and3 optional sqlmap-binary cases remain unexecuted. Frozen final source e49 integrates Katana and reports 2468 passed / 39 skipped: the same 34 plus 5 optional Katana-binary cases (binary absent). The earlier Podman evidence is attributed to its recorded source/image, not a repeat at e49.",
+    "Browser": "Optional screenshot OCR helper failed locally; DOM/process assertions and all required Playwright cases executed successfully. No required browser case skipped."
+  },
+  "release_incidents": [
+    {
+      "source_commit": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+      "test": "TestManagedEvalsExternalStack",
+      "result": "failed after 180.86s: producer GET members returned retryable HTTP 500 deadline",
+      "diagnostic_record": ".local/v60-review/v60-external-evals-incident.json",
+      "diagnostic_record_sha256": "13dbf35f982a24cadc5bde0e1478da77123c9b3d6e0769d3ed64acede6325398",
+      "observed": "Unrelated Audit reservation and Evals claim queries timed out concurrently. No deadlock, lock timeout, database OOM or restart was observed in the incident window. The host showed memory and IO pressure.",
+      "conclusion": "No source defect or infrastructure cause established. Preserve the failure; collect activity, blockers and host/container metrics during the next full gate. Do not mask it with retries or longer timeouts.",
+      "followup": "Frozen source e49c6523: native Evals passed in 509.31 s and external Evals in 480.63 s, with no retry/timeout changes. The complete fail-fast release invocation passed in 5072.16 s. The earlier deadline cause remains unestablished."
+    }
+  ],
+  "final_source_commit": "e49c65230b185c0daf575a202a22e4508bb7ed4b",
+  "integrated_main_commit": "bc32a76b1af9cb74a4715704e976560adfc8e4d7",
+  "final_required_browser_selection": {
+    "source_commit": "e49c65230b185c0daf575a202a22e4508bb7ed4b",
+    "report": ".local/v60-review/v60-complete-browser/run-136912433/browser-report.json",
+    "report_sha256": "fe600f080b0855bc98553e91dc1f7050f9e3f5d3ce764e7331071eedbb392261",
+    "stats": {
+      "startTime": "2026-09-20T13:28:20.553Z",
+      "duration": 101383.339,
+      "expected": 20,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "required_files": [
+      "e2e/stack.spec.ts",
+      "e2e/audits.spec.ts",
+      "e2e/lifecycle-controls.spec.ts",
+      "e2e/project-workspace.spec.ts",
+      "e2e/run-repeat.spec.ts",
+      "e2e/scheduler-settings.spec.ts",
+      "e2e/performance.spec.ts"
+    ],
+    "go_process_seconds": 111.01,
+    "boundary": "19 fixture-route cases and one real Operations stack case. Native and external Evals are separate real process tests; this browser selection does not establish their result. Optional screenshot OCR unavailable; no required case skipped."
+  },
+  "final_gate_monitor": {
+    "log": ".local/v60-review/db-monitor-complete.jsonl",
+    "log_sha256": "21ff8ed4014e28ba5e5303de88fe15791187f1655cd8f789dabb0e7eec031095",
+    "summary": ".local/v60-review/db-monitor-complete-summary.json",
+    "summary_sha256": "111c7943faddb2245c1d9dcd2cb60b35c435cc5878be686ce1226278fb2a2ad2",
+    "samples": 5073,
+    "errors": 0,
+    "stopped": true,
+    "observed": "Diagnostic query maximum 27.063 ms; active query age maximum 3.048876 s; owned PostgreSQL OOM-kill delta zero. Host/container pressure and transient blockers are recorded in the summary. Query age is not wait duration; these observations do not establish the cause of the earlier failed Evals run.",
+    "summary_note": "Regenerated summary from the same immutable stopped monitor input; observation timestamp changed, recorded sample counts and metrics unchanged."
+  },
+  "final_audit_completion": {
+    "report": ".local/audit-completion-gate/run-vmgvfjvs/executed.json",
+    "report_sha256": "39aea6d9873e6b9d0e06af78ef418dcf0a2ab64a06bfed6e630f82318affcbca",
+    "go_cases": 173,
+    "python_cases": 331,
+    "source_commit": "e49c65230b185c0daf575a202a22e4508bb7ed4b",
+    "required_skips": []
+  },
+  "main_integration_monitor": {
+    "log": ".local/v60-review/db-monitor-main-integration.jsonl",
+    "log_sha256": "1d391844ebb9f2bebed1db8fdbdbf6ba8e700cd7bd838e8bdeabaa78b6e47676",
+    "summary": ".local/v60-review/db-monitor-main-integration-summary.json",
+    "summary_sha256": "25316991c59fbff2293fad7aa996e7d9dd44aa446040fd2f88dada05edb125bb",
+    "samples": 1230,
+    "errors": 0,
+    "stopped": true
+  },
+  "integration_sources": {
+    "merged_main": "bacb2817f69510fef2a5bc51d6a6f682aee03f96",
+    "merged_review": "43cea5b89ac8c9bf9d43101f399079c31aabd439",
+    "findings_fixture_correction": "c25b4b28ed0e865dd54fb0bd74b917a1306e99f0",
+    "full_release_attribution": "The complete release remains attributed to e49c6523; later integration results are recorded separately.",
+    "remainder_status": "PASS: full Findings (13 required process and 48 Runtime cases), all 20 Chromium cases in seven files, native Evals (510.85 s) and external Evals (481.27 s) at c25b4b28. Exit 0 in 1285.97 s."
+  },
+  "main_remainder_monitor": {
+    "raw": ".local/v60-review/db-monitor-main-remainder.jsonl",
+    "raw_sha256": "8e4a9c93e1376a8683ef8565e7ce347aa5b100130c892363fe31b181bcde053c",
+    "summary": ".local/v60-review/db-monitor-main-remainder-summary.json",
+    "summary_sha256": "96108b48526b434feb8f45eb949f60e93e194031c46583557daffd9618d646e2",
+    "samples": 1286,
+    "collection_errors": 0,
+    "stopped": true,
+    "interpretation": "Observational diagnostics only. Query age is not lock-wait duration; no causal conclusion about the earlier deadline incident."
+  },
+  "main_remainder_browser": {
+    "source_commit": "c25b4b28ed0e865dd54fb0bd74b917a1306e99f0",
+    "report": ".local/v60-review/v60-main-remainder-browser/run-3680022933/browser-report.json",
+    "report_sha256": "665181aa9834d7a2115d5aed00766cab0b247636afabd9ce135bc17ebfad94de",
+    "required_cases": 20,
+    "required_files": 7,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0,
+    "scope": "19 route-fixture journeys plus one actual Operations process case; native and external Evals are separate actual process tests. Optional screenshot OCR was unavailable."
+  }
+}

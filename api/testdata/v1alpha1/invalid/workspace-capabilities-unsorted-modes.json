@@ -1,0 +1,1 @@
+{"limits":{"maxExpandedBytes":2147483648,"maxFileBytes":16777216,"maxFiles":50000,"maxManagedTextBytes":268435456},"modes":["overlay","direct"],"storage":"local"}

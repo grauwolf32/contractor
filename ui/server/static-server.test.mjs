@@ -1,0 +1,560 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { request as httpRequest } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+
+import { createStaticServer } from "./static-server.mjs";
+
+// The Server's configuration identity grammar, shared with Go, the Runtime
+// and the UI client.
+const configIdentityCases = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../api/testdata/v1alpha1/config-identity-cases.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+
+const runtimeConfig = {
+  uiVersion: "0.1.0",
+  supportedApiVersions: ["contractor.public.v1"],
+  apiBaseUrl: "http://127.0.0.1:8080",
+};
+
+async function fixture(t, configuredRuntimeConfig = runtimeConfig) {
+  const distDir = await mkdtemp(join(tmpdir(), "contractor-ui-test-"));
+  await mkdir(join(distDir, "assets"));
+  await writeFile(
+    join(distDir, "index.html"),
+    "<!doctype html><title>UI</title>",
+  );
+  await writeFile(join(distDir, "assets", "app-12345678.js"), "export {};");
+  await writeFile(
+    join(distDir, "assets", "likec4.worker-12345678.js"),
+    "export {};",
+  );
+  const server = await createStaticServer({
+    distDir,
+    runtimeConfig: configuredRuntimeConfig,
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  assert(address && typeof address === "object");
+  const origin = `http://127.0.0.1:${address.port}`;
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(distDir, { recursive: true, force: true });
+  });
+  return { origin };
+}
+
+function rawRequest(origin, path, method = "GET", headers = {}) {
+  const url = new URL(origin);
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(
+      {
+        host: url.hostname,
+        port: url.port,
+        method,
+        path,
+        headers,
+      },
+      (response) => {
+        const chunks = [];
+        response.on("data", (chunk) => chunks.push(chunk));
+        response.on("end", () =>
+          resolve({
+            status: response.statusCode,
+            headers: response.headers,
+            body: Buffer.concat(chunks).toString("utf8"),
+          }),
+        );
+      },
+    );
+    request.on("error", reject);
+    request.end();
+  });
+}
+
+test("private-network config preserves an IP-literal loopback entrypoint", async (t) => {
+  const privateConfig = {
+    ...runtimeConfig,
+    apiBaseUrl: "http://192.168.1.217:8080",
+  };
+  const { origin } = await fixture(t, privateConfig);
+
+  const local = await rawRequest(origin, "/runtime-config.json");
+  assert.equal(local.status, 200);
+  assert.equal(JSON.parse(local.body).apiBaseUrl, "http://127.0.0.1:8080");
+
+  const lan = await rawRequest(origin, "/runtime-config.json", "GET", {
+    Host: "192.168.1.217:4173",
+  });
+  assert.equal(lan.status, 200);
+  assert.deepEqual(JSON.parse(lan.body), privateConfig);
+
+  const localIndex = await rawRequest(origin, "/");
+  assert.match(
+    localIndex.headers["content-security-policy"],
+    /connect-src 'self' http:\/\/127\.0\.0\.1:8080 ws:\/\/127\.0\.0\.1:8080/,
+  );
+
+  const loopbackConfig = {
+    ...runtimeConfig,
+    apiBaseUrl: "http://127.0.0.3:8080",
+  };
+  const loopback = await fixture(t, loopbackConfig);
+  const separateLoopbackAPI = await rawRequest(
+    loopback.origin,
+    "/runtime-config.json",
+    "GET",
+    { Host: "127.0.0.2:4173" },
+  );
+  assert.deepEqual(JSON.parse(separateLoopbackAPI.body), loopbackConfig);
+});
+
+test("known client routes get no-store index and a derived CSP", async (t) => {
+  const { origin } = await fixture(t);
+  for (const route of [
+    "/",
+    "/login",
+    "/checks",
+    "/checks?state=waiting_review&project=project_example&check=audit_example",
+    "/checks/new",
+    "/checks/new?project=project_example&type=web-scan",
+    "/checks/new?project=project_example&objective=Find%20IDOR&type=owasp-top10",
+    "/issues",
+    "/issues?state=proposed&project=project_example&severity=high",
+    "/issues/audit_example/finding_example",
+    "/reports",
+    "/reports/audit_example",
+    "/projects",
+    "/projects?new=1",
+    "/projects/project_example",
+    "/projects/project_example/artifacts",
+    "/projects/project_example/workflows",
+    "/projects/project_example/runs?view=completed&state=failed",
+    "/projects/project_example/settings",
+    "/projects/project_example/artifacts/sources/service",
+    "/projects/project_example/audits",
+    "/projects/project_example/findings",
+    "/projects/project_example/facts",
+    "/projects/project_example/facts?state=all&q=nginx",
+    "/projects/project_example/findings?audit=audit_example&severity=high",
+    "/projects/project_example/audits/audit_example",
+    "/projects/project_example/audits/audit_example/work",
+    "/projects/project_example/audits/audit_example/findings",
+    "/projects/project_example/audits/audit_example/hypotheses",
+    "/projects/project_example/audits/audit_example/materials",
+    "/projects/project_example/audits/audit_example/activity",
+    "/evals",
+    "/evals/new",
+    "/evals/datasets",
+    "/evals/workspaces",
+    "/evals/experiments/experiment-1",
+    "/evals/experiments/experiment-1/setup",
+    "/evals/experiments/experiment-1/comparison",
+    "/evals/experiments/experiment-1/attempts",
+    "/evals/experiments/experiment-1/pairs/" + "a".repeat(64),
+    "/evals/workspaces/evaluation_example",
+    "/evals/workspaces/evaluation_example/artifacts/sources/service",
+    "/artifacts",
+    "/artifacts/projects/source",
+    "/runs",
+    "/runs/run_example",
+    "/runs/run_example/artifacts/outputs/openapi",
+    "/catalog",
+    "/catalog/studio?kind=Workflow",
+    "/catalog/workflows",
+    "/catalog/workflows/openapi-from-workspace/3",
+    "/catalog/audit-presets",
+    "/catalog/audit-presets/owasp-top10-2025-source-risk/2?q=access",
+    "/catalog/agents",
+    "/catalog/agents/worker/1",
+    "/catalog/skills",
+    "/operations",
+    "/operations/runtime-agents",
+    "/operations/configuration",
+    "/operations/configuration/debug/1",
+    "/operations/allocations",
+    "/operations/allocations/completed",
+    "/operations/performance",
+    "/operations/configurations",
+    "/operations/configurations/model-policies/worker/1",
+    "/operations/credentials",
+    "/operations/credentials/worker-budget",
+    "/operations/settings",
+  ]) {
+    const response = await fetch(`${origin}${route}`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.match(await response.text(), /<title>UI<\/title>/);
+  }
+  const response = await fetch(`${origin}/runs`);
+  const csp = response.headers.get("content-security-policy");
+  assert.match(
+    csp,
+    /connect-src 'self' http:\/\/127\.0\.0\.1:8080 ws:\/\/127\.0\.0\.1:8080/,
+  );
+  assert.match(csp, /script-src 'self'/);
+  assert.doesNotMatch(csp, /unsafe-eval/);
+  assert.match(csp, /style-src 'self' 'unsafe-inline'/);
+  assert.match(csp, /worker-src 'self'/);
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+});
+
+test("Project Workflow Run URLs serve the shell directly on GET and HEAD", async (t) => {
+  const { origin } = await fixture(t);
+  for (const path of [
+    "/projects/project-1/workflows/artifact-copy/1/run",
+    "/projects/project%3A1/workflows/artifact-copy/v2.1/run?source=repeat",
+    `/projects/${"p".repeat(256)}/workflows/${"w".repeat(128)}/${"v".repeat(64)}/run`,
+  ]) {
+    const get = await rawRequest(origin, path);
+    assert.equal(get.status, 200, path);
+    assert.equal(get.body, "<!doctype html><title>UI</title>");
+    assert.equal(get.headers["cache-control"], "no-store");
+    assert.match(get.headers["content-type"], /text\/html/);
+    const head = await rawRequest(origin, path, "HEAD");
+    assert.equal(head.status, 200, path);
+    assert.equal(head.body, "");
+    for (const header of [
+      "content-type",
+      "content-length",
+      "cache-control",
+      "content-security-policy",
+    ]) {
+      assert.equal(head.headers[header], get.headers[header], header);
+    }
+  }
+});
+
+test("encoded client identities serve the same shell on direct GET and HEAD", async (t) => {
+  const { origin } = await fixture(t);
+  const project = encodeURIComponent("project:example");
+  const audit = encodeURIComponent("audit:example");
+  const run = encodeURIComponent("run:example");
+  const version = encodeURIComponent("1.0.0+local");
+  for (const path of [
+    `/operations/configuration/default/${version}`,
+    `/projects/${project}`,
+    `/projects/${project}/artifacts`,
+    `/projects/${project}/artifacts/sources/service`,
+    `/projects/${project}/audits/${audit}/work`,
+    `/projects/${project}/workflows/artifact-copy/1/run`,
+    `/evals/workspaces/${project}`,
+    `/evals/workspaces/${project}/artifacts/sources/service`,
+    `/runs/${run}`,
+    `/runs/${run}/artifacts/outputs/result`,
+  ]) {
+    const get = await rawRequest(origin, path);
+    assert.equal(get.status, 200, path);
+    assert.equal(get.body, "<!doctype html><title>UI</title>");
+    const head = await rawRequest(origin, path, "HEAD");
+    assert.equal(head.status, 200, path);
+    assert.equal(head.body, "");
+    assert.equal(head.headers["content-length"], get.headers["content-length"]);
+    assert.equal(head.headers["cache-control"], "no-store");
+  }
+});
+
+test("configuration identity routes accept exactly the shared grammar", async (t) => {
+  const { origin } = await fixture(t);
+  const { id, version } = configIdentityCases;
+  // Encoded as the UI links encode them: "+" in a version becomes %2B.
+  const encode = encodeURIComponent;
+  const configRoutes = [
+    (name, value) => `/catalog/workflows/${name}/${value}`,
+    (name, value) => `/catalog/agents/${name}/${value}`,
+    (name, value) => `/catalog/audit-presets/${name}/${value}`,
+    (name, value) => `/projects/project-1/workflows/${name}/${value}/run`,
+    ...[
+      "agent-templates",
+      "execution-configs",
+      "model-policies",
+      "llm-gateways",
+    ].map(
+      (kind) => (name, value) =>
+        `/operations/configurations/${kind}/${name}/${value}`,
+    ),
+  ];
+  // Runtime configurations: the same characters, RuntimeInfrastructureId
+  // names of at most 63 and RuntimeConfigVersion versions of at most 128.
+  const runtimeRoute = (name, value) =>
+    `/operations/configuration/${name}/${value}`;
+  const cases = (nameBound, versionBound) => ({
+    valid: [
+      ...id.valid.map((name) => [name, "1"]),
+      ...version.valid.map((value) => ["a", value]),
+      ["a".repeat(nameBound), "1".repeat(versionBound)],
+    ],
+    invalid: [
+      ...id.invalid.map((name) => [name, "1"]),
+      ...version.invalid.map((value) => ["a", value]),
+      ["a".repeat(nameBound + 1), "1"],
+      ["a", "1".repeat(versionBound + 1)],
+    ],
+  });
+  const routed = [
+    ...configRoutes.map((route) => [
+      route,
+      cases(id.maxLength, version.maxLength),
+    ]),
+    [runtimeRoute, cases(63, 128)],
+  ];
+  for (const [route, { valid, invalid }] of routed) {
+    for (const [name, value] of valid) {
+      const path = route(encode(name), encode(value));
+      const response = await rawRequest(origin, path);
+      assert.equal(response.status, 200, path);
+      assert.equal(response.body, "<!doctype html><title>UI</title>", path);
+    }
+    for (const [name, value] of invalid) {
+      const path = route(encode(name), encode(value));
+      const response = await rawRequest(origin, path, "GET", {
+        Accept: "text/html",
+      });
+      // 404, or 400 for an encoded separator or NUL; never the shell.
+      assert.ok(
+        [400, 404].includes(response.status),
+        `${path}: ${response.status}`,
+      );
+      assert.doesNotMatch(response.body, /<title>UI<\/title>/, path);
+    }
+  }
+});
+
+test("check, issue and report URLs serve the shell only in their exact shapes", async (t) => {
+  const { origin } = await fixture(t);
+  const audit = encodeURIComponent("audit:example");
+  const finding = encodeURIComponent("finding:example");
+  for (const path of [
+    "/checks/new?project=project_example&objective=Check%20%2Fapi%2Fusers",
+    "/issues/a/b",
+    `/issues/${audit}/${finding}`,
+    `/issues/${"a".repeat(256)}/${"f".repeat(256)}`,
+    `/reports/${audit}`,
+    `/reports/${"a".repeat(256)}`,
+  ]) {
+    const get = await rawRequest(origin, path);
+    assert.equal(get.status, 200, path);
+    assert.equal(get.body, "<!doctype html><title>UI</title>", path);
+    assert.equal(get.headers["cache-control"], "no-store", path);
+    const head = await rawRequest(origin, path, "HEAD");
+    assert.equal(head.status, 200, path);
+    assert.equal(head.body, "", path);
+    assert.equal(head.headers["content-length"], get.headers["content-length"]);
+  }
+  for (const path of [
+    "/inbox",
+    "/checks/audit_example",
+    "/checks/new/extra",
+    "/issues/a",
+    "/issues/a/b/c",
+    "/issues/_invalid/finding_example",
+    "/issues/audit_example/_invalid",
+    `/issues/${"a".repeat(257)}/finding_example`,
+    `/issues/audit_example/${"f".repeat(257)}`,
+    "/issues/audit%253Aexample/finding_example",
+    "/reports/audit_example/extra",
+    "/reports/_invalid",
+    `/reports/${"a".repeat(257)}`,
+  ]) {
+    const page = await rawRequest(origin, path, "GET", { Accept: "text/html" });
+    assert.equal(page.status, 404, path);
+    assert.doesNotMatch(page.body, /<title>UI<\/title>/, path);
+    const plain = await rawRequest(origin, path);
+    assert.equal(plain.status, 404, path);
+    assert.equal(plain.body, "not found\n", path);
+  }
+  for (const path of [
+    "/issues/audit_example/%2e%2e",
+    "/issues/audit%2Fexample/finding_example",
+    "/reports/%2e%2e",
+    "/reports/audit%5Cexample",
+  ]) {
+    assert.equal((await rawRequest(origin, path)).status, 400, path);
+  }
+});
+
+test("decoding client identities preserves route and traversal boundaries", async (t) => {
+  const { origin } = await fixture(t);
+  for (const path of [
+    "/operations/configuration/default/1%2Flocal",
+    "/operations/configuration/default/1%5Clocal",
+    "/projects/project%00id",
+    "/projects/project%3Aexample/%2e%2e/runs",
+    "/projects/project%3Aexample/artifacts/sources/%",
+  ]) {
+    assert.equal((await rawRequest(origin, path)).status, 400, path);
+  }
+  for (const path of [
+    "/operations/configuration/default/1%252Blocal",
+    "/projects/project%253Aexample/workflows/artifact-copy/1/run",
+    "/projects/project%3Aexample/unknown",
+    "/operations/configuration/default/1%3Fextra",
+    "/operations/configuration/default/1%23extra",
+    "/%76%31/auth/session",
+    "/%61pi/runs",
+    "/%70rivate/control",
+  ]) {
+    const response = await rawRequest(origin, path, "GET", {
+      Accept: "text/html",
+    });
+    assert.equal(response.status, 404, path);
+    assert.doesNotMatch(response.body, /<title>UI<\/title>/, path);
+    if (/^\/%(?:76|61|70)/.test(path)) {
+      assert.equal(response.body, "not found\n", path);
+    }
+  }
+});
+
+test("runtime config, health and hashed assets have distinct cache policy", async (t) => {
+  const { origin } = await fixture(t);
+  const configResponse = await fetch(`${origin}/runtime-config.json`);
+  assert.equal(configResponse.status, 200);
+  assert.equal(configResponse.headers.get("cache-control"), "no-store");
+  assert.deepEqual(await configResponse.json(), runtimeConfig);
+
+  const healthResponse = await fetch(`${origin}/healthz`);
+  assert.deepEqual(await healthResponse.json(), {
+    status: "ok",
+    uiVersion: "0.1.0",
+  });
+
+  const assetResponse = await fetch(`${origin}/assets/app-12345678.js`);
+  assert.equal(assetResponse.status, 200);
+  assert.equal(
+    assetResponse.headers.get("cache-control"),
+    "public, max-age=31536000, immutable",
+  );
+  assert.match(assetResponse.headers.get("content-type"), /javascript/);
+  assert.doesNotMatch(
+    assetResponse.headers.get("content-security-policy"),
+    /unsafe-eval/,
+  );
+
+  const workerResponse = await fetch(
+    `${origin}/assets/likec4.worker-12345678.js`,
+  );
+  assert.equal(workerResponse.status, 200);
+  const workerCSP = workerResponse.headers.get("content-security-policy");
+  assert.match(workerCSP, /script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'/);
+  assert.match(workerCSP, /connect-src 'none'/);
+
+  const headResponse = await fetch(`${origin}/operations`, { method: "HEAD" });
+  assert.equal(headResponse.status, 200);
+  assert.equal(await headResponse.text(), "");
+  assert(Number(headResponse.headers.get("content-length")) > 0);
+});
+
+test("browser 404 offers recovery without widening SPA or API fallbacks", async (t) => {
+  const { origin } = await fixture(t);
+  const headers = { Accept: "text/html" };
+  const response = await fetch(`${origin}/missing-page`, { headers });
+  assert.equal(response.status, 404);
+  assert.match(response.headers.get("content-type"), /text\/html/);
+  const body = await response.text();
+  assert.match(body, /Page not found/);
+  assert.match(body, /<a href="\/">Inbox<\/a>/);
+  assert.match(body, /href="\/projects"/);
+  assert.doesNotMatch(body, /<script/);
+  const head = await fetch(`${origin}/missing-page`, {
+    headers,
+    method: "HEAD",
+  });
+  assert.equal(head.status, 404);
+  assert.equal(await head.text(), "");
+  const api = await fetch(`${origin}/v1/missing`, { headers });
+  assert.equal(api.status, 404);
+  assert.equal(await api.text(), "not found\n");
+});
+
+test("API-looking, missing asset, extension, retired and unknown routes never fall back", async (t) => {
+  const { origin } = await fixture(t);
+  for (const path of [
+    "/v1/auth/session",
+    "/api/anything",
+    "/private/control",
+    "/assets/missing-12345678.js",
+    "/settings",
+    "/unknown",
+    "/manifest.json",
+    "/queue?membership=project",
+    "/workflows",
+    "/workflows/openapi-from-workspace/3",
+    "/skills",
+    "/operations/runtime-configs",
+    "/operations/runtime-configs/debug/1",
+    "/operations/runtime-configs/default/1.0.0%2Blocal",
+    "/workflows/name/1/extra",
+    "/catalog/unknown",
+    "/catalog/agents/worker/1/extra",
+    "/catalog/workflows/name/1/extra",
+    "/catalog/audit-presets/name/1/extra",
+    "/catalog/audit-presets/_invalid/1",
+    "/projects/project_example/extra",
+    "/projects/_invalid/workflows/artifact-copy/1/run",
+    "/projects/project-1/workflows/_invalid/1/run",
+    "/projects/project-1/workflows/artifact-copy/_invalid/run",
+    "/projects/project-1/workflows/artifact-copy/1",
+    "/projects/project-1/workflows/artifact-copy/1/run/extra",
+    "/evals/project-1/workflows/artifact-copy/1/run",
+    `/projects/${"p".repeat(257)}/workflows/artifact-copy/1/run`,
+    `/projects/project-1/workflows/${"w".repeat(129)}/1/run`,
+    `/projects/project-1/workflows/artifact-copy/${"v".repeat(65)}/run`,
+    "/projects/project_example/findings/extra",
+    "/evals/legacy",
+    "/evals/evaluation_example",
+    "/evals/evaluation_example/artifacts/sources/service",
+    "/evals/workspaces/evaluation_example/findings",
+    "/evals/experiments/experiment-1/commands",
+    "/evals/experiments/experiment-1/members",
+    "/evals/experiments/experiment-1/pairs/not-a-pair",
+    "/projects/project_example/artifacts/sources/service/extra",
+    "/projects/project_example/audits/audit_example/unknown",
+    "/projects/project_example/audits/audit_example/coverage/extra",
+    "/evals/workspaces/evaluation_example/artifacts/sources/service/extra",
+    "/runs/run_example/extra",
+    "/runs/run_example/artifacts/outputs/openapi/extra",
+    "/operations/configurations/model-policies/worker/1/extra",
+    "/operations/configurations/unknown/worker/1",
+    "/operations/runtime-configs/debug/1/extra",
+    "/operations/runtime-configs/INVALID/1",
+    "/runs/configuration/debug/1",
+    "/runs/configuration/debug/1/extra",
+    "/runs/configuration/INVALID/1",
+    "/operations/credentials/worker-budget/extra",
+  ]) {
+    const response = await fetch(`${origin}${path}`);
+    assert.equal(response.status, 404, path);
+    assert.equal(await response.text(), "not found\n", path);
+  }
+  const traversal = await rawRequest(origin, "/v1/%2e%2e/runs");
+  assert.equal(traversal.status, 400);
+  assert.equal(traversal.body, "invalid request target\n");
+  const projectTraversal = await rawRequest(
+    origin,
+    "/projects/project-1/workflows/%2e%2e/1/run",
+  );
+  assert.equal(projectTraversal.status, 400);
+  const absoluteForm = await rawRequest(origin, "http://attacker.invalid/runs");
+  assert.equal(absoluteForm.status, 400);
+});
+
+test("static service rejects domain mutations without reading a body", async (t) => {
+  const { origin } = await fixture(t);
+  const response = await rawRequest(origin, "/runs", "POST");
+  assert.equal(response.status, 405);
+  assert.equal(response.headers.allow, "GET, HEAD");
+  assert.equal(response.body, "method not allowed\n");
+});

@@ -1,0 +1,290 @@
+package scanplan
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"maps"
+	"slices"
+	"sort"
+	"strings"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+)
+
+type preparer struct {
+	root            map[string]any
+	options         Options
+	refs            int
+	exhausted       bool
+	schemaNodes     int
+	schemaExhausted bool
+	gaps            []scan.PreparationGap
+	gapKeys         map[scan.PreparationGap]bool
+	gapExhausted    bool
+}
+
+// Format redacts the preparer as a whole for every verb (SEC-R88): fmt cannot call the authentication values' own redaction through the unexported options field.
+func (preparer) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "scanplan.preparer([REDACTED])")
+}
+
+// prepare prepares one selected operation of a parsed source. Everything it
+// accumulates (options, reference and concrete-hint budgets, gaps, coverage)
+// belongs to this operation; the source is only read.
+func prepare(document *sourceDocument, options Options, selection operationSelection) (scan.HTTPRequestSet, error) {
+	empty := scan.HTTPRequestSet{}
+	options, err := normalizeOptions(options)
+	if err != nil {
+		return empty, err
+	}
+	if !selection.valid() {
+		return empty, failure("invalid_operation_selection")
+	}
+	for pointer := range options.Operations {
+		if pointer != selection.pointer {
+			return empty, failure("unassigned_operation_binding")
+		}
+	}
+	p := &preparer{root: document.root, options: options, gaps: []scan.PreparationGap{}, gapKeys: map[scan.PreparationGap]bool{}}
+	if selection.mode == "url-target" {
+		p.gap(selection.pointer, "url_template_scan_only")
+	}
+	set := scan.HTTPRequestSet{
+		SchemaVersion: 1,
+		Source:        document.requestSetSource(),
+		Requests:      []scan.RequestSetEntry{},
+	}
+	basis, err := strictjson.Canonical(struct {
+		PolicyVersion int                   `json:"policyVersion"`
+		Source        scan.RequestSetSource `json:"source"`
+		MediaType     string                `json:"mediaType"`
+		Options       revealedOptions       `json:"options"`
+	}{2, set.Source, document.mediaType, options.revealed()})
+	if err != nil {
+		return empty, failure("invalid_options")
+	}
+	set.PreparationDigest = contentdigest.Bytes(basis)
+	// The operation and mode digest preserves the identity of existing Audit
+	// preparations while separating request sets from URL-only targets.
+	basis, err = strictjson.Canonical(struct {
+		PolicyVersion int    `json:"policyVersion"`
+		BaseDigest    string `json:"baseDigest"`
+		Operation     string `json:"operation"`
+		Mode          string `json:"mode"`
+	}{1, set.PreparationDigest, selection.pointer, selection.mode})
+	if err != nil {
+		return empty, failure("invalid_operation_selection")
+	}
+	set.PreparationDigest = contentdigest.Bytes(basis)
+	found := false
+	// The index replaces a walk over every path key: at most one key has the
+	// selected path-item pointer, and only that path item is read.
+	pointer := selection.pathPointer()
+	if path, exists := document.pathKeys[pointer]; exists {
+		if !strings.HasPrefix(path, "/") || len(path) > 8192 {
+			return empty, failure("invalid_document")
+		}
+		if len(pointer)+8 > 8192 {
+			return empty, failure("invalid_document")
+		}
+		found = p.preparePathItem(&set, path, document.paths[path], pointer, selection)
+	}
+	if p.exhausted {
+		return empty, failure("reference_limit_exceeded")
+	}
+	if p.schemaExhausted {
+		return empty, failure("schema_work_limit_exceeded")
+	}
+	if !found {
+		return empty, failure("unknown_operation_selection")
+	}
+	if p.gapExhausted {
+		return empty, failure("gap_limit_exceeded")
+	}
+	sort.Slice(p.gaps, func(i, j int) bool {
+		if p.gaps[i].Pointer == p.gaps[j].Pointer {
+			return p.gaps[i].Code < p.gaps[j].Code
+		}
+		return p.gaps[i].Pointer < p.gaps[j].Pointer
+	})
+	set.Gaps = []scan.PreparationGap{}
+	for _, gap := range p.gaps {
+		if len(set.Gaps) == 0 || set.Gaps[len(set.Gaps)-1] != gap {
+			set.Gaps = append(set.Gaps, gap)
+		}
+	}
+	set.Coverage.Skipped = set.Coverage.Operations - set.Coverage.Prepared
+	set.Coverage.Complete = set.Coverage.Skipped == 0 && len(set.Gaps) == 0
+	if _, err := scan.MarshalHTTPRequestSet(set); err != nil {
+		return empty, failure("request_set_limit_or_contract_error")
+	}
+	return set, nil
+}
+
+// preparePathItem prepares the selected operation of the path item at
+// pointer and reports whether the selection exists in the source.
+func (p *preparer) preparePathItem(set *scan.HTTPRequestSet, path string, raw any, pointer string, selection operationSelection) bool {
+	item, code := p.resolve(raw, nil)
+	if code != "" {
+		p.gap(pointer, code)
+		set.Coverage.Operations = 1
+		return true
+	}
+	for _, key := range slices.Sorted(maps.Keys(item)) {
+		if !strings.HasPrefix(key, "x-") && !knownPathField(key) {
+			p.gap(pointer, "unsupported_path_item_field")
+		}
+	}
+	found := false
+	for _, method := range []string{"delete", "get", "head", "options", "patch", "post", "put", "trace"} {
+		opPointer := pointer + "/" + method
+		if opPointer != selection.pointer {
+			continue
+		}
+		raw, exists := item[method]
+		if !exists {
+			continue
+		}
+		set.Coverage.Operations = 1
+		found = true
+		if method == "trace" {
+			p.gap(opPointer, "unsupported_method")
+			continue
+		}
+		op, ok := raw.(map[string]any)
+		if !ok {
+			p.gap(opPointer, "invalid_operation")
+			continue
+		}
+		if _, exists := op["$ref"]; exists {
+			p.gap(opPointer, "unsupported_operation_reference")
+			continue
+		}
+		unknown := false
+		for _, key := range slices.Sorted(maps.Keys(op)) {
+			if !strings.HasPrefix(key, "x-") && !knownOperationField(key) {
+				unknown = true
+			}
+		}
+		if unknown {
+			p.gap(opPointer, "unsupported_operation_field")
+		}
+		if _, exists := op["callbacks"]; exists {
+			p.gap(opPointer, "unsupported_callbacks")
+		}
+		request, code := p.prepareOperation(path, strings.ToUpper(method), item, op, opPointer, selection.mode == "url-target")
+		if code != "" {
+			p.gap(opPointer, code)
+			continue
+		}
+		contentDigest, err := scan.RequestContentDigest(request)
+		if err != nil {
+			p.gap(opPointer, "invalid_prepared_request")
+			continue
+		}
+		set.Requests = append(set.Requests, scan.RequestSetEntry{ID: "request-" + strings.TrimPrefix(contentDigest, "sha256:"), ContentDigest: contentDigest, Request: request, Origins: []scan.RequestOrigin{{Pointer: opPointer}}})
+		set.Coverage.Prepared = 1
+	}
+	return found
+}
+
+func SupportsOpenAPIVersion(version string) bool {
+	parts := strings.Split(version, ".")
+	if len(parts) != 3 || parts[0] != "3" || (parts[1] != "0" && parts[1] != "1") || parts[2] == "" {
+		return false
+	}
+	for _, digit := range parts[2] {
+		if digit < '0' || digit > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func normalizeOptions(options Options) (Options, error) {
+	if !validateOptionsValues(options) || options.EngagementCredential != "" && (!contracts.ValidConfigID(options.EngagementCredential) || len(options.Authentication) != 0) {
+		return Options{}, failure("invalid_options")
+	}
+	encoded, err := json.Marshal(options.revealed())
+	if err != nil || len(encoded) > MaxOptionsBytes {
+		return Options{}, failure("invalid_options")
+	}
+	// The same bounded data model prevents unsafe numbers, excessive depth and
+	// custom Go values from acquiring a different meaning during canonicalization.
+	if _, err = parseDocument(encoded, "application/json"); err != nil {
+		return Options{}, failure("invalid_options")
+	}
+	var normalized Options
+	if err = json.Unmarshal(encoded, &normalized); err != nil {
+		return Options{}, failure("invalid_options")
+	}
+	options = normalized
+	if options.MaxRequests == 0 {
+		options.MaxRequests = MaxRequests
+	}
+	if options.MaxRequests < 1 || options.MaxRequests > MaxRequests {
+		return Options{}, failure("invalid_options")
+	}
+	if options.ServerVariables == nil {
+		options.ServerVariables = map[string]string{}
+	}
+	if options.Authentication == nil {
+		options.Authentication = map[string]contracts.SecretString{}
+	}
+	if options.Operations == nil {
+		options.Operations = map[string]OperationInput{}
+	}
+	for key, op := range options.Operations {
+		parameters := map[string]any{}
+		for name, value := range op.Parameters {
+			if strings.HasPrefix(name, "header:") {
+				name = strings.ToLower(name)
+			}
+			if _, exists := parameters[name]; exists {
+				return Options{}, failure("duplicate_parameter_binding")
+			}
+			parameters[name] = value
+		}
+		op.Parameters = parameters
+		options.Operations[key] = op
+	}
+	return options, nil
+}
+
+func (p *preparer) gap(pointer, code string) {
+	gap := scan.PreparationGap{Pointer: pointer, Code: code}
+	if p.gapKeys[gap] {
+		return
+	}
+	if len(p.gaps) >= scan.MaxHTTPRequestSetGaps {
+		p.gapExhausted = true
+		return
+	}
+	p.gapKeys[gap] = true
+	p.gaps = append(p.gaps, gap)
+}
+func escapePointer(value string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(value, "~", "~0"), "/", "~1")
+}
+
+func knownPathField(key string) bool {
+	switch key {
+	case "summary", "description", "servers", "parameters", "delete", "get", "head", "options", "patch", "post", "put", "trace":
+		return true
+	default:
+		return false
+	}
+}
+
+func knownOperationField(key string) bool {
+	switch key {
+	case "tags", "summary", "description", "externalDocs", "operationId", "parameters", "requestBody", "responses", "callbacks", "deprecated", "security", "servers":
+		return true
+	default:
+		return false
+	}
+}

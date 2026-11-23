@@ -1,0 +1,167 @@
+schema_version: "1.0"
+id: V55-009
+title: Optionally rank existing scan candidates with an LLM
+milestone: scan-tools-followups
+epic: scan-tools
+kind: feature
+priority: P2
+status: pending
+depends_on: [V55-008]
+languages: [go, yaml, markdown]
+goal: >-
+  When a scan plan has more selectable candidates than its job or time budget
+  admits, an opt-in model ranker decides which of the already prepared
+  candidates run first, instead of the arbitrary candidate-ID order, without
+  giving the model authority to construct scanner commands, add targets or
+  expand budgets. With ranking off, planning stays exactly as it is.
+context:
+  authority: User suggested optional LLM filtering of the highest-priority prepared scans.
+  design: docs/plans/2026-09-19-scan-tools.md
+  proposal: docs/proposals/0045-audit-hypothesis-search.md#6-prioritization-and-the-v64-revision
+  replanned: >-
+    2026-10-24: proposal 0045 revises the separate Audit search/selection direction.
+    This task still ranks only already prepared scan candidates inside a Run. It is
+    neither a prerequisite for Audit research nor a second Audit-level ranker; status,
+    dependencies and the deterministic ranking-off contract are unchanged.
+  specification:
+    - docs/spec/tools/scanners.md#SCN-R171
+    - docs/spec/tools/scanners.md#SCN-R173
+    - docs/spec/tools/scanners.md#SCN-R196
+    - docs/spec/tools/scanners.md#SCN-R201
+    - docs/spec/tools/scanners.md#SCN-R208
+    - docs/spec/execution/scheduler.md#SCH-R175
+    - docs/spec/audits/execution.md#AUX-R3
+  current_design: >-
+    V55-008 (e6f6c3a2) delivered scan-plan@1 as a model-free Planner and wrote
+    the ranking exclusion into its contract: SCN-R171 says it does not "ask a
+    model to rank candidates" and SCN-R173 accepts no Planner model
+    configuration. BuildPlan (internal/scanplan/plan_build.go:62-140) gives
+    candidates semantic hash IDs, sorts them by ID and admits selectable
+    candidates in that order until the global or per-tool job count or summed
+    timeout is exhausted (SCN-R196, plan_build.go:103-131); rejected ones stay
+    in the plan with job_budget_exceeded, tool_job_budget_exceeded,
+    time_budget_exceeded or tool_time_budget_exceeded. There is no priority
+    signal, so with up to 1,000 inputs (LIM-SCN-57), 4,000 candidates
+    (LIM-SCN-63) and at most 100 selected jobs (LIM-SCN-58, LIM-SCN-64),
+    which candidates run under a tight budget is effectively arbitrary; that
+    is the gap a ranker fills. The plan ID is the SHA-256 of the canonical
+    plan (SCN-R197), the plan is persisted before dispatch (SCN-R201) and
+    recovery rechecks the persisted plan (SCN-R208), so a ranking must be
+    persisted before dispatch and never recomputed. A scan-plan@1 Stage whose
+    Workers are all tool@1 runs in the tool lane (SCH-R175,
+    internal/config/resolved/lane_class.go StageLaneClass), and Audits pace
+    role Workflows by that class (AUX-R3); shipped users of scan-plan@1 are
+    configs/scan/workflows/request_set_scan.yaml, target_scan_plan.yaml and
+    the Audit Workflows audit_openapi_nuclei_scan.yaml and
+    audit_openapi_sqlmap_scan.yaml. Plan artifacts may contain credentials
+    and private request data (SCN-R219).
+  decision_needed: >-
+    Implementing this reopens SCN-R171 and SCN-R173, so the user must confirm
+    it before work starts, and choose where the ranker runs:
+    (a) inside scan-plan@1 through the Planner Gateway, which turns those
+    Stages into model-lane Stages (SCH-R175) and makes the Audit scan roles
+    count as model (AUX-R3) whenever ranking is enabled; or
+    (b) in a preceding model Stage that publishes an immutable ranking
+    Artifact which scan-plan@1 consumes as an optional exact input, so
+    scan-plan@1 stays model-free and in the tool lane; the candidate set must
+    then be computable before ranking by the same pure code BuildPlan uses.
+    Record the choice, the alternatives and the reversal condition in
+    scanners.md (AGENTS.md 3.10). The broader Audit search/selection direction
+    is now proposal 0045; it does not choose this scan-stage boundary or
+    make a hypothesis registry mandatory for standalone scans. This task
+    remains independently pending; planning V64 does not change its status
+    or authorize implementation of the unresolved scanner contract choice.
+  revalidated: >-
+    2026-10-24 on b523ae77: still needed and still not started, but the old
+    task predated the normative scan-plan contract. Rewritten as a small
+    specification: it now names the requirements it must amend (SCN-R171,
+    SCN-R173, SCN-R196), the persistence and recovery rules it must keep
+    (SCN-R197, SCN-R201, SCN-R208), the lane-class consequence (SCH-R175,
+    AUX-R3, added by V400 since the task was written), the secrets rule
+    (SCN-R219) and the boundary decision above. V55-008 is completed. The
+    goal and the out-of-scope list are unchanged.
+related_work:
+  - >-
+    Proposal 0045 replaces the future V64 integration direction with optional
+    Audit research and bounded experiment selection; fixed checklist ranking
+    remains one policy, and a minimum of ten is not a universal requirement.
+    Completed V64-000 remains implementation history. This narrower task
+    ranks existing scanner jobs within an ordinary Run, does not create
+    hypotheses or Audit research cycles, and remains independent of V64.
+scope:
+  in:
+    - "An opt-in ranking policy per scan Stage, off by default, with its own model selection, deadline and attempt budget."
+    - "Bounded, redacted candidate summaries as ranker input: candidate ID, Worker, scanner, method, origin and path or target, source IDs and preparation gaps; never header values, bodies, credentials or scanner arguments."
+    - "Server-side validation of the ranker's ordered candidate IDs and bounded reasons against the deterministic candidate set; budget admission (SCN-R196 checks) in ranked order, then the remaining selectable candidates in candidate-ID order."
+    - "Persist the ranking (model policy and selection digest, ranked IDs, reasons, or the fallback reason) before dispatch, bound to the plan identity; recovery reuses it and never ranks again."
+    - "Amend SCN-R171, SCN-R173 and SCN-R196, register the new limits (summary bytes per candidate and in total, reason length) and failure outcomes, and record the boundary decision."
+  out:
+    - "Model-authored executable commands, scanner arguments, new targets or automatic budget expansion."
+    - "Audit hypothesis generation, research pools, experiment selection and checklist prioritization (V64, proposal 0045)."
+    - "Changing BuildPlan's output when ranking is off."
+requirements:
+  - id: R1
+    text: "With ranking off, the plan bytes, plan ID, job IDs and the Stage lane class are identical to the current deterministic result, and no model service is needed."
+  - id: R2
+    text: "A ranking is accepted only if every ID is a selectable candidate of the persisted plan, no ID repeats and the list and each reason are within their registered bounds; any other answer is rejected as a whole and planning falls back to candidate-ID order with a recorded reason code. A partial ranking orders only the IDs it names."
+  - id: R3
+    text: "The ranker changes only the admission order. It cannot select a candidate the deterministic planner skipped as unsupported, cannot raise maxJobs, maxTotalSeconds or per-tool budgets, and every candidate it leaves out stays in the plan with its existing reason."
+  - id: R4
+    text: "The ranking result is part of the persisted plan identity or a create-only Artifact bound to it, written before the scan session starts (SCN-R201); recovery after any later failure reads it and makes no second model call (SCN-R208)."
+failure_outcomes:
+  - operation: "Ranker model call"
+    permanent: "Invalid, out-of-set, duplicate or oversized answer: no retry; deterministic fallback with a recorded reason code; the Stage continues."
+    retryable: "Gateway errors classified retryable by the existing Planner Gateway retry policy, within the ranking attempt budget and deadline; then deterministic fallback."
+    ambiguous: "Not applicable to the call itself; it has no side effects."
+    cancelled: "Stage cancellation cancels and joins the call before cleanup; no job is dispatched from a ranking that was not persisted."
+    timeout: "A dedicated ranking deadline inside the remaining Stage deadline (SCN-R199); expiry falls back deterministically and never consumes scan time budgets."
+  - operation: "Persisting the ranking with the plan"
+    permanent: "Different existing bytes under the deterministic binding fail the Stage explicitly (FAIL-SCN-9 pattern)."
+    retryable: "Existing storage retry bounds and 503 storage_transaction_conflict handling of the Artifact service."
+    ambiguous: "A lost acknowledgement is reconciled by reading the create-only binding and accepting identical bytes only (SCN-R202)."
+    cancelled: "Cancellation before the write commits leaves no ranking; recovery repeats the deterministic fallback or a new ranking only if no plan was persisted."
+    timeout: "Owned by the Artifact write budget, not the ranking deadline."
+cardinality:
+  - collection: "Candidates summarized for the ranker"
+    expected: "Tens to hundreds"
+    maximum: "4,000 candidates (LIM-SCN-63), of which at most 100 can be admitted (LIM-SCN-64)"
+    bound: "Per-candidate and total summary bytes registered as new LIM-SCN rows; when the selectable set exceeds the total bound, the ranker sees a deterministic bounded prefix and the rest keeps candidate-ID order, recorded in the plan."
+  - collection: "Ranked IDs and reasons returned"
+    expected: "Up to the remaining job budget"
+    maximum: "The selectable candidate count, capped by a registered bound"
+    bound: "Decoded with strict JSON within a registered byte limit before validation."
+lifecycle:
+  - entity: "Ranking result (inside the plan or a sibling Run Artifact)"
+    delete: "With its Run (RunScope); no new delete blocker."
+    cascade: "Run deletion purges it with the plan."
+    retention: "As long as the plan; immutable once written."
+acceptance_criteria:
+  - id: A1
+    given: "A ranker answer with an unknown ID, a duplicate, a skipped (unsupported) candidate, an over-limit list or malformed JSON"
+    when: "The scan Stage plans"
+    then: "No job is dispatched because of that answer; the plan uses candidate-ID order and records the fallback reason; budgets are unchanged."
+  - id: A2
+    given: "Ranking disabled (the default) and no model service configured"
+    when: "Existing scan-plan fixtures and the shipped scan Workflows run"
+    then: "Plans are byte-identical to b523ae77 and the Stage lane class is tool."
+  - id: A3
+    given: "A valid ranking persisted with the plan and a Scheduler claim lost after the first job"
+    when: "The Stage recovers"
+    then: "It dispatches the remaining jobs of the persisted ranked plan and makes no second ranker call (counted with a fake Gateway)."
+  - id: A4
+    given: "A RequestSet whose requests carry Authorization headers, cookies and bodies"
+    when: "Ranker input is built"
+    then: "It contains none of those values, only the summary fields listed in scope."
+  - id: A5
+    given: "A valid ranking of more candidates than maxJobs or the time budget admit"
+    when: "The plan is built"
+    then: "Admission follows the ranked order under the unchanged SCN-R196 checks, and every unadmitted candidate keeps its budget reason."
+tests:
+  - command: "go test -count=1 ./internal/scanplan/... ./internal/planner/scan/... ./internal/config/resolved"
+    covers: [A1, A2, A3, A4, A5]
+  - command: "go run ./cmd/contractor-server config validate --root ./configs"
+    covers: [A2]
+  - command: make test-e2e
+    covers: [A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5]

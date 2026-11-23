@@ -1,0 +1,111 @@
+{
+  "description": "Compact UTF-8 JSON byte counts, the measure of the private wire's byte bounds (WRK-R37 and the Worker State bounds): no insignificant whitespace, every non-ASCII character including U+2028 and U+2029 counts its UTF-8 bytes, < > & and / are not escaped, and only the escapes JSON requires (quote, backslash, \\b \\f \\n \\r \\t and \\u00XX for other control characters) count extra. Go measures with contracts.ResultJSONSize, Python with contracts.base.json_byte_size and pydantic's JSON serializer. Numbers are integers of at most 2^53 - 1 in magnitude: encoders format other numbers differently, so no byte bound may depend on them.",
+  "cases": [
+    {
+      "name": "empty string",
+      "value": "",
+      "bytes": 2
+    },
+    {
+      "name": "ASCII",
+      "value": "abc",
+      "bytes": 5
+    },
+    {
+      "name": "HTML characters are not escaped",
+      "value": "<a href=\"x\">&amp;</a>",
+      "bytes": 25
+    },
+    {
+      "name": "line separator",
+      "value": "\u2028",
+      "bytes": 5
+    },
+    {
+      "name": "paragraph separator between letters",
+      "value": "a\u2029b",
+      "bytes": 7
+    },
+    {
+      "name": "two-byte letter",
+      "value": "\u0436",
+      "bytes": 4
+    },
+    {
+      "name": "astral character",
+      "value": "\ud83d\ude00",
+      "bytes": 6
+    },
+    {
+      "name": "quote and backslash",
+      "value": "\"\\",
+      "bytes": 6
+    },
+    {
+      "name": "short escapes",
+      "value": "\b\f\n\r\t",
+      "bytes": 12
+    },
+    {
+      "name": "other control characters",
+      "value": "\u0001\u001f",
+      "bytes": 14
+    },
+    {
+      "name": "delete and C1 control",
+      "value": "\u007f\u0085",
+      "bytes": 5
+    },
+    {
+      "name": "slash",
+      "value": "a/b",
+      "bytes": 5
+    },
+    {
+      "name": "integers",
+      "value": [
+        0,
+        -1,
+        9007199254740991,
+        -9007199254740991
+      ],
+      "bytes": 41
+    },
+    {
+      "name": "literals",
+      "value": [
+        true,
+        false,
+        null
+      ],
+      "bytes": 17
+    },
+    {
+      "name": "empty containers",
+      "value": {
+        "a": [],
+        "b": {}
+      },
+      "bytes": 15
+    },
+    {
+      "name": "path list",
+      "value": [
+        "src/main.go",
+        "docs/\u2028note.md",
+        "\u0436.txt"
+      ],
+      "bytes": 42
+    },
+    {
+      "name": "object keys are measured too",
+      "value": {
+        "k\u2028": {
+          "<": "&"
+        },
+        "n": 12
+      },
+      "bytes": 25
+    }
+  ]
+}

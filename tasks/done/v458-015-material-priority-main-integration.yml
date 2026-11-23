@@ -1,0 +1,81 @@
+schema_version: '1.0'
+id: V458-015
+title: Integrate Project material priority with current archive visibility in main
+milestone: ui-consolidation-2026-10
+epic: ui
+kind: chore
+priority: P2
+status: completed
+depends_on: [V458-014]
+languages: [go, sql, python, typescript, markdown, yaml]
+goal: Main shows named material categories first while retaining the current default archive filter and preserving unrelated primary checkout changes.
+context:
+  authority: User request 2026-11-10 explicitly authorizes merging the reviewed material priority feature into main; demo deployment and remote publication are not requested.
+  specification:
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/ui/ui.md
+  finding: >-
+    Feature d5a93b049c5be64c3aa517e894e093e490aa7bc0 and main
+    7f37af0117ab441163bb72440b997e414c18b680 overlap in Artifact list
+    metadata queries and filters, generated clients and documentation. Main
+    already owns migration 000005_project_materials_index.sql and UI 0.11.32.
+    The primary main checkout retains six unrelated changed/untracked files,
+    including its generated task backlog.
+  design: >-
+    Reconcile on an isolated branch. Keep main's archive index migration exact,
+    renumber unshipped material priority as 000006 and publish UI 0.11.33.
+    The default priority page uses the current-material partial index that
+    excludes both Audit-managed and historical namespaces. Explicit namespace
+    selection keeps archived artifacts readable through the namespace rank
+    index. Both default order variants select a bounded page before metadata
+    hydration. Retain exact main-only Runtime/configuration sources and validate
+    their shared contracts, rather than changing them. Install a verified
+    no-fast-forward merge using the existing clean-path/index-base/CAS approach;
+    preserve primary changed file bytes modes and staged delta exactly.
+scope:
+  in:
+  - Reconcile completed priority and archive visibility behaviors and migration numbering without new product behavior.
+  - Verify combined PostgreSQL pagination archive exclusion exact reads and cursor scope, public clients, UI and shared contracts.
+  - Merge into local main and record immutable verification and primary preservation evidence.
+  out:
+  - New Runtime or workflow behavior, demo deployment, business-data changes, new tables and remote push.
+acceptance_criteria:
+  - id: A1
+    text: Main includes priority V458-014 and archive visibility V465-001 with indexed bounded pages, preserved explicit archive reads, sequential migrations 000005/000006 and fresh public clients at UI 0.11.33.
+  - id: A2
+    text: Combined complete affected Go/PostgreSQL suites, shared fixture and public API gates, UI verification, full mocked browser gate and lint pass; owned test resources are removed.
+  - id: A3
+    text: A no-fast-forward main merge contains both histories and the tested production tree; all six primary changed files keep exact hashes modes and staged delta, with no deployment claim.
+tests:
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/artifacts/... ./internal/persistence/postgres ./internal/httpapi/public ./internal/config ./internal/configtest
+    covers: [A1, A2]
+  - command: make verify-public-api generate-public-client-check
+    covers: [A1, A2]
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-wire-cross-language
+    covers: [A1, A2]
+  - command: VITEST_MAX_WORKERS=2 make ui-verify
+    covers: [A1, A2]
+  - command: make ui-browser-mocked
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+  - command: python3 tasks/evidence/v458-015-primary-preservation.py --verify-only
+    covers: [A3]
+implementation_commit: a0ccfee0a5ff1fd5b35bebc5e07fd01edcf038cb
+verification:
+  results:
+  - Reconciled material priority with main's default archive visibility. Ordinary and priority current-material pages select a bounded binding page before metadata hydration; explicit historical namespace selections keep ordered pages and exact reads. UI release is 0.11.33.
+  - Main migration 000005_project_materials_index.sql remains byte-identical. Unshipped category projection became 000006_project_material_order.sql; its current-material rank index excludes historical and Audit-managed bindings, while its namespace index retains explicit archive access. Migration backfill preserves existing fields and bytes.
+  - Complete Go suites for internal/artifacts/... internal/persistence/postgres internal/httpapi/public and internal/config passed against the disposable PostgreSQL database; internal/configtest compiled as a helper package. Combined regressions page 1207 current materials among 2001 high-priority archived materials, preserve explicit ordered archive access and cursor scope, and retain the existing 8000 archive and 6000 Audit-managed binding read budgets.
+  - make verify-public-api and make generate-public-client-check passed. The shared fixture gate passed 382 fixtures with 434 Go and 278 Python shared tests. One explicitly disabled optional disk-heavy case remains a skip rather than passing coverage.
+  - VITEST_MAX_WORKERS=2 make ui-verify passed 223 files and 2515 tests plus one existing expected failure, all 17 static-service cases, generation freshness, lint, typecheck and build. The complete mocked browser gate passed 239 cases in 33 specs without skips or retries. make lint passed on the combined revision.
+  - All 39 independent main-only paths retain exact contents and modes; the entire Runtime and configuration trees remain identical to main. ERD and dependency graph were regenerated through their owning generators; the schema remains 60 tables and 70 foreign keys at migration 000006.
+  - Created two-parent no-fast-forward merge a0ccfee0a5ff1fd5b35bebc5e07fd01edcf038cb from main 7f37af0117ab441163bb72440b997e414c18b680 and tested integration 19b556982db31db61f331b8d45663b8e27d3ec60. Its tree equals the tested integration tree. The guarded clean-path/index-base/CAS installer updated main and verified all six primary changed files' exact SHA-256 modes and original staged delta.
+  - The owned database contractor_material_priority_merge_20261110 was dropped after all test processes completed; its absence was verified. No demo migration deployment remote push live model calls business-data deletion or full release gate was performed.
+delivery:
+  date: '2026-11-10'
+  merged_into_main: true
+  merge_commit: a0ccfee0a5ff1fd5b35bebc5e07fd01edcf038cb
+  main_first_parent: 7f37af0117ab441163bb72440b997e414c18b680
+  verified_integration_head: 19b556982db31db61f331b8d45663b8e27d3ec60
+  ui_version: 0.11.33

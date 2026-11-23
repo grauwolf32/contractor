@@ -1,0 +1,199 @@
+# Local development
+
+[Documentation index](README.md)
+
+This guide covers dependency setup and the first local checks. To run the
+application, continue with [the local stack](guides/local-stack.md). For
+integration and release checks, use [the testing guide](testing/README.md).
+Implementation status and recorded evidence live in [tasks/](../tasks/): open
+tasks at the top level, finished ones in `tasks/done/`, with the policy in
+[tasks/index.yml](../tasks/index.yml).
+
+## Prerequisites
+
+| Component | Repository requirement |
+| --- | --- |
+| Host | Linux or macOS for Server/ordinary Runtime; Linux for the CI stack and Podman sandbox; see [deployment](deployment.md) |
+| Go | 1.26.10 or newer; [go.mod](../go.mod) requires at least 1.26.10 with `GOTOOLCHAIN=auto` |
+| Python | 3.13 and `uv`; see [runtime/pyproject.toml](../runtime/pyproject.toml) |
+| UI | Node 24.20, Corepack 0.36 and pnpm 11.24; see [ui/package.json](../ui/package.json) |
+| PostgreSQL | Required to run Server and database/process tests; CI uses PostgreSQL 17 |
+| Shell examples | `curl`, `jq` and Git; OpenSSL for the optional Gateway key setup |
+
+A local application stack also needs an OpenAI-compatible LLM Gateway. The
+deterministic process tests supply their own fake Gateway. Source-analysis
+Workflows need additional [Runtime capabilities](guides/project-workflows.md#runtime-workspace-requirements).
+
+Run commands from the repository root unless a block explicitly changes directory.
+
+## Install dependencies
+
+```shell
+make runtime-venv
+npm install --global corepack@0.36.0
+make ui-install
+```
+
+Install Chromium when you need browser process tests:
+
+```shell
+make ui-browser-install
+```
+
+If Playwright reports missing host libraries, install them using the same
+setup as [CI](../.github/workflows/ci.yml).
+
+## Build the commands
+
+Build the CLI and auxiliary commands from the repository root and add them to
+the current shell's search path:
+
+```shell
+go build -o ./bin/ ./cmd/...
+export PATH="$PWD/bin:$PATH"
+contractor --help
+```
+
+Rebuild after changing Go code. The guides use the installed `contractor`
+command: `contractor server run`, `contractor server migrate` and
+`contractor pki`. The build also produces the `contractor-skill` packaging
+helper and the standalone `contractor-server` used by container examples and
+offline blob cleanup, which is not exposed by the unified CLI.
+
+## Validate and test
+
+Validate the executable configuration before starting Server:
+
+```shell
+contractor server config validate --root ./configs
+make verify
+```
+
+Validation reads the sibling `managed-configs/` root without creating it;
+pass `--managed-root` to match a different Server path.
+
+`make verify` runs formatting/lint checks, Go and Python tests, builds the
+commands, validates the shipped `./configs` catalog (`make test-config`), and
+generates, checks, tests and builds the UI. It does not require a
+running PostgreSQL database; database tests need the explicit test URL described
+in the [testing guide](testing/README.md). The CI gate, `make release-verify`,
+runs the same checks first and then its heavier
+[stages](testing/README.md#release-gate-stages); CI runs each stage as a
+separate job.
+
+To work on one component:
+
+| Task | Command |
+| --- | --- |
+| Go tests | `make test-go` |
+| Runtime tests | `make test-runtime` |
+| UI checks and build | `make ui-verify` |
+| Build commands and compile Runtime Python | `make build` |
+| Regenerate public Go client | `make generate-public-client` |
+| Regenerate public UI types | `make ui-generate` |
+
+For architecture changes, `make verify-architecture` validates the LikeC4 model
+(it is part of `release-verify`). With the LikeC4 CLI installed:
+
+```shell
+likec4 validate docs/spec
+likec4 start docs/spec
+```
+
+## Runtime resource ownership
+
+`AllocationService` owns the single slot, command replay, state transitions,
+fencing and final reports. `AllocationPreparation` acquires resources and exposes
+its partial acquisition to the existing rollback owner if construction fails.
+Only the service commits the resulting allocation. `AllocationResourceCleanup`
+closes and erases resources; the service keeps cleanup task replay and decides
+whether a failure fences the process.
+
+```mermaid
+flowchart LR
+    S[AllocationService] --> P[AllocationPreparation]
+    P --> C[AllocationContext]
+    S --> X[AllocationResourceCleanup]
+    X --> C
+    C --> R[ToolResources: private allocation resources]
+    C --> J[WorkerStateStore: revisioned JSON and metrics]
+    C --> W[AdkWorkerRuntime]
+    W --> R
+    W --> J
+```
+
+`WorkerBuildContext` passes State and resources separately, sharing the same
+allocation metrics reducer. Tool factories receive `ToolResources`, never the
+revisioned State store. The bundle contains typed execution fencing, read cache,
+HTTP captures, subscribers, checkpoints and a narrow proposal-collector callback.
+It does not enter ADK State or the model prompt. Each selected tool owns closing
+its session; there is no duplicate session pointer on State.
+
+```mermaid
+flowchart LR
+    W[AdkWorkerRuntime: admission and phase sequencing] --> I[InvocationLifecycle: task, lock, budget, session]
+    W --> A[AdkTurnRunner: ADK events and history settlement]
+    W --> P[WorkerCompletionPipeline: completion, finalizer, summary, result assembly]
+    A --> H[ToolHistory and WorkerSessionLifecycle]
+    P --> F[Existing schema constrained result finalizer]
+    P --> O[Exact artifact refs and observations]
+```
+
+The shared mechanisms retain narrow boundaries:
+
+- `core.async_tasks.join_owned_task` joins through repeated cancellation; callers
+  choose outcome precedence and keep their existing deadlines and fencing.
+- `toolsets.common.artifact_write` replays identical bytes/preconditions once and
+  reads bounded current state. Memory and documents retain their own rejection
+  classification and repair errors; no semantic mutation is repeated.
+- `toolsets.http.headers` owns input grammar, case-insensitive merging and header
+  ceilings. Ordinary and controlled HTTP retain their separate credential and
+  capture authority. A controlled retained prefix stays incomplete and reports
+  truncation in history and body pages, including cached pages.
+
+These boundaries preserve the existing model finalizer contract. Revisit them
+when a concrete caller needs a different guarantee; do not introduce a general
+resource/retry framework or move domain authority into these shared mechanisms.
+
+## Layer checks
+
+Two checks keep code dependencies pointing down the layer stack: a package or
+module may import its own layer or a lower one. Both run in CI.
+
+| Code | Layer table and known violations | Run locally |
+| --- | --- | --- |
+| Go Server | `layers` and `knownViolations` in [internal/archtest/layers_test.go](../internal/archtest/layers_test.go) | `go test ./internal/archtest` (part of `make test-go`) |
+| Python Runtime | `[tool.importlinter]` contracts in [runtime/pyproject.toml](../runtime/pyproject.toml) | `cd runtime && uv run lint-imports` (part of `make lint`) |
+
+The Runtime's layers run, top to bottom: entry points, orchestration,
+composition (the factory registry), the Worker, toolsets, platform, and the
+kernel (wire contracts and the dependency-free `core` helpers). It has no
+known violations. The Runtime also keeps its toolsets independent: a toolset
+may share code with another only through `toolsets.common`, except for one
+declared chain, `taint_annotations` on `code_analysis`. A protected contract per
+chain base names its only importers. The Worker may not import any concrete toolset; it learns
+what it needs about them, such as the sensitive-output tools that toolset
+factories declare, from its build context. Runtime imports under
+`if TYPE_CHECKING:` are ignored. A failure is one of three kinds:
+
+- **Upward import.** Invert the dependency (the lower package declares an
+  interface or callback that the higher layer, or the composition root,
+  supplies), or move the shared type down into the lower layer. Only if the
+  dependency is genuinely intended, move a package to another layer or add a
+  known-violation entry with its reason and the intended fix.
+- **Unclassified package, module or toolset.** Add it to exactly one layer.
+- **Stale known violation** (`the import no longer exists` in Go,
+  `No matches for ignored import` in Python). The violation was fixed: delete
+  the entry, so the list only shrinks.
+
+The Go wire kernel `internal/contracts` holds the private Server/Runtime
+contracts and the vocabulary they share; domain rules live with their owners.
+`contractsImporters` in
+[internal/archtest/contracts_importers_test.go](../internal/archtest/contracts_importers_test.go)
+lists every package that imports the kernel with wire symbols it uses. A new
+importer adds an entry for the wire symbols it needs; a package that needs
+only a domain rule imports the rule's owner instead. An entry whose package or
+symbols no longer use the kernel fails until it is updated.
+
+Continue with [deployment](deployment.md), the [user guides](guides/README.md)
+or [testing](testing/README.md).

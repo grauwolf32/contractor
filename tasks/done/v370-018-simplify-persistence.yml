@@ -1,0 +1,68 @@
+schema_version: "1.0"
+id: V370-018
+title: "Remove duplicated transaction helpers in persistence callers"
+milestone: hub-audit-structure-2026-10
+epic: persistence
+kind: chore
+priority: P3
+status: completed
+implementation_commit: 2c5a5fc91c318f88499a945da614c32b20f21757
+depends_on: []
+languages: [go]
+goal: "The switches and type checks are gone and tests pass."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), persistence C6, H1, H4, H7; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Four identical pool-or-transaction switches
+    (rundeletion/deleter.go:56-66, runstore/resume_store.go:143-150,
+    auditstore/item_review_renewal.go:30-40, lifecycle.go:122-130) and five
+    s.db.(pgx.Tx) checks; memory.withActiveStage copies InTx without
+    ApplyTransactionBudget (postgres.go:113-185).
+  siblings: >-
+    Re-verified on the integration branch: the four switches and the five
+    checks (runstore/delete_store.go LockRunForDeletion and DeleteLockedRun,
+    auditstore/run_deletion.go, auditstore/resume_renewal.go,
+    artifacts/git_source.go) were where the finding put them. Ruled out:
+    artifacts/blob_context.go discardUnusedBlob branches on pgx.Tx to delay
+    a blob unlink until commit, a behaviour and not a transaction
+    requirement; evalstore.NewTxStore and runstore.NewRunCreationPostgresStore
+    already bind a transaction in their constructor; runtimeconfig
+    PinRunSnapshot takes a pgx.Tx parameter. BeginTx had no other
+    production caller than InTx and Memory. While running the task's
+    rundeletion tests, the deletion test helper still moved a Run
+    initializing -> running, which V368-011 made illegal; it now starts the
+    Run through pending.
+  decision: >-
+    Guarantee (PER-R18, PER-R19): persistencepostgres.Within is the one
+    pool-or-transaction rule: on a pool it is InTxWithRetry, so the
+    operation must be replay-safe; on a caller's transaction it runs once
+    inside it and the caller owns isolation, commit and retry. Steps whose
+    row locks must last until the caller commits live on
+    transaction-bound types built by tx-only constructors
+    (runstore.NewPostgresTxStore, auditstore.NewPostgresTxStore,
+    artifacts.NewPostgresTxRepository), each embedding the ordinary store,
+    so a pool-backed store cannot name them and the compiler enforces what
+    the run-time checks did; the tests that expected a run-time refusal now
+    assert that the pool-capable types have no such method. BeginTx applies
+    the operation budget itself, so InTx and the Memory transaction share
+    one budgeted begin while Memory keeps classifying its own commit
+    (ErrMutationOutcomeUnknown). Alternatives: a runtime requireTx field as
+    in evalstore keeps the failure at run time; passing pgx.Tx as an extra
+    method argument duplicates the store's own handle. Transaction semantics
+    are unchanged. Reversal condition: a tx-only step that must also run on
+    a pool needs its own transaction boundary, not a pool fallback.
+    introduced_by is not recorded: the duplicated helpers predate this
+    shallow clone.
+scope:
+  in:
+    - "persistencepostgres.Within(ctx, db, opts, fn) and tx-only constructors; memory uses the budgeted helper."
+  out:
+    - "Transaction semantics."
+acceptance_criteria:
+  - id: A1
+    text: "The switches and type checks are gone and tests pass."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/persistence/... ./internal/rundeletion ./internal/runstore ./internal/auditstore ./internal/memory"
+    covers: [A1]

@@ -1,0 +1,201 @@
+schema_version: '1.0'
+id: V407-003
+title: Batch Audit drain mutations under a fixed per-step work budget
+milestone: server-runtime-review-2026-10
+epic: audits
+kind: chore
+priority: P2
+status: completed
+depends_on: []
+languages:
+- go
+goal: Reduce repeated Audit snapshots during drain phases using a fixed bounded mutation batch while preserving
+  lifecycle barriers, claim fences and fairness.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/audits/execution.md
+  validation: Revalidated against main dc7012e8 on 2026-10-23. One mutation per snapshot is confirmed
+    as an optimization opportunity; no lifecycle defect or latency regression was demonstrated. The original
+    three-pass terminal cancellation requirement was unsupported because collection and child completion
+    are separate phases.
+  finding: internal/auditcontroller/controller.go:424-452 observes one terminal child, 469-479 fails one
+    unbound intent, 630-658 requests one cancellation, and settlement.go:78-88 deletes one released terminal
+    Run per step. Each step reads a new claimed snapshot (controller.go:50-74,89). Run immediately continues
+    on progress (35-36), so this is repeated store work rather than one PollInterval per child. Collection
+    remains one execution per step (collection.go:14-25), and running children must actually finish before
+    terminal Audit settlement. AUX-R95 requires bounded statements independent of total child cardinality;
+    an unbounded whole-Audit mutation loop or arbitrary three-pass terminal outcome would violate that
+    design.
+  siblings: Cover terminal observation, unbound-intent failure, cancellation requests and released-terminal
+    Run deletion. Keep collection and final settlement barriers explicit; any phase not safely batchable
+    retains its existing boundary and a measured count. Preserve Eval coordinator behavior if the shared
+    loop is later refactored by V407-027.
+plan:
+- Record the baseline counts for each drain phase on real PostgreSQL with 1, 50 and 200 children. Choose
+  and document a fixed per-step mutation budget B, independent of Audit size and no larger than MaxReconcileRows,
+  with a statement/byte bound and the existing operation/lease deadlines.
+- Process at most B eligible terminal observations, unbound intents, cancellation requests or deletions
+  during the applicable phase of one claimed step. Retain the existing phase order and per-mutation transactions;
+  do not batch across a receipt or lifecycle barrier.
+- Use snapshot data only as candidates, retaining every store-side claim, revision, terminal-state and
+  deletion check. Stop on lost claim, stale precondition, context budget or the fixed mutation bound;
+  use returned authority or a fresh projection where a prior mutation invalidates later inputs.
+- Keep collection one execution at a time unless equivalent byte/evidence/receipt guarantees are demonstrated
+  with fresh required authority. Document its separate count; requesting cancellation never substitutes
+  for observing the actual terminal Run and committing its receipt.
+- Add deterministic count tests for batches and tails, controlled asynchronous child completion, cancellation/claim-loss
+  mid-batch, and two-Audit fairness. Already-terminal fixtures must show reduced snapshot counts for the
+  batched phases with exact count formulas; waiting on live children is driven by signals, not elapsed
+  time.
+- Clarify AUX-R73/AUX-R95 with the chosen fixed maximum work per claimed step and phase ordering. Preserve
+  an upper bound independent of total Audit cardinality and ensure every eligible claimed Audit receives
+  a bounded turn.
+scope:
+  in:
+  - Fixed-budget batching of existing drain mutations and deterministic real-store cost coverage.
+  - Explicit per-phase accounting, lifecycle barriers, claim fencing and fairness under the existing controller
+    architecture.
+  out:
+  - An unbounded loop or giant transaction over all children, a work budget derived from total Audit size,
+    or a new claim mechanism.
+  - Guaranteeing AuditCancelled before running children actually finish and their collection receipts
+    commit.
+  - An arbitrary three-pass drain target, a PollInterval delay claim, or unrelated shared-loop/Eval changes.
+acceptance_criteria:
+- id: A1
+  text: The task and owning spec name fixed B and its row, byte, statement and deadline bounds. A claimed
+    step performs no more than B eligible drain mutations and never continues after claim loss, stale
+    authority or budget exhaustion.
+- id: A2
+  text: 'On controlled already-terminal, intent-only and released-deletion fixtures of 1, 50 and 200 children,
+    tests assert the chosen phase-specific formula including batch tails: eligible batched work completes
+    in ceil(N/B) batch steps when no concurrent change interrupts it. Collection, final transitions and
+    other required steps are counted separately, and total snapshot counts improve on the baseline for
+    multi-child cases.'
+- id: A3
+  text: 'Cancellation tests distinguish bounded requests from child terminal transitions: nonterminal
+    children keep the settlement barrier closed until explicitly transitioned, and every observed terminal
+    child still receives its existing exactly-once receipt before Audit settlement.'
+- id: A4
+  text: Mid-batch claim loss or a concurrent revision change stops unsafe continuation without duplicate
+    effects. A second eligible Audit progresses while another has a large drain, and existing replay,
+    deletion and cancellation outcomes are preserved.
+- id: A5
+  text: Operation-count tests use deterministic clocks and transition signals, not latency thresholds.
+    Existing controller suites pass with updates limited to the documented fixed-budget scheduling and
+    cost expectations.
+tests:
+- command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/auditcontroller/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+decisions:
+- >-
+  B is 32 drain mutations per claimed reconcile step and batched phase (maxDrainMutationsPerStep,
+  LIM-AUX-14, AUX-R97 in docs/spec/audits/execution.md; AUX-R96 went to V407-001, which landed first), a
+  constant independent of Audit size and below the 200-row snapshot window (auditstore.MaxReconcileRows)
+  its candidates come from. Rows: each mutation is its own transaction over one execution with its members
+  (at most batchSize) and one Audit event, or over one child Run and its event; a Run deletion is atomic
+  and bounded by the Run revision quota (LIM-ART-6). Bytes: observation, intent failure and cancellation
+  write identifiers, states and fixed-shape event payloads only. Statements: observation, intent failure
+  and cancellation have a fixed count per mutation; a Run deletion issues a fixed count plus one purge
+  batch per 1,000 binding revisions (LIM-DEL-2), at most 50 under LIM-ART-6. Measured on real PostgreSQL,
+  every pass of the same batch size issues the same statements whatever the Audit's size or lane mix: a
+  full batch issues 46 (cancellation or intent failure) and 78 (observation), one mutation per pass 15
+  and 16; a full batch of 32 alike, small released Runs issues 880. Deadline: an ordinary step's batch
+  shares one OperationTimeout with its snapshot under a lease at least twice that long; a deleting step's
+  batch uses the existing two-minute cleanup budget under the renewed four-minute lease (REV-R160), so a
+  step's budget always ends before its claim.
+- >-
+  Phase order and barriers are unchanged; AUX-R73 now lists the phases in the order reconcile runs them
+  (review and time limit, observation, collection, intent resumption, Round progression, closed-Audit
+  settlement, preparation and dispatch), which drains finished work before starting new work. A batched
+  phase that changed anything ends the step: observation and intent failure advance the Audit revision,
+  and cancellation requests and deletions change child Run states that later revision-fenced phases
+  (settlement, hold release, transitions, purge) read, so those wait for a fresh snapshot. Collection
+  stays one execution per step (separate receipt, byte and evidence guarantees), the purge runs in a step
+  that found no child Run left, and a cancellation request never substitutes for the child's terminal
+  transition, observation and receipt.
+- >-
+  Stop conditions: the bound, the end of the step budget (no further mutation starts; an interrupted
+  mutation committed or rolled back whole, so drainBatch.stop reports progress without an error), the
+  first error including ErrClaimLost or ErrPrecondition, and a child Run that is not deletable yet.
+  Candidates stay valid under a concurrent owner revision change because terminal Run states are final,
+  closed dispatch never reopens, a cancelling or deleting Audit always needs its children cancelled and
+  a deleting Audit only proceeds to its purge; claim-fenced store mutations re-check the claim, and every
+  deletion candidate comes from a fresh claim-proven NextLiveRunForDeletion read.
+- >-
+  Snapshot counts, batched against one mutation per pass. Reachable cardinalities only: the per-class
+  dispatch windows admit at most 32 outstanding model and 32 outstanding tool children (LIM-OPS-7,
+  LIM-OPS-34), so the cases are 1 child, a full model window and both full windows; the fixtures open
+  both windows through the scheduler settings and reserve every intent through the store, and a tool
+  intent stands for a scan role because the test profile has model checks only. Cancel and delete of
+  running children through purge: 1 child 7 (unchanged); 32 children 39 (131 one per pass, by formula);
+  64 children 74 against a measured 259 (cancellations 32+32, observations 32+31 then the last 1,
+  deletions 32+32). Intent-only cancellation: 1 child 5; 32 intents 36 (67 by formula); 64 intents 69
+  against a measured 131. Deleting an Audit that released 200 terminal Runs over its life through ordinary
+  dispatch, failure, collection and retry: 7 deletion passes (6x32+8) instead of 200, then 2 purge passes.
+  Collections (one per execution), the hold release, settlement, transitions and purge passes are counted
+  separately; the tests assert the exact formula, including tails.
+- >-
+  Accepted risk (AUX-R97 Fairness): RunOnce ends when every claimed Audit's step has finished, so a
+  deleting step that spends the cleanup budget on up to 32 large Run deletions lengthens the pass, and the
+  Audits claimed with it get fewer steps per unit of time while it drains. The longest possible pass is
+  unchanged (one large Run deletion could already use the budget). Enforcement: the cleanup budget bounds
+  the pass, and the deleting phase ends with the purge. Detection: the Controller logs "Audit deletion
+  step outlasted the ordinary operation budget" with the Audit and duration (reportLongDeletionStep,
+  TestControllerLogsADeletionStepBeyondTheOperationBudget). Reopen, for example by also stopping a
+  deletion batch at OperationTimeout, when that warning recurs while other Audits are claimed or slow
+  progress of active Audits is reported during a deletion.
+- >-
+  Rejected: bounding a deletion batch by reading artifact_scopes revision counts. It would add a
+  cross-owner read to the table ownership registry and a second copy of LIM-ART-6's value; the existing
+  cleanup budget already bounds the deleting step's duration, and the budget-end stop keeps progress.
+- >-
+  Siblings ruled out: Project deletion purges Runs through its own purge budget (projectlifecycle, REV-R160
+  "Project deletion ... is unchanged"); the Eval coordinator and the shared claim loop are left to
+  V407-027.
+verification:
+  date: '2026-10-24'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with pnpm 11.24.0, the locked
+    Runtime venv; isolated PostgreSQL 17.11 database contractor_test_b with per-test schemas and all
+    migrations; branch claude/rv-b after merging claude/review-v407-v409 (1cbf9a06).
+  commands:
+  - test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/auditcontroller/...
+    passed (78 top-level tests, none skipped, 69 s), including TestPostgresControllerDrainBatchesCancellationObservationAndDeletion
+    and TestPostgresControllerDrainBatchesUnboundIntentFailures (1, 32 and 32+32 children plus the
+    32+32 one-per-pass baseline), TestPostgresControllerDeletesReleasedRunsInBoundedBatches (200 released
+    Runs), TestPostgresControllerDrainBatchStopsAtALostClaim, TestPostgresControllerDrainBatchKeepsRevisionFencedWorkForAFreshSnapshot
+    and TestPostgresControllerSecondAuditProgressesBesideALargeDrain (32+32 terminal children).
+  - go test -count=1 ./internal/auditcontroller/... passed, including the fake-store tests for bounded
+    batches and tails, mid-batch claim loss, a stale intent, the end of the step budget, a blocked deletion
+    and the long deletion step warning.
+  - 'Mutation check: with drainBatch.open ignoring the bound, the intent drain (passes [64] instead of [32
+    32]), the 200-Run deletion (passes [200] instead of 6x32+8) and the fake batch test failed; the bound
+    was restored before committing.'
+  - go test -count=1 ./internal/persistence/ failed only TestSQLAccessFollowsTableOwnership at internal/cli/scan_sweep_remote.go:196,
+    the failure that already exists on the base 7bcd8fd6; no new ownership or SQL placement finding.
+  - make lint passed, including Go vet/staticcheck/unused exports, the spec checker, the dependency graph
+    check and the task checks.
+  database_tests_configured: true
+  evidence: Snapshot and statement counts per drain are recorded in the decisions; a pass of a fixed-cost
+    phase issued the same statements for the same batch size in every case.
+  declined:
+  - >-
+    Batching collection: each receipt keeps its own result-import transaction and byte/evidence
+    guarantees, so collection stays one execution per step and is counted separately.
+  - >-
+    A deletion batch bound by Run revision counts (see decisions); the existing cleanup budget bounds the
+    deleting step.
+implementation_commit: d6b5c6bcf46c2967e2fee78cd4f430bfe745fce9

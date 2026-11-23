@@ -1,0 +1,776 @@
+import { describe, expect, it, vi } from "vitest";
+
+import type { RuntimeConfig } from "../config/runtime-config";
+import { TestPublicAPI as PublicAPI } from "../test/shared-config";
+import { stringRule } from "./contract";
+import publicSchemas from "./generated/public-schemas.json";
+import {
+  CREDENTIAL_ID,
+  createCredential,
+  createRuntimeCredential,
+  deleteCredential,
+  deleteRuntimeCredential,
+  deleteRuntimeAgentPrincipal,
+  deleteRuntimeLabel,
+  getConfiguration,
+  getCredential,
+  getOperationsSnapshot,
+  getRuntimeConfig,
+  getRuntimeAgentPrincipal,
+  listRuntimeConfigs,
+  listRuntimeCredentials,
+  listRuntimeLabels,
+  listAllRuntimeAgentPrincipals,
+  publishConfiguration,
+  publishRuntimeConfig,
+  putRuntimeLabel,
+  replaceRuntimeAgentPrincipalLabels,
+  type CreateCredentialRequest,
+  type RuntimeConfigAuthorDocument,
+} from "./operations";
+
+const runtimeConfig: RuntimeConfig = {
+  uiVersion: "0.1.0",
+  supportedApiVersions: ["contractor.public.v1"],
+  apiBaseUrl: "http://127.0.0.1:8080",
+};
+
+const digest = `sha256:${"1".repeat(64)}`;
+const gateway = { gatewayId: "local-litellm", version: "1", digest };
+const policy = { policyId: "worker", version: "1", digest };
+
+function response(
+  value: unknown,
+  status = 200,
+  headers: Record<string, string> = {},
+): Response {
+  return new Response(value === undefined ? undefined : JSON.stringify(value), {
+    status,
+    headers: {
+      "content-type": "application/json",
+      "X-Contractor-API-Version": "contractor.public.v1",
+      ...headers,
+    },
+  });
+}
+
+describe("Operations API", () => {
+  it("accepts a tool allocation without a model route and still requires routes for modeled Workers", async () => {
+    const allocation = {
+      allocationId: "scan-allocation",
+      runId: "scan-run",
+      stageExecutionId: "scan-stage",
+      runtimeAgentInstanceId: "scan-runtime",
+      logicalWorker: "scanner",
+      agentTemplate: { templateId: "nuclei-scan", version: "1", digest },
+      executionConfig: {} as { modelPolicy?: typeof policy },
+      authoritativePhase: "active",
+      observedPhase: "prepared",
+      metrics: {
+        reportsComplete: false,
+        modelCalls: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        toolCalls: 1,
+        toolFailures: 0,
+        errorCount: 0,
+        truncated: false,
+      },
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          cursor: { generation: "operations-generation-1", revision: "7" },
+          runtimeAgents: [],
+          allocations: [allocation],
+        }),
+      ),
+    );
+    expect(
+      (await getOperationsSnapshot(api)).allocations[0]?.executionConfig,
+    ).toEqual({});
+    allocation.executionConfig.modelPolicy = policy;
+    await expect(getOperationsSnapshot(api)).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
+  });
+
+  it("reads one authoritative operations snapshot", async () => {
+    const requests: Request[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/operations/snapshot") {
+          return response({
+            cursor: { generation: "operations-generation-1", revision: "7" },
+            runtimeAgents: [],
+            allocations: [],
+          });
+        }
+        throw new Error(`unexpected ${request.url}`);
+      }),
+    );
+    await getOperationsSnapshot(api);
+    expect(requests.map((request) => request.url)).toEqual([
+      "http://127.0.0.1:8080/v1/operations/snapshot",
+    ]);
+  });
+
+  it("passes cancellation through to the snapshot HTTP request", async () => {
+    let request: Request | undefined;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn((input) => {
+        request = input instanceof Request ? input : new Request(input);
+        return new Promise<Response>((_resolve, reject) => {
+          request?.signal.addEventListener("abort", () => {
+            reject(new DOMException("Request aborted", "AbortError"));
+          });
+        });
+      }),
+    );
+    const controller = new AbortController();
+    const pending = getOperationsSnapshot(api, controller.signal);
+    await vi.waitFor(() => expect(request).toBeDefined());
+    controller.abort();
+    expect(request?.signal.aborted).toBe(true);
+    await expect(pending).rejects.toBeDefined();
+  });
+
+  it("copies, validates, and normalizes Runtime Agent capabilities", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          cursor: { generation: "operations-generation-1", revision: "7" },
+          runtimeAgents: [
+            {
+              instanceId: "runtime-capable",
+              softwareVersion: "0.1.0",
+              supportedRuntimes: ["python@1", "adk@1"],
+              supportedToolsets: [
+                {
+                  ref: "source-analysis@1",
+                  tools: ["search_source", "read_source"],
+                },
+              ],
+              supportedSandboxProfiles: ["remote@1", "local-workdir@1"],
+              supportedRuntimeAdapters: ["otlp-http@1"],
+              workspaceCapabilities: {
+                storage: "local",
+                modes: ["overlay", "direct"],
+                limits: {
+                  maxFiles: 100,
+                  maxExpandedBytes: 4096,
+                  maxManagedTextBytes: 2048,
+                  maxFileBytes: 1024,
+                },
+              },
+              observedState: "idle",
+              slotState: "idle",
+            },
+            {
+              instanceId: "runtime-minimal",
+              softwareVersion: "0.1.0",
+              supportedRuntimes: ["adk@1"],
+              supportedToolsets: [],
+              supportedSandboxProfiles: ["local-workdir@1"],
+              supportedRuntimeAdapters: [],
+              observedState: "idle",
+              slotState: "idle",
+            },
+          ],
+          allocations: [],
+        }),
+      ),
+    );
+
+    const result = await getOperationsSnapshot(api);
+    expect(result.runtimeAgents[0]?.supportedRuntimes).toEqual([
+      "adk@1",
+      "python@1",
+    ]);
+    expect(result.runtimeAgents[0]?.supportedToolsets[0]?.tools).toEqual([
+      "read_source",
+      "search_source",
+    ]);
+    expect(result.runtimeAgents[1]?.supportedToolsets).toEqual([]);
+    expect(result.runtimeAgents[0]?.workspaceCapabilities?.modes).toEqual([
+      "direct",
+      "overlay",
+    ]);
+    const unexpected = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          cursor: { generation: "operations-generation-1", revision: "7" },
+          runtimeAgents: [
+            {
+              instanceId: "runtime-capable",
+              softwareVersion: "0.1.0",
+              supportedRuntimes: ["adk@1"],
+              supportedToolsets: [],
+              supportedSandboxProfiles: ["local-workdir@1"],
+              supportedRuntimeAdapters: [],
+              observedState: "idle",
+              slotState: "idle",
+              localPath: "/private/runtime/path",
+            },
+          ],
+          allocations: [],
+        }),
+      ),
+    );
+    await expect(getOperationsSnapshot(unexpected)).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
+  });
+
+  it("fails closed on malformed Runtime Agent capabilities", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          cursor: { generation: "operations-generation-1", revision: "7" },
+          runtimeAgents: [
+            {
+              instanceId: "runtime-malformed",
+              softwareVersion: "0.1.0",
+              supportedRuntimes: ["adk@1", "adk@1"],
+              supportedToolsets: [],
+              supportedSandboxProfiles: ["local-workdir@1"],
+              supportedRuntimeAdapters: [],
+              observedState: "idle",
+              slotState: "idle",
+            },
+          ],
+          allocations: [],
+        }),
+      ),
+    );
+
+    await expect(getOperationsSnapshot(api)).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
+  });
+
+  it("gets and publishes exact immutable configuration versions", async () => {
+    const requests: Request[] = [];
+    const resource = {
+      ref: {
+        kind: "model-policies" as const,
+        name: "worker",
+        version: "2",
+        digest,
+      },
+      body: {
+        model: "qwen/qwen3.8-27b",
+        maxOutputTokens: 4096,
+        maxModelCalls: 8,
+        maxToolCalls: 16,
+        maxTotalTokens: 32768,
+      },
+      source: "managed" as const,
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request);
+        return response(resource, request.method === "POST" ? 201 : 200);
+      }),
+    );
+    api.csrf.replace("a".repeat(43));
+    await expect(
+      getConfiguration(api, "model-policies", "worker", "2"),
+    ).resolves.toEqual(resource);
+    await expect(
+      publishConfiguration(
+        api,
+        "model-policies",
+        { name: "worker", version: "2", modelPolicy: resource.body },
+        "configuration-draft-1",
+      ),
+    ).resolves.toEqual(resource);
+    expect(requests[1]?.headers.get("Idempotency-Key")).toBe(
+      "configuration-draft-1",
+    );
+    expect(requests[1]?.headers.get("X-CSRF-Token")).toBe("a".repeat(43));
+  });
+
+  it("creates, reads, and deletes only secret-free credential metadata", async () => {
+    const requests: Request[] = [];
+    const credential = {
+      credentialId: "worker-budget",
+      llmGateway: gateway,
+      label: "Worker budget",
+      createdAt: "2026-08-31T12:00:00Z",
+      effectivePolicy: {
+        modelPolicies: [policy],
+        models: ["qwen/qwen3.8-27b"],
+        maxBudget: 10,
+        budgetDuration: "1d",
+      },
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request);
+        if (request.method === "DELETE") {
+          return response(undefined, 204);
+        }
+        return response(credential, request.method === "POST" ? 201 : 200);
+      }),
+    );
+    api.csrf.replace("a".repeat(43));
+    const request: CreateCredentialRequest = {
+      credentialId: "worker-budget",
+      llmGateway: gateway,
+      label: "Worker budget",
+      gatewayPolicy: {
+        modelPolicies: [policy],
+        maxBudget: 10,
+        budgetDuration: "1d",
+      },
+    };
+    await createCredential(api, request, "credential-create-1");
+    await getCredential(api, "worker-budget");
+    await deleteCredential(api, "worker-budget", "credential-delete-1");
+    expect(await requests[0]?.clone().json()).toEqual(request);
+    expect(requests[0]?.headers.get("Idempotency-Key")).toBe(
+      "credential-create-1",
+    );
+    expect(requests[2]?.headers.get("Idempotency-Key")).toBe(
+      "credential-delete-1",
+    );
+    expect(JSON.stringify(credential)).not.toMatch(/token|cipher|remoteKey/i);
+  });
+
+  // A Server started without a credential master key refuses every
+  // credential mutation with the permanent credential_key_unavailable
+  // (RCF-R44): the client sends each request once and keeps the Server's
+  // message and retryable false for the page.
+  it("sends a credential mutation once when the Server has no master key", async () => {
+    const fetch = vi.fn(async () =>
+      response(
+        {
+          code: "credential_key_unavailable",
+          message: "credential master key is not configured on this Server",
+          retryable: false,
+          requestId: "request-1",
+        },
+        503,
+      ),
+    );
+    const api = new PublicAPI(runtimeConfig, fetch);
+    api.csrf.replace("a".repeat(43));
+    const mutations: (() => Promise<unknown>)[] = [
+      () =>
+        createCredential(
+          api,
+          {
+            credentialId: "worker-budget",
+            llmGateway: gateway,
+            gatewayPolicy: { modelPolicies: [policy] },
+          },
+          "credential-create-1",
+        ),
+      () => deleteCredential(api, "worker-budget", "credential-delete-1"),
+      () =>
+        createRuntimeCredential(
+          api,
+          {
+            credentialId: "otel-debug",
+            kind: "otlp-headers@1",
+            material: { headers: { authorization: "WRITE_ONLY_CANARY" } },
+          },
+          "runtime-credential-create-1",
+        ),
+      () => deleteRuntimeCredential(api, "otel-debug", "runtime-delete-1"),
+    ];
+    for (const [index, mutation] of mutations.entries()) {
+      await expect(mutation()).rejects.toMatchObject({
+        status: 503,
+        code: "credential_key_unavailable",
+        message: "credential master key is not configured on this Server",
+        retryable: false,
+      });
+      expect(fetch).toHaveBeenCalledTimes(index + 1);
+    }
+  });
+
+  // Credential IDs are ConfigId (CreateCredentialRequest.credentialId and
+  // the CredentialId path parameter), which also allows capitals, digits
+  // first and dots; a ConfigurationName check refused them.
+  it("accepts every ConfigId as a credential ID and nothing else", async () => {
+    const request = publicSchemas.$defs.CreateCredentialRequest as {
+      properties: { credentialId: { $ref: string } };
+    };
+    expect(request.properties.credentialId.$ref).toMatch(
+      /#\/\$defs\/ConfigId$/,
+    );
+    const rule = stringRule("ConfigId");
+    expect(CREDENTIAL_ID.pattern?.source).toBe(rule.pattern?.source);
+    expect(CREDENTIAL_ID.maxLength).toBe(rule.maxLength);
+    const sent: string[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        sent.push(new URL(request.url).pathname);
+        return response(undefined, 204);
+      }),
+    );
+    api.csrf.replace("a".repeat(43));
+    for (const id of ["Worker.Budget-2", "1st_key", "worker-budget"]) {
+      expect(rule.test(id)).toBe(true);
+      await deleteCredential(api, id, `credential-delete-${id}`);
+    }
+    expect(sent).toEqual([
+      "/v1/operations/credentials/Worker.Budget-2",
+      "/v1/operations/credentials/1st_key",
+      "/v1/operations/credentials/worker-budget",
+    ]);
+    for (const id of ["-worker", "worker budget", "a".repeat(129), ""]) {
+      expect(rule.test(id)).toBe(false);
+      await expect(getCredential(api, id)).rejects.toThrow(
+        "Credential ID is invalid",
+      );
+    }
+    expect(sent).toHaveLength(3);
+  });
+
+  it("rejects malformed snapshot cursors and read-only publication", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          cursor: { generation: "operations-generation-1", revision: "01" },
+          runtimeAgents: [],
+          allocations: [],
+        }),
+      ),
+    );
+    await expect(getOperationsSnapshot(api)).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
+    await expect(
+      publishConfiguration(
+        api,
+        "agent-templates" as "model-policies",
+        { name: "worker", version: "2", modelPolicy: { model: "m" } },
+        "readonly-1",
+      ),
+    ).rejects.toThrow("read-only");
+  });
+
+  it("manages durable Runtime Agent principals and rejects unknown fields", async () => {
+    const runtimeAgentId = "a".repeat(64);
+    const requests: Request[] = [];
+    const principal = {
+      runtimeAgentId,
+      labels: ["debug"],
+      revision: "2",
+      availability: "adapter_capability_mismatch" as const,
+      requiredRuntimeAdapters: ["otlp-http@1"],
+      missingRuntimeAdapters: ["otlp-http@1"],
+      live: {
+        instanceId: "runtime-principal",
+        softwareVersion: "0.1.0",
+        supportedRuntimes: ["adk@1"],
+        supportedToolsets: [],
+        supportedSandboxProfiles: ["local-workdir@1"],
+        supportedRuntimeAdapters: [],
+        observedState: "idle" as const,
+        slotState: "idle" as const,
+      },
+      createdBy: "runtime-registration",
+      createdAt: "2026-09-01T00:00:00Z",
+      updatedBy: "user-1",
+      updatedAt: "2026-09-01T00:01:00Z",
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request);
+        if (request.method === "DELETE") {
+          return response(undefined, 204);
+        }
+        if (request.method === "PUT") {
+          return response(principal, 200, { ETag: '"2"' });
+        }
+        if (new URL(request.url).pathname.endsWith(runtimeAgentId)) {
+          return response(principal, 200, { ETag: '"2"' });
+        }
+        return response({ items: [principal], page: { hasMore: false } });
+      }),
+    );
+    api.csrf.replace("a".repeat(43));
+
+    const values = [
+      await listAllRuntimeAgentPrincipals(api),
+      await getRuntimeAgentPrincipal(api, runtimeAgentId),
+      await replaceRuntimeAgentPrincipalLabels(
+        api,
+        runtimeAgentId,
+        ["debug"],
+        "1",
+        "principal-labels-1",
+      ),
+    ];
+    await deleteRuntimeAgentPrincipal(
+      api,
+      runtimeAgentId,
+      "2",
+      "principal-delete-1",
+    );
+
+    expect(JSON.stringify(values)).not.toMatch(/certificate|privateKey/i);
+    expect(await requests[2]?.clone().json()).toEqual({ labels: ["debug"] });
+    expect(requests[2]?.headers.get("If-Match")).toBe('"1"');
+    expect(requests[3]?.headers.get("If-Match")).toBe('"2"');
+
+    const unexpected = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          items: [
+            { ...principal, certificatePem: "SERVER_CERTIFICATE_CANARY" },
+          ],
+          page: { hasMore: false },
+        }),
+      ),
+    );
+    await expect(
+      listAllRuntimeAgentPrincipals(unexpected),
+    ).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
+  });
+
+  it.each([
+    {
+      adapter: "caido-graphql@1" as const,
+      endpoint: "https://caido.example/graphql",
+      credential: "caido-local",
+      caBundlePem: "TEST_CA_BUNDLE",
+      requestTimeoutSeconds: 30,
+    },
+    null,
+  ])(
+    "preserves Caido patches in RuntimeConfig list, detail and publication responses: %j",
+    async (caido) => {
+      const document: RuntimeConfigAuthorDocument = {
+        apiVersion: "contractor/v1alpha1",
+        kind: "RuntimeConfig",
+        metadata: { name: "caido-debug", version: "1" },
+        spec: { worker: { caido } },
+      };
+      const resource = {
+        ref: { ...document.metadata, digest },
+        document,
+        builtIn: false,
+        createdBy: "user-1",
+        createdAt: "2026-09-01T00:00:00Z",
+      };
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const request = input instanceof Request ? input : new Request(input);
+          if (request.method === "POST") return response(resource, 201);
+          return response(
+            new URL(request.url).pathname.endsWith("/runtime-configs")
+              ? { items: [resource], page: { hasMore: false } }
+              : resource,
+          );
+        }),
+      );
+      api.csrf.replace("a".repeat(43));
+      expect((await listRuntimeConfigs(api)).items).toEqual([resource]);
+      expect(await getRuntimeConfig(api, "caido-debug", "1")).toEqual(resource);
+      expect(
+        await publishRuntimeConfig(api, document, "caido-publish-1"),
+      ).toEqual(resource);
+    },
+  );
+
+  it.each([
+    { adapter: "caido-graphql@1" },
+    { endpoint: "https://caido.example/graphql" },
+    {
+      adapter: "caido-graphql@1",
+      endpoint: "https://caido.example/graphql",
+      token: "MUST_FAIL_CLOSED",
+    },
+  ])("rejects invalid Caido response fields: %j", async (caido) => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          items: [
+            {
+              ref: { name: "caido-debug", version: "1", digest },
+              document: {
+                apiVersion: "contractor/v1alpha1",
+                kind: "RuntimeConfig",
+                metadata: { name: "caido-debug", version: "1" },
+                spec: { worker: { caido } },
+              },
+              builtIn: false,
+              createdBy: "user-1",
+              createdAt: "2026-09-01T00:00:00Z",
+            },
+          ],
+          page: { hasMore: false },
+        }),
+      ),
+    );
+    await expect(listRuntimeConfigs(api)).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
+  });
+
+  it("manages RuntimeConfig, labels, and write-only Runtime credentials", async () => {
+    const runtimeDigest = `sha256:${"2".repeat(64)}`;
+    const document = {
+      apiVersion: "contractor/v1alpha1" as const,
+      kind: "RuntimeConfig" as const,
+      metadata: { name: "debug", version: "1" },
+      spec: {
+        worker: {
+          telemetry: {
+            adapter: "otlp-http@1" as const,
+            endpoint: "https://otel.example/v1/traces",
+
+            flushTimeoutSeconds: 5,
+            export: {
+              batchSizeBytes: 1048576,
+              maxAttempts: 3,
+              maxPendingSpans: 16,
+              maxPendingBytes: 2097152,
+            },
+          },
+        },
+      },
+    };
+    const resource = {
+      ref: { name: "debug", version: "1", digest: runtimeDigest },
+      document,
+      builtIn: false,
+      createdBy: "user-1",
+      createdAt: "2026-09-01T00:00:00Z",
+    };
+    const binding = {
+      label: "debug",
+      config: resource.ref,
+      revision: "1",
+      createdBy: "user-1",
+      createdAt: "2026-09-01T00:00:00Z",
+      updatedBy: "user-1",
+      updatedAt: "2026-09-01T00:00:00Z",
+    };
+    const metadata = {
+      credentialId: "otel-debug",
+      kind: "otlp-headers@1" as const,
+      createdBy: "user-1",
+      createdAt: "2026-09-01T00:00:00Z",
+    };
+    const requests: Request[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request);
+        const path = new URL(request.url).pathname;
+        if (request.method === "DELETE") {
+          return response(undefined, 204);
+        }
+        if (path === "/v1/operations/runtime-configs") {
+          return request.method === "POST"
+            ? response(resource, 201)
+            : response({ items: [resource], page: { hasMore: false } });
+        }
+        if (path.includes("/runtime-configs/")) {
+          return response(resource);
+        }
+        if (path === "/v1/operations/runtime-labels") {
+          return response({ items: [binding], page: { hasMore: false } });
+        }
+        if (path.endsWith("/runtime-labels/debug")) {
+          return response(binding, 201, {
+            ETag: '"1"',
+          });
+        }
+        if (path === "/v1/operations/runtime-credentials") {
+          return request.method === "POST"
+            ? response(metadata, 201)
+            : response({ items: [metadata], page: { hasMore: false } });
+        }
+        throw new Error(`unexpected ${request.method} ${path}`);
+      }),
+    );
+    api.csrf.replace("a".repeat(43));
+
+    const values = [
+      await publishRuntimeConfig(api, document, "runtime-config-create-1"),
+      await getRuntimeConfig(api, "debug", "1"),
+      await listRuntimeConfigs(api),
+      await putRuntimeLabel(
+        api,
+        "debug",
+        resource.ref,
+        "runtime-label-create-1",
+      ),
+      await listRuntimeLabels(api),
+      await createRuntimeCredential(
+        api,
+        {
+          credentialId: "otel-debug",
+          kind: "otlp-headers@1",
+          material: { headers: { authorization: "WRITE_ONLY_CANARY" } },
+        },
+        "runtime-credential-create-1",
+      ),
+      await listRuntimeCredentials(api),
+    ];
+    await deleteRuntimeLabel(api, "debug", "1", "runtime-label-delete-1");
+    await deleteRuntimeCredential(
+      api,
+      "otel-debug",
+      "runtime-credential-delete-1",
+    );
+
+    expect(JSON.stringify(values)).not.toMatch(/WRITE_ONLY_CANARY/);
+    expect(
+      requests.some((request) => request.headers.get("If-None-Match") === "*"),
+    ).toBe(true);
+    expect(
+      requests.some((request) => request.headers.get("If-Match") === '"1"'),
+    ).toBe(true);
+
+    const malformedAPI = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          items: [
+            {
+              ...resource,
+              document: { ...document, leakedToken: "MUST_FAIL_CLOSED" },
+            },
+          ],
+          page: { hasMore: false },
+        }),
+      ),
+    );
+    await expect(listRuntimeConfigs(malformedAPI)).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
+  });
+});

@@ -1,0 +1,213 @@
+schema_version: '1.0'
+id: V411-009
+title: Execute frozen HTTP recipes and evaluate trusted three-valued predicates
+milestone: autonomous-http-pentest-2026-10
+epic: http-tools
+kind: feature
+priority: P1
+status: archived
+depends_on:
+- V411-005
+- V411-007
+- V411-008
+languages:
+- go
+- python
+- json
+- yaml
+goal: Turn an admitted exact HTTP plan into bounded model-free requests, extractions and controls
+  whose result can be recomputed from trusted safe evidence before later replay/proof collection.
+context:
+  authority: User request on 2026-10-24 to decompose the updated proposals into implementation tasks.
+    This record authorizes no implementation during planning and does not reactivate deferred work.
+  proposal:
+  - docs/proposals/0033-autonomous-pentest-audits.md#82-typed-hypothesis-admission
+  - docs/proposals/0033-autonomous-pentest-audits.md#9-recipe-and-deterministic-predicate-contract
+  - docs/proposals/0033-autonomous-pentest-audits.md#10-trusted-evidence-proof-and-retention
+  - docs/proposals/0033-autonomous-pentest-audits.md#102-result-dimensions
+  - docs/proposals/0045-audit-hypothesis-search.md#33-experiments-and-assessment
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R1
+  - docs/spec/audits/worker-completion.md
+  - docs/spec/audits/execution.md#AUX-R45
+  - docs/spec/findings/findings.md#FND-R1
+  - docs/spec/execution/worker.md
+  replanned: >-
+    2026-10-24: distinguish a changed immutable recipe/plan from a technical execution
+    retry, as required by proposal 0045. This executor requires exact recipe/context
+    inputs, not a research registry. V64-018 later connects research plans to the same
+    proof contract; task status, dependencies and target retry policy are unchanged.
+  code:
+  - runtime/src/contractor_runtime/toolsets/common
+  - runtime/src/contractor_runtime/toolsets
+  - internal/contracts
+  - internal/auditdomain
+  - internal/auditimport
+  - internal/httpapi/privateartifacts
+  - api/v1alpha1
+  - api/testdata
+scope:
+  in:
+  - Implement contractor.pentest.recipe.v1 and typed check-plan/observation documents, canonical digests,
+    frozen payload/control/predicate identity and strict shared fixtures.
+  - Register a concrete model-free native tool Worker executor over V411-003/V411-005/V411-007/V411-008
+    with request/extract/assert/wait and bounded typed substitution.
+  - Evaluate three-valued predicates against authenticated exact capture receipts and record typed
+    operands, controls and outcome; Server independently recomputes accepted observation admissibility.
+  out:
+  - Cross-round admission/routing/fresh-session replay and reproduced proof collection are V411-012;
+    no reimplementation of the shared V62 tasks in this change.
+  - No browser step in HTTP v1, callback oracle, arbitrary code/JavaScript/regex, loops, model-authored
+    success authority or timing-only injection proof.
+requirements:
+- id: R1
+  text: A registered model-free tool Worker invokes the executor in this change, with explicit exact
+    recipe/context inputs; the corresponding Server observation handler is its production consumer.
+    Do not introduce only an unused validation library.
+- id: R2
+  text: Close every schema and step union; preserve exact canonical recipe/predicate digest before
+    the first verification action. Changed payload/control/predicate creates a new immutable
+    recipe/plan requiring its own authorized admission, never retroactive success or an automatic
+    target retry. Technical retry retains the original plan identity and existing retry policy.
+- id: R3
+  text: Typed substitution cannot change origin/scheme/port, inject headers or escape canonical path
+    policy. Runtime revalidates fully resolved requests before permits/sends. Extraction pins producing
+    action and session generation; private values remain tainted and unexportable.
+- id: R4
+  text: Predicates use maximum depth eight/64 nodes and true/false/unknown semantics. Missing/redacted/truncated/type-invalid
+    operands are unknown. Class-specific injection/auth/authz controls and a retained security expectation
+    source are mandatory; status-only, inferred policy alone or source analysis cannot establish a
+    live vulnerability.
+- id: R5
+  text: Recipe default/max steps are 16/64 including setup/control/cleanup; waits are at most five
+    seconds per step/30 seconds per recipe and clipped to lifecycle. Every request, redirect, login
+    and control consumes shared permits; no hidden retry or automatic repair.
+- id: R6
+  text: Separate technical execution, semantic assessment and proof. Accepted observation may be true/false/unknown,
+    but this task alone cannot produce reproduced or an analyst verdict. Keep composed pentest-proof@1
+    release gated until V411-012; unknown browser schemas fail rather than extend HTTP v1.
+failure_outcomes:
+- operation: Decode/admit/execute an exact HTTP recipe
+  permanent: Invalid grammar/capability, out-of-scope interpolation or missing bindings has permanent
+    400 contract validation/blocked_by_policy; missing extraction yields blocked/inconclusive without
+    guessed values.
+  retryable: Only V411-003 conservative pre-send read retry applies; model repair or changed recipes
+    never count as transport retry.
+  ambiguous: Replay original action receipts and exact recipe identity; unknown stateful actions are
+    not rerun to finish the recipe.
+  cancelled: Executor joins all request/extraction/wait tasks and records cleanup residue through
+    V411-008 before release.
+  timeout: Step/request/wait budgets are clipped to remaining active allowance; no operation refreshes
+    the recipe deadline.
+- operation: Evaluate/register observation
+  permanent: Forged receipts, changed digest or invalid class controls reject permanently; unknown
+    operands remain unknown rather than a false refutation.
+  retryable: Only bounded classified 503 storage conflicts retry registration.
+  ambiguous: Reconcile exact observation/receipt identity and preserve immutable typed results; do
+    not rerun target actions because response registration was lost.
+  cancelled: Join evaluation/publication before release; stale allocation publication is rejected
+    while accepted evidence remains.
+  timeout: Bounded evaluation/publication deadline is separate from target execution; inability to
+    retain operands leaves explicit unavailable/unknown evidence.
+cardinality:
+- collection: Plans/recipes inside an Audit
+  expected: Base allowance of 100 receipt-backed pentest candidates, 16 steps per recipe and one
+    observation per invocation; only admitted plans execute.
+  maximum: Base candidate allowance 1000, 64 total steps per recipe and the parent 512-Run/100000-action
+    bounds. An optional research pool has separate limits and grants no executor capacity.
+  bound: Validate one exact document at most 4 MiB under tighter package/evidence limits; no search
+    across all artifact bindings to resolve operands.
+- collection: Predicate tree and extracted values
+  expected: A few controls and marker/identity assertions
+  maximum: Depth eight and 64 nodes; waits five seconds each/30 total; request/response/token limits
+    from dependencies
+  bound: Evaluate bounded typed operands off Runtime event loop when parsing is CPU-heavy; retain
+    only safe regions and exact source receipt references.
+lifecycle:
+- entity: Frozen recipe, observation and executor invocation
+  delete: Exact documents are immutable; later changes create a new recipe/plan, not a technical retry. Source deletion
+    obeys existing retention before accepted use.
+  cascade: Cancel/release joins executor and publisher; Audit purge handles retained links after drain.
+    No pending callback or background target work survives.
+  retention: Retain exact recipe/predicate/capture/control dependency closure and safe operand results
+    for later V411-012 replay; secret state stays allocation-local.
+acceptance_criteria:
+- id: A1
+  given: A valid injection or authz fixture with exact recipe and independently authenticated controls
+  when: The model-free executor runs it through managed transport
+  then: Runtime and Server compute the same typed observation from actual accepted capture receipts
+    without model-produced structured success.
+- id: A2
+  given: Paired fixed/negative fixture and status-only or missing security-expectation plan
+  when: The same recipe/control contract evaluates
+  then: The negative case cannot pass; invalid controls cannot create supported live proof or refute
+    a vulnerability on auth/transport failure.
+- id: A3
+  given: Unknown members, browser steps, oversize trees, loops or unsafe interpolation
+  when: Every Go/Python/schema reader processes shared fixtures
+  then: All reject consistently before target I/O and never silently reinterpret HTTP v1.
+- id: A4
+  given: Truncated/redacted/missing/type-mismatched operands and private token extraction
+  when: All/any/not and class predicates evaluate
+  then: Three-valued results agree across languages and secret operands are never serialized as public
+    evidence.
+- id: A5
+  given: Crash/cancel/registration response loss during a stateful recipe
+  when: Production processes recover or attempt to finish
+  then: No unknown action is automatically repeated, retained observations remain immutable, cleanup
+    residue is explicit and reproduced remains unavailable until independent replay.
+tests:
+- command: go test -tags=integration -count=1 ./internal/contracts/... ./internal/auditdomain ./internal/auditimport
+    ./internal/auditservice ./internal/auditstore/... ./internal/httpapi/privateartifacts ./internal/config/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-runtime test-wire-cross-language test-pentest-http-process test-pentest-action-process
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+test_prerequisites:
+- Disposable PostgreSQL able to create/drop isolated schemas; never print its connection secret.
+- Repository-pinned Go and locked Runtime dependencies; run commands from the repository root unless
+  the command explicitly changes directory.
+verification_requirements:
+- Use testdata fixtures, never the live configs tree outside the documented e2e/eval exceptions. Keep
+  model choice unchanged; deterministic targets need no real Gateway.
+- Run every touched package in full, including any new package introduced by this task. Database tests
+  require disposable PostgreSQL through CONTRACTOR_TEST_DATABASE_URL; an unreachable configured database
+  fails and skipped mandatory cases do not pass.
+- New shared fixtures must be registered with their Go/Python/schema readers in the existing shared-fixture
+  gate. New process selections must fail when zero tests match and be reachable from release-verify.
+- Update the owning normative specification, shared limits/errors/lifecycle registries and public/private
+  contracts in the same change. Preserve existing contract ownership; do not add backward-compatibility
+  readers or edit generated clients manually.
+
+archive:
+  date: '2026-10-30'
+  previous_status: pending
+  authority: User requested rewriting stalled pentest work and archiving tasks requiring removed functionality;
+    planning only, on a separate branch.
+  reason: This frozen recipe/predicate executor requires the removed action permits, stateful-action machinery
+    and automatic authentication/session generations. The current HTTP program uses model-selected tools
+    and ordinary Audit evidence; a separate proof DSL is not a delivery prerequisite.
+  superseded_by:
+  - V411-007
+  - V411-015
+  - V411-019
+  reactivation_condition: Explicit user direction and a new reviewed scope with a concrete production
+    caller. Completion of historical dependencies does not reactivate this task.
+  evidence: Original scope, acceptance criteria and test commands below/above are historical design, not
+    implementation evidence or requirements for active work.

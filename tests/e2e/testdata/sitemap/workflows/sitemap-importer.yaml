@@ -1,0 +1,29 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: sitemap-importer, version: "1"}
+spec:
+  parameters:
+    format: {required: true}
+  inputs:
+    source: {required: true, mediaTypes: [application/json]}
+  outputs:
+    report: {required: true, primary: true, mediaTypes: [application/json]}
+  entryStage: research
+  stages:
+    research:
+      objective: Import selected scanner metadata
+      instructions: {ref: instructions/probe.md}
+      planner: passthrough@1
+      agents:
+        researcher: {template: sitemap-importer@1}
+      context:
+        artifacts:
+          source: {namespace: inputs, name: source, required: true}
+      result:
+        artifacts:
+          report: {required: true, mediaTypes: [application/json], from: {namespace: researcher, name: report}}
+      workflowOutputs: {report: report}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

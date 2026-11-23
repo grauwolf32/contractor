@@ -1,0 +1,15 @@
+apiVersion: contractor/v1alpha1
+kind: ModelPolicy
+
+metadata:
+  name: test-window-planner
+  version: "1"
+
+spec:
+  model: planner-model
+  contextWindowTokens: 65536
+  maxOutputTokens: 4096
+  maxModelCalls: 16
+  maxWorkerCalls: 32
+  maxTotalTokens: 65536
+  temperature: 0.1

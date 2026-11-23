@@ -1,0 +1,60 @@
+schema_version: "1.0"
+id: V415-001
+title: Select owner rulepacks from Library in Project Run setup
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: ui
+kind: defect
+introduced_by: V406-005
+priority: P1
+status: completed
+depends_on: []
+languages: [typescript]
+goal: Project Run setup offers and uploads Nuclei rulepacks only in the owner UserScope, while ordinary inputs remain ProjectScope.
+context:
+  severity: medium
+  specification:
+    - docs/spec/tools/scanners.md
+    - docs/spec/artifacts/projects.md
+    - docs/spec/ui/ui.md
+  finding: >-
+    ui/src/routes/projects/recommendations.ts:46 suggests a ProjectScope YAML
+    OpenAPI document for nuclei-web@1 rulepack by MIME type alone;
+    ui/src/routes/workflows/run-form-inventories.ts:61 lists ProjectScope only;
+    ui/src/routes/workflows/run-input-upload-dialog.tsx:45 uploads to ProjectScope.
+    The Workflow declares sourceScope: user, so confirming the Project document
+    and pressing Start Run returns not_found (404) when Run admission forks
+    that ref from UserScope.
+  siblings: >-
+    Standalone generic Run setup already reads UserScope. Specialized Web scan
+    setup already reads and uploads UserScope. Project generic Run setup must
+    honor sourceScope for recommendations, selection, upload and preview;
+    ordinary Project slots must continue using ProjectScope.
+scope:
+  in:
+    - Make Project Workflow recommendations ignore Project artifacts for user-scoped slots.
+    - Make generic Project Run input selection, upload, preview and validation use UserScope for the Nuclei rulepack contract and ProjectScope for ordinary Workflows.
+    - Clarify the scope exception in the Project UI specification and add regression coverage on the real form path.
+  out:
+    - Scanner Server admission and scan execution.
+acceptance_criteria:
+  - id: A1
+    text: Project nuclei-web@1 does not suggest a Project YAML document as a rulepack and an omitted rulepack submits without an artifact ref.
+  - id: A2
+    text: A selected or uploaded rulepack in Project Run setup comes from UserScope, previews in Library and submits its exact revision; ordinary inputs remain ProjectScope.
+  - id: A3
+    text: UI regression tests exercise both scope paths and fail on the previous implementation.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: make ui-browser-mocked
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: c9fe0b08f5c450b78a53b36008447f81b7f2aa21
+verification:
+  date: "2026-10-24"
+  passed:
+    - make ui-verify; 196 test files, 2390 passing tests and one expected failure; production build passed.
+    - make ui-browser-mocked; 91 browser cases passed.
+    - make lint; task, specification, layer, architecture and other lint checks passed.
+  scope: Project rulepack selection and upload are covered by the real Run form tests; scanner execution is outside this UI task.

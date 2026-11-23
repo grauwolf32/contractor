@@ -1,0 +1,105 @@
+{
+  "cases": {
+    "api-dependency": "sha256:3cc8529a0b1e4725423238df98437fa45fadf1a8e04d23fd3d764abe55b08c29",
+    "negative-memory": "sha256:60ea8a9c18280167ca66798269d9cb6cfbb7a7dba210e37b066911126f457963",
+    "source-review": "sha256:fd34e2cfe7b920874b8bbf64fd770ee0cda19d2ad0b202895d985380e0f1ae1e"
+  },
+  "catalogFiles": {
+    "catalog/agent-templates/context-eval-controlled-compact.yaml": "sha256:35ded4a628a7caa65b216d361d3cf4e566752e0433b7eeb6242ceecbb0a0121f",
+    "catalog/agent-templates/context-eval-masking.yaml": "sha256:d34abbfc5a015f4406ffda607448b30c864c39bc2441724b2f1d3df7f0b6ab3d",
+    "catalog/agent-templates/context-eval-terminal-off.yaml": "sha256:d3837a5c8825b63d513c624ac892ff6d1b5df21209ce14ff4b13659b3c9bb825",
+    "catalog/agent-templates/context-eval-terminal-on.yaml": "sha256:2ade8aa5d253ac3076f5348f386272497ffecd6c33fca5a3a3bc09c0957e0a7a",
+    "catalog/agent-templates/context-eval-worker.yaml": "sha256:55e50961fa514ab6f87ae87b53086c03ad863fc98156e95701ec8060a9c2155b",
+    "catalog/instructions/context-eval-task.md": "sha256:d6a667f7e2d714060923a982521fe961f7ee653dbbf42af411ef9c84d755111d",
+    "catalog/instructions/context-eval-worker.md": "sha256:d70edc7d79af084aeb126eb2660ab4bcb630d218fadc17460049481934a3e152",
+    "catalog/workflows/context-eval-compact-off.yaml": "sha256:415b390ddb5a465eda912ee6a3af5e7cfc00227e78b38537effcc55bd032ce6a",
+    "catalog/workflows/context-eval-compact-on.yaml": "sha256:ad74b3bbced3e09a8b76511e2e266a4c133f3aa84a4241cd9f5a14d61ddb51ce",
+    "catalog/workflows/context-eval-controlled-compact.yaml": "sha256:2b61d617d2757d1bd387156551a0278b2acfadc74513734944f4568ef27bc682",
+    "catalog/workflows/context-eval-masking.yaml": "sha256:ab0e7824f7805e2f990b9684cc47ee228deb830687a5e17bda58eda97ed7500e",
+    "catalog/workflows/context-eval-terminal-handoff.yaml": "sha256:a73b71ebbc1d114c6d6cffeb1835ab87997e8c23bd218ce446ba964b2a69d5b3",
+    "catalog/workflows/context-eval-terminal-off.yaml": "sha256:047b5fe04571eeb5ac1d379c67818a0dfd9f6e49c5ca1d466dab75a297a726e7",
+    "catalog/workflows/context-eval-terminal-on.yaml": "sha256:e0ccfb296e30626a848360a42d5027511b2976e097f18db6ceceb906f45dc7a2"
+  },
+  "comparisons": [
+    [
+      "terminal-off",
+      "terminal-on"
+    ],
+    [
+      "compact-off",
+      "compact-on"
+    ],
+    [
+      "terminal-off",
+      "terminal-handoff"
+    ],
+    [
+      "controlled-compact",
+      "masking"
+    ]
+  ],
+  "order": {
+    "kind": "seeded_shuffle",
+    "seed": 417
+  },
+  "repetitions": 5,
+  "schemaVersion": "context-compaction-variants/v1",
+  "scorerSha256": "sha256:9af3551e652f0b3819c319e2df52d47592389ddbf7705e10de9801c6e452025f",
+  "thresholds": {
+    "maxQualityDrop": 0,
+    "maxTokenRatio": 1.0,
+    "minEndToEndPass": 1
+  },
+  "truthSha256": "sha256:53aab70193ae78604263e52ac96ac289137237410a95fa42e3e0a2dbd26a17a0",
+  "variants": [
+    {
+      "id": "terminal-off",
+      "includeReasoning": false,
+      "provider": "contractor",
+      "strategy": "terminal@1",
+      "workflow": "context-eval-terminal-off@1"
+    },
+    {
+      "id": "terminal-on",
+      "includeReasoning": true,
+      "provider": "contractor",
+      "strategy": "terminal@1",
+      "workflow": "context-eval-terminal-on@1"
+    },
+    {
+      "id": "compact-off",
+      "includeReasoning": false,
+      "provider": "contractor",
+      "strategy": "compact@1",
+      "workflow": "context-eval-compact-off@1"
+    },
+    {
+      "id": "compact-on",
+      "includeReasoning": true,
+      "provider": "contractor",
+      "strategy": "compact@1",
+      "workflow": "context-eval-compact-on@1"
+    },
+    {
+      "id": "terminal-handoff",
+      "includeReasoning": false,
+      "provider": "contractor",
+      "strategy": "terminal@1",
+      "workflow": "context-eval-terminal-handoff@1"
+    },
+    {
+      "id": "controlled-compact",
+      "includeReasoning": false,
+      "provider": "contractor",
+      "strategy": "compact@1",
+      "workflow": "context-eval-controlled-compact@1"
+    },
+    {
+      "id": "masking",
+      "includeReasoning": false,
+      "provider": "contractor",
+      "strategy": "test-only-masking",
+      "workflow": "context-eval-masking@1"
+    }
+  ]
+}

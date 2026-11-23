@@ -1,0 +1,111 @@
+schema_version: "1.0"
+id: V403-001
+title: "Preview Artifacts and archive files up to 1 MiB of text"
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: completed
+implementation_commit: "2285029b7d1024e568a292f66258ec1d1154c745"
+depends_on: []
+languages: [go, typescript]
+goal: >-
+  A reviewer reads a larger report, OpenAPI document, diff or Skill file in
+  the browser instead of downloading it. The inline text preview of an
+  Artifact and the preview of one file inside a ZIP or Skill package both
+  admit up to 1 MiB of text instead of 256 KiB; larger content stays
+  downloadable.
+context:
+  specification:
+    - docs/spec/ui/ui.md#UI-R194
+    - docs/spec/api/public-api.md#API-R73
+    - docs/spec/platform/limits.md
+    - docs/spec/platform/errors.md
+  current_code: >-
+    The Server bounds one archive file preview with
+    artifactpreview.MaximumTextBytes (256 KiB of text) and
+    MaximumCompressedTextBytes (1 MiB of compressed input)
+    (internal/artifactpreview/archive.go:23). The OpenAPI schema
+    ArtifactArchiveFile repeats 262144 as size maximum and text maxLength.
+    The UI bounds the inline preview with MAXIMUM_PREVIEW_BYTES
+    (ui/src/api/artifacts.ts:8), reuses it as the Server's archive file
+    bound (ui/src/api/artifact-archive.ts:177), caps the archive file
+    response at 2 MiB (ui/src/api/artifact-archive.ts:150) and repeats
+    "256 KiB" in its copy.
+scope:
+  in:
+    - "LIM-UI-12: one inline text Artifact preview, the selected HTTP exchange decoder included, admits at most 1 MiB."
+    - "One archive file preview admits at most 1 MiB of text and 4 MiB of compressed input, keeping the existing 4:1 ratio so a text file that does not compress still previews at the limit."
+    - "The UI takes the archive file bound from the generated ArtifactArchiveFile schema instead of its own constant, and a Go test pins artifactpreview.MaximumTextBytes to the same schema."
+    - "The UI's archive file response cap covers 1 MiB of text after JSON's sixfold HTML escaping."
+    - "UI copy names the limits from their constants; a ui/package.json patch bump."
+    - "UI-R194, LIM-UI-12, archive_preview_limit in the error registry and the OpenAPI schema state the new bounds."
+  out:
+    - "The 8192-character display of one HTTP body (LIM-UI-13) and the 50 header rows (LIM-UI-14) stay."
+    - "Archive bounds other than one file's text (64 MiB archive, 4096 entries, 256 MiB expansion) stay."
+    - "Runtime and model-facing previews (LIM-EXE-8, LIM-HTP-14 and others) are unrelated and stay."
+requirements:
+  - id: R1
+    text: "The archive file text bound has one definition per side: artifactpreview.MaximumTextBytes in Go and the ArtifactArchiveFile schema in OpenAPI, which the UI reads; a Go test fails when the two differ."
+  - id: R2
+    text: "Content above a bound is refused before rendering and remains downloadable at its exact revision (422 archive_preview_limit for an archive file, the existing too-large notice in the UI)."
+failure_outcomes:
+  - operation: "GET …/archive/file for a file above 1 MiB of text or 4 MiB of compressed input"
+    permanent: "422 archive_preview_limit, not retryable; the UI says which bounds apply and offers the download."
+    retryable: "none added"
+    ambiguous: "read-only; nothing to reconcile"
+    cancelled: "the request context stops decompression as before"
+    timeout: "the existing request deadline"
+cardinality:
+  - collection: "text of one previewed Artifact or archive file"
+    expected: "a few KiB to a few hundred KiB"
+    maximum: "1 MiB of text; 6 MiB plus envelope as escaped JSON"
+    bound: "one payload per opened preview; the Server reads at most MaximumTextBytes+1 decompressed bytes"
+lifecycle:
+  - entity: "none; no stored state changes"
+    delete: "n/a"
+    cascade: "n/a"
+    retention: "n/a"
+acceptance_criteria:
+  - id: A1
+    given: "a ZIP holding a text file of exactly 1 MiB, and one of 1 MiB plus one byte"
+    when: "the archive file is read through the public API"
+    then: "the first returns 200 with the whole text and the second 422 archive_preview_limit."
+  - id: A2
+    given: "a 1 MiB archive file made only of characters that JSON escapes sixfold"
+    when: "the UI reads it"
+    then: "the UI accepts the response, and an entry above the schema bound marked previewable is still an invalid response."
+  - id: A3
+    given: "a text Artifact or HTTP exchange of exactly 1 MiB, and one of 1 MiB plus one byte"
+    when: "its preview is offered"
+    then: "the first can be previewed and the second shows the too-large notice with the download."
+  - id: A4
+    given: "artifactpreview.MaximumTextBytes and the ArtifactArchiveFile schema"
+    when: "either changes alone"
+    then: "go test ./internal/httpapi/public fails."
+tests:
+  - command: "go test ./internal/artifactpreview ./internal/httpapi/public"
+    covers: [A1, A4]
+  - command: "cd ui && corepack pnpm exec vitest run src/api/artifact-archive.test.ts src/api/artifacts.test.ts src/api/http-exchange.test.ts src/routes/artifacts src/routes/runs/primary-output-preview.test.tsx"
+    covers: [A2, A3]
+  - command: make ui-verify
+    covers: [A2, A3]
+  - command: make verify-public-api
+    covers: [A1, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification:
+  date: "2026-10-23"
+  revision: "2285029b7d1024e568a292f66258ec1d1154c745"
+  environment: >-
+    Branch feat/v403-preview-1mib on main @ 5677eda0, macOS arm64, Go 1.26.9,
+    Node 24.20.0 with Corepack pnpm 11.24.0, Playwright Chromium and
+    disposable PostgreSQL 17.11 (CONTRACTOR_TEST_DATABASE_URL set).
+  results:
+    - "A1: TestArtifactArchiveFilePreviewsUpToTheTextBound serves 1 MiB of '<' through the public contract with 200 and the whole text, and 1 MiB plus one byte as 422 archive_preview_limit; internal/artifactpreview keeps its at-bound and above-bound cases."
+    - "A2: artifact-archive.test.ts accepts a previewable entry of exactly 1 MiB, rejects one byte more, and reads a 1 MiB file whose escaped body exceeds 6 MiB; with the old 2 MiB response cap that test fails."
+    - "A3: canPreviewArtifact, the HTTP exchange decoder and the too-large notice use MAXIMUM_PREVIEW_BYTES; http-exchange.test.tsx expects the '1 MiB preview limit' notice one byte above it, and the archive error copy names the schema's 1 MiB."
+    - "A4: TestArtifactArchiveFileBoundMatchesPublicContract failed with the Go constant back at 256 KiB, and with the OpenAPI text maxLength back at 262144 (which also failed the at-bound response validation)."
+    - "go test ./internal/apierror ./internal/artifactpreview ./internal/httpapi/public ./internal/publicclient/... passed against PostgreSQL with the canonical TMPDIR that make exports; run without it, two filesystem blob tests in git_import_handlers_test.go fail on the /var symlink exactly as V401-004 describes."
+    - "make verify-public-api, make lint and make ui-verify (189 files, 2281 tests, 1 expected fail, build) passed; e2e/archive-preview.spec.ts and e2e/artifact-preview.spec.ts passed 7 of 7 through the mocked browser gate."
+    - "Measured in Chromium with a temporary uncommitted spec: 1 MiB of plain text renders in 162 ms, a 1 MiB diff in 884 ms with about 99,000 DOM elements, and dense synthetic Markdown in 3.6 s with about 91,000 elements (541 ms at 256 KiB)."

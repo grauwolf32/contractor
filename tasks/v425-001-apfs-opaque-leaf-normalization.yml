@@ -1,0 +1,77 @@
+schema_version: "1.0"
+id: V425-001
+title: "Keep an NFD opaque leaf unreadable through its NFC name on a normalization-insensitive volume"
+milestone: hub-audit-defects-2026-10
+epic: workspaces
+kind: defect
+priority: P3
+status: deferred
+deferral:
+  date: "2026-11-02"
+  previous_status: pending
+  reason: >-
+    User decision: the named Linux-specific filesystem fixture must not run
+    on macOS or block feature acceptance. V433-007 applies an explicit Linux
+    marker and updates acceptance policy. This preserves the historical OS
+    concern without claiming a production fix or requiring Mac remediation
+    as part of V64-014 or another feature gate.
+  reactivate_when: >-
+    Explicit user decision to require separate macOS filename hardening;
+    first rescope its acceptance and dedicated coverage rather than treating
+    this Linux fixture as a required macOS test.
+depends_on: []
+languages: [python]
+goal: "A local workspace never opens or reads an opaque leaf, also when the volume looks names up normalization-insensitively (macOS APFS), so reading the NFC form of an NFD on-disk name fails with workspace_not_found on every supported host."
+context:
+  authority: >-
+    User decision 2026-11-02: this fixture is Linux-only and must not affect
+    macOS acceptance. Earlier macOS-specific acceptance below is historical
+    deferred scope, superseded for active gates by OPS-R1 and V433-007.
+  review: "Filed by V401-007 (2026-10-30) from the macOS Runtime suite run; first seen in the 2026-10-23 merged verification run (docs/research/2026-10-23-server-runtime-review.md)"
+  specification:
+    - docs/spec/tools/workspace.md#WSP-R88
+    - docs/spec/tools/workspace.md#WSP-R89
+    - docs/spec/operations/operations.md#OPS-R1
+  severity: low
+  introduced_note: >-
+    introduced_by is unknown: the opaque-leaf listing came from 101e893ee
+    (fix(projectfs): list unsupported local entries as opaque leaves,
+    2026-09-23), a commit without a task.
+  finding: >-
+    runtime/tests/test_projectfs_local_io.py::test_limits_deadline_names_and_binary_classification
+    (test at :155, assertion at :183) fails on macOS arm64 with "DID NOT RAISE
+    WorkspaceStorageError": the scan lists the on-disk NFD name "café" as an
+    opaque leaf under its NFC form, and fs.read("café") must fail with
+    workspace_not_found, but the default APFS volume resolves the NFC name to
+    the NFD entry, so RootedLocalFilesystem.read opens and returns it, against WSP-R88
+    (opaque leaves are never opened or read). OPS-R1 names macOS as an
+    ordinary Runtime target. On Linux (ext4, xfs) names are byte-exact and the
+    test passes.
+  siblings: >-
+    Every RootedLocalFilesystem operation that resolves a model-supplied path by name
+    (read, write, update, copy, move, delete in
+    runtime/src/contractor_runtime/projectfs/local_io.py) reaches the same
+    entry through a different byte form; each must compare the opened entry's
+    on-disk name, or its identity, with the scan's mapping before use. The
+    ZIP and overlay providers do not touch the host filesystem by name and are
+    out of scope unless the fix shows otherwise.
+scope:
+  in:
+    - "Every by-name RootedLocalFilesystem operation refuses an entry whose on-disk name differs from the requested byte form (or that the last scan recorded as opaque), with the classified error the specification names."
+    - "The existing test passes on macOS and Linux; a regression test covers each sibling operation on a normalization-insensitive volume, skipping only where the host has none."
+  out:
+    - "Changing the NFC listing rule or the ambiguity check for two on-disk names that project onto one path."
+acceptance_criteria:
+  - id: A1
+    text: "On macOS APFS, reading the NFC form of an NFD opaque leaf fails with workspace_not_found and returns no bytes; test_limits_deadline_names_and_binary_classification passes."
+  - id: A2
+    text: "Write, update, copy, move and delete through the NFC form of an NFD opaque leaf fail without touching it."
+  - id: A3
+    text: "The regression tests fail on the unfixed code on macOS."
+tests:
+  - command: "cd runtime && uv run --locked pytest -q -p no:randomly tests/test_projectfs_local_io.py"
+    covers: [A1, A2, A3]
+  - command: make test-runtime
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1]

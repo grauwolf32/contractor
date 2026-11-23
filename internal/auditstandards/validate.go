@@ -1,0 +1,284 @@
+package auditstandards
+
+import (
+	"bytes"
+	"net/url"
+	"regexp"
+	"slices"
+	"sort"
+	"strings"
+	"unicode/utf8"
+
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+)
+
+var (
+	schemePattern  = regexp.MustCompile(`^[a-z][a-z0-9.-]{0,63}$`)
+	entryIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9:._/-]{0,127}$`)
+	rolePattern    = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
+)
+
+// validVersion applies the configuration version grammar and bound, which
+// AuditProfile standard refs share.
+func validVersion(value string) bool { return contracts.ValidConfigVersion(value) }
+
+var supportedLicenses = map[string]map[DisclosurePolicy]bool{
+	"CC-BY-4.0":              {DisclosureMetadata: true, DisclosureIdentifiers: true, DisclosureFull: true},
+	"CC-BY-SA-4.0":           {DisclosureMetadata: true, DisclosureIdentifiers: true, DisclosureFull: true},
+	"Apache-2.0":             {DisclosureMetadata: true, DisclosureIdentifiers: true, DisclosureFull: true},
+	"MIT":                    {DisclosureMetadata: true, DisclosureIdentifiers: true, DisclosureFull: true},
+	"LicenseRef-Proprietary": {DisclosureMetadata: true},
+}
+
+var allowedMethods = map[string]bool{
+	"source-analysis": true, "configuration-review": true,
+	"documentation-review": true, "active-test": true, "manual-review": true,
+}
+
+var allowedAssessments = map[string]bool{
+	"satisfied": true, "violated": true, "inconclusive": true,
+	"not-tested": true, "blocked": true, "not-applicable": true,
+	"supported": true, "refuted": true,
+}
+
+var allowedEvidenceKinds = map[string]bool{
+	"artifact": true, "observation": true, "tool-result": true,
+	"manual-attestation": true, "runtime-metric": true,
+}
+
+func DecodeDocument(data []byte) (Document, error) {
+	if len(data) == 0 || len(data) > MaximumManifestBytes || !utf8.Valid(data) || bytes.IndexByte(data, 0) >= 0 {
+		return Document{}, validationError(CodeLimitExceeded, ManifestPath)
+	}
+	if err := strictjson.RejectDuplicateKeys(data); err != nil {
+		return Document{}, validationError(CodeManifestInvalid, ManifestPath)
+	}
+	var document Document
+	if err := strictjson.Decode(data, &document); err != nil {
+		return Document{}, validationError(CodeManifestInvalid, ManifestPath)
+	}
+	normalizeDocument(&document)
+	if err := validateDocument(document); err != nil {
+		return Document{}, err
+	}
+	return document, nil
+}
+
+func normalizeDocument(document *Document) {
+	if document.EvidenceContracts == nil {
+		document.EvidenceContracts = []EvidenceContract{}
+	}
+	if document.Entries == nil {
+		document.Entries = []Entry{}
+	}
+	if document.Mappings == nil {
+		document.Mappings = []Mapping{}
+	}
+	for index := range document.EvidenceContracts {
+		contract := &document.EvidenceContracts[index]
+		if contract.Assessments == nil {
+			contract.Assessments = []string{}
+		}
+		if contract.EvidenceKinds == nil {
+			contract.EvidenceKinds = []string{}
+		}
+		sort.Strings(contract.Assessments)
+		sort.Strings(contract.EvidenceKinds)
+	}
+	for index := range document.Entries {
+		entry := &document.Entries[index]
+		if entry.AllowedMethods == nil {
+			entry.AllowedMethods = []string{}
+		}
+		sort.Strings(entry.AllowedMethods)
+	}
+	for index := range document.Mappings {
+		mapping := &document.Mappings[index]
+		if mapping.EntryIDs == nil {
+			mapping.EntryIDs = []string{}
+		}
+		sort.Strings(mapping.EntryIDs)
+	}
+	sort.Slice(document.EvidenceContracts, func(i, j int) bool {
+		left, right := document.EvidenceContracts[i], document.EvidenceContracts[j]
+		if left.ID == right.ID {
+			return left.Version < right.Version
+		}
+		return left.ID < right.ID
+	})
+	sort.Slice(document.Entries, func(i, j int) bool { return document.Entries[i].ID < document.Entries[j].ID })
+	sort.Slice(document.Mappings, func(i, j int) bool { return document.Mappings[i].Key < document.Mappings[j].Key })
+}
+
+func validateDocument(document Document) error {
+	if document.Schema != Schema {
+		return validationError(CodeManifestInvalid, ManifestPath)
+	}
+	metadata := document.Standard
+	if !schemePattern.MatchString(metadata.Scheme) || !validVersion(metadata.Version) {
+		return validationError(CodeIdentityMismatch, ManifestPath)
+	}
+	if !validText(metadata.Title, 512, true) || !validText(metadata.Description, 4096, true) ||
+		!validText(metadata.Source.Name, 512, true) || !validText(metadata.Source.Revision, 512, false) ||
+		!validHTTPSURL(metadata.Source.URL) {
+		return validationError(CodeManifestInvalid, ManifestPath)
+	}
+	if !validText(metadata.License.Attribution, 4096, true) || !validHTTPSURL(metadata.License.URL) {
+		return validationError(CodeLicenseInvalid, ManifestPath)
+	}
+	policies, supported := supportedLicenses[metadata.License.ID]
+	if !supported || !policies[metadata.License.Disclosure] {
+		return validationError(CodeLicenseInvalid, ManifestPath)
+	}
+	if len(document.EvidenceContracts) == 0 || len(document.EvidenceContracts) > MaximumEvidenceContracts ||
+		len(document.Entries) == 0 || len(document.Entries) > MaximumEntries ||
+		len(document.Mappings) > MaximumMappings {
+		return validationError(CodeLimitExceeded, ManifestPath)
+	}
+
+	evidenceContracts := make(map[string]EvidenceContract, len(document.EvidenceContracts))
+	for _, contract := range document.EvidenceContracts {
+		if !entryIDPattern.MatchString(contract.ID) || !validVersion(contract.Version) ||
+			contract.MinimumEvidence < 0 || contract.MaximumEvidence < contract.MinimumEvidence ||
+			contract.MaximumEvidence > 64 || len(contract.Assessments) == 0 || len(contract.Assessments) > 16 ||
+			len(contract.EvidenceKinds) > 16 {
+			return validationError(CodeManifestInvalid, ManifestPath)
+		}
+		if contract.HumanReview != "never" && contract.HumanReview != "on-inconclusive" && contract.HumanReview != "required" {
+			return validationError(CodeManifestInvalid, ManifestPath)
+		}
+		if !validUniqueEnum(contract.Assessments, allowedAssessments) ||
+			!validUniqueEnum(contract.EvidenceKinds, allowedEvidenceKinds) {
+			return validationError(CodeManifestInvalid, ManifestPath)
+		}
+		key := contractKey(contract.Reference())
+		if _, duplicate := evidenceContracts[key]; duplicate {
+			return validationError(CodeManifestInvalid, ManifestPath)
+		}
+		evidenceContracts[key] = contract
+	}
+
+	entries := make(map[string]Entry, len(document.Entries))
+	for _, entry := range document.Entries {
+		if !entryIDPattern.MatchString(entry.ID) || (entry.Kind != "risk" && entry.Kind != "requirement") ||
+			!validText(entry.Title, 1024, true) || !validText(entry.Statement, MaximumEntryStatementBytes, true) ||
+			!validText(entry.Level, 128, false) || len(entry.AllowedMethods) == 0 || len(entry.AllowedMethods) > 16 ||
+			!validUniqueEnum(entry.AllowedMethods, allowedMethods) {
+			return validationError(CodeManifestInvalid, ManifestPath)
+		}
+		if entry.Applicability.Mode != "always" && entry.Applicability.Mode != "profile-rule" &&
+			entry.Applicability.Mode != "human-review" {
+			return validationError(CodeManifestInvalid, ManifestPath)
+		}
+		if entry.Applicability.Mode == "profile-rule" {
+			if !validText(entry.Applicability.Rule, 4096, true) {
+				return validationError(CodeManifestInvalid, ManifestPath)
+			}
+		} else if entry.Applicability.Rule != "" {
+			return validationError(CodeManifestInvalid, ManifestPath)
+		}
+		if _, exists := evidenceContracts[contractKey(entry.EvidenceContract)]; !exists {
+			return validationError(CodeDanglingMapping, ManifestPath)
+		}
+		if _, duplicate := entries[entry.ID]; duplicate {
+			return validationError(CodeManifestInvalid, ManifestPath)
+		}
+		entries[entry.ID] = entry
+	}
+
+	mappings := make(map[string]struct{}, len(document.Mappings))
+	for _, mapping := range document.Mappings {
+		if !entryIDPattern.MatchString(mapping.Key) || !rolePattern.MatchString(mapping.WorkflowRole) ||
+			!allowedMethods[mapping.Method] || len(mapping.EntryIDs) == 0 || len(mapping.EntryIDs) > 64 ||
+			!validText(mapping.Title, 1024, true) ||
+			!validText(mapping.Objective, MaximumMappingObjectiveBytes, true) {
+			return validationError(CodeManifestInvalid, ManifestPath)
+		}
+		if _, duplicate := mappings[mapping.Key]; duplicate {
+			return validationError(CodeManifestInvalid, ManifestPath)
+		}
+		mappings[mapping.Key] = struct{}{}
+		if _, exists := evidenceContracts[contractKey(mapping.EvidenceContract)]; !exists {
+			return validationError(CodeDanglingMapping, ManifestPath)
+		}
+		seenEntries := make(map[string]struct{}, len(mapping.EntryIDs))
+		for _, entryID := range mapping.EntryIDs {
+			entry, exists := entries[entryID]
+			if !exists || entry.EvidenceContract != mapping.EvidenceContract || !slices.Contains(entry.AllowedMethods, mapping.Method) {
+				return validationError(CodeDanglingMapping, ManifestPath)
+			}
+			if _, duplicate := seenEntries[entryID]; duplicate {
+				return validationError(CodeManifestInvalid, ManifestPath)
+			}
+			seenEntries[entryID] = struct{}{}
+		}
+	}
+	return nil
+}
+
+func contractKey(ref EvidenceContractRef) string { return ref.ID + "\x00" + ref.Version }
+
+func validText(value string, maximum int, required bool) bool {
+	if !utf8.ValidString(value) || strings.ContainsRune(value, 0) || len([]byte(value)) > maximum || value != strings.TrimSpace(value) {
+		return false
+	}
+	return !required || value != ""
+}
+
+func validHTTPSURL(raw string) bool {
+	if !validText(raw, 2048, true) {
+		return false
+	}
+	parsed, err := url.Parse(raw)
+	return err == nil && parsed.Scheme == "https" && parsed.Host != "" && parsed.User == nil
+}
+
+func validUniqueEnum(values []string, allowed map[string]bool) bool {
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if !allowed[value] {
+			return false
+		}
+		if _, duplicate := seen[value]; duplicate {
+			return false
+		}
+		seen[value] = struct{}{}
+	}
+	return true
+}
+
+func ValidatePinnedPackage(value PinnedPackage) error {
+	if err := validateReference(value.Reference); err != nil || !validText(value.Title, 512, true) ||
+		!validText(value.Source.Name, 512, true) || !validText(value.Source.Revision, 512, false) ||
+		!validHTTPSURL(value.Source.URL) || !validText(value.License.Attribution, 4096, true) ||
+		!validHTTPSURL(value.License.URL) {
+		return validationError(CodeManifestInvalid, ManifestPath)
+	}
+	policies, supported := supportedLicenses[value.License.ID]
+	if !supported || !policies[value.License.Disclosure] {
+		return validationError(CodeLicenseInvalid, ManifestPath)
+	}
+	if err := validateExactPackage(value.Catalog); err != nil {
+		return err
+	}
+	if err := validateExactPackage(value.Retained); err != nil {
+		return err
+	}
+	if value.Catalog.Artifact.Namespace != artifactpolicy.AuditStandardCatalogNamespace ||
+		value.Retained.Artifact.Namespace != "inputs" ||
+		value.Catalog.Digest != value.Retained.Digest || value.Catalog.SizeBytes != value.Retained.SizeBytes {
+		return validationError(CodeIdentityMismatch, ManifestPath)
+	}
+	return nil
+}
+
+func validateExactPackage(value ExactPackage) error {
+	if value.Artifact.ValidateExact() != nil || value.MediaType != MediaType ||
+		value.SizeBytes <= 0 || value.SizeBytes > MaximumPackageBytes || !contentdigest.Valid(value.Digest) {
+		return validationError(CodeManifestInvalid, ManifestPath)
+	}
+	return nil
+}

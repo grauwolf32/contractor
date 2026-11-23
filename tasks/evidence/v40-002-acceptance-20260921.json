@@ -1,0 +1,164 @@
+{
+  "task": "V40-002",
+  "verified_on": "2026-09-21",
+  "status": "acceptance_blocked",
+  "live_ready": false,
+  "contractor_head": "1f37cf0a55169037467d8f81487cc6e466bbb6df",
+  "scope": "Read-only provider preflight and recorded preparation checks. No model execution, target startup, publication, deployment or immutable archive rewrite.",
+  "commands": [
+    {
+      "command": "cd ../playground-v2/evals && uv run playground-eval validate",
+      "result": "passed",
+      "projects": 212,
+      "suites": 10
+    },
+    {
+      "command": "cd ../playground-v2/evals && uv run --extra dev pytest tests/test_instruction_experiment.py",
+      "result": "passed",
+      "cases": 13
+    },
+    {
+      "command": "cd ../playground-v2/evals && uv run playground-eval experiment plan --spec ../experiments/agent-instructions.yaml --out <fresh-temp-directory> --environment ../experiments/agent-instructions-recorded-environment.json",
+      "result": "passed",
+      "members": 24,
+      "kind": "recorded preparation control"
+    },
+    {
+      "command": "go test -count=1 ./tests/eval/agent_instructions ./internal/config",
+      "result": "passed as part of focused Go gate"
+    },
+    {
+      "command": "uv run --project evals python evals/scripts/preflight_instruction_experiment.py --api-url http://127.0.0.1:8080 --out <private-report>",
+      "result": "completed; live readiness blocked",
+      "get_requests": 23
+    }
+  ],
+  "provider_preflight": {
+    "methods": [
+      "GET"
+    ],
+    "configurations": [
+      {
+        "kind": "audit_profile",
+        "selector": "eval-v40-a1-baseline@1",
+        "available": false
+      },
+      {
+        "kind": "audit_profile",
+        "selector": "eval-v40-a1-candidate@1",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "audit-source-check@1",
+        "available": true
+      },
+      {
+        "kind": "workflow",
+        "selector": "audit-source-check@2",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "eval-v40-a1-baseline@1",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "eval-v40-a1-candidate@1",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "eval-v40-d1-baseline@1",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "eval-v40-d1-candidate@1",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "eval-v40-l1-baseline@1",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "eval-v40-l1-candidate@1",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "eval-v40-o1-baseline@1",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "eval-v40-o1-candidate@1",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "eval-v40-t1-baseline@1",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "eval-v40-t1-candidate@1",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "eval-v40-t2-baseline@1",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "eval-v40-t2-candidate@1",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "likec4-from-workspace@5",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "likec4-from-workspace@6",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "openapi-from-workspace@5",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "openapi-from-workspace@6",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "taint-trace-from-workspace@2",
+        "available": false
+      },
+      {
+        "kind": "workflow",
+        "selector": "taint-trace-from-workspace@3",
+        "available": false
+      }
+    ],
+    "metadata_probe": {
+      "status": "blocked",
+      "reason": "provider_preflight_unavailable"
+    }
+  },
+  "open_acceptance": {
+    "A1": "Frozen live releases are unavailable; equal live model/revision, sampling, tool declarations, Skills, effective budgets and Runtime build pins cannot be established for them.",
+    "A2": "The 24-member recorded control is reproducible; it cannot satisfy required live pins or substitute for the strict live matrix.",
+    "A3": "Read-only preparation checks pass; there are no live experimental observations."
+  },
+  "current_schema_requirement": "Frozen Audit wrappers use removed audit-results@1 and obsolete inventory schema. Author a new separately pinned comparison on current contracts in both arms; preserve archive bytes and do not restore compatibility readers.",
+  "next_work": "Resolve the current provider capability/input/output mappings and aggregate dispatch/budget support, author a new immutable current-schema release, then repeat strict live planning. Model evaluation remains V40-003."
+}

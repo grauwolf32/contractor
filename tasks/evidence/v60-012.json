@@ -1,0 +1,154 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-012",
+  "verified_on": "2026-09-20",
+  "timezone": "Europe/Moscow",
+  "base_commit": "3cd92c906a78d266e452b9b8777cb81759919631",
+  "reviewed_base_commit": "33a97d5581a270639b3e4e43087370223750699e",
+  "environment": {
+    "go": "go1.25.6 linux/amd64",
+    "python": "3.13.14",
+    "uv": "0.11.28",
+    "database": "Dedicated disposable PostgreSQL 17-alpine container contractor-v60-012-tests, loopback port 43935; repository helpers create and remove unique isolated schemas.",
+    "runtime_environment": "Existing runtime/.venv linked into isolated worktree; UV_NO_SYNC=1 and explicit worktree runtime/src PYTHONPATH; no dependency resync or live models.",
+    "parallel_work": "Main c41a5989 planning commit preserving V61 toolset tasks merged before broad verification. Managed Evals and other active worktrees not changed."
+  },
+  "reproduced_before_fix": [
+    {
+      "finding": "PR-06",
+      "command": "go test -tags=integration -overlay /tmp/contractor-v60-012-product-regression/baseline-overlay.json ./internal/httpapi/public -run '^TestPublicAuditSourceRunDeletionInvalidatesReadContexts$' -count=1 -timeout=90s -v",
+      "baseline": "delete_store.go from 16df90d4, same production implementation as 3cd92c90",
+      "result": "EXPECTED FAIL (1.221 s): Audit A revision 3 and Audit B revision 2/updatedAt/ETag unchanged after actual source deletion; old pins and signed cursor return HTTP 200; wanted 409. Actual ImportIntoAudit + HTTP with a one-connection reader pool."
+    },
+    {
+      "finding": "missing source Run serialization",
+      "result": "EXPECTED FAIL (0.939 s): import completed without holding the source Run FOR KEY SHARE; the durable concurrency regression detects the missing serialization boundary.",
+      "method": "Temporary Go overlay substituting old production code while executing the first subcase of TestPostgresFindingImportSerializesWithRunDeletion against the disposable PostgreSQL database."
+    }
+  ],
+  "implemented": [
+    "Run deletion locks all owner Audits referenced by managed execution, native proposal receipts or destination holds in Audit-ID order before execution/retention/artifact locks; source Run lock stabilizes the destination set.",
+    "Same deletion transaction raises each affected Audit revision exactly once, including terminal Audits. Rollback/rejection/repeat do not leave invalidation or tombstone side effects.",
+    "ImportIntoAudit locks live owner/project source Run FOR KEY SHARE, then destination Audit FOR UPDATE before receipt/retention; owner checks, state policy, exact-ref validation and replay semantics remain intact.",
+    "Availability-only deletion while finalizing preserves Audit.updated_at, which supplies report.generatedFrom; fresh revision CAS can reuse exact immutable report bytes. Other states advance timestamp normally; finding and frozen review-subject revisions do not change.",
+    "Specs 18/19 record the explicit invalidation/locking/timestamp contract; required Audit completion Go matrix includes five new report/managed/native regression names."
+  ],
+  "checks": [
+    {
+      "command": "go test ./internal/runstore ./internal/findingintake",
+      "result": "PASS",
+      "boundary": "Initial compile/unit check without PostgreSQL environment; not claimed as DB evidence."
+    },
+    {
+      "command": "go test -tags=integration -race -count=1 ./internal/auditimport -run '^TestImporter(ReportFinalizationSurvivesRunDeletion|PendingReportReviewSurvivesRunDeletion|ReportRetryRejectsChangedFinalizationTimestamp|ManagedRunDeletionRollbackAndRejection|FinalizesTruthfulReportWithZeroDenominator)$'",
+      "result": "PASS",
+      "package_seconds": 6.782,
+      "database": "executed"
+    },
+    {
+      "command": "go test -tags=integration -race -count=1 ./internal/findingintake -run '^TestPostgresFinding(ImportSerializesWithRunDeletion|RunDeletionSerializesWithAuditPurge)$' -v",
+      "result": "PASS",
+      "package_seconds": 7.449,
+      "database": "executed; six scenarios with pg_blocking_pids and actual SQL-stage checks, no sleeps"
+    },
+    {
+      "command": "go test -tags=integration -race -count=1 ./internal/runstore ./internal/findingintake ./internal/auditservice ./internal/auditimport ./internal/httpapi/public",
+      "result": "PASS",
+      "package_seconds": {
+        "runstore": 37.997,
+        "findingintake": 22.027,
+        "auditservice": 38.922,
+        "auditimport": 57.477,
+        "public": 62.549
+      },
+      "database": "executed"
+    },
+    {
+      "command": "make verify-public-api-postgres",
+      "result": "PASS",
+      "package_seconds": 14.074,
+      "database": "executed"
+    },
+    {
+      "command": "make test-audit-completion-e2e",
+      "result": "PASS",
+      "go_cases": 173,
+      "runtime_tests": 331,
+      "selected_skips": 0,
+      "runtime_seconds": 6.61,
+      "local_raw_report": ".local/audit-completion-gate/run-o4i04vyx/executed.json",
+      "database": "executed; disposable DSN password contractor deliberately matches CI redaction collision case"
+    },
+    {
+      "command": "go test -tags=integration -race -count=1 ./internal/auditimport -run '^TestImporterRunDeletionInvalidatesNativeReceiptAuditOnce$' -v",
+      "result": "PASS",
+      "package_seconds": 3.829,
+      "database": "executed after test-only strengthening: native receipt + execution dedup now deletes the source of an actually completed Audit"
+    },
+    {
+      "command": "go vet ./...",
+      "result": "PASS"
+    },
+    {
+      "command": "go test -tags=integration -race -count=1 ./internal/httpapi/public -run '^TestPublicAuditSourceRunDeletionInvalidatesReadContexts$' -v",
+      "result": "PASS",
+      "package_seconds": 2.449,
+      "database": "executed after final assertions for exactly +1 per Audit and unchanged finding revision"
+    },
+    {
+      "command": "go test ./...",
+      "result": "PASS",
+      "database": "Disposable PostgreSQL environment enabled; includes actual artifacts/auditstore/projectlifecycle/runstore/scheduler tests. Some unchanged default-tag packages reused Go test cache. Build-tagged integration suites are separately verified above.",
+      "representative_package_seconds": {
+        "artifacts": 103.795,
+        "auditstore": 8.858,
+        "projectlifecycle": 13.102,
+        "runstore": 49.502,
+        "scheduler": 44.433
+      }
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    },
+    {
+      "command": "Task YAML parse, unique-ID/dependency validation, V60-012 prerequisite/status verification; gofmt -l on all changed Go files; git diff --cached --check",
+      "result": "PASS",
+      "tasks_parsed": 370
+    }
+  ],
+  "acceptance": {
+    "A1": "PASS: real HTTP ordinary Run with distinct receipts imported to two Audits, multiple holds per Audit, unaffected same/other owner; managed/native and terminal Audit cases.",
+    "A2": "PASS: import wins/delete wins, cancellation and rollback, managed collection rejection and repeated deletion; Audit purge in both orders; persisted native receipts unchanged. Lock claims are bounded to tested current service paths.",
+    "A3": "PASS: six automatic/human report write interleavings, pending approve/reject plus proposal/decision replay, and injected timestamp-mutation counterexample preserving immutable integrity rejection.",
+    "A4": "PASS: actual HTTP mid-read/stale pins and cursor conflicts, new ETags and refreshed revision envelope with retained exact receipt/proposal/evidence identity. Existing V60-003 mixed source/attempt regression also included in full auditservice run."
+  },
+  "independent_review": "Finding intake/purge agent reread production diff and current controller/Submit/collection paths: no material issue; release closes native writes, sole hold insertion is source-Run-fenced; controller does not introduce Project/Audit/Run inversion.",
+  "follow_up_observation": {
+    "task": "V60-008",
+    "classification": "Confirmed implementation limitation requiring contract clarification; outside V60-012 identity changes.",
+    "probe": "Temporary PostgreSQL overlay TestReviewSameReceiptSecondAuditImport, 1.176 s. Same-Audit exact replay succeeds; same receipt to second Audit fails audit_findings_pkey SQLSTATE 23505; holds A=1/B=0 after rollback.",
+    "cause": "Migration 041 global finding_id is finding-<receipt_id>, while hold identity is (receipt_id,audit_id).",
+    "authority_boundary": "No explicit accepted same-receipt multi-Audit requirement found; clarify contract/HTTP outcome before choosing correction and migration."
+  },
+  "limits": [
+    "No full release-verify, browser/UI or live-model run is claimed. No production deployment or external-data mutation.",
+    "Final native/HTTP tests received additional assertions after the broad package/gate pass; their final focused race runs are recorded separately. Production and matrix are unchanged since the broad pass.",
+    "Native receipt case seeds storage rows deliberately, without claiming Runtime Submit coverage; concurrency and HTTP tests exercise real import/deletion services.",
+    "Finalizing timestamp preservation applies specifically to Run availability invalidation; arbitrary concurrent semantic report mutations are not newly authorized.",
+    "Changing same-receipt destination multiplicity or finding IDs is a separate contract/correction decision recorded in V60-008."
+  ],
+  "production_source_sha256": {
+    "internal/runstore/delete_store.go": "f5ee8c22925621df9faccf0d83e4d4f804e7b8ebe892e6be96b4afb021133493",
+    "internal/findingintake/postgres.go": "f6ad499ac3b3b4b9b50ba846d43edf6b69dc0295d102e1bb5ab2983671edfcff"
+  },
+  "implementation_commit": "dca420ba8e4333707ef1ae3f4ca70a4cb458f2ef",
+  "integration": {
+    "main_merge_commit": "6ea86e5643446e7b98db5a3109e3f65c3d570ff0",
+    "reviewed_branch_commit": "fb04893b",
+    "code_comparison": "PASS: git diff --exit-code fix/v60-012-run-deletion -- api internal runtime ui scripts tests Makefile go.mod go.sum after merge",
+    "preserved_local_work": "All seven pre-existing dirty/untracked files preserved; docs/research/README.md combined by a clean three-way merge. Root staged index was empty. Main V61 planning commit retained.",
+    "preservation_backup": ".local/v60-012-main-integration-gajro358",
+    "verification_boundary": "No executable changes introduced by integration; code tree matches the verified branch. Broad tests were not needlessly repeated after this documentation-only merge."
+  }
+}

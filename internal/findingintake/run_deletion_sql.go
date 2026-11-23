@@ -1,0 +1,16 @@
+package findingintake
+
+// SQL statements for run_deletion.go.
+
+// markSourceRunDeletedSQL tombstones the retention state of every finding
+// proposal received from Run $1: it sets source_run_deleted_at and moves the
+// state to 'audit-held' when an Audit hold exists, otherwise to 'discarded'
+// with discarded_at. Existing timestamps are kept.
+// Used by MarkSourceRunDeleted.
+var markSourceRunDeletedSQL = `
+UPDATE finding_proposal_receipts AS receipt
+   SET source_run_deleted_at = COALESCE(receipt.source_run_deleted_at, clock_timestamp()),
+       retention_state=CASE WHEN receipt.project_proposal IS NOT NULL THEN 'project-held' ELSE 'discarded' END,
+       discarded_at=CASE WHEN receipt.project_proposal IS NOT NULL THEN NULL ELSE COALESCE(receipt.discarded_at,clock_timestamp()) END,
+       retention_updated_at = clock_timestamp()
+ WHERE receipt.run_id = $1`

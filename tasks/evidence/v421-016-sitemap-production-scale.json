@@ -1,0 +1,263 @@
+{
+  "schema_version": "1.0",
+  "task": "V421-016",
+  "implementation_commit": "b9f7366193adca40c6f2c1266866f7ffac0dc0fb",
+  "classification": "Pre-existing V410-001 production-scale fixture cannot keep a real 15-second operation deadline under race instrumentation; no production regression or deadline increase.",
+  "baseline_comparison": {
+    "status": "completed_comparison",
+    "mode": "go_only_baseline_comparison",
+    "command": "go test -race -count=1 ./internal/projectsitemap -run '^TestPostgresSitemapSingleRunExceedsRemovedPublicationCaps$'",
+    "stages": {
+      "baseline": {
+        "pin": "f18dec3dbf9316b3347859db1da6873f54ffa1b0",
+        "checkout": "/work/v421-integrated-main-f18dec3d-s1",
+        "command": "go test -race -count=1 ./internal/projectsitemap -run '^TestPostgresSitemapSingleRunExceedsRemovedPublicationCaps$'",
+        "status": "failed",
+        "elapsed_seconds": 26.273,
+        "exit_code": 1,
+        "finished_at_utc": "2026-10-27T20:02:56.748091+00:00",
+        "phase": "baseline",
+        "redacted_output_bytes": 232,
+        "started_at_utc": "2026-10-27T20:02:30.475514+00:00",
+        "timeout_seconds": 800,
+        "client_exit_code": 1,
+        "source_clean_unchanged": true,
+        "tree": "4fe5c89a3dbcffeab4bd88467ad5d4ead470235c",
+        "logs_sha256": "61ebfadbbf3f1288663bbc6f467eb55aec081512089554fd843eb3ae52501ee1"
+      },
+      "review": {
+        "pin": "30329ddb380083ecbb52fd7fdb082a1e614342fd",
+        "checkout": "/work/v421-integrated-30329ddb-s2",
+        "command": "go test -race -count=1 ./internal/projectsitemap -run '^TestPostgresSitemapSingleRunExceedsRemovedPublicationCaps$'",
+        "status": "failed",
+        "elapsed_seconds": 26.206,
+        "exit_code": 1,
+        "finished_at_utc": "2026-10-27T20:03:27.146741+00:00",
+        "phase": "review",
+        "redacted_output_bytes": 232,
+        "started_at_utc": "2026-10-27T20:03:00.940512+00:00",
+        "timeout_seconds": 800,
+        "client_exit_code": 1,
+        "source_clean_unchanged": true,
+        "tree": "c9d5174f48bd4dfa92b87851b834f48838c50e19",
+        "logs_sha256": "cbde24ff5d0662ed2010012cdcd7a38ead8b2f2d1f368116c317a1884521bb47"
+      }
+    },
+    "source_test_blob_identical": "982b2597fbd68fb78b2b1a53aecacb53c11091a5",
+    "full_gate_executed": false,
+    "private_stage": "/tmp/v421-release-3b041263a9a647dcafaa608b4af07737",
+    "finished_at_utc": "2026-10-27T20:03:27.963403+00:00",
+    "wrapper_sha256": "7df9945ea79efee2c79d5a9091da8b8549f809a1902c9fddf07ffa9706fde867"
+  },
+  "baseline_comparison_sha256": "1882a600b24a0bbb5930bc7736b2977773f81ea805ec1a2381287ce2fd301299",
+  "host_owner_checks": [
+    {
+      "command": "go test -count=1 -timeout=15m -v ./internal/projectsitemap",
+      "mode": "normal",
+      "exit_code": 0,
+      "elapsed_seconds": 261.895,
+      "log": "/private/tmp/v421-016-normal.log",
+      "log_sha256": "39ff3427f94e81fd05da4e7269ea2aaf954ff75a8cb53c30d48e01fe2d953dab",
+      "root_counts": {
+        "PASS": 27,
+        "FAIL": 0,
+        "SKIP": 0
+      },
+      "scale_case_executed": true,
+      "concurrent_writers_passed": true
+    },
+    {
+      "command": "go test -race -count=1 -timeout=15m -v ./internal/projectsitemap",
+      "mode": "race",
+      "exit_code": 0,
+      "elapsed_seconds": 9.687,
+      "log": "/private/tmp/v421-016-race.log",
+      "log_sha256": "78c83f17edea3ce1e500b0033b2c91d29585d7f5014eb3ed0048aef75e46a487",
+      "root_counts": {
+        "PASS": 26,
+        "FAIL": 0,
+        "SKIP": 0
+      },
+      "scale_case_executed": false,
+      "concurrent_writers_passed": true
+    }
+  ],
+  "host_source_note": "The exact moved files were tested while the implementation commit was being recorded. The independent clean Linux pin below is the authoritative committed-source acceptance.",
+  "host_static_checks": [
+    {
+      "command": "python3 scripts/check_release_verify_graph.py",
+      "mode": "graph",
+      "exit_code": 0,
+      "elapsed_seconds": 133.395,
+      "log": "/private/tmp/v421-016-graph.log",
+      "log_sha256": "e217482734e137c1d5dbc7dac19ff6a95919ebbd9f82a46028126fcc8b6de025"
+    },
+    {
+      "command": "make lint",
+      "mode": "lint",
+      "exit_code": 0,
+      "elapsed_seconds": 186.435,
+      "log": "/private/tmp/v421-016-lint.log",
+      "log_sha256": "b5252edd807a3f9fcb98062c74b503192782139c701629214ccb6026abcc1635"
+    }
+  ],
+  "linux_acceptance": {
+    "status": "passed_focused_full_owner_only",
+    "source_revision": "b9f7366193adca40c6f2c1266866f7ffac0dc0fb",
+    "tree": "ff469d71fb4b95b7c9bbf2b7697f08666137967c",
+    "full_release_executed": false,
+    "test_function": {
+      "name": "TestPostgresSitemapSingleRunExceedsRemovedPublicationCaps",
+      "body_byte_identical_to_303": true,
+      "function_sha256": "9bd02614aee3e900f9fd7387ec57c8b993fd78a855990b0fb676e577892fa7bf",
+      "build_constraint": "!race",
+      "normal_pass_seconds": 272.26,
+      "race_test_absent": true,
+      "production_operation_timeout_seconds": 15,
+      "test_total_context_minutes": 8
+    },
+    "suites": {
+      "normal": {
+        "pin": "b9f7366193adca40c6f2c1266866f7ffac0dc0fb",
+        "checkout": "/work/v421-integrated-v016-b9f73661-q1",
+        "command": "go test -json -count=1 ./internal/projectsitemap",
+        "status": "passed",
+        "elapsed_seconds": 278.883,
+        "exit_code": 0,
+        "finished_at_utc": "2026-10-27T20:15:53.078585+00:00",
+        "phase": "normal",
+        "redacted_output_bytes": 36079,
+        "started_at_utc": "2026-10-27T20:11:14.195339+00:00",
+        "timeout_seconds": 800,
+        "client_exit_code": 0,
+        "go_counts": {
+          "test_identities": 36,
+          "test_terminal_counts": {
+            "pass": 36
+          },
+          "root_terminal_counts": {
+            "pass": 27
+          },
+          "package_terminal_counts": {
+            "pass": 1
+          },
+          "problems": []
+        },
+        "source_clean_unchanged": true,
+        "tree": "ff469d71fb4b95b7c9bbf2b7697f08666137967c",
+        "logs_sha256": "c79d88875829f7b5c85e548b867c7ca3a42fdad0eb563420505105faf4878ec7"
+      },
+      "race": {
+        "pin": "b9f7366193adca40c6f2c1266866f7ffac0dc0fb",
+        "checkout": "/work/v421-integrated-v016-b9f73661-q1",
+        "command": "go test -json -race -count=1 ./internal/projectsitemap",
+        "status": "passed",
+        "elapsed_seconds": 10.648,
+        "exit_code": 0,
+        "finished_at_utc": "2026-10-27T20:16:05.564608+00:00",
+        "phase": "race",
+        "redacted_output_bytes": 34753,
+        "started_at_utc": "2026-10-27T20:15:54.917034+00:00",
+        "timeout_seconds": 800,
+        "client_exit_code": 0,
+        "go_counts": {
+          "test_identities": 35,
+          "test_terminal_counts": {
+            "pass": 35
+          },
+          "root_terminal_counts": {
+            "pass": 26
+          },
+          "package_terminal_counts": {
+            "pass": 1
+          },
+          "problems": []
+        },
+        "source_clean_unchanged": true,
+        "tree": "ff469d71fb4b95b7c9bbf2b7697f08666137967c",
+        "logs_sha256": "597cfe5986bbb0c8e9f3bb0156be0addcbb8f63ac9128c4e46acf9eb7533d369"
+      }
+    },
+    "source_proof": {
+      "clean_before": true,
+      "clean_after": true,
+      "same_revision": true,
+      "same_tree": true,
+      "same_locks": true,
+      "lock_sha256": {
+        "go.mod": "39814d7a347628f48a62289abba63beba81db20dd51d1acf233d308e654bb937",
+        "go.sum": "33d3b901321b8f39d44e379736d2c9a42b8a0fcb7455ad6c20594ef5417cc195",
+        "runtime/uv.lock": "feb5a55a9097fc6224384a99b7c506467196ab87435ba3a83ac0a230023bb027",
+        "ui/pnpm-lock.yaml": "0e4c20b6ad30b3ba279b51deddfa6f9855423edfd96952a1493e8e1a137774e1"
+      },
+      "tools": {
+        "corepack": "0.36.0",
+        "git": "git version 2.47.3",
+        "go": "go version go1.26.9 linux/arm64",
+        "node": "v24.20.0",
+        "pg_dump": "pg_dump (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)",
+        "pg_restore": "pg_restore (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)",
+        "pnpm": "11.24.0",
+        "psql": "psql (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)",
+        "python313": "Python 3.13.5",
+        "uv": "uv 0.13.1 (aarch64-unknown-linux-gnu)"
+      }
+    },
+    "joined": {
+      "remaining_owned_attempt_processes": [],
+      "count": 0
+    },
+    "artifacts": {
+      "normal.log": {
+        "sha256": "c79d88875829f7b5c85e548b867c7ca3a42fdad0eb563420505105faf4878ec7",
+        "bytes": 36079
+      },
+      "race.log": {
+        "sha256": "597cfe5986bbb0c8e9f3bb0156be0addcbb8f63ac9128c4e46acf9eb7533d369",
+        "bytes": 34753
+      },
+      "result.json": {
+        "sha256": "23c79cfa9d0d2efb4cbbe5d0a85baad4bd6306ff41afc3cfe16c0cf32e79543d",
+        "bytes": 2404
+      },
+      "normal-before.json": {
+        "sha256": "7202d80f35ac902e5e79b1df965f3033eeb37b846636034f34caeda4cade4554",
+        "bytes": 1159
+      },
+      "normal-after.json": {
+        "sha256": "7f5701b4bfd9eaa086532276711f128297653576053511e2ad3391902c16828f",
+        "bytes": 1159
+      },
+      "race-before.json": {
+        "sha256": "84dc90ba2d3cf110d3715624056e26615fe747f21f51645fb232af844b44dde1",
+        "bytes": 1159
+      },
+      "race-after.json": {
+        "sha256": "cad49077d83063388e5423eac7b97719628307fd3277f9b3576f94892742c454",
+        "bytes": 1159
+      },
+      "joined-processes.json": {
+        "sha256": "2a2c1c12d3351e5d0ca1d24db823e8dd7a17f59834c1f5bca9fcf7f35240800c",
+        "bytes": 60
+      }
+    },
+    "capture": "/private/tmp/v421-016-capture-b9f73661-q1/capture.json",
+    "baseline_comparison": "/private/tmp/v421-sitemap-race-baseline-compare-s1/result.json",
+    "created_at_utc": "2026-10-27T20:17:16.323725+00:00"
+  },
+  "linux_acceptance_sha256": "c0e5353b742c69a9d9556a483d0db0517f06a95ad5496e28c7d3506c5a51a7a2",
+  "preserved_volume": {
+    "publications": 257,
+    "encoded_publication_bytes": 360501946,
+    "retained_revisions": 2,
+    "retained_bytes": 2980786
+  },
+  "independent_review": {
+    "test_function_body_unchanged": true,
+    "remaining_11_functions_unchanged": true,
+    "production_files_unchanged": true,
+    "race_package_exception_added": false,
+    "deadlines_changed": false
+  },
+  "full_release_pass_claimed": false
+}

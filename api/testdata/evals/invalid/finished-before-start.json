@@ -1,0 +1,218 @@
+{
+  "schemaVersion": "contractor.eval-result-input/v1",
+  "planSha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+  "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+  "source": {
+    "system": "independent-evaluator",
+    "id": "trace-small",
+    "revision": "r1",
+    "sourceSha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+  },
+  "execution": {
+    "ref": {
+      "kind": "run",
+      "id": "run-1"
+    },
+    "state": "succeeded",
+    "startedAt": "2026-09-19T10:00:00Z",
+    "finishedAt": "2026-09-19T09:59:59Z",
+    "reason": null
+  },
+  "collection": {
+    "status": "complete",
+    "gaps": []
+  },
+  "outputs": {
+    "report": {
+      "scope": "run",
+      "scopeId": "run-1",
+      "namespace": "sources",
+      "name": "trace-source",
+      "revision": "rev-1",
+      "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+      "mediaType": "application/json",
+      "sizeBytes": 5
+    }
+  },
+  "evidence": [
+    {
+      "id": "evidence-1",
+      "artifact": {
+        "scope": "project",
+        "scopeId": "evaluation-1",
+        "namespace": "sources",
+        "name": "trace-source",
+        "revision": "rev-1",
+        "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+        "mediaType": "application/zip",
+        "sizeBytes": 5
+      }
+    }
+  ],
+  "usage": {
+    "inputTokens": {
+      "value": 80,
+      "unit": "tokens",
+      "completeness": "complete",
+      "sourceRefs": [
+        "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+      ],
+      "scope": {
+        "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+        "kind": "workflow",
+        "executions": [
+          {
+            "kind": "run",
+            "id": "run-1"
+          }
+        ],
+        "missing": [],
+        "interval": null
+      }
+    },
+    "outputTokens": {
+      "value": 0,
+      "unit": "tokens",
+      "completeness": "complete",
+      "sourceRefs": [
+        "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+      ],
+      "scope": {
+        "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+        "kind": "workflow",
+        "executions": [
+          {
+            "kind": "run",
+            "id": "run-1"
+          }
+        ],
+        "missing": [],
+        "interval": null
+      }
+    },
+    "totalTokens": {
+      "value": 80,
+      "unit": "tokens",
+      "completeness": "complete",
+      "sourceRefs": [
+        "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+      ],
+      "scope": {
+        "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+        "kind": "workflow",
+        "executions": [
+          {
+            "kind": "run",
+            "id": "run-1"
+          }
+        ],
+        "missing": [],
+        "interval": null
+      }
+    },
+    "cachedInputTokens": {
+      "value": null,
+      "unit": "tokens",
+      "completeness": "unavailable",
+      "sourceRefs": [],
+      "scope": {
+        "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+        "kind": "workflow",
+        "executions": [
+          {
+            "kind": "run",
+            "id": "run-1"
+          }
+        ],
+        "missing": [
+          "counter unavailable"
+        ],
+        "interval": null
+      }
+    },
+    "modelCalls": {
+      "value": 1,
+      "unit": "calls",
+      "completeness": "complete",
+      "sourceRefs": [
+        "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+      ],
+      "scope": {
+        "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+        "kind": "workflow",
+        "executions": [
+          {
+            "kind": "run",
+            "id": "run-1"
+          }
+        ],
+        "missing": [],
+        "interval": null
+      }
+    },
+    "toolCalls": {
+      "value": 0,
+      "unit": "calls",
+      "completeness": "complete",
+      "sourceRefs": [
+        "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+      ],
+      "scope": {
+        "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+        "kind": "workflow",
+        "executions": [
+          {
+            "kind": "run",
+            "id": "run-1"
+          }
+        ],
+        "missing": [],
+        "interval": null
+      }
+    },
+    "toolFailures": {
+      "value": 0,
+      "unit": "calls",
+      "completeness": "complete",
+      "sourceRefs": [
+        "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+      ],
+      "scope": {
+        "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+        "kind": "workflow",
+        "executions": [
+          {
+            "kind": "run",
+            "id": "run-1"
+          }
+        ],
+        "missing": [],
+        "interval": null
+      }
+    },
+    "wallMs": {
+      "value": 2000,
+      "unit": "milliseconds",
+      "completeness": "complete",
+      "sourceRefs": [
+        "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+      ],
+      "scope": {
+        "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+        "kind": "workflow",
+        "executions": [
+          {
+            "kind": "run",
+            "id": "run-1"
+          }
+        ],
+        "missing": [],
+        "interval": {
+          "start": "2026-09-19T10:00:00Z",
+          "end": "2026-09-19T10:00:02Z"
+        }
+      }
+    }
+  },
+  "previousResultSha256": null
+}

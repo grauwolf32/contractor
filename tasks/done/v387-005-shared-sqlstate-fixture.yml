@@ -1,0 +1,38 @@
+schema_version: "1.0"
+id: V387-005
+title: Reuse the serialization SQLSTATE in the Audit browser fixture
+milestone: audit-workflow-composition
+epic: audits
+kind: chore
+introduced_by: V62-012
+priority: P3
+status: completed
+depends_on: []
+languages: [go]
+goal: Keep the controlled Audit inventory fault byte-equivalent while satisfying the single SQLSTATE definition guard.
+context:
+  finding: >-
+    tests/e2e/audit_composition_process_test.go:160 embeds the serialization
+    SQLSTATE literal, so the newly merged main fails
+    internal/persistence TestSQLStateLiteralsLiveOnlyInTheClassifier.
+scope:
+  in:
+    - Construct the same test-only PL/pgSQL fault using the existing classifier constant.
+  out:
+    - Changing the controlled fault, Audit behavior, retries or browser journey.
+acceptance_criteria:
+  - id: A1
+    text: The full persistence and ordinary E2E package tests pass; the tagged process suite compiles.
+  - id: A2
+    text: Repository lint passes and SQLSTATE literals remain centralized.
+tests:
+  - command: go test ./internal/persistence ./tests/e2e
+    covers: [A1, A2]
+  - command: go test -c -tags=e2e -o /private/tmp/contractor-models-e2e.test ./tests/e2e
+    covers: [A1]
+  - command: make lint
+    covers: [A2]
+implementation_commit: a5181602cad782b3f28bfdf09b93918b1a4f0c59
+verification:
+  packages: go test ./internal/persistence ./tests/e2e passed, and the e2e-tagged process package compiled.
+  lint: make lint passed including the SQLSTATE source guard and 112 script tests.

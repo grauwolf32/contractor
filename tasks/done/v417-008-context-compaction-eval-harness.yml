@@ -1,0 +1,264 @@
+schema_version: '1.0'
+id: V417-008
+title: Build frozen context-compaction evaluation fixtures and an opt-in harness
+milestone: worker-context-compaction-quality-2026-10
+epic: evals
+kind: chore
+priority: P2
+status: completed
+depends_on:
+- V417-001
+- V417-003
+- V466-013
+- V466-014
+languages:
+- python
+- go
+- yaml
+- markdown
+goal: Make the quality and total cost of terminal summarization and continuing compaction comparable through
+  frozen cases, meaningful deterministic scorers and a bounded opt-in live command, without running live
+  experiments in this task.
+context:
+  authority: User request 2026-11-14 takes several ready V417 tasks in one pass; the agent selected 006/007/008
+    with separate acceptance. User review 2026-11-14 requests removing unnecessary mechanisms across the
+    batch; reuse Managed Eval membership, cumulative usage and comparisons instead of a parallel charge
+    ledger, member planner or local comparison engine. This task builds and verifies the harness offline
+    and does not authorize live experiments. User decision 2026-11-14 approves the common collector correction
+    V466-013 as a prerequisite. Continue independent fixture/scorer work; do not close this task before
+    that correction passes. The same collector correction needs V466-014 to assign its changed behavior
+    a new normalizer identity before final acceptance.
+  implementation_decision: Reuse frozen externally-controlled Managed Eval registrations, submissions,
+    execution inventory, result and assessment receipts through public HTTP. The live manifest references
+    already registered exact plans, member order, case digests and read-only configuration pins; it never
+    publishes a Workflow or sends Run/Eval execution overrides. One member is observed to settlement before
+    admitting the next, reserving its full finite declared task budget. Test-only masking and controlled
+    replay use recorded environments; unsupported live pairing remains in the denominator. Hidden truth
+    and future questions stay outside the execution projection and API recipe. Common Eval usage includes
+    terminal summarization once after V466-013. The consumer projects existing usage/cost/phase views,
+    streams bounded member records and reads server comparisons; there is no local member planner, charge-revision
+    ledger or quality/savings calculator. Runtime build and capability equality are frozen operator attestations
+    where the current public API has no reader.
+  proposal: docs/proposals/0046-workflow-context-compaction.md
+  specification:
+  - docs/spec/evals/format.md#EVF-R1
+  - docs/spec/evals/format.md#EVF-R30
+  - docs/spec/evals/format.md#EVF-R39
+  - docs/spec/evals/format.md#EVF-R73
+  - docs/spec/evals/managed-evals.md#EVM-R1
+  - docs/spec/evals/managed-evals.md#EVM-R63
+  - docs/spec/evals/managed-evals.md#EVM-R75
+  - docs/spec/execution/worker.md
+  - docs/spec/platform/observability.md
+  - docs/spec/configuration/agent-templates.md#TPL-R76
+  - docs/spec/configuration/agent-templates.md#TPL-R77
+  design: docs/testing/live-models.md
+  implementation_boundary: Reuse existing Eval planning, member identity, submission, result, assessment
+    and comparison contracts. Deliver test fixtures and executable harness consumers, not a second Eval
+    scheduler, store, public API or production context-management strategy. V417-003 owns the production
+    compactor policy, instructions and archive reader; V417-010 owns actual live measurements.
+  adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
+    Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
+    not 2.8 callback/identity assumptions.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: 'Accepted 2026-11-14: six declared variants, three visible case classes, private truth
+    and bounded scorers, 90 recorded samples, existing external Eval consumer and separate live target.
+    Common usage correction and normalizer identity are accepted in V466-013/V466-014. No live measurements
+    were run.'
+  verification: "All A1\u2013A5 pass in the 19-test offline suite and real catalog load; public result/assessment\
+    \ payloads validate against current OpenAPI. Full Eval/PostgreSQL and lint pass. See tasks/evidence/v417-008-acceptance-20261114.json."
+scope:
+  in:
+  - Frozen visible cases, private expected data, variant manifests and scorer regressions under tests/eval.
+  - Deterministic make test-context-compaction-eval-fixtures target and explicit make eval-context-compaction-live
+    target.
+  - Experiment preflight, exact configuration provenance, aggregate overhead accounting and retained safe
+    result projections.
+  - Source review, OpenAPI/LikeC4 dependency and negative-result memory scenarios, including questions
+    unknown at compaction time.
+  - Test-only observation masking baseline and paired continuation from an identical controlled environment
+    checkpoint where reproducible.
+  out:
+  - Live Gateway experiments, parameter selection or quality claims; these belong to V417-010.
+  - New production masking policy, automatic prompt tuning, production model changes or benchmark-specific
+    instructions.
+  - Changes to the deterministic V417-009 exit prerequisites or normative runtime contracts during this
+    planning change.
+requirements:
+- id: R1
+  text: Provide terminal summarizer includeReasoning=false/true, continuing compact@1 includeReasoning=false/true,
+    the existing configured terminal handoff to streamline, and observation masking as declared comparison
+    variants. Masking exists only in the isolated experiment adapter; it adds no production strategy enum.
+    Represent A/B comparisons through the existing exactly-two-arm contract, using multiple pinned experiments
+    rather than widening Managed Eval arms. Each production arm selects a separately authored, published
+    Workflow ref with exact closure pins. Do not add executionConfig to Eval variants or Run-create requests,
+    publish Workflows dynamically, or mutate a catalog entry between samples. Test-only masking remains
+    confined to the controlled adapter.
+- id: R2
+  text: Freeze cases, visible input digests, private truth/scorer revisions, Workflow/AgentTemplate/ModelPolicy/Gateway/Skill/instruction
+    pins, provider reasoning availability, repetition count, order, seeds where supported, intended differences
+    and numerical comparison thresholds before dispatch. Require at least five repeats per live case/variant.
+    Distinguish configured alias provenance from an unavailable upstream weights revision. Also freeze
+    the exact accepted ADK version, dependency lock digest and Runtime build. All arms of a comparison
+    use the same accepted SDK closure; terminal-on-2.8 versus compact-on-2.13 is a confounded experiment
+    and must be rejected.
+- id: R3
+  text: Enforce equal declared inputs, capabilities, configured models and total task budgets across paired
+    variants. Count main model, terminal summarizer, compactor, finalizer, Planner handoff and retry overhead
+    exactly once. Existing terminal summarizer runtime accounting remains unchanged; the experiment includes
+    its separate spend in the cross-variant total. Preserve per-role breakdown, real tool work, elapsed
+    time and failed attempts. Internal Runner turns remain inside the same logical member/task and total
+    budget; they never create extra samples or free budget.
+- id: R4
+  text: Scorers check final task success, independently verified artifacts or findings, preserved constraints
+    and exact identifiers, uncertain versus observed facts, repeated side effects, retrieval success and
+    useful work after checkpoint. Include a plausible wrong reasoning hypothesis and a summary that drops
+    a side constraint. Fixture tests must fail on deliberate result corruption rather than merely restate
+    the implementation.
+- id: R5
+  text: Keep hidden truth, private scorer hooks and future evaluation questions outside model-visible
+    Projects, archives, workspaces and tools. Use allowlisted execution projections and canary tests.
+    Production prompts and Skills contain no benchmark-specific file names, sinks or expected answers.
+    Safe reports exclude credentials, raw prompts, reasoning and private truth.
+- id: R6
+  text: Retain failed, cancelled, timed-out, unsupported, blocked and not-submitted expected members in
+    comparison denominators. Missing token usage or price is unavailable, never zero or an invented estimate;
+    report comparable coverage and uncertainty and suppress unsupported savings claims. Report reasoning
+    absent separately from includeReasoning=false.
+- id: R7
+  text: Use fresh isolated member fixtures and identical start-context digests. For paired same-state
+    continuations, replay only controlled recorded environment state into independent fixtures, never
+    duplicate an external side effect or claim a production Runtime checkpoint-resume capability. Record
+    why a scenario cannot support same-state pairing and report its end-to-end comparison separately.
+- id: R8
+  text: The deterministic target runs with fake/recorded providers, validates live preflight and aggregation
+    without network access, and fails on zero cases. Register it in the existing release graph. The live
+    target requires an explicit complete manifest and existing configured Gateway selections; missing
+    configuration fails before any submission. It is excluded from lint, verify, release-verify and ordinary
+    CI, with the exclusion checked by the release-graph guard. Creating this harness performs no live
+    calls.
+- id: R9
+  text: Use the current Eval public boundary and existing receipts for production member dispatch. An
+    experiment-wide limit must include all handoff Runs and model roles, and stop further dispatch when
+    exhausted; no variant gains a free summarizer budget. Do not alter the project model when slow. Document
+    timeout changes as a new frozen equal-budget experiment.
+failure_outcomes:
+- operation: Manifest preflight, fixture/scorer evaluation and result aggregation
+  permanent: Invalid pins, unequal required dimensions, hidden-truth leakage, invalid scores or oversized
+    plans fail before dispatch; no repair by silently omitting cases.
+  retryable: Deterministic validation and scoring are not retried to obtain a favorable score; external
+    bounded retries remain owned by existing Eval/Run contracts.
+  ambiguous: Reopen the existing exact frozen plan/member/result identity and compare its digest; never
+    create replacement members to erase an uncertain outcome.
+  cancelled: Stop new work, join fixture workers, preserve expected members and settled records, and clean
+    only task-owned temporary fixtures.
+  timeout: Separate finite fixture, member and whole-experiment limits; a timed-out member remains in
+    the frozen denominator.
+- operation: Opt-in live submission interface, verified without live calls in this task
+  permanent: Missing or unavailable configured model, unsupported capability or invalid execution projection
+    blocks that member without model substitution.
+  retryable: Reuse existing bounded transport and Eval retries within pinned attempt/deadline budgets;
+    account every observed attempt.
+  ambiguous: Reconcile the existing submission key and verified execution receipt before any repeated
+    submit.
+  cancelled: Use ordinary Eval/Run cancellation and join release before resetting the member environment.
+  timeout: Manifest supplies member and aggregate deadlines; no unlimited polling or late dispatch after
+    expiry.
+cardinality:
+- collection: Frozen experiment cases, variants, repetitions and expanded members
+  expected: Three pilot classes, at least five repeats per declared case/variant, represented by bounded
+    A/B comparisons
+  maximum: Existing portable limits of 1000 cases per suite, 16 variants, 100 repetitions and 10000 members;
+    native experiments also obey the stricter 1000-member and 1-MiB plan-estimate limits
+  bound: Validate the product before expansion, freeze finite concurrency and aggregate model/tool/token/time
+    budgets, and page existing Eval lists at their current row/byte limits.
+- collection: Fixture inputs, result records and comparison pages
+  expected: One visible input projection and one attributed result per expected member, with role-level
+    cost breakdown
+  maximum: Existing 1-MiB portable document, 128 input/output role and 1024 evidence-ref limits; actual
+    compaction traces obey V417-003 history/input ceilings
+  bound: Stream or page member records, cap retained diagnostics before serialization and test over-limit
+    and full-page continuation cases without whole-experiment rescans per page.
+lifecycle:
+- entity: Frozen evaluation fixtures, manifests and safe results
+  delete: Repository fixtures follow source control; generated experiments use existing Eval/Project deletion
+    and task-owned temporary-directory cleanup.
+  cascade: Existing Eval/Run ownership applies; no second result database, durable submission journal
+    or cleanup controller is added.
+  retention: Keep exact safe provenance and scored records under existing retention; ground truth stays
+    evaluator-private and credentials stay in the existing secret lifecycle.
+acceptance_criteria:
+- id: A1
+  given: All declared variants, five-repeat manifests and pinned case/scorer fixtures
+  when: deterministic validation and deliberate result corruptions run
+  then: Every variant has meaningful scored coverage, invalid artifacts/constraints/IDs and false factual
+    support fail, and two-arm comparisons retain all expected members. Mismatched SDK/lock/runtime provenance
+    is rejected before dispatch.
+- id: A2
+  given: Equal total budgets with main, summarizer, compactor, finalizer, Planner and retry usage plus
+    a member missing token usage
+  when: accounting and comparison fixtures execute
+  then: All overhead is counted once, absent usage remains unavailable, failed members stay visible and
+    unsupported token or cost savings are not reported.
+- id: A3
+  given: Canary private truth and independently reset controlled checkpoint fixtures
+  when: execution projections, model-visible inputs and paired continuations are inspected
+  then: Truth never reaches the Worker, paired start-state digests match, and no external side effect
+    or production resume guarantee is introduced.
+- id: A4
+  given: The deterministic and live make targets plus missing, malformed and oversize live manifests
+  when: release graph checks and offline command preflight tests run
+  then: The deterministic target executes nonzero cases without network access, release checks never invoke
+    the live target, and invalid live requests make no submissions.
+- id: A5
+  given: Lost submission acknowledgement, cancellation, timeout and aggregate-budget exhaustion fixtures
+  when: the harness resumes observation or stops a trial
+  then: It reuses existing member receipts, joins cleanup, stops new dispatch and preserves every expected
+    member and observed cost.
+tests:
+- command: make test-context-compaction-eval-fixtures
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A4
+deliverables:
+- path: tests/eval/context_compaction
+  description: Frozen variants, isolated visible/private fixtures, deterministic scorer/accounting/preflight
+    tests and opt-in live harness entry point.
+- path: make/features.mk
+  description: New test-context-compaction-eval-fixtures target wired into deterministic release checks.
+- path: make/live.mk
+  description: New eval-context-compaction-live target, explicitly excluded from deterministic gates.
+- path: docs/testing/live-models.md
+  description: Exact prerequisites, manifest preparation, invocation, budget accounting and safe evidence-retention
+    instructions.
+test_prerequisites:
+- Both make targets are deliverables of this task, not commands claimed to exist or have passed during
+  planning.
+- The live target is tested offline for validation and routing only; actual Gateway execution belongs
+  to V417-010.
+- Use locked Runtime dependencies, fixture catalogs and pseudo-Skills; no test reads live configs outside
+  the repository's explicit Eval exceptions.
+- Run full suites for every touched package; configured PostgreSQL unavailability and zero matching cases
+  are failures, not successful skips.
+- Run integration acceptance on the exact ADK 2.13.0 closure accepted by V418-007; record Runtime revision
+  and lock digest. No separate old-SDK compaction implementation or version-switching production path.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.
+verification_requirements:
+- Preserve owning Eval contracts; any necessary contract change must land with its actual consumer and
+  shared validation in the implementation change.
+- Record commands, nonzero case counts and prerequisites honestly; this planning task record does not
+  claim successful implementation or populate implementation_commit.
+implementation_commit: d39ad87e4584a737bdd0be01bcfb8cd9a2bc0958

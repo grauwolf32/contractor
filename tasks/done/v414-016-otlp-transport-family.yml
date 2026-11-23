@@ -1,0 +1,163 @@
+schema_version: "1.0"
+id: V414-016
+title: "Retry OTLP batches after TLS and OS transport failures"
+milestone: review-v407-v409-followups-2026-10
+epic: operations
+kind: defect
+introduced_by: V51-001
+priority: P2
+status: completed
+implementation_commit: 21fe42b567a01c686cf3c9bb12b414992775cb63
+depends_on: []
+languages: [python]
+goal: >-
+  The Runtime OTLP exporter classifies the whole httpx exchange transport family,
+  including ssl.SSLError and other OSError that httpcore lets escape unmapped, as
+  a temporary transport failure that OBS-R74 retries, while keeping its own retry
+  budget, Retry-After and permanent-status rules.
+context:
+  review: >-
+    tasks/done/v407-032-http-caido-loop-and-error-classes.yml, re-review: the TLS
+    record follow-up defined HTTP_TRANSPORT_ERRORS once in http_body.py; its
+    declined note "llm/client.py (Gateway) and adapters/otlp_http.py keep their
+    own httpx classification" left the exporter on the narrower family.
+  specification:
+    - docs/spec/platform/observability.md#OBS-R74
+    - docs/spec/platform/observability.md#OBS-R75
+    - docs/spec/platform/observability.md#OBS-R76
+    - docs/spec/platform/failure-model.md#FAIL-R19
+  severity: low
+  finding: >-
+    runtime/src/contractor_runtime/adapters/otlp_http.py:597-602 (_attempt)
+    maps httpx.UnsupportedProtocol/LocalProtocolError to permanent,
+    (httpx.TransportError, TimeoutError) to retryable and every other Exception
+    to a permanent DeliveryResponse(). runtime/src/contractor_runtime/http_body.py:18-26
+    records that httpcore's network backends let OSError escape unmapped, "for
+    example ssl.SSLError for a corrupt TLS record"; V407-032's real-TLS test
+    observed exactly that in the response-body phase, which the exporter reads
+    inside client.stream (classify_response). Reproduction on 19f7477f
+    (temporary pytest probe reusing test_otlp_retries.settings/enqueue with an
+    httpx.MockTransport collector that fails the first two attempts):
+    ssl.SSLError -> flush raises OTLPDeliveryError after 1 attempt,
+    dropped_spans.non_retryable=3; ConnectionResetError -> same, 1 attempt,
+    non_retryable=3; httpx.ConnectError -> delivered after 3 attempts. OBS-R74
+    requires temporary transport failures to be retried, so a collector
+    connection reset or corrupt TLS record silently loses the batch.
+  siblings: >-
+    HTTP toolset, Caido and Interactsh adapters and the proxy handle already use
+    HTTP_TRANSPORT_ERRORS (V407-032). llm/client.py:136-153 catches every
+    Exception from client.send as retryable gateway_unavailable, so a TLS/OS
+    failure is already retried there; its broader catch is a separate Gateway
+    retryability rule and stays out of scope (note it in the http_body.py
+    comment). The Go Planner exporter internal/telemetry/planner_otlp.go makes
+    one attempt with no retry by design (Planner telemetry, not OBS-R74 Worker
+    delivery); out of scope.
+  provenance: >-
+    git blame on otlp_http.py:597-602 attributes the classification to b763e6ab
+    ("feat(runtime): bound OTLP retries and count discarded spans"), the
+    implementation_commit of tasks/done/v51-001-runtime-otlp-retries.yml
+    (V51-001).
+scope:
+  in:
+    - "Classify the exporter's transport failures from the shared http_body.HTTP_TRANSPORT_ERRORS
+      family (or a named subset derived from it), keeping UnsupportedProtocol and LocalProtocolError
+      permanent and leaving response-status, Retry-After, partial-success and acknowledgement
+      validation unchanged."
+    - "Update the http_body.py comment and OBS-R74 (or a new numbered OBS requirement) so the exporter's
+      transport family is stated once and its retry policy stays exporter-owned."
+    - "Regression tests through the real adapter for ssl.SSLError and ConnectionResetError in the
+      request and response-body phases, plus a real local TLS collector sending a corrupt record if
+      the V407-032 TLS fixture can be reused."
+  out:
+    - "Gateway client retryability and the Go Planner exporter."
+    - "Retry budgets, backoff, deadlines, queue limits and metrics names."
+    - "Treating implementation exceptions (TypeError, ValueError) as retryable."
+failure_outcomes:
+  - operation: "OTLP POST attempt to the collector"
+    permanent: "Unsupported protocol, local protocol error, non-retryable HTTP status, malformed or
+      rejected acknowledgement, or an implementation exception: batch discarded as non_retryable."
+    retryable: "HTTP 429/502/503/504 and every member of the shared transport family, including
+      ssl.SSLError and OSError: retried within max_attempts with OBS-R75 backoff or Retry-After."
+    ambiguous: "A failure after the collector may have accepted the batch is retried; OTLP export is
+      at-least-once and duplicates are accepted by design (unchanged)."
+    cancelled: "CancelledError propagates; shutdown or cancelled spans are counted (unchanged)."
+    timeout: "The per-attempt delivery timeout and the batch deadline own it; a delay that cannot fit
+      expires the batch as deadline_exceeded (OBS-R76, unchanged)."
+acceptance_criteria:
+  - id: A1
+    given: "A collector whose first two attempts fail with ssl.SSLError or ConnectionResetError, raised
+      while sending and while reading the response body"
+    when: "the adapter flushes three spans"
+    then: "the third attempt delivers the identical payload, failed_operations is 2 and no span is
+      dropped"
+  - id: A2
+    given: "A collector that always fails with ssl.SSLError"
+    when: "the adapter flushes"
+    then: "the batch is dropped as retry_exhausted after max_attempts, not as non_retryable"
+  - id: A3
+    given: "UnsupportedProtocol, LocalProtocolError or an injected TypeError"
+    when: "the adapter flushes"
+    then: "the batch is dropped as non_retryable after one attempt, as today"
+  - id: A4
+    given: "The unfixed implementation (19f7477f)"
+    when: "the A1 and A2 regression tests run"
+    then: "they fail because the batch is dropped as non_retryable after one attempt"
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_otlp_retries.py tests/test_otlp_adapter.py tests/test_otlp_streaming.py"
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A3]
+decisions:
+  - >-
+    D1 The exporter catches http_body.HTTP_TRANSPORT_ERRORS (httpx.HTTPError and OSError, which
+    includes TimeoutError and ssl.SSLError) as retryable, after the named terminal subset
+    adapters.otlp_http.OTLP_TERMINAL_TRANSPORT_ERRORS: httpx.UnsupportedProtocol,
+    httpx.LocalProtocolError and httpx.DecodingError. Any other exception stays an
+    implementation failure and terminal.
+  - >-
+    D2 httpx.DecodingError (a 2xx acknowledgement whose body fails its Content-Encoding) stays
+    terminal as it was: the bytes arrived intact, so it is a malformed acknowledgement, which
+    OBS-R77 makes terminal, not a transport failure. httpx.TooManyRedirects and HTTPStatusError
+    cannot occur (follow_redirects=False, no raise_for_status).
+  - >-
+    D3 OBS-R74 now names the family and its terminal members once and keeps the retry policy
+    exporter-owned; the http_body.py comment points at the exporter's subset and records that
+    the Gateway client keeps its broader rule (any non-timeout send exception is a retryable
+    gateway_unavailable). The Gateway client and the Go Planner exporter are out of scope.
+  - >-
+    D4 The real-TLS collector reuses V407-032's CorruptTLSRecordTarget: test_http_toolset.py
+    gains loopback_tls_transport (loopback_tls_client now builds on it) and
+    CorruptTLSRecordTarget.transport().
+  - >-
+    Siblings: grep for httpx.TransportError, RequestError, NetworkError and HTTPError in
+    runtime/src finds only the shared family definition; the HTTP toolset, Caido, Interactsh and
+    the proxy handle already use it (V407-032).
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Python 3.13 with the locked Runtime venv; Go 1.26.9 and the pnpm UI install for
+    make lint; branch claude/v414-sec containing main c73ec319.
+  commands:
+    - >-
+      cd runtime && uv run --locked pytest -q tests/test_otlp_retries.py tests/test_otlp_adapter.py
+      tests/test_otlp_streaming.py passed (95 passed).
+    - >-
+      A1: test_tls_and_os_transport_failures_retry_exact_payload[tls-send, tls-body, reset-send,
+      reset-body] deliver the identical payload on the third attempt with failed_operations 2 and
+      nothing dropped. A2: test_persistent_tls_and_os_transport_failures_exhaust_retries (four
+      cases) and test_corrupt_tls_record_from_a_real_collector_exhausts_retries[headers, body]
+      (real TLS, three connections) drop the batch as retry_exhausted. A3:
+      test_terminal_transport_and_implementation_failures_never_retry (UnsupportedProtocol,
+      LocalProtocolError, TypeError, a gzip acknowledgement that fails decoding) drop it as
+      non_retryable after one request.
+    - >-
+      A4: with the exporter restored from the pre-fix revision, all ten A1/A2 tests fail
+      (OTLPDeliveryError after one attempt, non_retryable) and the A3 tests pass.
+    - uv run --locked pytest -q tests/test_http_toolset.py passed (the helper refactor).
+    - >-
+      make test-runtime: 4609 passed, 39 skipped, 107 failed. Every failure is in a module that
+      imports none of the changed code (podman, tool_process, projectfs, trailmark, code_analysis,
+      local_direct_faults) and fails on macOS-only causes: OSError [Errno 43] from socketpair,
+      the missing pidfd_open symbol, the address-space limit and allocation resource
+      preparation. They need the Linux release gate; they are not a pass on this host.
+    - make lint passed (exit 0).

@@ -1,0 +1,90 @@
+schema_version: "1.0"
+id: V368-019
+title: "Give each Scheduler timeout its own operation"
+milestone: hub-audit-defects-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V49-001
+priority: P2
+status: completed
+implementation_commit: "48ee951e027d53580345a05c33b7c16a9f812cad"
+depends_on: []
+languages: [go]
+goal: "A test with a short operationTimeout and a long cleanupTimeout releases within cleanupTimeout."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), dispatch G5, D 3.2; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    runtimeLifecycle.cleanupTimeout is cut to operationTimeout
+    (allocation_release.go:48, runtime_batch.go:217) although timeout-
+    configuration.md:22 gives it its own budget (OPS-R15). operationTimeout
+    serves about 25 calls including Runtime PrepareAll and ReleaseAll;
+    plannerTimeout is both the Stage wall and the probe lease.
+    ClaimDuration, PollInterval and LeaseScanInterval exist only as package
+    defaults.
+  decision: >-
+    Re-verified on fc7e526: releaseTerminalOwned wrapped ReleaseAll in
+    context.WithTimeout(operationTimeout) and prepareStageWorkers wrapped
+    PrepareAll the same way. The RuntimeBatchController now owns both Runtime
+    batch budgets: runtimeLifecycle.cleanupTimeout for a release batch (it
+    already bounded failed-prepare cleanup) and a new
+    runtimeLifecycle.prepareTimeout (default 30s, the previous effective
+    scheduler.operationTimeout default, so behaviour at defaults is unchanged)
+    for one prepare batch. The Scheduler passes a release
+    context.Background() and a prepare its execution context, so only
+    cancellation flows in; scheduler.operationTimeout bounds store operations,
+    including the release markers around a batch. Guarantee: a release batch
+    may use its whole cleanup budget whatever the operation budget is
+    (SCH-R65); Scheduler drain stays bounded by it and shutdownTimeout (40s)
+    still exceeds the default cleanup (30s). Alternatives rejected: keep
+    prepare under scheduler.operationTimeout (couples a database budget with a
+    Runtime HTTP batch, which is what the finding is about); bound prepare by
+    the Stage deadline only (that is plannerTimeout, 30m, far too long for a
+    hung Runtime; the deadline is still checked after prepare); a Scheduler
+    copy of the cleanup budget (two owners of one deadline). Claim lease, poll
+    interval and lease-scan interval are ServerConfig settings
+    scheduler.claimDuration (2m), scheduler.pollInterval (1s) and
+    scheduler.leaseScanInterval (1s), the former package defaults;
+    claimDuration must be at least 1us (RunStore microsecond leases) and at
+    least twice operationTimeout, the auditController.claimLease rule: a
+    renewal starts at most a third of the lease after the previous one and
+    ends before the lease expires. The package defaults the app always
+    overrides are gone (Scheduler poll, claim, lease scan, operation 15s,
+    planner 45s, finalization, abort; batch cleanup 10s): New and
+    NewRuntimeBatchController reject missing budgets. MetricsCleanupInterval
+    and MetricsCleanupBatch keep package defaults because the app never sets
+    them and they are retention cadence, not process budgets (reopen if
+    operators must tune them). plannerTimeout is not split: the Stage deadline
+    from admission, the planner model request bound and the planner's probe
+    lease size are one budget, the Stage's planner invocation, and V367-006
+    already made probe leases follow their holder; the timeout reference now
+    says so (reopen if preparation ever needs a wall budget of its own). The
+    timeout reference gained the new rows and the missing shutdownTimeout row,
+    and TestTimeoutReferenceTableMatchesServerConfig keeps every row equal to
+    a ServerConfig setting and the default the Server resolves.
+    introduced_by: V49-001 split runtimeLifecycle.cleanupTimeout from the
+    Scheduler operation budget but kept the Scheduler's operation wrapper
+    around ReleaseAll (taken from its task record; the shallow clone has no
+    blame for it). Siblings outside this task's packages, same class:
+    projectlifecycle keeps a 15s operation-timeout default unlike ServerConfig
+    30s and a poll interval that exists only as a package default;
+    evalcoordinator poll, claim and operation budgets exist only as package
+    defaults and are not in ServerConfig; auditcontroller defaults equal
+    ServerConfig but are still package copies.
+scope:
+  in:
+    - "Separate budgets for release, prepare and store operations; the configurable ones in ServerConfig and the timeout table; package defaults the app always overrides removed."
+  out:
+    - "Default values unless the spec says otherwise."
+acceptance_criteria:
+  - id: A1
+    text: "A test with a short operationTimeout and a long cleanupTimeout releases within cleanupTimeout."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/scheduler ./internal/controlplane ./internal/app"
+    covers: [A1]
+verification:
+  - "TestTerminalReleaseUsesCleanupBudgetNotOperationTimeout (lane and recovery paths, real Registry and RuntimeBatchController, operationTimeout 1ms, cleanupTimeout 1h, Runtime release outliving the operation budget) and TestSchedulerLeavesRuntimeBatchBudgetsToWorkerController fail on the previous Scheduler code with context deadline exceeded and an inherited prepare deadline, and pass with the fix."
+  - "CONTRACTOR_TEST_DATABASE_URL set to a disposable PostgreSQL 17 database: go test -count=1 ./internal/scheduler ./internal/controlplane ./internal/app passed; go test -count=1 -tags integration ./internal/scheduler ./internal/controlplane passed."
+  - "Lint subset instead of the full make lint (the coordinator runs it after merging): gofmt -l, go vet (with and without -tags integration) and staticcheck -checks U1000 -tests -tags=e2e,integration on the three packages, go test ./internal/archtest ./internal/persistence, scripts/check_spec.py and scripts/check_tasks.py passed."
+  - "The server binary parses configs/server.local.yaml with the new keys and rejects --scheduler-claim-duration 40s against the 30s operation timeout."

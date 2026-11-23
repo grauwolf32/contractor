@@ -1,0 +1,69 @@
+schema_version: "1.0"
+id: V443-003
+title: Make Katana version probe fixtures independent of Python startup
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+introduced_by: V55-010
+priority: P2
+status: completed
+depends_on: []
+languages: [python]
+goal: Verify scanner version acceptance and independence through real subprocesses without measuring a cold Python interpreter.
+context:
+  verification: >-
+    2026-11-05: Both owning scanner modules pass all 202 tests. Full Runtime
+    passes 5884 tests with 135 existing optional platform/environment skips;
+    its report verifier passes. Full make lint passes. Logs:
+    /tmp/v443003-modules.log, /tmp/v443003-lint.log,
+    /tmp/v64033-runtime-third.log. The first post-fix full run hit independent
+    allocation/sqlmap test timeouts; a complete unchanged rerun passed.
+  authority: >-
+    Agent-proposed test-only verification prerequisite discovered 2026-11-05
+    while carrying out assigned V64-033/V64-034. The correction plan requires
+    unforeseen prerequisites to be explained and tracked separately. The user
+    was informed before this task and its test-only change. Product behavior
+    and the two-second production probe budget remain unchanged.
+  specification:
+    - docs/spec/tools/scanners.md#SCN-R54
+  finding: >-
+    runtime/tests/test_scan_katana.py:356-362 launches two new Python interpreters
+    to print fixed version/availability strings. The full Runtime suite failed
+    in two parameter cases, and the whole isolated module also failed at another
+    version. A separate 32-iteration real-process diagnostic captured Naabu
+    exiting -9 with scan_timeout after 2006 ms and no stdout, while Katana
+    took 1418 ms. The test therefore observes interpreter startup as scanner
+    availability. Evidence: /tmp/v64033-acceptance-final.log,
+    /tmp/v64033-katana-recheck.log, /tmp/v64033-probe-debug.log.
+  siblings: >-
+    test_scan_toolset.py::test_capabilities_check_each_binary_independently
+    already uses /bin/sh fixtures with the production probe budget. Other
+    executable helpers produce structured scanner reports and keep Python;
+    their content/process/cancellation contracts are separate.
+  decision: >-
+    Use real shell executables only for this fixed-output version matrix,
+    preserving every version, stream, exit-code and independence assertion.
+    Repeating the unchanged suite can pass by chance but does not isolate its
+    intended contract. Revisit the fixture only if a real scanner needs
+    interpreter startup to be part of its version compatibility contract.
+scope:
+  in:
+    - Replace the two fixed-output Python scripts in the existing version probe matrix with /bin/sh scripts.
+    - Run the whole owning modules, full Runtime suite and lint without deselecting cases or extending production timeouts.
+  out:
+    - Production scanner code, supported versions, deadlines, subprocess ownership and Artifact/Audit behavior.
+acceptance_criteria:
+  - id: A1
+    text: All existing version, stdout/stderr and exit-code cases retain their original expected tools through real subprocesses.
+  - id: A2
+    text: Naabu availability remains independent of unsupported Katana; the fixture starts no Python child and uses the unchanged production deadline.
+  - id: A3
+    text: Both full owning modules, the full Runtime suite and lint pass; no case is skipped to repair the gate.
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_scan_katana.py tests/test_scan_toolset.py
+    covers: [A1, A2, A3]
+  - command: make test-runtime
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A3]
+implementation_commit: 1ea07f316303eb595546f6ef87ecb36ab9558c7e

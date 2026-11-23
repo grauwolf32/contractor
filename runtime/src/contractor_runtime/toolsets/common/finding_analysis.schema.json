@@ -1,0 +1,617 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/Document",
+  "$defs": {
+    "ArtifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "name",
+        "revision"
+      ],
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        }
+      }
+    },
+    "Document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "client_key",
+        "sources",
+        "locations",
+        "flows",
+        "http_exchanges"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384,
+          "const": "contractor.finding.analysis.v1"
+        },
+        "client_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Source"
+          },
+          "maxItems": 32
+        },
+        "locations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Location"
+          },
+          "maxItems": 256
+        },
+        "flows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Flow"
+          },
+          "maxItems": 32
+        },
+        "http_exchanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HTTPExchange"
+          },
+          "maxItems": 32
+        },
+        "rule": {
+          "$ref": "#/$defs/Rule"
+        },
+        "primary_location_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "primary_http_exchange_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        }
+      }
+    },
+    "Rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "name",
+        "description"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        },
+        "help_uri": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        }
+      }
+    },
+    "Source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "artifact_ref"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384,
+          "enum": [
+            "archive",
+            "file"
+          ]
+        },
+        "artifact_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      }
+    },
+    "Location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "source_id",
+        "path",
+        "file_digest"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "source_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "file_digest": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384,
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "region": {
+          "$ref": "#/$defs/Region"
+        },
+        "symbol": {
+          "$ref": "#/$defs/Symbol"
+        }
+      }
+    },
+    "Region": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start_line"
+      ],
+      "properties": {
+        "start_line": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "start_column": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "end_column": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "Symbol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        },
+        "qualified_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        },
+        "language": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        }
+      }
+    },
+    "Flow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "description",
+        "completeness",
+        "steps",
+        "edges",
+        "gaps",
+        "evidence_refs"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384,
+          "enum": [
+            "call-path",
+            "data-flow",
+            "execution-trace"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        },
+        "completeness": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384,
+          "enum": [
+            "complete",
+            "partial"
+          ]
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Step"
+          },
+          "minItems": 1,
+          "maxItems": 128
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Edge"
+          }
+        },
+        "gaps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Gap"
+          }
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "maxItems": 1023,
+          "uniqueItems": true
+        }
+      }
+    },
+    "Step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "roles",
+        "message",
+        "evidence_refs"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "source",
+              "propagation",
+              "call",
+              "return",
+              "validation",
+              "sanitizer",
+              "sink",
+              "observation"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "maxItems": 1023,
+          "uniqueItems": true
+        },
+        "location_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        },
+        "value_state": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384,
+          "enum": [
+            "unknown",
+            "tainted",
+            "derived",
+            "validated",
+            "clean"
+          ]
+        }
+      }
+    },
+    "Edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to",
+        "relation",
+        "basis",
+        "evidence_refs"
+      ],
+      "properties": {
+        "from": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "to": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "relation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384,
+          "enum": [
+            "call",
+            "return",
+            "argument",
+            "assignment",
+            "transform",
+            "control",
+            "observation"
+          ]
+        },
+        "basis": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384,
+          "enum": [
+            "producer-asserted",
+            "tool-reported"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "maxItems": 1023,
+          "uniqueItems": true,
+          "minItems": 1
+        },
+        "argument_binding": {
+          "$ref": "#/$defs/ArgumentBinding"
+        }
+      }
+    },
+    "ArgumentBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caller_value",
+        "callee_parameter"
+      ],
+      "properties": {
+        "caller_value": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        },
+        "callee_parameter": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        }
+      }
+    },
+    "Gap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after_step_id",
+        "before_step_id",
+        "reason"
+      ],
+      "properties": {
+        "after_step_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "before_step_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        }
+      }
+    },
+    "HTTPExchange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "evidence_ref",
+        "decoder"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "evidence_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "decoder": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        },
+        "operation": {
+          "$ref": "#/$defs/Operation"
+        },
+        "implementation_location_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        }
+      }
+    },
+    "Operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "document_ref",
+        "pointer",
+        "method",
+        "path_template"
+      ],
+      "properties": {
+        "document_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "pointer": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        },
+        "method": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        },
+        "path_template": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        }
+      }
+    }
+  }
+}

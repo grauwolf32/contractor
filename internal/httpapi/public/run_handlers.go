@@ -1,0 +1,639 @@
+package public
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
+	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/runservice"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/telemetry"
+)
+
+const maxCancellationReasonBytes = 4096
+
+type RunReader interface {
+	GetRun(context.Context, string) (runstore.WorkflowRun, error)
+	ListRuns(context.Context, runstore.ListRunsParams) ([]runstore.WorkflowRunSummary, error)
+}
+
+// RunDetailReader reads a Run detail, its event cursor included, from one
+// snapshot (API-R48).
+type RunDetailReader interface {
+	Read(context.Context, string, string) (runservice.RunDetail, error)
+}
+
+type RunLifecycle interface {
+	ResumeFailedRun(context.Context, string, string, string, string) (runstore.ResumeRunResult, error)
+	RequestRunCancellation(context.Context, string, runstore.WorkflowRunCancellation) (runstore.WorkflowRun, error)
+}
+
+type RunDeletion interface {
+	DeletableRuns(context.Context, string, []string) (map[string]bool, error)
+	DeleteReleasedTerminalRun(context.Context, string, string) error
+}
+
+type RunCreationService interface {
+	CreatePublic(context.Context, runservice.PublicCreateParams) (runservice.CreateResult, error)
+}
+
+// RunNotifier is the Scheduler: Wake makes it look for admissible work and
+// Cancel makes it stop the active work of one cancelling Run now.
+type RunNotifier interface {
+	Wake()
+	Cancel(string)
+}
+
+// GatewayRecovery retries the gateway wait of one owner's Run.
+type GatewayRecovery interface {
+	Retry(context.Context, string, string) error
+}
+
+// RunDependencies serve Run creation, listing, detail, cancellation, resume,
+// gateway retry and deletion.
+type AttemptDiagnosticReader interface {
+	ReadRuntimeDiagnostics(context.Context, telemetry.RuntimeDiagnosticParams) (telemetry.RuntimeDiagnosticPage, error)
+	ReadToolCallDiagnostics(context.Context, telemetry.ToolDiagnosticParams) (telemetry.ToolDiagnosticPage, error)
+}
+
+type RunDependencies struct {
+	Diagnostics     AttemptDiagnosticReader
+	Runs            RunReader
+	RunDetails      RunDetailReader
+	RunLifecycle    RunLifecycle
+	RunDeletion     RunDeletion
+	RunCreator      RunCreationService
+	RunNotifier     RunNotifier
+	GatewayRecovery GatewayRecovery
+	Projects        ProjectReader
+	NewID           func(string) (string, error)
+	Now             func() time.Time
+}
+
+type runHandlers struct {
+	RunDependencies
+	cursors pageCursors
+}
+
+func (h *runHandlers) listRuns(w http.ResponseWriter, r *http.Request) error {
+	return h.listRunsFromProject(w, r, nil)
+}
+
+func (h *runHandlers) listProjectRuns(w http.ResponseWriter, r *http.Request) error {
+	projectID := r.PathValue("projectId")
+	if _, err := h.Projects.Get(
+		r.Context(), principalUserID(r.Context()), projectID,
+	); err != nil {
+		return err
+	}
+	return h.listRunsFromProject(w, r, &projectID)
+}
+
+func (h *runHandlers) listRunsFromProject(w http.ResponseWriter, r *http.Request, projectID *string) error {
+	query, limit, encodedCursor, err := pageQueryWithRepeated(
+		r.URL.RawQuery, "label", runstore.MaxRunMetadataLabels, "state", "lifecycle",
+	)
+	if err != nil {
+		return err
+	}
+	var state *runstore.WorkflowRunState
+	if values, present := query["state"]; present {
+		candidate := runstore.WorkflowRunState(values[0])
+		if !candidate.Valid() {
+			return fmt.Errorf("%w: unknown Run state", errInvalidRequest)
+		}
+		state = &candidate
+	}
+	var lifecycle *runstore.WorkflowRunLifecycle
+	if values, present := query["lifecycle"]; present {
+		candidate := runstore.WorkflowRunLifecycle(values[0])
+		if !candidate.Valid() {
+			return fmt.Errorf("%w: unknown Run lifecycle", errInvalidRequest)
+		}
+		lifecycle = &candidate
+	}
+	selectors, err := parseRunMetadataLabelSelectors(query["label"])
+	if err != nil {
+		return err
+	}
+	cursorKind := runListCursorKindForProject(state, lifecycle, selectors, projectID)
+	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 2)
+	if err != nil {
+		return err
+	}
+	params := runstore.ListRunsParams{
+		OwnerID: principalUserID(r.Context()), State: state, Lifecycle: lifecycle,
+		ProjectID: projectID, MetadataLabelSelectors: selectors, Limit: pagelimit.FetchRows(limit),
+	}
+	if len(cursor) != 0 {
+		before, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
+		if parseErr != nil {
+			return fmt.Errorf("%w: invalid Run cursor", errInvalidRequest)
+		}
+		params.BeforeCreatedAt = &before
+		params.BeforeRunID = cursor[1]
+	}
+	runs, err := h.Runs.ListRuns(r.Context(), params)
+	if err != nil {
+		return err
+	}
+	runs, page, err := paginate(h.cursors, runs, limit, cursorKind, func(last runstore.WorkflowRunSummary) []string {
+		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.RunID}
+	})
+	if err != nil {
+		return err
+	}
+	runIDs := make([]string, 0, len(runs))
+	for _, run := range runs {
+		runIDs = append(runIDs, run.RunID)
+	}
+	deletable, err := h.RunDeletion.DeletableRuns(r.Context(), params.OwnerID, runIDs)
+	if err != nil {
+		return err
+	}
+	items := make([]runSummaryResponse, 0, len(runs))
+	for _, run := range runs {
+		items = append(items, runSummaryResponse{
+			RunID: run.RunID, ProjectID: run.ProjectID,
+			Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
+			State:    run.State, Deletable: deletable[run.RunID],
+			CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt,
+			Labels: run.MetadataLabels.Clone(), FinishedAt: run.FinishedAt,
+		})
+	}
+	writeJSON(w, http.StatusOK, runPageResponse{Items: items, Page: page})
+	return nil
+}
+
+func parseRunMetadataLabelSelectors(values []string) ([]runstore.RunMetadataLabelSelector, error) {
+	selectors := make([]runstore.RunMetadataLabelSelector, 0, len(values))
+	for _, value := range values {
+		parts := strings.SplitN(value, "=", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("%w: Run label selector must contain key=value", errInvalidRequest)
+		}
+		selectors = append(selectors, runstore.RunMetadataLabelSelector{Key: parts[0], Value: parts[1]})
+	}
+	normalized, err := runstore.NormalizeRunMetadataLabelSelectors(selectors)
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid Run label selector", errInvalidRequest)
+	}
+	return normalized, nil
+}
+
+func runListCursorKindForProject(
+	state *runstore.WorkflowRunState,
+	lifecycle *runstore.WorkflowRunLifecycle,
+	selectors []runstore.RunMetadataLabelSelector,
+	projectID *string,
+) string {
+	kind := "runs"
+	if projectID != nil {
+		kind += ":project:" + *projectID
+	}
+	if state != nil {
+		kind += ":" + string(*state)
+	}
+	if lifecycle != nil {
+		kind += ":lifecycle:" + string(*lifecycle)
+	}
+	if len(selectors) == 0 {
+		return kind
+	}
+	encoded, _ := json.Marshal(selectors)
+	return kind + ":labels:" + string(encoded)
+}
+
+func (h *runHandlers) createRun(w http.ResponseWriter, r *http.Request) error {
+	if idempotencyKey, ok := runCreationKey(w, r); ok {
+		return h.createRunFromProject(w, r, nil, idempotencyKey)
+	}
+	return nil
+}
+
+// createProjectRun checks the request metadata, then Project ownership, and
+// only then reads the body (API-R112).
+func (h *runHandlers) createProjectRun(w http.ResponseWriter, r *http.Request) error {
+	idempotencyKey, ok := runCreationKey(w, r)
+	if !ok {
+		return nil
+	}
+	projectID := r.PathValue("projectId")
+	if _, err := h.Projects.Get(
+		r.Context(), principalUserID(r.Context()), projectID,
+	); err != nil {
+		return err
+	}
+	return h.createRunFromProject(w, r, &projectID, idempotencyKey)
+}
+
+// runCreationKey checks the query and media type of a Run creation and
+// returns its Idempotency-Key before a Project or the body is read.
+func runCreationKey(w http.ResponseWriter, r *http.Request) (string, bool) {
+	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		handleError(w, err)
+		return "", false
+	}
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
+		return "", false
+	}
+	idempotencyKey, err := requireIdempotencyKey(r)
+	if err != nil {
+		handleError(w, err)
+		return "", false
+	}
+	return idempotencyKey, true
+}
+
+func (h *runHandlers) createRunFromProject(
+	w http.ResponseWriter, r *http.Request, projectID *string, idempotencyKey string,
+) error {
+	var request createRunRequest
+	if err := decodeJSON(w, r, &request); err != nil {
+		return err
+	}
+	normalizedLabels, err := runtimeconfig.NormalizeLabels([]string(request.RuntimeLabels))
+	if err != nil {
+		return err
+	}
+	metadataLabels, err := runstore.NormalizeRunMetadataLabels(request.Labels)
+	if err != nil {
+		return err
+	}
+	credentialUser := runtimeCredentialUser(r.Context())
+	params := runservice.PublicCreateParams{
+		OwnerID: credentialUser.UserID, OperationsPrincipal: credentialUser.Operations,
+		ProjectID: projectID, Workflow: request.Workflow, RuntimeLabels: normalizedLabels,
+		MetadataLabels: metadataLabels, Parameters: request.Parameters, Inputs: request.Artifacts,
+		IdempotencyKey: idempotencyKey,
+		NewRunID:       func() (string, error) { return h.NewID("run_") },
+	}
+	params.RequestDigest, err = runservice.PublicRequestDigest(params)
+	if err != nil {
+		return fmt.Errorf("digest Run request: %w", err)
+	}
+	result, err := h.RunCreator.CreatePublic(r.Context(), params)
+	if err != nil {
+		return err
+	}
+	// Skill package validation and RunScope forking are intentionally deferred
+	// to Scheduler recovery. The creation transaction above has already pinned
+	// one complete exact owner-source outcome, so returning the initializing Run
+	// neither holds the HTTP request on bounded archive work nor permits a later
+	// owner binding update to change what recovery will read.
+	if result.Created {
+		h.RunNotifier.Wake()
+	}
+	if result.Replayed {
+		w.Header().Set("Idempotency-Replayed", "true")
+	}
+	writeJSON(w, http.StatusAccepted, createRunReadModel(result.Run))
+	return nil
+}
+
+func createRunReadModel(run runstore.WorkflowRun) createRunResponse {
+	return createRunResponse{
+		RunID: run.RunID, ProjectID: run.ProjectID, State: run.State,
+		RuntimeLabels:           append([]string{}, run.RuntimeLabels...),
+		RequiredPlacementLabels: append([]string{}, run.RequiredPlacementLabels...),
+		Labels:                  run.MetadataLabels.Clone(),
+		RuntimeConfiguration:    runtimeConfigReadModel(run.RuntimeConfig),
+		ProjectHTTPTarget:       run.ProjectHTTPTarget.Clone(),
+	}
+}
+
+func (h *runHandlers) cancelRun(w http.ResponseWriter, r *http.Request) error {
+	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		return err
+	}
+	if err := requireJSONMediaType(r); err != nil {
+		return err
+	}
+	var request *cancelRunRequest
+	if err := decodeJSON(w, r, &request); err != nil {
+		return err
+	}
+	if request == nil {
+		return fmt.Errorf("%w: cancellation request must be an object", errInvalidRequest)
+	}
+	if request.Reason != nil {
+		trimmed := strings.TrimSpace(*request.Reason)
+		if trimmed == "" || len([]byte(trimmed)) > maxCancellationReasonBytes {
+			return fmt.Errorf("%w: cancellation reason is empty or too large", errInvalidRequest)
+		}
+		request.Reason = &trimmed
+	}
+	run, err := ownedRun(r, h.Runs)
+	if err != nil {
+		return err
+	}
+	requestedBy := principalUserID(r.Context())
+	run, err = h.RunLifecycle.RequestRunCancellation(r.Context(), run.RunID, runstore.WorkflowRunCancellation{
+		Code:        runstore.CancellationUserRequested,
+		RequestedAt: h.Now().UTC().Round(0),
+		RequestedBy: &requestedBy,
+		Reason:      request.Reason,
+	})
+	if err != nil {
+		return err
+	}
+	status := http.StatusOK
+	if run.State == runstore.RunCancelling {
+		status = http.StatusAccepted
+		h.RunNotifier.Cancel(run.RunID)
+	}
+	writeJSON(w, status, cancelRunResponse{
+		RunID: run.RunID, State: run.State, Cancellation: run.Cancellation,
+	})
+	return nil
+}
+
+func (h *runHandlers) resumeRun(w http.ResponseWriter, r *http.Request) error {
+	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		return err
+	}
+	if err := requireJSONMediaType(r); err != nil {
+		return err
+	}
+	var request struct {
+		StageExecutionID string `json:"stageExecutionId"`
+	}
+	if err := decodeJSON(w, r, &request); err != nil {
+		return err
+	}
+	if request.StageExecutionID == "" {
+		return fmt.Errorf("%w: stageExecutionId is required", errInvalidRequest)
+	}
+	run, err := ownedRun(r, h.Runs)
+	if err != nil {
+		return err
+	}
+	targetID, err := h.NewID("stage_execution_")
+	if err != nil {
+		return err
+	}
+	result, err := h.RunLifecycle.ResumeFailedRun(r.Context(), principalUserID(r.Context()), run.RunID, request.StageExecutionID, targetID)
+	if err != nil {
+		return err
+	}
+	h.RunNotifier.Wake()
+	writeJSON(w, http.StatusAccepted, result)
+	return nil
+}
+
+func (h *runHandlers) deleteRun(w http.ResponseWriter, r *http.Request) error {
+	if _, err := exactQuery(r.URL.RawQuery); err != nil ||
+		r.ContentLength > 0 || len(r.TransferEncoding) != 0 {
+		return errInvalidRequest
+	}
+	if err := h.RunDeletion.DeleteReleasedTerminalRun(
+		r.Context(), principalUserID(r.Context()), r.PathValue("runId"),
+	); err != nil {
+		return err
+	}
+	w.WriteHeader(http.StatusNoContent)
+	return nil
+}
+
+func (h *runHandlers) getRun(w http.ResponseWriter, r *http.Request) error {
+	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		return err
+	}
+	detail, err := h.RunDetails.Read(
+		r.Context(), principalUserID(r.Context()), r.PathValue("runId"),
+	)
+	if err != nil {
+		return err
+	}
+	attempts, activeExecutionID, err := stageAttemptsReadModel(detail)
+	if err != nil {
+		return err
+	}
+	run := detail.Run
+	writeJSON(w, http.StatusOK, runStatusResponse{
+		Recovery:               detail.Recovery,
+		ResumeStageExecutionID: detail.ResumeStageExecutionID,
+		RunID:                  run.RunID, ProjectID: run.ProjectID,
+		Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
+		State:    run.State, Deletable: detail.DeletionBlocker == nil,
+		RuntimeLabels:           append([]string{}, run.RuntimeLabels...),
+		RequiredPlacementLabels: append([]string{}, run.RequiredPlacementLabels...),
+		Labels:                  run.MetadataLabels.Clone(),
+		RuntimeConfiguration:    runtimeConfigReadModel(run.RuntimeConfig),
+		ProjectHTTPTarget:       run.ProjectHTTPTarget.Clone(),
+		Cancellation:            run.Cancellation, Parameters: run.Parameters,
+		Inputs: detail.Inputs, Attempts: attempts,
+		Transitions: stageTransitionsReadModel(detail.Transitions), Outputs: detail.Outputs,
+		OutputPublications: outputPublicationsReadModel(detail.OutputPublications),
+		EventCursor: &eventCursorResponse{
+			Generation: detail.EventCursor.Generation,
+			Sequence:   strconv.FormatInt(detail.EventCursor.Sequence, 10),
+		},
+		ActiveStageExecutionID: activeExecutionID,
+		CreatedAt:              run.CreatedAt, UpdatedAt: run.UpdatedAt,
+		StartedAt: run.StartedAt, FinishedAt: run.FinishedAt,
+	})
+	return nil
+}
+
+// stageAttemptsReadModel projects StageExecutions in order and reports the
+// last non-terminal one as the active execution.
+func stageAttemptsReadModel(detail runservice.RunDetail) ([]stageAttemptResponse, *string, error) {
+	attempts := make([]stageAttemptResponse, 0, len(detail.Executions))
+	var activeExecutionID *string
+	for _, execution := range detail.Executions {
+		stage, err := resolved.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
+		if err != nil {
+			return nil, nil, fmt.Errorf("decode StageExecution read model: %w", err)
+		}
+		executionConfig, err := stageExecutionConfigReadModel(execution)
+		if err != nil {
+			return nil, nil, err
+		}
+		var metrics *telemetry.Summary
+		var diagnostics *telemetry.AttemptDiagnostics
+		if record, ok := detail.Metrics[execution.StageExecutionID]; ok {
+			value := record.Summary
+			metrics = &value
+			diagnosticValue := telemetry.ProjectAttemptDiagnostics(record.Metrics)
+			diagnostics = &diagnosticValue
+		}
+		var plan *planner.PlannerPlanProjection
+		if loaded, ok := detail.Plans[execution.StageExecutionID]; ok {
+			plan = &loaded
+		}
+		runtimeConfiguration := stageRuntimeConfigurationReadModel(detail.Allocations[execution.StageExecutionID])
+		resources := detail.Resources[execution.StageExecutionID]
+		if resources == nil {
+			resources = []telemetry.AllocationResourceSummary{}
+		}
+		if !execution.State.Terminal() {
+			value := execution.StageExecutionID
+			activeExecutionID = &value
+		}
+		attempts = append(attempts, stageAttemptResponse{
+			StageExecutionID:     execution.StageExecutionID,
+			Stage:                execution.StageName,
+			Objective:            stage.Objective,
+			Attempt:              execution.Attempt,
+			PreviousExecutionID:  execution.PreviousExecutionID,
+			ExecutionConfig:      executionConfig,
+			State:                execution.State,
+			Result:               execution.AcceptedResult,
+			Termination:          execution.Termination,
+			Metrics:              metrics,
+			Diagnostics:          diagnostics,
+			Plan:                 plan,
+			RuntimeConfiguration: runtimeConfiguration,
+			Resources:            resources,
+			CreatedAt:            execution.CreatedAt,
+			UpdatedAt:            execution.UpdatedAt,
+			PlannerStartedAt:     execution.PlannerStartedAt,
+			TerminalAt:           execution.TerminalAt,
+		})
+	}
+	return attempts, activeExecutionID, nil
+}
+
+func stageTransitionsReadModel(decisions []runstore.StageTransitionDecision) []stageTransitionResponse {
+	transitions := make([]stageTransitionResponse, 0, len(decisions))
+	for _, decision := range decisions {
+		transitions = append(transitions, stageTransitionResponse{
+			SourceExecutionID: decision.SourceExecutionID,
+			Action:            decision.Action, TargetStage: decision.TargetStageName,
+			TargetExecutionID:   decision.TargetExecutionID,
+			EscalationOrdinal:   decision.EscalationOrdinal,
+			EscalationExhausted: decision.EscalationExhausted,
+			DecidedAt:           decision.DecidedAt,
+		})
+	}
+	return transitions
+}
+
+func outputPublicationsReadModel(records []runstore.RunOutputPublication) []outputPublicationResponse {
+	publications := make([]outputPublicationResponse, len(records))
+	for index, record := range records {
+		publications[index] = outputPublicationResponse{
+			Output: record.OutputName, Status: record.Status,
+			Source: record.Source, Target: record.Target,
+			ErrorCode: record.ErrorCode, ErrorMessage: record.ErrorMessage,
+			CreatedAt: record.CreatedAt,
+		}
+	}
+	return publications
+}
+
+func stageRuntimeConfigurationReadModel(
+	allocations []runstore.StageAllocation,
+) *stageRuntimeConfigurationResponse {
+	projected := make([]stageRuntimeAllocationResponse, 0, len(allocations))
+	for _, allocation := range allocations {
+		configuration := allocation.RuntimeConfiguration
+		if configuration == nil {
+			continue
+		}
+		agentLabels := make([]pinnedRuntimeConfigResponse, len(configuration.Provenance.AgentLabels))
+		for index, pin := range configuration.Provenance.AgentLabels {
+			agentLabels[index] = pinnedRuntimeConfigResponse{
+				Label:           pin.Label,
+				BindingRevision: strconv.FormatUint(pin.BindingRevision, 10),
+				Config: runtimeconfig.Ref{
+					Name: pin.Config.Name, Version: pin.Config.Version, Digest: pin.Config.Digest,
+				},
+			}
+		}
+		status := "pinned"
+		if allocation.ReleaseCompletedAt != nil {
+			status = "released"
+		} else if allocation.ReleaseAttemptedAt != nil {
+			status = "release_pending"
+		}
+		projected = append(projected, stageRuntimeAllocationResponse{
+			PlacementLabels: append([]string{}, allocation.RuntimePlacementLabels...),
+			LogicalAgent:    allocation.LogicalAgentName,
+			AgentLabels:     agentLabels,
+			RuntimeAdapters: append([]runtimesettings.RuntimeAdapterRef{},
+				configuration.Provenance.RuntimeAdapters...),
+			Origins: configuration.Origins,
+			Status:  status,
+		})
+	}
+	if len(projected) == 0 {
+		return nil
+	}
+	sort.Slice(projected, func(left, right int) bool {
+		return projected[left].LogicalAgent < projected[right].LogicalAgent
+	})
+	return &stageRuntimeConfigurationResponse{Allocations: projected}
+}
+
+func runtimeConfigReadModel(snapshot runtimeconfig.RunSnapshot) runRuntimeConfigResponse {
+	project := func(pin runtimeconfig.PinnedLabel) pinnedRuntimeConfigResponse {
+		return pinnedRuntimeConfigResponse{
+			Label: pin.Label, BindingRevision: strconv.FormatUint(pin.BindingRevision, 10), Config: pin.Config,
+		}
+	}
+	result := runRuntimeConfigResponse{
+		Default: project(snapshot.Default),
+		Labels:  make([]pinnedRuntimeConfigResponse, len(snapshot.Labels)),
+	}
+	for index := range snapshot.Labels {
+		result.Labels[index] = project(snapshot.Labels[index])
+	}
+	return result
+}
+
+func stageExecutionConfigReadModel(
+	execution runstore.StageExecution,
+) (stageExecutionConfigResponse, error) {
+	variant := execution.ExecutionConfigVariant
+	if variant == "" {
+		variant = runstore.StageExecutionConfigBase
+	}
+	stage, err := resolved.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
+	if err != nil {
+		return stageExecutionConfigResponse{}, fmt.Errorf(
+			"decode StageExecution executionConfig read model: %w", err,
+		)
+	}
+	result := stageExecutionConfigResponse{
+		Variant: variant, EscalationOrdinal: execution.EscalationOrdinal,
+		Agents: make(map[string]consumerExecutionConfigRefsResponse, len(stage.ExecutionConfig.Agents)),
+	}
+	switch variant {
+	case runstore.StageExecutionConfigBase:
+	case runstore.StageExecutionConfigFailedEscalation:
+		if stage.On.Failed.Escalate == nil {
+			return stageExecutionConfigResponse{}, fmt.Errorf("failed escalation Stage spec has no escalation")
+		}
+	case runstore.StageExecutionConfigInterruptedEscalation:
+		if stage.On.Interrupted.Escalate == nil {
+			return stageExecutionConfigResponse{}, fmt.Errorf("interrupted escalation Stage spec has no escalation")
+		}
+	case runstore.StageExecutionConfigSummaryEscalation:
+		if stage.On.Summarized == nil || stage.On.Summarized.Escalate == nil || execution.StageContext.Continuation == nil {
+			return stageExecutionConfigResponse{}, fmt.Errorf("summary escalation Stage spec has no saved policy/context")
+		}
+	default:
+		return stageExecutionConfigResponse{}, fmt.Errorf("unknown Stage executionConfig variant %q", variant)
+	}
+	if stage.ExecutionConfig.Planner != nil {
+		plannerRefs := consumerExecutionConfigRefs(*stage.ExecutionConfig.Planner)
+		result.Planner = &plannerRefs
+	}
+	for logicalName, selection := range stage.ExecutionConfig.Agents {
+		result.Agents[logicalName] = consumerExecutionConfigRefs(selection)
+	}
+	return result, nil
+}

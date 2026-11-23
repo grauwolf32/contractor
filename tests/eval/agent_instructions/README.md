@@ -1,0 +1,393 @@
+# Agent instruction experiment
+
+Status: **archived execution contracts; V40-001 offline fixture gate retained**.
+The pinned Audit variants select removed `audit-results@1` and cannot run on the
+current Server/Runtime. A live comparison requires a new, separately pinned
+experiment using `audit-results@2` and trusted Worker completion in both arms.
+No quality or token-efficiency improvement has been measured yet.
+
+Normative contract: [portable evaluation format](../../../docs/spec/evals/format.md).
+V41-001–V41-008 passed the offline format gate on 2026-09-07.
+V40 may now map fixture gaps and prepare explicitly pinned experiments. Live model
+execution remains a separate task with an explicit frozen budget.
+Reuse the existing playground adapter, Workflow/Audit runners, datasets and scorers.
+The matrix below is a gap checklist against those assets, not a second benchmark
+implementation in Contractor. Contractor retains execution/API compatibility tests;
+portable dataset, adapter and scorer changes belong in `playground-v2`.
+
+The candidate ports evidence, coverage, and stopping rules from `contractor-old`
+to the current tools. It adds 20 instruction variants, 15 AgentTemplate versions,
+and 10 Workflow versions in `candidate/configs`. Existing `configs/` files are
+unchanged. This is an opt-in evaluation overlay, not a published default catalog.
+
+## Reproducible variants
+
+- `baseline.json`: exact pre-change bytes of all 27 current instructions and their
+  SHA-256 digests. The recorded Git commit does not imply a clean working tree.
+- `variants.json`: baseline/candidate paths, file digests, and explicit selectors.
+- `candidate/configs`: archived overlay with exact pinned variant bytes.
+- `overlay_test.go`: compares the pinned A/B YAML as archive data and checks
+  that capabilities, policies, scope, retries, stages, and result contracts match.
+
+The offline archive test reads `catalog-baseline.json` and `candidate/configs/`
+without loading them as a current Server catalog or rewriting removed Toolset
+references. The snapshot preserves the original config closure and pinned bytes
+while the working catalog evolves. Archive equality does not establish that
+either arm can run on the current Server/Runtime; live experiments need fresh
+contracts, including a project workspace for every Stage using `openapi@1`.
+Its `capture_commit` records provenance; baseline hashes in `variants.json` remain
+unchanged. The comparison permits only instruction references and their dependent
+template/version references to differ between A and B. Never publish
+these experiment catalogs to an existing operator/managed catalog. Keep each
+Run's artifacts, workspace and sessions isolated. Same-selector substitution is an
+offline control only. A shared live Server uses distinct immutable baseline and
+candidate versions, never different bodies under the same selector.
+
+The overlay includes `openapi-from-workspace@6`, `likec4-from-workspace@6`,
+`likec4-from-workspace-streamline@3`, `taint-trace-from-workspace@3`, and
+`security-analysis@3`. Archive workflows and Audit worker workflows also have
+new versions; the full map is in `variants.json`. `http_explorer@2` remains a
+reusable worker and needs a test-only wrapper. Existing AuditProfiles still select
+their original workflows. Audit evals need isolated profiles bound to the candidate
+workflow identities, with the same standard package and evidence contract.
+V40-002 owns these wrapper definitions. Their version/digest changes are allowed
+only as a consequence of the selected instruction/Workflow changes; inventory,
+standards, evidence, execution and interaction policies remain equal. Ordinary
+Workflow and Audit members keep their respective public submission paths and
+Project-kind rules; child labels are not required for Audit membership.
+
+Before a live experiment, pin actual source/configuration bytes, runtime build,
+ADK/validator versions, resolved model and sampling settings, complete tool
+declarations including docstrings, selected Skill revisions, task strings, input
+revisions, budgets, and fixture/service state. `variants.json` pins the authoring
+files; it does not substitute for capturing the resolved Run configuration.
+Hold the newly standardized tool docstrings constant in both arms. Evaluate
+docstrings separately later; do not attribute a combined change to instructions.
+
+## Use the existing Server evaluation mechanism
+
+The live experiment is a client of existing Server APIs, following
+[Run metadata labels](../../../docs/spec/execution/runs.md) and
+[evaluation Projects](../../../docs/spec/artifacts/projects.md). It introduces
+no execution engine, queue, Run store, or per-case Server process. The Server
+already provides exact inputs, retries, cancellation, idempotency, retained
+outputs and telemetry. Evals can show these Project/Runs immediately; the full
+experiment setup/comparison UI remains V38 work.
+
+1. Use one owner-scoped Project of `kind: evaluation` for the suite. Upload source
+   fixtures and seeds through Project artifact APIs and pin exact revisions for
+   both arms. Keep hidden expected answers in playground's evaluator-owned data;
+   never upload ground truth to ProjectScope or supply it as Worker input.
+2. Load both immutable config versions into the evaluation Server once: for
+   example A uses `openapi-from-workspace@5`, B uses `@6`. Verify equal effective
+   tools, model/sampling, Skills, budgets and input bytes; record the expected
+   instruction/version differences. Never mutate an existing selector or select
+   a prompt through metadata labels. Publication is a later explicit execution
+   step; the current candidate overlay remains local.
+3. Create ordinary Runs through `POST /v1/projects/{project_id}/runs`, with
+   `purpose=eval`, `eval.name=agent-instructions`, one shared `eval.id`,
+   `eval.leg=a|b`, and exact `eval.fixture`, `eval.case`, `eval.sample` strings.
+   Each sample is a fresh Run; Stage retries belong to it. Labels remain grouping
+   metadata and do not enter prompts or grant authority.
+4. Freeze the private experiment plan and persist submission intents/receipts in
+   playground's local bundle before external mutations. Publish only a safe
+   manifest projection as a Project artifact, with exact revisions/CAS. Record
+   expected members, request digests, stable keys, pins and observed Run IDs locally.
+   After a lost response or partial launch, replay the identical request with its
+   original key. Labels are not unique identifiers: flag missing/duplicate members
+   instead of adopting whichever matching row appears first.
+5. Follow all pages of the existing owner/project Run list with exact label filters.
+   Read attempts, metrics and outputs through ordinary Run APIs. Score each Run's
+   **exact frozen output**; Project `outputs/<slot>` publication is create-only
+   and cannot identify each sample's result. The driver submits and observes;
+   the Server owns lifecycle, scheduling and retries. Reaching an experiment cap
+   uses ordinary cancellation requests and records any unfinished work.
+6. Retain the portable playground result envelope and publish scores/comparison
+   as ordinary Project JSON/Markdown projections linked to exact private source
+   digests. Raw execution IDs/locators and evidence bytes stay in the private
+   bundle. A filtered public projection has its own digest linked to its private
+   source record. The local bundle remains recovery authority. Scores are explicit
+   evaluator judgments, separate from technical Run outcome and metadata labels.
+
+Reuse playground's `ContractorV2Client`, Workflow/Audit runners and existing
+public APIs. V41 adds recoverable A/B and portable boundaries there; it does
+not create another HTTP client or import Contractor's internal Go packages.
+The production-process harness remains useful for CI and may start one isolated
+test stack; an already configured Server does not need to be restarted per case.
+
+Audit cases use the existing Audit API/controller and real importer with test
+profiles. Never manufacture an Audit-managed Run through the generic endpoint.
+If the current Audit contract cannot propagate eval labels to child Runs, retain
+authoritative Audit/item/Run IDs in the experiment manifest and follow Audit
+endpoints. Additional metadata propagation is an explicit follow-up capability,
+not an assumed API or a prerequisite for scoring those Runs.
+
+Playground now implements the frozen plan/recovery journal, portable scorer
+registrations, explicit paired comparisons and recoverable safe publication.
+V40-001 maps this instruction matrix onto those assets; V40-002 prepares the
+remaining wrappers, provider bindings and pins without model execution. Existing attempt metrics
+already expose input/output/total tokens, calls, `reportsComplete` and `truncated`;
+respect those flags. Cached-token accounting is not currently in the public
+MetricsSummary, so leave it unknown unless another pinned source supplies it.
+Server-wide experiment aggregates and richer comparison UI can follow later;
+the bounded pilot can read all pages and publish its report using existing APIs.
+
+## What can run now
+
+```sh
+go test ./tests/eval/agent_instructions ./internal/config ./tests/eval/project_workflows ./tests/eval/audit_programs -skip '^TestLive'
+```
+
+These are offline compatibility and scorer tests, not LLM behavior evals.
+The existing `make test-project-workflows-live` is a useful integration foundation:
+it starts the real Server/Runtime and uses real OpenAPI/LikeC4 validators. It
+currently selects only workspace workflows `@5`, has no variant selector, and
+persists its bounded evidence only on failure. It **does not run this A/B matrix**.
+Its self-hosted test prerequisites are `CONTRACTOR_TEST_DATABASE_URL`,
+`CONTRACTOR_WORKFLOWS_LIVE_GATEWAY_URL`, `CONTRACTOR_WORKFLOWS_LIVE_MODEL`, an
+optional gateway token, and installed `vacuum`/`likec4` executables. The planned
+client must save successful and failed attempts through the existing Server APIs.
+
+`tests/eval/audit_programs` verifies deterministic inventory/profile contracts;
+it currently does not measure an LLM's Audit assessment quality. Runtime tests of
+`submit_check_result` validate the tool contract, not the model's decision to call
+it or the accuracy of its evidence.
+
+## Planned cases and ground truth
+
+V40-001 now supplies all 18 cases below plus a reserved held-out variant of each
+in `../playground-v2/projects/instruction-quality` (36 cases and 36 single-case
+suites). These are offline source/service fixtures and scorer controls, not model
+quality measurements. Source ZIP bytes, task inputs, allowed actions, expected
+facts/defects, forbidden claims and evidence anchors have exact portable refs.
+Expected answers and review rubrics remain evaluator-private.
+
+| ID | Fixture/scenario | Required observations and failure checks |
+| --- | --- | --- |
+| D1 | Runtime HTTP/database clients plus unused and dev-only packages | Correct roles and versions with source evidence; no invented external service from an unused dependency; missing lockfile recorded. |
+| D2 | Nested router prefixes, middleware, models, misleading prior report | Correct method/path and effective controls; source wins over the report; no invented route from an outbound client. |
+| O1 | Existing FastAPI fixture extended with nested routes, shared schemas, middleware auth | Expected operations/responses/security and resolvable refs; declared tags; no invented host; actual validator executes. |
+| O2 | Exact seed with useful unrelated content, resume binding, rejected `$ref` mutation | Resume precedence, seed preservation, corrected mutation, no generic schema writer or identical rejected retry. |
+| O3 | Missing validator and separately an unfixable structural issue | Explicit environment/unresolved result; no clean claim; bounded repair; durable report with correct revisions. |
+| L1 | App, database, outbound service, helper library and unused queue dependency | Correct runtime units/relationships and source anchors; no phantom queue/service; declared kinds and valid phase order. |
+| L2 | Seed with one broken reference plus unrelated valid views; unavailable CLI variant | Small evidence-backed repair, preserved content, no scope expansion, bounded validation, honest environment failure. |
+| T1 | Attacker-controlled SQL structure or path, with a reachable sink | Correct entry-to-sink causal path and affected argument; finding plus evidence-backed annotations; no unrelated edits. |
+| T2 | Bound SQL values and an effective per-resource ownership control | No injection/ownership false positive; distinguish authentication from ownership; cite effective control, not its name. |
+| T3 | Misleading sanitizer, safe sibling and an unprotected alternate branch | Find the actual bypass; do not refute from the safe branch; include a non-taint control/invariant defect. |
+| T4 | Duplicate symbol names, indirect dispatch, truncated graph, annotation replay/conflict | Correct symbol/definition; explicit unresolved coverage; no fabricated path or repeated annotation churn; inspect final diff. |
+| H1 | Local HTTP service with session/CSRF ordering, baseline and controlled probe | Preserve observed dependencies, compare the relevant signal, distinguish rejection from transport failure, redact report. |
+| H2 | Local stateful action commits but its response is lost; separate 4xx/5xx responses | Unknown outcome recorded/reconciled where possible; no duplicate mutation; no treating status alone as a vulnerability. |
+| C1 | Controlled Caido traffic, passive false positive, empty workflow result | Correlate exact exchange, compare baseline, reject unsupported finding; empty scanner output is not proof of safety. |
+| C2 | Caido replay/Automate polling timeout after remote start | Bounded payload set; use observable state/results where available; no duplicate job or assumption the job was cancelled. |
+| A1 | Ordered Audit batch mixing supported, refuted and unresolved items | One complete ordered submission; truthful coverage/gaps and required evidence kinds; real importer outcome distinct from Run success. |
+| A2 | Single risk mapping and ASVS requirement with misleading helper/middleware names | Assess only assigned scope; correct standard identity, causal finding reference, exact evidence revision; no certification or fabricated runtime test. |
+| A3 | Unresolved operation mapping, unsupported callback, existing result binding conflict | No false completed coverage; no invented receipt or transparent retry claim; report incomplete/conflicting outcome under `audit-results@1`. |
+
+The complete [inventory and asset mapping](../../../../playground-v2/projects/instruction-quality/README.md)
+records reuse of `widget-service`, existing portable scorers, production validators,
+Audit importer conformance and Runtime Caido tests. FastAPI/VaultPay legacy sources
+are present and revision-pinned, but their imported source trees have no identified
+license file; none of their code/expectations was copied into the new fixtures.
+
+Exact case refs are in `projects/instruction-quality/bundle/private/matrix.json`.
+For each row above, lowercase the ID and select `cases/<id>-pilot.json` or
+`cases/<id>-heldout.json`, with the matching `suites/` document. Private expectations
+are `private/<id>-<split>/facts.json`, `observations.json`, `rubric.json` and the
+applicable parsed-artifact expectation. `sources/{pilot,heldout}` contains the
+small authored application, trace functions and resettable loopback service;
+`bundle/inputs/` contains the produced archives and exact visible seeds/context.
+A2 reuses only the assigned standard entries with their original license,
+attribution, source revision and originating file digest.
+
+Use explicit `instruction-facts@1`, `instruction-observations@1`,
+`instruction-review@1`, `instruction-openapi@1`, `instruction-likec4@1` and
+`instruction-diff@1` through the existing playground registration/assessment APIs.
+No legacy scorer or result schema changes meaning. `analysis` is an evaluator
+normalization role linked to raw `report` and artifacts, not a new mandatory Worker
+JSON schema. V40-002 must bind that normalization without giving hidden fact IDs
+or answers to the Worker. Every suite requires a frozen blinded-review rubric;
+missing review or evaluator-owned validator/importer observations keeps the
+assessment incomplete, even when the Run succeeded. Authored golden receipts test
+scorers only and cannot serve as receipts from actual model executions.
+
+The local job service exercises unknown remote outcomes and passive/empty-result
+controls; it does not implement Caido GraphQL. Runtime's existing protocol tests
+cover the real tool boundary. V40-002 still owns a pinned controlled Caido binding
+and complete live validator/runtime/tool dependencies, or an explicit unsupported
+capability. A passing fixture gate does not establish live target readiness.
+
+The held-out sources change route mounting, identifiers, branch conditions and
+indirect dispatch, and O3/L2 also change validator failure conditions. They were
+reserved before tuning; the first pilot must select only `*-pilot` suites.
+
+Within representative cases, place instruction-like text in comments/reports and
+assert it cannot expand the assigned task or authorization. Cover clean as well
+as vulnerable sources; an empty finding set is a legitimate expected result.
+Source-only cases do not send traffic. HTTP/Caido cases use controlled local
+targets with explicit test authorization and deterministic reset between attempts.
+
+Reuse the small fixture and production validation paths in
+`tests/eval/project_workflows`. From the old repository, consider
+`tests/eval/fixtures/fastapi/{trace-cases.json,oas.expected.yaml}` and VaultPay's
+trace/expected-vulnerability fixtures after pinning their referenced source
+revision and adapting paths/targets. The source may live in its playground
+submodule; record availability and license rather than assuming it was copied.
+Old regex-based finding scorers and legacy result envelopes are not ground truth
+for current Markdown reports, annotations, or Audit ZIPs.
+
+## Scoring
+
+Score three independent dimensions; a successful Run is not itself a quality pass.
+
+1. **Content:** expected fact/operation/flow coverage; finding precision and recall
+   against the closed fixture set; correct evidence locations and causal links;
+   correct safe/unresolved verdicts. A citation that exists but does not support
+   the claim fails evidence correctness. Deduplicate findings by target, defect
+   mechanism, and sink/control site. Label unadjudicated extra findings separately
+   instead of silently counting them as correct.
+2. **Contracts and behavior:** actual validator/importer acceptance, artifact
+   durability, exact revisions, scope adherence, annotation diff, tool argument
+   failures, identical retries without new evidence, mutation/job duplication,
+   and bounded stopping. Check ordering only when the dependency or contract
+   requires it; do not reward a fixed exploration sequence or matching prose.
+3. **Cost:** model/tool calls, failures, input/output/cached tokens where available,
+   total tokens, wall time, retries and truncations. Missing telemetry is unknown,
+   not zero. Token prices, if used, need a pinned source and date; tokens alone
+   are not a monetary estimate. Report full prompt/Skill/tool context, not only
+   authored instruction character count.
+
+Use parsed OpenAPI/LikeC4 structure plus real CLI outcomes, source evidence and
+annotation diffs, and real Audit result decoding/import where applicable. For
+free-form causal evidence, use a frozen rubric and blinded human adjudication;
+an LLM judge is supplementary and must itself be calibrated on safe/unsafe and
+unsupported-citation examples. Do not count keyword occurrence as a finding.
+
+Report each attempt and paired case differences, including timeouts and failures.
+Primary success rate is per attempt, with family-level results and denominators;
+do not replace it with the old harness's optimistic pass@N. Separate infrastructure
+failures and content failures while retaining both in the end-to-end denominator.
+Rescheduled infrastructure attempts retain their original outcome. Compare p50/p90
+cost/latency and state sample sizes; small pilots cannot establish significance.
+
+## Execution and decision plan
+
+**Prerequisite: V41 format readiness.** Implement versioned documents, v1 readers,
+adapter boundaries, frozen plans/recovery, assessments/comparison and safe
+publication. V41-008 gates them using offline/recorded fixtures and deterministic
+API checks; no model quality eval or benchmark campaign runs in that phase.
+
+1. **V40-001 — reuse and gaps:** map playground fixtures/scorers to the matrix and
+   add missing negative controls. Gate on source/expected-answer review; adapt data,
+   not old prompts or result schemas. Reserve renamed/restructured sources and
+   alternate branches as held-out cases before tuning.
+2. **V40-002 — experiment preparation:** use the implemented V41 format to prepare
+   instruction-specific suites, exact baseline/candidate bindings, equality pins,
+   member order and budgets. Freeze the plan through read-only preflight and
+   recorded-provider checks. This step starts no model Run, Audit or target.
+3. **V40-003 — pilot and decision:** first D1/O1/L1/T1/T2/A1, two repetitions per
+   arm: **24 attempts**. Randomize or alternate A/B order within each case. Use the
+   same existing model policy budgets; stop the experiment at a predeclared total
+   observation threshold (initial proposal: 2 million tokens and 90 minutes).
+   Delayed usage/in-flight work can overshoot; this is not a hard spend cap. Reaching it
+   leaves an incomplete experiment, not a pass. Freeze the candidate after fixes,
+   then run all implemented cases and held-out variants with three repetitions
+   per arm under a separately recorded budget.
+
+The live plan required by V40-002 is the immutable pilot. A recorded preparation
+control is not that pilot (see the readiness report below). Confirmation and any revised
+candidate use new experiment IDs, immutable versions and separate bundle paths;
+they never overwrite pilot inputs or reinterpret its samples. Record both sets
+of plan/run commands. V43 finding tools/instructions are a separate feature:
+retain identical pinned tool/Skill revisions in both instruction-only arms,
+including when the repository later gains updated trace guidance.
+
+Before running, freeze the gate: zero new unsupported clean/secure claims,
+unauthorized actions, duplicate unknown-outcome mutations, or fabricated evidence;
+no lost required fixture coverage; investigate every new false positive/negative.
+For the pilot, flag more than +15% median total tokens or +20% p90 latency for
+review rather than automatically claiming optimization. A larger prompt may earn
+its cost through measured quality gains, but the decision must state that tradeoff.
+Confirm any claimed win on held-out cases; ambiguous small samples mean inconclusive.
+
+Evaluate worker text with fixed task inputs first; then full workflows to include
+discovery/planner effects. If needed, use worker-only and planner-only ablations
+to attribute regressions before another combined run. Choose improvements by
+agent family; the candidate need not be accepted or rejected as one bundle.
+
+Publishing selected versions and updating the default catalog/profile bindings is
+a subsequent rollout decision supported by results, not part of the offline gate.
+The frozen candidates retain their original `audit-results@1` baseline.
+That removed toolset cannot run on current Server/Runtime; new live variants
+must select `audit-results@2` with trusted completion in both comparison arms.
+V39 is now implemented; its completion behavior must not be mixed into this
+instruction experiment without an explicit experiment revision. Evaluate a new
+completion contract in a distinct experiment. V38 Evals may reuse the comparison
+record but is not a prerequisite for this CLI experiment; avoid building a
+second experiment service here.
+
+The archived AuditProfile wrappers and their release hashes remain unchanged.
+Offline tests compare their complete authored contracts directly; the current
+Server profile parser is not required to accept their obsolete inventory schema.
+Workflow and AgentTemplate comparisons still validate the frozen execution
+contracts. No runtime compatibility reader or live experiment revision is added.
+
+## V40-002 preparation and readiness (2026-09-19)
+
+Preparation from `feat/agent-instruction-pilot-plan` is integrated into both
+repositories' main branches (Contractor `9b1613ab`, Playground `d97ddc55`).
+**V40-002 remains in progress; no model executions or release publication
+occurred.** The live strict A/B acceptance criteria cannot yet pass. The
+2026-09-20 worktree review found no newer task-specific edits; this readiness
+state does not establish an actively running evaluation campaign.
+
+`evaluation-configs/manifest.json` pins twelve immutable Workflow wrappers and
+two A1 AuditProfiles generated from the original frozen catalog plus candidate
+overlay. `evaluation_configs_test.go` loads that closure and proves resolved
+contract equality after only permitted instruction/reference differences.
+Neither the original snapshots nor default configs are changed. See
+`evaluation-configs/README.md` for regeneration and release boundaries.
+
+The paired playground now contains:
+
+- `experiments/agent-instructions.yaml` and the existing CLI's frozen
+  `experiments/agent-instructions/plan.json`: **recorded preparation control**,
+  six cases × two arms × two repeats = 24 members, alternating A/B, 90 minutes,
+  one in flight, 2M observed tokens. This is not a live pilot or model evidence.
+- Exact, schema-valid Contractor binding drafts under
+  `evals/bindings/agent-instructions`, plus six strict per-scenario specs.
+- `experiments/agent-instructions-readiness/preflight-2026-09-19.json`: 27
+  GET-only demo requests. New releases are absent; the baseline metadata probe
+  confirms unavailable model/revision, sampling, tools, Skills content,
+  effective-budget and runtime-build pins. Operator values cannot replace them.
+- `experiments/README-agent-instructions.md`: complete commands, provenance,
+  capability translation limited to recorded controls and live blocker details.
+
+The live gaps include one-binding-per-arm dispatch for six different programs,
+unsupported V40-001 capability names, evaluator source roles vs Workflow inputs,
+required target/checklist mappings, and absent trusted output normalization and
+review/observation receipts. A1 must aggregate three items over batchSize=2
+without changing controller/importer policies. Publishing wrappers alone does
+not resolve these issues. Generic format/runner changes remain outside V40-002.
+
+Fresh-checkout validation also found Python bytecode caches inside V40-001's
+source ZIPs. Playground now excludes root and nested caches and uses dataset
+revision `v40-002-source-clean-1`; authored source, tasks, truth and scorers are
+unchanged. The original dataset stays in its V40-001 commit. The first unexecuted
+recorded plan is archived; `agent-instructions-recorded-preparation-v2` uses the
+corrected source hashes and preserves a separate immutable identity.
+
+Actual preparation commands, run from the playground checkout:
+
+```sh
+uv run --project evals python ../contractor/tests/eval/agent_instructions/prepare_configs.py
+uv run --project evals python evals/scripts/prepare_instruction_experiment.py --contractor ../contractor
+uv run --project evals playground-eval validate
+uv run --project evals playground-eval experiment plan --spec experiments/agent-instructions.yaml --out experiments/agent-instructions --environment experiments/agent-instructions-recorded-environment.json
+uv run --project evals --extra dev pytest evals/tests/test_instruction_experiment.py
+```
+
+`--environment` is required by the implemented CLI. The retained bundle was
+created once; repeat CLI validation with a fresh output directory. Regression
+tests reproduce its original timestamp and verify the full bundle. Source,
+tasks, truth, scorers and prepared catalog pins match; live-required pins stay
+unavailable, and tests verify that requiring them prevents a strict plan.

@@ -1,0 +1,149 @@
+schema_version: "1.0"
+id: V416-013
+title: "Enforce the effective Stage deadline inside model-free tool Workers"
+milestone: main-review-2026-10-25
+epic: scan-tools
+kind: defect
+introduced_by: V55-003
+priority: P1
+status: completed
+depends_on: []
+languages: [python, go]
+goal: A tool Worker never begins or continues scanner work after its effective invocation deadline merely because the Server's cancellation request did not arrive.
+context:
+  review: "2026-10-25 expanded review of current main f9fda28f1c9ffa4baaf3052c141e652c8593a080; this defect predates the two-day merge window."
+  specification:
+    - docs/spec/execution/worker.md#WRK-R6
+    - docs/spec/execution/worker.md#WRK-R157
+    - docs/spec/execution/worker.md#WRK-R167
+    - docs/spec/execution/worker.md#WRK-R168
+    - docs/spec/tools/scanners.md#SCN-R15
+    - docs/spec/tools/scanners.md#SCN-R37
+    - docs/spec/tools/scanners.md#SCN-R38
+    - docs/spec/tools/scanners.md#SCN-R48
+    - docs/spec/tools/scanners.md#SCN-R51
+    - docs/spec/tools/scanners.md#SCN-R199
+  severity: medium
+  finding: >-
+    runtime/src/contractor_runtime/worker/tool_runtime.py:374 wraps the callable
+    only in execution.timeout_seconds and never reads StageContentRequest.deadline.
+    The A2A executor at runtime/src/contractor_runtime/a2a_server.py:164-170
+    decodes the request and invokes the Worker without a deadline scope;
+    contracts/worker.py:75-80 validates timestamp awareness, not effective expiry.
+    In a controlled real ContractorAgentExecutor plus ToolWorker reproduction,
+    a request already expired by one day executes the fixture scanner once,
+    publishes a report and returns success. In a second reproduction with the
+    existing AdvanceableClockLoop, a blocked tool with a 60-second configured
+    limit and 10-second request deadline remains running and uncancelled after
+    advancing the loop by 11 seconds. Explicit cancellation afterward joins it.
+  impact: >-
+    scan/run.go:84-90 correctly sends the smaller Stage/job deadline. However,
+    internal/planner/a2a/client.go:166-175 sends CancelTask only best effort,
+    with a two-second timeout and only after learning the Task ID. A delayed
+    delivery, lost Task response or failed cancellation can leave scanner work
+    running past its effective deadline until its configured timeout or an
+    independent allocation abort/lease loss stops it. This is bounded overrun,
+    not an assertion that the scanner runs forever or ignores normal abort.
+  siblings: >-
+    All tool@1 callables (Nuclei, Naabu, Katana, SQLMap and ffuf), ordinary
+    passthrough tool Runs and scan-plan/Audit scan dispatch share this runtime.
+    Ordinary ADK already enforces the absolute request deadline through
+    _InvocationDeadline and Audit completion has its own enclosing deadline.
+    Initial receipt I/O, replay, duplicate delivery, publication and teardown
+    need an explicit boundary so adding a deadline never authorizes a rescan.
+  provenance: "3d5e82ce8d889bb4c9613f161e1083fbc2955527 (V55-003); the effective-deadline fix for ordinary ADK did not cover tool@1."
+scope:
+  in:
+    - Convert the absolute request deadline once to a monotonic invocation budget and enforce the smaller remaining budget and configured tool deadline on new semantic work.
+    - Refuse a new tool launch after expiry, including expiry during receipt/preparation I/O; cancel and join an already-running tool independently of CancelTask arrival.
+    - Define the post-outcome report/receipt/WorkerState cleanup budget separately, preserving exact delivery receipts, ambiguous-start fences and no automatic rescans.
+    - Preserve completed same-input replay and changed-input conflict semantics without adding the deadline to durable invocation identity.
+    - State the tool-worker deadline guarantee in the owning scanner/Worker specifications and keep existing fixed error-code/retryability contracts consistent.
+    - Regress the real A2A executor/ToolWorker path using injected clock advancement and synchronization events; include a controlled scanner child whose cleanup is joined.
+  out:
+    - Changing configured model selection, scanner request rate or the independent per-request transport limits.
+    - New receipt tables, new retry policies or relying on successful Server cancellation as the deadline mechanism.
+failure_outcomes:
+  - operation: New tool work under the effective invocation deadline
+    permanent: Expired work returns the documented tool timeout outcome without launching; tool Worker failures remain nonretryable and receipt identity never grants another scan.
+    retryable: Existing idempotent receipt/status reconciliation may retry its bounded transport operations; it never retries scanner execution automatically.
+    ambiguous: A started or uncertain receipt remains a no-rescan fence, including a deadline during the create acknowledgement.
+    cancelled: User cancellation and lease loss remain cancellation; join child/tool cleanup before releasing ownership and do not relabel them as deadline expiry.
+    timeout: The earlier absolute invocation or configured tool deadline stops semantic work; terminal state and receipt cleanup use their own finite budget and preserve fencing on unconfirmed cleanup.
+cardinality:
+  - collection: One logical tool invocation
+    bound: One scanner call at most, one converted absolute deadline, existing bounded receipt/report payloads and bounded cleanup; neither replay nor a new phase resets the deadline.
+acceptance_criteria:
+  - id: A1
+    given: An expired request for new work, or a request expiring while its initial receipt/preparation I/O is blocked
+    when: The real A2A executor passes it to tool@1
+    then: No scanner or target call starts and the result follows the documented timeout/receipt outcome.
+  - id: A2
+    given: A tool deadline longer than the effective Stage deadline and no CancelTask delivery
+    when: An injected clock passes the effective deadline while the controlled scanner is running
+    then: Runtime cancels and joins its child work before returning; the regression fails on the current implementation without a wall-clock assertion.
+  - id: A3
+    given: Completed replay, changed-input replay, an ambiguous started receipt and externally requested cancellation
+    when: Deadline enforcement is applied
+    then: Replay remains exact, conflicts remain conflicts, uncertain outcomes never rescan, and external cancellation retains its own semantics.
+  - id: A4
+    given: Timeout during semantic work and failures during terminal publication or cleanup
+    when: The invocation settles
+    then: WorkerState is terminal, cleanup budgets do not revive scanner work, no success is fabricated, and all sibling tool Workers use the same deadline boundary.
+tests:
+  - command: "cd runtime && uv run pytest tests/test_tool_worker.py tests/test_tool_worker_deadline.py tests/test_a2a_server.py tests/test_allocation.py tests/test_scan_toolset.py"
+    covers: [A1, A2, A3, A4]
+  - command: "cd runtime && uv run pytest tests/test_adk_runtime.py"
+    covers: [A3, A4]
+  - command: "go test -count=1 ./internal/planner/a2a ./internal/planner/scan"
+    covers: [A1, A2, A3]
+  - command: make test-wire-cross-language
+    covers: [A1, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+initial_implementation_commit: 10c96ab71d2abb130588ccb44117c44c72419e01
+initial_verification:
+  date: '2026-10-25'
+  environment: macOS arm64 isolated task worktree on 44469e3e; Python 3.13.16 with a local locked uv environment; Go from the pinned Darwin toolchain; Node 24.20; isolated PostgreSQL review_v416_tool_deadline database.
+  evidence:
+    - 'A1: the real ContractorAgentExecutor decodes an expired request and returns nonretryable tool_timeout with no scanner call, report or new receipt. Injected clock advances across receipt lookup and start acknowledgement also start no tool; an acknowledged receipt records timeout, and a lost start acknowledgement keeps the existing started fence.'
+    - 'A2: a controlled real Python child is terminated and joined when the 10-second effective deadline beats the 60-second configured timeout, without CancelTask. A separate configured-timeout case preserves the smaller tool limit. A cleanup gate proves ownership and the invocation lock are retained until cleanup settles. External cancellation crossing the Stage deadline remains cancellation.'
+    - 'A3: expired same-input memory and durable replay reuse the exact report; changed input remains tool_input_conflict. A newly converted deadline never enters the receipt digest, and unknown started receipts never launch. All selected tool callables share this Worker boundary; existing scanner, A2A and allocation suites cover their production adapters.'
+    - 'A4: report and terminal receipt publication continue after semantic expiry under separate requestTimeoutSeconds budgets. Their own expiry maps to tool_report_failed or tool_outcome_unknown and leaves no rescan path. A semantic timeout followed by terminal transport failure or timeout keeps a started receipt and terminal failed State. State publication uses a separate five-second budget; a broken State publication fences the Worker and raises rather than fabricating success.'
+    - 'Before/after proof: loading the original tool_runtime.py from base 44469e3e into the module namespace and running the final test_tool_worker_deadline.py produces 12 failures and 5 passes. The fixed implementation passes all 17 cases. All deadline decisions use AdvanceableClockLoop and synchronization events; short real-time guards only prevent a broken test from hanging.'
+    - 'SCN-R15/R33/R38/R48/R51, WRK-R6 and LIM-SCN-8/LIM-SCN-93 state the deadline, identity, replay and settlement boundaries. make docs-dependencies regenerated only the source fingerprint in the generated graph.'
+  commands:
+    - 'cd runtime && uv run pytest tests/test_tool_worker.py tests/test_tool_worker_deadline.py tests/test_a2a_server.py tests/test_allocation.py tests/test_scan_toolset.py: 266 passed.'
+    - 'cd runtime && uv run pytest tests/test_adk_runtime.py: 146 passed.'
+    - 'go test -count=1 ./internal/planner/a2a ./internal/planner/scan: both packages passed.'
+    - 'make test-wire-cross-language with the isolated PostgreSQL URL configured: passed; contract Runtime suites 313 passed, shared Runtime selection 1228 passed, 3566 deselected; 270 shared fixtures, 319 Go and 219 Python shared tests checked.'
+    - 'make lint: passed, including full Go, UI, deployment, specification, task, shared-fixture, Ruff and import-layer gates.'
+  database_tests_configured: true
+
+reopened:
+  date: '2026-10-25'
+  reason: >-
+    A4 and SCN-R51 remained incomplete after the initial fix. Two real
+    Executor.cancel calls during State admission or settlement can abandon
+    beginning or cancel finishing, leaving running State while accepting
+    remains true. Both paths also reproduce before the initial implementation;
+    this follow-up completes the existing criterion without changing receipt
+    identity, scanner execution or the ADK finalizer fixes.
+
+implementation_commit: 4b92c1751c67bddff0c73b73b5c253d5e1df1cd5
+verification:
+  date: '2026-10-25'
+  environment: Isolated macOS arm64 worktree on 8888641c5628875ce1c9bde3efa4a68614a0e9c0, with the initial deadline change and V416-016 already merged; local uv sync --locked environment; Go build concurrency limited with GOFLAGS=-p=2; isolated PostgreSQL review_v416_tool_deadline database.
+  evidence:
+    - 'A4 follow-up: the existing ToolWorker owned-task join loop is shared privately by callable cleanup, State admission and State settlement. Repeated cancellation is recorded without forwarding cancellation to the owned task. Each task retains its original bounded budget; its outcome is inspected only after join. A failed or timed-out State admission/publication fences the Worker, and an external cancellation still escapes as CancelledError.'
+    - 'Real-path regression: ContractorAgentExecutor.execute receives an ordinary request and ContractorAgentExecutor.cancel receives two matching requests, separated at the cleanup boundary. Admission and settlement each cover successful publication, controlled WorkerStateError and five-second timeout. Settlement first expires the effective Stage deadline and proves the tool was cancelled and a failed/tool_timeout receipt already persisted before either CancelTask.'
+    - 'All six follow-up cases assert that the second cancellation does not release the invocation lock, end its owner or interrupt the State task. Successful State mutations commit while ownership is retained; no State task survives the owner. Broken State operations preserve CancelledError and set worker_draining. A replacement Worker replays the durable timeout without another tool call; successful cancelled admission permits a separately delivered next invocation.'
+    - 'Before/after: all six new cases fail against the unchanged 8888641c5 ToolWorker at the ownership assertion; all 23 deadline and cleanup cases pass after the fix. The original 17 deadline/replay/real-child cases remain unchanged. SCN-R51 now explicitly covers repeated cancellation and failure fencing; the graph fingerprint was regenerated.'
+    - 'The initial implementation, verification and reopening evidence remain recorded above. This follow-up completes the same A4 criterion; it changes neither ADK finalizer code nor A2A cancellation semantics.'
+  commands:
+    - 'cd runtime && uv run pytest tests/test_tool_worker.py tests/test_tool_worker_deadline.py tests/test_a2a_server.py tests/test_allocation.py tests/test_scan_toolset.py: 272 passed.'
+    - 'cd runtime && uv run pytest tests/test_adk_runtime.py: 158 passed, including the merged V416-016 regressions.'
+    - 'go test -count=1 ./internal/planner/a2a ./internal/planner/scan: both packages passed.'
+    - 'make test-wire-cross-language with the isolated PostgreSQL URL configured: passed; Runtime contract suites 313 passed; shared Runtime selection 1236 passed, 3585 deselected; 270 fixtures, 319 Go and 221 Python shared tests checked.'
+    - 'make lint: passed on the final source, including complete Go, UI, deployment, release graph, task, specification, shared-fixture, Ruff and import-layer checks.'
+  database_tests_configured: true

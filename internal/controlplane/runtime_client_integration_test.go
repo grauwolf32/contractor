@@ -1,0 +1,204 @@
+//go:build integration
+
+package controlplane
+
+import (
+	"bytes"
+	"context"
+	"crypto/x509"
+	"encoding/pem"
+	"fmt"
+	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/localpki"
+	"github.com/grauwolf32/contractor/internal/mtls"
+)
+
+func TestCrossLanguageMTLSAllocationLifecycle(t *testing.T) {
+	for _, terminal := range []string{"finalize", "abort"} {
+		t.Run(terminal, func(t *testing.T) {
+			testCrossLanguageMTLSAllocationLifecycle(t, terminal)
+		})
+	}
+}
+
+func testCrossLanguageMTLSAllocationLifecycle(t *testing.T, terminal string) {
+	repositoryRoot, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	temporary := t.TempDir()
+	pkiRoot := filepath.Join(temporary, "pki")
+	generator := localpki.Generator{}
+	ca, err := generator.InitCA(pkiRoot, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf := localpki.LeafOptions{
+		DNSNames: []string{"localhost"}, IPAddresses: []net.IP{net.ParseIP("127.0.0.1")},
+	}
+	controlPlane, err := generator.IssueControlPlane(pkiRoot, localpki.ControlPlaneOptions{LeafOptions: leaf})
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent, err := generator.IssueAgent(pkiRoot, "integration-agent", leaf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := unusedIntegrationPort(t)
+	workRoot := filepath.Join(temporary, "work")
+	processContext, stopProcess := context.WithCancel(context.Background())
+	defer stopProcess()
+	var processOutput bytes.Buffer
+	command := exec.CommandContext(
+		processContext,
+		filepath.Join(repositoryRoot, "runtime", ".venv", "bin", "python"),
+		"tests/lifecycle_server.py",
+		"--port", fmt.Sprint(port),
+		"--ca", ca.Certificate,
+		"--certificate", agent.Certificate,
+		"--private-key", agent.PrivateKey,
+		"--work-root", workRoot,
+	)
+	command.Dir = filepath.Join(repositoryRoot, "runtime")
+	command.Stdout = &processOutput
+	command.Stderr = &processOutput
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	processDone := make(chan error, 1)
+	go func() { processDone <- command.Wait() }()
+	processWaited := false
+	waitForProcess := func() error {
+		if processWaited {
+			return nil
+		}
+		processWaited = true
+		return <-processDone
+	}
+	defer func() {
+		if !processWaited {
+			_ = command.Process.Signal(os.Interrupt)
+			select {
+			case <-processDone:
+				processWaited = true
+			case <-time.After(3 * time.Second):
+				stopProcess()
+				_ = waitForProcess()
+			}
+		}
+	}()
+
+	client, err := NewMTLSRuntimeControlClient(mtls.Files{
+		Certificate: controlPlane.Certificate, PrivateKey: controlPlane.PrivateKey, CA: ca.Certificate,
+	}, 2*time.Second, &projectionGrantReader{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseURL := fmt.Sprintf("https://127.0.0.1:%d", port)
+	lease := time.Now().Add(time.Minute).UTC()
+	template := testTemplate(t)
+	reservation := testReservation(
+		"allocation_integration", "builder", baseURL, baseURL, template, lease,
+	)
+	agentPEM, err := os.ReadFile(agent.Certificate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(agentPEM)
+	if block == nil {
+		t.Fatal("Agent certificate is not PEM")
+	}
+	agentCertificate, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reservation.Grant.RuntimeAgentID, err = mtls.RuntimeAgentID(agentCertificate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.grantReader = &projectionGrantReader{grant: reservation.Grant}
+	reservation.PerformanceCollectionPolicy = reporting.PerformanceCollectionRequested
+	reservation.PerformanceMetrics = reservation.PerformanceCollectionPolicy.Request()
+	settings := runtimesettings.WorkerExecutionSettings{
+		ModelPolicy: testWorkerPolicy(t), RuntimeSettings: testRuntimeSettings(),
+		ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	var handle contracts.WorkerHandle
+	var prepareErr error
+	for ctx.Err() == nil {
+		handle, prepareErr = client.Prepare(ctx, reservation, settings)
+		if prepareErr == nil {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if prepareErr != nil {
+		stopProcess()
+		_ = waitForProcess()
+		t.Fatalf("cross-language prepare failed: %v\nRuntime output:\n%s", prepareErr, processOutput.String())
+	}
+	if handle.AllocationID != reservation.Grant.AllocationID || handle.AgentTemplateRef != reservation.AgentTemplate.Ref {
+		t.Fatalf("unexpected cross-language WorkerHandle: %+v", handle)
+	}
+	stateRead, err := client.ReadWorkerState(ctx, handle, "")
+	if err != nil || stateRead.Snapshot == nil || stateRead.NotModified ||
+		stateRead.Snapshot.State.StateRevision == 0 {
+		t.Fatalf("cross-language Worker State read = (%+v, %v)", stateRead, err)
+	}
+	unchanged, err := client.ReadWorkerState(ctx, handle, stateRead.ETag)
+	if err != nil || unchanged.Snapshot != nil || !unchanged.NotModified ||
+		unchanged.ETag != stateRead.ETag {
+		t.Fatalf("cross-language Worker State revalidation = (%+v, %v)", unchanged, err)
+	}
+	var report reporting.AllocationFinalReport
+	if terminal == "abort" {
+		report, err = client.Abort(
+			ctx,
+			reservation,
+			"abort_integration",
+			contracts.TerminationError{Code: "run_cancelled", Message: "cancelled by integration fixture", Retryable: false},
+			time.Now().Add(10*time.Second),
+		)
+	} else {
+		report, err = client.Finalize(ctx, reservation, "finalization_integration", time.Now().Add(10*time.Second))
+	}
+	if err != nil || !report.Worker.Complete || !report.Runtime.Complete ||
+		report.Runtime.Resources == nil || report.Runtime.Resources.Status != reporting.ResourceComplete {
+		t.Fatalf("cross-language %s = (%+v, %v)", terminal, report, err)
+	}
+	if _, err := client.ReadWorkerState(ctx, handle, ""); err == nil {
+		t.Fatal("terminal Runtime exposed destroyed Worker State")
+	}
+	if err := client.Release(ctx, reservation); err != nil {
+		t.Fatalf("cross-language release: %v", err)
+	}
+
+	if err := command.Process.Signal(os.Interrupt); err != nil {
+		t.Fatal(err)
+	}
+	if err := waitForProcess(); err != nil {
+		t.Fatalf("Runtime test server exit: %v\n%s", err, processOutput.String())
+	}
+}
+
+func unusedIntegrationPort(t *testing.T) int {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	return listener.Addr().(*net.TCPAddr).Port
+}

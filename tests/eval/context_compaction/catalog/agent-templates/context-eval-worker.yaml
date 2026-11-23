@@ -1,0 +1,19 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: context-eval-worker
+  version: '4'
+spec:
+  description: Deterministic Worker fixture that a Workflow continues through context
+    compaction
+  runtime: adk@1
+  instructions:
+    ref: instructions/context-eval-worker.md
+  toolsets:
+  - ref: run-artifacts@1
+    tools:
+    - read_artifact
+  - ref: text-artifacts@1
+    tools:
+    - write_text_artifact
+  sandboxProfile: local-workdir@1

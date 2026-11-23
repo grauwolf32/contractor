@@ -1,0 +1,109 @@
+schema_version: "1.0"
+id: V61-007
+title: Project workflow toolset requirements and safe runtime-label coverage
+milestone: toolset-runtime-configuration
+epic: runtime-config
+kind: feature
+priority: P1
+status: deferred
+deferral:
+  date: "2026-10-11"
+  previous_status: pending
+  reason: >-
+    Implemented and verified on 2026-09-20 on branch
+    feat/v61-toolset-runtime-configuration but never merged; main has since
+    moved about 1,700 commits (contract package split, credential table
+    folds, V3B UI, layer checks). V62 and V64 do not depend on it, so the
+    port is postponed instead of resolving 35 conflicts now.
+  reactivate_when: >-
+    Explicit user decision that external MCP tools are needed (for example
+    for autonomous pentest Audits, proposal 0033); then port the branch onto main
+    rather than reimplementing, renumber its migration and rerun the V61-009
+    release gate.
+  branch_commit: "1f931dfdcdecdaf6284191892fce5a1bfcf20ebc"
+implementation_commit: null
+depends_on: [V61-003]
+languages: [go, typescript, yaml, markdown]
+goal: >-
+  Let the Run form identify required toolset settings and compatible labels
+  without downloading every RuntimeConfig or exposing private connection data.
+context:
+  authority: User wants to choose reusable tool configuration in the launch UI using existing bindings.
+  design: docs/plans/2026-09-19-toolset-runtime-configuration.md
+  specification:
+    - docs/spec/configuration/runtime-config.md
+    - docs/spec/ui/ui.md
+  reuse: Existing workflow detail, paginated Operations runtime-label picker, RuntimeConfig read/mutation APIs and allocation provenance projections.
+  revalidated: >-
+    2026-10-24 on b523ae77: still deferred, not superseded; main has no MCP or generic
+    worker.toolsets code or specification. The work remains on the unmerged branch
+    origin/feat/v61-toolset-runtime-configuration (head f6dfd6ed16240574ed3565bc6460f737fd072b49,
+    merge base c41a5989, 18 commits). Main is now 2,850 commits past that merge base and git
+    merge-tree reports 75 conflicting paths (35 at deferral), including modify/delete conflicts on
+    files main removed: docs/spec/01-agent-template.md, 02-runtime-and-a2a.md,
+    06-server-ui-and-operations.md, 07-runtime-labels-and-infrastructure-config.md, 19-audits.md,
+    29-tool-workers.md and ui-user-stories.md (retired for the domain documents by af85cc54),
+    internal/config/descriptors.go (now internal/config/resolved/descriptors.go, c8cbf2e1),
+    internal/contracts/agent.go (now internal/contracts/control/agent.go, ToolsetCapability at line
+    26, 6d277c5c), internal/runtimeconfig/principal.go (Agent principal labels now in
+    internal/agentprincipal, 3ecd3f2f) and
+    api/descriptor-parity/toolset-infrastructure-channels.yaml (replaced by
+    api/testdata/toolset-descriptors.json under TLS-R38, 35f59294). The example in reactivate_when
+    no longer applies: proposal 0033 section 14 says V61 MCP configuration is not a prerequisite of
+    the V411 HTTP/API pentest delivery, its section 4.3 keeps MCP tools out of the controlled-proof
+    path without their own gate, and V411-001 explicitly excludes V61 reactivation, so reactivation
+    needs a user decision that names a concrete MCP consumer. Task-specific: the workflow and
+    runtime-configuration public handlers conflict. Run metadata labels with reserved cloud/local
+    placement keys (RUN-R107; V405-004 204fd960) now sit next to runtimeLabels on the Run form, and
+    coverage projections must keep the two distinct. The Operations pages were rebuilt in V3B
+    (ui/src/routes/operations/*), UI parsing uses generated validators (V385-001), and every
+    PostgreSQL-backed handler must document 503 storage_transaction_conflict.
+scope:
+  in:
+    - Expose bounded toolsetConfigurationRequirements derived from resolved workflow templates with exact ref, required flag, selected tools and stage/agent consumers.
+    - Extend label picker projections with configured/cleared refs, canonical non-secret per-value digests, changed sections and exact config/ref/revision identity.
+    - Support default coverage, retained selected labels, clear entries and mixed profiles without adding a second settings write API.
+    - Project safe toolset origins and stable configuration/preparation error details through current Run/Operations diagnostics.
+    - Regenerate OpenAPI client and update strict TypeScript parsing for all new fields, preserving authorization and bounded query behavior.
+    - Reuse Server resolution/normalization definitions so read projections and authoritative Run-create validation agree.
+  out:
+    - Return credential plaintext, require N+1 full-document fetches, persist a second configuration inventory or provide browser/server-side MCP connectivity probes.
+    - Change global Operations ownership or implement new per-owner connection catalogs.
+deliverables:
+  - path: internal/httpapi/public
+    description: Workflow requirements, label coverage and safe provenance/error projections with contract/query tests.
+  - path: internal/runtimeconfig
+    description: Bounded safe coverage projection using normalized values and exact document refs.
+  - path: api/openapi/contractor-public-v1.yaml
+    description: Complete read-model responses, examples and regenerated public client.
+  - path: ui/src/api
+    description: Strict requirements/label/provenance parsers and positive/negative tests.
+requirements:
+  - id: R1
+    text: Requirements cover all workflow stages and deduplicate a shared ref; consumers retain logical identities and never expose physical runtime placement.
+  - id: R2
+    text: valueDigest hashes the canonical non-secret configuration value, excluding document metadata, so equal settings in differently named configs compare equal; clear remains a distinct state.
+  - id: R3
+    text: Coverage metadata and config/ref/revision are read consistently; publishing or moving a binding cannot produce a row describing another version's fields.
+  - id: R4
+    text: Existing Run creation remains authoritative and checks current bindings; UI projections carry no independent execution authority and include all mixed-profile effects.
+acceptance_criteria:
+  - id: A1
+    text: A workflow with shared and late-stage toolsets yields complete sorted requirements and logical consumers; native unconfigured tools add no spurious requirement.
+  - id: A2
+    text: Picker rows distinguish inheritance, clear, equal values and conflicts across documents without exposing endpoint/credential material or issuing per-row full-document queries.
+  - id: A3
+    text: Changed/deleted bindings and mixed LLM/telemetry/toolset profiles produce truthful metadata and bounded safe errors/origins consistent with Run-create validation.
+  - id: A4
+    text: OpenAPI, generated types and strict parsers agree; malformed/unknown fields are rejected and current native Run/Operations consumers remain compatible.
+tests:
+  - command: go test ./internal/httpapi/public ./internal/runtimeconfig ./internal/runservice
+    covers: [A1, A2, A3, A4]
+  - command: make verify-public-api ui-generate-check ui-typecheck
+    covers: [A1, A4]
+  - command: cd ui && corepack pnpm test --run src/api/workflows.test.ts src/api/operations.test.ts src/api/runtime-configuration.test.ts src/api/runs.test.ts
+    covers: [A1, A2, A3, A4]
+test_prerequisites:
+  - Isolated CONTRACTOR_TEST_DATABASE_URL for coverage snapshot/query-count cases; selected persistence cases must execute.
+verification_requirements:
+  - Assert constant/batched query behavior and same-value digests across distinct RuntimeConfig metadata; do not equate the enclosing document digest with configuration-value equality.

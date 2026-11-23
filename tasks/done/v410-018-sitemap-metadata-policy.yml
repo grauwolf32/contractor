@@ -1,0 +1,164 @@
+schema_version: '1.0'
+id: V410-018
+title: Preserve sitemap metadata without secret filtering
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: feature
+priority: P1
+status: completed
+depends_on:
+- V410-001
+- V410-002
+- V410-003
+languages:
+- go
+- python
+- json
+- yaml
+- markdown
+goal: Remove sitemap-specific secret filtering and its transient secret transport, preserving useful HTTP surface
+  metadata under the existing access and size contracts.
+context:
+  authority: On 2026-10-27 the user rejected sitemap secret removal as unnecessary and harmful. The user also clarified
+    that explicitly owner-selected Run inputs are authorized context regardless of a Worker's sitemap source mode;
+    the blackbox restriction applies to sitemap tool views, not to the owner's deliberate input selection.
+  specification:
+  - docs/spec/artifacts/project-sitemap.md
+  - docs/spec/platform/limits.md
+  boundary: Sitemap metadata normalization and authorized views remain distinct from general credential storage
+    and telemetry redaction.
+scope:
+  in:
+  - Remove keyword, opaque-token and known-secret matching from sitemap ingress and strict reads; retain syntactic
+    validation and numeric limits.
+  - Remove sitemap transient secret lists, secret-count bounds and explicit-tool argument rejection across Go, Python,
+    private wire contracts and fixtures.
+  - Preserve origin/path normalization, non-structural query-value exclusion, finite structural selectors and source-mode
+    filtering of dedicated tool views.
+  - Record explicit owner input selection as authorized context and align the owning specification, proposal and
+    unfinished sitemap tasks.
+  - Exercise retained metadata through real PostgreSQL and Server/Runtime boundaries without changing general telemetry
+    redaction.
+  out:
+  - General HTTP evidence redaction, credential handling, logging content policy, authorization and lifecycle behavior.
+  - Other defects and performance improvements identified by the sitemap review.
+requirements:
+- id: R1
+  text: Valid paths, host labels, parameter names, structural values, notes and tags are retained regardless of
+    credential-like words, opaque appearance or matches to known credential strings.
+- id: R2
+  text: HTTP observation frames and private collection requests carry observations only; obsolete secret fields
+    fail strict decoding and have no fallback.
+- id: R3
+  text: Explicit sitemap tool arguments are not rejected by secret matching. Tool telemetry continues to record
+    outcome metadata only through the existing general redaction policy.
+- id: R4
+  text: Source-mode projection applies to dedicated sitemap reads and snapshots. An owner-selected ordinary input
+    is authorized as selected, including a complete map for a blackbox consumer.
+failure_outcomes:
+- operation: Existing sitemap reads, writes and collection
+  permanent: Invalid syntax, limits, stale source or revision intent and unsupported wire members retain their existing
+    classified rejection; content resemblance to a secret is not a failure.
+  retryable: Existing three-attempt publication and operation deadlines remain unchanged.
+  ambiguous: Reuse identical keyed intent and the shared mutation receipt; no new retry or receipt mechanism.
+  cancelled: Existing allocation gates and joined collector/view cleanup own cancellation.
+  timeout: Existing operation and collection budgets continue to apply.
+cardinality:
+- collection: Sitemap documents, pages and observation batches
+  expected: Ordinary bounded Project surface metadata
+  maximum: Existing LIM-SMT limits; collection retains 100 rows and 256 KiB per pending or in-flight batch.
+  bound: Remove the now-unused matching-secret set and its separate count; do not increase document, batch or page
+    ceilings.
+lifecycle:
+- entity: Existing sitemap metadata and collector
+  delete: Existing Project lifecycle and allocation release remain authoritative.
+  cascade: No new entity, table, artifact family or retention dependency.
+  retention: Existing ArtifactStore history and exact-reference lifecycles remain unchanged.
+acceptance_criteria:
+- id: A1
+  given: Credential-named, long opaque and encoded paths plus credential-named parameters, notes and structural
+    selectors
+  when: Owner and allocation paths publish and read sitemap metadata
+  then: Valid metadata survives strict read/write and authorized projection; malformed syntax and size violations
+    still fail.
+- id: A2
+  given: HTTP collection and explicit sitemap tools
+  when: Runtime submits observations or metadata arguments
+  then: No sitemap secret matching or matching-secret transport occurs; obsolete secrets members are rejected and
+    telemetry remains metadata-only.
+- id: A3
+  given: An explicitly owner-selected sitemap input and a blackbox consumer
+  when: The ordinary Run input is materialized
+  then: The owner's complete selection remains permitted, while dedicated sitemap views still enforce their pinned
+    source mode; the specification states both guarantees.
+tests:
+- command: make test-project-sitemap-postgres
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-project-sitemap-tools-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: uv run --project runtime pytest runtime/tests/test_sitemap_*.py runtime/tests/test_http_*.py
+  covers:
+  - A1
+  - A2
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+- command: make verify-public-api
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: 8d7a3821cff56b5bf5e0e194d4d23e596c421ee5
+verification:
+  date: '2026-10-28'
+  result: passed
+  tested_commit: ab35b1afbd246ebe62418873a40bc71e98bbaf31
+  commands:
+  - command: make test-project-sitemap-postgres
+    result: 'Passed on the integrated tree: 13 complete packages, 15 mandatory cases, zero mandatory skips. Includes
+      all new real-store regressions and full projectsitemap/controlplane suites. One producer accepted 257 publications
+      totalling 360501946 encoded bytes with ordinary history retention.'
+  - command: make test-project-sitemap-tools-e2e
+    result: 'Passed on the integrated tree: both actual Server/Runtime/PostgreSQL mandatory scenarios, zero skips,
+      including retained credential-like metadata, owner-selected full input, empty-map metadata and exact source
+      reconfiguration.'
+  - command: uv run --project runtime pytest runtime/tests/test_sitemap_*.py runtime/tests/test_http_*.py runtime/tests/test_capabilities*.py
+    result: 218 passed. This includes every listed narrower Runtime selection.
+  - command: make test-wire-cross-language
+    result: Passed all contracts packages, 323 Runtime contract tests, 285 shared fixtures, 341 Go and 238 Python
+      shared tests; the Python shared selection executed 1341 cases.
+  - command: make verify-public-api
+    result: Passed error registry and mandatory public operation coverage.
+  - command: make lint
+    result: Passed generated checks, UI gates, go vet/staticcheck/testonlyexports, deployment tests, release graph,
+      tasks/specs/fixtures, Ruff and all four Runtime import contracts.
+  evidence:
+  - Removed sitemap keyword, opaque-token and known-secret classification from Go normalization, strict reads and
+    Runtime explicit tools. Matching-secret transport and its unused limit were removed; obsolete input members
+    fail strictly.
+  - Shared fixtures, PostgreSQL collection tests and actual Server/Runtime scenarios retain credential-like metadata.
+    General HTTP evidence and telemetry redaction keep their original policy.
+  - 'The earlier owner-input finding is withdrawn: an owner-selected ordinary full map is authorized for a blackbox
+    Run. Dedicated sitemap views and snapshots continue to enforce their pinned source mode. The owning spec, proposal
+    and unfinished delivery tasks state this boundary.'
+  limitations:
+  - Verification used disposable local PostgreSQL 17, Go 1.26.9, Node 24.20 and the locked Runtime environment.
+    No demo data or primary checkout files were changed.
+  - Initial verification completed on codex/v410-011-sitemap-metadata before main integration. Original structured-import, reconciliation
+    and remaining delivery tasks retain their status; this does not claim the full V410 release gate.
+
+integration_identity:
+  date: '2026-10-28'
+  previous_branch_id: V410-011
+  reason: Main already contains the completed table-read ownership task V410-011; the metadata-policy task is reassigned without rewriting implementation history.

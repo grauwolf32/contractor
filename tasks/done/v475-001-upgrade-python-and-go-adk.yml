@@ -1,0 +1,88 @@
+schema_version: '1.0'
+id: V475-001
+title: Upgrade Python and Go ADK together while preserving execution contracts
+milestone: adk-python215-go28-2026-11
+epic: planner-worker
+kind: chore
+priority: P2
+status: completed
+depends_on: [V475-002]
+languages: [python, go, markdown]
+goal: Run the merged tool interfaces on Python ADK 2.15.0 and Go ADK 2.8.0 with unchanged Contractor execution guarantees and a verified dependency closure.
+context:
+  authority: 'User decision 2026-11-22: update both ADK versions in one implementation pass after the tool-interface work has merged. This assigns dependency migration and necessary compatibility fixes, not the previously discussed optional framework features.'
+  evidence: tasks/evidence/v475-adk-upgrade.json
+  baseline: 'main 97288cba7 includes the model-tool interface merge e51e6f9bf; the primary checkout was clean before creating codex/adk-python215-go28.'
+  specification:
+    - docs/spec/execution/planners.md#PLN-R2
+    - docs/spec/execution/planners.md#PLN-R94
+    - docs/spec/execution/planners.md#PLN-R128
+    - docs/spec/execution/worker.md#WRK-R166
+    - docs/spec/execution/runtime-agent.md#RTA-R118
+    - docs/spec/tools/toolsets.md#TLS-R34
+    - docs/spec/tools/skills.md
+    - docs/spec/platform/observability.md
+    - docs/spec/platform/failure-model.md
+  boundary: 'ADK owns its Runner execution and SDK representations. Contractor retains raw argument admission, logical invocation identity, truthful tool outcomes, cumulative budgets, explicit context checkpoints, Gateway recovery, reduced durable facts and allocation cleanup. Remove obsolete dependency exceptions; do not add compatibility branches or a second framework execution path.'
+  sdk_work_profile: 'The previous three-pass assertion characterizes ADK 2.13, not a registered Contractor limit. A stack-counted public Session probe on 2.15 measures five event-list iterations per main request (auth, confirmation, content/rewind twice, resume) and seven setup iterations per logical invocation: 22 at three turns and 32 at five. Update this pin-specific ceiling; retain all actual event-visit, byte, copy and no-per-tool-history-pass guards and the 50/150-turn, width-2/8 regressions. No private SDK override is introduced to reproduce an obsolete traversal profile.'
+scope:
+  in:
+    - Exact ADK pins and generated dependency locks, required Go toolchain and transitive dependency changes.
+    - Remove obsolete OpenTelemetry resolver overrides and enforce an internally consistent patched cohort.
+    - Adapt used Runner, callback, tool, Skill, session and telemetry boundaries where the new SDK behavior requires it.
+    - Keep Planner model-call limits explicit and independent of SDK defaults or environment overrides.
+    - Update current supported-version documentation and regressions on actual Runner and real PostgreSQL paths.
+  out:
+    - Native compaction, resumability, dynamic tool discovery, advisor, new tool execution capabilities and result-finalizer redesign.
+    - Changes to configured models, shipped catalog identities, public API, database schema or demo deployment.
+acceptance_criteria:
+  - id: A1
+    text: The committed graph installs Python ADK 2.15.0 and Go ADK 2.8.0 with the required Go toolchain, no OTel metadata override and no unrelated discretionary upgrades.
+  - id: A2
+    text: Complete Runtime tests preserve strict tools, Skills, history outcomes, cancellation, completion, compaction, bounded resource release and redacted telemetry under warnings-as-errors.
+  - id: A3
+    text: Complete Go tests with real PostgreSQL preserve both modeled Planners, their configured call limits including values above 500, required event writes, Gateway recovery and framework-neutral boundaries.
+  - id: A4
+    text: Cross-language fixtures, affected real-process scenarios, module checks, builds and make lint pass; owning specifications document the supported versions and any clarified integration boundary.
+tests:
+  - command: cd runtime && uv sync --locked
+    covers: [A1]
+  - command: go mod verify && go mod tidy -diff
+    covers: [A1]
+  - command: make test-runtime
+    covers: [A1, A2]
+  - command: make test-go
+    covers: [A1, A3]
+  - command: make test-wire-cross-language
+    covers: [A2, A3, A4]
+  - command: make test-worker-compaction-e2e
+    covers: [A2, A3, A4]
+  - command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^TestWorkerSessionModesAcrossProductionProcesses$'
+    covers: [A2, A3, A4]
+  - command: make build
+    covers: [A1, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+failure_outcomes:
+  - operation: Existing Worker and Planner execution across the upgraded SDK boundary
+    permanent: Deterministic validation and budget failures retain their classified nonretryable outcome before dispatch.
+    retryable: Only existing bounded Gateway recovery applies; an SDK upgrade adds no semantic retries or model fallback.
+    ambiguous: Existing receipts and the tool-history ledger retain known results and distinguish undispatched, cancelled and unknown outcomes without repeating effects.
+    cancelled: Invocation owners cancel and join SDK tasks and generators before sealing history and releasing allocation resources.
+    timeout: Existing invocation, transport and bounded cleanup deadlines retain their separate owners.
+cardinality:
+  - collection: Invocation model/tool calls, session histories and dependency verification fixtures
+    expected: Existing default Planner model-call budget is 32; realistic Workers retain their selected tool sets and configured context windows.
+    maximum: Existing configured ceilings remain authoritative, including up to 1000 model calls, bounded history bytes and finite compaction windows.
+    bound: Use public SDK limits only with explicit Contractor values; retain byte/item bounds and avoid extra unbounded history scans.
+lifecycle:
+  - entity: SDK sessions, callable caches, toolsets and verification resources
+    delete: Existing allocation/invocation owners release resources; the verification lane drops only its own disposable database and stops its owned test server.
+    cascade: Join execution before cleanup; preserve existing durable receipts and reduced facts.
+    retention: No new durable state, raw transcript or secret-bearing evidence.
+verification_policy:
+  - Use one disposable PostgreSQL database for this lane; configured database failures fail verification. Serialize database test commands and use GOFLAGS=-p=2 after the initial concurrent run exhausted the private server lock table; those failed attempts are not passing evidence.
+  - Optional heavy-I/O fixtures remain disabled unless explicitly requested and their skips are reported honestly.
+  - Do not change assertions merely to accept drift in an existing Contractor guarantee.
+
+implementation_commit: d5042c98e50efcf2c466cee170079f1e63b4ae4f

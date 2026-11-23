@@ -1,0 +1,146 @@
+schema_version: "1.0"
+id: V457-014
+title: Author current Audit assertions and checker results in process fixtures
+milestone: release-gate-integration-coverage-2026-10
+epic: quality
+kind: defect
+introduced_by: V64-012
+priority: P1
+status: completed
+depends_on: []
+languages: [go, python]
+goal: Managed Eval and Engagement process fixtures author the current strict Audit source and checker contracts so their real journeys reach the intended checks.
+context:
+  authority: User decision 2026-11-07 authorizes release-review repairs and necessary process fixture maintenance on a separate branch; the release Native Eval exposed this retired fixture boundary.
+  specification: docs/spec/audits/common-contract.md#ACT-R17
+  provenance: V64-012 migration d6bbd3c759c1133f09643c7f8e2f69aca3458356 made fixed seeds explicit hypothesis assertions. The older UI producer and Engagement fixtures retained the retired checklist schema; the managed gateway retained the retired checker argument fields.
+  finding: >-
+    evals_producer.py:175-187 and both Engagement process fixture helpers author
+    contractor.audit.checklist.v1 with review_policy and no scope/grounds.
+    ChecklistAssertions strictly requires contractor.audit.assertions.v1; the
+    Native Audit Eval remains draft with an audit-start intent and repeated
+    audit_document_invalid before child Runs. evals_gateway_test.go:53-69 also
+    expects retired requestedCoverage and emits retired assessment/summary/
+    completed/gaps fields instead of current task keys, evidence handles and
+    checker rationale/tested_conditions/limitations/verdict fields.
+    The corrected External journey then reaches a second obsolete fixture
+    assumption: result_document indexes the optional aggregate machineArtifact
+    although the current source-checklist Program completes with ordinary Task
+    results and ReportUnavailable (REV-R201). Its two-assertion batch owns one
+    child Run, so its complete inventory has two executions rather than three.
+  followup_decision: >-
+    User-authorized coordinating decision 2026-11-07: this Program promises no
+    aggregate output, so its Audit dataset outputs and outputMapping are empty.
+    This is more precise than retaining an unused optional report role. External
+    results keep exact owned child-Run Task artifacts as evidence; no artifact is
+    substituted under the reserved aggregate report role. Existing Result
+    ingestion authorizes an Audit's child Run through audit_executions and
+    verifies exact artifact metadata; the ordinary collector with no required
+    aggregate output still requires a complete authoritative inventory and
+    current usage. Validate both Task items against their retained context and
+    explicit ReportUnavailable. No unused report-readiness helper is added.
+  conclusion_boundary_correction: >-
+    The first follow-up incorrectly modeled the raw checking Run output as an
+    accepted result wrapper. The real External retry establishes that current
+    Run outputs contain contractor.audit.conclusions.v1 without trusted origin.
+    Audit import owns normalization, adds origins and translates Run-local
+    evidence to the original accepted Task inputs. Preserve that boundary:
+    validate the raw conclusions and frozen context through the current owning
+    codec's strict kind/shape plus context-aware Decode; separately read both
+    exact public Task.result links and validate the accepted result wrappers,
+    provenance, hypothesis revisions and translated evidence. The actual owner
+    API is auditcontract.Decode/ValidateResultShape; there are no separately
+    exported DecodeContext or DecodeConclusions helpers. Add no production API,
+    permissive wrapper acceptance or fabricated origin. Keep raw owned Run bytes
+    as Eval evidence only after correlation with both accepted Task wrappers.
+  integration_verification: >-
+    Acceptance verified on 2026-11-08. The final complete UI-stack command passed native
+    and external Eval end to end, with eight Workflow and eight Audit members per
+    control mode (32 members total), 52 lost-response replays, exact ordinary execution
+    membership and foreign-owner denial assertions. Raw conclusions and both accepted
+    Task wrappers pass their separate schema, origin, input-evidence and exact-byte
+    checks. The release-selected owner-parser regressions, real PostgreSQL two-item
+    normalization/exact-reader test, full unit gate and final release-verify-lint
+    passed. Historical failed fixture attempts remain preserved.
+scope:
+  in:
+    - Update the UI producer and both Engagement authored fixture sources to current assertions with explicit scope and grounds.
+    - Update only the managed Eval gateway fixture to current checker task input and result arguments.
+    - Regress authored bytes against the real domain parser and checker output against the owning Runtime validator.
+    - Wire the tagged regression tests into the ordinary release browser/configuration selections and keep the exact reachability guard current.
+    - Match current optional aggregate reporting and two-item batching; validate both retained Task results and their owned child Run as exact external evidence.
+  out:
+    - Production readers, classifier/retry behavior, model choices, live configurations or reduced Eval membership/assertions.
+acceptance_criteria:
+  - id: A1
+    text: All three authored process fixture sources validate through ChecklistAssertions with preserved keys, required evidence and nonempty grounds.
+  - id: A2
+    text: Managed Eval checker fixture consumes current task keys and evidence handles and its result arguments validate through the authoritative Runtime parser.
+  - id: A3
+    text: Native and external Eval scenarios retain eight expected members and every lifecycle/result assertion; no legacy parser fallback or production model/configuration change is introduced.
+  - id: A4
+    text: Source-checklist explicitly reports unavailable aggregate output while both owned Task results, immutable context/provenance, exact bytes/digest and current usage are validated as external evidence; malformed or foreign evidence fails.
+tests:
+  - command: go test -p=2 -tags=e2e -count=1 -run '^(TestManagedEvalAssertionsUseCurrentDomainContract|TestManagedEvalGatewayUsesCurrentCheckerContract|TestManagedEvalGatewayHasIndependentHistories|TestEngagementAssertionSourcesUseCurrentDomainContract)$' ./tests/ui-stack ./tests/e2e
+    covers: [A1, A2, A3, A4]
+  - command: go test -p=2 -tags=e2e -count=1 -run '^TestManagedEvals(Native|External)Stack$' -timeout=26m ./tests/ui-stack
+    covers: [A1, A2, A3, A4]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 -run '^TestPostgresCommonHypothesisChecksRetainPerItemRevisions$' ./internal/auditcontroller"
+    covers: [A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification:
+  baseline: Native Eval finishes its eight Workflow Runs but Audit remains draft at audit-start, repeating audit_document_invalid until the official process test fails after 602.07 seconds. The retained source digest matches the exact old producer bytes; the domain parser rejects those bytes and accepts the current two-assertion source.
+  focused: Four focused tests pass. The actual Python producer source validates through auditdomain.ChecklistAssertions; both Engagement sources validate through the same owner. Managed gateway assignment order and exact evidence handles are preserved, hypothesis/exploration verdict handling is checked, and emitted arguments pass the actual Runtime v2._normalize parser.
+  static: Ruff check and format-check, Go formatting, diff-check and task validation pass. No production source, model configuration or legacy parser is changed.
+  release_selection: The two new UI owner-parser regressions are selected by browser shard A; the Engagement source regression is selected by the configuration fixture stage, with exact expected sets maintained by the release reachability guard. All 56 release-graph guard unit tests pass; the five focused Go closure/parser tests pass after the wiring and the explicit two-assertion batch regression passes.
+  batch: Current source-checklist Programs batch both assertions into one Audit-owned child Run. Remove the obsolete batchSize replacement, which never matched the current batch_size field, and preserve the two-item batch and eight expected Audit executions without changing any case assertion.
+  integration: >-
+    The final complete UI-stack command passed native and external Eval end to end, with
+    eight Workflow and eight Audit members per control mode (32 members total), 52
+    lost-response replays, exact ordinary execution membership and foreign-owner denial
+    assertions. Raw conclusions and both accepted Task wrappers pass their separate
+    schema, origin, input-evidence and exact-byte checks. The release-selected
+    owner-parser regressions, real PostgreSQL two-item normalization/exact-reader test,
+    full unit gate and final release-verify-lint passed. Historical failed fixture
+    attempts remain preserved.
+  external_task_evidence: >-
+    The corrected first Native run passed in 407.93 seconds; External reached
+    eight successful Workflow Runs and its first successful Audit before the
+    old aggregate-only producer failed with KeyError machineArtifact (176.64 s).
+    No exact historical report body survived its temporary schema cleanup;
+    the current owning GetReport implementation and REV-R201 establish the
+    unavailable response for this completed reportless Program. The follow-up
+    consumes the actual two-item child Run result and frozen context instead.
+    A standard-library API regression preserves original noncanonical bytes,
+    checks SHA-256 and size, current Client raw JSON reads, eight registrations,
+    private checks and unchanged Workflow outputs, and rejects eleven malformed
+    or foreign-context/inventory/result/report cases. The existing release-selected
+    Go parser test runs this regression, validates the two-item document against
+    its actual auditcontract context boundary and freezes the emitted ResultInput,
+    DatasetInput (including current Case semantics) and ExternalRegistration
+    (including exact manifest recipes and empty output mappings).
+    Both focused Go tests, Ruff lint/format and whitespace checks pass. Restoring
+    the original producer bytes in a scratch file makes this regression fail
+    at the observed machineArtifact KeyError. Final integrated verification passed as recorded in context.integration_verification.
+  conclusions_and_accepted_wrapper: >-
+    The next combined real journey passed Native (347.44 s), then External
+    failed in the producer (174.71 s) because that follow-up incorrectly
+    expected raw Run result.v1 instead of actual conclusions.v1. This was a
+    fixture mistake, not a product defect. The raw artifact has both supported
+    item-00/item-01 conclusions and no trusted origin. The correction keeps
+    those exact original bytes as evidence only after reading both public
+    Task documents and exact accepted Task.result links. It verifies settled
+    attempt/execution identity, each immutable hypothesis pin and source,
+    wrapper byte hash/size/revision, both trusted origins, and the importer's
+    evidence translation to the original Task.document.inputs. No origins are
+    written into raw conclusions. Twenty-four producer negative controls and
+    nine strict owner-codec negative controls cover both schema directions,
+    origin/hypothesis/source binding and retained metadata; native Case and
+    external exact recipe validators still pass. The existing real PostgreSQL
+    TestPostgresCommonHypothesisChecksRetainPerItemRevisions passes with the
+    integration tag and exercises genuine two-item raw conclusions, importer
+    normalization and each Task's exact retained artifact reader. The old
+    producer bytes fail the new probe at the same raw-schema assertion.
+    Focused release-selected Go tests and Ruff lint/format pass. Final integrated verification passed as recorded in context.integration_verification.
+implementation_commit: ea3917f73257832fcb11081872126cfa83f05902

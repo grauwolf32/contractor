@@ -1,0 +1,192 @@
+schema_version: '1.0'
+id: V420-004
+title: Expose bounded truthful Planner compaction diagnostics
+milestone: planner-context-compaction-2026-10
+epic: planner-worker
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V420-002
+languages:
+- go
+- typescript
+- markdown
+goal: Make Planner compaction progress, cost and failure inspectable through existing safe telemetry and technical
+  details without exposing conversation content.
+context:
+  telemetry_decision_2026_11_09: >-
+    User removed captureContent and allocation-wide content suppression. Configured
+    debug telemetry uses bounded content with exact known credential replacement;
+    durable/public facts stay content-free. This does not assign compaction work.
+  authority: 'User request on 2026-10-25: create detailed tasks for Go ADK v2.6.0 and Planner compaction, including
+    compatibility, tests and mutual exclusion with terminal summarization; keep Scheduler substantially unchanged.
+    These pending records authorize planning only, do not start implementation and do not change the current
+    delivery focus.'
+  review: tasks/evidence/v419-go-adk-26-review.json
+  specification:
+  - docs/spec/execution/planners.md#PLN-R1
+  - docs/spec/execution/planners.md#PLN-R81
+  - docs/spec/execution/planners.md#PLN-R94
+  - docs/spec/execution/planners.md#PLN-R106
+  - docs/spec/execution/planners.md#PLN-R107
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/observability.md
+  - docs/spec/api/public-api.md
+  - docs/design/ui/README.md
+  - ui/src/ui/README.md
+  implementation_boundary: Update owning numbered specifications, limits/errors/failure/lifecycle registries
+    and every affected reader/writer with implementation. A planned extension is not current shipped behavior.
+    No legacy readers, v1/v2 production branches, native SDK resume, new receipt store or model substitution.
+    Scheduler retains claims, queues, Stage identities, transitions, retries and completed recovery; only configuration
+    plumbing, mechanical imports and regression fixtures may change there.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: The engine already owns context generation, bounded history and authoritative cumulative
+    budgets. Extend only missing allowlisted diagnostics and existing technical-details readers, reusing
+    current telemetry; do not build another counter owner or lifecycle. Per-checkpoint raw payloads
+    remain private RAM.
+scope:
+  in:
+  - Minimal existing Planner technical-details presentation, numeric safe diagnostics and the exact public/telemetry
+    contracts that serve them.
+  out:
+  - Raw transcript viewing, summary publication, global SDK tracing, separate dashboards/config editors or
+    changing Scheduler lifecycle to represent compaction.
+requirements:
+- id: R1
+  text: Extend the existing allowlisted Planner facts/report/span vocabulary with bounded phase/outcome, context
+    generation, compaction count, main/compactor call and token counts, and measured before/after prompt usage.
+    Keep total-budget counters authoritative. Unknown/unmeasured values stay unknown, never zero or fabricated
+    savings.
+- id: R2
+  text: Use the existing invocation-local custom exporter and correlation. Do not install a global OTel provider
+    or export native ADK spans wholesale; one compactor attempt opens/closes one permitted span and cannot
+    double count alongside main calls.
+- id: R3
+  text: Raw history, summary, arbitrary model text, source event payloads and model-supplied identifiers never
+    enter durable/public facts or closed attributes. Respect configured-exporter content and exact known credential replacement in
+    separately bounded explicit fields; no new durable transcript or summary export by default.
+- id: R4
+  text: Keep fact counts, JSON size, event/report pagination, exporter queue and final flush within owning
+    limits. Use existing storage and retention, not a new per-compaction table or unbounded sequence of progress
+    facts. Read/write errors preserve core failure semantics; exporter delivery failures remain supplementary.
+- id: R5
+  text: Expose the selected mode and bounded status/counters in existing Planner technical details. Distinguish
+    compacting/continued/failed only from Server-reported facts, preserve the same StageExecution and terminal
+    state, refetch on settlement and stop polling settled data. No model text or implementation internals in
+    primary user flow.
+- id: R6
+  text: Update owning observability/public API schemas, shared fixtures, both generated clients and UI readers
+    in one change where fields are exposed. Use existing UI building blocks/tokens, verify 390 px and light/dark/black
+    themes, and follow UI version policy. No separate dashboard or new configuration editor.
+- id: R7
+  text: Test disabled telemetry, content flags, secret canaries, dropped records, missing usage, failure after
+    accepted checkpoint and repeated generations. A completed UI state cannot precede durable Server state
+    and telemetry failure cannot alter candidate/retry/escalation.
+failure_outcomes:
+- operation: Verification, model/tool execution and existing session mutations covered by this task
+  permanent: Invalid input and deterministic store rejection keep their existing safe nonretryable class.
+    A required verification failure blocks completion; do not relax assertions or add permanent xfails.
+  retryable: Use only the existing bounded transport/recovery policy within the original deadline; no
+    migration-specific retry or rerun-until-green.
+  ambiguous: Reconcile through the existing receipt/session sequence and same operation identity. A lost
+    reply does not prove nonexecution; never blindly repeat a Worker call or append.
+  cancelled: Invocation/test owner cancels and joins local work before teardown; already-dispatched remote
+    effects follow existing reconciliation.
+  timeout: Keep invocation, transport, completion-write, cleanup and test-harness deadlines distinct;
+    expiration admits no new semantic attempt.
+cardinality:
+- collection: Invocation-local raw history, prior summaries and validated Worker-result/reference index together
+  expected: Several dozen groups and two or more checkpoints within one ordinary Planner invocation.
+  maximum: 'Initial design envelope to prove/freeze in V420-001: 4096 complete source groups and 32 MiB aggregate
+    retained UTF-8/serialized data; 64 MiB accounted peak including bounded projections and transient copies;
+    summary 16 KiB, recent tail 1 MiB, 1..16 recent groups default 4, 1..16 compactions default 8.'
+  bound: Count shared backing data once and actual copies separately. Bound each scan, serialization, append
+    and history page. Enforce existing 4-MiB actual Gateway-request bytes and stricter policy context window;
+    compaction does not reclaim raw ADK history automatically.
+- collection: Authoritative plan, validated results and existing durable session state
+  expected: Default 32 subtasks, one current subtask/active dispatch and exact refs from completed Workers.
+  maximum: 'Existing independent ceilings: 1000 subtasks, objective 64 KiB, subtask objective 8 KiB/instructions
+    32 KiB, Worker result text 64 KiB/payload 256 KiB/128 refs, session JSON 2 MiB and 256 recorded fact digests.'
+  bound: Do not inject the full plan/result index into each prompt or assume all independent maxima fit. Preserve
+    exact full authority in its existing owner and expose bounded current projections/pages; enclosing overflow
+    produces a classified failure before further effects.
+lifecycle:
+- entity: One Planner invocation context generation, checkpoint and bounded in-memory history/result index
+  delete: Planner owner releases these on success, failure, cancellation or timeout after joining all local
+    work.
+  cascade: All history, summaries, paging cursors and retained validated result views are invalidated with
+    that session; completed StageResult and existing receipts/artifacts retain their existing owners.
+  retention: RAM only for raw context, summary and history index. No PostgreSQL transcript/checkpoint table,
+    cross-Stage context service or partial restart recovery. Completed-result recovery remains durable and
+    model-free.
+acceptance_criteria:
+- id: A1
+  given: None/compact executions with measured and unknown usage
+  when: Server facts, reports and exported spans are inspected
+  then: Counts are coherent and bounded, unknown values remain unknown and every attempt is represented once.
+- id: A2
+  given: Sensitive raw context and both capture settings
+  when: Durable/public/OTLP projections and exporter failures run
+  then: Only permitted projections leave their owner; content remains properly separated and delivery failure
+    is supplementary.
+- id: A3
+  given: Live, stale, failed and terminal Planner states
+  when: Existing technical-details UI renders and refreshes
+  then: It reports Server truth without invented progress, extra Stage identities or continued terminal polling
+    at supported sizes/themes.
+- id: A4
+  given: Updated public types, clients and maximum-size records
+  when: Contract/generation and full affected suites run
+  then: Every reader/writer agrees and existing storage/report/export bounds and retention hold.
+tests:
+- command: go test -race -count=1 ./internal/planner/... ./internal/telemetry ./internal/httpapi/public
+  covers:
+  - A1
+  - A2
+  - A4
+- command: make verify-public-api
+  covers:
+  - A1
+  - A4
+- command: make verify-public-api-postgres
+  covers:
+  - A1
+  - A2
+  - A4
+- command: make ui-verify
+  covers:
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+test_prerequisites:
+- Commands are future implementation acceptance, not checks completed by this planning change. Record exact
+  revision, Go/ADK versions, module graph/checksums, commands, executed case counts, skips and outcomes. Required
+  cases cannot be skipped or match zero tests.
+- Use disposable real PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set for persistence acceptance; an unreachable
+  configured database fails. Canonicalize TMPDIR as Makefile does. Full package suites accompany focused regressions.
+  make test-streamline does not cover Router, so run all internal/planner packages too.
+- Use actual pinned ADK Runner/tool dispatch and controlled Gateway responses. tests/integration/streamline
+  uses a fake WorkerInvoker and does not prove a real Server/Runtime process. Register new process cases in
+  the release graph and provide their fixtures/prerequisites.
+- Use testdata and test-only pseudo-Skills rather than reading live configs. Use injected clocks, synchronization
+  barriers and work/byte/row counters, not wall-clock assertions. Live Gateway benchmarks are outside deterministic
+  acceptance; keep configured models unchanged.
+- No dependency on Python V418 or Worker compaction V417 is implied. Cross-language regression uses the currently
+  supported Runtime lock. New shared grammar or wire changes, if actually needed, must update all implementations
+  and shared fixtures in the owning task.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.

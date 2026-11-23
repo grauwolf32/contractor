@@ -1,0 +1,37 @@
+# Chore task template: no intended behaviour change (tests, CI, dead code,
+# refactoring, documentation, schema consolidation).
+# Copy to tasks/vNN-NNN-short-slug.yml, replace every <placeholder> and delete
+# the comments. make lint checks the result.
+schema_version: "1.0"
+id: VNN-NNN
+title: "<Imperative change, e.g. Remove unused Audit Controller API surface>"
+milestone: "<delivery slice>"
+epic: "<id from tasks/epics.yml>"
+kind: chore
+# For cleanup of earlier work (dead code, a drifted gate, a duplicated
+# helper), the task that introduced it; otherwise delete the line.
+introduced_by: VNN-NNN
+priority: P3  # P0..P3, defined in tasks/index.yml
+status: pending
+depends_on: []
+languages: [go]
+goal: "<One sentence: what gets simpler, smaller or safer.>"
+context:
+  review: "<review document, issue or task that found it>"
+  finding: >-
+    <What is wrong with the current state, with file:line where useful.>
+scope:
+  in:
+    - "<the change>"
+  out:
+    - "<behaviour that must stay exactly as it is>"
+acceptance_criteria:
+  - id: A1
+    text: "<the measurable result: removed exports, merged tables, a gate that now runs>"
+  - id: A2
+    text: "Existing tests pass unchanged; any test edited only follows a renamed or removed symbol."
+tests:
+  - command: make lint
+    covers: [A1, A2]
+  - command: "go test ./internal/<package>"
+    covers: [A2]

@@ -1,0 +1,196 @@
+schema_version: '1.0'
+id: V410-008
+title: Import selected Caido history incrementally with durable checkpoints
+milestone: sitemap-caido-history-2026-10
+epic: http-tools
+kind: feature
+priority: P2
+status: pending
+depends_on:
+- V410-004
+- V410-007
+languages:
+- go
+- python
+- json
+- yaml
+- markdown
+goal: Extend the released sitemap with explicit bounded Caido history synchronization that resumes safely and reports
+  provider gaps without rescanning or importing the entire shared instance.
+context:
+  authority: User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
+    this task records planned work, not implementation or verification evidence. The 2026-10-28 user decision makes
+    sitemap metadata shared by every permitted reader, without source-mode classification. Original file retention
+    belongs only to explicit snapshots through snapshotInputs; current operation and exact-file authority remain.
+    The user decision on 2026-10-31 splits the sitemap lane for parallel work with Audit; keep this optional
+    follow-up after independent V410-007, without V410-025 or V64 prerequisites.
+  proposal: docs/proposals/0042-live-project-sitemap.md
+  proposal_sections: 'Sections 5 and 9-12: provider continuation, source selection, checkpointed imports and independent
+    optional delivery.'
+  specification:
+  - docs/spec/artifacts/project-sitemap.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/artifacts/projects.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/tools/http-caido.md
+  boundary: The live sitemap is shared research context, not current Audit coverage, complete traffic archival or
+    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or V61/V62/V64
+    work.
+  code:
+  - runtime/src/contractor_runtime/toolsets/caido/tools.py
+  - runtime/src/contractor_runtime/toolsets/common
+  - runtime/tests/test_caido_graphql_fixtures.py
+  - runtime/tests/test_caido_read_tools.py
+  - internal/projectsitemap
+  - tests/e2e
+  reuse: Current Caido history has provider paging; V375-002 solves passive sitemap snapshot paging separately.
+    The pending V386-004 flat catalog defect is not a dependency of this selected history import.
+  parallel_delivery: >-
+    User decision 2026-10-31: the user requested sitemap work in parallel with Audit and a task
+    rewrite. Follow standalone V410-007 under ordinary task policy; Audit review, V410-025 and
+    V64 are not prerequisites. Preserve the other listed dependencies and existing source/snapshot
+    authority. This planning update starts no implementation.
+scope:
+  in:
+  - Validate the exact continuation semantics against the pinned Caido GraphQL schema/fixtures and document whether
+    stable incremental continuation is available.
+  - Introduce an explicit trusted Project Caido context/source selection and bounded history page importer; retain
+    source checkpoint state through the existing map/source mutation boundary.
+  - Handle provider deletion/expiry/gaps, missing or unstable continuation, restart/lost replies and repeated pages
+    without claiming complete history.
+  - Preserve metadata normalization, correlation, source-kind/deployment provenance, quota accounting and separate target
+    versus collection outcomes from the first slice.
+  - Add a mandatory optional-feature gate and usage documentation without adding a requirement to HTTP/OpenAPI profiles.
+  out:
+  - Implicit whole-instance history export, new provider versions, unrelated catalog cardinality fixes, full request/response
+    archival or target mutation replay.
+  - A second event/checkpoint database, new journal/claim table or unbounded backfill.
+requirements:
+- id: R1
+  text: Pin and verify provider continuation behavior with sanitized schema/response fixtures. If a stable continuation
+    cannot be established, expose unsupported/incomplete with a bounded explicit alternative; do not claim incremental
+    completeness.
+- id: R2
+  text: Selection is explicitly owned by the Project source and trusted deployment/provider context; a generic Caido
+    connection or model-supplied foreign Project ID is insufficient.
+- id: R3
+  text: Process at most one provider page/batch before a checkpoint. Bind checkpoint to selection/provider/source
+    generation and metadata projection policy; changed selection requires an explicit new intent, not silent cursor
+    reuse.
+- id: R4
+  text: Checkpoint advancement and accepted batch mutation are one idempotent source transition or reconcile via
+    the existing receipt; restart and lost acknowledgement cannot skip an uncommitted page or duplicate accepted
+    contributions.
+- id: R5
+  text: Provider history expiry/deletion/unstable ordering becomes an explicit collection gap. No rescanning the
+    complete history after each request or arbitrary timestamp inference from mutable local time.
+- id: R6
+  text: Provider/source and per-operation limits remain independent of the automatic common per-binding Artifact
+    history policy. ArtifactStore owns admission/accounting/eviction; receipts/checkpoints alone do not pin history.
+    No custom cumulative Run publication quota applies. Importing Run or provider-session changes do not create
+    another behavior summary; metadata carries no principal/authentication attribution. Protected-capacity conflicts
+    preserve accepted map/checkpoint.
+failure_outcomes:
+- operation: Fetch selected Caido history page
+  permanent: Unsupported continuation/selection, invalid provider response or expired cursor returns a stable source-specific
+    gap/error; never falls back to importing all history.
+  retryable: Retry read-only provider failures under existing bounded Caido policy and page deadline.
+  ambiguous: Resume the recorded selection/checkpoint; reread a page only with deterministic deduplication, never
+    repeat a target mutation.
+  cancelled: Join provider decoding/import work before allocation or session release.
+  timeout: A page-import deadline bounds fetch/decode/publication independently of target request timeouts.
+- operation: Commit page and advance checkpoint
+  permanent: Source-generation conflict, projection rejection, generic Artifact admission rejection or all-protected
+    history capacity preserves accepted content/checkpoint and reports a nonautomatic-retry outcome.
+  retryable: Append-compatible CAS/storage conflicts and bounded ArtifactStore eviction backpressure retry only
+    page publication within reducer limits; never replay target traffic.
+  ambiguous: Use the existing keyed receipt to reconcile both page and checkpoint even after revision eviction;
+    confirm the old commit without republishing. Exact evicted reads remain unavailable.
+  cancelled: Fenced allocations cannot advance checkpoints after release.
+  timeout: Unresolved acknowledgement at deadline remains an explicit incomplete sync, not a silently advanced checkpoint.
+cardinality:
+- collection: Provider history selected by one Project source
+  expected: Many provider rows streamed as small pages across invocations
+  maximum: Provider page/response bounds and shared batch/map/history quotas; no unbounded retained row set
+  bound: One bounded page/batch per checkpoint and bounded discovery of provider gaps.
+- collection: Checkpoint/source state and deduplication attribution
+  expected: One current checkpoint per selected source generation
+  maximum: Existing source-registry/summary/evidence bounds
+  bound: Retain bounded source state rather than a per-request durable event journal.
+lifecycle:
+- entity: Selected Caido history source and checkpoint
+  delete: Explicit selection change starts a new guarded source intent; Project purge removes checkpoint and map
+    state.
+  cascade: Allocation/session cleanup joins transient readers; provider expiry cannot silently erase recorded gaps.
+  retention: Safe metadata remains after provider/source Run deletion; unavailable exchanges stay labelled rather
+    than acquiring implicit traffic retention.
+acceptance_criteria:
+- id: A1
+  given: The pinned provider schema and multi-page selected history fixture
+  when: The production importer follows its validated continuation
+  then: Every selected retained row is reachable with bounded pages and unrelated instance traffic is not imported.
+- id: A2
+  given: Lost replies, repeated pages and Runtime restart at every page/checkpoint boundary
+  when: Synchronization resumes through real PostgreSQL/Server/Runtime
+  then: No uncommitted page is skipped, accepted contributions are not duplicated and no full-history rescan
+    occurs.
+- id: A3
+  given: Expired/deleted provider history or unstable/missing continuation
+  when: The importer cannot establish continuity
+  then: It retains an explicit source gap/unsupported result instead of claiming complete discovery or inventing
+    a cursor.
+- id: A4
+  given: Credential-like metadata, excluded URL/header/body fields, changed source generation and protected/eligible-history pressure
+  when: A page reaches metadata normalization and publication
+  then: Authorized valid paths, names and finite structural values persist without secret matching or matching-secret
+    transport, while fields outside the metadata model remain excluded. Stale selections conflict, accepted map/checkpoint
+    survive exhaustion and retryable cleanup backpressure is distinguished from protected-capacity conflicts.
+- id: A5
+  given: An in-flight sync and an HTTP-only Workflow
+  when: Sync cancels/releases while the HTTP workflow runs independently
+  then: Sync work joins and fences correctly; the first-slice Workflow remains runnable without the optional integration.
+deliverables:
+- path: make/toolsets.mk
+  description: New test-sitemap-caido-history-e2e target with required local provider/real component cases and release
+    graph registration.
+- path: runtime/tests/testdata
+  description: Sanitized pinned provider continuation, expiry, repetition and out-of-selection fixtures.
+- path: docs/guides
+  description: Explicit history source setup, continuation limits and honest unsupported/gap handling.
+tests:
+- command: uv run --project runtime pytest runtime/tests/test_caido_*.py runtime/tests/test_sitemap_*.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-project-sitemap-postgres
+  covers:
+  - A2
+  - A4
+  - A5
+- command: make test-sitemap-caido-history-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-http-caido-e2e
+  covers:
+  - A1
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+test_prerequisites:
+- The new gate uses a controlled pinned-schema GraphQL provider and real Server/Runtime/PostgreSQL, with fail-on-missing/skip/zero-case
+  behavior; no access to a live shared Caido instance is required for deterministic acceptance.

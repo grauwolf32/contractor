@@ -1,0 +1,85 @@
+schema_version: "1.0"
+id: V372-014
+title: "Decode executionConfig patch members with strictjson"
+milestone: hub-audit-defects-2026-10
+epic: workflows
+kind: chore
+priority: P3
+status: completed
+implementation_commit: "1349797e8558493e5a785adeb64e748c6ffb472d"
+depends_on: []
+languages: [go]
+goal: "ExecutionConfigPatch and its member types, and the other UnmarshalJSON methods that decode object members with encoding/json, reject duplicate members by themselves, as AGENTS.md section 6 requires of a type with its own UnmarshalJSON, instead of relying on every caller's outer decoder."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2e: V370-006), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/api/public-api.md#API-R71"
+  revalidated: >-
+    2026-10-24 on b523ae77: the patch finding still holds; lines were
+    re-read and updated. The ToolArgumentBinding sibling is fixed:
+    V403-001 (da03452d) made it decode through contracts.DecodeStrictObject
+    (internal/contracts/common.go:146-153, strictjson.DecodeNonNull first),
+    so it rejects duplicate and case-alias members itself and is dropped
+    from scope. A new sibling appeared: reporting.ToolArguments
+    (138aca3d, V407-020 review) decodes an object with encoding/json and
+    relies on the private codec's earlier duplicate check.
+  finding: >-
+    ExecutionConfigPatch.UnmarshalJSON
+    (internal/config/resolved/execution_config_patch.go:46) and the Stage and
+    selection patches (unmarshalJSON at :86 and :120) decode each object
+    through decodePatchObject (:149-160), which uses json.NewDecoder with
+    DisallowUnknownFields into a map[string]json.RawMessage (:153-157): a
+    repeated member silently keeps the last value, and DisallowUnknownFields
+    has no effect on a map. decodeOptionalString (:162-174) reads string
+    members with json.Unmarshal (:170). Unknown members are still rejected
+    by the explicit switches, and today every caller decodes the enclosing
+    value strictly: the public request decoder (CreateRunRequest.executionConfig,
+    internal/httpapi/public/types_run_project.go:32, and the profile value
+    at :292); runrepeat (internal/runrepeat/snapshot.go:38 and :68-70,
+    strictjson.Decode); evaldomain.DecodeInto, which validates the original
+    bytes first (internal/evaldomain/schema.go:101-114, types.go:78). So no
+    duplicate reaches the patch now, but a future caller that decodes a
+    patch with encoding/json would accept {"modelPolicy":"a","modelPolicy":"b"}.
+    The decoder predates the shallow history (boundary 6349621).
+  siblings: >-
+    In scope: reporting.ToolArguments.UnmarshalJSON
+    (internal/contracts/reporting/telemetry.go:78-90) decodes a
+    map[string]any with json.NewDecoder and UseNumber and relies, per its
+    comment, on the private codec's scan having rejected duplicate member
+    names; it is decoded from agent_state.go:50. Fixed already:
+    contracts.ToolArgumentBinding (internal/contracts/tool_execution.go:45-50,
+    DecodeStrictObject since V403-001). Ruled out (re-checked on b523ae77):
+    methods that decode only a scalar or an array (SecretString,
+    common.go:241; PerformanceMetricsVersions, reporting/performance.go:47;
+    runRuntimeLabels, types_run_project.go:42; the labels array of
+    runtimeAgentLabelsMutationRequest after its strict envelope,
+    types_configuration.go:228-241) or only test the presence of a member
+    after a strict decode (AllocationSpec runtimeSettings,
+    contracts/control/allocation.go:206; createCredentialRequest
+    gatewayPolicy, types_configuration.go:52; findingintake.Submission
+    httpEvidence, internal/findingintake/types.go:72-87); runMetadataLabels
+    (types_run_project.go:55) walks tokens and rejects duplicates itself.
+    Persisted Run and Stage snapshot reads are V372-028.
+scope:
+  in:
+    - "decodePatchObject and decodeOptionalString decode with strictjson (or call strictjson.RejectDuplicateKeys before decoding), so duplicate members and data after the value are rejected by the patch types themselves."
+    - "reporting.ToolArguments rejects duplicate member names itself while keeping its number literals (UseNumber) and its LIM-OBS-16 checks."
+    - "Tests that decode a patch and a ToolArguments value with a repeated member through plain json.Unmarshal and expect a rejection."
+  out:
+    - "The patch grammar, its merge rules and its digests."
+    - "The ToolArguments size and number rules (OBS-R42, LIM-OBS-16)."
+acceptance_criteria:
+  - id: A1
+    given: "an ExecutionConfigPatch, a Stage patch, a selection patch and a ToolArguments value, each with one repeated member at any depth"
+    when: "it is decoded with plain json.Unmarshal"
+    then: "decoding fails"
+  - id: A2
+    text: "Run creation, repeat drafts, Eval documents and Worker state reports with valid values decode as before, and the patch digests are unchanged."
+  - id: A3
+    text: "The A1 tests fail on b523ae77."
+tests:
+  - command: "go test ./internal/config/... ./internal/runrepeat ./internal/evaldomain ./internal/contracts/..."
+    covers: [A1, A2, A3]
+  - command: "go test ./internal/httpapi/public ./internal/telemetry"
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]

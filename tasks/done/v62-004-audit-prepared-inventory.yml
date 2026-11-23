@@ -1,0 +1,70 @@
+schema_version: "1.0"
+id: V62-004
+title: Build the first Audit worklist from accepted preparation artifacts
+milestone: audit-workflow-composition
+epic: audits
+kind: feature
+priority: P1
+status: completed
+implementation_commit: 114716409000993efb3b8c7a1a7357749f9f21aa
+depends_on: [V62-003]
+languages: [go, json, yaml]
+goal: Generate a bounded immutable initial inventory from the exact OpenAPI or checklist produced by preparation.
+context:
+  authority: User requested analysis then OpenAPI then checks inside one Audit.
+  design: docs/plans/2026-09-20-audit-workflow-composition.md
+  specification: [docs/spec/audits/audits.md, docs/spec/artifacts/artifact-store.md]
+  contract: V62-001 fixes the explicit inventory source union and V62-003 establishes accepted preparation outputs.
+scope:
+  in:
+    - Resolve prepared inventory sources only from accepted retained role output revisions and validate declared media/format contracts.
+    - Reuse deterministic builders with bounded expansion and gap semantics, retaining V62-009 scan-specific coverage separately from operation-trace inventories.
+    - Persist derived source identity, inventory digest, immutable tasks, initial coverage and the first Round in a recoverable atomic acceptance path.
+    - Reject malformed, missing, oversized and unaccepted outputs with explicit reasons and no placeholder successful worklist.
+    - Preserve original baseline and prepare lineage; expose generated coverage denominator only once its worklist has been accepted.
+    - Respect concurrent cancel/delete/claims and recover crashes between retained source, generated packages and Round acceptance.
+    - Publish a complete source-to-scan profile using one existing openapi-from-workspace@7 prepare role and the V62-009 adapter; do not require standalone project-analysis.
+  out:
+    - Mutate an accepted worklist, accept model-created Run IDs or item authority, or fetch remote OpenAPI references.
+deliverables:
+  - path: internal/auditdomain
+    description: Source-agnostic deterministic inventory reuse and exact generated-source provenance.
+  - path: internal/auditservice
+    description: Initial worklist builder over retained prepare outputs and immutable task packages.
+  - path: internal/auditstore
+    description: Fenced atomic first-Round acceptance and replay invariants.
+  - path: internal/auditcontroller
+    description: Preparation-to-inventory transition and explicit inventory failure outcomes.
+  - path: configs/audit-profiles
+    description: Single-prepare generated-OpenAPI scan profile using existing Workflow versions and delivered scanner bindings.
+acceptance_criteria:
+  - id: A1
+    text: Generated OpenAPI with three supported operations creates exactly three correctly attributed items, and the same retained input deterministically reproduces the same inventory digest.
+  - id: A2
+    text: Generated checklists, direct-input inventories and standards remain valid; original baseline and accepted worklists never change.
+  - id: A3
+    text: Invalid/over-limit/unaccepted/zero-usable input follows the specified failure or explicit empty/gap policy without claiming successful coverage.
+  - id: A4
+    text: Concurrent reconciliation, restart and cancel/delete during package publication yield at most one accepted initial Round and no orphaned authoritative items.
+tests:
+  - command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditservice ./internal/auditstore ./internal/auditcontroller
+    covers: [A1, A2, A3, A4]
+  - command: go test ./internal/config
+    covers: [A2, A3]
+test_prerequisites:
+  - Disposable PostgreSQL for mandatory acceptance, race, cancellation and restart cases.
+verification_requirements:
+  - Include YAML/JSON ordering invariance, unsupported operations/gaps and exact retained revision checks rather than asserting only item counts.
+
+acceptance_verification:
+  verified_on: "2026-10-09"
+  evidence: tasks/evidence/v62-004.json
+  result: A1–A4 passed against disposable PostgreSQL 17.11 with zero skipped test cases.
+  integration_cases: 1694
+  preparation_race_cases: 35
+  inventory_final_race_cases: 16
+  source_deletion_final_race_cases: 1
+  identity_final_race_cases: 2
+  public_api: passed
+  ui_client_cases: 39
+  scope_limit: Real generated-flow process/browser acceptance remains V62-012; richer provenance and preparation UI remain V62-010/011.

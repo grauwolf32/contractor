@@ -1,0 +1,26 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: iterative-model-free-fixture, version: "1"}
+spec:
+  parameters:
+    target: {required: true}
+  inputs: {}
+  outputs:
+    report: {required: true, primary: true, mediaTypes: [application/json]}
+  entryStage: probe
+  stages:
+    probe:
+      objective: Run one deterministic fixture operation without iterative Audit state
+      instructions: {ref: instructions/iterative-model-free-fixture.md}
+      planner: passthrough@1
+      agents:
+        scanner: {template: iterative-model-free-fixture@1}
+      context: {artifacts: {}}
+      result:
+        artifacts:
+          report: {required: true, mediaTypes: [application/json], from: {namespace: scanner, name: report}}
+      workflowOutputs: {report: report}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

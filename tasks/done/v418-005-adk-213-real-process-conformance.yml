@@ -1,0 +1,201 @@
+schema_version: '1.0'
+id: V418-005
+title: Verify ADK 2.13 across real Run and allocation processes
+milestone: adk-213-upgrade-2026-10
+epic: execution-core
+kind: chore
+priority: P1
+status: completed
+depends_on:
+- V418-003
+- V418-004
+- V418-010
+languages:
+- go
+- python
+- markdown
+goal: Prove the migrated Worker behaves correctly through real Server, Runtime, A2A and PostgreSQL boundaries,
+  including completion, cancellation, receipts and release.
+context:
+  authority: 'User request on 2026-10-25: plan the ADK 2.13 upgrade with every identified compatibility
+    change, adjust the existing compaction series, and keep model consultation as a proposal. These pending
+    tasks do not start implementation or change the current delivery focus.'
+  review: tasks/evidence/v418-adk-213-review.json
+  specification:
+  - docs/spec/execution/runs.md
+  - docs/spec/execution/runtime-agent.md
+  - docs/spec/execution/worker.md
+  - docs/spec/audits/worker-completion.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/platform/lifecycle.md
+  - docs/testing/README.md
+  finding: The exploratory run skipped test_audit_completion_e2e because it requires the real Go Artifact
+    API. Unit and in-memory Runner results cannot prove publication receipt handling, transport cancellation,
+    immutable allocation inputs or real cleanup. Existing family gates already cover these boundaries
+    and must be extended/reused rather than replaced by a fake store.
+  implementation_boundary: Preserve the owning Contractor contracts; update numbered specs, limits/error/failure/lifecycle
+    registries and affected implementations together when an explicit clarification is necessary. No ADK-version
+    branches, legacy readers, dual production runtimes, model replacement, silent retries, new receipt
+    store or speculative public API. Read current code and re-establish the dated evidence before implementation.
+  process_evidence: tasks/evidence/v418-adk-213-process-spine.json
+scope:
+  in:
+  - Extend existing process fixtures/gates with the migrated continuation, parallel-tool, deadline and
+    allocation-release cases.
+  - Required-case inventory and safe revision/lock evidence for real-process acceptance.
+  out:
+  - New A2A/public protocol operations, receipt tables, production deployment/database changes or a duplicate
+    broad e2e runner.
+  - Live model quality calls, compaction or consultation activation.
+acceptance_criteria:
+- id: A1
+  given: Real Server/Runtime/PostgreSQL and deterministic Gateway
+  when: Ordinary and Audit completion scenarios run
+  then: Useful continuation, one result owner, exact model pins and real publication receipts are proven
+    without skipped required cases.
+- id: A2
+  given: Every cancellation/deadline/lease and cleanup transition
+  when: Process fault injection runs
+  then: No unowned local work survives release and no new semantic call starts after the stop boundary;
+    already-dispatched uncertain remote effects reconcile through existing receipts, authorized terminal
+    cleanup stays bounded, and failure/retryability remain correctly classified.
+- id: A3
+  given: Lost publication acknowledgement and a later SDK turn
+  when: Existing receipt reconciliation occurs
+  then: The original committed effect is reused exactly once and request history remains truthful.
+- id: A4
+  given: Two allocations and invalid/unknown/model-error scenarios
+  when: Real transport and database readers observe them
+  then: Isolation, strict admission, safe telemetry and authoritative terminal state match the contracts.
+- id: A5
+  given: Required-case inventory and actual family reports
+  when: The process verification is recorded
+  then: All required cases executed and passed with revision/lock digests; no mocked-store or skipped-harness
+    result is counted as acceptance.
+tests:
+- command: make test-control-integration
+  covers:
+  - A2
+  - A4
+- command: make test-audit-completion-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A5
+- command: make test-worker-session-modes-e2e
+  covers:
+  - A1
+  - A2
+  - A4
+  - A5
+- command: make test-worker-observations-e2e
+  covers:
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-worker-summarizer-e2e
+  covers:
+  - A1
+  - A2
+  - A5
+- command: make test-agent-skills-mvp
+  covers:
+  - A4
+  - A5
+- command: make test-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A5
+requirements:
+- id: R1
+  text: Use real Go Server/Artifact API, locked Python Runtime processes, disposable PostgreSQL with required
+    permissions and a deterministic Gateway. Never mark missing DB, unreachable configured DB, zero cases
+    or the audit completion harness skip as success.
+- id: R2
+  text: Cover ordinary and Audit Workers, shared and isolated sessions, multiple completion reminders,
+    terminal summarization where already supported, result finalizer and model-free control. One logical
+    invocation/collector remains authoritative through multiple SDK turns.
+- id: R3
+  text: Inject main/tool/finalizer/summarizer cancellation, expiry between steps, child-originated parallel
+    cancellation, failed cleanup and lease loss. Prove joined local work before resource removal and no
+    new semantic dispatch after cancellation/deadline. An already-sent remote write may complete ambiguously
+    and follows existing receipts; separately authorized WRK-R168 terminal auto-export/State finalization
+    retains its independent cleanup budget. Distinguish callback admission from provider requests; no
+    unowned local callback survives release.
+- id: R4
+  text: Force accepted Artifact/result publication with lost acknowledgement and reuse the existing receipt/natural
+    key. Preserve completed sibling outputs, proven never-dispatched calls and explicitly uncertain dispatched
+    outcomes; never blindly repeat a committed or possibly committed side effect or create another publication
+    to repair history.
+- id: R5
+  text: Run unknown tool, invalid raw arguments and empty/thought-only/output-limit cases through the
+    real private transport. Server-observed failure/state/metrics agree with Runtime; no success claim
+    precedes the authoritative result.
+- id: R6
+  text: Verify successive allocations, failed prepare rollback, exact published config/model pins, no
+    cross-session secrets/Skill activation and idempotent release retry. Update real-store regressions
+    in the packages touched by any fix.
+- id: R7
+  text: Use existing session, observation, summarizer, Skill and Audit gates directly; inspect actual
+    case reports when release consolidation skips a family invocation. Add only missing cases and a required-case
+    inventory tied to actual test names.
+test_prerequisites:
+- Commands below are future implementation acceptance gates, not checks already passed by this planning
+  change. A required command, selected case or dependency setup must not be skipped or match zero tests.
+- Run full suites of every touched package/module, in addition to focused regressions. Use real ADK dispatch
+  and controlled Gateway responses; persistence/process claims require disposable real PostgreSQL and
+  real Server/Runtime processes. Never read live configs from unit tests; use testdata and pseudo-Skills.
+- Use injected clocks, synchronization barriers, work/row/byte counters and bounded fixture sizes. Timing
+  samples are informational, never flaky wall-clock pass thresholds. Keep configured live models unchanged;
+  no live Gateway is part of these deterministic tasks.
+- Use the repository lock for acceptance, except the explicitly isolated candidate characterization in
+  V418-001. Preserve unrelated user changes. Record the tested revision, lock digest, command, executed
+  case count, skips and outcome. The 326-case exploratory run is not a substitute for make test-runtime
+  or a release gate.
+failure_outcomes:
+- operation: Runtime operation at the changed boundary
+  permanent: Strict invalid input or unsupported SDK behavior fails with the owning classified outcome;
+    no permissive fallback or endless retry. A required verification failure blocks completion.
+  retryable: Reuse the existing bounded transport/recovery or cleanup policy only; no SDK upgrade-specific
+    retry loop or rerun-until-green.
+  ambiguous: Reconcile existing receipts, trusted observations and the same operation identity. Test evidence
+    preserves the original uncertain outcome; never repeat an external append or side effect blindly.
+  cancelled: The existing invocation/allocation or fixture owner cancels and joins all work before cleanup;
+    no later dispatch or unowned callback may outlive release.
+  timeout: Execution deadline, per-request timeout, cleanup timeout and harness timeout remain distinct;
+    injected expiration cannot start a new admitted attempt.
+cardinality:
+- collection: Calls, event history, retained State/metrics and fixture cases
+  expected: Several sequential logical invocations, parallel tool batches and multiple internal Runner
+    turns; scale task adds long histories.
+  maximum: Existing owning model/tool/subtask/State/Skill byte and item ceilings; V418-006 must inventory
+    the containing limits before choosing maximum fixtures.
+  bound: Work follows admitted finite inputs and retained history; no unbounded full-catalog scan, private-history
+    copy or unrestricted per-callback rescan. Verify bytes/items/work counters, not only input length.
+lifecycle:
+- entity: Existing allocation-local sessions, clients, tools, callbacks and test evidence
+  delete: Existing invocation/allocation owner or isolated test harness owns teardown; never touch another
+    allocation or user database.
+  cascade: Join generators, tools, clients and serializers before deleting session/workspace state. Preserve
+    required publication receipts through their existing owner.
+  retention: No new durable runtime entity. Keep only bounded safe test evidence and ordinary published
+    results under existing retention policies.
+verification:
+  required_commands: All8targets covered:7actual Linux make executions on clean a308 and verified actual
+    integrated host make lint reused after13owned-file equivalence. No required case skipped or zero matched.
+  process_cases: Native11leaves; session16leaves; summarizer6leaves; routing/escalation and Skill MVP
+    actual parents all pass. Canonical test-e2e26required parents/68total unique test records pass,0fail/skip.
+  audit: Real Go Artifact API/Runtime ZIPImporter executed:203Go passrecords and469Runtimecases, all60requiredGo
+    entries/117requiredPython names satisfied,0fail/skip.
+  auxiliary: Earlier jq-helper skips preserved, prerequisite installed and exact helper subsequently passes.
+    Optional externalCollector skip remains labelled; package-only no-test events are not case passes.
+    Full source/lock/command/report hashes are retained.
+implementation_commit: 4120f6426cadcf0f1167a4b4d3f56adc4131d7df

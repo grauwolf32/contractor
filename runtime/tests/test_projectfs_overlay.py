@@ -1,0 +1,335 @@
+from __future__ import annotations
+
+import asyncio
+import shutil
+import subprocess
+import time
+from pathlib import Path
+
+import pytest
+from test_projectfs_zip import archive, settings, workspace_inputs
+
+from contractor_runtime.projectfs import (
+    LocalWorkspaceProvider,
+    MemoryWorkspaceProvider,
+    OverlayWorkspaceSession,
+    WorkspaceStorageError,
+    decode_workspace_state,
+    hydrate_workspace,
+    overlay,
+)
+from contractor_runtime.projectfs.config import WorkspaceLimits
+from contractor_runtime.projectfs.storage import ManagedWorkspaceTree
+
+
+def test_overlay_mutation_state_and_diff_match_across_unchanged_lowers(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        spec, reader = workspace_inputs(
+            [
+                (
+                    "source",
+                    "",
+                    archive(
+                        {
+                            "README.md": b"before\n",
+                            "old.txt": b"remove me\n",
+                            "kind/child.txt": b"child\n",
+                            "logo.bin": b"\x00\xff",
+                        }
+                    ),
+                )
+            ]
+        )
+        spec.mode = "overlay"
+        local_provider = LocalWorkspaceProvider(settings("local", tmp_path / "local"))
+        memory_provider = MemoryWorkspaceProvider(settings("memory"))
+        sessions = [
+            await hydrate_workspace(
+                provider=local_provider,
+                spec=spec,
+                artifact_reader=reader,
+                allocation_id="local",
+                timeout_seconds=5,
+            ),
+            await hydrate_workspace(
+                provider=memory_provider,
+                spec=spec,
+                artifact_reader=reader,
+                allocation_id="memory",
+                timeout_seconds=5,
+            ),
+        ]
+        assert all(isinstance(session, OverlayWorkspaceSession) for session in sessions)
+
+        for session in sessions:
+            assert not Path(f"{session.storage.root}/run_workdir").exists()
+            await session.write_text("README.md", "after\n")
+            await session.delete_path("old.txt")
+            await session.make_directory("new/deep", parents=True)
+            await session.write_text("new/deep/file.txt", "created\n")
+            await session.delete_path("kind", recursive=True)
+            await session.write_text("kind", "directory became file\n")
+            with pytest.raises(WorkspaceStorageError, match="binary"):
+                await session.write_text("logo.bin", "not allowed")
+
+        snapshots = [await session.snapshot() for session in sessions]
+        states = [(await session.prepare_export()).state for session in sessions]  # type: ignore[attr-defined]
+        diffs = [await session.diff(max_bytes=65536) for session in sessions]  # type: ignore[attr-defined]
+        assert snapshots[0] == snapshots[1]
+        assert states[0] == states[1]
+        assert diffs[0] == diffs[1]
+        assert not diffs[0].truncated
+        assert "a/README.md" in diffs[0].text
+        assert "b/new/deep/file.txt" in diffs[0].text
+
+        for session in sessions:
+            source = session._source  # type: ignore[attr-defined]
+            reconstructed = decode_workspace_state(states[0], source, session.limits)
+            assert reconstructed.snapshot() == snapshots[0]
+            assert not Path(f"{session.storage.root}/run_workdir").exists()
+
+        await local_provider.cleanup(sessions[0].storage)
+        await memory_provider.cleanup(sessions[1].storage)
+
+    asyncio.run(scenario())
+
+
+def test_overlay_rolls_back_to_checkpoint_and_bounds_diff(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        spec, reader = workspace_inputs(
+            [("source", "", archive({"a.txt": b"one\n", "b.txt": b"two\n"}))]
+        )
+        spec.mode = "overlay"
+        provider = MemoryWorkspaceProvider(settings("memory"))
+        session = await hydrate_workspace(
+            provider=provider,
+            spec=spec,
+            artifact_reader=reader,
+            allocation_id="rollback",
+            timeout_seconds=5,
+        )
+        assert isinstance(session, OverlayWorkspaceSession)
+
+        await session.write_text("a.txt", "changed\n")
+        await session.write_text("new.txt", "new\n")
+        assert tuple(entry.path for entry in await session.change_entries()) == ("a.txt", "new.txt")
+        await session.rollback_changes("a.txt")
+        assert await session.read_text("a.txt") == "one\n"
+        assert tuple(entry.path for entry in await session.change_entries()) == ("new.txt",)
+        await session.commit_export(await session.prepare_export())
+        assert tuple(entry.path for entry in await session.change_entries()) == ()
+
+        await session.write_text("new.txt", "x" * 1024)
+        bounded = await session.diff(max_bytes=64)
+        assert bounded.returned_bytes <= 64
+        assert bounded.truncated
+        await session.rollback_changes()
+        assert await session.read_text("new.txt") == "new\n"
+        with pytest.raises(WorkspaceStorageError, match="not_found"):
+            await session.rollback_changes("missing")
+
+        await session.close()
+        assert session._source.text_files == {}
+        await provider.cleanup(session.storage)
+
+    asyncio.run(scenario())
+
+
+def test_overlay_write_limits_hold_across_writes_without_revalidating_tree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        spec, reader = workspace_inputs(
+            [("source", "", archive({"a.txt": b"12345", "dir/b.txt": b"12345"}))]
+        )
+        spec.mode = "overlay"
+        limits = WorkspaceLimits(
+            max_files=5, max_expanded_bytes=20, max_managed_text_bytes=16, max_file_bytes=10
+        )
+        provider = MemoryWorkspaceProvider(settings("memory", limits=limits))
+        session = await hydrate_workspace(
+            provider=provider,
+            spec=spec,
+            artifact_reader=reader,
+            allocation_id="write-limits",
+            timeout_seconds=5,
+        )
+        assert isinstance(session, OverlayWorkspaceSession)
+
+        def unexpected_tree_validation(*_: object) -> None:
+            raise AssertionError("text writes must not re-validate the whole tree")
+
+        monkeypatch.setattr(overlay, "_validate_tree", unexpected_tree_validation)
+
+        # Overwrites are charged by their delta: 5 + 5 -> 10 + 5 fits in 16.
+        await session.write_text("a.txt", "x" * 10)
+        with pytest.raises(WorkspaceStorageError, match="workspace_limit_exceeded"):
+            await session.write_text("dir/b.txt", "y" * 7)
+        await session.write_text("dir/b.txt", "y" * 6)
+        with pytest.raises(WorkspaceStorageError, match="workspace_limit_exceeded"):
+            await session.write_text("c.txt", "z")
+        # Shrinking releases bytes for later writes; UTF-8 bytes are charged.
+        await session.write_text("a.txt", "é")
+        await session.write_text("c.txt", "z" * 8)
+        assert await session.read_text("a.txt") == "é"
+        with pytest.raises(WorkspaceStorageError, match="workspace_limit_exceeded"):
+            await session.write_text("d.txt", "w")
+
+        monkeypatch.undo()
+        # A replaced tree is recounted before the next incremental write.
+        await session.delete_path("c.txt")
+        await session.write_text("d.txt", "w" * 8)
+        with pytest.raises(WorkspaceStorageError, match="workspace_limit_exceeded"):
+            await session.write_text("e.txt", "v")
+        await session.rollback_changes()
+        monkeypatch.setattr(overlay, "_validate_tree", unexpected_tree_validation)
+        await session.write_text("e.txt", "v")
+        await session.write_text("f.txt", "u")
+        with pytest.raises(WorkspaceStorageError, match="workspace_limit_exceeded"):
+            await session.write_text("g.txt", "t")
+        await session.write_text("f.txt", "u" * 5)
+        with pytest.raises(WorkspaceStorageError, match="workspace_limit_exceeded"):
+            await session.write_text("f.txt", "u" * 6)
+        assert tuple(entry.path for entry in await session.change_entries()) == ("e.txt", "f.txt")
+
+        await session.close()
+        await provider.cleanup(session.storage)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is required to apply the patch")
+@pytest.mark.parametrize("line_pair_budget", [overlay.MAX_DIFF_LINE_PAIRS, 0])
+def test_workspace_diff_is_a_patch_git_applies_exactly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, line_pair_budget: int
+) -> None:
+    monkeypatch.setattr(overlay, "MAX_DIFF_LINE_PAIRS", line_pair_budget)
+    before = ManagedWorkspaceTree(
+        directories={"dir"},
+        text_files={
+            "grows.txt": "one\ntwo",
+            "shrinks.txt": "one\ntwo\n",
+            "separators.txt": "a\fb\x1cc\x1dd\x1ee\x85f\u2028g\u2029h\vi\n",
+            "progress.log": "fetch 10%\rfetch 20%\ndone\n",
+            "crlf.txt": "x\r\ny\r\n",
+            "dir/removed.txt": "gone",
+        },
+        binary_paths={"image.bin"},
+    )
+    after = ManagedWorkspaceTree(
+        directories={"dir"},
+        text_files={
+            "grows.txt": "one\ntwo\nthree",
+            "shrinks.txt": "one\ntwo",
+            "separators.txt": "a\fb\x1cc\x1dd\x1ee\x85f\u2028g\u2029H\vi\n",
+            "progress.log": "fetch 10%\rfetch 30%\ndone\n",
+            "crlf.txt": "x\r\nY\r\n",
+            "dir/created.txt": "new",
+        },
+    )
+    patch = overlay._workspace_diff(before, after, "", overlay.MAX_DIFF_BYTES, 0).text
+    assert patch.count("\\ No newline at end of file\n") == 5
+    assert "Binary path changed: image.bin\n" in patch
+    # Hunks count only LF-terminated lines: other separators stay in content.
+    assert "@@ -1 +1 @@" in patch and "@@ -1,2 +1,2 @@" in patch
+
+    work = tmp_path / "work"
+    for path, text in before.text_files.items():
+        (work / path).parent.mkdir(parents=True, exist_ok=True)
+        (work / path).write_bytes(text.encode("utf-8"))
+    (tmp_path / "change.patch").write_bytes(patch.encode("utf-8"))
+    applied = subprocess.run(
+        ["git", "apply", "--whitespace=nowarn", str(tmp_path / "change.patch")],
+        cwd=work,
+        capture_output=True,
+        check=False,
+    )
+    assert applied.returncode == 0, applied.stderr
+    assert not (work / "dir/removed.txt").exists()
+    for path, text in after.text_files.items():
+        assert (work / path).read_bytes() == text.encode("utf-8"), path
+
+
+def test_rolling_back_one_file_restores_parents_deleted_after_checkpoint() -> None:
+    async def scenario() -> None:
+        spec, reader = workspace_inputs(
+            [
+                (
+                    "source",
+                    "",
+                    archive(
+                        {
+                            "dir/a.txt": b"a\n",
+                            "dir/b.txt": b"b\n",
+                            "deep/er/c.txt": b"c\n",
+                            "kind/d.txt": b"d\n",
+                        }
+                    ),
+                )
+            ]
+        )
+        spec.mode = "overlay"
+        provider = MemoryWorkspaceProvider(settings("memory"))
+        session = await hydrate_workspace(
+            provider=provider,
+            spec=spec,
+            artifact_reader=reader,
+            allocation_id="rollback-parents",
+            timeout_seconds=5,
+        )
+        assert isinstance(session, OverlayWorkspaceSession)
+        await session.delete_path("dir", recursive=True)
+        await session.delete_path("deep", recursive=True)
+
+        await session.rollback_changes("dir/a.txt")
+        assert await session.read_text("dir/a.txt") == "a\n"
+        assert tuple(entry.path for entry in await session.change_entries()) == (
+            "deep",
+            "deep/er",
+            "deep/er/c.txt",
+            "dir/b.txt",
+        )
+        await session.rollback_changes("deep/er/c.txt")
+        assert await session.read_text("deep/er/c.txt") == "c\n"
+        assert tuple(entry.path for entry in await session.change_entries()) == ("dir/b.txt",)
+
+        # A parent that became a file is not silently replaced.
+        await session.delete_path("kind", recursive=True)
+        await session.write_text("kind", "now a file\n")
+        with pytest.raises(WorkspaceStorageError, match="workspace_type_conflict"):
+            await session.rollback_changes("kind/d.txt")
+        assert await session.read_text("kind") == "now a file\n"
+
+        await session.close()
+        await provider.cleanup(session.storage)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is required to apply the patch")
+def test_pathological_workspace_diff_is_bounded_and_applies_exactly(tmp_path: Path) -> None:
+    # Repetitive lines separated by unique anchors make an unbounded matcher
+    # repeatedly search large regions. Both sides exceed 4 MiB.
+    before_text = "".join(f"anchor-{n}\n" + "a\n" * 200 for n in range(11000))
+    after_text = "".join(f"anchor-{n}\n" + "b\n" * 200 for n in range(11000))
+    before = ManagedWorkspaceTree(text_files={"large.txt": before_text})
+    after = ManagedWorkspaceTree(text_files={"large.txt": after_text})
+    started = time.monotonic()
+    patch = overlay._workspace_diff(before, after, "", 16 << 20, 0)
+    elapsed = time.monotonic() - started
+    assert elapsed < 5, f"large repetitive diff held the session lock for {elapsed:.3f}s"
+    assert not patch.truncated
+    assert patch.text.count("@@") == 2
+    (tmp_path / "large.txt").write_bytes(before_text.encode())
+    patch_path = tmp_path / "change.patch"
+    patch_path.write_bytes(patch.text.encode())
+    applied = subprocess.run(
+        ["git", "apply", "--whitespace=nowarn", str(patch_path)],
+        cwd=tmp_path,
+        capture_output=True,
+        check=False,
+    )
+    assert applied.returncode == 0, applied.stderr
+    assert (tmp_path / "large.txt").read_bytes() == after_text.encode()

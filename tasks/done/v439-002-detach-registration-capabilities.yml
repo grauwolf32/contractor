@@ -1,0 +1,39 @@
+schema_version: "1.0"
+id: V439-002
+title: "Detach every nested registration value from Registry snapshots"
+milestone: controlplane-review-2026-11
+epic: execution-core
+kind: defect
+introduced_by: V39-001
+priority: P1
+status: completed
+implementation_commit: 52b1324f95a3e4c8a214e60e66fb00b7b61e474e
+depends_on: []
+languages: [go]
+goal: "Mutating any returned or supplied registration cannot change Registry-owned capabilities or observed allocation identity."
+context:
+  integration_note: "Renumbered from V438-002 during the user-requested 2026-11-02 main merge: main independently assigned V438-001 to the Scheduler review. Existing implementation commits are retained."
+  authority: "User decision 2026-11-02: fix the two reviewed controlplane defects and implement the proposed refactoring; engagementadapter is a child package of controlplane."
+  specification:
+    - docs/spec/execution/control-plane.md#CTL-R33
+  finding: >-
+    internal/controlplane/registry_clone.go:17 omits Capabilities deep copying, so PlacementCandidates and registration results expose the frozen completion-contract slice. NormalizeAgentRegistration also borrows the observed AllocationID pointer.
+  siblings: >-
+    contracts/control.NormalizeAgentRegistration already copies completion capabilities, while Registry uses a separate incomplete clone. Registration input, registration result, PlacementCandidates, completion capability reservations and workspace capability snapshots all need detached nested values.
+  decision: >-
+    AgentRegistration owns a single deep Clone implementation; normalization and Registry snapshots use it. Runtime capability sets remain immutable; protocol validation and fingerprint ordering remain unchanged.
+scope:
+  in:
+    - "One production-used AgentRegistration.Clone shared by normalization and Registry snapshots."
+    - "Regression coverage through registration and placement reads for every nested field, including allocation ID."
+  out:
+    - "No wire schema, user configuration, database schema or Runtime execution behavior changes."
+acceptance_criteria:
+  - {id: A1, text: "Mutation of returned completion capabilities never changes later placement snapshots or completion matching."}
+  - {id: A2, text: "Normalization and cloning detach all nested registration data, including AllocationID."}
+  - {id: A3, text: "The new regression fails before the fix and the wire fixture suite retains current behavior."}
+tests:
+  - {command: "go test -race -count=1 ./internal/contracts/control ./internal/controlplane/...", covers: [A1, A2, A3]}
+verification:
+  regression_before_fix: "Registration-result mutation changed the capability returned by PlacementCandidates."
+  result: "Complete contracts/control and controlplane suites passed with real PostgreSQL and -race."

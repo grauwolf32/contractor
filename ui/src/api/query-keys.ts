@@ -1,0 +1,582 @@
+import type { ArtifactArchiveScope } from "./artifact-archive";
+import type { CostScope } from "./llm-cost";
+
+interface CatalogRef {
+  name: string;
+  version: string;
+  digest: string;
+}
+
+function runtimeDiagnosticQueries(runId: string) {
+  return ["attempt-runtime-diagnostics", runId] as const;
+}
+
+function toolCallQueries(runId: string) {
+  return ["attempt-tool-calls", runId] as const;
+}
+
+export const queryKeys = {
+  llmCost: (
+    scope: CostScope,
+    id: string,
+    executionIds: readonly string[] = [],
+  ) => ["llm-cost", scope, id, executionIds] as const,
+  session: ["auth", "session"] as const,
+  workflows: {
+    inventory: ["workflows", "inventory"] as const,
+    detail: (name: string, version: string) =>
+      ["workflows", "detail", name, version] as const,
+  },
+  projects: {
+    all: ["projects"] as const,
+    lists: (kind: string) => ["projects", "list", kind] as const,
+    list: (kind: string, cursor?: string) =>
+      ["projects", "list", kind, cursor ?? null] as const,
+    detail: (projectId: string) => ["projects", "detail", projectId] as const,
+    artifacts: {
+      all: (projectId: string) =>
+        ["projects", "detail", projectId, "artifacts"] as const,
+      picker: (projectId: string) =>
+        ["projects", "detail", projectId, "artifacts", "picker"] as const,
+      list: (
+        projectId: string,
+        namespace: string | undefined,
+        cursor: string | undefined,
+        order?: "material",
+      ) =>
+        [
+          "projects",
+          "detail",
+          projectId,
+          "artifacts",
+          "list",
+          namespace ?? null,
+          cursor ?? null,
+          order ?? null,
+        ] as const,
+      metadata: (
+        projectId: string,
+        namespace: string,
+        name: string,
+        revision?: string,
+      ) =>
+        [
+          "projects",
+          "detail",
+          projectId,
+          "artifacts",
+          "metadata",
+          namespace,
+          name,
+          revision ?? null,
+        ] as const,
+      versions: (
+        projectId: string,
+        namespace: string,
+        name: string,
+        cursor?: string,
+      ) =>
+        [
+          "projects",
+          "detail",
+          projectId,
+          "artifacts",
+          "versions",
+          namespace,
+          name,
+          cursor ?? null,
+        ] as const,
+      lineage: (
+        projectId: string,
+        namespace: string,
+        name: string,
+        revision: string,
+        cursor?: string,
+      ) =>
+        [
+          "projects",
+          "detail",
+          projectId,
+          "artifacts",
+          "lineage",
+          namespace,
+          name,
+          revision,
+          cursor ?? null,
+        ] as const,
+    },
+    runs: (projectId: string, cursor?: string) =>
+      [
+        "projects",
+        "detail",
+        projectId,
+        "runs",
+        ...(cursor === undefined ? [] : [cursor]),
+      ] as const,
+    runView: (
+      projectId: string,
+      options: {
+        cursor?: string;
+        state?: string;
+        lifecycle?: string;
+        limit: number;
+      },
+    ) => ["projects", "detail", projectId, "runs", "view", options] as const,
+    audits: {
+      all: (projectId: string) =>
+        ["projects", "detail", projectId, "audits"] as const,
+      inventory: (projectId: string) =>
+        ["projects", "detail", projectId, "audits", "inventory"] as const,
+      list: (projectId: string, cursor?: string) =>
+        [
+          "projects",
+          "detail",
+          projectId,
+          "audits",
+          "list",
+          cursor ?? null,
+        ] as const,
+    },
+  },
+  findingCorrelations: {
+    members: (projectId: string, groupKey: string, revision: number) =>
+      [
+        "finding-correlations",
+        "members",
+        projectId,
+        groupKey,
+        revision,
+      ] as const,
+    candidates: (
+      auditId: string,
+      findingId: string,
+      receiptId: string,
+      scope: string,
+      revision: number,
+    ) =>
+      [
+        "audits",
+        "detail",
+        auditId,
+        "finding-correlations",
+        findingId,
+        receiptId,
+        scope,
+        revision,
+      ] as const,
+  },
+  auditProfiles: {
+    all: ["audit-profiles"] as const,
+    detail: (name: string, version: string) =>
+      ["audit-profiles", "detail", name, version] as const,
+  },
+  audits: {
+    detail: (auditId: string) => ["audits", "detail", auditId] as const,
+    events: (auditId: string) =>
+      ["audits", "detail", auditId, "events"] as const,
+    allCoverage: (auditId: string) =>
+      ["audits", "detail", auditId, "coverage", "all"] as const,
+    report: (auditId: string) =>
+      ["audits", "detail", auditId, "report"] as const,
+    allFindings: (auditId: string) =>
+      ["audits", "detail", auditId, "findings", "all"] as const,
+    allItems: (auditId: string) =>
+      ["audits", "detail", auditId, "items", "all"] as const,
+    provenance: (
+      auditId: string,
+      findingId: string,
+      auditRevision: number,
+      findingRevision: number,
+      cursor?: string,
+    ) =>
+      [
+        "audits",
+        "detail",
+        auditId,
+        "findings",
+        findingId,
+        "provenance",
+        auditRevision,
+        findingRevision,
+        cursor ?? null,
+      ] as const,
+  },
+  queue: {
+    all: ["queue"] as const,
+    control: ["queue", "control"] as const,
+    list: (
+      state: string | undefined,
+      membership: string | undefined,
+      cursor: string | undefined,
+    ) =>
+      [
+        "queue",
+        "list",
+        state ?? null,
+        membership ?? null,
+        cursor ?? null,
+      ] as const,
+  },
+  artifacts: {
+    all: ["artifacts"] as const,
+    picker: ["artifacts", "picker"] as const,
+    list: (
+      namespace: string | undefined,
+      cursor: string | undefined,
+      excludeNamespace?: string,
+    ) =>
+      [
+        "artifacts",
+        "list",
+        namespace ?? null,
+        excludeNamespace ?? null,
+        cursor ?? null,
+      ] as const,
+    metadata: (namespace: string, name: string, revision?: string) =>
+      ["artifacts", "metadata", namespace, name, revision ?? null] as const,
+    versions: (namespace: string, name: string, cursor?: string) =>
+      ["artifacts", "versions", namespace, name, cursor ?? null] as const,
+    lineage: (
+      namespace: string,
+      name: string,
+      revision: string,
+      cursor?: string,
+    ) =>
+      [
+        "artifacts",
+        "lineage",
+        namespace,
+        name,
+        revision,
+        cursor ?? null,
+      ] as const,
+  },
+  configurations: {
+    all: ["configurations"] as const,
+    picker: (kind: string) => ["configurations", "picker", kind] as const,
+    infinitePicker: (kind: string) =>
+      ["configurations", "infinite-picker", kind] as const,
+    list: (kind: string, cursor?: string) =>
+      ["configurations", "list", kind, cursor ?? null] as const,
+    detail: (kind: string, name: string, version: string) =>
+      ["configurations", "detail", kind, name, version] as const,
+  },
+  credentials: {
+    all: ["credentials"] as const,
+    picker: ["credentials", "picker"] as const,
+    list: (cursor?: string) => ["credentials", "list", cursor ?? null] as const,
+    detail: (credentialId: string) =>
+      ["credentials", "detail", credentialId] as const,
+  },
+  runs: {
+    runtimeDiagnosticQueries,
+    runtimeDiagnostics: (runId: string, stageExecutionId: string) =>
+      [...runtimeDiagnosticQueries(runId), stageExecutionId] as const,
+    toolCallQueries,
+    toolCalls: (runId: string, stageExecutionId: string) =>
+      [...toolCallQueries(runId), stageExecutionId] as const,
+    toolCallSelection: (runId: string, stageExecutionId: string) =>
+      ["attempt-tool-call-selection", runId, stageExecutionId] as const,
+    all: ["runs"] as const,
+    list: (
+      state: string | undefined,
+      cursor: string | undefined,
+      labelSelectors: readonly string[] = [],
+      lifecycle?: string,
+    ) =>
+      [
+        "runs",
+        "list",
+        state ?? null,
+        lifecycle ?? null,
+        [...labelSelectors],
+        cursor ?? null,
+      ] as const,
+    detail: (runId: string) => ["runs", "detail", runId] as const,
+    artifactsAll: (runId: string) => ["runs", "artifacts", runId] as const,
+    artifacts: (
+      runId: string,
+      namespace: string | undefined,
+      cursor: string | undefined,
+    ) =>
+      [
+        "runs",
+        "artifacts",
+        runId,
+        "list",
+        namespace ?? null,
+        cursor ?? null,
+      ] as const,
+    artifactMetadata: (
+      runId: string,
+      namespace: string,
+      name: string,
+      revision?: string,
+    ) =>
+      [
+        "runs",
+        "artifacts",
+        runId,
+        "metadata",
+        namespace,
+        name,
+        revision ?? null,
+      ] as const,
+    artifactVersions: (
+      runId: string,
+      namespace: string,
+      name: string,
+      cursor?: string,
+    ) =>
+      [
+        "runs",
+        "artifacts",
+        runId,
+        "versions",
+        namespace,
+        name,
+        cursor ?? null,
+      ] as const,
+    artifactLineage: (
+      runId: string,
+      namespace: string,
+      name: string,
+      revision: string,
+      cursor?: string,
+    ) =>
+      [
+        "runs",
+        "artifacts",
+        runId,
+        "lineage",
+        namespace,
+        name,
+        revision,
+        cursor ?? null,
+      ] as const,
+  },
+  operations: {
+    snapshot: ["operations", "snapshot"] as const,
+    performance: {
+      current: ["operations", "performance", "current"] as const,
+      history: (range: string) =>
+        ["operations", "performance", "history", range] as const,
+    },
+    allocationHistory: {
+      list: (runId?: string, cursor?: string) =>
+        [
+          "operations",
+          "allocation-history",
+          "list",
+          runId ?? null,
+          cursor ?? null,
+        ] as const,
+    },
+    schedulerSettings: ["operations", "scheduler-settings"] as const,
+    modelSelection: ["operations", "model-selection"] as const,
+    runtimeConfigs: {
+      all: ["operations", "runtime-configs"] as const,
+      list: (cursor?: string) =>
+        ["operations", "runtime-configs", "list", cursor ?? null] as const,
+      detail: (name: string, version: string) =>
+        ["operations", "runtime-configs", "detail", name, version] as const,
+    },
+    runtimeLabels: {
+      all: ["operations", "runtime-labels"] as const,
+      picker: ["operations", "runtime-labels", "picker"] as const,
+      list: (cursor?: string) =>
+        ["operations", "runtime-labels", "list", cursor ?? null] as const,
+    },
+    runtimeCredentials: {
+      all: ["operations", "runtime-credentials"] as const,
+      picker: ["operations", "runtime-credentials", "picker"] as const,
+      list: (cursor?: string) =>
+        ["operations", "runtime-credentials", "list", cursor ?? null] as const,
+    },
+    runtimeAgentPrincipals: {
+      all: ["operations", "runtime-agent-principals"] as const,
+      list: (cursor?: string) =>
+        [
+          "operations",
+          "runtime-agent-principals",
+          "list",
+          cursor ?? null,
+        ] as const,
+    },
+  },
+  catalog: {
+    agentTemplates: (search: string, cursor: string | undefined) =>
+      ["catalog", "agent-templates", search, cursor ?? null] as const,
+    agentVersions: (name: string) =>
+      ["catalog", "agent-versions", name] as const,
+    agentInstructions: (ref: CatalogRef) =>
+      [
+        "catalog",
+        "agent-instructions",
+        ref.name,
+        ref.version,
+        ref.digest,
+      ] as const,
+    agentUsage: (ref: CatalogRef, cursor: string | undefined) =>
+      [
+        "catalog",
+        "agent-usage",
+        ref.name,
+        ref.version,
+        ref.digest,
+        cursor ?? null,
+      ] as const,
+    auditPresets: ["catalog", "audit-presets"] as const,
+    auditStandard: (scheme: string, version: string) =>
+      ["audit-standards", scheme, version] as const,
+    skillDescription: (ref: {
+      namespace: string;
+      name: string;
+      revision: string;
+    }) => ["skill-description", ref.namespace, ref.name, ref.revision] as const,
+  },
+  evals: {
+    all: ["evals"] as const,
+    projects: ["evals", "projects"] as const,
+    capabilities: ["evals", "capabilities"] as const,
+    datasets: (projectId: string) => ["evals", "datasets", projectId] as const,
+    cases: (projectId: string, datasetId: string, revision: string) =>
+      ["evals", "cases", projectId, datasetId, revision] as const,
+    lists: ["evals", "list"] as const,
+    list: (query: unknown) => ["evals", "list", query] as const,
+    experiment: (experimentId: string | undefined) =>
+      ["evals", "experiment", experimentId] as const,
+    /** Prefix of one experiment's member, pair or chart projections. */
+    projection: (
+      projection: "members" | "pairs" | "chart",
+      experimentId: string,
+    ) => ["evals", projection, experimentId] as const,
+    members: (experimentId: string, query: unknown) =>
+      ["evals", "members", experimentId, query] as const,
+    pairs: (experimentId: string, query: unknown) =>
+      ["evals", "pairs", experimentId, query] as const,
+    chart: (experimentId: string, chart: string, query: unknown) =>
+      ["evals", "chart", experimentId, chart, query] as const,
+    statusReasons: (experimentId: string, query: unknown) =>
+      ["evals", "status-reasons", experimentId, query] as const,
+    pair: (
+      experimentId: string,
+      pairId: string,
+      snapshot: string | undefined,
+    ) => ["evals", "pair", experimentId, pairId, snapshot] as const,
+    inventories: (experimentId: string) =>
+      ["evals", "inventory", experimentId] as const,
+    inventory: (
+      experimentId: string,
+      memberId: string,
+      cursor: string | undefined,
+    ) => ["evals", "inventory", experimentId, memberId, cursor] as const,
+    binding: (kind: string, selector: string) =>
+      ["evals", "binding", kind, selector] as const,
+    review: (
+      experimentId: string,
+      memberId: string,
+      resultDigest: string | null,
+    ) => ["evals", "review", experimentId, memberId, resultDigest] as const,
+    command: (experimentId: string, commandId: string | undefined) =>
+      ["evals", "command", experimentId, commandId] as const,
+    inputArtifacts: (
+      scope: string,
+      projectId: string,
+      cursor: string | undefined,
+    ) => ["evals", "input-artifacts", scope, projectId, cursor] as const,
+  },
+  /**
+   * Bounded cross-project reads (src/api/cross-project.ts). The project index
+   * and the per-project check pages are polled. Per-check reads (`…Of`) are
+   * prefixes: the hooks append the check's revision as the last element.
+   */
+  crossProject: {
+    all: ["cross-project"] as const,
+    projects: ["cross-project", "projects"] as const,
+    allAudits: ["cross-project", "audits"] as const,
+    ownerAudits: (states: string) =>
+      ["cross-project", "audits", "owner", states] as const,
+    ownerFindings: (
+      state: string | null,
+      verdict: string | null,
+      severity: string | null,
+    ) =>
+      ["cross-project", "findings", "owner", state, verdict, severity] as const,
+    audits: (projectId: string, state: string | null) =>
+      ["cross-project", "audits", projectId, state] as const,
+    findingsOf: (
+      auditId: string,
+      state: string | null,
+      verdict: string | null,
+      severity: string | null,
+    ) =>
+      ["cross-project", "findings", auditId, state, verdict, severity] as const,
+    reportOf: (auditId: string) =>
+      ["cross-project", "report", auditId] as const,
+  },
+  /**
+   * Inbox reads (src/routes/inbox) that no other page shares. All are pinned
+   * to a check revision, like the cross-project per-check reads: a revision
+   * never changes, so a read with data is never refetched.
+   */
+  inbox: {
+    all: ["inbox"] as const,
+    /** Workspace counters of one check at one revision. */
+    workspace: (auditId: string, revision: number) =>
+      ["inbox", "workspace", auditId, revision] as const,
+    /** The report of one finished check at one revision; null when none. */
+    report: (auditId: string, revision: number) =>
+      ["inbox", "report", auditId, revision] as const,
+  },
+};
+
+/** Artifact binding keys of one scope; each maps to its scope's family. */
+export function artifactScopeKeys(scope: ArtifactArchiveScope) {
+  switch (scope.kind) {
+    case "user":
+      return {
+        all: queryKeys.artifacts.all,
+        metadata: queryKeys.artifacts.metadata,
+        versions: queryKeys.artifacts.versions,
+        lineage: queryKeys.artifacts.lineage,
+      };
+    case "project": {
+      const keys = queryKeys.projects.artifacts;
+      return {
+        all: keys.all(scope.id),
+        metadata: (namespace: string, name: string, revision?: string) =>
+          keys.metadata(scope.id, namespace, name, revision),
+        versions: (namespace: string, name: string, cursor?: string) =>
+          keys.versions(scope.id, namespace, name, cursor),
+        lineage: (
+          namespace: string,
+          name: string,
+          revision: string,
+          cursor?: string,
+        ) => keys.lineage(scope.id, namespace, name, revision, cursor),
+      };
+    }
+    case "run":
+      return {
+        all: queryKeys.runs.artifactsAll(scope.id),
+        metadata: (namespace: string, name: string, revision?: string) =>
+          queryKeys.runs.artifactMetadata(scope.id, namespace, name, revision),
+        versions: (namespace: string, name: string, cursor?: string) =>
+          queryKeys.runs.artifactVersions(scope.id, namespace, name, cursor),
+        lineage: (
+          namespace: string,
+          name: string,
+          revision: string,
+          cursor?: string,
+        ) =>
+          queryKeys.runs.artifactLineage(
+            scope.id,
+            namespace,
+            name,
+            revision,
+            cursor,
+          ),
+      };
+  }
+}

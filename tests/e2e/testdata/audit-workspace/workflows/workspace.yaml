@@ -1,0 +1,32 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: workspace-fixture, version: "1"}
+spec:
+  parameters: {}
+  inputs:
+    source: {required: true, mediaTypes: [application/json]}
+    previous: {required: false, mediaTypes: [application/json]}
+  outputs:
+    material: {required: true, mediaTypes: [application/json]}
+  executionConfig:
+    workers: {llmGateway: local-litellm@1, credential: development-worker, modelPolicy: worker@1}
+  entryStage: copy
+  stages:
+    copy:
+      objective: Copy the selected exact JSON material
+      instructions: {ref: instructions/workspace-fixture.md}
+      planner: passthrough@1
+      agents:
+        worker: {template: workspace-fixture@1}
+      context:
+        artifacts:
+          source: {namespace: inputs, name: source, required: true}
+          previous: {namespace: inputs, name: previous, required: false}
+      result:
+        artifacts:
+          material: {required: true, mediaTypes: [application/json], from: {namespace: worker, name: material}}
+      workflowOutputs: {material: material}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

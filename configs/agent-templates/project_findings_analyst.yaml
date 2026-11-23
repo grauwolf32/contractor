@@ -1,0 +1,31 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: project_findings_analyst
+  version: '1'
+spec:
+  description: Reviews selected Project findings and writes an evidence-grounded report
+  runtime: adk@1
+  responseRecovery: document@1
+  instructions:
+    ref: instructions/project-findings-analyst.md
+  summarizer:
+    instructions:
+      ref: instructions/terminal-summarizer.md
+    contextWindowRatio: 0.8
+  toolsets:
+    - ref: memory-tools@1
+      tools:
+        - list_memories
+        - read_memory
+        - write_memory
+        - append_memory
+        - search_memory
+        - list_memory_tags
+    - ref: security-findings@1
+      tools: [list_project_findings, read_project_finding, select_project_findings, read_finding_selection]
+    - ref: run-artifacts@1
+      tools: [read_artifact]
+    - ref: text-artifacts@1
+      tools: [write_text_artifact]
+  sandboxProfile: local-workdir@1

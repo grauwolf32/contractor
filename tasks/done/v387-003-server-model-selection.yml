@@ -1,0 +1,135 @@
+schema_version: "1.0"
+id: V387-003
+title: Persist model selection in Operations and pin each Run and Eval
+milestone: model-policy-runtime-correctness
+epic: planner-worker
+kind: feature
+priority: P1
+status: completed
+depends_on: [V387-002]
+languages: [go, python, typescript, yaml]
+goal: >-
+  Change the default model and per-role overrides in Operations for new Runs,
+  preserve explicit Run/Eval choices and historical requested-model identity,
+  and send every Allocation its already resolved immutable model selection.
+context:
+  specification:
+    - docs/spec/configuration/agent-templates.md#TPL-R79
+    - docs/spec/configuration/catalog.md#CAT-R80
+    - docs/spec/evals/managed-evals.md#EVM-R61
+    - docs/spec/execution/control-plane.md
+    - docs/spec/operations/operations.md
+    - docs/spec/platform/persistence.md
+  design:
+    - docs/design/ui/README.md
+    - ui/src/ui/README.md
+scope:
+  in:
+    - Durable server-wide model defaults initialized once from the compiled deployment selection.
+    - Operations read/replace API with revision preconditions and model-choice catalog.
+    - UI default-model and role-override selectors with clear saved and conflict states.
+    - Collapsible role choices, inherited model labels and a concrete unsaved change preview before saving.
+    - Resolve defaults before explicit Run or Eval overrides and pin complete model-specific policies.
+    - Separate effective summarizer policy selection without changing template instructions or trigger.
+    - Carry the selected model into Allocations and historical views; keep known versus unknown provider revisions honest.
+    - Preserve prepared Eval and drafted Audit model choices across later default changes.
+  out:
+    - Provisioning provider credentials, discovering model capabilities or editing remote Gateway routes from the UI.
+    - Changing active Run snapshots, guessing provider weight revisions or rewriting old results.
+    - Login startup, replacing demo business data or unrequested deployment migrations.
+requirements:
+  - id: R1
+    text: The database owns current selection; deployment selection initializes a missing setting only and cannot overwrite an operator choice at restart.
+  - id: R2
+    text: Default changes affect new resolved Runs only; explicit Run/Eval policy choices take precedence and active allocations retain pinned models.
+  - id: R3
+    text: Model-specific aliases and policy digests identify the requested model, and unknown observed weight revisions remain unknown.
+  - id: R4
+    text: Allocation receives a complete resolved main and optional summarizer policy; Runtime does not consult global mutable selection.
+  - id: R5
+    text: UI uses the public API, preserves unsaved edits, reports stale revision conflicts and displays saved effective choices truthfully.
+  - id: R6
+    text: Eval variants can choose different models for the same Workflow and retain their pinned selection when defaults change.
+failure_outcomes:
+  - operation: Replace model selection
+    permanent: Unknown or incompatible models and missing or stale revision preconditions reject the replacement without partial changes.
+    retryable: Classified transient database failure returns storage_transaction_conflict or the existing storage-unavailable outcome; no hidden background mutation.
+    ambiguous: A revision-guarded replacement and subsequent GET reconcile response loss; the same desired state is a no-op while another revision is a conflict.
+    cancelled: Cancellation joins request work; committed durable selection remains readable and no provider operation outlives the request.
+    timeout: No inference or Gateway mutation occurs during selection replacement.
+cardinality:
+  - collection: Available models
+    expected: 1
+    maximum: 32
+    bound: Compiled catalog bounds are reused; exactly four role selectors and finite role budgets.
+  - collection: Selection settings
+    expected: 1
+    maximum: 1
+    bound: One deployment-wide revision-guarded row, not one record per Run or owner.
+lifecycle:
+  - entity: Model selection
+    delete: No delete API; replace with another valid selection.
+    cascade: No changes to existing Run, Audit, Eval or Allocation snapshots.
+    retention: Durable current setting; immutable selected policies remain in execution history.
+acceptance_criteria:
+  - id: A1
+    given: Two compatible fixture models and one selected default
+    when: An operator changes defaults and restarts the Server
+    then: Only new Runs use the saved choice, role overrides work and old snapshots remain byte-exact.
+  - id: A2
+    given: Concurrent edits or an invalid model choice
+    when: The real PostgreSQL-backed replacement API is used
+    then: Exactly one current revision wins and rejected writes preserve the saved setting.
+  - id: A3
+    given: The same Workflow evaluated with two explicit model policies
+    when: Defaults change after preparation
+    then: Each Eval variant and its Allocations retain their intended model, context, budgets and history.
+  - id: A4
+    given: A Worker with terminal summarization and model-free sibling paths
+    when: Effective role selections resolve
+    then: The summarizer uses its independently pinned policy and model-free consumers gain no model access.
+  - id: A5
+    given: The Operations model-selection form
+    when: The operator saves, edits during refresh or encounters a stale revision
+    then: The UI shows server-confirmed values and conflicts without overwriting another operator.
+tests:
+  - command: make test-config
+    covers: [A1, A3, A4]
+  - command: go test -tags=integration ./internal/settingsstore
+    covers: [A1, A2]
+  - command: make test-go
+    covers: [A1, A2, A3, A4]
+  - command: make test-postgres
+    covers: [A1, A2, A3]
+  - command: make verify-public-api
+    covers: [A2, A5]
+  - command: make test-wire-cross-language
+    covers: [A3, A4]
+  - command: cd runtime && uv run --no-sync pytest -o cache_dir=/tmp/pytest-runner-cache
+    covers: [A4]
+  - command: make ui-verify
+    covers: [A5]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5]
+decisions:
+  guarantee: >-
+    Selection is a new-run default, never a late allocation-time model lookup.
+    Model-specific routes remain immutable, Run/Eval overrides remain explicit,
+    and provider weight revisions require observed evidence. Per-Stage captured
+    defaults resolve even late summary Planners without changing immutable
+    ExecutionConfig profile bodies or reading new global settings at a transition.
+  alternatives: >-
+    Rewriting role aliases in LiteLLM would change active Runs and make history
+    ambiguous. Browser-only selection would not affect server-created Runs.
+    Editing operator YAML from an API would introduce competing configuration owners.
+  reversal: Revisit remote model provisioning only with a separate versioned provider-management contract.
+verification:
+  context: Tests use a disposable PostgreSQL database, never the demo database; the full Runtime suite runs as an unprivileged Linux user with the locked dependencies and Go 1.26.9.
+  postgres: Full Go and PostgreSQL package suites passed, including restart, CAS races, transaction-bound reads and retained Workflow/Audit Eval dispatch that rejects mutable re-resolution.
+  wire: Shared wire fixtures passed with 300 contract tests, 1081 shared Python checks and 237 fixtures across 212 Go and 164 Python shared tests.
+  runtime: Full non-root Linux pytest passed with 3880 passed and 56 optional environment checks skipped; macOS-specific process/socket failures were not reported as a pass.
+  ui: ui-verify passed with 187 test files and 2193 tests, plus one expected failure; the model form saves at 390px in light, dark and black themes.
+  lint: make lint passed with 112 script tests and all layer, source, generated-file and schema checks.
+  live: The real GLM Gateway routing probe made three calls successfully; all three live Runtime Gateway tests passed without skips.
+  installation: LiteLLM and its virtual key use four immutable GLM role aliases with a 1000000-token operating window; login startup remains disabled.
+implementation_commit: 3d6d143410161c17b4ebd7d56cd159cd89353147

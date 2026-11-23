@@ -1,0 +1,157 @@
+---
+# The Runtime runs as user units of a dedicated account: rootless Podman needs
+# that account's systemd manager and D-Bus, kept alive by linger.
+
+- name: Create the service group
+  ansible.builtin.group:
+    name: "{{ contractor_runtime_group }}"
+    system: true
+
+- name: Create the service account
+  ansible.builtin.user:
+    name: "{{ contractor_runtime_user }}"
+    group: "{{ contractor_runtime_group }}"
+    system: true
+    home: "{{ contractor_runtime_home }}"
+    create_home: true
+    shell: /usr/sbin/nologin
+
+- name: Restrict the service home
+  ansible.builtin.file:
+    path: "{{ contractor_runtime_home }}"
+    state: directory
+    owner: "{{ contractor_runtime_user }}"
+    group: "{{ contractor_runtime_group }}"
+    mode: "0750"
+
+- name: Read the service account
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ contractor_runtime_user }}"
+
+- name: Record the account's runtime directory
+  ansible.builtin.set_fact:
+    __contractor_runtime_uid: "{{ ansible_facts.getent_passwd[contractor_runtime_user][1] }}"
+    __contractor_runtime_user_env:
+      XDG_RUNTIME_DIR: /run/user/{{ ansible_facts.getent_passwd[contractor_runtime_user][1] }}
+      DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/{{ ansible_facts.getent_passwd[contractor_runtime_user][1] }}/bus
+    # systemctl --machine reaches a user manager from root (systemd >= 248).
+    __contractor_runtime_systemctl: [systemctl, "--machine={{ contractor_runtime_user }}@.host", --user]
+
+- name: Assign subordinate IDs for rootless Podman
+  when: __contractor_runtime_host.podman
+  block:
+    - name: Read subordinate UID ranges
+      ansible.builtin.slurp:
+        src: /etc/subuid
+      register: __contractor_runtime_subuid
+      failed_when: false
+
+    - name: Read subordinate GID ranges
+      ansible.builtin.slurp:
+        src: /etc/subgid
+      register: __contractor_runtime_subgid
+      failed_when: false
+
+    - name: Require a free range when the account has none
+      ansible.builtin.assert:
+        that: __contractor_runtime_has_ranges or __contractor_runtime_overlaps | length == 0
+        fail_msg: >-
+          {{ contractor_runtime_subid_start }}+{{ contractor_runtime_subid_count }}
+          overlaps existing ranges {{ __contractor_runtime_overlaps | to_json }}; set
+          contractor_runtime_subid_start to a free range.
+        quiet: true
+      vars:
+        __contractor_runtime_lines: >-
+          {{ ((__contractor_runtime_subuid.content | default('') | b64decode) ~ '\n' ~ (__contractor_runtime_subgid.content | default('') | b64decode))
+             | split('\n') | select('match', '^[^#:]+:[0-9]+:[0-9]+$') | list }}
+        __contractor_runtime_has_ranges: >-
+          {{ __contractor_runtime_lines | select('match', '^' ~ contractor_runtime_user ~ ':') | list | length == 2 }}
+        __contractor_runtime_overlaps: >-
+          {%- set end = contractor_runtime_subid_start + contractor_runtime_subid_count -%}
+          {%- set ns = namespace(found=[]) -%}
+          {%- for line in __contractor_runtime_lines -%}
+          {%-   set f = line.split(':') -%}
+          {%-   if f[1] | int < end and contractor_runtime_subid_start < f[1] | int + f[2] | int -%}
+          {%-     set ns.found = ns.found + [line] -%}
+          {%-   endif -%}
+          {%- endfor -%}
+          {{ ns.found }}
+
+    - name: Add subordinate IDs
+      ansible.builtin.command:
+        argv:
+          - usermod
+          - --add-subuids
+          - "{{ contractor_runtime_subid_start }}-{{ contractor_runtime_subid_start + contractor_runtime_subid_count - 1 }}"
+          - --add-subgids
+          - "{{ contractor_runtime_subid_start }}-{{ contractor_runtime_subid_start + contractor_runtime_subid_count - 1 }}"
+          - "{{ contractor_runtime_user }}"
+      when: >-
+        ((__contractor_runtime_subuid.content | default('') | b64decode) is not search('(?m)^' ~ contractor_runtime_user ~ ':'))
+        or ((__contractor_runtime_subgid.content | default('') | b64decode) is not search('(?m)^' ~ contractor_runtime_user ~ ':'))
+      changed_when: true
+
+- name: Create the user manager drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/user@.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: __contractor_runtime_host.podman and contractor_runtime_manage_cgroup_delegation | bool
+
+- name: Delegate cgroup controllers to user managers
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/user@.service.d/contractor-runtime-delegate.conf
+    content: |
+      # Managed by deploy/ansible: Podman CPU, memory and PID limits of
+      # Contractor Runtime allocations need these controllers.
+      [Service]
+      Delegate=cpu cpuset io memory pids
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart the user manager
+  when: __contractor_runtime_host.podman and contractor_runtime_manage_cgroup_delegation | bool
+
+- name: Enable linger for the service account
+  ansible.builtin.command:
+    argv: [loginctl, enable-linger, "{{ contractor_runtime_user }}"]
+    creates: /var/lib/systemd/linger/{{ contractor_runtime_user }}
+
+- name: Apply the delegation before anything uses the user manager
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for the user manager
+  ansible.builtin.wait_for:
+    path: /run/user/{{ __contractor_runtime_uid }}/bus
+    timeout: 60
+
+- name: Check delegated controllers
+  when: __contractor_runtime_host.podman
+  block:
+    - name: Read the user manager's controllers
+      ansible.builtin.slurp:
+        src: /sys/fs/cgroup/user.slice/user-{{ __contractor_runtime_uid }}.slice/user@{{ __contractor_runtime_uid }}.service/cgroup.controllers
+      register: __contractor_runtime_controllers
+
+    - name: Require cpu, memory and pids
+      ansible.builtin.assert:
+        that: >-
+          ['cpu', 'memory', 'pids']
+          | difference(__contractor_runtime_controllers.content | b64decode | split) | length == 0
+        fail_msg: >-
+          The user manager of {{ contractor_runtime_user }} has controllers
+          '{{ __contractor_runtime_controllers.content | b64decode | trim }}'; Podman limits need
+          cpu, memory and pids (contractor_runtime_manage_cgroup_delegation).
+        quiet: true
+
+- name: Create the user unit directory
+  ansible.builtin.file:
+    path: "{{ contractor_runtime_home }}/{{ item }}"
+    state: directory
+    owner: "{{ contractor_runtime_user }}"
+    group: "{{ contractor_runtime_group }}"
+    mode: "0700"
+  loop: [.config, .config/systemd, .config/systemd/user, instances]

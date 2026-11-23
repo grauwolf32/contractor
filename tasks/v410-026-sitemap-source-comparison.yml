@@ -1,0 +1,217 @@
+schema_version: '1.0'
+id: V410-026
+title: Compare transport observations and scanner report projections for sitemap
+milestone: project-sitemap-2026-10
+epic: scan-tools
+kind: chore
+priority: P2
+status: pending
+depends_on:
+- V410-003
+- V410-004
+- V410-024
+- V422-003
+languages:
+- python
+- go
+- yaml
+- markdown
+goal: Establish whether actual HTTP observations or scanner-selected report results give more useful
+  Project sitemap context, including wildcard 200 responses, without confusing a response, a route,
+  a scanner match and a finding or committing to removal before comparative evidence exists.
+demonstration: A real supported Nuclei invocation requests a real resource and wildcard-200 paths through
+  the production HTTPTransport/bridge. Test-local per-attempt observations and a test-local projection
+  of its exact report populate isolated maps through the real SMT reducer and PostgreSQL. The comparison
+  explains their differences against a private target oracle; real ffuf/Katana report cases extend the
+  evidence without claiming their unimplemented controlled-transport integration (A1-A3).
+context:
+  authority: >-
+    User decisions on 2026-11-03: combine ffuf, Katana and Nuclei as much as possible through existing
+    scan tools without a new discovery toolset; compare HTTP-transport observations and scanner-report
+    projection before removing report-derived sitemap sources, because scanner filtering may distinguish
+    wildcard 200/stub responses. Engagement owns HTTP limit values. One particular/shared allocation
+    is not a requirement or a prerequisite, and no mechanism to guarantee it should be built for this
+    experiment. The user requested a proposal and a task; this planning edit does not start implementation
+    or run the experiment. The experiment design, finite matrix and preliminary hybrid recommendation
+    in proposal 0052 are agent proposals, not measured findings or a user-selected production switch.
+  proposal: docs/proposals/0052-sitemap-transport-and-report-comparison.md
+  specification:
+  - docs/spec/artifacts/project-sitemap.md#SMT-R18
+  - docs/spec/artifacts/project-sitemap.md#SMT-R22
+  - docs/spec/artifacts/project-sitemap.md#SMT-R24
+  - docs/spec/tools/http-caido.md#HTP-R139
+  - docs/spec/tools/http-caido.md#HTP-R145
+  - docs/spec/tools/http-caido.md#HTP-R148
+  - docs/spec/tools/http-caido.md#HTP-R149
+  - docs/spec/tools/scanners.md#SCN-R259
+  - docs/spec/tools/scanners.md#SCN-R262
+  - docs/spec/artifacts/artifact-store.md
+  boundary: Runtime adapters interpret scanner output; existing HTTPTransport owns actual controlled
+    HTTP requests and local limits; SMT owns identity/grouping/publication; ArtifactStore owns exact
+    inputs/outputs and retention. Test harness owns ground truth and comparative measurements. No production
+    source switch, parser on Server or new network/accounting subsystem is delivered here.
+  current_state: REPORT_FORMATS supports ffuf-report@1 and katana-report@1, not Nuclei. Controlled
+    HTTPTransport and its scanner proxy bridge currently have no sitemap observation sink. Nuclei is
+    integrated with controlled transport; ffuf/Katana are not. Do not claim an existing Nuclei sitemap
+    importer was removed or that a test-only projection is an available product capability.
+  related_tasks:
+  - V410-006 owns standalone catalog composition and remains independent of this optional experiment.
+  - V410-007 owns the existing standalone release gate; this task adds no mandatory dependency to it.
+  - V412-005 owns the pending production ffuf controlled-transport integration. Do not absorb it here.
+  implementation_gate: Leave pending after this planning change. Execute as a bounded test-only experiment
+    under ordinary task policy; if a required production execution hook is missing, describe the concrete
+    prerequisite and smaller alternatives before growing scope. No deferred or Audit-gated task is
+    reactivated by this record.
+scope:
+  in:
+  - Add test-local per-attempt instrumentation around the real production HTTPTransport/bridge path
+    and a test-only Nuclei report projection; reuse existing collector/reducer/Artifact operations without
+    implementing a second HTTP client, transport or production report importer.
+  - Compare real Nuclei traffic and exact reports from the same invocation, including nonmatches and
+    multi-request templates; project only fields actually established by the source.
+  - Run real ffuf/Katana against the same controlled target cases using existing adapter options and
+    report projections, with a target-side trace as an explicitly labelled comparison oracle while
+    controlled transport is unavailable to those engines.
+  - Cover the ten scenario classes in proposal 0052, including stable/dynamic soft-404, SPA fallback,
+    auth/redirect responses, matcher controls, negative outcomes, truncation and overlapping sources.
+  - Freeze a finite manifest before measurements, repeat paired observations without duplicate target
+    calls for alternate projections, and retain actual engine/allocation/request outcomes and exact
+    source versions/digests in evidence.
+  - Publish a measured recommendation and enumerate concrete callers/semantics affected by any proposed
+    future deletion; preserve report import needs for external/historical traffic.
+  out:
+  - Production source removal or default switching, a production Nuclei sitemap importer, a new toolset,
+    a generic scanner framework, new sitemap flags/identity/grouping or treating findings as map inputs.
+  - Completing V412-005, a Katana controlled-transport integration, standalone engagement admission,
+    unsupported scanner flags or a new target/network transport.
+  - One-allocation placement guarantees, global engagement HTTP quotas, counters shared across allocations,
+    a request journal, new lease/receipt/store or Scheduler changes.
+  - Live/paid model calls, model changes, unrelated Audit redesign or full sensitive HTTP capture.
+requirements:
+- id: R1
+  text: Separate observed-response fidelity from usefulness as an independently routed resource. A real
+    fallback 200 remains a correct HTTP observation, not a confirmed distinct route. Score useful-route
+    discrimination against the private fixture oracle, never against scanner matches themselves.
+- id: R2
+  text: Compare the two projections from the same real invocation wherever transport integration exists.
+    Every source must preserve its actual field availability, omission and negative-outcome semantics;
+    no invented Nuclei method/status, verification claim or physical request count.
+- id: R3
+  text: Keep real ffuf/Katana report-versus-target-trace evidence distinct from actual controlled-transport
+    evidence. Unsupported integration is a reported scope limitation and never an unmarked skip, synthetic
+    observation presented as real transport capture or hidden adapter implementation.
+- id: R4
+  text: Use existing SMT identities, limits, permission/retention and best-effort collector behavior.
+    A collector failure cannot change the HTTP/scanner result or repeat target traffic. Persist both
+    isolated comparison maps using real PostgreSQL and the ordinary Artifact owner.
+- id: R5
+  text: Engagement supplies configured HTTP limits where supported. Do not require common allocation
+    identity or implement an aggregate budget. Record actual allocation counts, configured local allowances
+    and independently observed traffic; never describe allocation-local caps as an engagement-wide cap.
+- id: R6
+  text: Use existing scan@1 tools and supported adapter flags. Freeze engine/template/wordlist/fixture
+    digests, initial context and comparison profiles before all samples; failed/cancelled/incomplete
+    samples remain in the evidence. Findings and LLM judgments are unnecessary.
+- id: R7
+  text: Deliver a test-local experiment and evidence, not a permanent production mode. Update owning
+    specifications only if a separately scoped implementation changes their behavior; do not rewrite
+    normative contracts to claim unimplemented collector wiring or scanner support.
+failure_outcomes:
+- operation: Execute a paired scanner/transport/report comparison against the local fixture
+  permanent: Missing required engine/infrastructure, unsupported mandatory source, invalid exact report
+    or a contradiction in recorded observations fails the declared cell. Optional nonapplicable cells
+    must be declared before execution; zero selected cases and mandatory skips fail the command.
+  retryable: Existing transport HTP-R139 and bounded ordinary storage/publication policies remain the
+    only retries. An explicit new sample after failure retains the failed sample instead of replacing it.
+  ambiguous: Reconcile existing publication/Artifact receipts under original exact inputs and keys;
+    never rerun the scanner or send HTTP traffic to recover a missing publication acknowledgement.
+  cancelled: Existing allocation ownership plus the harness joins scanner processes, bridge handlers,
+    target streams, test instrumentation and collector before scratch/credential cleanup; retain cancellation.
+  timeout: Ordinary scanner/request/allocation deadlines and a finite harness deadline apply independently;
+    preserve incomplete cells and avoid wall-clock performance assertions.
+- operation: Materialize isolated maps and retained experiment evidence
+  permanent: Invalid/unauthorized/evicted exact inputs or deterministic Artifact/SMT rejection keep
+    their existing owner errors. Accepted observations in either comparison Project are not erased.
+  retryable: Reuse existing bounded Artifact/SMT conflict and publication budgets, preserving the original
+    operation identity; no new persistent retry mechanism.
+  ambiguous: Reconcile the original exact output/receipt rather than republishing evicted bytes or
+    substituting latest; missing required evidence prevents a supported conclusion.
+  cancelled: Harness and existing allocation cleanup join pending materialization/publication before
+    releasing owned resources or deleting isolated fixture Projects.
+  timeout: Existing Artifact/snapshot/publication operation deadlines remain separate from target calls.
+cardinality:
+- collection: Frozen comparison matrix and scanner invocations
+  expected: One early real Nuclei end-to-end pair, then three repetitions per supported declared cell
+  maximum: Ten scenario classes times three engines times two supported profiles times three repetitions,
+    at most 180 invocations; one invocation feeds both projections where possible
+  bound: Predeclare applicable cells, finite fixture URLs/wordlists/templates, per-call deadlines and
+    total harness deadline. No unbounded crawl, retries, calibration sweep or live target.
+- collection: Observations, reports, isolated maps and evidence
+  expected: Bounded per-sample transport observations, exact report, target oracle trace and two maps
+  maximum: Existing scanner, collector, SMT and Artifact bounds; representative truncation/overflow
+    cases deliberately cross the respective admission bound
+  bound: Bounded streaming target trace, existing paged/exact Artifact operations and per-sample flush;
+    store aggregate metrics/digests and only bounded private-fixture detail, never a Project-wide rescan.
+lifecycle:
+- entity: Comparison-only Projects, Runs, private fixture state and evidence artifacts
+  delete: Harness owns disposable fixtures/Projects; ordinary Project/Run deletion remains authoritative.
+  cascade: Join all target/Runtime/collector work before normal fixture cleanup; add no durable entity.
+  retention: Keep required exact inputs/outputs with existing forks/holds and ordinary retention. Metadata
+    references alone do not pin bytes. Commit only sanitized reproducible evidence and the decision.
+acceptance_criteria:
+- id: A1
+  given: Real supported Nuclei, production transport/bridge, controlled target and disposable PostgreSQL
+  when: One invocation visits a real resource and wildcard-200 paths, including a nonmatch and multi-request template
+  then: Actual per-attempt observations and exact report-derived results populate isolated SMT maps;
+    their differences are explained using target-side ground truth without invented source fields.
+- id: A2
+  given: A frozen manifest of supported ffuf, Katana and Nuclei cases and profiles
+  when: All declared mandatory cells execute three repetitions
+  then: Evidence includes response-fidelity and useful-route metrics, filtering gains/losses, truncation,
+    actual request/allocation counts and source support limitations. Real ffuf/Katana target traces
+    are not misrepresented as controlled transport conformance; no mandatory skip or zero-case gate passes.
+- id: A3
+  given: Soft-404/stub/auth controls and scanner match/filter behavior
+  when: Results are assessed against the private oracle
+  then: A real 200 response is distinguished from an independently routed resource and a scanner match
+    from a finding; broad and filtered results both record their missed real resources and retained fallback entries.
+- id: A4
+  given: Publication failures/lost replies, cancellation, timeout, overlapping sources and multiple allocations
+  when: The comparison hits these boundaries
+  then: Target outcomes remain independent of automatic collection, no request repeats to repair publication,
+    ordinary receipts/fencing/cleanup hold and measurements make no single-allocation or global-budget guarantee.
+- id: A5
+  given: Complete measurements and current production caller inventory
+  when: The evidence and decision are written
+  then: A justified transport/report/hybrid recommendation identifies follow-up integration or deletion
+    work and external-report retention needs; production report sources/defaults stay unchanged in this task.
+deliverables:
+- path: runtime/tests
+  description: Test-local transport/report comparison fixtures and bounded instrumentation reusing actual production paths.
+- path: tests/e2e
+  description: Real-store isolated-map comparison composed with existing process harnesses and local targets.
+- path: make/toolsets.mk
+  description: Opt-in make test-sitemap-source-comparison using existing harness conventions, required actual engines and zero skips.
+- path: tasks/evidence/v410-026-sitemap-source-comparison.json
+  description: Frozen manifest, exact versions/digests, mandatory-cell outcomes and numerical comparison; created only by execution.
+- path: tasks/evidence/v410-026-sitemap-source-comparison.md
+  description: Interpretation, caller inventory, decision, limitations and concrete follow-up options; created only after measurements.
+tests:
+- command: make test-sitemap-source-comparison
+  covers: [A1, A2, A3, A4, A5]
+- command: make test-runtime
+  covers: [A1, A3, A4]
+- command: make test-project-sitemap-tools-e2e
+  covers: [A1, A4]
+- command: make test-project-sitemap-postgres
+  covers: [A1, A4]
+- command: make lint
+  covers: [A1, A2, A3, A4, A5]
+test_prerequisites:
+- The new opt-in target is a deliverable, not an existing command or claimed evidence. Require actual
+  pinned engines, Server/Runtime/disposable PostgreSQL and controlled local fixture routing; missing
+  prerequisites fail explicitly. Existing optional live tests must not silently skip mandatory cells.
+- Keep ordinary deterministic/release gates independent of installed scanner comparisons and paid/live
+  models. Reuse existing case-selection/harness conventions instead of duplicating orchestration registries.
+- Use testdata fixtures, never the live configs tree; run complete suites of all touched packages. No
+  experiment command or production code is executed by the planning edit that creates this task.

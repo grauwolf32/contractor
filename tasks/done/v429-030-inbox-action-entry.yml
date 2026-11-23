@@ -1,0 +1,77 @@
+schema_version: "1.0"
+id: V429-030
+title: Open useful work instead of a redundant Inbox overview
+milestone: ui-journey-usability
+epic: ui
+kind: defect
+introduced_by: V429-029
+priority: P2
+status: completed
+depends_on: [V429-029]
+languages: [typescript, javascript, css]
+goal: The revised Inbox preview opens actionable content on desktop rather than repeating four counters already visible in its queue; mobile starts with the queue.
+context:
+  authority: User 2026-11-04 says the first Inbox screen is unhelpful. The existing requests to preserve OpenDesign data, shared typography and reviewable previews continue to apply.
+  specification: docs/spec/ui/ui.md#UI-R39
+  design: docs/design/ui/README.md
+  finding: docs/design/ui/experiments/inbox-opendesign-2026-11-04/layout-polish.css:3 and the existing Inbox Overview produce four large counter cards that duplicate the left queue without exposing a concrete task.
+  siblings: Normal desktop entry, direct selections, returning to the queue, mobile entry, empty Inbox and partial/failed reads are covered; existing selected-item components and the original preview remain unchanged.
+  proposal: Select the first available source-ordered item once on desktop after successful reads; preserve explicit selection and mobile queue entry. Replace the remaining unselected state with compact truthful continuation, loading, empty or read-error content. This is a reviewable host-owned flow correction using the retained OpenDesign visual system, not a new native generation or a production change.
+  boundary: Existing source model owns ordering and all facts. Existing detail components own decisions and recovery. Only generated preview route copies receive the entry behavior; immutable native inputs/output and production source files are unchanged.
+scope:
+  in:
+    - A new retained preview revision with real Inbox components, one-time desktop selection and queue-first mobile entry.
+    - Truthful compact empty/error/partial/unselected states and the original proposal available for comparison.
+    - Real-browser checks of priorities, explicit links, keyboard navigation, mobile Back and responsive themes.
+  out:
+    - Production transfer/main merge, new domain priorities, automatic decisions, API changes, live writes and new model calls.
+requirements:
+  - id: R1
+    text: Initial desktop entry selects the first existing model row only after reads settle successfully, in the existing Decide/Unblock/Ready/Running order; selection itself records no decision.
+  - id: R2
+    text: Explicit selections, Back and subsequent user navigation are preserved; mobile starts on the queue and is not redirected after Back or resize.
+  - id: R3
+    text: Unavailable data is not shown as empty; empty Inbox offers an existing destination, and no four-counter Overview remains in this revision.
+  - id: R4
+    text: Previous native and host artifacts remain unchanged, all preview writes stay rejected in memory, and global fonts/themes remain consistent.
+failure_outcomes:
+  - operation: Initial preview selection
+    permanent: Failed/partial reads leave the user on the queue and explicit read status instead of guessing the highest-priority item.
+    retryable: Existing retry refetches the synthetic responses; it does not create business work.
+    ambiguous: The URL is the selection authority; an explicit item is never replaced.
+    cancelled: Initial selection is consumed by user navigation or mobile entry; later reads cannot redirect the user.
+    timeout: Existing bounded read/backoff behavior remains; no separate timer or controller is introduced.
+cardinality:
+  - collection: Synthetic Inbox
+    expected: Reuse the two-project fixture with about thirteen distinct rows.
+    maximum: Twenty-four rows, six selected views and eight explicit read/availability scenarios.
+    bound: Reuse the existing bounded source model and fixed fixtures; no extra production reads or live inventory.
+lifecycle:
+  - entity: Revised preview
+    delete: Retain the original OpenDesign project, CSS, history and previous preview.
+    cascade: Only new experiment files and ignored generated preview copies are created.
+    retention: Keep source/output hashes, comparison links, captures and verification results.
+acceptance_criteria:
+  - id: A1
+    text: Real-browser regression proves the initial desktop view opens a concrete decision, then blocked work/results/running work when earlier groups are absent, and no counter-card overview remains.
+  - id: A2
+    text: Explicit selections, J/K, mobile queue selection/Back, resize and error/empty/partial behavior remain usable at 1440/1100/390/320px in all themes.
+  - id: A3
+    text: Original artifact hashes are unchanged, the preview is opened for the user, and no production mutation or browser error occurs.
+tests:
+  - command: node docs/design/ui/experiments/inbox-action-entry-2026-11-04/verify.mjs
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2]
+  - command: git diff --check
+    covers: [A1, A2, A3]
+
+implementation_commit: e00b425b20b4e52cf2fb71084ebab03e853ff014
+verification:
+  date: "2026-11-04"
+  browser: verify.mjs passes fifty layout/scenario samples and navigation, direct selection, refresh, mobile Back/resize, rejected in-memory decision and comparison checks; zero browser errors and zero live API requests.
+  preservation: All fifty-four prior experiment files and the original production-source hashes are unchanged. This correction reuses OpenDesign styling and makes no additional model call.
+  preview: Revised preview loaded in retained browser tab 38 with the first concrete possible issue selected; the old proposal remains available in Version and at its original URL.
+  repository: Task/spec checks and git diff --check pass. Branch codex/inbox-design remains unmerged; production transfer is outside this task.

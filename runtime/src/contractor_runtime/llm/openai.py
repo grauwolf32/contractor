@@ -1,0 +1,772 @@
+"""Small ADK model adapter for Contractor's OpenAI-compatible LLM Gateway."""
+
+from __future__ import annotations
+
+import asyncio
+import base64
+import contextlib
+import copy
+import json
+import re
+from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
+from contextvars import ContextVar
+from typing import Any, Protocol, override
+
+from google.adk.models._capabilities import LlmCapabilities
+from google.adk.models.base_llm import BaseLlm
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
+from google.genai import types
+from pydantic import BaseModel, PrivateAttr
+
+from contractor_runtime.llm.client import GatewayClientHandle, GatewayRequestError
+from contractor_runtime.llm.errors import GatewayFailure
+from contractor_runtime.llm.image_parts import (
+    image_context_size,
+    image_response_metadata,
+    response_images,
+)
+from contractor_runtime.llm.response import empty_stop_response
+from contractor_runtime.threads import to_thread_until_done
+
+_SAFE_ERROR_TYPE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,127}")
+_FINISH_REASON = {
+    "stop": types.FinishReason.STOP,
+    "tool_calls": types.FinishReason.STOP,
+    "function_call": types.FinishReason.STOP,
+    "length": types.FinishReason.MAX_TOKENS,
+    "content_filter": types.FinishReason.SAFETY,
+}
+_NON_RETRYABLE_ADAPTER_FAILURES = frozenset(
+    {
+        "StreamingUnsupported",
+        "UnsupportedContentPart",
+        "UnsupportedSystemInstruction",
+        "InvalidFunctionCall",
+        "InvalidFunctionPayload",
+        "InvalidFunctionDeclaration",
+        "UnsupportedResponseSchema",
+    }
+)
+
+
+class GatewayModelError(RuntimeError):
+    """Secret-free boundary error for failures below the model adapter.
+
+    ``response_received`` marks a Gateway response the adapter rejected (for
+    example invalid tool-call JSON): the provider already spent tokens, so the
+    parsed numeric ``usage_metadata`` (or ``None`` when unavailable) must still
+    be accounted. No response content is retained.
+    """
+
+    def __init__(
+        self,
+        provider_error_type: str,
+        *,
+        retryable: bool = True,
+        failure: GatewayFailure | None = None,
+        response_received: bool = False,
+        usage_metadata: types.GenerateContentResponseUsageMetadata | None = None,
+        request_invalid: bool = False,
+        empty_stop: bool = False,
+    ) -> None:
+        self.provider_error_type = provider_error_type
+        self.retryable = retryable
+        self.failure = failure
+        self.response_received = response_received
+        self.usage_metadata = usage_metadata if response_received else None
+        self.request_invalid = request_invalid
+        self.empty_stop = empty_stop
+        super().__init__(f"LLM gateway call failed ({provider_error_type})")
+
+
+class _AdapterFailure(RuntimeError):
+    def __init__(self, code: str) -> None:
+        self.code = code
+        super().__init__(code)
+
+
+class GatewayCallObserver(Protocol):
+    def capture_model_input(self, content: Callable[[], dict[str, Any]]) -> None: ...
+
+    def capture_model_finish_reason(self, reason: str, *, known: bool) -> None: ...
+
+
+class OpenAICompatibleGatewayLlm(BaseLlm):
+    """Translate the ADK model contract to OpenAI chat completions."""
+
+    _client_handle: GatewayClientHandle = PrivateAttr()
+    _allow_images: bool = PrivateAttr(default=False)
+    _observer: ContextVar[GatewayCallObserver | None] = PrivateAttr(
+        default_factory=lambda: ContextVar("gateway_call_observer", default=None)
+    )
+
+    def __init__(
+        self, *, model: str, client_handle: GatewayClientHandle, supports_images: bool | None = None
+    ) -> None:
+        super().__init__(model=model)
+        self._client_handle = client_handle
+        self._allow_images = supports_images is True
+
+    @property
+    @override
+    def capabilities(self) -> LlmCapabilities:
+        return LlmCapabilities(output_schema_and_tools=True)
+
+    @property
+    def closed(self) -> bool:
+        return self._client_handle.closed
+
+    async def close(self) -> None:
+        await self._client_handle.close()
+
+    @contextlib.asynccontextmanager
+    async def observe_calls(self, observer: GatewayCallObserver) -> AsyncGenerator[None]:
+        token = self._observer.set(observer)
+        try:
+            yield
+        finally:
+            self._observer.reset(token)
+
+    @override
+    async def generate_content_async(
+        self, llm_request: LlmRequest, stream: bool = False
+    ) -> AsyncGenerator[LlmResponse]:
+        provider_error_type: str | None = None
+        retryable = False
+        failure = None
+        response: LlmResponse | None = None
+        completion: Any = None
+        received = False
+        usage: types.GenerateContentResponseUsageMetadata | None = None
+        request_invalid = False
+        empty_stop = False
+        try:
+            if stream:
+                raise _AdapterFailure("StreamingUnsupported")
+            # Coordinated calls have per-attempt transport timeouts and remain
+            # cancellable by the authoritative Stage deadline while waiting.
+            operation = (
+                contextlib.nullcontext()
+                if self._client_handle.recovery is not None
+                else asyncio.timeout(self._client_handle.operation_timeout_seconds)
+            )
+            async with operation:
+                request = await to_thread_until_done(
+                    lambda: _completion_request(
+                        self.model, llm_request, allow_images=self._allow_images
+                    ),
+                    name="gateway-request-assembly",
+                )
+                observer = self._observer.get()
+                if observer is not None:
+                    with contextlib.suppress(Exception):
+                        observer.capture_model_input(lambda: _observed_input(request))
+                completion = await self._client_handle.complete(request)
+                received = True
+                if observer is not None:
+                    with contextlib.suppress(Exception):
+                        choice = _first_choice(completion)
+                        reason = choice.get("finish_reason")
+                        if isinstance(reason, str) and reason:
+                            observer.capture_model_finish_reason(
+                                reason, known=reason in _FINISH_REASON
+                            )
+                response = await to_thread_until_done(
+                    _to_llm_response, completion, name="gateway-adk-response"
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            provider_error_type = _safe_error_type(error)
+            retryable = _retryable_gateway_error(error)
+            request_invalid = isinstance(error, _AdapterFailure) and not received
+            failure = error.failure if isinstance(error, GatewayRequestError) else None
+            if received:
+                usage = _rejected_response_usage(completion)
+                if provider_error_type == "EmptyGatewayResponse":
+                    choice = _first_choice(completion)
+                    message = choice.get("message")
+                    empty_stop = (
+                        choice.get("finish_reason") == "stop"
+                        and isinstance(message, Mapping)
+                        and not message.get("refusal")
+                    )
+        completion = None
+        if provider_error_type is not None:
+            # Raise outside the except suite so the provider exception is not
+            # retained through __context__ and cannot keep headers/body alive.
+            raise GatewayModelError(
+                provider_error_type,
+                retryable=retryable,
+                failure=failure,
+                response_received=received,
+                usage_metadata=usage,
+                request_invalid=request_invalid,
+                empty_stop=empty_stop,
+            ) from None
+        if response is None:  # Defensive: every non-error call must produce one response.
+            raise GatewayModelError("InvalidGatewayResponse") from None
+        yield response
+
+
+def _completion_request(
+    model: str, request: LlmRequest, *, allow_images: bool = False
+) -> dict[str, Any]:
+    try:
+        image_count, _ = image_context_size(request.contents or [])
+    except ValueError:
+        raise _AdapterFailure("UnsupportedContentPart") from None
+    if image_count and not allow_images:
+        raise _AdapterFailure("UnsupportedContentPart")
+    config = request.config
+    messages: list[dict[str, Any]] = []
+    if config is not None and config.system_instruction is not None:
+        instruction = _instruction_text(config.system_instruction)
+        if instruction:
+            messages.append({"role": "system", "content": instruction})
+    for content in request.contents or []:
+        messages.extend(_content_messages(content))
+    messages = _complete_tool_call_messages(messages)
+    if not messages:
+        messages.append({"role": "user", "content": ""})
+
+    tools = _tools(config.tools if config is not None else None)
+    payload: dict[str, Any] = {
+        "model": request.model or model,
+        "messages": messages,
+    }
+    if tools:
+        payload["tools"] = tools
+        payload["tool_choice"] = _tool_choice(config)
+    response_format = _response_format(config)
+    if response_format is not None:
+        payload["response_format"] = response_format
+    if config is not None:
+        _copy_generation_options(payload, config)
+    return payload
+
+
+def _observed_input(request: dict[str, Any]) -> dict[str, Any]:
+    contents = []
+    instruction = None
+    for message in request["messages"]:
+        role = message["role"]
+        text = message["content"]
+        if role == "system":
+            instruction = text
+            continue
+        if role == "tool":
+            try:
+                response = json.loads(text)
+            except json.JSONDecodeError:
+                response = text
+            parts = [{"functionResponse": {"id": message["tool_call_id"], "response": response}}]
+        else:
+            if isinstance(text, list):
+                parts = []
+                for item in text:
+                    if item.get("type") == "text":
+                        parts.append({"text": item["text"]})
+                    elif item.get("type") == "image_url":
+                        url = item["image_url"]["url"]
+                        marker = url.find(";base64,")
+                        padding = 2 if url.endswith("==") else 1 if url.endswith("=") else 0
+                        parts.append(
+                            {
+                                "image": {
+                                    "mediaType": url[5:marker],
+                                    "size": (len(url) - marker - 8) // 4 * 3 - padding,
+                                }
+                            }
+                        )
+            else:
+                parts = [] if text is None else [{"text": text}]
+            parts.extend(
+                {
+                    "functionCall": {
+                        "id": call["id"],
+                        "name": call["function"]["name"],
+                        "args": json.loads(call["function"]["arguments"]),
+                    }
+                }
+                for call in message.get("tool_calls", [])
+            )
+        contents.append({"role": role, "parts": parts})
+    return {
+        "contents": contents,
+        "systemInstruction": instruction,
+        "tools": [
+            {"functionDeclarations": [tool["function"] for tool in request.get("tools", [])]}
+        ],
+    }
+
+
+def _complete_tool_call_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Pair interrupted calls without claiming their external effects were rolled back."""
+
+    completed: list[dict[str, Any]] = []
+    pending: list[str] = []
+    images: list[dict[str, Any]] = []
+    skipped = _json_text({"ok": False, "error": {"code": "tool_call_outcome_unknown"}})
+
+    def flush_images() -> None:
+        if images:
+            completed.append({"role": "user", "content": list(images)})
+            images.clear()
+
+    def settle_pending() -> None:
+        for call_id in pending:
+            completed.append({"role": "tool", "tool_call_id": call_id, "content": skipped})
+        pending.clear()
+        flush_images()
+
+    for source in messages:
+        message = dict(source)
+        attached = message.pop("_artifact_images", [])
+        if message["role"] == "tool" and message.get("tool_call_id") in pending:
+            pending.remove(message["tool_call_id"])
+        else:
+            settle_pending()
+        completed.append(message)
+        images.extend(attached)
+        if message["role"] == "assistant":
+            pending = [call["id"] for call in message.get("tool_calls", [])]
+        if not pending:
+            flush_images()
+    settle_pending()
+    return completed
+
+
+def _instruction_text(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, types.Part):
+        return _text_part(value)
+    if isinstance(value, types.Content):
+        return "\n".join(_text_part(part) for part in value.parts or [])
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return "\n".join(text for item in value if (text := _instruction_text(item)))
+    raise _AdapterFailure("UnsupportedSystemInstruction")
+
+
+def _content_messages(content: types.Content) -> list[dict[str, Any]]:
+    role = "assistant" if content.role in {"model", "assistant"} else "user"
+    tool_messages: list[dict[str, Any]] = []
+    text: list[str] = []
+    reasoning: list[str] = []
+    tool_calls: list[dict[str, Any]] = []
+
+    for part in content.parts or []:
+        if part.function_response is not None:
+            response = part.function_response
+            attached = list(response_images(response))
+            tool_message: dict[str, Any] = {
+                "role": "tool",
+                "tool_call_id": response.id or "",
+                "content": _json_text(
+                    image_response_metadata(response.response, attached=bool(attached))
+                ),
+            }
+            if attached:
+                images = []
+                for mime_type, data in attached:
+                    encoded = base64.b64encode(data).decode("ascii")
+                    images.extend(
+                        [
+                            {
+                                "type": "text",
+                                "text": f"Image returned by tool call {response.id or ''}.",
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:{mime_type};base64,{encoded}"},
+                            },
+                        ]
+                    )
+                tool_message["_artifact_images"] = images
+            tool_messages.append(tool_message)
+        elif part.function_call is not None:
+            call = part.function_call
+            if not call.name:
+                raise _AdapterFailure("InvalidFunctionCall")
+            tool_calls.append(
+                {
+                    "id": call.id or "",
+                    "type": "function",
+                    "function": {
+                        "name": call.name,
+                        "arguments": _json_text(call.args or {}),
+                    },
+                }
+            )
+        elif part.text is not None:
+            if _part_has_payload(part):
+                raise _AdapterFailure("UnsupportedContentPart")
+            (reasoning if part.thought else text).append(part.text)
+        elif _part_has_payload(part):
+            # Contractor transports non-text inputs as exact artifacts. Do not
+            # silently drop a media/code part and change the model's task.
+            raise _AdapterFailure("UnsupportedContentPart")
+
+    ordinary: dict[str, Any] | None = None
+    joined_text = "\n".join(text)
+    if role == "assistant" and (joined_text or reasoning or tool_calls):
+        # Earlier reasoning is not replayed. Qwen-style templates expect history
+        # without it, and LM Studio renders a replayed reasoning_content as a
+        # second <think> block inside the content: the model then copies that
+        # paragraph turn after turn and loops. A reasoning-only turn keeps an
+        # empty message so the role order is unchanged.
+        ordinary = {"role": "assistant", "content": joined_text or (None if tool_calls else "")}
+        if tool_calls:
+            ordinary["tool_calls"] = tool_calls
+    elif role == "user" and joined_text:
+        ordinary = {"role": "user", "content": joined_text}
+
+    if tool_messages:
+        # ADK emits function responses as user-role Content. OpenAI requires
+        # one tool-role message per response, followed by any ordinary content.
+        return [*tool_messages, *([ordinary] if ordinary is not None else [])]
+    return [ordinary] if ordinary is not None else []
+
+
+def _text_part(part: types.Part) -> str:
+    if part.text is None or part.thought or _part_has_payload(part):
+        raise _AdapterFailure("UnsupportedSystemInstruction")
+    return part.text
+
+
+def _part_has_payload(part: types.Part) -> bool:
+    return any(
+        value is not None
+        for name, value in part.model_dump(exclude_none=True).items()
+        if name not in {"text", "thought"}
+    )
+
+
+def _json_text(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    except (TypeError, ValueError):
+        raise _AdapterFailure("InvalidFunctionPayload") from None
+
+
+def _tools(config_tools: Sequence[Any] | None) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for tool in config_tools or []:
+        for declaration in tool.function_declarations or []:
+            if not declaration.name:
+                raise _AdapterFailure("InvalidFunctionDeclaration")
+            if declaration.parameters_json_schema is not None:
+                parameters = _schema_dict(declaration.parameters_json_schema)
+            elif declaration.parameters is not None:
+                parameters = _schema_dict(declaration.parameters)
+            else:
+                parameters = {"type": "object", "properties": {}}
+            result.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": declaration.name,
+                        "description": declaration.description or "",
+                        "parameters": parameters,
+                    },
+                }
+            )
+    return result
+
+
+def _tool_choice(config: types.GenerateContentConfig | None) -> Any:
+    calling = config.tool_config.function_calling_config if config and config.tool_config else None
+    if calling is None or calling.mode in {
+        None,
+        types.FunctionCallingConfigMode.MODE_UNSPECIFIED,
+        types.FunctionCallingConfigMode.AUTO,
+        types.FunctionCallingConfigMode.VALIDATED,
+    }:
+        return "auto"
+    if calling.mode == types.FunctionCallingConfigMode.NONE:
+        return "none"
+    allowed = calling.allowed_function_names or []
+    if len(allowed) == 1:
+        return {"type": "function", "function": {"name": allowed[0]}}
+    return "required"
+
+
+def _response_format(config: types.GenerateContentConfig | None) -> dict[str, Any] | None:
+    if config is None:
+        return None
+    schema = config.response_json_schema or config.response_schema
+    if schema is not None:
+        schema_dict = _schema_dict(schema)
+        schema_name = str(schema_dict.get("title") or getattr(schema, "__name__", "response"))
+        _enforce_strict_schema(schema_dict)
+        return {
+            "type": "json_schema",
+            "json_schema": {"name": schema_name, "strict": True, "schema": schema_dict},
+        }
+    if config.response_mime_type == "application/json":
+        return {"type": "json_object"}
+    return None
+
+
+def _schema_dict(schema: Any) -> dict[str, Any]:
+    if isinstance(schema, type) and issubclass(schema, BaseModel):
+        result = schema.model_json_schema()
+    elif isinstance(schema, types.Schema):
+        result = schema.model_dump(by_alias=True, exclude_none=True, mode="json")
+    elif isinstance(schema, BaseModel):
+        result = schema.__class__.model_json_schema()
+    elif isinstance(schema, Mapping):
+        result = copy.deepcopy(dict(schema))
+    else:
+        raise _AdapterFailure("UnsupportedResponseSchema")
+    _normalize_schema(result)
+    return result
+
+
+def _normalize_schema(value: Any) -> None:
+    if isinstance(value, list):
+        for item in value:
+            _normalize_schema(item)
+        return
+    if not isinstance(value, dict):
+        return
+    if "defs" in value and "$defs" not in value:
+        value["$defs"] = value.pop("defs")
+    if "ref" in value and "$ref" not in value:
+        value["$ref"] = str(value.pop("ref")).replace("#/defs/", "#/$defs/")
+    value.pop("propertyOrdering", None)
+    schema_type = value.get("type")
+    if isinstance(schema_type, str):
+        value["type"] = schema_type.lower()
+    elif isinstance(schema_type, list):
+        value["type"] = [str(item).lower() for item in schema_type]
+    nullable = value.pop("nullable", False)
+    if nullable and isinstance(value.get("type"), str):
+        value["type"] = [value["type"], "null"]
+    for child in value.values():
+        _normalize_schema(child)
+
+
+def _enforce_strict_schema(schema: dict[str, Any]) -> None:
+    if "$ref" in schema:
+        reference = schema["$ref"]
+        schema.clear()
+        schema["$ref"] = reference
+        return
+    properties = schema.get("properties")
+    schema_type = schema.get("type")
+    if isinstance(properties, dict) and (
+        schema_type == "object" or (isinstance(schema_type, list) and "object" in schema_type)
+    ):
+        schema["additionalProperties"] = False
+        schema["required"] = sorted(properties)
+    for definitions_key in ("$defs", "definitions"):
+        for child in schema.get(definitions_key, {}).values():
+            if isinstance(child, dict):
+                _enforce_strict_schema(child)
+    for child in schema.get("properties", {}).values():
+        if isinstance(child, dict):
+            _enforce_strict_schema(child)
+    for keyword in ("anyOf", "oneOf", "allOf"):
+        for child in schema.get(keyword, []):
+            if isinstance(child, dict):
+                _enforce_strict_schema(child)
+    items = schema.get("items")
+    if isinstance(items, dict):
+        _enforce_strict_schema(items)
+
+
+def _copy_generation_options(payload: dict[str, Any], config: types.GenerateContentConfig) -> None:
+    mappings = (
+        ("max_tokens", config.max_output_tokens),
+        ("temperature", config.temperature),
+        ("top_p", config.top_p),
+        ("stop", config.stop_sequences),
+        ("presence_penalty", config.presence_penalty),
+        ("frequency_penalty", config.frequency_penalty),
+        ("seed", config.seed),
+    )
+    for name, value in mappings:
+        if value is not None:
+            payload[name] = value
+
+
+def _first_choice(completion: Any) -> Mapping[str, Any]:
+    if not isinstance(completion, Mapping):
+        raise _AdapterFailure("InvalidGatewayResponse")
+    choices = completion.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], Mapping):
+        raise _AdapterFailure("InvalidGatewayResponse")
+    return choices[0]
+
+
+def _to_llm_response(completion: Any) -> LlmResponse:
+    choice = _first_choice(completion)
+    message = choice.get("message")
+    if not isinstance(message, Mapping):
+        raise _AdapterFailure("InvalidGatewayResponse")
+    finish_reason = _map_finish_reason(choice.get("finish_reason"))
+    if message.get("refusal"):
+        finish_reason = types.FinishReason.SAFETY
+    parts: list[types.Part] = []
+    reasoning = _reasoning_text(message)
+    if reasoning:
+        parts.append(types.Part(text=reasoning, thought=True))
+    text = _response_text(message.get("content"))
+    if text:
+        parts.append(types.Part.from_text(text=text))
+    # A length-limited response is never executable, even if a partial tool
+    # call happens to parse. Keep the finish reason and usage instead of
+    # misclassifying truncated arguments as an unaccounted adapter error.
+    tool_calls = message.get("tool_calls")
+    if tool_calls is None or finish_reason not in (None, types.FinishReason.STOP):
+        tool_calls = []
+    if not isinstance(tool_calls, list):
+        raise _AdapterFailure("InvalidGatewayToolCall")
+    for tool_call in tool_calls:
+        function = tool_call.get("function") if isinstance(tool_call, Mapping) else None
+        name = function.get("name") if isinstance(function, Mapping) else None
+        if not isinstance(name, str) or not name:
+            raise _AdapterFailure("InvalidGatewayToolCall")
+        arguments = _tool_arguments(function.get("arguments"))
+        part = types.Part.from_function_call(name=name, args=arguments)
+        call_id = tool_call.get("id") or ""
+        if not isinstance(call_id, str):
+            raise _AdapterFailure("InvalidGatewayToolCall")
+        part.function_call.id = call_id
+        parts.append(part)
+    if not parts and finish_reason in (None, types.FinishReason.STOP):
+        raise _AdapterFailure("EmptyGatewayResponse")
+
+    response = LlmResponse(
+        model_version=completion.get("model"),
+        content=types.Content(role="model", parts=parts),
+        partial=False,
+        finish_reason=finish_reason,
+        usage_metadata=_usage_metadata(completion.get("usage")),
+    )
+    # ADK also maps provider tool finishes to STOP. Only the provider's
+    # explicit stop can authorize recovery of a blank or thought-only reply.
+    if choice.get("finish_reason") != "stop" and empty_stop_response(response):
+        raise _AdapterFailure("EmptyGatewayResponse")
+    if finish_reason is not None and finish_reason != types.FinishReason.STOP:
+        response.error_code = finish_reason.value
+        response.error_message = (
+            "Maximum tokens reached"
+            if finish_reason == types.FinishReason.MAX_TOKENS
+            else f"Finished with {finish_reason.name}"
+        )
+    return response
+
+
+def _reasoning_text(message: Mapping[str, Any]) -> str:
+    value = message.get("reasoning_content")
+    if value is None:
+        value = message.get("reasoning")
+    extra = message.get("model_extra")
+    if value is None and isinstance(extra, Mapping):
+        value = extra.get("reasoning_content", extra.get("reasoning"))
+    return "".join(_reasoning_fragments(value))
+
+
+def _reasoning_fragments(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [text for item in value for text in _reasoning_fragments(item)]
+    if isinstance(value, Mapping):
+        for key in ("text", "content", "reasoning", "reasoning_content"):
+            if key in value:
+                return _reasoning_fragments(value[key])
+    return []
+
+
+def _response_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, Sequence):
+        texts: list[str] = []
+        for part in value:
+            text = part.get("text") if isinstance(part, Mapping) else getattr(part, "text", None)
+            if isinstance(text, str):
+                texts.append(text)
+        return "".join(texts)
+    raise _AdapterFailure("InvalidGatewayContent")
+
+
+def _tool_arguments(value: Any) -> dict[str, Any]:
+    if value is None or value == "":
+        return {}
+    if not isinstance(value, str):
+        raise _AdapterFailure("InvalidGatewayToolArguments")
+    try:
+        result = json.loads(value)
+    except json.JSONDecodeError:
+        raise _AdapterFailure("InvalidGatewayToolArguments") from None
+    if not isinstance(result, dict):
+        raise _AdapterFailure("InvalidGatewayToolArguments")
+    return result
+
+
+def _usage_metadata(usage: Any) -> types.GenerateContentResponseUsageMetadata | None:
+    if usage is None:
+        return None
+    if not isinstance(usage, Mapping):
+        raise _AdapterFailure("InvalidGatewayUsage")
+    prompt_details = usage.get("prompt_tokens_details") or {}
+    completion_details = usage.get("completion_tokens_details") or {}
+    if not isinstance(prompt_details, Mapping) or not isinstance(completion_details, Mapping):
+        raise _AdapterFailure("InvalidGatewayUsage")
+    return types.GenerateContentResponseUsageMetadata(
+        prompt_token_count=usage.get("prompt_tokens"),
+        candidates_token_count=usage.get("completion_tokens"),
+        total_token_count=usage.get("total_tokens"),
+        cached_content_token_count=prompt_details.get("cached_tokens"),
+        thoughts_token_count=completion_details.get("reasoning_tokens"),
+    )
+
+
+def _rejected_response_usage(
+    completion: Any,
+) -> types.GenerateContentResponseUsageMetadata | None:
+    """Keep only numeric usage from a response the adapter could not accept."""
+
+    if not isinstance(completion, Mapping):
+        return None
+    try:
+        return _usage_metadata(completion.get("usage"))
+    except Exception:
+        return None
+
+
+def _map_finish_reason(value: Any) -> types.FinishReason | None:
+    if value is None:
+        return None
+    return _FINISH_REASON.get(str(value).lower(), types.FinishReason.OTHER)
+
+
+def _safe_error_type(error: Exception) -> str:
+    if isinstance(error, _AdapterFailure):
+        return error.code
+    if isinstance(error, GatewayRequestError):
+        return error.provider_error_type
+    name = type(error).__name__
+    return name if _SAFE_ERROR_TYPE.fullmatch(name) else "UnknownProviderError"
+
+
+def _retryable_gateway_error(error: Exception) -> bool:
+    if isinstance(error, GatewayRequestError):
+        return error.retryable
+    if isinstance(error, TimeoutError):
+        return True
+    if isinstance(error, _AdapterFailure):
+        return error.code not in _NON_RETRYABLE_ADAPTER_FAILURES
+    return False

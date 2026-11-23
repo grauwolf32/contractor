@@ -1,0 +1,330 @@
+{
+  "schema_version": "agent-instructions-variants/v1",
+  "status": "eval_overlay_candidate_not_evaluated",
+  "instructions": [
+    {
+      "baseline": "configs/instructions/audit-asvs-source-verifier-worker.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/audit-asvs-source-verifier-worker-v2.md",
+      "baseline_sha256": "89173f8d33cba2f11968335258e49a51faabd42a445dbf54fc7998bb2489d1f6",
+      "candidate_sha256": "c75473dbd5513a79fe1938414e9bd77243b8f62751a4b09ad5d3f9c8cfe6c489"
+    },
+    {
+      "baseline": "configs/instructions/audit-risk-source-checker-worker.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/audit-risk-source-checker-worker-v2.md",
+      "baseline_sha256": "c3696ccc8432cd7275ceac07f0328e5c462e926f06d01087e9ae85fd434ebc0e",
+      "candidate_sha256": "b294058fdad893dbd6469c75402efe11b239b141b57439bf68d67e00c2493618"
+    },
+    {
+      "baseline": "configs/instructions/audit-source-checker-worker.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/audit-source-checker-worker-v2.md",
+      "baseline_sha256": "a6dbd2b8181c66abe30c3cbc3fb042d8b066fcc4b8d4d145e67ae78c93f5a513",
+      "candidate_sha256": "83d5686dc8a0962b02ea35c463d39942d014b3e2c1fde930dd132b1ac2db9a15"
+    },
+    {
+      "baseline": "configs/instructions/caido-analyst-worker.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/caido-analyst-worker-v2.md",
+      "baseline_sha256": "82d885a0553c89715f377548d44a1125754769491273fa75bdf6732a8bdffd63",
+      "candidate_sha256": "95f216eda409161c12e1d32ca72c2b4096a6bd90641374da64a09f67047a9021"
+    },
+    {
+      "baseline": "configs/instructions/dependency-discovery-planner.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/dependency-discovery-planner-v2.md",
+      "baseline_sha256": "78648c14832a92e494d011271107e2227955330651ad71a300a5f1cbf2ccf73d",
+      "candidate_sha256": "be64227c8fb2477561a45240ea4b804e62ef5f80c98b05becf27b9d49e49d62d"
+    },
+    {
+      "baseline": "configs/instructions/http-explorer-worker.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/http-explorer-worker-v2.md",
+      "baseline_sha256": "fadc120c4a94c8839374ecfc798edb4c3c7715e9bf913bf5977d855d5554f774",
+      "candidate_sha256": "e25bfa62d477bbeaf5af3d62ea4d3387aba39942e5f6c9f9dc1a08b8088464cb"
+    },
+    {
+      "baseline": "configs/instructions/likec4-build-planner.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/likec4-build-planner-v2.md",
+      "baseline_sha256": "cd4af2750dd2f8fe9f55bcd138c3aeb8888bdbf67d81e9065489f61f9adc7e8c",
+      "candidate_sha256": "9eac079470e238542fe74772aec7e8f7087990480ad8bb08872acb8ffa0659bc"
+    },
+    {
+      "baseline": "configs/instructions/likec4-builder-worker-v2.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/likec4-builder-worker-v3.md",
+      "baseline_sha256": "55a719de2b4f6e59103f28a62f25c899dd4c099b9a5c45e6a40003eb059a6001",
+      "candidate_sha256": "05df0b452b12429f8aa5ecd2acb67e1a26b54b09cf0869eb7bd0eeda3134ea11"
+    },
+    {
+      "baseline": "configs/instructions/likec4-validate-planner.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/likec4-validate-planner-v2.md",
+      "baseline_sha256": "ab1b53e482c85497513a57db48fa9537298dddfe6846dd83077c204369898215",
+      "candidate_sha256": "5555da7dd150d4ba9d43a6fe61ec657f5aead9a46b37e0c83a8225a4b8b492c6"
+    },
+    {
+      "baseline": "configs/instructions/likec4-validator-worker-v2.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/likec4-validator-worker-v3.md",
+      "baseline_sha256": "b6d46576790b9504980c2822676733b86b97848e58b7523108fd441f12e1cb28",
+      "candidate_sha256": "3374b77014946a04513b8b3ff0f6c8b86c5a374da94d732a1b2cfe3786284c8f"
+    },
+    {
+      "baseline": "configs/instructions/openapi-build-planner.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/openapi-build-planner-v2.md",
+      "baseline_sha256": "75b1235a3690bc5df9581001adf23ff73e95ac03ab8d9325d21c804aebdb15b8",
+      "candidate_sha256": "bd53ae92b0fa66a51c9b37ab6785f06b52f3ad647837f4863500c1fa0a0919d8"
+    },
+    {
+      "baseline": "configs/instructions/openapi-builder-worker.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/openapi-builder-worker-v2.md",
+      "baseline_sha256": "fe7c024143c835ffeb1f3ab3f8bf07545213c221e4c0bd006199f1cb7d543096",
+      "candidate_sha256": "c406cbc4401f9eb73e2ae80ca9d57f7b642db159fb427f2f16cce92bf14cbb46"
+    },
+    {
+      "baseline": "configs/instructions/openapi-validate-planner.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/openapi-validate-planner-v2.md",
+      "baseline_sha256": "a68b43bba3f5dd6f757036cdd5915d5d4d7d97dfddc18ed6854ee9c9cda8ebad",
+      "candidate_sha256": "f13514b30f2cff4cead894b5d02de7e70dc95bdc26e24510710b8f2dfbb6d153"
+    },
+    {
+      "baseline": "configs/instructions/openapi-validator-worker.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/openapi-validator-worker-v2.md",
+      "baseline_sha256": "3c51704221abc723adefb79750a3d85a457a09769673275af75f9c854f4d6617",
+      "candidate_sha256": "31cdc3f0e51c47d8fac8fb1c54640c035b88cfa9a356753f6501109b88f019b8"
+    },
+    {
+      "baseline": "configs/instructions/workspace-likec4-builder-worker.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/workspace-likec4-builder-worker-v2.md",
+      "baseline_sha256": "82a6fb788788eabb862010b5beb448d8414e0cd19acc8e11d318efba955fd7d3",
+      "candidate_sha256": "5c28d8f243c8e2ddd0265fb3ee82bfcdb935b59b6104e307afc186b51d43d5a2"
+    },
+    {
+      "baseline": "configs/instructions/workspace-likec4-validator-worker.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/workspace-likec4-validator-worker-v2.md",
+      "baseline_sha256": "bd25b24c7e10fd50160e09af8a22c386ed5791e3c871785ab31c6296363b60b8",
+      "candidate_sha256": "b34c09d7b213eb3b2862b373e035b82f01e1d38ad6a80cd9eb9080f2866bcdcb"
+    },
+    {
+      "baseline": "configs/instructions/workspace-openapi-builder-worker.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/workspace-openapi-builder-worker-v2.md",
+      "baseline_sha256": "d9bf787f8410e586f0bfd706f7439f7f5ffd7b3b00cb7db1ca50aabd3916fef7",
+      "candidate_sha256": "88f7397b9078864d219324c6b5445521424885f08a3227c8a55ca9348e3b469e"
+    },
+    {
+      "baseline": "configs/instructions/workspace-openapi-validator-worker.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/workspace-openapi-validator-worker-v2.md",
+      "baseline_sha256": "9f299389b61f187b230174d25803db1231ee6a15b8f837d2995f645b0e7483c6",
+      "candidate_sha256": "d55901ef23ffd9c38b4297c0fb64ffdef0e6c47d8124be7e837770bc5e0a3fe1"
+    },
+    {
+      "baseline": "configs/instructions/workspace-source-graph-analyst-worker.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/workspace-source-graph-analyst-worker-v2.md",
+      "baseline_sha256": "339e8d4d1a9cb40964d11929919f9f3215cc61567e04e3b9ac8bb2d0aaf54e95",
+      "candidate_sha256": "ca4a0ab4f255ffcce015b0aab5afa6941f8fd521e1596e401001c0f6f92f3538"
+    },
+    {
+      "baseline": "configs/instructions/workspace-taint-analyst-worker.md",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/instructions/workspace-taint-analyst-worker-v2.md",
+      "baseline_sha256": "dda89b2bace334ce4cf08f99bb2a2ba428d62d61ad9f51ac78ee43b358f1f0bf",
+      "candidate_sha256": "96b5ba31ef8dc9c5b069f61fff674afc690988de9e081de912f77cbc912aed3f"
+    }
+  ],
+  "templates": [
+    {
+      "baseline": "configs/agent-templates/audit_asvs_source_verifier.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/agent-templates/audit_asvs_source_verifier_v2.yaml",
+      "baseline_sha256": "7f67baca30b2f5443875ddb4858ebd148733ba3c113a933d4cd87ced2cc0d912",
+      "candidate_sha256": "b846c40fbd309414e90678b2e87115c876bf3db6bd6bf0e0beb20915810a0c5c",
+      "baseline_selector": "audit_asvs_source_verifier@1",
+      "candidate_selector": "audit_asvs_source_verifier@2"
+    },
+    {
+      "baseline": "configs/agent-templates/audit_risk_source_checker.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/agent-templates/audit_risk_source_checker_v2.yaml",
+      "baseline_sha256": "228e7144ca855dbd353ec801c5cffc38a7a1cbafa7623e2a35e2d70120bed0ed",
+      "candidate_sha256": "54c16331758364ca002a2e517fd0dfaa27eff2a65b5a385a78e9816b18e2493f",
+      "baseline_selector": "audit_risk_source_checker@1",
+      "candidate_selector": "audit_risk_source_checker@2"
+    },
+    {
+      "baseline": "configs/agent-templates/audit_source_checker.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/agent-templates/audit_source_checker_v2.yaml",
+      "baseline_sha256": "ce4364c410073a76fd22d1e9301c1b3518abbfbb4a572cf3d124971bb4523d4b",
+      "candidate_sha256": "03e7c2fcf47f4f93418be3e442ced06a47d81de6bf72c8e2b3d9be647e2d56a6",
+      "baseline_selector": "audit_source_checker@1",
+      "candidate_selector": "audit_source_checker@2"
+    },
+    {
+      "baseline": "configs/agent-templates/caido_analyst.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/agent-templates/caido_analyst_v2.yaml",
+      "baseline_sha256": "dee7064cb015582d06d97e0d42cc263f769ff1d9435e242454be410ff82ace4c",
+      "candidate_sha256": "b0fce6b2c36a626062020f9f85296aa79a597d5a04429b674c90ef362b3f7f76",
+      "baseline_selector": "caido_analyst@1",
+      "candidate_selector": "caido_analyst@2"
+    },
+    {
+      "baseline": "configs/agent-templates/http_explorer.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/agent-templates/http_explorer_v2.yaml",
+      "baseline_sha256": "33af23663f8b2289ed11abe471fe36885a9c9c2048a387d7d520fb1dd0f62a4c",
+      "candidate_sha256": "e9922187334b38aea4182c0ed669f72c187abf4f2539a34f48f1ee0ff32d062c",
+      "baseline_selector": "http_explorer@1",
+      "candidate_selector": "http_explorer@2"
+    },
+    {
+      "baseline": "configs/agent-templates/likec4_builder_v2.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/agent-templates/likec4_builder_v3.yaml",
+      "baseline_sha256": "d829ceb2b551d1f9619cc17611ee9b2837b27f33c899160085c96fd84e995821",
+      "candidate_sha256": "8d9493e20f4c0f31d05e4a4ce0935dda3b3fddb2b4b06641678a77396c6ff7fb",
+      "baseline_selector": "likec4_builder@2",
+      "candidate_selector": "likec4_builder@3"
+    },
+    {
+      "baseline": "configs/agent-templates/likec4_validator_v2.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/agent-templates/likec4_validator_v3.yaml",
+      "baseline_sha256": "d8148677da463c23bc8aa1811cd071a26aea72e2fa07630b4e2973e881bc99eb",
+      "candidate_sha256": "7ecefcbe323710bef985b87df1339477faa5b8a7ea792967811e6b02490b4410",
+      "baseline_selector": "likec4_validator@2",
+      "candidate_selector": "likec4_validator@3"
+    },
+    {
+      "baseline": "configs/agent-templates/openapi_builder.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/agent-templates/openapi_builder_v2.yaml",
+      "baseline_sha256": "2a33728cfd6ceb911bb356b42343a19adfb010f55a898cfeb9144e5c9116e999",
+      "candidate_sha256": "6c2139707fc821feeaecd7a24062b1e317d1b2ddc414bd8446ee68c193c9b1ff",
+      "baseline_selector": "openapi_builder@1",
+      "candidate_selector": "openapi_builder@2"
+    },
+    {
+      "baseline": "configs/agent-templates/openapi_validator.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/agent-templates/openapi_validator_v2.yaml",
+      "baseline_sha256": "b8eca47320e276c020ded3487f4122be34b30020eff0ce8ebcf5d3d6f7d7811e",
+      "candidate_sha256": "c87332885b3067997b08f14a6b1040c2ec397df32e45d87416b430990397f4d2",
+      "baseline_selector": "openapi_validator@1",
+      "candidate_selector": "openapi_validator@2"
+    },
+    {
+      "baseline": "configs/agent-templates/workspace_likec4_builder.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/agent-templates/workspace_likec4_builder_v2.yaml",
+      "baseline_sha256": "86825a1543556d9504c0b211fc1f3b57a51db289411f6f9d70eef1d23b7c5883",
+      "candidate_sha256": "730fd44d1aca1bae151f3ac89526b17f57ceada9c1e93a8aeb3a9f10ba946357",
+      "baseline_selector": "workspace_likec4_builder@1",
+      "candidate_selector": "workspace_likec4_builder@2"
+    },
+    {
+      "baseline": "configs/agent-templates/workspace_likec4_validator.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/agent-templates/workspace_likec4_validator_v2.yaml",
+      "baseline_sha256": "59ef9570101e050a817d81e9f1d26c9871024c86a03551b3064521f860b622f7",
+      "candidate_sha256": "596ee60e9bc8e47ceb4403a0d665206b32c5e018404286068a9ee7226df30c6a",
+      "baseline_selector": "workspace_likec4_validator@1",
+      "candidate_selector": "workspace_likec4_validator@2"
+    },
+    {
+      "baseline": "configs/agent-templates/workspace_openapi_builder.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/agent-templates/workspace_openapi_builder_v2.yaml",
+      "baseline_sha256": "cf5048bccca0c4f92914c183f2006565db52a59a7f0a1cc5d285a3ba4c9ef64f",
+      "candidate_sha256": "9a662ae866538673a1bfbdb163b7f28cccc903d2b2d0c8c6bdb99d1966651748",
+      "baseline_selector": "workspace_openapi_builder@1",
+      "candidate_selector": "workspace_openapi_builder@2"
+    },
+    {
+      "baseline": "configs/agent-templates/workspace_openapi_validator.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/agent-templates/workspace_openapi_validator_v2.yaml",
+      "baseline_sha256": "4785010001fc4f43ad20caf9e284fa534bdff1edbf62ace3cc45e53535271612",
+      "candidate_sha256": "2193f3e239e3869db6974de3bc42b67eed48ca897ba6886e404f43b4e16ee4b8",
+      "baseline_selector": "workspace_openapi_validator@1",
+      "candidate_selector": "workspace_openapi_validator@2"
+    },
+    {
+      "baseline": "configs/agent-templates/workspace_source_graph_analyst.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/agent-templates/workspace_source_graph_analyst_v2.yaml",
+      "baseline_sha256": "815c39c952eeecfdc9d860e9a28f73d44e1cc2d0a28ef923fc235611ced47d29",
+      "candidate_sha256": "05bedc869d5a5dc185e0e49358ea1db5f369450c4bc90076501b277bcce9daa6",
+      "baseline_selector": "workspace_source_graph_analyst@1",
+      "candidate_selector": "workspace_source_graph_analyst@2"
+    },
+    {
+      "baseline": "configs/agent-templates/workspace_taint_analyst.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/agent-templates/workspace_taint_analyst_v2.yaml",
+      "baseline_sha256": "78b128a911e5552dee4ff6c0f01e4f181ec77f3222398921583173b040eb00ba",
+      "candidate_sha256": "7c66e1aa40acbbc672903ebb25286ea9c4942c13a5e55f693c2936800639121d",
+      "baseline_selector": "workspace_taint_analyst@1",
+      "candidate_selector": "workspace_taint_analyst@2"
+    }
+  ],
+  "workflows": [
+    {
+      "baseline": "configs/workflows/audit_asvs_source_verification.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/workflows/audit_asvs_source_verification_v2.yaml",
+      "baseline_sha256": "b0cbd18caf7b6bbaf8db743d85e2f1b6aaf1e7bcb3c99b30ccb4c91b83451aaf",
+      "candidate_sha256": "7ffd6832cda5a6e355ba53fbc03d334b0968dc894ea50ae4838cb6ce14bc109e",
+      "baseline_selector": "audit-asvs-source-verification@1",
+      "candidate_selector": "audit-asvs-source-verification@2"
+    },
+    {
+      "baseline": "configs/workflows/audit_source_check.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/workflows/audit_source_check_v2.yaml",
+      "baseline_sha256": "3bc1de7d675ea92e845e4640755060e99c3c9d1ca5bba0aff15161d19affe877",
+      "candidate_sha256": "d5a2a0c65b404aae5e33176ccb12c0125d55d04a0b78dda47a9ba409a0620380",
+      "baseline_selector": "audit-source-check@1",
+      "candidate_selector": "audit-source-check@2"
+    },
+    {
+      "baseline": "configs/workflows/audit_top10_source_risk.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/workflows/audit_top10_source_risk_v2.yaml",
+      "baseline_sha256": "0d24f71680e9bf887d253f21ff0037a7f01615af95907e433b42e06999399a28",
+      "candidate_sha256": "cdb5f58aee9512b28b5460645840eb30e606dad55bc34f833075fbf209e5583c",
+      "baseline_selector": "audit-top10-source-risk@1",
+      "candidate_selector": "audit-top10-source-risk@2"
+    },
+    {
+      "baseline": "configs/workflows/likec4_from_analysis_v3.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/workflows/likec4_from_analysis_v4.yaml",
+      "baseline_sha256": "228a15d066682382b47f3e051895d1c3db7de5cf45baadfe467a191096c356ef",
+      "candidate_sha256": "5bffeb7bf3f83c7a58bb7b7ccf1071c3dad8839d7e264f6495be7e420389f9b3",
+      "baseline_selector": "likec4-from-analysis@3",
+      "candidate_selector": "likec4-from-analysis@4"
+    },
+    {
+      "baseline": "configs/workflows/likec4_from_workspace_streamline.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/workflows/likec4_from_workspace_streamline_v3.yaml",
+      "baseline_sha256": "66bba483c21dcd82cf994648c4ad191bcdc8ea06f3a298b94c6daa133bc621f9",
+      "candidate_sha256": "f5b310581a9d642c07d53b3cea6a40d8663b8e4c1226b4abc8655f5d6f5bc92e",
+      "baseline_selector": "likec4-from-workspace-streamline@2",
+      "candidate_selector": "likec4-from-workspace-streamline@3"
+    },
+    {
+      "baseline": "configs/workflows/likec4_from_workspace_v5.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/workflows/likec4_from_workspace_v6.yaml",
+      "baseline_sha256": "790d9a12cdc5f57cda224b753200d0552214cd0d171fea29e3ad42467ab33107",
+      "candidate_sha256": "09d5b2b1a10a8ea31a2a5c6be84af805e7dd4fbb0392e594463aadef309dba85",
+      "baseline_selector": "likec4-from-workspace@5",
+      "candidate_selector": "likec4-from-workspace@6"
+    },
+    {
+      "baseline": "configs/workflows/openapi_from_analysis.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/workflows/openapi_from_analysis_v3.yaml",
+      "baseline_sha256": "e656fddab9af62c0c2093588d1f668da2f1d62218f3062320d3beb6b4636668b",
+      "candidate_sha256": "4ab76d55ced04a01d533959a3db021773a094a416cf93755081219c8bba160f3",
+      "baseline_selector": "openapi-from-analysis@2",
+      "candidate_selector": "openapi-from-analysis@3"
+    },
+    {
+      "baseline": "configs/workflows/openapi_from_workspace_v5.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/workflows/openapi_from_workspace_v6.yaml",
+      "baseline_sha256": "2b5708d566d0ab362058945fa88cd75560b68d8bd881b81b1d74064c3d28daa2",
+      "candidate_sha256": "beb748d6754cdc43942e8bb104c2e3aa4c7d82ea265f4de8ee269754b511150d",
+      "baseline_selector": "openapi-from-workspace@5",
+      "candidate_selector": "openapi-from-workspace@6"
+    },
+    {
+      "baseline": "configs/workflows/security_analysis.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/workflows/security_analysis_v3.yaml",
+      "baseline_sha256": "c4542f84743dbe1be4be5ca21951fdd148e3696cefc995b1f0415eefeadc8ba4",
+      "candidate_sha256": "8f67e0e951b4476976a5de343889037422542f29432a33f7b47736b317212d45",
+      "baseline_selector": "security-analysis@2",
+      "candidate_selector": "security-analysis@3"
+    },
+    {
+      "baseline": "configs/workflows/taint_trace_from_workspace.yaml",
+      "candidate": "tests/eval/agent_instructions/candidate/configs/workflows/taint_trace_from_workspace_v3.yaml",
+      "baseline_sha256": "e64f08aa3fb51b0db237648961f010556aba5d08bc1bf007e185c0140c828450",
+      "candidate_sha256": "03fd1a868a27d3c571199160cfb5c69e21eac9858d0b8ff0790379e646261043",
+      "baseline_selector": "taint-trace-from-workspace@2",
+      "candidate_selector": "taint-trace-from-workspace@3"
+    }
+  ]
+}

@@ -1,0 +1,236 @@
+import { TEST_SHARED_CONFIG } from "../test/shared-config";
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../test/builders";
+import { describe, expect, it } from "vitest";
+
+import type { ArtifactMetadata } from "../api/artifacts";
+import type { WorkflowResource } from "../api/workflows";
+import { artifactOptionKey, validateRunDraft } from "./validation";
+
+const workflow: WorkflowResource = {
+  ref: { name: "openapi-from-workspace", version: "fixture-1" },
+  entryStage: "dependencies",
+  parameters: { objective: { required: true }, note: { required: false } },
+  inputs: {
+    source: { required: true, mediaTypes: ["application/zip"] },
+    existing: { required: false, mediaTypes: ["application/yaml"] },
+  },
+  outputs: { openapi: { required: true, mediaTypes: ["application/yaml"] } },
+  stages: {},
+};
+
+const source: ArtifactMetadata = {
+  canUploadNewVersion: true,
+  storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
+  artifact: {
+    namespace: "projects",
+    name: "source",
+    revision: "revision-4",
+  },
+  mediaType: "application/zip",
+  size: 1024,
+  current: true,
+  frozen: false,
+  createdAt: "2026-08-31T12:00:00Z",
+};
+
+describe("Run draft validation", () => {
+  it("rejects missing required values and incompatible exact Artifacts", () => {
+    const incompatible = {
+      ...source,
+      mediaType: "text/plain",
+    };
+    const key = artifactOptionKey(incompatible.artifact);
+    const result = validateRunDraft(
+      workflow,
+      {
+        runtimeLabels: [],
+        metadataLabels: [],
+        parameters: {},
+        artifacts: { source: key },
+        artifactReviews: { source: key },
+      },
+      () => new Map([[key, incompatible]]),
+      TEST_SHARED_CONFIG.limits,
+    );
+    expect(result.request).toBeUndefined();
+    expect(result.errors).toEqual({
+      "artifact:source": "Media type text/plain is not accepted by this input.",
+      "parameter:objective": "Required string parameter is missing.",
+    });
+  });
+
+  it("asks for a revision of a required input and for one still in the loaded list", () => {
+    const missing = validateRunDraft(
+      workflow,
+      {
+        runtimeLabels: [],
+        metadataLabels: [],
+        parameters: { objective: "Build OpenAPI" },
+        artifacts: {},
+        artifactReviews: {},
+      },
+      () => new Map(),
+      TEST_SHARED_CONFIG.limits,
+    );
+    expect(missing.request).toBeUndefined();
+    // The optional input may stay empty.
+    expect(missing.errors).toEqual({
+      "artifact:source": "Choose a revision for this required input.",
+    });
+
+    const key = artifactOptionKey(source.artifact);
+    const unloaded = validateRunDraft(
+      workflow,
+      {
+        runtimeLabels: [],
+        metadataLabels: [],
+        parameters: { objective: "Build OpenAPI" },
+        artifacts: { source: key },
+        artifactReviews: { source: key },
+      },
+      () => new Map(),
+      TEST_SHARED_CONFIG.limits,
+    );
+    expect(unloaded.request).toBeUndefined();
+    expect(unloaded.errors).toEqual({
+      "artifact:source":
+        "The selected revision is no longer in the loaded list.",
+    });
+  });
+
+  it("builds exact refs and omits unused optional values", () => {
+    const key = artifactOptionKey(source.artifact);
+    const result = validateRunDraft(
+      workflow,
+      {
+        runtimeLabels: ["debug"],
+        metadataLabels: [
+          { id: "flag", key: "debug", value: "" },
+          { id: "label-2", key: "eval.id", value: "eval-01" },
+          { id: "label-1", key: "purpose", value: "eval" },
+        ],
+        parameters: { objective: "Build OpenAPI" },
+        artifacts: { source: key },
+        artifactReviews: { source: key },
+      },
+      () => new Map([[key, source]]),
+      TEST_SHARED_CONFIG.limits,
+    );
+    expect(result.errors).toEqual({});
+    expect(result.request).toEqual({
+      workflow: `${workflow.ref.name}@${workflow.ref.version}`,
+      runtimeLabels: ["debug"],
+      labels: { debug: "", "eval.id": "eval-01", purpose: "eval" },
+      parameters: { objective: "Build OpenAPI" },
+      artifacts: { source: source.artifact },
+    });
+  });
+
+  it("reports exact metadata key, value, duplicate, and count failures", () => {
+    const labels = [
+      { id: "upper", key: "Eval.ID", value: "one" },
+      { id: "reserved", key: "contractor.owner", value: "one" },
+      { id: "nul", key: "eval.case", value: "\0" },
+      { id: "first", key: "eval.id", value: "one" },
+      { id: "second", key: "eval.id", value: "two" },
+      ...Array.from({ length: 28 }, (_, index) => ({
+        id: `extra-${index}`,
+        key: `extra.${index}`,
+        value: "value",
+      })),
+    ];
+    const result = validateRunDraft(
+      { ...workflow, parameters: {}, inputs: {} },
+      {
+        runtimeLabels: [],
+        metadataLabels: labels,
+        parameters: {},
+        artifacts: {},
+        artifactReviews: {},
+      },
+      () => new Map(),
+      TEST_SHARED_CONFIG.limits,
+    );
+    expect(result.request).toBeUndefined();
+    expect(result.errors).toMatchObject({
+      metadataLabels: "A Run can have at most 32 metadata labels.",
+      "metadataLabel:upper:key":
+        "Use lowercase ASCII segments separated by ., _ or -.",
+      "metadataLabel:reserved:key": "The contractor. prefix is reserved.",
+      "metadataLabel:nul:value": "Label value cannot contain U+0000.",
+      "metadataLabel:first:key": "Label key eval.id is duplicated.",
+      "metadataLabel:second:key": "Label key eval.id is duplicated.",
+    });
+  });
+
+  it("requires per-slot review of an exact compatible selection", () => {
+    const key = artifactOptionKey(source.artifact);
+    const result = validateRunDraft(
+      workflow,
+      {
+        runtimeLabels: [],
+        metadataLabels: [],
+        parameters: { objective: "Build OpenAPI" },
+        artifacts: { source: key },
+        artifactReviews: {},
+      },
+      () => new Map([[key, source]]),
+      TEST_SHARED_CONFIG.limits,
+    );
+
+    expect(result.request).toBeUndefined();
+    expect(result.errors).toEqual({
+      "artifactReview:source":
+        "Review and confirm this exact revision for this input.",
+    });
+  });
+
+  it("allows one exact Artifact to be reviewed independently for two slots", () => {
+    const report = { ...source, mediaType: "text/markdown" };
+    const key = artifactOptionKey(report.artifact);
+    const twoReportWorkflow: WorkflowResource = {
+      ...workflow,
+      parameters: {},
+      inputs: {
+        dependency_report: {
+          required: true,
+          mediaTypes: ["text/markdown"],
+        },
+        project_report: { required: true, mediaTypes: ["text/markdown"] },
+      },
+    };
+    const partial = validateRunDraft(
+      twoReportWorkflow,
+      {
+        runtimeLabels: [],
+        metadataLabels: [],
+        parameters: {},
+        artifacts: { dependency_report: key, project_report: key },
+        artifactReviews: { dependency_report: key },
+      },
+      () => new Map([[key, report]]),
+      TEST_SHARED_CONFIG.limits,
+    );
+    expect(partial.errors).toEqual({
+      "artifactReview:project_report":
+        "Review and confirm this exact revision for this input.",
+    });
+
+    const complete = validateRunDraft(
+      twoReportWorkflow,
+      {
+        runtimeLabels: [],
+        metadataLabels: [],
+        parameters: {},
+        artifacts: { dependency_report: key, project_report: key },
+        artifactReviews: { dependency_report: key, project_report: key },
+      },
+      () => new Map([[key, report]]),
+      TEST_SHARED_CONFIG.limits,
+    );
+    expect(complete.request?.artifacts).toEqual({
+      dependency_report: report.artifact,
+      project_report: report.artifact,
+    });
+  });
+});

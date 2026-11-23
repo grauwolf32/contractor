@@ -1,0 +1,74 @@
+---
+# likec4 runs on the pinned Node and is installed with npm ci from the
+# committed lockfile, so every transitive package is exact. The Runtime never
+# falls back to npx and never downloads packages while a Worker runs.
+
+- name: Install likec4
+  vars:
+    __contractor_runtime_dest: "{{ contractor_runtime_prefix }}/tools/likec4-{{ __contractor_runtime_tools.likec4.version }}"
+    __contractor_runtime_node_dir: "{{ contractor_runtime_prefix }}/tools/node-{{ __contractor_runtime_tools.node.version }}"
+    __contractor_runtime_manifest: "{{ lookup('ansible.builtin.file', contractor_runtime_likec4_lock_dir ~ '/package.json') | from_json }}"
+  block:
+    - name: Require a lockfile for this likec4 version
+      ansible.builtin.assert:
+        that: __contractor_runtime_manifest.dependencies.likec4 | default('') == __contractor_runtime_tools.likec4.version | string
+        fail_msg: >-
+          {{ contractor_runtime_likec4_lock_dir }}/package.json pins likec4
+          {{ __contractor_runtime_manifest.dependencies.likec4 | default('nothing') }}, not
+          {{ __contractor_runtime_tools.likec4.version }}. Regenerate it with
+          npm install --package-lock-only (README.md).
+        quiet: true
+
+    - name: Check likec4
+      ansible.builtin.stat:
+        path: "{{ __contractor_runtime_dest }}/node_modules/likec4/bin/likec4.mjs"
+      register: __contractor_runtime_likec4
+
+    - name: Install the locked packages
+      when: not __contractor_runtime_likec4.stat.exists
+      block:
+        - name: Clear an interrupted or incomplete installation
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop: ["{{ __contractor_runtime_dest }}.partial", "{{ __contractor_runtime_dest }}"]
+
+        - name: Create the installation directory
+          ansible.builtin.file:
+            path: "{{ __contractor_runtime_dest }}.partial"
+            state: directory
+            owner: root
+            group: root
+            mode: "0755"
+
+        - name: Copy the package manifest and lockfile
+          ansible.builtin.copy:
+            src: "{{ contractor_runtime_likec4_lock_dir }}/{{ item }}"
+            dest: "{{ __contractor_runtime_dest }}.partial/{{ item }}"
+            owner: root
+            group: root
+            mode: "0644"
+          loop: [package.json, package-lock.json]
+
+        - name: Run npm ci
+          ansible.builtin.command:
+            argv: ["{{ __contractor_runtime_node_dir }}/bin/npm", ci, --omit=dev, --ignore-scripts, --no-audit, --no-fund]
+            chdir: "{{ __contractor_runtime_dest }}.partial"
+          environment:
+            PATH: "{{ __contractor_runtime_node_dir }}/bin:/usr/bin:/bin"
+            npm_config_cache: "{{ contractor_runtime_prefix }}/cache/npm"
+            npm_config_update_notifier: "false"
+          changed_when: true
+
+        - name: Publish likec4
+          ansible.builtin.command:
+            argv: [mv, -T, "{{ __contractor_runtime_dest }}.partial", "{{ __contractor_runtime_dest }}"]
+            creates: "{{ __contractor_runtime_dest }}"
+
+    - name: Install the likec4 launcher
+      ansible.builtin.include_tasks: wrapper.yml
+      vars:
+        __contractor_runtime_wrapper_tool: likec4
+        __contractor_runtime_wrapper_argv:
+          - "{{ __contractor_runtime_node_dir }}/{{ __contractor_runtime_tools.node.path }}"
+          - "{{ __contractor_runtime_dest }}/node_modules/likec4/bin/likec4.mjs"

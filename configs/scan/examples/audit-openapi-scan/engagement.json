@@ -1,0 +1,41 @@
+{
+  "schema": "contractor.engagement.v1",
+  "egress": {
+    "routes": [
+      {
+        "origin": "http://192.168.56.10:8080",
+        "methods": [
+          "GET",
+          "POST"
+        ],
+        "pathPrefixes": [
+          "/api"
+        ],
+        "addressRanges": [
+          "192.168.56.10/32"
+        ]
+      }
+    ],
+    "exclusions": []
+  },
+  "identities": [
+    {
+      "id": "anonymous",
+      "kind": "anonymous",
+      "origins": [
+        "http://192.168.56.10:8080"
+      ]
+    },
+    {
+      "id": "scanner",
+      "kind": "bearer",
+      "origins": [
+        "http://192.168.56.10:8080"
+      ],
+      "credential": {
+        "credentialId": "fixture-credential",
+        "kind": "target-bearer@1"
+      }
+    }
+  ]
+}

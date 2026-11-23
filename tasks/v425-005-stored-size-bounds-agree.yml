@@ -1,0 +1,85 @@
+schema_version: '1.0'
+id: V425-005
+title: Make Go validation, stored-size CHECKs and the limits registry agree on every remaining column
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: defect
+priority: P2
+status: pending
+depends_on: []
+languages:
+- go
+- sql
+- markdown
+goal: Every bounded stored value is checked once by Go with the same byte measure and limit as its CHECK
+  constraint and its LIM row, so a valid request never reaches an unclassified CHECK violation and no
+  column is looser than its registered bound.
+context:
+  credential_followup: V468-001 fixes the credential policy/request byte measures and permanent create recovery from the 2026-11-16 release review. The remaining non-credential columns below stay in this task.
+  authority_2026_10_31: 'User decision: remove standalone Sweep and use Audit-owned target scanning. V425-033
+    owns removing sweep tables, ID constraints and ownership entries. This task retains its non-sweep
+    stored-size defects and does not repair or preserve the superseded Sweep contract.'
+  origin: Reported by a lane of the 2026-10-30 defect wave and rechecked on main fde39a943 by the coordinator.
+  severity: medium
+  finding: 'Found while V414-007 registered the stored-size CHECKs. Go accepts values the CHECK refuses:
+    (1) credentials check 64 KiB on compact JSON (internal/credentials/repository.go:387, :439) but llm_credentials_gateway_policy_check
+    and credential_operations_request_check count stored jsonb text, which is longer; (2) audit_review_requests_report_summary_link_check
+    and _machine_link_check allow 16 KiB while Go accepts up to 1 MiB of provenance in a link (internal/auditstore/internal/pgstore/validation.go:967,
+    :995); (3) Eval columns with only the 1 MiB CHECK and no Go size check: eval_members recipe (internal/evalstore/experiments.go:441-481),
+    eval_member_projections observed_document (internal/evalservice/collection.go:154), and the eval_experiments
+    draft is re-encoded after its 1 MiB check (internal/evalstore/store.go:199); (4) LIM-FND-45 says compact
+    JSON but finding_comparison_projection_shape counts jsonb text. Columns looser than their registered
+    bound: owner columns allow 256 bytes against LIM-API-20''s 128; Audit profile_version allows 128 against
+    LIM-CAT-2''s 64. Public reads narrower than stored IDs: the Audit artifact member parameter is capped
+    at 128 bytes (internal/httpapi/public/audit_artifact_handlers.go:58-63) while Audit package member
+    IDs allow 160, so some members are unreadable.'
+  siblings: Every CHECK registered by V414-007 whose Go validator measures a different encoding; the V414-008
+    classification of CHECK violations stays the fallback, not the validation path.
+  authority: 'User decisions on 2026-10-31: Contractor is a research platform. Audit provides durable
+    coordination over ordinary Runs, fixed assertions use common hypotheses, exploratory findings may
+    have no hypothesis, deduplication and exact Audit/Run origin remain, hypothesis associations are automatic
+    and owner-independent, formal approvals are removed almost completely, and complexity must decrease
+    or stay controlled. The user requested task replanning and diagrams for review before implementation.'
+  implementation_gate: Only the Audit redesign/obsolete-target portion awaits user review of proposal
+    0050. Existing authorization and independent non-Audit defect work are unchanged; do not treat the
+    redesign as a prerequisite for those fixes.
+  design:
+  - docs/proposals/0050-audit-common-hypothesis-model.md
+  - docs/plans/2026-10-31-audit-redesign.md
+  redesign_boundary: 'Keep non-Audit size defects independently actionable. Reconcile the Audit targets
+    with V411-010/V64-010: delete obsolete review links/member routes with their owners rather than preserving
+    them to fix a CHECK.'
+scope:
+  in:
+  - Fix each listed mismatch so Go validates first with the stored byte measure, or the CHECK and registry
+    move to the value Go and the contract use; record the chosen measure per LIM row.
+  - A real-PostgreSQL test per column that writes a value at the bound and one byte over through the production
+    Go path.
+  out:
+  - Sweep ID bounds and ownership-entry placement; V425-033 removes the obsolete schema and metadata instead.
+  - Changing public limits beyond aligning them with the registry; any public change goes through OpenAPI
+    and both generated clients in the same commit.
+acceptance_criteria:
+- id: A1
+  text: Each listed value at its bound is stored, and one byte over is refused by Go with the owning classified
+    error, never by a CHECK.
+- id: A2
+  text: No listed column is looser or stricter than its LIM row, and the Audit artifact member parameter
+    reads every valid member ID.
+- id: A3
+  text: The new tests fail on the unfixed code.
+tests:
+- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/credentials/... ./internal/auditstore/...
+    ./internal/evalstore/... ./internal/evalservice/... ./internal/findingintake/... ./internal/httpapi/public/...
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make verify-public-api
+  covers:
+  - A2
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3

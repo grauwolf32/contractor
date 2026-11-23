@@ -1,0 +1,104 @@
+schema_version: "1.0"
+id: V387-001
+title: Route local model roles through OpenRouter GLM Flash
+milestone: server-ui-and-operations
+epic: operations
+kind: feature
+priority: P1
+status: completed
+implementation_commit: 044bc37479453b131fafbb121ac2f1f9820fbd92
+depends_on: []
+languages: [shell, yaml]
+goal: >-
+  Run the existing Planner, Worker, Audit completion and terminal summarizer
+  roles on GLM-5.3-Flash through the shared local LiteLLM Gateway.
+context:
+  specification: docs/spec/configuration/runtime-config.md#RCF-R1
+  design: docs/deployment.md
+scope:
+  in:
+    - Route both production model aliases to the exact OpenRouter GLM-5.3-Flash model.
+    - Read the upstream inference key from an owner-only local file and forward it by environment name.
+    - Update deployment instructions and affected launch and credential contract gates.
+    - Start the local Gateway and verify its real model and tool/schema behavior.
+    - Reuse an existing named Podman volume on repeated Gateway starts.
+  out:
+    - Provider management UI, new Runtime adapters, model budgets and existing business data.
+    - Management keys in container environments, tracked files, logs or command arguments.
+requirements:
+  - id: R1
+    text: Both production aliases select one GLM-5.3-Flash route without a model-family fallback.
+  - id: R2
+    text: Upstream secrets are read from regular non-symlink files before container mutations and stay outside argv.
+  - id: R4
+    text: Repeated launches accept the existing named volume without replacing its contents.
+  - id: R3
+    text: Credential contract tests use a synthetic upstream token and never need OpenRouter credits.
+failure_outcomes:
+  - operation: Launch the local LiteLLM Gateway
+    permanent: Missing, symlinked or invalid key files fail before container changes without exposing secret values.
+    retryable: Existing bounded PostgreSQL readiness checks and Runtime-owned HTTP retry policy remain unchanged.
+    ambiguous: Keep the existing named database and volume; reconcile named containers instead of replacing durable state.
+    cancelled: Foreground proxy exit removes only its transient container and retains the database volume.
+    timeout: Retain the 240-second per-request Gateway timeout.
+cardinality:
+  - collection: Production model aliases
+    expected: 2
+    maximum: 2
+    bound: Both aliases share one exact upstream model; no unbounded discovery or routing loop.
+lifecycle:
+  - entity: Local upstream inference key
+    delete: Operator can revoke the dedicated OpenRouter key and remove its local file.
+    cascade: None; Gateway credentials and business data remain independent.
+    retention: Ignored .local/secrets file with mode 0600 until operator rotation or removal.
+acceptance_criteria:
+  - id: A1
+    given: A configured local OpenRouter inference key
+    when: Either production model alias is called
+    then: LiteLLM uses z-ai/glm-5.3-flash and returns provider usage through its existing API.
+  - id: A2
+    given: Valid and invalid launch key fixtures
+    when: The launcher is invoked
+    then: Secrets stay outside argv, invalid files fail before Podman mutations, and repeated starts retain the named volume.
+  - id: A3
+    given: The pinned LiteLLM image and synthetic upstream credentials
+    when: The credential contract gate runs
+    then: Existing managed virtual-key create, lookup and delete contracts pass without live inference.
+tests:
+  - command: sh deploy/litellm/test-run-argv.sh
+    covers: [A2]
+  - command: make test-litellm-contract
+    covers: [A3]
+  - command: make test-live-routing
+    covers: [A1]
+  - command: cd runtime && uv run pytest tests/test_live_gateway.py
+    covers: [A1]
+  - command: go test ./internal/credentials/litellm
+    covers: [A3]
+  - command: make test-config
+    covers: [A1]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification:
+  date: "2026-10-21"
+  environment: >-
+    Pinned LiteLLM and PostgreSQL images on the existing
+    podman-machine-default-root connection. The machine's default rootless
+    connection and subordinate UID/GID configuration were not changed.
+    Model-backed checks used the local Gateway and a real OpenRouter
+    z-ai/glm-5.3-flash inference key.
+  passed:
+    - "sh deploy/litellm/test-run-argv.sh: secret values absent from argv; invalid key files rejected before Podman; repeated named-volume starts accepted."
+    - "make test-litellm-contract: real pinned-image virtual-key create/recovery/delete contracts passed with synthetic upstream credentials."
+    - "make test-live-routing: 3 model calls, reviewer selected, workflow succeeded."
+    - "go test -count=1 -run '^TestLiveGatewayToolCall$' ./tests/integration/streamline: passed on planner-model."
+    - "cd runtime && uv run pytest tests/test_live_gateway.py: 3 passed, no skips; usage, terminal summarizer and separated result finalizer."
+    - "go test ./internal/credentials/litellm: full package passed."
+    - "make test-config: configuration packages and shipped-catalog validation passed."
+    - "make lint: passed."
+    - "Manual VM/Gateway restart: scoped virtual key persisted; model/info confirmed both aliases map to openrouter/z-ai/glm-5.3-flash; both inference calls returned content and usage."
+  operations: >-
+    Management and dedicated inference keys live only in the primary checkout's
+    ignored .local/secrets with mode 0600. A standalone profile is installed in
+    .local/litellm. The operator explicitly declined login startup; manual
+    start definitions remain under .local and no LaunchAgents entry is installed.

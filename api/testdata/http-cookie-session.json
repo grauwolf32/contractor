@@ -1,0 +1,37 @@
+{
+  "limits": {
+    "count": 128,
+    "bytes": 65536
+  },
+  "document": {
+    "cookies": [
+      {
+        "comment": null,
+        "comment_url": null,
+        "discard": true,
+        "domain": "",
+        "domain_initial_dot": false,
+        "domain_specified": false,
+        "expires": null,
+        "name": "sid",
+        "path": "/",
+        "path_specified": true,
+        "port": null,
+        "port_specified": false,
+        "rest": {
+          "HttpOnly": null
+        },
+        "rfc2109": false,
+        "secure": false,
+        "value": "target-cookie",
+        "version": 0
+      }
+    ],
+    "schema_version": 1,
+    "target_origin": [
+      "https",
+      "target.example",
+      443
+    ]
+  }
+}

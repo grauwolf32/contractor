@@ -1,0 +1,117 @@
+schema_version: "1.0"
+id: V463-005
+title: Preserve Gateway finish reasons and effective Worker model input in traces
+milestone: runtime-telemetry-2026-10
+epic: operations
+kind: defect
+introduced_by: V388-002
+priority: P2
+status: completed
+implementation_commit: beefff79e4863110819eee771a3482fc3c49567d
+depends_on: [V388-002, V417-003, V463-002]
+languages: [python, json, markdown, yaml]
+goal: >-
+  A Worker model span shows why the Gateway ended generation and which
+  messages, instructions and tools the main model received after compaction.
+demonstration: >-
+  Run the real ADK Worker with debug telemetry, a scripted OpenAI-compatible
+  Gateway and a harmless lookup tool. Trigger one checkpoint. Compare the
+  next Gateway request with the input exported by the production OTLP adapter.
+  The input contains the checkpoint and recent tool arguments. Compare the
+  returned Gateway finish reason with the value on the corresponding span.
+context:
+  authority: >-
+    User request 2026-11-17: retain the original Gateway finish_reason and
+    capture the main model input after compaction. Merge this task into main.
+  severity: medium
+  finding: >-
+    In the 2026-11-17 Invoice Lab Run run_d48806dfbb4c29afcf84cb1de2150873
+    (source a1799dc2beb7, Worker trace a5c38935cc152c570706b885dd457985),
+    all 452 main-model tool schemas matched and 79 tool calls were valid
+    after the first checkpoint before the first empty call. That response
+    used 32768 output tokens. The retained application trace cannot establish
+    its original finish reason or the effective compacted input.
+    runtime/src/contractor_runtime/llm/openai.py:456 maps the Gateway reason
+    before the Worker observes it. runtime/src/contractor_runtime/worker/instrumentation.py:342
+    passes response content alone and runtime/src/contractor_runtime/adapters/genai.py:123
+    writes unknown even when a reason was supplied. At instrumentation.py:324,
+    the ADK plugin captures input before the agent callback replaces
+    llm_request.contents in runtime/src/contractor_runtime/worker/runtime.py:779.
+    The first resumed span shows 398 pre-projection input messages while
+    the Gateway reports 8171 prompt tokens.
+  siblings: >-
+    V388-002 introduced the GenAI finish-reason placeholder. V417-003
+    introduced the checkpoint projection after the existing plugin capture.
+    Verify the first and subsequent main model requests after a checkpoint,
+    as well as the ordinary Worker path without compaction. Worker auxiliary
+    phases and the Go Planner exporter use separate capture paths and are
+    outside this correction.
+  specification:
+    - docs/spec/platform/observability.md#OBS-R53
+    - docs/spec/platform/observability.md#OBS-R54
+    - docs/spec/platform/observability.md#OBS-R57
+    - docs/spec/platform/observability.md#OBS-R58
+    - docs/spec/platform/observability.md#OBS-R59
+    - docs/spec/platform/observability.md#OBS-R60
+    - docs/spec/execution/worker.md#WRK-R192
+  ownership: >-
+    The Gateway adapter owns the original response metadata before ADK
+    normalization. The main Worker capture point observes the effective
+    request after context projection. Keep one input on the existing model
+    span and use the existing bounded, redacted GenAI export path. Document
+    the finish-reason representation and effective-input guarantee in the
+    observability specification. Keep original diagnostic metadata independent
+    of the execution classification and of output-content truncation.
+scope:
+  in:
+    - Capture the effective main-model messages, system instruction and tools after post-checkpoint projection.
+    - Preserve the client-visible Gateway finish reason on the corresponding main Worker model span before normalization can conflate it with other reasons.
+    - Verify the production Worker, Gateway adapter and OTLP path with a scripted Gateway and collector.
+  out:
+    - Raw Gateway payload logging, a new capture switch or public report fields.
+    - Changes to model selection, tool validation, retry policy, compaction semantics or auxiliary model and Planner capture.
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Given two distinct Gateway finish reasons that normalize to the same
+      ADK value, such as tool_calls and stop, the exported main model spans
+      distinguish the original values. A length response retains length and
+      still suppresses tool execution. Absent reasons remain unknown in
+      captured output. Preserve an available reason even when the output
+      capture is omitted or truncated, or when the adapter rejects malformed
+      tool arguments from a Gateway response. A transport failure with no
+      response provides no original reason. Unrecognized provider strings
+      follow the existing redaction and metadata size bounds.
+  - id: A2
+    text: >-
+      Given a committed checkpoint, the first and subsequent resumed model
+      spans contain the effective checkpoint prompt and retained conversation
+      after projection, including the same tool-call argument values and
+      paired responses sent to the Gateway, subject to masking and bounds.
+      Compacted prefix messages and the unprojected history are absent.
+      Instructions and tool declarations match the effective request.
+  - id: A3
+    text: >-
+      Given an ordinary Worker request, input appears once on the existing
+      span and represents the request sent to the Gateway. Existing exporter
+      selection, known-credential masking, per-field bounds, execution
+      outcomes and usage accounting continue to apply.
+  - id: A4
+    text: >-
+      Regression coverage through the production Worker and OTLP adapter
+      fails on the original unknown reason and the original pre-projection
+      input, then passes for both corrected boundaries.
+tests:
+  - command: make test-runtime
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+
+implementation_notes:
+  - The main Worker observes the translated Gateway request on its existing span; an ADK callback alone cannot account for the adapter's message and tool-pair translation.
+  - The Gateway adapter observes the original reason before validating the response. The exporter retains only the bounded and masked metadata, independently of output content and execution outcome.
+  - The observer is scoped to the main ADK turn. No auxiliary capture, execution contract or public report is changed.
+verification_results:
+  - The production ADK, Gateway and OTLP regressions failed before the fix on the unknown reason and missing checkpoint input, and pass after it.
+  - make test-runtime passed with 6276 tests, 173 platform or optional-tool skips, and both mandatory report validators.
+  - make lint passed, including task/spec and Runtime import boundaries.

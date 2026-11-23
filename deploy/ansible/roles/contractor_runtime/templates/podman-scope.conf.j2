@@ -1,0 +1,6 @@
+# Managed by deploy/ansible for this dedicated Runtime account.
+[Scope]
+CPUQuota={{ __contractor_runtime_scope_policy.cpu_quota }}%
+MemoryMax={{ __contractor_runtime_scope_policy.memory_bytes }}
+MemorySwapMax={{ __contractor_runtime_scope_policy.memory_bytes }}
+TasksMax={{ __contractor_runtime_scope_policy.pids }}

@@ -1,0 +1,223 @@
+{
+  "task": "V458-017",
+  "archive": "/Users/ruslan/Documents/ChatGPT/AppSec/archives/contractor-ui-experiments-2026-11-06/iterations/2026-11-16-library-workflows-agents",
+  "manifestSha256": "dcaddfca7a2a887daa66deb18606cd860fe687644b6e85d13997cb78dc4011f7",
+  "native": {
+    "project": "contractor-library-workflows-agents-20261116",
+    "run": "ad274a9e-d7ff-4e9e-8313-7c8ed6b04853",
+    "status": "succeeded",
+    "cssSha256": "b9a244ad5ccd1485970de6f068a5f84af4feabccd5a8381b924dab84c4e4253c",
+    "appliedCSSIdentical": true,
+    "relayRequests": 10,
+    "relayBudget": 24
+  },
+  "preview": "http://127.0.0.1:17568/?section=workflows&version=new&theme=dark&width=1440",
+  "sample": {
+    "workflows": 4,
+    "agents": 7,
+    "source": "pinned configuration subset with proposed friendly labels",
+    "versions": "one exact pinned version per example"
+  },
+  "verification": {
+    "layout": [
+      {
+        "theme": "dark",
+        "section": "workflows",
+        "width": 1440,
+        "detailScrollWidth": 1034,
+        "detailWidth": 1034,
+        "documentWidth": 1440,
+        "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+        "viewport": 1440
+      },
+      {
+        "theme": "dark",
+        "section": "agents",
+        "width": 1440,
+        "detailScrollWidth": 1034,
+        "detailWidth": 1034,
+        "documentWidth": 1440,
+        "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+        "viewport": 1440
+      },
+      {
+        "theme": "dark",
+        "section": "workflows",
+        "width": 390,
+        "detailScrollWidth": 390,
+        "detailWidth": 390,
+        "documentWidth": 390,
+        "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+        "viewport": 390
+      },
+      {
+        "theme": "dark",
+        "section": "agents",
+        "width": 390,
+        "detailScrollWidth": 390,
+        "detailWidth": 390,
+        "documentWidth": 390,
+        "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+        "viewport": 390
+      },
+      {
+        "theme": "light",
+        "section": "workflows",
+        "width": 1440,
+        "detailScrollWidth": 1034,
+        "detailWidth": 1034,
+        "documentWidth": 1440,
+        "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+        "viewport": 1440
+      },
+      {
+        "theme": "light",
+        "section": "agents",
+        "width": 1440,
+        "detailScrollWidth": 1034,
+        "detailWidth": 1034,
+        "documentWidth": 1440,
+        "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+        "viewport": 1440
+      },
+      {
+        "theme": "light",
+        "section": "workflows",
+        "width": 390,
+        "detailScrollWidth": 390,
+        "detailWidth": 390,
+        "documentWidth": 390,
+        "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+        "viewport": 390
+      },
+      {
+        "theme": "light",
+        "section": "agents",
+        "width": 390,
+        "detailScrollWidth": 390,
+        "detailWidth": 390,
+        "documentWidth": 390,
+        "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+        "viewport": 390
+      },
+      {
+        "theme": "black",
+        "section": "workflows",
+        "width": 1440,
+        "detailScrollWidth": 1034,
+        "detailWidth": 1034,
+        "documentWidth": 1440,
+        "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+        "viewport": 1440
+      },
+      {
+        "theme": "black",
+        "section": "agents",
+        "width": 1440,
+        "detailScrollWidth": 1034,
+        "detailWidth": 1034,
+        "documentWidth": 1440,
+        "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+        "viewport": 1440
+      },
+      {
+        "theme": "black",
+        "section": "workflows",
+        "width": 390,
+        "detailScrollWidth": 390,
+        "detailWidth": 390,
+        "documentWidth": 390,
+        "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+        "viewport": 390
+      },
+      {
+        "theme": "black",
+        "section": "agents",
+        "width": 390,
+        "detailScrollWidth": 390,
+        "detailWidth": 390,
+        "documentWidth": 390,
+        "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+        "viewport": 390
+      }
+    ],
+    "interactions": [
+      "workflow stage \u2192 exact agent",
+      "agent usage \u2192 exact workflow",
+      "linked return",
+      "source/preview instructions",
+      "toolset disclosure",
+      "tool-only variant without prompt",
+      "search, empty, reset, filters",
+      "mobile selection/back retains search and list",
+      "Configure Run simulated dialog and Escape"
+    ],
+    "limitations": [
+      "one pinned version per sample; no live API",
+      "production adaptation and pagination not implemented in this design study"
+    ],
+    "consoleErrors": [],
+    "wrapper": [
+      "Before/New same-example light-theme capture",
+      "Screen selector and linked tabs synchronize",
+      "Theme and width selectors",
+      "390px inventory and detail"
+    ]
+  },
+  "preservation": {
+    "oldProjectFilesUnchanged": 265,
+    "changedPreviousProjectFiles": [],
+    "previousRows": [
+      {
+        "database": "app.sqlite",
+        "table": "projects",
+        "previousRowsUnchanged": 15
+      },
+      {
+        "database": "app.sqlite",
+        "table": "conversations",
+        "previousRowsUnchanged": 20
+      },
+      {
+        "database": "app.sqlite",
+        "table": "messages",
+        "previousRowsUnchanged": 84
+      },
+      {
+        "database": "sandbox/config/data/opencode/opencode.db",
+        "table": "message",
+        "previousRowsUnchanged": 346
+      },
+      {
+        "database": "sandbox/config/data/opencode/opencode.db",
+        "table": "part",
+        "previousRowsUnchanged": 1248
+      },
+      {
+        "database": "sandbox/config/data/opencode/opencode.db",
+        "table": "session",
+        "previousRowsUnchanged": 45
+      }
+    ],
+    "originalArchiveSha256": "194aa56c01511cb53b93b4d181951579a0975e1bd553ccf98e7d21d4149d94e2",
+    "preBackup": "/Users/ruslan/src/third-party/open-design-backups/20261116T222112Z-library-wa",
+    "postBackup": "/Users/ruslan/src/third-party/open-design-backups/20261116T223156Z-library-wa-post"
+  },
+  "relayCleanup": {
+    "relayStopped": true,
+    "upstreamSecretRemoved": true,
+    "last-response-stats.json": {
+      "request": 10,
+      "contentChars": 940,
+      "reasoningChars": 0,
+      "toolChunks": 0,
+      "finishReasons": [
+        "stop"
+      ],
+      "promptChars": 274233,
+      "tools": 10
+    }
+  },
+  "productionChanged": false,
+  "merged": false
+}

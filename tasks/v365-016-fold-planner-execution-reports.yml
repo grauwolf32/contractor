@@ -1,0 +1,80 @@
+schema_version: '1.0'
+id: V365-016
+title: "Fold planner_execution_reports into stage_metrics"
+milestone: schema-reduction-2026-10
+epic: persistence
+kind: chore
+introduced_by: V1-004
+priority: P2
+status: deferred
+deferral:
+  date: "2026-10-04"
+  previous_status: pending
+  reason: >-
+    Not a 1:1 extension. A stage can hold several immutable Planner reports
+    (a recovery placeholder and the complete report, resolved by a race that
+    prefers the complete one), while stage_metrics is a derived row that is
+    rebuilt and expires. Folding the raw input into the derived row would
+    drop immutability and re-implement the placeholder race to remove one
+    table.
+  reactivate_when: Explicit user approval of making Planner reports a mutable slot on stage_metrics.
+depends_on: [V365-002]
+languages: [go, sql]
+goal: "Remove planner_execution_reports (staging input of the stage_metrics rebuild) by storing its data on the parent row."
+context:
+  review: docs/research/2026-10-03-database-schema-review.md
+  plan: docs/plans/2026-10-04-schema-reduction.md
+  revalidated: >-
+    2026-10-24 on b523ae77; left deferred, scope unchanged. The deferral
+    reason still holds: planner_execution_reports keeps immutable rows
+    (planner_execution_reports_immutable trigger and the complete-report
+    unique index, internal/persistence/migrations/000001_baseline.sql:1975
+    and :1983), and the placeholder race is still resolved on read
+    (plannerReportForStage prefers the complete report,
+    internal/telemetry/repository.go:426-437, used by RecordPlannerReport
+    at :190 and RebuildStageMetrics at :253). Changes since the deferral
+    that a reactivation must account for: (1) the schema was folded into
+    000001_baseline.sql (V367-001), so the fold is a new migration after
+    000039 with a *_migration_test.go for the moved rows; (2) the
+    dependency V365-002 and the milestone's exit task V365-022 are
+    completed, so this task is the only open part of
+    schema-reduction-2026-10; (3) retention no longer matches: StageMetrics
+    rows of Runs an Eval member executed are renewed instead of deleted
+    (cleanupStageMetricsSQL, internal/telemetry/repository_sql.go:40-60;
+    V404-001, migration 000029, OBS-R43), while Planner reports are always
+    deleted after 30 days for terminal Stages (repository.go:331-340), so
+    "the same 30-day retention" in scope.in is no longer one rule; (4) the
+    eval_metrics_projection trigger now fires on INSERT, DELETE and UPDATE
+    OF metrics_schema_version, metrics, summary
+    (000029_eval_stage_metrics_retention.sql:45-47), so a Planner report
+    column on stage_metrics must stay out of that list or every report
+    write marks Eval members for recollection; (5) V407-015
+    (a525cf29ada6f007f61ae0d29db1aa7d8dd21969) made each report-persistence
+    phase rebuild StageMetrics once after its last report write, the
+    Planner placeholder included (SCH-R51, SCH-R178), which a fold must
+    keep; (6) the table is in the ownership registry
+    (internal/persistence/table_ownership.txt, owner internal/telemetry),
+    persistence.md's Table owners and scripts/erd/meta.json, which a drop
+    must update together with make docs-erd.
+  baseline_fold: >-
+    User decision on 2026-10-31 (V428-001): the previous baseline and
+    migrations 000002-000065 are replaced by one current 000001_baseline.sql.
+    Migration numbers and file/line references in the dated revalidation
+    above describe the retired chain. On explicit reactivation, inspect the
+    current baseline and choose the next free migration number from the
+    directory; keep PER-R33 upgrade coverage for any new data-moving change.
+    This maintenance note does not reactivate the deferred task or alter its
+    scope or deferral conditions.
+scope:
+  in:
+    - "Store the Planner report on the stage_metrics row with the same 30-day retention."
+    - "RebuildStageMetrics reads it there."
+  out:
+    - "Changing public API, CLI or UI behaviour."
+acceptance_criteria:
+  - {id: A1, text: "The migration moves existing rows of planner_execution_reports without loss and drops the merged table(s)."}
+  - {id: A2, text: "Every API, CLI and UI read and write that used the merged table(s) returns the same results."}
+  - {id: A3, text: "No Go code or specification references the dropped table(s)."}
+tests:
+  - {command: "go build ./... && go vet ./...", covers: [A1]}
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence/... ./internal/telemetry/... ./internal/scheduler/...", covers: [A1, A2, A3]}

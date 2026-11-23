@@ -1,0 +1,310 @@
+{
+  "schema_version": 1,
+  "task": "V475-001",
+  "date": "2026-11-22",
+  "branch": "codex/adk-python215-go28",
+  "baseline_commit": "97288cba7362565fb30aa3a13817ee17e5ea07dc",
+  "supported_versions": {
+    "google-adk": "2.15.0",
+    "google.golang.org/adk/v2": "2.8.0",
+    "go_minimum": "1.26.10",
+    "opentelemetry-api": "1.45.1",
+    "opentelemetry-sdk": "1.45.1",
+    "opentelemetry-proto": "1.42.1",
+    "a2a-sdk": "1.1.2"
+  },
+  "python_dependency_changes": [
+    {
+      "package": "google-adk",
+      "from": "2.13.0",
+      "to": "2.15.0"
+    },
+    {
+      "package": "google-genai",
+      "from": "2.33.0",
+      "to": "2.34.0"
+    },
+    {
+      "package": "watchdog",
+      "from": "6.0.0",
+      "to": "7.1.1"
+    }
+  ],
+  "go_dependency_changes": [
+    {
+      "module": "github.com/a2aproject/a2a-go/v2",
+      "from": "v2.6.0",
+      "to": "v2.7.0"
+    },
+    {
+      "module": "golang.org/x/crypto",
+      "from": "v0.57.0",
+      "to": "v0.58.0"
+    },
+    {
+      "module": "golang.org/x/net",
+      "from": "v0.60.0",
+      "to": "v0.61.0"
+    },
+    {
+      "module": "golang.org/x/sys",
+      "from": "v0.48.0",
+      "to": "v0.49.0"
+    },
+    {
+      "module": "golang.org/x/term",
+      "from": "v0.46.0",
+      "to": "v0.47.0"
+    },
+    {
+      "module": "golang.org/x/text",
+      "from": "v0.42.0",
+      "to": "v0.43.0"
+    },
+    {
+      "module": "google.golang.org/adk/v2",
+      "from": "v2.6.0",
+      "to": "v2.8.0"
+    },
+    {
+      "module": "google.golang.org/genai",
+      "from": "v1.74.0",
+      "to": "v1.77.0"
+    },
+    {
+      "module": "golang.org/x/oauth2",
+      "from": null,
+      "to": "v0.37.0"
+    },
+    {
+      "module": "cloud.google.com/go/auth",
+      "from": "v0.24.0",
+      "to": "v0.24.1"
+    },
+    {
+      "module": "github.com/google/s2a-go",
+      "from": "v0.1.10",
+      "to": "v0.1.11"
+    },
+    {
+      "module": "github.com/googleapis/enterprise-certificate-proxy",
+      "from": "v0.3.22",
+      "to": "v0.3.24"
+    },
+    {
+      "module": "github.com/googleapis/gax-go/v2",
+      "from": "v2.26.2",
+      "to": "v2.27.0"
+    },
+    {
+      "module": "golang.org/x/mod",
+      "from": "v0.41.0",
+      "to": "v0.42.0"
+    },
+    {
+      "module": "google.golang.org/api",
+      "from": "v0.300.0",
+      "to": "v0.310.0"
+    },
+    {
+      "module": "google.golang.org/genproto/googleapis/api",
+      "from": "v0.0.0-20260928230214-8a89bd6388cc",
+      "to": "v0.0.0-20261012220534-4341edf3f941"
+    },
+    {
+      "module": "google.golang.org/genproto/googleapis/rpc",
+      "from": "v0.0.0-20260928230214-8a89bd6388cc",
+      "to": "v0.0.0-20261019180522-ce908d29299b"
+    },
+    {
+      "module": "google.golang.org/grpc",
+      "from": "v1.84.0",
+      "to": "v1.85.0"
+    }
+  ],
+  "locks_sha256": {
+    "go.mod": "c824c6fc30a5c5a14d5ea5671d0312c138a5957cf9ff93f44414714df5bb59b7",
+    "go.sum": "171689e74c5206bbb3cd9784f75325f2b3e42daae2a89b04ad453c9f9fa57bd5",
+    "runtime/pyproject.toml": "0b6ce2c7017ebc426fcd5bc104b9d6f8ef1edb6a95ebc0ff2d2ba3e2e696f91e",
+    "runtime/uv.lock": "37e3374e3dacf9956937a1b7333d5435f3da610f4cc027fbb1998c86ea7ba8ab"
+  },
+  "checks": [
+    {
+      "name": "go-full",
+      "command": [
+        "make",
+        "test-go"
+      ],
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "streamline-race",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=20m",
+        "./internal/planner/streamline"
+      ],
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "wire",
+      "command": [
+        "make",
+        "test-wire-cross-language"
+      ],
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "compaction-e2e",
+      "command": [
+        "make",
+        "test-worker-compaction-e2e"
+      ],
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "make",
+        "test-runtime"
+      ],
+      "status": "passed",
+      "passed": 6447,
+      "skipped": 135,
+      "total": 6582,
+      "skip_reasons": {
+        "launched by make test-audit-completion-e2e with a real Go Artifact API": 1,
+        "OPS-R1: Linux byte-exact filename/long-path fixture; excluded from macOS acceptance": 2,
+        "run make test-interactsh-protocol for the pinned upstream server": 1,
+        "live LLM Gateway environment is not configured": 3,
+        "OPS-R1: the allocation-scoped Podman backend needs Linux host capabilities (AF_UNIX SOCK_SEQPACKET socket pairs, pidfd_open)": 94,
+        "explicit real-rootless startup capability gate": 2,
+        "explicit real-rootless deployment/workflow gate": 1,
+        "explicit real-rootless command execution gate": 12,
+        "explicit real-rootless owner-process gate": 3,
+        "explicit real Podman release gate": 5,
+        "explicit real gate: make test-podman-supervisor": 11
+      },
+      "warnings_as_errors": true
+    },
+    {
+      "command": [
+        "make",
+        "lint"
+      ],
+      "status": "passed"
+    },
+    {
+      "command": [
+        "make",
+        "build"
+      ],
+      "status": "passed"
+    },
+    {
+      "command": [
+        "uv",
+        "sync",
+        "--locked"
+      ],
+      "working_directory": "runtime",
+      "status": "passed"
+    },
+    {
+      "command": "go mod verify && go mod tidy -diff",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=5m",
+        "./internal/planner/a2a"
+      ],
+      "status": "passed"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "-count=1",
+        "-timeout=12m",
+        "./tests/e2e",
+        "-run",
+        "^TestWorkerSessionModesAcrossProductionProcesses$"
+      ],
+      "status": "passed"
+    },
+    {
+      "command": [
+        "uv",
+        "run",
+        "--locked",
+        "pytest",
+        "-W",
+        "error",
+        "tests/test_ffuf_engagement.py",
+        "-q"
+      ],
+      "working_directory": "runtime",
+      "status": "passed",
+      "cases": 18,
+      "engine": "native ffuf 2.3.0"
+    }
+  ],
+  "wire": {
+    "fixtures": 403,
+    "go_tests": 456,
+    "python_tests": 288,
+    "optional_disk_heavy_skips": 1
+  },
+  "compaction": {
+    "process_cases_passed": 7,
+    "runtime_selected_cases_passed_in_full_suite": 577
+  },
+  "integration_decisions": [
+    "Public on_event callbacks retain SDK abort markers without generic synthetic tool responses; the joined Contractor ledger preserves completed results and classifies unadmitted, cancelled and unknown effects.",
+    "CancelledError model callbacks settle cancelled spans without recording a model failure.",
+    "Both Go Planners explicitly pass their resolved call limit; real PostgreSQL cases exercise 2 and 501 calls under an SDK environment cap of 1 and replay the completion without more calls.",
+    "The one-shot Go compactor allows two SDK calls so its existing model wrapper rejects a repair before a second provider operation.",
+    "SDK 2.15 event-list iteration profile is five per request plus seven setup iterations per logical invocation; public stack-count probes and 50/150-turn, width-2/8 suites retain byte, copy and no-per-tool-history-pass bounds.",
+    "A2A 2.7 requires the complete bounded JSON entity; trailing values and an unfinished tail are rejected."
+  ],
+  "non_passing_attempts": [
+    "Initial Runtime cancellation and pinned work-profile regressions were investigated and adapted before the final complete pass.",
+    "Initial concurrent PostgreSQL commands exhausted the private lock table; those attempts were excluded and checks rerun serially with GOFLAGS=-p=2.",
+    "Three Eval package failures reproduced on baseline with the old ADK graph; V475-002 repairs only active consumers.",
+    "The initial Runtime environment selected ffuf 2.1.0-dev; the final run uses the preinstalled native pinned ffuf 2.3.0."
+  ],
+  "scope": {
+    "configured_models_changed": false,
+    "published_configs_changed": false,
+    "sdk_sources_patched": false,
+    "native_compaction_enabled": false,
+    "advisor_enabled": false,
+    "deployment_performed": false,
+    "heavy_io_enabled": false,
+    "full_release_gate_run": false
+  },
+  "cleanup": {
+    "database_server": "private task-owned PostgreSQL 17",
+    "dropped_databases": [
+      "contractor_lease_908fdd5038f7",
+      "contractor_standby_58d9b4c53696",
+      "contractor_v475_adk",
+      "credential_order_iisccqnqpxkbcj23h3q42kgrdo"
+    ],
+    "stopped": true,
+    "remaining_non_system_databases": 0,
+    "temporary_root_removed": true
+  }
+}

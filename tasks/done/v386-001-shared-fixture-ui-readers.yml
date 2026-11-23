@@ -1,0 +1,40 @@
+schema_version: "1.0"
+id: V386-001
+title: Declare every UI shared fixture reader and check repository imports
+milestone: hub-audit-guards-2026-10
+epic: quality
+kind: defect
+introduced_by: V385-001
+priority: P1
+status: completed
+implementation_commit: 63f01af49fab31c7da2ccfa77bb560c0b15001e0
+depends_on: []
+languages: [python, json]
+goal: Keep the fixture reader manifest consistent with UI imports and catch drift in the fast script suite.
+context:
+  severity: medium
+  finding: >-
+    api/testdata/readers.json:34 omits UI readers for digest-cases.json,
+    performance-cases.json and runtime-capability-cases.json under v1alpha1,
+    imported by ui/src/api/shared-rules.test.ts:6-7 and performance.test.ts:3
+    in V385-001. make test-wire-cross-language fails on all three declarations
+    at main 2ef8f30f; the sources-only lint check does not inspect UI readers.
+  siblings: All current UI fixture imports, including existing file-specific manifest overrides, must remain declared; Go and Python runtime read accounting stays unchanged.
+scope:
+  in:
+    - Declare the three UI readers without removing Go or Python.
+    - Add a regression that compares all real UI imports with the real manifest in the script suite run by make lint.
+  out:
+    - Extend fixture discovery beyond api/testdata (V372-029).
+acceptance_criteria:
+  - {id: A1, text: Every UI fixture import has a manifest entry declaring UI.}
+  - {id: A2, text: The repository regression fails with the original reader manifest.}
+tests:
+  - {command: "python3 -m unittest discover -s scripts -p test_shared_fixture_gate.py", covers: [A1, A2]}
+  - {command: make lint, covers: [A1, A2]}
+verification:
+  date: "2026-10-20"
+  baseline: The new repository regression failed on all three omitted UI readers before the manifest fix.
+  passed:
+    - "python3 -m unittest discover -s scripts -p test_shared_fixture_gate.py: 10 tests."
+    - "make lint: passed, including the repository UI-reader regression."

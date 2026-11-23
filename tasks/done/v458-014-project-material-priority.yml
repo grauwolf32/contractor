@@ -1,0 +1,96 @@
+schema_version: '1.0'
+id: V458-014
+title: Show named material categories before other Project artifacts across pages
+milestone: ui-consolidation-2026-10
+epic: ui
+kind: feature
+priority: P2
+status: completed
+depends_on: []
+languages: [go, sql, typescript, json, markdown, yaml]
+goal: Project Materials and its Overview sample show source code API specs engagement architecture docs and diffs before uncategorized technical artifacts even when those artifacts fill many pages.
+demonstration: A Project with hundreds of finding artifacts and recognized materials in later namespace ranges opens with the recognized categories first and pages through every remaining artifact once.
+context:
+  authority: User request 2026-11-09 approves implementing named Add material category priority across the complete Project list and its Overview sample.
+  specification:
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/ui/ui.md
+  design: >-
+    Add an opt-in material order to the existing Project Artifact list. ArtifactStore
+    owns a compact indexed category projection on current bindings and keyset paging;
+    shared fixtures pin its metadata classification to the existing UI kind rules.
+    The UI retains the approved picker vocabulary and row components. Other Artifact
+    consumers retain namespace/name order. Overview's five-row sample uses priority
+    order and retains its existing bounded source/OpenAPI discovery reads, preserving
+    Check-type recommendations when a category contains many materials. No new table
+    or payload read.
+scope:
+  in:
+  - Existing Artifact list request and cursor scope, generated public clients and indexed current-metadata category order.
+  - Data-preserving migration and classification consistency for uploads revisions Git imports and forks.
+  - Full Project Materials paging and bounded Overview sample, keeping filters exact links and all three themes.
+  out:
+  - New stores or endpoints, new material categories, payload interpretation, demo deployment and unrelated execution work.
+requirements:
+  - id: R1
+    text: Priority follows the existing kind classifier including Git provenance namespace precedence and purpose-specific media types; Other is last and names break ties.
+  - id: R2
+    text: Priority is applied in storage before the page limit and cursor binds Project filters and order; ordinary Artifact listing remains unchanged.
+failure_outcomes:
+  - operation: Read a priority Project Artifact page
+    permanent: Invalid order or a cursor from another order Project or namespace is rejected with the existing invalid-request response.
+    retryable: Existing storage transaction conflict and UI retry behavior remain unchanged.
+    ambiguous: Read-only request has no receipt or mutation.
+    cancelled: Existing request context owns database cancellation.
+    timeout: Existing public HTTP and storage request budgets remain authoritative.
+cardinality:
+  - collection: Current Project Artifact bindings
+    expected: Tens of useful inputs mixed with hundreds or thousands of generated artifacts.
+    maximum: Existing collection bounds and public page cap of 100 rows.
+    bound: Seek an indexed category namespace name key and hydrate at most limit plus one records; Overview reads one five-row priority page plus its existing two three-row namespace samples.
+lifecycle:
+  - entity: Material ordering projection
+    delete: Removed with its ordinary binding; deletion does not require an independent operation.
+    cascade: Current revision and provenance changes maintain classification in the owning Artifact transaction.
+    retention: Existing references payload bytes history and retention rules remain unchanged; no separate state lifetime.
+acceptance_criteria:
+  - id: A1
+    text: Recognized categories precede Other across all pages and in the Overview sample, including materials recognized by media type or Git provenance outside suggested namespaces.
+  - id: A2
+    text: Real PostgreSQL tests prove pagination without omissions or duplicates, bounded indexed reads, data-preserving migration, and correct priority after revision and fork changes; cursors reject changed order and scope.
+  - id: A3
+    text: UI tests prove priority requests and retained namespace navigation; generation public API UI and task/specification checks pass and preview fits 390 pixels in light dark and black themes.
+tests:
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/artifacts/... ./internal/persistence/postgres ./internal/httpapi/public
+    covers: [A1, A2]
+  - command: make verify-public-api generate-public-client-check
+    covers: [A2, A3]
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-wire-cross-language
+    covers: [A1, A2, A3]
+  - command: make ui-verify
+    covers: [A1, A3]
+  - command: make ui-browser-mocked
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A2, A3]
+verification:
+  results:
+  - Project Materials requests material order across pages; Overview uses the same category-prioritized five-row sample and retains its bounded source/OpenAPI discovery reads. A regression proves that twelve source archives do not hide API format hints. UI release is 0.11.32.
+  - Migration 000005 adds a derived binding rank and two partial Project indexes without introducing a table. Existing binding fields timestamps history and payload bytes survive backfill unchanged. Ordinary upload advance Git provenance and exact forks maintain the rank in the Artifact transaction; the shared replacement storage statement is covered while Service retains its Audit-only replacement authority.
+  - Complete Go suites for internal/artifacts/... internal/persistence/postgres and internal/httpapi/public passed against the disposable PostgreSQL database. Tests walk 1207 materials without omissions or duplicates, preserve default namespace order, verify bounded indexed seeks in both order variants and reject cursors from another order Project or namespace.
+  - The new index initially changed the optimizer plan of the default Project read. Its query now also materializes the bounded binding page before metadata hydration; the existing 6000 Audit-managed binding read-budget and index regression passes unchanged.
+  - make verify-public-api and make generate-public-client-check passed. The complete shared fixture gate passed 382 fixtures with 434 Go and 277 Python shared tests; the SQL/UI material classification shares 35 cases. One explicitly disabled optional disk-heavy shared test is a skip rather than passing coverage.
+  - Final make ui-verify passed 223 files and 2515 tests plus one existing expected failure, all 17 static-service cases, generated-client freshness, lint, typecheck and build. The final full mocked browser gate passed 239 cases in 33 specs without skips or retries, including six new category paging namespace filter and Overview cases across 390/1440 pixels and light dark black themes.
+  - Final make lint passed. ERD and the dependency graph were regenerated through their owning generators; 60 tables and 70 foreign keys remain. Task and specification checks pass. Native production preview is retained with synthetic data and writes disabled.
+  - The owned database contractor_material_priority_20261109 was explicitly dropped after all test processes completed and its absence was verified. No demo migration deployment live model call business-data deletion or full release gate was performed. The feature remains on codex/project-material-priority for review and is not yet merged into main.
+implementation_commit: 357bc6c5b429b8b70c228f2ab678fb4a1a758d04
+delivery:
+  date: '2026-11-10'
+  branch: codex/project-material-priority
+  merged_into_main: true
+  source_ui_version: 0.11.32
+  ui_version: 0.11.33
+  migration: 000006_project_material_order.sql
+  merge_commit: a0ccfee0a5ff1fd5b35bebc5e07fd01edcf038cb
+  integrated_at: '2026-11-10'
+  integration_task: V458-015

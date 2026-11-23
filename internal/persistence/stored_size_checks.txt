@@ -1,0 +1,148 @@
+# Stored-size CHECK registry: PER-R44 in docs/spec/platform/persistence.md.
+#
+# TestPostgresStoredSizeChecksHaveADisposition
+# (internal/persistence/postgres/stored_size_checks_postgres_test.go) reads
+# every CHECK constraint of a migrated schema whose definition calls
+# octet_length. It fails on a constraint without a line here, on a line for a
+# constraint the schema lacks, on a cited entry that limits.md does not
+# register, and when the Enforced by cell of a limits.md row and this file
+# disagree about which constraints enforce that row.
+#
+# One line per constraint: the constraint name, then its disposition.
+#
+#   LIM-<area>-<n>        the constraint enforces this registered bound on the
+#                         stored value, and the row names the constraint in
+#                         its Enforced by cell;
+#   above:LIM-<area>-<n>  the constraint is a storage backstop that admits
+#                         more than this registered bound, which the Server
+#                         checks before it writes the value;
+#   invariant: <reason>   a fixed width or a consistency rule between columns,
+#                         which bounds nothing a caller or a domain rule sizes.
+#
+# A line may combine several LIM and above: tokens when the constraint bounds
+# more than one quantity. For jsonb columns the constraint measures the stored
+# text, octet_length(column::text), which jsonb re-serialisation can make
+# longer than the JSON the Server submitted (LIM-API-25).
+
+artifact_blobs_sha256_check                                 invariant: a SHA-256 digest is 32 bytes
+artifact_blobs_storage_check                                invariant: the size of an inline payload equals its length
+artifact_versions_git_repository_url_check                  LIM-GIT-24
+artifact_versions_git_requested_ref_check                   LIM-GIT-22
+audit_artifact_links_artifact_ref_check                     LIM-PER-14
+audit_artifact_links_display_ref_check                      LIM-PER-15
+audit_artifact_links_logical_key_check                      LIM-AUD-39
+audit_artifact_links_media_type_check                       above:LIM-ART-2
+audit_artifact_links_source_provenance_check                LIM-PER-18
+audit_controller_claims_holder_id_check                     invariant: a Server-generated randomid identity, its prefix and 32 hexadecimal digits
+audit_events_entity_id_check                                LIM-API-19
+audit_events_summary_check                                  LIM-PER-18
+audit_execution_items_result_ref_check                      LIM-PER-14
+audit_executions_collection_error_code_check                LIM-PER-15
+audit_executions_collection_retained_refs_check             LIM-PER-17
+audit_executions_collection_source_output_ref_check         LIM-PER-14
+audit_executions_run_provenance_shape                       LIM-PER-17
+audit_executions_terminal_run_generation_check              LIM-API-19
+audit_executions_workflow_role_shape                        LIM-PER-15
+audits_baseline_snapshot_check                              LIM-PER-16
+audits_input_selection_check                                LIM-PER-16
+audits_owner_id_check                                       above:LIM-API-20
+audits_profile_name_check                                   LIM-CAT-1
+audits_profile_snapshot_check                               LIM-PER-16
+audits_profile_version_check                                above:LIM-CAT-2
+audits_stop_reason_code_check                               LIM-PER-15
+audits_stop_reason_message_check                            LIM-PER-15
+contractor_schema_migrations_checksum_check                 invariant: the SHA-256 checksum of a migration file is 32 bytes
+credential_operations_operation_id_check                    invariant: a Server-generated randomid identity, its prefix and 32 hexadecimal digits
+credential_operations_request_check                         LIM-PER-19
+eval_controller_claims_holder_id_check                      invariant: a Server-generated randomid identity, its prefix and 32 hexadecimal digits
+eval_dataset_revisions_document_check                       LIM-EVF-3
+eval_experiments_check3                                     LIM-PER-21
+eval_experiments_plan_document_check                       LIM-EVF-3
+eval_experiments_plan_readiness_check                      LIM-EVM-19
+eval_experiments_plan_setup_check                          LIM-PER-21
+eval_member_projections_document_check                      LIM-PER-21
+eval_member_projections_observed_document_check             LIM-PER-21
+eval_members_recipe_check                                   LIM-PER-21
+eval_plan_resources_document_check                          LIM-EVF-3
+eval_records_document_check                                 LIM-EVF-3
+eval_suboperations_request_check                            LIM-PER-21
+eval_suboperations_response_check                           LIM-PER-21
+finding_anchor_projection_shape                             LIM-FND-39
+finding_checks_projection_shape                             LIM-FND-52
+finding_comparison_projection_shape                         LIM-FND-45
+finding_fingerprint_projection_shape                        LIM-FND-35
+finding_proposal_audit_holds_evidence_check                 LIM-FND-51
+finding_proposal_audit_holds_proposal_ref_check             LIM-FND-51
+finding_proposal_receipts_allocation_id_check               LIM-FND-51
+finding_proposal_receipts_evidence_check                    LIM-FND-51
+finding_proposal_receipts_invocation_id_check               LIM-FND-51
+finding_proposal_receipts_logical_agent_name_check          LIM-FND-51
+finding_proposal_receipts_owner_id_check                    LIM-FND-51
+finding_proposal_receipts_proposal_ref_check                LIM-FND-51
+finding_proposal_receipts_report_projection_check           LIM-FND-10
+finding_proposal_receipts_run_id_check                      LIM-FND-51
+finding_proposal_receipts_runtime_agent_id_check            LIM-FND-51
+finding_proposal_receipts_runtime_instance_id_check         LIM-FND-51
+finding_proposal_receipts_stage_execution_id_check          LIM-FND-51
+finding_proposal_receipts_submission_id_check               LIM-FND-51
+finding_proposal_receipts_workflow_configuration_ref_check  LIM-FND-51
+finding_proposal_receipts_workflow_name_check               LIM-FND-51
+finding_proposal_receipts_workflow_schema_version_check     LIM-FND-51
+finding_proposal_receipts_workflow_version_check            LIM-FND-51
+git_ssh_keys_ciphertext_check                               LIM-GIT-3
+git_ssh_keys_nonce_check                                    invariant: an AES-256-GCM nonce is 12 bytes
+llm_credentials_ciphertext_check                            LIM-RCF-3
+llm_credentials_gateway_policy_check                        LIM-PER-19
+llm_credentials_label_check                                 LIM-PER-19
+llm_credentials_llm_gateway_id_check                        LIM-CAT-1
+llm_credentials_llm_gateway_version_check                   LIM-CAT-2
+llm_credentials_nonce_check                                 invariant: an AES-256-GCM nonce is 12 bytes
+llm_credentials_remote_key_id_check                         above:LIM-RCF-6
+mutation_receipts_idempotency_key_check                     LIM-API-26
+mutation_receipts_owner_id_check                            above:LIM-API-20
+mutation_receipts_resource_id_check                         LIM-PER-20
+mutation_receipts_response_check                            LIM-PER-20
+owner_queue_controls_owner_id_check                         above:LIM-API-20
+performance_minutes_payload_check                           LIM-OPS-10
+planner_session_state_size                                  LIM-PLN-9
+projects_description_check                                  LIM-PRJ-5
+projects_http_target_shape                                  LIM-PRJ-6
+projects_name_check                                         LIM-PRJ-3
+projects_owner_id_check                                     above:LIM-API-20
+runtime_config_versions_canonical_document_check            LIM-RCF-7
+runtime_credentials_ciphertext_check                        LIM-RCF-18
+runtime_credentials_created_by_check                        above:LIM-API-20
+runtime_credentials_credential_id_check                     LIM-CAT-1
+runtime_credentials_deleted_by_check                        above:LIM-API-20
+runtime_credentials_nonce_check                             invariant: an AES-256-GCM nonce is 12 bytes
+runtime_credentials_request_mac_check                       invariant: an HMAC-SHA-256 request MAC is 32 bytes
+workflow_run_events_data_check                              LIM-API-25
+workflow_run_output_publications_check1                     LIM-PER-20
+workflow_run_output_publications_output_name_check          LIM-ART-1
+workflow_runs_project_http_target_shape                     LIM-PRJ-6
+
+finding_project_material_shape                             above:LIM-PER-17
+project_findings_first_proposal_ref_check                   LIM-FND-54
+project_findings_actor_id_check                             LIM-FND-54
+project_findings_rationale_check                            LIM-FND-54
+project_findings_title_check                                LIM-FND-54
+project_findings_subject_kind_check                         LIM-FND-53
+project_findings_subject_key_check                          LIM-FND-53
+project_findings_owner_id_check                             LIM-FND-54
+
+audit_executions_prepared_work_source_check                 invariant: system-selected exact work-list source descriptor, containing only bounded IDs, ref, digest, media and size fields
+audit_tasks_document_check                                 LIM-ACT-2
+audit_tasks_source_check                                   invariant: system-assigned intake provenance tuple of bounded IDs, exact source descriptor and entry key
+audit_tasks_result_check                                   invariant: exact result descriptor containing only bounded scope, ref, digest, media and size fields
+audit_tasks_gap_code_check                                 LIM-PER-15
+
+audit_hypotheses_source_key_check                         LIM-API-20
+audit_hypothesis_revisions_document_check                  LIM-ACT-1
+audit_tasks_hypothesis_snapshot_check                      LIM-ACT-1
+finding_proposal_receipts_hypothesis_snapshot_check         LIM-FND-51
+artifact_versions_execution_origin_check                   invariant: Server-assigned authenticated execution tuple of bounded wire identifiers and one exact Artifact ref, without caller-authored prose
+finding_receipt_execution_lane                            invariant: authenticated operation/Worker lane with the same bounded original execution tuple and exact Artifact ref
+audit_item_findings_check                                 invariant: system-derived canonical result projection of at most 128 bounded Finding identifiers and one truncation boolean
+audit_task_findings_check                                 invariant: the same canonical ID projection retained on its settled Task, without report or assessment content
+audit_execution_items_collection_shape                     LIM-ACT-8
+audit_tasks_stop_record_check                               LIM-ACT-8

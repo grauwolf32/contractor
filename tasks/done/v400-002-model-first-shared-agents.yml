@@ -1,0 +1,170 @@
+schema_version: "1.0"
+id: V400-002
+title: "Resolve shared Runtime Agent conflicts in favour of model Stages"
+milestone: model-free-stage-lanes-2026-10
+epic: execution-core
+kind: feature
+priority: P2
+status: completed
+implementation_commit: fd2fdaa6596ad1dfaf85376d0a668551a9d2a902
+depends_on: [V400-001]
+languages: [go]
+goal: >-
+  With a separate tool lane pool, every Runtime slot that frees up can go to
+  the next scan, and a model Stage that needs several slots at once may wait
+  indefinitely. The user decided on 2026-10-23 that a conflict on a shared
+  Runtime Agent is resolved in favour of the model Stage. After this task tool
+  placement never reserves an Agent that a model Stage waiting for allocated
+  capacity could use, while scans still run on Agents no waiting model Stage
+  can use.
+context:
+  proposal: "docs/proposals/0040-model-free-stage-lanes.md#4-model-stages-first-on-shared-runtime-agents"
+  specification:
+    - docs/spec/execution/scheduler.md#SCH-R19
+    - docs/spec/execution/scheduler.md#SCH-R175
+    - docs/spec/execution/control-plane.md#CTL-R73
+    - docs/spec/execution/control-plane.md#CTL-R83
+    - docs/spec/execution/control-plane.md#CTL-R84
+  current_code: >-
+    internal/controlplane/placement.go (PlacementAllocator.ReserveAllContext)
+    builds candidate edges for idle Agents only and returns
+    ErrInsufficientCapacity both when compatible Agents are allocated and when
+    none is compatible. internal/controlplane/registry.go reserveAll selects
+    among isPlacementEligible Agents under the Registry mutex.
+    internal/scheduler/allocation_reservations.go builds the three
+    ReservationRequests of a Stage.
+  siblings: >-
+    All three ReservationRequests the Scheduler builds for a Stage (new
+    placement, lost-allocation replay and live-reservation replay) carry the
+    Stage's class, so a tool Stage never holds Agents through a replay path.
+    controlplanetest.Reserve keeps using ReserveCandidateEdges directly.
+decisions:
+  - >-
+    The first draft of this task recorded a deferral cause on workflow_runs
+    and read the oldest capacity-waiting model Run with SQL before each tool
+    placement. Rejected on 2026-10-23: a durable cause outlives the attempts
+    that justify it, so a model Run waiting for a free model lane, when no
+    lane could use an Agent, would still keep scans off idle Agents; it also
+    needed a migration, an index and a second derivation of the Stage's
+    requirements.
+  - >-
+    Chosen: a process-local hold on the Registry's Agent entries, refreshed by
+    each failed placement of a waiting model Stage and lapsing after a hold
+    window of five Scheduler poll intervals. It follows the single active
+    Server and the in-memory reservations placement already relies on. It
+    holds for every waiting model Stage instead of only the oldest, which is
+    the user's rule taken literally and needs no ordering. Reopen if holds
+    must survive a Server restart or show in Operations.
+  - >-
+    Accepted risk: Operations shows a held Agent as idle while a scan waits
+    for capacity; the scan is deferred for capacity exactly as for busy
+    Agents (SCH-R19). Reopen when operators need to see why a scan waits on
+    an idle Agent.
+  - >-
+    Accepted risk (the user's decision of 2026-10-23): a model Stage that
+    needs several Agents keeps the ones that free up idle until the rest free
+    up, bounded by its Stage deadline, so scans on shared Agents wait longer
+    and may reach their own deadline. Reopen if that happens in practice.
+scope:
+  in:
+    - "ReservationRequest.ModelFree, set by the Scheduler from resolved.StageLaneClass for every request of a Stage; the Registry rejects ModelFree with a model Worker binding."
+    - "After placement of a model Stage returns insufficient capacity, Control Plane resolves candidate edges for every live Agent, idle or allocated, as placement does; when a complete matching exists among them it holds every live Agent with an edge for the hold window; otherwise it holds nothing."
+    - "Model-free placement does not select a held Agent; model placement ignores holds."
+    - "RegistryOptions.ModelStageHold, set by composition to five Scheduler poll intervals."
+    - "Specification: SCH-R176, CTL-R155, CTL-R73, CTL-R84, FAIL-SCH-1, FAIL-CTL-3, the Scheduler invariants and proposal 0040 section 4."
+  out:
+    - "Priority between waiting model Stages: unchanged (SCH-R121, SCH-R123)."
+    - "Dedicated scan Agents: already possible through scanner capabilities (SCN-R54); no code."
+    - "Showing holds in Operations: accepted risk above."
+    - "Any change to where model Stages are placed."
+requirements:
+  - id: R1
+    text: "While a model Stage waits for allocated compatible capacity, model-free placement does not reserve an Agent compatible with it; a model-free Stage that fits an Agent no waiting model Stage can use is placed."
+  - id: R2
+    text: "A hold lasts one hold window after the last failed placement of a model Stage that could use the Agent; a Stage that is placed, cancelled, aborted, past its deadline, paused or route-denied stops refreshing it."
+  - id: R3
+    text: "A model Stage for which no complete matching exists among live Agents, even with every allocation released, holds nothing."
+  - id: R4
+    text: "Holds affect only new model-free placement; running tool Stages, cancellation, finalization, release and replay of recorded reservations never consult them."
+  - id: R5
+    text: "Hold bookkeeping is one field per Registry Agent entry; computing a hold is bounded by live Agents times bindings, and checking it is one comparison per candidate Agent."
+  - id: R6
+    text: "Computing a hold is advisory: any failure in it leaves the model Stage's own placement outcome unchanged and holds nothing."
+failure_outcomes:
+  - operation: "Hold computation after a failed model Stage placement"
+    permanent: "Not applicable: an edge resolution or validation error holds nothing for that attempt and is not returned."
+    retryable: "The next failed placement of the waiting Stage computes the hold again."
+    ambiguous: "Not applicable: process-local state with no external write."
+    cancelled: "A cancelled placement context skips the computation."
+    timeout: "The Scheduler operation timeout that bounds the placement call."
+  - operation: "Model-free placement against held Agents"
+    permanent: "Not applicable."
+    retryable: "Insufficient capacity: the Stage stays preparing and is deferred with the existing bounded backoff until its deadline (SCH-R19)."
+    ambiguous: "Reservation stays atomic (CTL-R86); a lost response replays the same reservation."
+    cancelled: "Unchanged."
+    timeout: "Unchanged."
+cardinality:
+  - collection: "Live Runtime Agents read by a hold computation"
+    expected: "a few"
+    maximum: "registered Runtime Agents"
+    bound: "One edge resolution per live Agent and binding; one matching under the Registry mutex."
+  - collection: "Holds"
+    expected: "the Agents compatible with waiting model Stages"
+    maximum: "registered Runtime Agents"
+    bound: "One deadline field per Agent entry; no per-Stage records."
+lifecycle:
+  - entity: "Agent hold"
+    delete: "Lapses with its window; leaves with the Agent entry when the process is superseded or retired."
+    cascade: "None."
+    retention: "Process memory only; a Server restart clears every hold until the next failed model placement."
+acceptance_criteria:
+  - id: A1
+    given: "a shared Agent allocated to a scan and a model Stage waiting for it"
+    when: "the scan's allocation is released and another scan is placed before the model Stage retries"
+    then: "the scan is not placed on the Agent, and the model Stage is placed on its next attempt, on PostgreSQL."
+  - id: A2
+    given: "a model Stage holding shared Agents and an idle dedicated Agent that only the scan template fits"
+    when: "a scan is placed"
+    then: "it is placed on the dedicated Agent."
+  - id: A3
+    given: "a model Stage needing more Agents than live compatible ones exist"
+    when: "its placement fails and a scan is placed"
+    then: "the scan takes the idle compatible Agent."
+  - id: A4
+    given: "a held Agent whose waiting model Stage stops retrying"
+    when: "the hold window passes on the Registry clock"
+    then: "a scan is placed on it."
+  - id: A5
+    given: "a model Stage and a held Agent"
+    when: "another model Stage is placed"
+    then: "it may take the held Agent."
+  - id: A6
+    given: "a tool Stage and a model Stage progressed by the Scheduler"
+    when: "they request placement"
+    then: "the tool Stage's request is ModelFree and the model Stage's is not; a ModelFree request with a model Worker is rejected."
+tests:
+  - command: "go test ./internal/controlplane ./internal/scheduler"
+    covers: [A2, A3, A4, A5, A6]
+  - command: "go test ./internal/controlplane -run ModelStageHold (with CONTRACTOR_TEST_DATABASE_URL set)"
+    covers: [A1, A2]
+  - command: make test-go
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5, A6]
+verification:
+  date: "2026-10-23"
+  revision: "fd2fdaa6596ad1dfaf85376d0a668551a9d2a902"
+  environment: >-
+    Branch feat/model-free-stage-lanes on main @ 68b553de, macOS arm64, Go
+    1.26.9, disposable PostgreSQL 17 (CONTRACTOR_TEST_DATABASE_URL set) and
+    TMPDIR under /private/tmp.
+  results:
+    - "A1, A2: TestModelStageHoldPostgresGivesReleasedSharedAgentToWaitingModelStage places through PlacementAllocator on PostgreSQL: the released shared Agent is refused to the next scan, the scan lands on a dedicated Agent and the model Stage takes the shared one; TestModelStageHoldKeepsSharedAgentsFromModelFreePlacement covers A2 in memory."
+    - "A3: TestModelStageHoldIgnoresStageWithoutCompleteLiveMatching (two Workers needing the one code-analysis Agent)."
+    - "A4, A5 and replay: TestModelStageHoldKeepsSharedAgentsFromModelFreePlacement on the Registry clock; a second model Stage takes a held Agent and the running scan's reservation replays unchanged."
+    - "A6: TestSchedulerHandsTheRunToTheModelPoolAfterAToolStage records ModelFree [true false]; TestModelStageHoldValidatesTheLaneClassOfTheRequest rejects a model-free request with a model Worker and a hold for a model-free Stage."
+    - "Mutations: dropping the model-free exclusion, the live matching check, the hold computation, or computing it over idle Agents only each fails a hold test; forcing ModelFree to either constant fails the Scheduler test."
+    - "make test-go: every package passed except internal/app TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder, which fails the same way on main because macOS PostgreSQL does not support tcp_user_timeout."
+    - "go test -race and go test -tags=integration on internal/controlplane and internal/scheduler passed."
+    - "go test -tags=e2e ./tests/e2e passed TestSchedulerConcurrencyAcrossProductionProcesses, TestHeterogeneousRuntimeCapabilityPlacement, TestOpenAPIAuditScanAcrossProductionProcesses, TestKatanaDiscoveryAcrossProductionProcesses and TestAuditCompositionAcrossProductionProcesses."
+    - "make lint and make verify-architecture passed."

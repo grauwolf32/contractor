@@ -1,0 +1,128 @@
+schema_version: "1.0"
+id: V425-003
+title: "Make every SQL function that table definitions evaluate restorable by pg_restore"
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: defect
+introduced_by: V62-006
+priority: P1
+status: completed
+depends_on: []
+languages: [go, sql]
+goal: >-
+  A custom-format pg_dump of a fully migrated Contractor database restores
+  with pg_restore --exit-on-error into an empty database, so the documented
+  backup and restore procedure works for the current schema.
+context:
+  severity: high
+  finding: >-
+    Found by the 2026-10-30 wave-wide integration run (main acb704b2c; it
+    fails the same way on b222f41fc before the wave):
+    tests/integration/restore/restore_test.go TestBackupRestorePreservesExactArtifactsAndCAS
+    fails for both blob backends at pg_restore (restore_test.go:87) with
+    "function contractor_jsonb_elements(jsonb) does not exist ... CONTEXT: SQL
+    function contractor_audit_dependency_holds during inlining. Command was:
+    CREATE TABLE public.audit_items". pg_restore runs with an empty
+    search_path; the generated column audit_items.retained_dependency_hold_count
+    (internal/persistence/migrations/000047_audit_retained_dependencies.sql:204)
+    calls contractor_audit_dependency_holds (same file :195), an IMMUTABLE
+    LANGUAGE sql function whose string body names contractor_artifact_key_set,
+    contractor_artifact_ref_key and contractor_jsonb_elements without a
+    schema. CREATE TABLE inlines the function and cannot resolve them. The
+    column came with 48cdbc077 (V62-006). Every backup taken since then is
+    unrestorable with the documented tools.
+    Second, test-only: runPostgresTool (restore_test.go:204) redacts the tool
+    output with strings.ReplaceAll(output, password, "<redacted>"); with an
+    empty password (local socket role) it inserts the marker between every
+    character, so the failure above was unreadable.
+  siblings: >-
+    Any function that pg_restore evaluates before the search_path is normal:
+    functions called from generated columns, CHECK constraints (evaluated
+    while COPY loads rows), index expressions and predicates, and column
+    defaults, directly or through other functions. The migrations hold
+    LANGUAGE sql functions in 000001, 000016, 000020, 000024, 000029, 000031,
+    000035, 000038, 000043, 000046, 000047 and 000048, plus plpgsql
+    functions; each one reachable from those table definitions is in scope.
+    Trigger functions run only after the restore and are out of scope unless
+    a table definition also calls them. Other places that redact a password
+    with strings.ReplaceAll are in scope for the empty-value case.
+  additional_finding: >-
+    2026-10-30, found while seeding the restore rehearsal: with only the
+    audit_items functions fixed, pg_restore still failed for every backup that
+    holds a Run, at COPY workflow_runs, with a violation of
+    workflow_runs_runtime_config_snapshot_shape. The PL/pgSQL validator
+    contractor_valid_run_runtime_snapshot calls contractor_valid_pinned_runtime_config
+    unqualified, and its EXCEPTION WHEN OTHERS handler turned the unresolved
+    call into false. That call came with 61dd24c5d (V8-005); the rehearsal
+    never held a Run, so it stayed hidden. The guard reached 19 functions:
+    14 directly from table definitions and 5 helpers behind them.
+scope:
+  in:
+    - "A new migration that redefines every in-scope function so pg_restore resolves its references: prefer SQL-standard BEGIN ATOMIC bodies, which bind referenced objects when the function is created and stay inlinable; otherwise schema-independent qualification that still works in per-test schemas. Record the choice and its reason in docs/spec/platform/persistence.md."
+    - "A real-PostgreSQL guard that fails when a function reachable from a generated column, CHECK constraint, index expression or predicate, or column default has a string body with unresolved-at-restore references (for example: LANGUAGE sql without prosqlbody and without a pinned search_path), so a later migration cannot reintroduce the class."
+    - "The restore test passes for both blob backends and loads at least one row into every table whose CHECK constraints or generated columns call such a function, so evaluation during COPY is exercised."
+    - "runPostgresTool and every sibling redaction skip an empty secret."
+  out:
+    - "Changing the backup procedure or tooling; dump format and flags stay as documented."
+    - "Rewriting functions that only triggers call."
+acceptance_criteria:
+  - id: A1
+    text: "pg_dump --format=custom of a database migrated to the latest version, holding rows in the affected tables, restores with pg_restore --exit-on-error, and ApplyMigrations on the restored database applies nothing."
+  - id: A2
+    text: "The guard lists every function reachable from table definitions and accepts only restorable ones; it fails on the unfixed schema."
+  - id: A3
+    text: "The restore test fails on the unfixed code and passes after the fix; a failing tool's output is readable when the password is empty."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./tests/integration/restore"
+    covers: [A1, A3]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence/..."
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2, A3]
+delivery:
+  decisions: >-
+    Recorded as PER-R46 in docs/spec/platform/persistence.md with its decision
+    paragraph. Migration 000063 gives the 16 reachable LANGUAGE sql functions
+    SQL-standard BEGIN ATOMIC bodies with unchanged statements and attributes,
+    rewrites contractor_valid_run_runtime_snapshot from PL/pgSQL into a
+    SQL-standard body whose ordered CASE arms keep inputs of the wrong JSON
+    type away from jsonb_object_keys and the array functions (its exception
+    handler used to absorb those errors), and pins search_path = pg_catalog on
+    the two PL/pgSQL validators that name only built-in objects. Minimum
+    PostgreSQL 14 for SQL-standard bodies; the project runs PostgreSQL 17.
+    The routine ownership check (PER-R23) now reads SQL-standard bodies through
+    pg_get_function_sqlbody instead of reporting them unreadable.
+  sibling_repairs: >-
+    TestPostgresRemovePentestJournalPreservesAuditData (V422-002) asserted that
+    upgrading from 000061 applies exactly one migration, so any later migration
+    failed it; it now checks that the upgrade starts at its migration, as the
+    other upgrade tests do. Redaction siblings tests/e2e/process_test.go,
+    tests/ui-stack/process_test.go, internal/secretmatch, the Runtime redaction
+    helpers and scripts/check_postgres_client_version.py and
+    scripts/release_test_reports.py already skip an empty secret.
+
+implementation_commit: b12ebbe80e9222652f0d042278aebd29fc90bd8b
+verification:
+  date: '2026-10-31'
+  environment: >-
+    macOS arm64; Go 1.26.9; the locked Runtime venv; local PostgreSQL 17.11
+    (Homebrew) with pg_dump and pg_restore 17.11; lane database
+    contractor_test_fix_restore and coordinator database
+    contractor_test_bigrun; coordinator gates on main ce609f4f3.
+  commands:
+    - >-
+      Lane (targeted): go test -count=1 -tags integration
+      ./tests/integration/restore for both blob backends and the readable
+      failure subtest; it fails on the unfixed schema at CREATE TABLE
+      audit_items, and with only the generated-column functions fixed at COPY
+      workflow_runs. go test -count=1 -p 1 ./internal/persistence/... passed;
+      TestPostgresTableDefinitionFunctionsAreRestorable reported 14 problems
+      on the unfixed schema. Targeted runstore, planner/session,
+      settingsstore, runservice, controlplane, auditservice, pgstore and
+      evalstore tests passed.
+    - >-
+      Coordinator on ce609f4f3: make test-backup-restore passed;
+      CONTRACTOR_TEST_DATABASE_URL set, go test -count=1 -p 1
+      ./internal/persistence/... passed; make lint passed.
+    - >-
+      Not covered: a restore of real demo data.

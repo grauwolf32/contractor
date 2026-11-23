@@ -1,0 +1,125 @@
+schema_version: "1.0"
+id: V402-001
+title: "Provision Runtime Agent hosts with a configurable Ansible role that installs every capability prerequisite"
+milestone: runtime-host-provisioning-2026-10
+epic: operations
+kind: feature
+priority: P2
+status: completed
+implementation_commit: "c12d35f0435c583ae11a2e495b1b6965eff47f9f"
+depends_on: [V402-002]
+languages: [yaml, markdown]
+goal: >-
+  An operator deploys one or more single-slot Runtime Agents to a Linux host
+  with one playbook run, choosing per host or per process which capabilities
+  it advertises (local workspace, OpenAPI and LikeC4 validators, the five
+  scanners, the Podman sandbox and its networked profile), and the run fails
+  unless each started process registered with the Control Plane and probed the
+  capabilities it was configured for. Today every prerequisite (pinned tools,
+  nuclei templates, tree-sitter parser cache, rootless Podman, the supervisor
+  image digest, certificates, unit files) is assembled by hand from four
+  documents.
+context:
+  specification: "docs/spec/execution/runtime-agent.md#RTA-R10"
+  related_specification: "docs/spec/operations/operations.md#OPS-R1"
+  design: "deploy/podman/README.md, runtime/README.md, docs/operations/runtime-configuration.md"
+  request: "User request on 2026-10-23: an Ansible playbook that deploys the Runtime with the full capability set, preferably configurable."
+scope:
+  in:
+    - "deploy/ansible: a role and playbook for Debian, Ubuntu, Fedora/RHEL and Arch hosts with systemd >= 248, plus an example inventory and README."
+    - "Release delivery from a controller git checkout (git archive of the exact commit), uv sync --locked of the Runtime and the parser prefetch that make runtime-venv performs, run as the service account whose cache the Runtime reads."
+    - "Pinned, sha256-verified downloads of uv, vacuum, nuclei, naabu, ffuf, katana, nuclei-templates, sqlmap and Node, and an npm lockfile for likec4."
+    - "Rootless Podman provisioning: subordinate IDs, cgroup controller delegation, linger, podman info policy check, offline build of deploy/podman and its digest reference."
+    - "Certificates issued with contractor pki issue-runtime on a PKI host (never re-issued, so the SPKI principal is stable) and copied to the Runtime host."
+    - "One user unit per instance with the README's kill policy, a per-instance PATH containing only the executables of its enabled capabilities, and removal of instances marked absent."
+    - "Preflight before any restart: the Runtime's own parse_settings over the exact argv, and each enabled executable's probe command under the service PATH."
+    - "Sequential restart of changed instances, each verified from its journal (registration, and an available probe for every expected capability ref)."
+    - "make test-ansible: syntax check and controller-only tests of configuration resolution and validation."
+  out:
+    - "Server, PostgreSQL, UI and LLM Gateway provisioning."
+    - "Draining a busy slot before restart; the README requires the operator to drain first or set contractor_runtime_restart to false."
+    - "Per-tool verification through the Operations API; the journal records only Toolset-level probe outcomes."
+    - "macOS hosts (the Podman sandbox is Linux-only, OPS-R1)."
+requirements:
+  - id: R1
+    text: "Runtime-owned grammars and bounds (labels, adapters, CIDRs, Podman and workspace limits) are validated only by the Runtime's parse_settings, run on the exact argv before restart; the role validates only values it interprets itself (instance names, ports, capability switches, scanner names)."
+  - id: R2
+    text: "Every downloaded artifact is fetched by exact version and verified by sha256 before use; likec4 is installed with npm ci from a committed lockfile."
+  - id: R3
+    text: "An instance is restarted only when its unit, its executable links or its certificate changed, a restart of it was deferred earlier, or it is not running; restarts are sequential so the host keeps the other slots. A deferred restart (contractor_runtime_restart false) is recorded on the host and blocks release pruning until a later run restarts the instance."
+  - id: R4
+    text: "A started instance passes only when its journal shows registration and every expected capability probe as available; a startup failure, a missing or non-available expected probe, or the timeout fails the run."
+failure_outcomes:
+  - operation: "Tool download"
+    permanent: "Checksum mismatch or HTTP 4xx fails the host before any unit changes."
+    retryable: "get_url retries transient failures three times with a delay."
+    ambiguous: "A partial download is detected by checksum and fetched again."
+    cancelled: "An interrupted extraction leaves no completion marker and is redone on the next run."
+    timeout: "get_url timeout per request."
+  - operation: "Release venv build"
+    permanent: "uv sync --locked failure fails the host; the release directory without its completion marker is removed and rebuilt on the next run."
+    retryable: "Rerun the playbook."
+    ambiguous: "Not applicable: units point to a release only after it is complete."
+    cancelled: "Same as permanent."
+    timeout: "Not bounded by the role; uv's own network timeouts apply."
+  - operation: "Instance restart"
+    permanent: "A parse_settings error or failed tool probe stops before the restart; a startup failure or non-available expected probe fails the host after the restart and leaves the unit for inspection."
+    retryable: "Rerun the playbook after fixing the host."
+    ambiguous: "Registration not observed within contractor_runtime_verify_timeout_seconds fails the run; the process keeps running. A deferred restart survives the run as <config_dir>/restart-pending/<name>."
+    cancelled: "systemd stops the Runtime with its own kill policy (KillMode=mixed, SendSIGKILL=no)."
+    timeout: "contractor_runtime_verify_timeout_seconds owns verification; TimeoutStopSec owns stop."
+cardinality:
+  - collection: "Instances per host"
+    expected: "1-4"
+    maximum: "one per allocation slot the host can run; each restart is verified before the next"
+    bound: "journal reads are limited to one unit since its start"
+  - collection: "Release directories"
+    expected: "contractor_runtime_keep_releases"
+    maximum: "contractor_runtime_keep_releases plus the deployed release"
+    bound: "older releases are deleted after a successful run"
+lifecycle:
+  - entity: "Runtime instance"
+    delete: "state: absent stops, disables and removes the unit."
+    cascade: "Nothing else: certificates and work roots stay, because Podman owner markers and the SPKI principal must not be reused or removed implicitly."
+    retention: "Until the operator deletes them."
+  - entity: "Release directory"
+    delete: "Pruned after a successful run beyond contractor_runtime_keep_releases."
+    cascade: "Its venv."
+    retention: "keep_releases most recent."
+acceptance_criteria:
+  - id: A1
+    given: "A valid inventory with two instances on one host"
+    when: "make test-ansible runs the resolution tests"
+    then: "Each instance resolves its own ports, URLs, roots, PATH executables and capability probe refs, and Podman, scanners and validators follow the host and instance switches."
+  - id: A2
+    given: "Duplicate names or ports, an unknown capability or scanner, Podman without local storage, an empty adapter list or a value systemd would reinterpret"
+    when: "The resolution tests run"
+    then: "Each case fails with its own message before any host change."
+  - id: A3
+    given: "The playbook and role"
+    when: "ansible-playbook --syntax-check and ansible-lint run"
+    then: "Both pass."
+tests:
+  - command: make test-ansible
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A3]
+verification:
+  date: "2026-10-23"
+  revision: "c12d35f0435c583ae11a2e495b1b6965eff47f9f"
+  environment: >-
+    Controller on macOS arm64 with ansible-core 2.21.5 (uvx); target Debian 13
+    (systemd 257, cgroup v2) in a privileged rootful Podman container reached
+    over SSH, with PostgreSQL 17 and a contractor-server built from this
+    branch listening on its Control Plane at https://127.0.0.1:8443, and a
+    throwaway deployment CA issued by contractor pki on the controller.
+  task_commands:
+    - "make test-ansible: syntax check, ansible-lint 26.10.1 (production profile, strict), the resolution tests (3 positive plays, 23 single-host rejections and one cross-host rejection) and the tool probe smoke test passed."
+    - "make lint passed, including sh deploy/ansible/tests/run.sh."
+  live_check:
+    - "Two instances (full set; memory workspace with nuclei and ffuf only) were provisioned from an empty host: packages, account, subordinate IDs, delegation, pinned tools, likec4 by npm ci, release venv, parser prefetch, offline supervisor image build, certificates and user units."
+    - "The verification caught podman-network@1 unavailable, which was the Runtime defect V402-002; after it, the full instance registered with code-analysis@1, code-execution@1, edit-files@1, filesystem@1, podman-network@1, podman@1, scan@1, taint-annotations@1, workspace-changes@1 and workspace-storage, and the narrow one with its own subset; contractor ops agents listed both idle with heartbeats."
+    - "A startup label not bound on the Server failed registration with invalid_runtime_labels and the run failed at once with the Runtime's message; the README now says to bind labels first."
+    - "An unchanged second run reported changed=0; a new release restarted the running instance and verified it; state absent stopped, disabled and removed one unit and kept its data; keep_releases 1 pruned the older release."
+    - "contractor_runtime_restart false as an extra-vars string wrote the unit, kept the process, recorded the deferral and skipped pruning; the next plain run restarted and verified exactly that instance and cleared the record."
+    - "An unsupported adapter failed the preflight with the Runtime's own parse_settings error before the unit changed; the running instance stayed active."

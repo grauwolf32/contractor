@@ -1,0 +1,72 @@
+{
+  "task": "V466-015",
+  "date": "2026-11-14",
+  "status": "accepted",
+  "implementation_commit": "0111d8f851c8c017971f3ae797bfef5b1b9a8f00",
+  "merged_into_main": false,
+  "gates": [
+    {
+      "command": "make test-context-compaction-eval-fixtures",
+      "exit_code": 0,
+      "python_tests": 24,
+      "recorded_scored_samples": 90,
+      "go_packages": 2
+    },
+    {
+      "command": "go test -count=1 ./internal/httpapi/public ./internal/evalservice ./internal/evalstore ./internal/evaldomain ./tests/eval/context_compaction/...",
+      "exit_code": 0,
+      "database": "real owned disposable PostgreSQL17"
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "exit_code": 0,
+      "fixtures": 394,
+      "shared_go_tests": 437,
+      "shared_python_tests": 280,
+      "runtime_contract_cases_passed": 417,
+      "shared_python_cases_passed": 1562
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0
+    },
+    {
+      "command": "uv run --locked ruff check ../tests/eval/context_compaction/harness.py ../tests/eval/context_compaction/test_harness.py",
+      "exit_code": 0
+    }
+  ],
+  "regressions": [
+    "The evaluator posts exact result/assessment receipts to selections under the existing CAS and idempotency contract; unchanged selected records are not selected again.",
+    "The real HTTP/PostgreSQL client loses a committed selection response, replays the identical key/body/CAS, retains selection revision 1, rejects stale CAS and publishes one passed member in the current comparison.",
+    "Comparison observation waits for asynchronous publication with an injected clock and a shared finite deadline; stale views cannot become success.",
+    "28 main/summarizer/compactor/Planner/failure/interruption/summary route mismatch cases fail before submission, including missing explicit Gateway evidence.",
+    "Malformed OpenAPI auth/structure/schema and unresolved/external references fail; valid artifacts and local references pass. A canary HTTP server receives no external reference read.",
+    "Scorer identity includes its Go validator source and module dependency pins; changing either invalidates the old scorer pin."
+  ],
+  "mutation_checks": {
+    "disabled_selection_assertion_failures": 1,
+    "disabled_model_route_check_assertion_failures": 28,
+    "disabled_openapi_validation_assertion_failures": 7,
+    "unexpected_errors": 0
+  },
+  "provenance": {
+    "scorer_sha256": "sha256:fb26a5ce5270d5d673f40e7317372ac113ad73650a51de1e304aa6b67e378d2e",
+    "fixture_manifest_sha256": "sha256:674302acdaee0fe7f7ba0457346576ce607302c2a1bab0f798a9293f30e7ed7e",
+    "runtime_lock_sha256": "sha256:945f997f38cabe445f1f05a559a26089fdf3bf44c95b523a6d8eb71c8e235c65"
+  },
+  "cleanup": {
+    "database": "contractor_fix_v466_015_20261114",
+    "sessions_before_drop": 0,
+    "dropped": true
+  },
+  "exclusions": [
+    "Optional heavy I/O was not enabled; the wire gate reports one optional disk-heavy skip, not passing coverage.",
+    "Lint script tests report four declared skips, not passing coverage.",
+    "No live Gateway experiment, deployment, main merge or full release-verify."
+  ],
+  "resolved_verification_attempts": [
+    "The new PostgreSQL regression was renamed TestShared to follow the shared fixture gate contract.",
+    "A negative OpenAPI probe was changed from an unsupported response-key check to a malformed response description which the existing validator rejects.",
+    "Explicit evaluator Ruff closure warnings were corrected before final acceptance."
+  ]
+}

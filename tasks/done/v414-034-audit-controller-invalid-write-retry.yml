@@ -1,0 +1,198 @@
+schema_version: "1.0"
+id: V414-034
+title: "Close an Audit whose controller write is refused as invalid instead of retrying it"
+milestone: review-v407-v409-followups-2026-10
+epic: audits
+kind: defect
+introduced_by: V62-003
+priority: P2
+status: completed
+depends_on: []
+languages: [go]
+goal: >-
+  When the store refuses an Audit controller write as invalid input
+  (auditstore.ErrInvalid), the controller ends the Audit with a classified
+  stop reason, as it already does for the next Round, instead of retrying a
+  write that can never succeed on every reconciliation pass.
+context:
+  specification:
+    - docs/spec/audits/execution.md
+    - docs/spec/platform/failure-model.md
+  review: >-
+    Found while implementing V414-008
+    (tasks/done/v414-008-stored-size-check-classification.yml), which made
+    the store writers return auditstore.ErrInvalid for a refused named
+    CHECK. The user asked on 2026-10-24 to file it and fix it next.
+  severity: medium
+  finding: >-
+    Only AcceptNextRound closes the Audit on an invalid write
+    (internal/auditcontroller/round_progression.go:125-131 through
+    nextRoundValidationError and closeInvalidNextRound). The other
+    controller writes return every error except ErrPrecondition to the
+    reconciliation loop, which retries it on the next pass:
+    AcceptInitialRound (internal/auditcontroller/preparation.go:29-33),
+    CreateExecutionIntent for a role execution
+    (internal/auditcontroller/controller.go:258-264) and for an item
+    execution (controller.go:642-650), and SettleUndispatched
+    (internal/auditcontroller/settlement.go:24-27). A deterministic refusal
+    (AGENTS.md 3.2: ErrInvalid is permanent) therefore keeps the Audit
+    claimed and re-attempted forever, holding its controller claim and
+    producing the same failure every pass.
+  siblings: >-
+    Every store write the Audit controller makes:
+    the four above, TransitionClaimed, ReleaseDispatchHold,
+    MaterializeRound, createRun's Run creation (runstore's ErrInvalid),
+    the cancellation batch and the purge path. Each either gets the same
+    classified closure or is recorded as unable to return ErrInvalid, with
+    the reason.
+scope:
+  in:
+    - "Classify auditstore.ErrInvalid (and the equivalent invalid errors of the Run store the controller calls) from every controller write as a permanent failure that closes the Audit with a stable stop reason, reusing closeInvalidNextRound's shape or one shared helper."
+    - "State the outcome in the Audit execution spec and the failure model next to the existing next-Round rule."
+    - "Real-PostgreSQL regression tests that make each write refuse through its production CHECK (as V414-008's tests do) and observe one closure, no retry and the claim released."
+  out:
+    - "Changing which values the store refuses."
+acceptance_criteria:
+  - id: A1
+    text: "An initial Round whose acceptance the store refuses as invalid closes the Audit with the classified reason after one attempt; a later pass does not attempt it again."
+  - id: A2
+    text: "The same holds for a role execution intent and an item execution intent. Undispatched settlement runs only after dispatch has closed and is the barrier every closure waits for (AUD-R186), so it cannot close the Audit; instead it never derives a value the store refuses and settles in one attempt. Every other sibling write is fixed or ruled out with the reason. (Settlement corrected at closure; see decisions.settlement_deviates_from_a2.)"
+  - id: A3
+    text: "A transient store failure (for example 40001 or a lost connection) is still retried, not closed."
+  - id: A4
+    text: "The regression tests fail on the unfixed code by observing a second attempt."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 ./internal/auditcontroller/... ./internal/auditstore/..."
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+implementation_commit: 58e5df05161ec31a6dfb5f52f98d1d3bde8fec72
+decisions:
+  stop_reasons: >-
+    One helper, refusedWrite in internal/auditcontroller/controller.go,
+    classifies auditstore.ErrInvalid and logs the store's cause with the
+    Audit and operation; closeActiveAudit closes dispatch with the stop
+    reason of the refused work, which keeps a fixed message. The codes are
+    the ones the same work already used for invalid data: invalid_inventory
+    for the initial Round (ASC-R51), preparation_failed for a prepare role
+    intent (ASC-R59, via progressPreparation's remap),
+    role_dispatch_contract_invalid for a discovery or assessment role
+    intent, dispatch_contract_invalid for a check intent and
+    next_round_invalid for the next Round (AUX-R66, now through the same
+    helper). No new code was added; role_dispatch_contract_invalid, which
+    the Controller and UI already used, is now registered in errors.md.
+    Recorded as AUX-R99.
+  settlement_deviates_from_a2: >-
+    A2 asked SettleUndispatched to close the Audit like the other writes.
+    It cannot: settlement runs only once dispatch is closed (finalizing,
+    cancelling, deleting), and it is the barrier every closure waits for
+    (AUD-R186), so closing again is not a state the Audit has and a
+    deleting Audit would stay deleting. Its only refusable derived value
+    was the closure gap appended to an item whose coverage_gaps already
+    filled audit_items_coverage_gaps_check (1 MiB of jsonb text), a state a
+    retryable failed collection can reach. The settlement SQL
+    (internal/auditstore/internal/pgstore/lifecycle_sql.go) now keeps such
+    an array and records the closure through the final disposition and the
+    rationale, so the refusal is unreachable; the Controller still returns
+    any refusal as an error. This changes a value the Store writes, not
+    which values it refuses, so scope.out holds. Recorded as AUX-R100;
+    reopen if a drain write can derive another value a CHECK refuses.
+  closing_transition: >-
+    TransitionClaimed is the closing write itself, so it is made unable to
+    be refused instead of being closed: closeActiveAudit bounds the stop
+    reason message to auditstore.MaxStopReasonMessageBytes (4 KiB, the
+    audits_stop_reason_message_check bound, now shared with pgstore
+    validation) of valid UTF-8 without NUL. Builder messages are dynamic
+    (invalid_inventory carries the validation error, next_round_contract_invalid
+    a diagnostic, proposal_inventory_limit_exceeded names every skipped
+    receipt), so a long or byte-cut message would otherwise be refused on
+    every pass. The other closing transitions (round_complete,
+    item_attempt_budget_exhausted and the role-phase reasons) now go
+    through the same helper.
+  run_creation: >-
+    createRun's Run creation: runstore.ErrInvalid and auditstore.ErrInvalid
+    join runservice.ErrInvalid in permanentSubmissionError, so the intent
+    fails once through ObserveSubmissionFailure and collection requeues or
+    settles its members under their attempt policy, which bounds further
+    attempts (FAIL-AUX-1). Merged with V414-035's non-retryable Run Skill
+    failure in the same predicate.
+  siblings_ruled_out: >-
+    Every other Controller store write carries only the claim, values read
+    from the snapshot and fixed values, so the same Store cannot refuse it
+    as invalid on a later pass with different input: TransitionRound,
+    CompletePreparation, ExpireReportReview and RenewExpiredItemReview
+    (claim, IDs, revisions and fixed states), ObserveTerminal (claim,
+    execution and Run IDs and the Run's generation and sequence from the
+    snapshot), ObserveSubmissionFailure, also used by the intent-failure
+    drain batch (claim and execution ID), ReleaseDispatchHold (claim only,
+    fixed-shape update), NextItemAttempts and NextLiveRunForDeletion (reads keyed by
+    snapshot IDs), RequestRunCancellation and DeleteReleasedTerminalRun
+    (Run IDs from the snapshot), BindRun (run provenance assembled in SQL,
+    under 1 KiB per V414-008), Claim, RenewClaim and ReleaseClaim (options
+    validated in New), and PurgeClaimed (namespace computed from the Audit
+    ID; a deleting Audit cannot be closed further). Collect and Finalize
+    belong to the importer, which already turns a content-only refusal into
+    a collection-contract-invalid receipt (AUX-R96). MaterializeRound is
+    called by the public Start path in auditservice, not by the
+    Controller, and V414-008 already answers its refusal with 400. AUX-R100
+    records that a refusal of a drain write is a Store defect that a later
+    pass retries.
+  transient: >-
+    A failure not classified invalid is untouched: persistencepostgres
+    classifies 40001 as a transaction conflict and a lost connection as
+    unavailable or as a failed savepoint rollback, none of which maps to
+    ErrInvalid, so the step returns the error, the claim pass releases the
+    claim, and a later pass attempts the same write again.
+verification:
+  date: '2026-10-25'
+  environment: >-
+    macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), the locked Runtime venv and
+    pnpm UI install for make lint; local PostgreSQL 17.11 (Homebrew)
+    database contractor_test_v414_ctl with per-test schemas; branch
+    claude/v414-ctl after merging claude/v41x-coord at 05d81bc0.
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://localhost/contractor_test_v414_ctl
+      go test -tags=integration -count=1 ./internal/auditcontroller/...
+      ./internal/auditstore/... passed after the final merge (auditcontroller
+      44.8s, pgstore 203.3s; the other auditstore packages have no tests).
+      The first run before the merges failed only
+      claim_scale_postgres_test.go's read budget while both packages shared
+      the server, the known V414-038 issue; the package passed alone and in
+      every later full run.
+    - >-
+      go test -count=1 ./internal/auditcontroller/... ./internal/auditstore/...
+      (untagged; pgstore's database tests run without the tag) passed.
+    - >-
+      make lint passed after make docs-dependencies regenerated
+      docs/spec/audit-workflow-dependencies.html.
+    - >-
+      New real-PostgreSQL tests in
+      internal/auditcontroller/refused_write_postgres_test.go lower the
+      production CHECK (audit_items_coverage_gaps_check,
+      audit_executions_manifest_ref_check) to one byte NOT VALID and count
+      store calls through a wrapper:
+      TestPostgresControllerClosesAuditWhoseInitialRoundIsRefused (A1),
+      TestPostgresControllerClosesAuditWhoseRoleIntentIsRefused and
+      TestPostgresControllerClosesAuditWhoseCheckIntentIsRefused (A2), each
+      asserting one attempt over six passes, the stop reason, no Round,
+      intent or reserved Run, and a released claim;
+      TestPostgresControllerRetriesTransientIntentFailures (A3) injects a
+      40001 and a terminated backend from a statement trigger and asserts two
+      attempts, an unchanged active Audit and dispatch once the fault is
+      gone; TestPostgresControllerSettlesAnItemWhoseCoverageGapsAreFull and
+      pgstore's
+      TestPostgresSettleUndispatchedKeepsFullCoverageGapsWithinTheirStoredBound
+      settle an item whose gaps are exactly 1,048,576 bytes of jsonb text.
+      Fake-store tests TestControllerFailsAnIntentWhoseRunCreationIsRefusedAsInvalid
+      and TestControllerBoundsTheStopReasonItClosesWith cover Run creation
+      and the stop reason bound.
+    - >-
+      Can-fail check (A4): with the five fixed source files restored to
+      their pre-fix content and the tests kept, every regression test
+      failed: initial Round attempted 6 times, role intent 6 times, check
+      intent 5 times, Run store and Audit store refusals 3 times each, the
+      long stop reason refused by the store, and both settlement tests
+      refused by audit_items_coverage_gaps_check (SQLSTATE 23514). The
+      transient test passed there, as it guards behaviour that was already
+      right. The fix was restored and the tests passed again.

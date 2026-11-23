@@ -1,0 +1,11 @@
+---
+- name: Write the unit of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.template:
+    src: contractor-runtime.service.j2
+    dest: "{{ contractor_runtime_home }}/.config/systemd/user/{{ __contractor_runtime_instance.unit }}"
+    owner: "{{ contractor_runtime_user }}"
+    group: "{{ contractor_runtime_group }}"
+    mode: "0644"
+  register: __contractor_runtime_unit
+  no_log: true
+  diff: false

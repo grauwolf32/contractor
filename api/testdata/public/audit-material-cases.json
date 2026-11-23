@@ -1,0 +1,229 @@
+[
+  {
+    "name": "audit_output",
+    "schema": "ArtifactLineageEdge",
+    "valid": true,
+    "value": {
+      "kind": "audit_output",
+      "sourceScope": "run",
+      "source": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "targetScope": "audit",
+      "target": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "createdAt": "2026-11-01T00:00:00Z"
+    }
+  },
+  {
+    "name": "audit_input",
+    "schema": "ArtifactLineageEdge",
+    "valid": true,
+    "value": {
+      "kind": "audit_input",
+      "sourceScope": "audit",
+      "source": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "targetScope": "run",
+      "target": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "createdAt": "2026-11-01T00:00:00Z"
+    }
+  },
+  {
+    "name": "audit_publish",
+    "schema": "ArtifactLineageEdge",
+    "valid": true,
+    "value": {
+      "kind": "audit_publish",
+      "sourceScope": "audit",
+      "source": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "targetScope": "project",
+      "target": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "createdAt": "2026-11-01T00:00:00Z"
+    }
+  },
+  {
+    "name": "unknown-scope",
+    "schema": "ArtifactLineageEdge",
+    "valid": false,
+    "value": {
+      "kind": "audit_input",
+      "sourceScope": "research",
+      "source": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "targetScope": "run",
+      "target": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "createdAt": "2026-11-01T00:00:00Z"
+    }
+  },
+  {
+    "name": "unknown-kind",
+    "schema": "ArtifactLineageEdge",
+    "valid": false,
+    "value": {
+      "kind": "material_transfer",
+      "sourceScope": "audit",
+      "source": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "targetScope": "run",
+      "target": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "createdAt": "2026-11-01T00:00:00Z"
+    }
+  },
+  {
+    "name": "exact-publication",
+    "schema": "AuditMaterialPublicationRequest",
+    "valid": true,
+    "value": {
+      "auditId": "audit-one",
+      "source": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "target": {
+        "namespace": "materials",
+        "name": "selected"
+      }
+    }
+  },
+  {
+    "name": "versionless-source",
+    "schema": "AuditMaterialPublicationRequest",
+    "valid": false,
+    "value": {
+      "auditId": "audit-one",
+      "source": {
+        "namespace": "materials",
+        "name": "selected"
+      },
+      "target": {
+        "namespace": "materials",
+        "name": "selected"
+      }
+    }
+  },
+  {
+    "name": "versioned-destination",
+    "schema": "AuditMaterialPublicationRequest",
+    "valid": false,
+    "value": {
+      "auditId": "audit-one",
+      "source": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "target": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      }
+    }
+  },
+  {
+    "name": "authored-destination-scope",
+    "schema": "AuditMaterialPublicationRequest",
+    "valid": false,
+    "value": {
+      "auditId": "audit-one",
+      "source": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "target": {
+        "namespace": "materials",
+        "name": "selected"
+      },
+      "scope": "project"
+    }
+  },
+  {
+    "name": "continuation_source_exact_boundary",
+    "schema": "AuditTaskSource",
+    "valid": true,
+    "value": {
+      "kind": "continuation",
+      "key": "continuation-context",
+      "through_ordinal": 16
+    }
+  },
+  {
+    "name": "continuation_source_zero_boundary",
+    "schema": "AuditTaskSource",
+    "valid": false,
+    "value": {
+      "kind": "continuation",
+      "key": "continuation-context",
+      "through_ordinal": 0
+    }
+  },
+  {
+    "name": "continuation_source_over_boundary",
+    "schema": "AuditTaskSource",
+    "valid": false,
+    "value": {
+      "kind": "continuation",
+      "key": "continuation-context",
+      "through_ordinal": 100001
+    }
+  },
+  {
+    "name": "unknown_task_source_kind",
+    "schema": "AuditTaskSource",
+    "valid": false,
+    "value": {
+      "kind": "semantic-generator-service",
+      "key": "context"
+    }
+  },
+  {
+    "name": "one_task_intake_output_per_workflow",
+    "schema": "AuditProgramWorkflow",
+    "valid": false,
+    "value": {
+      "ref": "artifact-copy@1",
+      "inputs": {},
+      "parameters": {},
+      "outputs": {
+        "work": "work",
+        "proposals": "proposals"
+      }
+    }
+  }
+]

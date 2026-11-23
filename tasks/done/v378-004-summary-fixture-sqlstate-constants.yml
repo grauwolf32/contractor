@@ -1,0 +1,45 @@
+schema_version: "1.0"
+id: V378-004
+title: Use shared PostgreSQL error constants in summary continuation fixtures
+milestone: planner-summary-continuation-2026-10
+epic: planner-worker
+kind: chore
+introduced_by: V378-001
+priority: P2
+status: completed
+depends_on: [V378-001]
+languages: [go]
+goal: Keep summary fault injection on the single PostgreSQL error-code definition without weakening repository guards.
+context:
+  finding: >-
+    internal/scheduler/summary_postgres_test.go:65 and
+    internal/scheduler/summary_test.go:199 spell SQLSTATE values directly.
+    TestSQLStateLiteralsLiveOnlyInTheClassifier reports all three occurrences
+    in the CI unit stage; the full package guard reproduces them locally.
+  regression: internal/persistence/sqlstate_literal_test.go#TestSQLStateLiteralsLiveOnlyInTheClassifier
+  siblings: The module-wide guard finds both fault-injection helpers; existing Scheduler credential and escalation tests already use the shared constants.
+scope:
+  in:
+    - Replace all three fixture literals with the existing serialization and connection-failure constants from persistence/postgres.
+    - Run the complete unit stage so every package-level repository guard executes, with disposable PostgreSQL configured.
+  out:
+    - Production error classification, retry behavior, new SQLSTATE definitions or guard exceptions.
+acceptance_criteria:
+  - id: A1
+    text: The existing module-wide SQLSTATE guard reproduces the three violations before the fix and passes afterward with its original allowlist.
+  - id: A2
+    text: Full persistence and Scheduler packages and the complete Go/Runtime unit stage pass, retaining real-store summary fault coverage.
+tests:
+  - command: make lint
+    covers: [A1, A2]
+  - command: make release-verify-unit
+    covers: [A1, A2]
+verification:
+  date: 2026-10-14
+  results:
+    - The existing SQLSTATE guard reproduced all three fixture violations before the fix and passed afterward without allowlist changes.
+    - make lint passed with the canonical constant references in both helpers.
+    - The complete release-verify-unit stage passed with disposable PostgreSQL and package parallelism limited to one, including 94 Go packages and 3835 Runtime tests; 39 Runtime tests were skipped and are not counted as passes.
+  notes:
+    - The first parallel full unit pass hit an existing App test timeout while dropping its temporary lease database. The complete repeat with reduced package parallelism passed without changing the test or its timeout.
+implementation_commit: cb59239e4252678364c29a92ba339354c0025175

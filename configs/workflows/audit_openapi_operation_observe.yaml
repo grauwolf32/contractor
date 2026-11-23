@@ -1,0 +1,90 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata:
+  name: audit-openapi-operation-observe
+  version: '1'
+spec:
+  parameters: {}
+  inputs:
+    source:
+      required: true
+      mediaTypes:
+      - application/zip
+    context:
+      required: true
+      mediaTypes:
+      - application/json
+    operation:
+      required: true
+      mediaTypes:
+      - application/json
+    openapi:
+      required: true
+      mediaTypes:
+      - application/json
+      - application/yaml
+      - application/zip
+  outputs:
+    result:
+      required: true
+      primary: true
+      mediaTypes:
+      - application/json
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+      modelPolicy: worker@1
+  entryStage: check
+  stages:
+    check:
+      objective: Trace the assigned OpenAPI operation through the pinned source workspace
+        using structural graph evidence
+      instructions:
+        ref: instructions/audit-openapi-operation-observer-worker.md
+      planner: passthrough@1
+      agents:
+        checker:
+          template: audit_openapi_operation_observer@1
+          namespace: audit-check
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+          context:
+            namespace: inputs
+            name: context
+            required: true
+          operation:
+            namespace: inputs
+            name: operation
+            required: true
+          openapi:
+            namespace: inputs
+            name: openapi
+            required: true
+        workspace:
+          mode: overlay
+          sources:
+          - artifact: source
+            target: ''
+      result:
+        artifacts:
+          result:
+            required: true
+            mediaTypes:
+            - application/json
+            from:
+              namespace: audit-check
+              name: result
+      workflowOutputs:
+        result: result
+      'on':
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

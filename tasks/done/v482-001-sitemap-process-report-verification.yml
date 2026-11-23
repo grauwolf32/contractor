@@ -1,0 +1,41 @@
+schema_version: '1.0'
+id: V482-001
+title: Verify sitemap process subtests through the shared report owner
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: defect
+introduced_by: V410-002
+priority: P2
+status: completed
+depends_on: []
+languages: [python]
+goal: The sitemap process gate rejects skipped or missing required scenarios and reports actual passing coverage.
+context:
+  authority: User request 2026-11-23 authorizes cleanup items 1, 2 and 4 from the release review. Audit priority removal is excluded.
+  finding: scripts/test-project-sitemap-tools-e2e.py:25 checks root names only. A report with a skipped apply-only child and passing roots prints zero skips.
+  siblings: The shared release_test_reports.verify_go_report already checks selected descendants and package completion. Other gate implementations are outside this correction.
+  boundary: Keep the existing four real process roots and use their common report verifier. Require the four Server-operation scenarios explicitly, with bounded report capture and the existing execution timeout.
+scope:
+  in:
+    - Replace local event parsing with shared capture and verification, including mandatory Server-operation children.
+    - Regress skipped and missing children, missing package completion, and successful complete reports through the actual script entry point.
+  out:
+    - Product behavior, schemas, optional heavy-I/O policy and new release stages.
+acceptance_criteria:
+  - id: A1
+    text: The actual script rejects skipped or missing required children and missing package completion, and accepts a complete report.
+  - id: A2
+    text: All four real process roots and pure, apply, apply-only and invalid Server-operation scenarios execute and pass.
+tests:
+  - command: cd runtime && uv run python -m unittest discover -s ../scripts -p 'test_*.py'
+    covers: [A1]
+  - command: make test-project-sitemap-tools-e2e
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]
+verification:
+  - make test-project-sitemap-tools-e2e passed all four process roots and four mandatory Server-operation children with zero skips.
+  - The three new entry-point tests passed; the complete script suite ran 231 tests with one opt-in Podman storage test skipped.
+  - make lint passed, including the release graph, shared report tests and task consistency.
+  - The former script accepted the synthetic apply-only skip and printed zero skips; the new entry point rejects it.
+implementation_commit: 644d0e7dee5be8908d2ca5c1e8d3d16d58edc0f3

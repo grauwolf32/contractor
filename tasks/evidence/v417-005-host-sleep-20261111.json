@@ -1,0 +1,30 @@
+{
+  "task": "V417-005",
+  "date": "2026-11-11",
+  "command": "make test-e2e",
+  "status": "failed/interrupted; not passing acceptance",
+  "exit_code": 2,
+  "passed_roots_before_stop": 34,
+  "failures": ["TestWorkflowMaterialSetsAcrossProductionProcesses"],
+  "both_new_audit_compaction_cases": "passed",
+  "material_sets": {"failure": "Audit process scenario timed out", "reported_elapsed_seconds": 240.42, "wall_elapsed_seconds": 2534.03, "difference_seconds": 2293.61},
+  "host_evidence": {
+    "source": "pmset -g log; only sleep/wake timestamps and reason classes were retained",
+    "timezone": "Europe/Moscow",
+    "events": [
+      {"time": "2026-11-11 11:52:02 +0300", "event": "Entering Sleep", "reason_class": "Idle"},
+      {"time": "2026-11-11 12:01:19 +0300", "event": "DarkWake from", "reason_class": "Idle"},
+      {"time": "2026-11-11 12:01:24 +0300", "event": "Entering Sleep"},
+      {"time": "2026-11-11 12:17:50 +0300", "event": "DarkWake from", "reason_class": "Idle"},
+      {"time": "2026-11-11 12:17:52 +0300", "event": "Entering Sleep"},
+      {"time": "2026-11-11 12:30:30 +0300", "event": "DarkWake from", "reason_class": "Idle"},
+      {"time": "2026-11-11 12:30:31 +0300", "event": "Wake from", "reason_class": "Idle"}
+    ],
+    "interpretation": "The host suspended while the deadline-based scenario was running; this attempt does not establish a code regression. No production or test deadline was changed."
+  },
+  "retained_report": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-idle-sleep-interrupted.jsonl",
+  "report_sha256": "8be3d8b30ddd0ae6ed09f0e06795e6ed87f7a00cbb24bbe81b81b4bb3546a55b",
+  "log": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-full-process.log",
+  "cleanup": {"owned_report_runner_tree_remaining": 0, "database_connections": 0},
+  "rerun_setup": {"temporary_command": "/usr/bin/caffeinate -i -t 5400", "owned_pid": 54121, "session_id": 79056, "PreventUserIdleSystemSleep_assertion_verified": true, "permanent_settings_changed": false, "stop_owned_assertion_on_lane_cleanup": true, "scenario_selection_and_deadlines": "unchanged"}
+}

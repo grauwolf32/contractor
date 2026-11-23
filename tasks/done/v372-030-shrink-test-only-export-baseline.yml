@@ -1,0 +1,220 @@
+schema_version: "1.0"
+id: V372-030
+title: "Resolve the exported identifiers that only tests use and empty the test-only export baseline"
+milestone: hub-audit-structure-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: completed
+depends_on: [V369-007]
+languages: [go, python, json]
+goal: "tools/testonlyexports/baseline.txt names no entry of this task: each identifier below has a production caller, lives in a test file or a test helper package, or is gone."
+context:
+  review: "V369-007 (tools/testonlyexports) and V370-008, 2026-10-12, on b2b09ea"
+  revalidated: >-
+    2026-10-24 on b523ae77. 42 of the original 44 entries remain (the
+    baseline has 46 lines; the four internal/auditpriority entries belong to
+    V64-005 and V64-006). Two are already resolved and dropped
+    from this task: pgstore QueryStore.ListExecutions, moved to
+    internal/auditstore/auditstoretest (reads.go:74-78) with its test callers
+    by V409-004 (171779df, completed in 02e84782); and artifacts Scope.Kind,
+    which gained a production caller (internal/runservice/public.go:205) in
+    188940fd. The Audit controller and service tests' full execution reads
+    went with ListExecutions. go -C tools/testonlyexports run . with the
+    baseline passes, so every remaining entry still has no production
+    reference. Positions and counts below are as of b523ae77.
+  finding: >-
+    The test-only export check lists 46 exported identifiers that no
+    production code references; V369-007 baselined them so that make lint
+    fails on new ones. 42 belong to this task. (1) Error kinds the registry
+    defines but nothing names: apierror AuditSchemaUnsupported,
+    AuditLimitExceeded, AuditPackageInvalid, AuditPackagePathInvalid,
+    AuditPackageMemberForbidden, AuditDigestMismatch, AuditReferenceInvalid,
+    AuditRemoteReference, AuditInventoryInvalid, AuditResultSetInvalid
+    (internal/apierror/registry.go:361-375) and the fifteen Eval kinds from
+    EvalLimitExceeded to EvalProjectDeleting (registry.go:392-441). The codes
+    are in use, as strings: evalstore, evalservice and their peers raise
+    evaldomain.Failure("eval_not_found") and the like (about 200 call
+    sites; Failure at internal/evaldomain/errors.go:63), and auditdomain
+    repeats the Audit codes as its own constants (errors.go:11-23);
+    auditdomain.ValidationError and evaldomain.Error look their kind up with
+    apierror.Lookup and fall back to audit_document_invalid or eval_invalid,
+    so a misspelt code compiles and answers the fallback. (2) Accessors
+    that only in-memory test doubles read: artifacts Scope.ID
+    (internal/artifacts/types.go:44; the doubles key their maps with it),
+    credentials RuntimeCredentialMaterial.Kind (runtime_types.go:147) and
+    runtimeconfig PreparedPublication.Name and Version (normalize.go:155-156,
+    read by the public runtime configuration fake). V370-016 decision (4) and
+    V368-010 keep those doubles. (3) An Audit store write that only tests
+    make: pgstore ReviewStore.AppendReviewEvents
+    (internal/auditstore/internal/pgstore/seams.go:182), which seeds review
+    events in bulk where production appends them through review commands.
+    (4) Documents and rules the Runtime produces, built by Go tests:
+    auditdomain EncodeDirectVerificationSet (codec.go:39) and
+    FindingCollectionTargets (finding_collection.go:342), a Go copy of the
+    Runtime's findings-<digest> Namespace rule
+    (runtime/src/contractor_runtime/toolsets/security_findings/collection.py:118)
+    that only tests/e2e/findings_boundaries_process_test.go reads. (5)
+    Configuration loading the tests use instead of the production entry
+    points: configload.Load (configload.go:76, 89 references in 73 test
+    files; production calls LoadUnionReadOnly and NewManager),
+    config Snapshot.AgentTemplate (snapshot.go:162) and the agentskills and
+    auditstandards SeedPlan.Packages (agentskills/catalog.go:47,
+    auditstandards/catalog.go:31). (6) Planner construction the tests use
+    instead of the composition's: planner.NewRunArtifactInspector
+    (artifact_inspector.go:49), router.NewConfiguredFactory
+    (router/factory.go:22) and streamline.NewConfiguredFactory
+    (streamline/factory.go:62) (production calls the WithMemory variants,
+    internal/app/composition_execution.go:85 and :92) and
+    planner.CloneWorkerCompletion (worker_result.go:78, one fake). (7)
+    Function adapters of runtimeconfig interfaces that only tests use:
+    TransactionLLMCredentialLookupFactoryFunc (credentials.go:71) and
+    PlannerTelemetryAdapterCatalogFunc (publisher.go:33).
+  progress: >-
+    2026-10-30 (lane fix-persist): eleven of the fourteen entries left on
+    main are resolved and gone from the baseline (see decisions). Three
+    remain, each listed under V372-030 in tools/testonlyexports/baseline.txt:
+    (a) auditdomain FindingCollectionTargets, whose choice (4) depends on the
+    shared findings fixtures that V372-029 (lane fix-rtui) was moving into
+    api/testdata/findings and tests/e2e/testdata/findings during this wave;
+    (b) config Snapshot.AgentTemplate, 50 references in 21 test files, 13 of
+    them outside internal/config (controlplane, httpapi, tests/e2e,
+    tests/integration/lease): a helper that resolves a template through the
+    production Workflow bindings cannot live in internal/configtest, because
+    internal/config's own tests import configtest, so it needs a new test
+    helper package and its layer classification; (c) configload.Load, 100
+    calls in 80 test files across most packages, and removing it leaves
+    config.Load without a production caller, which 92 in-package calls of
+    internal/config's tests use. (b) and (c) are mechanical but touch test
+    files of nearly every package while five lanes were landing; do them
+    together in a quiet period, routing the loads through
+    configload.LoadUnionReadOnly with a missing managed root.
+    2026-10-31 continuation: all three remaining entries are now removed.
+    The transitive test-only config.Load wrapper is also removed. Production
+    readers are unchanged; cross-package tests follow resolved Workflow bindings
+    and LoadUnionReadOnly, and findings destinations come from the shared fixture
+    exercised by the Runtime reader. Implementation is committed as
+    ffa5b57214b8f49a7df77fb26bcf62cbbcff15c8 on
+    codex/v372-030-test-only-exports, not merged into main. Lint, export,
+    shared-wire and affected process checks passed. The mandatory full internal
+    integration command passed after restoring Podman's local UID/GID mappings
+    and completing the separate V425-022 container-platform test correction.
+    All acceptance criteria and listed commands are verified; main remains
+    unchanged until the user merges the branch.
+  decision: >-
+    Open choices, to settle in this task: whether the error kinds become the
+    typed values evaldomain and the Audit package errors raise (preferred,
+    one definition) or registry rows without exported names; whether the
+    doubles of (2) key by Scope value and keep a test-side record of each
+    scope's ID, or move to PostgreSQL (reopens V368-010); whether
+    AppendReviewEvents (3) moves to auditstoretest as V409-004 did with
+    ListExecutions, or the tests seed through review commands; whether (4)
+    becomes a shared fixture the Runtime and the e2e test both read
+    (V372-029 widens the shared fixture gate to such fixtures); and whether
+    the adapters of (7) move to runtimeconfigtest.
+scope:
+  in:
+    - "Every identifier the baseline lists under V372-030, its tests and its doubles."
+    - "Deleting this task's baseline entries as each identifier is resolved."
+  out:
+    - "Production behaviour and the public API."
+    - "The internal/auditpriority functions, which V64-005 and V64-006 own."
+acceptance_criteria:
+  - id: A1
+    text: "tools/testonlyexports/baseline.txt has no V372-030 entry and make lint (the testonlyexports run with the baseline) passes."
+  - id: A2
+    text: "Existing tests pass; a test edited only follows a moved or removed symbol, or reads through a production path."
+  - id: A3
+    text: "No identifier is resolved by adding a production reference whose only purpose is to satisfy the check; each new production reference has a production caller."
+tests:
+  - command: make lint
+    covers: [A1, A3]
+  - command: "go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt \"$PWD\""
+    covers: [A1]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags integration ./internal/..."
+    covers: [A2]
+decisions:
+  - >-
+    2026-10-30: error kinds, router/streamline NewConfiguredFactory and
+    planner.CloneWorkerCompletion had already left the baseline before this
+    wave (other tasks resolved them); nothing to do here.
+  - >-
+    2026-10-30: in-memory doubles key their bindings by artifacts.Scope value (it is
+    comparable) instead of a string built from Scope.ID, and check a scope by comparing it with
+    the Scope a test builds; Scope.ID is gone. The public handler fake records the scopes of each
+    lineage edge beside it and leaves the edge's scope IDs empty, which the public handlers never
+    read (json:"-"); TestPublicArtifactLineageHidesAuditImportStagingEdge seeded an edge with an
+    empty scope ID that the fake never returned, so it now seeds the user's scope and checks the
+    exclusion for real. V368-010's doubles stay.
+  - >-
+    2026-10-30: RuntimeCredentialMaterial.Kind is gone: credentials' own tests read the field,
+    the Eval test names the kind constant it created, and the public fake reads the kind through
+    WithPlaintext as the service does. PreparedPublication.Name and Version are gone: the public
+    fake replays by request digest, as the Publisher does, instead of name and version.
+  - >-
+    2026-10-30: ReviewStore.AppendReviewEvents is gone; pgstore's tests call the unexported batch
+    append, and the Audit event paging test seeds through the production AppendReviewEvent, one
+    event per call. auditdomain.EncodeDirectVerificationSet is gone; the intake tests write the
+    document with json.Marshal, as the Runtime writes JSON, and intake's production decode
+    validates it; codec_test validates through the unexported encoder. SeedPlan.Packages of
+    agentskills and auditstandards moved into each package's tests; configload's tests compare
+    the bundles with an independent DiscoverBundled of the same root, and the Agent Skill process
+    test packages each skill directory with agentskills.PackageDirectory.
+  - >-
+    2026-10-30: planner.RunArtifactInspector and its constructor are gone; every test inspects
+    through the production ArtifactServiceInspector over an artifacts.Service, the scheduler tests
+    over the PostgreSQL service they already hold and the Planner tests over a Repository double
+    bound to one RunScope. The function adapters of PlannerTelemetryAdapterCatalog and
+    TransactionLLMCredentialLookupFactory moved to runtimeconfigtest (internal/runtimeconfig's own
+    tests keep unexported copies, since they cannot import runtimeconfigtest).
+
+  - >-
+    2026-10-31 (user-authorized continuation): remove the remaining production
+    accessors and wrappers. Tests load through LoadUnionReadOnly with a missing
+    managed root; config.Load is removed with configload.Load. Cross-package
+    template readers use a test-only configloadtest helper over resolved Workflow
+    bindings, without importing the core loader. Core catalog tests inspect
+    unbound templates through a private test-only accessor. Finding consumer
+    destinations are frozen in the shared fixture, checked by the real Runtime
+    reader and used by the process regression; the Go production copy is removed.
+    This preserves production behavior and leaves the V64 baseline entries alone.
+implementation_commit: ffa5b57214b8f49a7df77fb26bcf62cbbcff15c8
+verification_results:
+  - >-
+    2026-10-31 final verification after V425-022: make lint and
+    CONTRACTOR_TEST_DATABASE_URL=<disposable TCP PostgreSQL database>
+    go test -tags=integration ./internal/... passed. All 96 tested packages
+    succeeded (14 fresh executions, 82 valid cached results from prior runs).
+    The previously failing Git container proof ran successfully through Podman
+    Machine; no test was excluded to obtain this result. Earlier failed runs
+    below are retained as investigation history, not the final gate result.
+  - >-
+    2026-10-31 user-requested retry: recreated the disposable TCP PostgreSQL
+    database and repeated go test -tags=integration ./internal/.... The command
+    again failed only at TestRealGitReadOnlyContainer (Alpine image not known);
+    the other 95 packages reused their passing Go test cache. A fresh podman pull
+    docker.io/library/alpine:latest again failed with insufficient UID/GID
+    mappings while unpacking /etc/shadow. No task completion is claimed.
+  - "2026-10-31: make lint passed; existing lint blockers were corrected separately in completed V425-020 and V425-021."
+  - 'go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt "$PWD" passed; only four V64 entries remain.'
+  - >-
+    CONTRACTOR_TEST_DATABASE_URL=<disposable TCP PostgreSQL database>
+    go test -tags=integration ./internal/... failed only in internal/gitimport:
+    TestRealGitReadOnlyContainer requires docker.io/library/alpine:latest with
+    --pull=never, but the image is absent. podman pull failed with insufficient
+    UIDs/GIDs in the user namespace (lchown /etc/shadow: invalid argument).
+    All other 95 tested packages passed. No database test was skipped for an
+    unset database URL. This is a failed required command, not a passing gate.
+  - >-
+    go test -tags=integration -count=1 ./internal/gitimport
+    -skip '^TestRealGitReadOnlyContainer$' passed the remaining host tests.
+    The excluded container proof remains unverified and blocks task completion.
+  - "make test-wire-cross-language passed: 355 shared fixtures, 392 Go and 284 Python shared tests; 1577 Runtime shared cases plus 375 contract cases."
+  - "In runtime/: uv run --locked pytest -q tests/test_findings_reader_toolset.py passed all 70 tests, including shared destinations and changed-snapshot isolation."
+  - "go test ./tests/eval/... ./tests/integration/lease ./tests/e2e passed; no live-model evaluation is claimed."
+  - "make test-release-config-fixtures passed."
+  - >-
+    go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run
+    '^(TestFindingsReaderBoundariesAcrossProcesses|TestMemoryMVPProcesses|TestAuditProgramsResolveAsRunnableMVPProfiles|TestAuditProgramsFixturesBuildStableChecklistAndOpenAPIInventories|TestAuditProgramsResultFixturesRemainDistinct|TestKatanaDiscoveryAcrossProductionProcesses)$'
+    passed against disposable PostgreSQL and real Server/Runtime processes.
+  - "go test -tags=e2e -count=1 ./tests/ui-stack -run '^TestUIStackConfigurationClosure$' passed."

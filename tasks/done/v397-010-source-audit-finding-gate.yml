@@ -1,0 +1,81 @@
+schema_version: '1.0'
+id: V397-010
+title: Preserve Audit profile identity when pinning deployment models
+milestone: finding-correlation-2026-10
+epic: audits
+kind: defect
+priority: P1
+status: completed
+depends_on: []
+languages:
+- go
+- yaml
+goal: Freeze effective model bindings under a verified profile closure digest while retaining catalog identity, so valid Audits start and prepared
+  Evals keep their exact selection.
+context:
+  integration_note: >-
+    During V397-017 main integration, this independently developed closure-seal implementation was superseded by the already accepted V391-001 single effective-profile digest. Historical verification and implementation commits are retained; current readers and model binding follow V391-001 and AUD-R20.
+  severity: medium
+  finding: internal/config/model_selection.go:304-323 applies deployment model defaults to Workflow bodies while preserving the catalog profile
+    digest; internal/config/auditprofile/persisted.go:62 then recomputes that digest over changed bodies and rejects Audit start. Both finding
+    producer process scenarios reproduce HTTP 500 on c52fb5d3e6bf593d96d6024593a11d6f237ab41c before any fingerprint changes.
+  siblings: Source Audit start staging, pinned profile/input/task packages and the two findings producer/collection process scenarios; keep reader
+    boundary and location scenarios covered.
+  specification:
+  - docs/spec/audits/audits.md#AUD-R225
+  - docs/spec/audits/audits.md#AUD-R204
+  - docs/spec/findings/findings.md#FND-R59
+  - docs/spec/audits/audits.md#AUD-R228
+scope:
+  in:
+  - Separate immutable catalog identity from the digest of the frozen effective profile closure; strictly verify both identity binding and complete
+    snapshot content without relaxing reads or consulting mutable defaults.
+  - Validate owner catalog selection before deployment binding, while preserving exact prepared Eval profile selections.
+  - Regression tests for model changes, tampering, catalog selection and real Audit start with retained model configuration.
+  out:
+  - Fingerprint algorithms, duplicate grouping and unrelated macOS/Linux Runtime platform failures.
+acceptance_criteria:
+- id: A1
+  text: A valid source Audit starts and the producer/retention process scenarios complete against real PostgreSQL.
+- id: A2
+  text: All sibling finding process scenarios and the full suites of any touched Go packages pass.
+- id: A3
+  text: Record failure evidence on the original code, root cause and introducing task; preserve safe error and immutable input contracts.
+tests:
+- command: go test -count=1 ./internal/config/... ./internal/configload/... ./internal/auditservice ./internal/evalservice ./internal/httpapi/public
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-findings-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A2
+- command: make verify-public-api
+  covers:
+  - A2
+- command: make generate-public-client-check ui-generate-check
+  covers:
+  - A2
+introduced_by: V387-003
+verification:
+  date: '2026-10-22'
+  baseline: The unmodified c52fb5d3e6bf593d96d6024593a11d6f237ab41c fails TestFindingsProducerAndReaderAcrossProcesses before publication with
+    HTTP 500; isolated diagnostics identify persisted AuditProfile digest is invalid.
+  checks:
+  - Full config, configload, auditservice, evalservice and public Go/PostgreSQL suites passed.
+  - Manager regression retains catalog identity across changed defaults, verifies closure seals and preserves pinned Eval profiles.
+  - Real PostgreSQL regression validates a catalog selection before deployment binding and starts the retained effective profile.
+  - make test-findings-e2e passed all 14 mandatory process cases and 163 Runtime finding cases.
+  - make verify-public-api, generate-public-client-check and ui-generate-check passed.
+  - make lint and test-wire-cross-language passed after the final selection regression and snapshot fixture refresh.
+  - Current-schema JSON fixture is sealed with the production codec; obsolete or missing-seal snapshots still fail. Full artifacts and persistence/postgres
+    suites passed after the fixture refresh.
+  - Audit controller and audit store integration suites passed; auditimport passed after the fingerprint-discard assertion update owned by V397-001.
+  boundary: Closure seals apply only to Server-retained AuditProfile snapshots. Worker tool and wire contracts, configured model choices and public
+    profile projections stay unchanged.
+implementation_commit: 200aa9cb7815acf6d8b82a745a5c19a495d3333a

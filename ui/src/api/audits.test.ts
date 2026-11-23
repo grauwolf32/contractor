@@ -1,0 +1,416 @@
+import { describe, expect, it, vi } from "vitest";
+
+import type { RuntimeConfig } from "../config/runtime-config";
+import { TestPublicAPI as PublicAPI } from "../test/shared-config";
+import {
+  createAudit,
+  getAudit,
+  getAuditProfile,
+  getAuditReport,
+  listAuditProfiles,
+  listProjectAudits,
+  mutateAudit,
+  type Audit,
+  type AuditProfile,
+} from "./audits";
+
+const runtimeConfig: RuntimeConfig = {
+  uiVersion: "0.1.0",
+  supportedApiVersions: ["contractor.public.v1"],
+  apiBaseUrl: "http://127.0.0.1:8080",
+};
+
+const exactInput = {
+  ref: { namespace: "sources", name: "service", revision: "revision-1" },
+  digest: `sha256:${"1".repeat(64)}`,
+  mediaType: "application/zip",
+  sizeBytes: 123,
+};
+
+const profile: AuditProfile = {
+  ref: {
+    name: "source-checklist",
+    version: "1",
+    digest: `sha256:${"2".repeat(64)}`,
+  },
+  inputs: { sources: { required: true, media_types: ["application/zip"] } },
+  limits: {
+    max_tasks: 8,
+    max_iterations: 1,
+    max_tasks_per_iteration: 8,
+    batch_size: 1,
+    max_submitted_runs: 8,
+    max_attempts: 2,
+    deadline_seconds: 600,
+    max_evidence_bytes: 1048576,
+    max_hypotheses: 128,
+    max_hypothesis_revisions: 10,
+    max_hypothesis_bytes: 32768,
+  },
+  policy: { active_operations: "prohibited" },
+};
+
+const audit: Audit = {
+  auditId: "audit_example",
+  projectId: "project_example",
+  profile: { ...profile.ref },
+  inputs: { sources: exactInput },
+  scope: {},
+  runtimeLabels: [],
+  state: "draft",
+  taskCount: 0,
+  iteration: 0,
+  revision: 1,
+  dispatchState: "closed",
+  holdState: "pending",
+  limits: {
+    maxRounds: 1,
+    batchSize: 1,
+    maxItemsPerRound: 8,
+    maxItemsTotal: 8,
+    maxSubmittedRuns: 8,
+    maxItemRunAttempts: 2,
+    maxEvidenceBytes: 1_048_576,
+  },
+  reservedRunCount: 0,
+  submittedRunCount: 0,
+  outstandingRunCount: 0,
+  collectionPending: false,
+  retainedEvidenceBytes: 0,
+  eventSequence: 1,
+  createdAt: "2026-09-06T10:00:00Z",
+  updatedAt: "2026-09-06T10:00:00Z",
+};
+
+function response(value: unknown, options: ResponseInit = {}): Response {
+  const headers = new Headers(options.headers);
+  headers.set("content-type", "application/json");
+  headers.set("X-Contractor-API-Version", "contractor.public.v1");
+  return new Response(JSON.stringify(value), { ...options, headers });
+}
+
+describe("Audit API", () => {
+  it("removes an abandoned queued report before it takes a transfer slot", async () => {
+    const started: string[] = [];
+    const finish: Array<() => void> = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        started.push(new URL(request.url).pathname);
+        await new Promise<void>((resolve) => finish.push(resolve));
+        return response({ status: "pending" });
+      }),
+    );
+    const first = getAuditReport(api, "audit_first");
+    const second = getAuditReport(api, "audit_second");
+    const controller = new AbortController();
+    const abandoned = getAuditReport(api, "audit_abandoned", controller.signal);
+    const rejected = expect(abandoned).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    const last = getAuditReport(api, "audit_last");
+    controller.abort();
+    await rejected;
+    await vi.waitFor(() => expect(started).toHaveLength(2));
+    finish[0]!();
+    await first;
+    await vi.waitFor(() => expect(started).toHaveLength(3));
+    expect(started[2]).toBe("/v1/audits/audit_last/report");
+    finish[1]!();
+    finish[2]!();
+    await Promise.all([second, last]);
+    const alreadyAborted = new AbortController();
+    alreadyAborted.abort();
+    await expect(
+      getAuditReport(api, "audit_never", alreadyAborted.signal),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(started).toHaveLength(3);
+  });
+
+  it("queues report reads in order without exhausting file transfer capacity", async () => {
+    const started: string[] = [];
+    const finish: Array<() => void> = [];
+    let active = 0;
+    let maximum = 0;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        started.push(new URL(request.url).pathname);
+        active++;
+        maximum = Math.max(maximum, active);
+        await new Promise<void>((resolve) => finish.push(resolve));
+        active--;
+        return response({ status: "pending" });
+      }),
+    );
+    const reads = Array.from({ length: 6 }, (_, index) =>
+      getAuditReport(api, `audit_${index}`),
+    );
+    await vi.waitFor(() => expect(started).toHaveLength(2));
+    for (let index = 0; index < reads.length; index++) {
+      await vi.waitFor(() => expect(finish[index]).toBeDefined());
+      finish[index]!();
+      await reads[index];
+      await vi.waitFor(() =>
+        expect(started).toHaveLength(Math.min(index + 3, reads.length)),
+      );
+    }
+    expect(maximum).toBe(2);
+    expect(started).toEqual(
+      Array.from(
+        { length: 6 },
+        (_, index) => `/v1/audits/audit_${index}/report`,
+      ),
+    );
+  });
+  it("forwards active cancellation and makes the released report slot reusable", async () => {
+    const signals: AbortSignal[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        signals.push(request.signal);
+        if (signals.length === 1) {
+          await new Promise<void>((_resolve, reject) =>
+            request.signal.addEventListener(
+              "abort",
+              () => reject(request.signal.reason),
+              { once: true },
+            ),
+          );
+        }
+        return response({ status: "pending" });
+      }),
+    );
+    const controller = new AbortController();
+    const first = getAuditReport(api, "audit_first", controller.signal).catch(
+      (error: unknown) => error,
+    );
+    await vi.waitFor(() => expect(signals).toHaveLength(1));
+    controller.abort();
+    await first;
+    expect(signals[0]!.aborted).toBe(true);
+    await expect(getAuditReport(api, "audit_next")).resolves.toEqual({
+      status: "pending",
+    });
+  });
+
+  it("releases report slots after failure and isolates API clients", async () => {
+    const finish: Array<() => void> = [];
+    const blocked = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () => {
+        await new Promise<void>((resolve) => finish.push(resolve));
+        return response(
+          {
+            code: "artifact_transfer_capacity",
+            message: "Busy",
+            retryable: true,
+          },
+          { status: 503 },
+        );
+      }),
+    );
+    const reads = Array.from({ length: 3 }, (_, index) =>
+      getAuditReport(blocked, `audit_${index}`).catch(
+        (error: unknown) => error,
+      ),
+    );
+    await vi.waitFor(() => expect(finish).toHaveLength(2));
+    const independent = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () => response({ status: "pending" })),
+    );
+    await expect(getAuditReport(independent, audit.auditId)).resolves.toEqual({
+      status: "pending",
+    });
+    for (let index = 0; index < reads.length; index++) {
+      await vi.waitFor(() => expect(finish[index]).toBeDefined());
+      finish[index]!();
+      await expect(reads[index]).resolves.toMatchObject({ status: 503 });
+    }
+  });
+
+  it.each([
+    { status: "ready", mediaType: "text/markdown", accepted: true },
+    { status: "ready", mediaType: "text/plain", accepted: false },
+    { status: "proposed", mediaType: "text/plain", accepted: false },
+    { status: "ready", mediaType: "text/html", accepted: false },
+    { status: "ready", mediaType: undefined, accepted: false },
+  ])(
+    "requires a retained Markdown summary: $status $mediaType",
+    async ({ status, mediaType, accepted }) => {
+      const report = {
+        status,
+        summary: "# Retained report",
+        summaryArtifact:
+          mediaType === undefined ? undefined : { ...exactInput, mediaType },
+      };
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async () => response(report)),
+      );
+      if (accepted) {
+        await expect(getAuditReport(api, audit.auditId)).resolves.toEqual(
+          report,
+        );
+      } else {
+        await expect(getAuditReport(api, audit.auditId)).rejects.toMatchObject({
+          code: "invalid_api_response",
+        });
+      }
+    },
+  );
+
+  it.each(["pending", "unavailable"])(
+    "accepts %s without report artifacts",
+    async (status) => {
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async () => response({ status })),
+      );
+      await expect(getAuditReport(api, audit.auditId)).resolves.toEqual({
+        status,
+      });
+    },
+  );
+
+  it("reads exact profile versions and validates digest ETags", async () => {
+    const requests: Request[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/audit-profiles") {
+          return response({ items: [profile], page: { hasMore: false } });
+        }
+        return response(profile, {
+          headers: { ETag: `"${profile.ref.digest}"` },
+        });
+      }),
+    );
+
+    await expect(listAuditProfiles(api, { cursor: "page-2" })).resolves.toEqual(
+      {
+        items: [profile],
+        page: { hasMore: false },
+      },
+    );
+    await expect(
+      getAuditProfile(api, profile.ref.name, profile.ref.version),
+    ).resolves.toEqual(profile);
+    const listURL = new URL(requests[0]!.url);
+    expect(listURL.searchParams.get("limit")).toBe("50");
+    expect(listURL.searchParams.get("cursor")).toBe("page-2");
+  });
+
+  it("creates a draft and mutates with replay and revision headers", async () => {
+    const requests: Request[] = [];
+    const active = {
+      ...audit,
+      state: "active" as const,
+      taskCount: 0,
+      iteration: 0,
+      revision: 2,
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request.clone());
+        if (new URL(request.url).pathname.endsWith("/start")) {
+          return response(
+            {
+              audit: active,
+            },
+            { headers: { ETag: '"2"' } },
+          );
+        }
+        return response(audit, {
+          status: 201,
+          headers: { ETag: '"1"' },
+        });
+      }),
+    );
+    api.csrf.replace("a".repeat(43));
+    const request = {
+      profile: { name: profile.ref.name, version: profile.ref.version },
+      inputs: { sources: exactInput.ref },
+    };
+
+    await expect(
+      createAudit(api, {
+        projectId: audit.projectId,
+        request,
+        idempotencyKey: "create-audit-example",
+      }),
+    ).resolves.toEqual(audit);
+    await expect(
+      mutateAudit(api, "start", {
+        auditId: audit.auditId,
+        expectedRevision: 1,
+        idempotencyKey: "start-audit-example",
+      }),
+    ).resolves.toMatchObject({ audit: active });
+
+    expect(requests[0]?.headers.get("Idempotency-Key")).toBe(
+      "create-audit-example",
+    );
+    expect(requests[1]?.headers.get("Idempotency-Key")).toBe(
+      "start-audit-example",
+    );
+    expect(requests[1]?.headers.get("If-Match")).toBe('"1"');
+    expect(requests[1]?.headers.get("X-CSRF-Token")).toBe("a".repeat(43));
+    await expect(requests[0]?.json()).resolves.toEqual(request);
+    await expect(requests[1]?.text()).resolves.toBe("");
+  });
+
+  it("reads authoritative Audit, item and coverage projections", async () => {
+    const requests: Request[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request);
+        const path = new URL(request.url).pathname;
+        if (path.endsWith("/items")) {
+          return response({ items: [], page: { hasMore: false } });
+        }
+        if (path.endsWith("/coverage")) {
+          return response({
+            items: [],
+            page: { hasMore: false },
+            auditRevision: audit.revision,
+          });
+        }
+        if (path.endsWith("/audits")) {
+          return response({ items: [audit], page: { hasMore: false } });
+        }
+        return response(audit, { headers: { ETag: '"1"' } });
+      }),
+    );
+
+    await expect(getAudit(api, audit.auditId)).resolves.toEqual(audit);
+    await expect(
+      listProjectAudits(api, { projectId: audit.projectId }),
+    ).resolves.toMatchObject({ items: [audit] });
+    expect(requests.map((request) => new URL(request.url).pathname)).toEqual([
+      "/v1/audits/audit_example",
+      "/v1/projects/project_example/audits",
+    ]);
+  });
+
+  it("rejects a profile response whose digest ETag does not match", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () => response(profile, { headers: { ETag: '"1"' } })),
+    );
+    await expect(
+      getAuditProfile(api, profile.ref.name, profile.ref.version),
+    ).rejects.toMatchObject({ code: "invalid_api_response" });
+  });
+});

@@ -1,0 +1,13 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: snapshot_reader_fixture, version: "1"}
+spec:
+  description: Reads exact local Round pages through ordinary Artifact tools
+  runtime: adk@1
+  instructions: {ref: instructions/snapshot-reader-fixture.md}
+  toolsets:
+    - ref: run-artifacts@1
+      tools: [read_artifact]
+    - ref: text-artifacts@1
+      tools: [write_text_artifact]
+  sandboxProfile: local-workdir@1

@@ -1,0 +1,37 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: audit-nuclei-scan
+  version: '1'
+spec:
+  description: Check response security headers at one fixed OpenAPI URL.
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  toolsets:
+  - ref: scan@1
+    tools:
+    - scan_nuclei
+  execution:
+    tool: scan_nuclei
+    arguments:
+      url:
+        source: parameter
+        name: target
+      template_ids:
+        source: parameter
+        name: template_ids
+      credential_id:
+        source: parameter
+        name: credential_id
+        optional: true
+      tags:
+        source: parameter
+        name: tags
+      severity:
+        source: parameter
+        name: severity
+    resultArtifact: report
+    timeoutSeconds: 300
+  sitemap:
+    version: sitemap-access@1
+    collectObservations: true

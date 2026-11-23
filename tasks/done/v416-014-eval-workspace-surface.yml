@@ -1,0 +1,111 @@
+schema_version: "1.0"
+id: V416-014
+title: "Present evaluation workspace management as part of current Evals"
+milestone: main-review-2026-10-25
+epic: ui
+kind: chore
+introduced_by: V38-008
+priority: P3
+status: completed
+implementation_commit: 51edefb7fff1778bfabc5dc1d6515831974e5172
+depends_on: []
+languages: [typescript, markdown]
+goal: >-
+  Evals distinguishes an experiment from its current workspace consistently,
+  with one discoverable workspace management surface and no obsolete-data
+  terminology or duplicated workspace controls.
+context:
+  review: "2026-10-25 wider architecture review at main f9fda28f1c9ffa4baaf3052c141e652c8593a080."
+  specification:
+    - docs/spec/evals/managed-evals.md#EVM-R21
+    - docs/spec/evals/managed-evals.md#EVM-R22
+    - docs/spec/evals/managed-evals.md#EVM-R23
+    - docs/spec/artifacts/projects.md#PRJ-R95
+    - docs/spec/ui/ui.md#UI-R48
+  finding: >-
+    ui/src/routes/evals/list.tsx:130 links to Legacy evaluation workspaces.
+    That route (projects/list.tsx:36) actually lists all current Projects of
+    kind evaluation; its New Eval action creates a Project, whereas the
+    current Evals entry creates an experiment. projects/detail.tsx:35 owns
+    current workspace editing, target, deletion and recorded Run/material
+    navigation. evals/setup.tsx:90 independently creates the same workspace
+    kind inline. Calling these current containers legacy obscures where to
+    manage them and encourages maintaining two concepts for one entity.
+  provenance: >-
+    V38-008 made experiments the Evals entry while keeping workspace routes
+    as legacy. V66-007 later removed duplicated Workflow/upload controls,
+    retaining useful history and workspace settings. V368-032 explicitly
+    ruled this route out as current behavior named legacy, not a format
+    compatibility shim. This task preserves that distinction: rename and
+    consolidate the current product surface rather than deleting useful
+    behavior based only on its name.
+  boundary: >-
+    ProjectKind evaluation still owns current datasets and experiments
+    (EVM-R23). Generic Run history and label filters are useful current
+    capabilities; labels never establish managed experiment membership
+    (EVM-R21). AGENTS.md's no-backward-compatibility policy is not a reason
+    to remove these production callers. Clarify EVM-R22, PRJ-R95 and UI-R48
+    to state their current purpose without promising historical-format
+    support; do not renumber requirements.
+scope:
+  in:
+    - "Use consistent workspace versus experiment wording, including New Eval, headings, descriptions and navigation links."
+    - "Expose current workspace management naturally from the Evals experiment/setup/dataset flows; reuse existing Project actions and workspace creation/mutation helpers where the same behavior is duplicated."
+    - "Give the workspace surface one canonical route identity, updating internal links together if changed; do not add legacy redirect/shim branches solely for compatibility."
+    - "Retain editing, deletion confirmation, target settings, material/history navigation, exact refs, label filtering and current ownership guards."
+    - "Reconcile the owning specs and route comments with current behavior; remove dead route-specific components/styles only after checking their callers."
+  out:
+    - "Removing ProjectKind evaluation, Run history or useful comparisons; changing experiment membership, datasets, scores, dispatch, persistence or public APIs."
+    - "A new workspace framework, migration machinery or a rewrite of ordinary Project layout."
+acceptance_criteria:
+  - id: A1
+    given: "a newly created evaluation Project and a current managed experiment in it"
+    when: "the owner uses experiment setup, datasets and the workspace list/detail"
+    then: "the same current workspace is consistently named and discoverable; workspace creation cannot be mistaken for starting an experiment"
+  - id: A2
+    given: "a populated current workspace"
+    when: "it is viewed, edited or deleted through the consolidated surface"
+    then: "existing permission checks, CAS/recovery, confirmation, material/history links and deletion states are preserved without a second implementation"
+  - id: A3
+    given: "ordinary labelled Runs and managed members"
+    when: "the UI and specifications explain their relationship"
+    then: "generic history stays inspectable and no label is used as managed membership authority; no compatibility reader or fallback is introduced"
+  - id: A4
+    given: "desktop and 390px widths in light, dark and black themes"
+    when: "the workspace and Evals journeys run"
+    then: "the common controls remain usable, all links resolve, and no removed component/style has a production caller"
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3, A4]
+  - command: make ui-browser-mocked
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification:
+  implementation:
+    - "Current workspace list/detail/material routes use /evals/workspaces; the browser router, static service, queue links, wrong-kind navigation and deletion destination agree. Retired workspace routes receive 404 rather than a compatibility redirect."
+    - "Collection and experiment setup share the existing Project dialog through EvaluationWorkspaceDialog. Its owner-scoped persisted recovery keeps the exact request/key across a lost response and a different entry point. Creating a workspace does not save or start an experiment."
+    - "Experiment and dataset pages expose workspace management; the workspace links back to its filtered experiments and datasets. Project editing, target settings, confirmed CAS deletion, ordinary history and exact material references keep their shared implementations. UI version is 0.10.1."
+    - "EVM-R22, PRJ-R95 and UI-R48 describe current containers and ordinary labelled history without treating labels as managed experiment membership."
+  checks:
+    - command: "VITEST_MAX_WORKERS=2 make ui-verify"
+      result: "Passed: generated types, ESLint/Prettier, both TypeScript projects, 194 Vitest files (2393 passed and one pre-existing expected-failure case), all 17 Node server tests, production build. Worker count limits scheduling only; test selection and timeouts are unchanged."
+    - command: make ui-browser-mocked
+      result: "Passed all 97 tests across 23 specs. Six workspace cases exercise 390/1280 px in light/dark/black, dialog controls, direct detail reload, history/settings links and absence of horizontal overflow."
+    - command: "GOFLAGS=-p=2 TMPDIR=/private/tmp make lint"
+      result: "Passed on the candidate integrated with V416-012/013/016, including generated dependency checks, Go vet/staticcheck, UI gates, deployment suites, spec/task consistency, Ruff and import layers."
+  review: "An independent read-only review found one missed dynamic Queue link; its builder and assertion were corrected before the final complete UI and browser runs. No further concrete regression remained."
+  initial_checks: >-
+    The first UI verification stopped on formatting. An unrestricted parallel
+    Vitest run later exposed an old dynamic workspace test path plus six
+    timeouts under contention. The path and formatting were corrected, and
+    complete final runs with two workers passed. A preliminary browser run
+    was explicitly interrupted while aligning the static route allowlist;
+    the final full browser gate passed after that change.
+  limits: "These are deterministic UI/API-mocked checks; no backend schema or public API changed and no live experiment or external target was executed."
+  final_integration: >-
+    After integrating all four P1 tasks, including the repeated-cancellation
+    completion of V416-013, make lint passed on
+    92694f737835783df9c9f5f9812da08e3b79b2b4. The combined ten-suite Runtime
+    selection on the corresponding main baseline
+    6c8cba1acaa50f792af63aa0b23a2874e83fd74c passed all 478 tests.

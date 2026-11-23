@@ -1,0 +1,144 @@
+schema_version: '1.0'
+id: V407-022
+title: Reject implicit HEAD before dispatching public GET handlers
+milestone: server-runtime-review-2026-10
+epic: api-contracts
+kind: defect
+introduced_by: V370-009
+priority: P2
+status: completed
+implementation_commit: 83bbc7046851ade0217fb1b54507a9595fdfe445
+depends_on: []
+languages:
+- go
+goal: Authenticated HEAD requests to public GET operations are rejected with 405 before handler reads,
+  according to the existing public API contract.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/api/public-api.md
+  severity: medium
+  finding: internal/httpapi/public/routes.go:196-205 registers GET directly, which also matches HEAD.
+    Six Audit review GET handlers, including audit_review_handlers.go:47,122,178,303,424,438, omit rejectHead.
+    event_handlers.go:12 reaches WebSocket handshake rejection instead of method rejection. A probe through
+    the real public router returned 400 invalid_request for HEAD on findings, reviews and workspace with
+    malformed query parameters; a valid authorized request can reach normal reads. The current query_handlers_test.go:761
+    test covers only twelve selected paths.
+  siblings: The private API router (internal/httpapi/privateartifacts and the control-plane routes) must
+    be checked for the same ServeMux behaviour.
+  validation: 'The verified defect is in public routing. No blanket claim that every private GET is defective
+    or must reject HEAD is made; private/control-plane routes need comparison with their own contracts
+    first. Response status is not always 200: it depends on the handler input and resource.'
+plan:
+- Apply public GET/HEAD policy at registration before dispatch; preserve authentication/authorization
+  middleware precedence and any separately declared method.
+- Replace the hand-picked route coverage with a route-table test using valid path substitutions and authorized
+  fixtures. Verify that all public GET handlers, including the WebSocket entry, are bypassed for HEAD.
+- Inspect private artifact and Control Plane method policies and record the sibling disposition; fix/test
+  only implicit HEAD behavior that violates an existing private contract. Remove redundant per-handler
+  checks where the central wrapper demonstrably owns the policy.
+scope:
+  in:
+  - Public HEAD dispatch rejection, route enumeration test and evidence-backed private-route sibling audit.
+  out:
+  - Adding HEAD support, changing private method policy without a contract basis, or bypassing authentication.
+acceptance_criteria:
+- id: A1
+  text: Authorized HEAD on every public GET route returns 405 method_not_allowed without entering the
+    resource handler or calling its store, including malformed-query and missing-resource cases.
+- id: A2
+  text: The route-table regression fails on the original Audit review routes; ordinary GET and WebSocket
+    handshake behavior is unchanged.
+- id: A3
+  text: Each private/control-plane GET family has a recorded contract and test disposition; any sibling
+    change is limited to an evidenced violation of that contract.
+tests:
+- command: go test -count=1 ./internal/httpapi/...
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local); PostgreSQL 17.11 database contractor_test_g2
+    (CONTRACTOR_TEST_DATABASE_URL set) with disposable per-test schemas; locked Runtime venv and UI dependencies.
+  commands:
+  - CONTRACTOR_TEST_DATABASE_URL=.../contractor_test_g2 go test -count=1 ./internal/httpapi/... passed (artifacttransfer,
+    httpx, privateartifacts, public, public/events); go test -v showed no SKIP and no FAIL in public and privateartifacts.
+  - The same with -tags=integration passed for every ./internal/httpapi/... package.
+  - make verify-public-api passed (apierror and the contract tests with CONTRACTOR_REQUIRE_OPERATION_COVERAGE=1).
+  - go test -count=1 ./internal/app/... ./internal/controlplane/... passed; go vet -tags e2e,integration
+    ./internal/httpapi/... ./internal/app/... ./tests/... passed.
+  - make lint passed, including staticcheck U1000, testonlyexports, spec and task checks.
+  - 'Review follow-up (after merging claude/review-v407-v409 at 17030baa and the private change 83bbc704): the same
+    go test -count=1 ./internal/httpapi/... with and without -tags=integration against contractor_test_g2 (no SKIP in
+    public and privateartifacts), make verify-public-api, go test ./internal/app/... ./internal/controlplane/..., the
+    tagged go vet and make lint passed again.'
+  database_tests_configured: true
+  evidence:
+  - 'Finding re-verified on e29f0b35: routes.go registered "GET <path>" patterns, which ServeMux also matches for HEAD;
+    the six Audit review GET handlers (audit_review_handlers.go listAuditFindings, getAuditFinding, listAuditReviews,
+    listAuditFindingProvenance, getAuditWorkspace, getAuditReview) and connectEventsWebSocket had no HEAD check; the
+    other GET routes (98 in all) relied on a rejectHead call, an inline r.Method test or evalRoute.'
+  - 'TestHeadOnEveryPublicGetRouteIsRejectedAfterAuthentication run on the unmodified base: authorized HEAD returned
+    200 on getAuditWorkspace, listAuditFindings, getAuditFinding, listAuditFindingProvenance, listAuditReviews and
+    getAuditReview, 400 invalid_request on each of them with a malformed query, and 401 (no browser session) or 400
+    on /v1/events/ws; every other GET route returned 405. After the fix every GET route returns 405 method_not_allowed.'
+  - 'Mutation check: with the HEAD pattern removed from register (and the per-handler checks already gone), both
+    new tests fail on every GET route (704 failure lines), e.g. "HEAD /v1/audits/audit-1/reviews entered
+    listAuditReviews" and "HEAD /v1/events/ws entered connectEventsWebSocket"; restoring it passes.'
+  - 'TestHeadNeverReachesAPublicOperationHandler registers the whole route table with recording handlers behind
+    requireOperationsRoutes: every route''s own method still reaches its own handler (ordinary dispatch unchanged),
+    HEAD with and without a malformed query is 405 on every path and enters no handler, and a principal without the
+    Operations capability gets 403 for both the declared method and HEAD under /v1/operations. Path values are
+    validated against the OpenAPI path parameter schemas and must resolve to the route''s operationId.'
+  - 'Authentication order: TestHeadOnEveryPublicGetRouteIsRejectedAfterAuthentication shows unauthenticated GET and
+    HEAD are both 401 on every GET route through NewHandler. WebSocket handshake behaviour is unchanged: the
+    event_handlers_test.go handshake tests (real server) pass.'
+  - 'Behaviour note: a HEAD 405 no longer carries the Cache-Control: no-store that evalRoute and a few handlers set
+    before their own HEAD check; it is now the same response as any other undeclared method on that path (API-R73),
+    and /v1/auth/ paths still get no-store from the middleware. OpenAPI declares no HEAD operation; the 22 Eval
+    operations declare a 405 response (for example api/openapi/contractor-public-v1.yaml:146), and those 405
+    responses declare no headers, so the document is unchanged.'
+  spec:
+  - 'New requirement API-R111 in docs/spec/api/public-api.md: HEAD is 405 from the route table before any handler,
+    after API version, request ID, origin, authentication and Operations authorization (401/403 exactly as GET);
+    invariant 9 names the two tests. The method_not_allowed registry row (API-R73) already covered HEAD and is unchanged.'
+  - 'New requirement ART-R120 in docs/spec/artifacts/artifact-store.md (and an "Other methods" row in the private
+    interface table, invariant 21): the private allocation API serves exactly its routes, another method on their
+    paths is 405 method_not_allowed, any other path 404, and HEAD on a GET path is 405 from the router after the
+    mTLS and Runtime instance checks and before the grant check, any store read and any transfer slot (LIM-BLB-1).'
+  siblings_changed:
+  - 'All public GET routes: the router owns HEAD; the 73 per-handler checks (rejectHead calls, inline r.Method ==
+    HEAD checks, the git key and evalRoute checks; the 5ea08420 commit message says 71) and rejectHead itself
+    are removed. TestQueryRoutesDoNotImplicitlyServeHEAD (twelve hand-picked paths) is replaced by the route-table tests; the direct listAuditEvents HEAD call in
+    TestAuditEventPaginationAndCursorBinding is removed because the handler no longer owns the rule.'
+  - 'Private Artifact API (internal/httpapi/privateartifacts/handler.go, three GET routes: list, raw read, metadata
+    read): ServeMux matched HEAD with their GET patterns, so an authorized Runtime HEAD ran the grant check and the
+    full read, a payload read holding a transfer slot (LIM-BLB-1), before net/http dropped the body. Fixed by the
+    same mechanism: the routing rule moved to httpx.ServeRoutes (the foundation package both adapters already
+    import), which the public register and the private handler''s new route table both call. Side effect: Gateway
+    recovery, which had no method-less pattern, now answers its undeclared methods with 405 like every other private
+    path instead of falling through to 404 (stated in ART-R120). The only client transport,
+    runtime/src/contractor_runtime/artifacts.py:457, accepts only GET, PUT and POST, and the Artifact, finding
+    proposal (finding_proposals.py:55-57) and Gateway recovery (llm/recovery.py:135-137) clients all use it, so the
+    Runtime never sends HEAD. Tests: TestServeRoutesAnswersOnlyDeclaredMethods (httpx),
+    TestPrivateHeadNeverReachesARouteHandler (private route table with recording handlers) and
+    TestPrivateHeadIsRejectedAfterMTLSAndBeforeTheStore (NewHandler, granted allocation with a seeded Artifact:
+    unauthenticated HEAD and GET are 401 mtls_required, authorized HEAD with valid and malformed queries is 405
+    with zero list, metadata and payload reads, and GET afterwards still reads the payload). With the HEAD pattern
+    removed from ServeRoutes all three fail; the end-to-end test reports 1 list, 2 metadata and 2 payload reads.'
+  siblings_ruled_out:
+  - 'Control Plane private API (internal/controlplane/http.go:64-68): no GET family; only POST register and
+    heartbeat, and the method-less patterns already answer HEAD with 405 method_not_allowed. No contract violation,
+    so no change and no new test (A3).'
+  - 'Process routes GET /healthz and GET /readyz (internal/app/app.go:316-317) and the Runtime agent-state route
+    (runtime/src/contractor_runtime/server.py:349-352, Starlette adds HEAD to GET routes): their contracts
+    (PER-R3/OPS-R115, WRK-R112 to WRK-R122) define no method policy; health probes conventionally accept HEAD and
+    the agent-state route is served by the Python Runtime, not a Server adapter. No change.'
+  - 'Standby Server (standby.go) answers every /v1 request, HEAD included, with 503 server_standby like GET.'

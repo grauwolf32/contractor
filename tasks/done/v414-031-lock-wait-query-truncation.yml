@@ -1,0 +1,105 @@
+schema_version: "1.0"
+id: V414-031
+title: "Identify a waiting statement within the query prefix PostgreSQL records"
+milestone: review-v407-v409-followups-2026-10
+epic: quality
+kind: defect
+introduced_by: V414-029
+priority: P3
+status: completed
+implementation_commit: 5f2cfa8978f78d83371ec0ac720fcfa41f8c4868
+depends_on: []
+languages: [go]
+goal: >-
+  Lock-order tests that recognise the statement a backend waits in match a
+  fragment that lies inside the query text pg_stat_activity records, so a
+  longer statement cannot turn a correct lock order into a test failure.
+context:
+  severity: low
+  finding: >-
+    On main 0e2d3072 (after the V414-029 merge d362b005)
+    TestPostgresFindingRunDeletionSerializesWithAuditPurge/run_deletion_commits_first
+    in internal/findingintake/run_deletion_concurrency_test.go fails:
+    "backend N waited at the wrong lock stage; expected query containing
+    \"FOR UPDATE OF audit, claim\"". The backend waits in the right
+    statement, purgeClaimedAuditSQL
+    (internal/auditstore/internal/pgstore/lifecycle_sql.go), but V414-029
+    embedded firstLiveChildRunSQL in it, which moved the closing
+    "FOR UPDATE OF audit, claim" past the first 1,024 bytes.
+    pg_stat_activity.query keeps only track_activity_query_size bytes (1kB
+    by default; the local server uses the default), so the fragment the
+    helper awaitDeletionDatabaseWait (run_deletion_concurrency_test.go:381)
+    looks for is cut off. It passes on c73ec319, before V414-029. Production
+    behaviour is unchanged.
+  siblings: >-
+    Every test that recognises a statement by its text in pg_stat_activity:
+    the four other awaitDeletionDatabaseWait callers in
+    internal/findingintake (run_deletion_concurrency_test.go:59 and :97,
+    import_retry_integration_test.go:428 and :495; the last one is also
+    rewritten by V414-030), internal/evalstore/postgres_test.go:451
+    (query LIKE '%eval_controller_claims%') and
+    internal/auditservice/start_staging_postgres_test.go:243
+    (query LIKE '%FOR KEY SHARE%'). The tests that only read
+    wait_event_type or pg_blocking_pids do not depend on the query text.
+scope:
+  in:
+    - "Make awaitDeletionDatabaseWait identify the purge statement by a fragment inside the recorded prefix, and fail with a message naming the truncation when the recorded text is cut off and the fragment is missing, instead of reporting a wrong lock stage."
+    - "Check every sibling listed in context.siblings: measure where its fragment lies in the statement it waits in, and change it or record that it lies inside the first 1,024 bytes."
+  out:
+    - "Raising track_activity_query_size: it needs a server restart and the test databases cannot set it."
+    - "Changing production SQL to suit a test."
+acceptance_criteria:
+  - id: A1
+    text: "TestPostgresFindingRunDeletionSerializesWithAuditPurge passes in both orders on main with V414-029's purge statement, against a server with the default track_activity_query_size."
+  - id: A2
+    text: "Each sibling either matches a fragment inside the recorded prefix or is changed to do so; the task records the measured offset of each."
+  - id: A3
+    text: "With the old fragment restored, the test fails with the truncation message rather than with a wrong-lock-stage message, and with a fragment from an unrelated statement it still fails."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 ./internal/findingintake/ ./internal/evalstore/ ./internal/auditservice/"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+decisions:
+  - >-
+    The purge case now waits for "audit.dispatch_state = 'closed' AND
+    audit.hold_state <> 'held'", the drain predicate on the fourth line of
+    purgeClaimedAuditSQL; no other production statement contains it.
+    awaitDeletionDatabaseWait also reads
+    pg_size_bytes(current_setting('track_activity_query_size')) and, when the
+    fragment is missing from a recording that fills the prefix, fails with
+    "recorded text stops at N bytes before <fragment>" instead of "waited at
+    the wrong lock stage", so every caller is checked by the helper itself.
+  - >-
+    Siblings measured on main 63861457 with temporary logging (reverted):
+    internal/evalstore/postgres_test.go:451 finds eval_controller_claims at
+    byte 38 of a 224-byte statement; internal/auditservice
+    start_staging_postgres_test.go:243 finds FOR KEY SHARE at byte 911 of a
+    924-byte statement, inside the 1,023 recorded bytes with 99 bytes to
+    spare. Both left unchanged. The other four awaitDeletionDatabaseWait
+    callers pass through the new helper check (whole findingintake package
+    green). V414-030 rewrote the "UPDATE projects" wait to a short statement.
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64, PostgreSQL 17 with the default track_activity_query_size
+    (1kB), Go 1.26.9; branch claude/v414-fix from main 63861457, database
+    contractor_test_v414_fix.
+  commands:
+    - >-
+      go test -tags=integration -count=1 -run
+      TestPostgresFindingRunDeletionSerializesWithAuditPurge -v
+      ./internal/findingintake/: PASS, both subtests (A1). The same test on
+      main 0e2d3072 failed with "waited at the wrong lock stage".
+    - >-
+      go test -tags=integration -count=1 ./internal/findingintake/: ok
+      (313s); go test -count=1 ./internal/findingintake/: ok.
+    - >-
+      go test -tags=integration -count=1 -v ./internal/evalstore/
+      ./internal/auditservice/ with temporary offset logging: ok, offsets as
+      recorded in decisions (A2).
+    - >-
+      A3: with the fragment set back to "FOR UPDATE OF audit, claim" and,
+      separately, to the unrelated "UPDATE projects", the run_deletion
+      subtest fails with "recorded text stops at 1023 bytes before ...".
+    - make lint: exit 0.

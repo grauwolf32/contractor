@@ -1,0 +1,71 @@
+schema_version: "1.0"
+id: V450-003
+title: Retain loaded Audit activity on continuation failures
+milestone: ui-journey-usability
+epic: ui
+kind: defect
+introduced_by: V64-002
+priority: P2
+status: completed
+implementation_commit: 035bd847201a6dbf23e9d7940a25fa850e089c39
+depends_on: []
+languages: [typescript]
+goal: The check activity keeps already read events visible when loading older events fails, refreshes its loaded history through the existing Audit owner, and stops polling when settled.
+context:
+  authority: User 2026-11-06 assigns the UI portion of V450-001. That task explicitly requires separately recording a production violation of FAIL-UI-6 before changing it; this is the concrete prerequisite found during that comparison.
+  merge_authority: User 2026-11-06 explicitly authorizes merging codex/ui-browser-contracts into main.
+  specification: [docs/spec/ui/ui.md#UI-R153, docs/spec/platform/failure-model.md#FAIL-UI-6]
+  finding: ui/src/routes/projects/audits/detail.tsx:119 uses a cursor-keyed useQuery without retained data. Opening activity and loading the older page replaces the 50 loaded events with loading/error content. Its custom audit-activity key also bypasses the ordinary Audit detail mutation invalidation prefix and has no active polling. This violates the existing loaded-history guarantee; origins are 9e803f2fc and retained in 0b037b4c3.
+  siblings: Shared QueryView already retains infinite-query pages and retries a failed next page. useAuditProjectionRefresh already owns settled snapshot refresh. Reuse those owners for common Audit activity; ordinary Task list pagination is a separate contract and is unchanged.
+  boundary: Server owns durable events, ordering and 50-event cursor pages. UI owns explicitly loaded pages through the existing TanStack infinite-query and ordinary Audit query-key prefix, with no new store or API and no automatic exhaustive history scan.
+scope:
+  in:
+    - On-demand activity, explicit Load older activity, retained successful pages and failed-continuation retry through the existing QueryView.
+    - Refresh the loaded cursor chain for active checks and existing owner invalidation/reconnect, including the settled transition; stop settled polling and back off failed reads.
+    - Browser regressions for 51 events, continuation failure/retry, complete loaded-chain refresh and narrow widths; existing package tests and a patch UI version bump.
+  out:
+    - Backend/event schema changes, separate history storage, automatic exhaustive history scans, general Task pagination or the other V450-001 fixture corrections.
+failure_outcomes:
+  - operation: Existing activity cursor read
+    permanent: Initial failure shows the existing classified error; failed continuation keeps loaded events with its existing retry action. Permanent reads do not poll endlessly.
+    retryable: Existing polling backs off; explicit continuation retry reads the failed cursor without dropping or duplicating loaded events.
+    ambiguous: Read-only operation; reuse Server cursor identity without appending an event.
+    cancelled: Query signal cancels in-flight reads on owner changes; no mutation or background target work exists.
+    timeout: Existing API transport owns request timeout and QueryView retains successful pages on failed reads.
+cardinality:
+  - collection: Audit event history
+    expected: 51 events in two explicitly loaded pages.
+    maximum: 50 events per Server request; loaded cursor-chain length comes only from explicit user continuation.
+    bound: No automatic next-page loop. Refresh only the pages already loaded sequentially through the existing infinite-query owner; no whole-Audit bulk request.
+lifecycle:
+  - entity: Loaded browser activity
+    delete: Existing Audit deletion and query invalidation own disappearance; no durable metadata is added.
+    cascade: Query key is scoped to one Audit and retained history never crosses checks.
+    retention: Existing query cache only; no browser persistence or new retention rule.
+acceptance_criteria:
+  - id: A1
+    text: At 1440/390/320px, activity is loaded on demand, a failed older page leaves 50 settled events visible, retry yields all 51 events exactly once and the final older-page control is disabled.
+  - id: A2
+    text: Existing Audit mutation invalidation, reconnect and active refresh read the loaded cursor chain; terminal transition refetches it and settled checks stop polling without cross-Audit history reuse.
+  - id: A3
+    text: Browser regressions fail against the original product code; shared UI package tests, lint/typecheck and the activity browser gate pass without weakening response validation.
+tests:
+  - command: cd ui && corepack pnpm test --run src/routes/projects/audits src/app/query-view.test.tsx src/app/polling.test.ts
+    covers: [A1, A2, A3]
+  - command: >-
+      node --input-type=module -e 'import { runBrowserGate } from "./ui/server/browser-gate.mjs";
+      await runBrowserGate("audit-activity", "Audit activity", ["e2e/check-events.spec.ts"]);'
+    covers: [A1, A2, A3]
+  - command: cd ui && corepack pnpm lint && corepack pnpm typecheck
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2, A3]
+verification:
+  results:
+    - The added retained-events assertion failed on the original production build at 1440/390/320px, expecting 50 visible events after continuation failure and finding zero.
+    - The built activity browser gate passed all three widths with 50 retained events on failure and 51 after retry; strict response checks, cursor order and no-overflow assertions remain enabled.
+    - All 40 tests across the complete Audit UI package and shared QueryView/polling suites passed. Coverage includes prefix invalidation, reconnect, full loaded-chain refresh, active polling, terminal stop under an injected clock and navigation between Audits.
+    - UI lint/typecheck and task/spec checks passed. UI release 0.11.15 changes no API, persistence or credential behavior.
+  delivery: Merged into local main with the completed V450-001 reconciliation through the user-requested no-fast-forward integration on 2026-11-06.

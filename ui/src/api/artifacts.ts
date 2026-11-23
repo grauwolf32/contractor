@@ -1,0 +1,489 @@
+import { getSharedConfig } from "./shared-config";
+import { REVISION, stringRule } from "./contract";
+import type { PublicAPI } from "./client";
+import type { ResponseOperation } from "./contract";
+import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
+import type { components } from "./generated/public";
+
+// One inline text preview, HTTP exchanges included (LIM-UI-12).
+export const MAXIMUM_PREVIEW_BYTES = 1024 * 1024;
+export const SITEMAP_MEDIA_TYPE =
+  "application/vnd.contractor.project-sitemap+json";
+export const ENGAGEMENT_MEDIA_TYPE =
+  "application/vnd.contractor.engagement+json";
+export const PREVIEW_LIMIT_LABEL = `${MAXIMUM_PREVIEW_BYTES / (1024 * 1024)} MiB`;
+export const ARTIFACT_PAGE_SIZE = 50;
+// An ArtifactWriteResponse is a few hundred bytes.
+const MAXIMUM_WRITE_RESPONSE_BYTES = 64 * 1024;
+export const HTTP_EXCHANGE_MEDIA_TYPE =
+  "application/vnd.contractor.http-exchange+json";
+// The Run Namespace that Server finding intake writes possible issues
+// to (ART-R114), the Server's
+// artifactpolicy.FindingProposalNamespace. UI code names it only through this
+// constant; artifacts.test.ts scans for copies of every reserved Namespace.
+export const FINDING_PROPOSAL_NAMESPACE = "finding-proposals";
+export const HTTP_EXCHANGE_NAMESPACE = "http-exchanges";
+
+export const ARTIFACT_NAME_PATTERN = stringRule("ArtifactName");
+// An exact Artifact revision is the public Revision grammar.
+export const ARTIFACT_REVISION_PATTERN = REVISION;
+// A concrete media type: the second branch of the public MediaType schema
+// (RFC 6838 restricted names in canonical lowercase).
+export const MEDIA_TYPE_PATTERN = stringRule("MediaType", "oneOf", "1");
+
+const PREVIEW_MEDIA_TYPES = new Set([
+  HTTP_EXCHANGE_MEDIA_TYPE,
+  "application/json",
+  "application/vnd.oai.openapi",
+  "application/vnd.oai.openapi+json",
+  "application/vnd.oai.openapi+yaml",
+  "application/yaml",
+  "application/x-yaml",
+  "text/markdown",
+  "text/plain",
+  "text/vnd.contractor.wordlist",
+  "text/x-diff",
+  "text/vnd.likec4",
+  "text/x-markdown",
+  "text/yaml",
+]);
+
+const EXTENSIONS = new Map([
+  [HTTP_EXCHANGE_MEDIA_TYPE, ".json"],
+  ["application/json", ".json"],
+  ["application/vnd.oai.openapi", ".yaml"],
+  ["application/vnd.oai.openapi+json", ".json"],
+  ["application/vnd.oai.openapi+yaml", ".yaml"],
+  ["application/yaml", ".yaml"],
+  ["application/x-yaml", ".yaml"],
+  ["application/zip", ".zip"],
+  ["application/x-zip-compressed", ".zip"],
+  ["application/vnd.contractor.agent-skill+zip", ".zip"],
+  ["text/markdown", ".md"],
+  ["text/plain", ".txt"],
+  ["text/vnd.contractor.wordlist", ".txt"],
+  ["text/x-diff", ".diff"],
+  ["text/vnd.likec4", ".c4"],
+  ["text/x-markdown", ".md"],
+  ["text/yaml", ".yaml"],
+]);
+
+export type ArtifactMetadata = components["schemas"]["ArtifactMetadata"];
+export type ArtifactPage = components["schemas"]["ArtifactPage"];
+export type ArtifactLineagePage = components["schemas"]["ArtifactLineagePage"];
+export type ArtifactWriteResponse =
+  components["schemas"]["ArtifactWriteResponse"];
+export type ExactArtifactRef = components["schemas"]["ExactArtifactRef"];
+
+export interface ArtifactPageRequest {
+  namespace?: string;
+  excludeNamespace?: string;
+  cursor?: string;
+}
+
+export interface ArtifactDetailRequest {
+  signal?: AbortSignal;
+  namespace: string;
+  name: string;
+  revision?: string;
+}
+
+export interface ArtifactWriteRequest {
+  namespace: string;
+  name: string;
+  mediaType: string;
+  payload: Blob;
+  expectedRevision?: string;
+  signal?: AbortSignal;
+}
+
+export interface DownloadedArtifact {
+  blob: Blob;
+  mediaType: string;
+  filename: string;
+}
+
+function artifactPath(namespace: string, name: string): string {
+  requireArtifactName("namespace", namespace);
+  requireArtifactName("name", name);
+  return `/v1/artifacts/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`;
+}
+
+function exactQuery(revision: string): string {
+  if (!ARTIFACT_REVISION_PATTERN.test(revision)) {
+    throw new TypeError("Artifact revision is invalid");
+  }
+  return `?revision=${encodeURIComponent(revision)}`;
+}
+
+function requireArtifactName(field: string, value: string): void {
+  if (!ARTIFACT_NAME_PATTERN.test(value)) {
+    throw new TypeError(`Artifact ${field} is invalid`);
+  }
+}
+
+function requireMediaType(value: string): void {
+  if (value !== "*/*" && !MEDIA_TYPE_PATTERN.test(value)) {
+    throw new TypeError("Artifact media type is invalid");
+  }
+}
+
+function requireRevision(value: string): void {
+  if (!ARTIFACT_REVISION_PATTERN.test(value)) {
+    throw new TypeError("Artifact revision is invalid");
+  }
+}
+
+function invalidWriteResponse(status = 0): PublicAPIError {
+  return invalidAPIResponse(
+    status,
+    "Server returned an invalid Artifact write response",
+  );
+}
+
+export async function listArtifacts(
+  api: PublicAPI,
+  request: ArtifactPageRequest = {},
+): Promise<ArtifactPage> {
+  const result = await api.request((client) =>
+    client.GET("/v1/artifacts", {
+      params: {
+        query: {
+          limit: ARTIFACT_PAGE_SIZE,
+          ...(request.namespace === undefined
+            ? {}
+            : { namespace: request.namespace }),
+          ...(request.excludeNamespace === undefined
+            ? {}
+            : { excludeNamespace: request.excludeNamespace }),
+          ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+        },
+      },
+    }),
+  );
+  return requireArtifactPage(requireData(result), result.response.status);
+}
+
+/**
+ * Rejects metadata for another Artifact or, when a revision was requested,
+ * for another revision of it.
+ */
+export function requireRequestedMetadata(
+  metadata: ArtifactMetadata,
+  request: ArtifactDetailRequest,
+  status: number,
+): ArtifactMetadata {
+  if (
+    metadata.artifact.namespace !== request.namespace ||
+    metadata.artifact.name !== request.name ||
+    (request.revision !== undefined &&
+      metadata.artifact.revision !== request.revision)
+  ) {
+    throw invalidAPIResponse(
+      status,
+      "Artifact metadata did not match the requested Artifact revision",
+    );
+  }
+  return metadata;
+}
+
+/** Returns a list page after checking that a continued page has a cursor. */
+export function requireArtifactPage<T>(
+  page: { items: T[]; page: components["schemas"]["PageInfo"] },
+  status: number,
+): { items: T[]; page: components["schemas"]["PageInfo"] } {
+  // Cross-field: PageInfo cannot require nextCursor exactly when hasMore.
+  if (page.page.hasMore && page.page.nextCursor === undefined) {
+    throw invalidAPIResponse(
+      status,
+      "Server returned an invalid Artifact page",
+    );
+  }
+  return page;
+}
+
+export async function getArtifactMetadata(
+  api: PublicAPI,
+  request: ArtifactDetailRequest,
+): Promise<ArtifactMetadata> {
+  const result = await api.request((client) =>
+    client.GET("/v1/artifacts/{namespace}/{name}/metadata", {
+      ...(request.signal === undefined ? {} : { signal: request.signal }),
+      params: {
+        path: { namespace: request.namespace, name: request.name },
+        query:
+          request.revision === undefined ? {} : { revision: request.revision },
+      },
+    }),
+  );
+  return requireRequestedMetadata(
+    requireData(result),
+    request,
+    result.response.status,
+  );
+}
+
+export async function listArtifactVersions(
+  api: PublicAPI,
+  request: ArtifactDetailRequest & { cursor?: string },
+): Promise<ArtifactPage> {
+  const result = await api.request((client) =>
+    client.GET("/v1/artifacts/{namespace}/{name}/versions", {
+      params: {
+        path: { namespace: request.namespace, name: request.name },
+        query: {
+          limit: ARTIFACT_PAGE_SIZE,
+          ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+        },
+      },
+    }),
+  );
+  return requireArtifactPage(requireData(result), result.response.status);
+}
+
+export async function getArtifactLineage(
+  api: PublicAPI,
+  request: ArtifactDetailRequest & { cursor?: string },
+): Promise<ArtifactLineagePage> {
+  const result = await api.request((client) =>
+    client.GET("/v1/artifacts/{namespace}/{name}/lineage", {
+      params: {
+        path: { namespace: request.namespace, name: request.name },
+        query: {
+          limit: ARTIFACT_PAGE_SIZE,
+          ...(request.revision === undefined
+            ? {}
+            : { revision: request.revision }),
+          ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+        },
+      },
+    }),
+  );
+  return requireArtifactPage(requireData(result), result.response.status);
+}
+
+export async function writeArtifact(
+  api: PublicAPI,
+  request: ArtifactWriteRequest,
+): Promise<ArtifactWriteResponse> {
+  const path = artifactPath(request.namespace, request.name);
+  return writeScopedArtifact(
+    api,
+    "PUT /v1/artifacts/{namespace}/{name}",
+    path,
+    request,
+  );
+}
+
+/**
+ * Shared exact-CAS transport for scope-bound Artifact endpoints.
+ *
+ * Callers must construct a path for `operation` whose scope is already
+ * authorized by the endpoint (for example ProjectScope). Besides its schema,
+ * the response is checked against the requested logical identity, media type,
+ * size, and ETag so a rolling Server response cannot be accepted as a
+ * successful upload.
+ */
+export async function writeScopedArtifact(
+  api: PublicAPI,
+  operation: ResponseOperation,
+  path: string,
+  request: ArtifactWriteRequest,
+): Promise<ArtifactWriteResponse> {
+  requireMediaType(request.mediaType);
+  if (request.mediaType === "*/*") {
+    throw new TypeError("Artifact upload requires one concrete media type");
+  }
+  const maximumBytes = (await getSharedConfig(api, request.signal)).limits
+    .artifactPayloadMaxBytes;
+  if (request.payload.size > maximumBytes) {
+    throw new TypeError("Artifact payload exceeds the Server upload limit");
+  }
+  let headers: Headers;
+  if (request.expectedRevision === undefined) {
+    headers = api.mutationHeaders({ ifNoneMatch: "*" });
+  } else {
+    requireRevision(request.expectedRevision);
+    headers = api.mutationHeaders({
+      ifMatch: `"${request.expectedRevision}"`,
+    });
+  }
+  headers.set("Content-Type", request.mediaType);
+  // Materialize the bounded Blob before crossing the Request boundary. Besides
+  // making the exact bytes explicit, this avoids cross-realm Blob ambiguity
+  // when the UI and Fetch implementation come from different browser realms.
+  const payload = await request.payload.arrayBuffer();
+  const response = await api.fetch(path, {
+    method: "PUT",
+    headers,
+    body: payload,
+    ...(request.signal === undefined ? {} : { signal: request.signal }),
+  });
+  if (!response.ok) {
+    throw await api.error(response);
+  }
+  const result = await api.readJSON<ArtifactWriteResponse>(
+    operation,
+    response,
+    MAXIMUM_WRITE_RESPONSE_BYTES,
+  );
+  // Cross-field: the stored revision is the requested upload, and the ETag
+  // names it.
+  if (
+    result.artifact.namespace !== request.namespace ||
+    result.artifact.name !== request.name ||
+    result.mediaType !== request.mediaType ||
+    result.size !== request.payload.size ||
+    response.headers.get("ETag") !== `"${result.artifact.revision}"`
+  ) {
+    throw invalidWriteResponse(response.status);
+  }
+  return result;
+}
+
+export function canPreviewArtifact(
+  metadata: Pick<ArtifactMetadata, "size" | "mediaType">,
+): boolean {
+  return (
+    metadata.size <= MAXIMUM_PREVIEW_BYTES &&
+    (PREVIEW_MEDIA_TYPES.has(metadata.mediaType) ||
+      isJSONMediaType(metadata.mediaType))
+  );
+}
+
+function isJSONMediaType(mediaType: string): boolean {
+  return (
+    MEDIA_TYPE_PATTERN.test(mediaType) &&
+    (mediaType === "application/json" || mediaType.endsWith("+json"))
+  );
+}
+
+function suggestedArtifactFilename(
+  artifact: ExactArtifactRef,
+  mediaType: string,
+): string {
+  requireArtifactName("namespace", artifact.namespace);
+  requireArtifactName("name", artifact.name);
+  requireRevision(artifact.revision);
+  const safeRevision = artifact.revision.replace(/[^A-Za-z0-9_.-]/g, "_");
+  const extension =
+    EXTENSIONS.get(mediaType) ??
+    (isJSONMediaType(mediaType) ? ".json" : ".bin");
+  return `${artifact.namespace}-${artifact.name}-${safeRevision}${extension}`;
+}
+
+export async function downloadArtifact(
+  api: PublicAPI,
+  metadata: ArtifactMetadata,
+): Promise<DownloadedArtifact> {
+  const path = `${artifactPath(metadata.artifact.namespace, metadata.artifact.name)}${exactQuery(metadata.artifact.revision)}`;
+  return downloadExactArtifact(api, metadata, path);
+}
+
+export async function downloadExactArtifact(
+  api: PublicAPI,
+  metadata: ArtifactMetadata,
+  path: string,
+  signal?: AbortSignal,
+): Promise<DownloadedArtifact> {
+  const maximumBytes = (await getSharedConfig(api, signal)).limits
+    .artifactPayloadMaxBytes;
+  const response = await api.fetch(path, {
+    method: "GET",
+    headers: { Accept: metadata.mediaType },
+    ...(signal === undefined ? {} : { signal }),
+  });
+  if (!response.ok) {
+    throw await api.error(response);
+  }
+  const declaredLength = response.headers.get("Content-Length");
+  if (
+    declaredLength !== null &&
+    (!/^(?:0|[1-9][0-9]*)$/.test(declaredLength) ||
+      Number(declaredLength) > maximumBytes)
+  ) {
+    throw new PublicAPIError({
+      status: response.status,
+      code: "invalid_api_response",
+      message: "Server returned an invalid Artifact length",
+    });
+  }
+  const mediaType = response.headers.get("Content-Type") ?? "";
+  if (mediaType !== metadata.mediaType) {
+    throw new PublicAPIError({
+      status: response.status,
+      code: "invalid_api_response",
+      message: "Artifact media type changed during download",
+    });
+  }
+  // Stop at the authoritative byte count rather than buffering an unbounded
+  // chunked answer before discovering that it belongs to another revision.
+  const chunks: ArrayBuffer[] = [];
+  const reader = response.body?.getReader();
+  let received = 0;
+  if (reader !== undefined) {
+    try {
+      while (true) {
+        const part = await reader.read();
+        if (part.done) break;
+        received += part.value.byteLength;
+        if (received > Math.min(metadata.size, maximumBytes)) {
+          throw new PublicAPIError({
+            status: response.status,
+            code: "invalid_api_response",
+            message: "Artifact bytes do not match authoritative metadata",
+          });
+        }
+        chunks.push(Uint8Array.from(part.value).buffer);
+      }
+    } catch (reason) {
+      await reader.cancel().catch(() => undefined);
+      throw reason;
+    } finally {
+      reader.releaseLock();
+    }
+  }
+  const blob = new Blob(chunks, { type: mediaType });
+  if (blob.size > maximumBytes || blob.size !== metadata.size) {
+    throw new PublicAPIError({
+      status: response.status,
+      code: "invalid_api_response",
+      message: "Artifact bytes do not match authoritative metadata",
+    });
+  }
+  return {
+    blob,
+    mediaType,
+    filename: suggestedArtifactFilename(metadata.artifact, mediaType),
+  };
+}
+
+export async function previewArtifact(
+  api: PublicAPI,
+  metadata: ArtifactMetadata,
+): Promise<string> {
+  return previewExactArtifact(metadata, () => downloadArtifact(api, metadata));
+}
+
+export async function previewExactArtifact(
+  metadata: ArtifactMetadata,
+  download: () => Promise<DownloadedArtifact>,
+): Promise<string> {
+  if (!canPreviewArtifact(metadata)) {
+    throw new TypeError(
+      "This Artifact is not eligible for bounded text preview",
+    );
+  }
+  const downloaded = await download();
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(
+      await downloaded.blob.arrayBuffer(),
+    );
+  } catch {
+    throw new PublicAPIError({
+      status: 0,
+      code: "invalid_artifact_text",
+      message: "Artifact is not valid UTF-8 text",
+    });
+  }
+}

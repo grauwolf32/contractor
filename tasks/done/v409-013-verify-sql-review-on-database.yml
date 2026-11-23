@@ -1,0 +1,172 @@
+schema_version: "1.0"
+id: V409-013
+title: "Verify retained SQL-review changes and record evidence for every accepted or declined claim"
+milestone: sql-review-2026-10
+epic: persistence
+kind: chore
+priority: P2
+status: completed
+implementation_commit: 3e616fde12297d0422c660066850d6a72cd4f468
+depends_on: [V409-001, V409-002, V409-003, V409-004, V409-005, V409-006, V409-007, V409-008, V409-009, V409-010, V409-011, V409-012, V409-014]
+languages: [go, sql]
+goal: "Close the SQL-review milestone only after retained work is complete and every original claim has a supported disposition with reproducible evidence."
+context:
+  review: "docs/research/2026-10-23-sql-review.md, sections A-F; revalidated on main 1d533b2db885e0162ebabb01d36470f139546009 on 2026-10-23"
+  specification:
+    - docs/spec/platform/persistence.md#PER-R16
+    - docs/spec/platform/persistence.md#PER-R21
+    - docs/spec/platform/persistence.md#PER-R22
+    - docs/spec/audits/review-and-reports.md#REV-R194
+    - docs/spec/platform/limits.md
+  finding: >-
+    The original review was static. Subsequent controlled PostgreSQL 17.11
+    checks reproduced import contention, an inbox scan/sort, a StartPlanner
+    lock-order cycle, and the review-store precondition gap. They also refuted
+    several proposed fixes, including INSERT-only artifact admission, weakened
+    correlation FKs and all-or-nothing metrics reads. Synthetic fixtures prove
+    these mechanisms, not production latency or the universal best query plan.
+    Remaining plan, workload and retained-change claims require evidence on
+    the implementation revision that this exit task verifies.
+  corrected_claims: >-
+    EXPLAIN ANALYZE executes its statement. claimAuditSQL in
+    internal/auditstore/internal/pgstore/claims_sql.go:15-85 includes a lease
+    UPDATE and must not run with ANALYZE on demo under a read-only promise.
+    Zero pg_stat_user_indexes scans do not prove an index is unused: constraints,
+    statistics resets and rare paths matter. The report-size estimate of
+    4096 times 64 MiB is not an admitted workload: auditimport/report_build.go:145-149
+    checks the cumulative 64 MiB report limit before each page write and
+    restores that accumulated size on resume. Record actual distributions
+    separately from defensive storage fixtures and independent schema maxima.
+  decision: >-
+    This is the final gate, not a prerequisite for V409-007 or a provider of
+    a helper needed before other tasks can start. Each implementation task
+    collects its own pre-change evidence, including index plans/catalog
+    dependencies in V409-007. Reuse an existing test helper where it fits;
+    do not add a generic EXPLAIN abstraction solely to satisfy a helper-count
+    criterion. A task ID by itself never proves a finding is resolved.
+plan:
+  - "After all retained tasks are complete, verify their implementation revisions and run the final checks below. For every original claim in sections A-D and open question in F, record confirmed defect, behavior-preserving optimization, unsupported/refuted claim or explicit retained-risk decision with source/spec evidence and the actual disposition."
+  - "Record migration/schema version, fixture generator, cardinalities, selectivity, query parameters, pgx custom/generic plan mode and statistics state for retained plan claims. Use EXPLAIN (ANALYZE, BUFFERS) only in a disposable database for any mutating statement, including claim CTEs; include rollback/isolation and statement/lock budgets. A rollback alone does not make a mutating ANALYZE appropriate for demo."
+  - "Collect optional demo statistics only through an explicitly read-only bounded transaction: catalog/statistics reads, plain EXPLAIN without ANALYZE for mutations, and bounded SELECT-only ANALYZE after checking the statement and called functions for side effects. Never run DDL, claim acquisition, data seeding or mutating ANALYZE there. A reproducible disposable workload is required regardless of demo availability."
+  - "For each index candidate, retain named readers and integrity/FK dependencies alongside workload evidence; record the stats observation window/reset context or mark it unknown. Explain retained and removed indexes individually. Do not force a particular scan node, disable sequential scans or equate absence of an index-name literal with absence of a reader."
+  - "Measure row and byte work for relevant Eval projection/comparison pages, total report bytes and Run event history using admitted producers plus separately labelled stress fixtures. Record unresolved production-frequency questions honestly; do not multiply independent maxima or convert lack of observed load into a safety proof."
+  - "Update the review's Status with completed implementation commits and acceptance evidence for retained work. For a declined or accepted-risk claim, record the reason, responsible subsystem, enforcement/detection mechanism and condition to reopen. If retained work remains pending, in_progress, deferred, or has a failed required check, leave this exit task incomplete."
+scope:
+  in:
+    - "Final evidence on the retained implementations, query plans, catalog constraints, workload bounds and report dispositions."
+    - "Reproducible disposable-database fixtures/tests where the retained task's existing evidence does not establish its acceptance criterion."
+  out:
+    - "Schema changes, weakening a contract to match an optimization, production/demo mutations or new runtime features."
+    - "A mandatory demo connection, arbitrary helper creation, universal index-scan/no-sort assertions and closure by merely assigning a follow-up ID."
+acceptance_criteria:
+  - id: A1
+    text: "Given the original report and the completed retained tasks, every original claim and open question has an evidence-backed disposition on a named revision. Confirmed defects, optional optimizations, refuted claims and unmeasured workload questions are clearly distinguished."
+  - id: A2
+    text: "Every retained plan/cost claim has a reproducible fixture or a justified non-plan proof, cardinalities and operation/byte bounds. Index decisions preserve constraint guarantees and include reader/catalog evidence. Mutating ANALYZE runs only on a disposable database; any optional demo session is read-only and bounded."
+  - id: A3
+    text: "Every retained V409-001 through V409-012 task is completed under the normal task policy, with implementation commits and successful required checks. Explicitly declined original subclaims have reasons and reopening conditions; pending follow-ups are not reported as fixes. The dependency graph has no path from an implementation task back to V409-013."
+  - id: A4
+    text: "On the final integration revision, the real-PostgreSQL suites for the affected packages and make lint succeed; required integration-tagged tests actually run, and skipped, unreachable-database or zero-match runs are not counted as passes. Recorded commands and outcomes agree with the final report."
+manual_verification:
+  - check: "Manually reconcile the original report, corrected task scopes and final evidence for A1-A3. Check each dependency's completion/commit record, each accepted risk's owner/reopening condition, and the absence of a dependency cycle. Lint alone cannot establish these outcomes."
+    covers: [A1, A3]
+  - check: "Review the executed SQL/session logs and fixture provenance for A2; distinguish measured plans from inference, and preserve negative findings without claiming production latency was measured."
+    covers: [A2]
+tests:
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?set a disposable PostgreSQL database URL}" go test -tags=integration -count=1 ./internal/agentprincipal/... ./internal/artifacts/... ./internal/auditcontroller/... ./internal/auditimport/... ./internal/auditservice/... ./internal/auditstore/... ./internal/credentials/... ./internal/evalcoordinator/... ./internal/evaldomain/... ./internal/evalservice/... ./internal/evalstore/... ./internal/findingintake/... ./internal/gatewayrecovery/... ./internal/httpapi/public/... ./internal/memory/... ./internal/persistence/... ./internal/planner/session/... ./internal/projectlifecycle/... ./internal/projectstore/... ./internal/rundeletion/... ./internal/runservice/... ./internal/runstore/... ./internal/runtimeconfig/... ./internal/scheduler/... ./internal/telemetry/...'
+    covers: [A4]
+  - command: make verify-public-api
+    covers: [A4]
+  - command: make lint
+    covers: [A4]
+verification:
+  date: '2026-10-24'
+  revision: 3e616fde12297d0422c660066850d6a72cd4f468
+  environment: >-
+    Worktree branch claude/rv-x1 (base efd5d6ab; claude/review-v407-v409
+    merged with --no-ff in 5be7e24c, bringing the V414 follow-ups), macOS
+    arm64, Go 1.26.9, local PostgreSQL 17.11, disposable database
+    contractor_test_x1 (CONTRACTOR_TEST_DATABASE_URL set). Probes ran in
+    per-test schemas and in one scratch catalog schema (v409013_catalog),
+    dropped afterwards. No demo or production database was opened; the
+    optional demo statistics were not collected.
+  database_tests_configured: true
+  demo_statistics: not collected
+  dispositions: >-
+    docs/research/2026-10-23-sql-review.md, Status section, has one
+    disposition per original claim of sections A-D and per open question of
+    F, plus an accepted-risk table (owner, enforcement or detection, reopen
+    condition) and section H with the new evidence. Summary: A1 fixed in
+    part (V409-001; the model-facing failure refuted), A2 optimized
+    (V409-002; held branch O(holds) is pending V414-019), A3 fixed
+    (V409-003), A4 and A5 optimized (V409-004; subject filter and exact
+    counts retained), A6 and A7 fixed (V409-006), A8 fixed in part (time
+    index removed, UNIQUE(event_id) refuted as dead), A9 fixed, A10 fixed
+    (V409-009). B: 5 of 10 dead-index candidates and 2 of 5 redundant
+    indexes removed, the rest kept with measured readers or integrity roles
+    (V409-007); audit_findings index count confirmed, correlation_scope "only
+    for the FK probe" refuted, write cost retained; triggers scoped
+    (V409-006) with Project admission and the Eval Audit child projection
+    retained by reason; state CHECK parity tests (V409-008); migration
+    function redefinition refuted, upgrade tests and runner documentation
+    added (V409-012); allocation history keyset pending V414-025. C:
+    recordReviewDecisionSQL fixed (V409-005), comparison pages and recovery
+    fixed (V409-014), four Audit read items fixed (V409-004), two clocks,
+    inline SQL and "100 per tick" refuted, artifact-link collision
+    unsupported, PublishView, nextMembers and quota count retained, GREATEST
+    helper declined. D: ListRunEvents bytes fixed (V409-010), N+1 fixed
+    (V409-011), metrics leniency, allocation clocks, append expiry and resume
+    CAS refuted, GetPlannerSessions, PurgeRun, credential OR, FindEvalReceipt
+    and placement GetRun retained. F: optional-filter class confirmed (one
+    fixed by V409-004, two pending V414-025 and V414-026, the rest V414-027
+    open question 1); claim probes measured here and found to read beyond
+    their bound (pending V414-028 and V414-029, filed by this task);
+    pg_stat_user_indexes not used and demo statistics not collected; 40001
+    frequency not measured, retained with detection; the 4,096 x 64 MiB
+    report estimate refuted (cumulative 64 MiB check), with the missing
+    rejection test added as V414-027 open question 7; unbounded Run event
+    history confirmed with its missing detection signal added as V414-027
+    open question 6. No pending follow-up is reported as a fix.
+  dependency_check: >-
+    V409-013 has 17 transitive dependencies. The 13 direct ones (V409-001 to
+    V409-012, V409-014) and the transitive V407-016, V407-025, V407-028 and
+    V407-029 are completed in tasks/done with verification records, and every
+    implementation_commit is an ancestor of the verified revision (checked
+    with git merge-base --is-ancestor). No task depends on V409-013 directly
+    or transitively. Notes: V409-007's implementation_commit 20ef8ffc is its
+    renumber commit (implementation 9c6f6e64); V409-014 has the test-only
+    commit 7a2cacc5 after its close.
+  new_evidence: >-
+    Section H of the review. claimAuditSQL and nextLiveRunForDeletionSQL were
+    measured with explaintest.ExplainPrepared in force_custom_plan and
+    force_generic_plan (EXPLAIN ANALYZE BUFFERS EXECUTE in a rolled-back
+    transaction with SET LOCAL statement_timeout 30s and lock_timeout 5s, in
+    the test's own schema, after ANALYZE) on newFindingScaleFixture reshaped
+    to 2,009 and then 50,009 Audits with claim rows (306 reconcilable index
+    entries throughout), plus 15,050 cloned live Runs. claimAuditSQL read
+    every claim row (2,012-4,020 at 2,009 Audits; 50,011 at 50,009, both
+    plans, batches 8 and 64; audits 920 throughout; blocks 364-998 rising to
+    3,992-4,782). nextLiveRunForDeletionSQL read 60,001 (custom) or 39,954
+    (generic) execution entries and 15,053 Runs per call to return one Run,
+    and 10,000 entries and 15,053 Runs for a drained Audit. The harness was
+    a throwaway test file in internal/auditstore/internal/pgstore, deleted
+    before commit. The audit_findings catalog (18 indexes, 2 row and 3
+    statement triggers) was read from a scratch schema migrated to 000039.
+  results:
+    - >-
+      Task test command (CONTRACTOR_TEST_DATABASE_URL=postgres://ruslan@localhost:5432/contractor_test_x1?sslmode=disable
+      go test -tags=integration -count=1 over the 25 listed package trees), run with -json on the
+      tree of 5be7e24c (no Go file differs at the implementation commit): exit 0; 30 packages
+      passed, 11 have no test files; 3,899 tests passed, 0 failed, 2 skipped, neither a database
+      test (TestPinnedLiteLLMContract: pinned LiteLLM contract environment not configured;
+      TestPlannerOTLPCollectorProjection: CONTRACTOR_TEST_OTLP_ENDPOINT unset). All 117 tests of
+      the 50 integration-tagged files in these packages ran and passed; no -run filter, so no
+      zero-match selection. The known environment-only failures listed for this task did not
+      occur in this run.
+    - make verify-public-api: passed.
+    - >-
+      make lint: passed on the implementation commit's tree (after make tasks-backlog) and again
+      on the closing commit (after the git mv, link update and make tasks-backlog).
+  overlaps_for_user_decision: >-
+    Older open tasks that overlap V409 work are left to the user: V372-030
+    overlaps V409-004 P5, and V372-007 overlaps V409-008.

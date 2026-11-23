@@ -1,0 +1,504 @@
+package credentials
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"reflect"
+	"regexp"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/jackc/pgx/v5"
+)
+
+const (
+	maximumOperationRequestBytes = 64 * 1024
+	maximumGatewayPolicyBytes    = 64 * 1024
+	// Recovery reads prepared operations in batches until none remain.
+	maximumPreparedOperationBatch = 200
+)
+
+var operationIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$`)
+
+// Repository exposes transaction-neutral primitives. A pgx.Tx may be passed
+// to compose reservation, active-row/tombstone transitions and operation phase
+// changes atomically in V4-003A.
+type Repository struct {
+	db persistencepostgres.DBTX
+}
+
+func NewRepository(db persistencepostgres.DBTX) *Repository { return &Repository{db: db} }
+
+func (r *Repository) CountCredentials(ctx context.Context) (int64, error) {
+	if r == nil || r.db == nil {
+		return 0, errors.New("credential repository is not configured")
+	}
+	var count int64
+	if err := r.db.QueryRow(ctx, `SELECT count(*) FROM llm_credentials`).Scan(&count); err != nil {
+		return 0, persistencepostgres.WrapError("count encrypted credentials", err)
+	}
+	return count, nil
+}
+
+// VerifyActiveKey proves that every active row was sealed by the configured
+// key. Comparing non-secret fingerprints at startup catches a wrong key before
+// either Planner or Worker execution reaches the decryption boundary.
+func (r *Repository) VerifyActiveKey(ctx context.Context, keyID string) error {
+	if r == nil || r.db == nil {
+		return errors.New("credential repository is not configured")
+	}
+	if !contentdigest.Valid(keyID) {
+		return ErrKeyUnavailable
+	}
+	var mismatch bool
+	if err := r.db.QueryRow(ctx, `
+SELECT EXISTS (SELECT 1 FROM llm_credentials WHERE key_id <> $1)`, keyID).Scan(&mismatch); err != nil {
+		return persistencepostgres.WrapError("verify encrypted credential key", err)
+	}
+	if mismatch {
+		return ErrKeyUnavailable
+	}
+	return nil
+}
+
+func (r *Repository) GetCredential(ctx context.Context, credentialID string) (Record, error) {
+	if err := validateCredentialID(credentialID); err != nil {
+		return Record{}, err
+	}
+	return scanRecord(r.db.QueryRow(ctx, `
+SELECT credential_id, llm_gateway_id, llm_gateway_version, llm_gateway_digest,
+       remote_key_id, COALESCE(label, ''), gateway_policy,
+       encryption_schema_version, key_id, nonce, ciphertext, created_at
+FROM llm_credentials
+WHERE credential_id = $1`, credentialID))
+}
+
+func (r *Repository) ListCredentials(
+	ctx context.Context, afterCredentialID string, limit int,
+) ([]Record, error) {
+	if afterCredentialID != "" {
+		if err := validateCredentialID(afterCredentialID); err != nil {
+			return nil, err
+		}
+	}
+	if !pagelimit.ValidFetch(limit) {
+		return nil, fmt.Errorf("%w: credential page limit is invalid", ErrInvalid)
+	}
+	rows, err := r.db.Query(ctx, `
+SELECT credential_id, llm_gateway_id, llm_gateway_version, llm_gateway_digest,
+       remote_key_id, COALESCE(label, ''), gateway_policy,
+       encryption_schema_version, key_id, nonce, ciphertext, created_at
+FROM llm_credentials
+WHERE credential_id > $1
+ORDER BY credential_id
+LIMIT $2`, afterCredentialID, limit)
+	if err != nil {
+		return nil, persistencepostgres.WrapError("list encrypted credentials", err)
+	}
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Record, error) {
+		return scanRecord(row)
+	})
+	if err != nil {
+		return nil, persistencepostgres.WrapError("iterate encrypted credentials", err)
+	}
+	return result, nil
+}
+
+func (r *Repository) InsertCredential(ctx context.Context, record Record) error {
+	policy, err := encodeRecord(record)
+	if err != nil {
+		return err
+	}
+	policy, err = r.storedJSON(ctx, policy, maximumGatewayPolicyBytes)
+	if err != nil {
+		return err
+	}
+	command, err := r.db.Exec(ctx, `
+INSERT INTO llm_credentials (
+    credential_id, llm_gateway_id, llm_gateway_version, llm_gateway_digest,
+    remote_key_id, label, gateway_policy, encryption_schema_version,
+    key_id, nonce, ciphertext, created_at
+) VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''), $7::jsonb, $8, $9, $10, $11, $12)
+ON CONFLICT DO NOTHING`,
+		record.CredentialID, record.LLMGateway.GatewayID, record.LLMGateway.Version,
+		record.LLMGateway.Digest, record.RemoteKeyID, record.Label, policy,
+		record.Envelope.SchemaVersion, record.Envelope.KeyID,
+		record.Envelope.Nonce, record.Envelope.Ciphertext, persistencepostgres.Timestamp(record.CreatedAt),
+	)
+	if err != nil {
+		return classifyRepositoryWrite(err)
+	}
+	if command.RowsAffected() == 1 {
+		return nil
+	}
+	existing, getErr := r.GetCredential(ctx, record.CredentialID)
+	if getErr != nil && !errors.Is(getErr, ErrNotFound) {
+		return persistencepostgres.WrapError("reconcile encrypted credential insert", getErr)
+	}
+	if getErr == nil && recordsEqual(existing, record) {
+		return nil
+	}
+	return ErrConflict
+}
+
+func (r *Repository) DeleteCredential(ctx context.Context, credentialID string) error {
+	if err := validateCredentialID(credentialID); err != nil {
+		return err
+	}
+	command, err := r.db.Exec(ctx, `DELETE FROM llm_credentials WHERE credential_id = $1`, credentialID)
+	if err != nil {
+		return classifyRepositoryWrite(err)
+	}
+	if command.RowsAffected() != 1 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *Repository) ListActiveRuntimeBindingLabelsByCredential(
+	ctx context.Context, credentialID string, limit int,
+) ([]string, error) {
+	if err := validateCredentialID(credentialID); err != nil || limit < 1 || limit > maximumCredentialRunReferences {
+		return nil, fmt.Errorf("%w: credential binding lookup is invalid", ErrInvalid)
+	}
+	rows, err := r.db.Query(ctx, `
+SELECT b.label
+FROM runtime_label_bindings b
+JOIN runtime_config_versions c
+  ON (c.name, c.version, c.digest) = (b.config_name, b.config_version, b.config_digest)
+WHERE c.canonical_document::jsonb #>> '`+runtimeconfig.WorkerLLMGatewayCredentialPath+`' = $1
+ORDER BY b.label
+LIMIT $2`, credentialID, limit)
+	if err != nil {
+		return nil, persistencepostgres.WrapError("inspect active RuntimeConfig LLM credential bindings", err)
+	}
+	labels, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, persistencepostgres.WrapError("iterate active RuntimeConfig LLM credential bindings", err)
+	}
+	return labels, nil
+}
+
+func (r *Repository) InsertOperation(ctx context.Context, operation Operation) error {
+	if err := validateOperation(operation); err != nil {
+		return err
+	}
+	request, err := r.storedJSON(ctx, operation.Request, maximumOperationRequestBytes)
+	if err != nil {
+		return err
+	}
+	command, err := r.db.Exec(ctx, `
+INSERT INTO credential_operations (
+    operation_id, idempotency_key, request_hash, credential_id,
+    operation_kind, phase, request_schema_version, request, created_at, updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
+ON CONFLICT DO NOTHING`,
+		operation.OperationID, operation.IdempotencyKey, operation.RequestHash,
+		operation.CredentialID, operation.Kind, operation.Phase,
+		CredentialSchemaVersion, request,
+		persistencepostgres.Timestamp(operation.CreatedAt), persistencepostgres.Timestamp(operation.UpdatedAt),
+	)
+	if err != nil {
+		return classifyRepositoryWrite(err)
+	}
+	if command.RowsAffected() == 1 {
+		return nil
+	}
+	existing, getErr := r.GetOperationByIdempotency(ctx, operation.Kind, operation.IdempotencyKey)
+	if getErr != nil && !errors.Is(getErr, ErrNotFound) {
+		return persistencepostgres.WrapError("reconcile credential operation insert", getErr)
+	}
+	if getErr == nil && operationsEqual(existing, operation) {
+		return nil
+	}
+	return ErrConflict
+}
+
+func (r *Repository) GetOperationByIdempotency(
+	ctx context.Context, kind OperationKind, idempotencyKey string,
+) (Operation, error) {
+	if !validOperationKind(kind) || !contracts.ValidIdempotencyKey(idempotencyKey) {
+		return Operation{}, fmt.Errorf("%w: operation lookup is invalid", ErrInvalid)
+	}
+	return scanOperation(r.db.QueryRow(ctx, `
+SELECT operation_id, idempotency_key, request_hash, credential_id,
+       operation_kind, phase, request, created_at, updated_at
+FROM credential_operations
+WHERE operation_kind = $1 AND idempotency_key = $2`, kind, idempotencyKey))
+}
+
+func (r *Repository) CompleteOperation(
+	ctx context.Context, operationID string, completedAt time.Time,
+) error {
+	return r.finishOperation(ctx, operationID, OperationCompleted, completedAt)
+}
+
+// AbandonOperation records the terminal failed outcome of a prepared create.
+func (r *Repository) AbandonOperation(
+	ctx context.Context, operationID string, abandonedAt time.Time,
+) error {
+	return r.finishOperation(ctx, operationID, OperationAbandoned, abandonedAt)
+}
+
+func (r *Repository) finishOperation(
+	ctx context.Context, operationID string, phase OperationPhase, finishedAt time.Time,
+) error {
+	if !operationIDPattern.MatchString(operationID) || finishedAt.IsZero() ||
+		(phase != OperationCompleted && phase != OperationAbandoned) {
+		return fmt.Errorf("%w: operation completion is invalid", ErrInvalid)
+	}
+	command, err := r.db.Exec(ctx, `
+UPDATE credential_operations
+SET phase = $3, updated_at = $2
+WHERE operation_id = $1 AND phase = 'prepared' AND updated_at <= $2`,
+		operationID, persistencepostgres.Timestamp(finishedAt), phase,
+	)
+	if err != nil {
+		return classifyRepositoryWrite(err)
+	}
+	if command.RowsAffected() == 1 {
+		return nil
+	}
+	var stored OperationPhase
+	if err := r.db.QueryRow(ctx, `SELECT phase FROM credential_operations WHERE operation_id = $1`, operationID).Scan(&stored); errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	} else if err != nil {
+		return persistencepostgres.WrapError("read credential operation phase", err)
+	}
+	if stored == phase {
+		return nil
+	}
+	return ErrConflict
+}
+
+// HasPreparedDelete reports whether a delete of credentialID is prepared but
+// not yet completed.
+func (r *Repository) HasPreparedDelete(ctx context.Context, credentialID string) (bool, error) {
+	if err := validateCredentialID(credentialID); err != nil {
+		return false, err
+	}
+	var prepared bool
+	if err := r.db.QueryRow(ctx, `
+SELECT EXISTS (
+    SELECT 1 FROM credential_operations
+    WHERE credential_id = $1 AND operation_kind = 'delete' AND phase = 'prepared'
+)`, credentialID).Scan(&prepared); err != nil {
+		return false, persistencepostgres.WrapError("read prepared credential deletion", err)
+	}
+	return prepared, nil
+}
+
+func (r *Repository) ListPreparedOperations(ctx context.Context, limit int) ([]Operation, error) {
+	if limit < 1 || limit > maximumPreparedOperationBatch {
+		return nil, fmt.Errorf("%w: operation page limit is invalid", ErrInvalid)
+	}
+	rows, err := r.db.Query(ctx, `
+SELECT operation_id, idempotency_key, request_hash, credential_id,
+       operation_kind, phase, request, created_at, updated_at
+FROM credential_operations
+WHERE phase = 'prepared'
+ORDER BY created_at, operation_id
+LIMIT $1`, limit)
+	if err != nil {
+		return nil, persistencepostgres.WrapError("list prepared credential operations", err)
+	}
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Operation, error) {
+		return scanOperation(row)
+	})
+	if err != nil {
+		return nil, persistencepostgres.WrapError("iterate prepared credential operations", err)
+	}
+	return result, nil
+}
+
+type rowScanner interface{ Scan(...any) error }
+
+func scanRecord(row rowScanner) (Record, error) {
+	var result Record
+	var policy []byte
+	err := row.Scan(
+		&result.CredentialID, &result.LLMGateway.GatewayID, &result.LLMGateway.Version,
+		&result.LLMGateway.Digest, &result.RemoteKeyID, &result.Label, &policy,
+		&result.Envelope.SchemaVersion, &result.Envelope.KeyID,
+		&result.Envelope.Nonce, &result.Envelope.Ciphertext, &result.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Record{}, ErrNotFound
+	}
+	if err != nil {
+		return Record{}, persistencepostgres.WrapError("read encrypted credential", err)
+	}
+	if err := strictjson.Decode(policy, &result.EffectivePolicy); err != nil || validateRecord(result) != nil {
+		return Record{}, errors.New("stored encrypted credential is invalid")
+	}
+	result.CreatedAt = result.CreatedAt.UTC()
+	result.Envelope.Nonce = append([]byte(nil), result.Envelope.Nonce...)
+	result.Envelope.Ciphertext = append([]byte(nil), result.Envelope.Ciphertext...)
+	return result, nil
+}
+
+func scanOperation(row rowScanner) (Operation, error) {
+	var result Operation
+	err := row.Scan(
+		&result.OperationID, &result.IdempotencyKey, &result.RequestHash,
+		&result.CredentialID, &result.Kind, &result.Phase, &result.Request,
+		&result.CreatedAt, &result.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Operation{}, ErrNotFound
+	}
+	if err != nil {
+		return Operation{}, persistencepostgres.WrapError("read credential operation", err)
+	}
+	result.CreatedAt = result.CreatedAt.UTC()
+	result.UpdatedAt = result.UpdatedAt.UTC()
+	result.Request = append(json.RawMessage(nil), result.Request...)
+	if err := validateOperation(result); err != nil {
+		return Operation{}, errors.New("stored credential operation is invalid")
+	}
+	return result, nil
+}
+
+func encodeRecord(record Record) ([]byte, error) {
+	if err := validateRecord(record); err != nil {
+		return nil, err
+	}
+	encoded, err := json.Marshal(record.EffectivePolicy)
+	if err != nil {
+		return nil, fmt.Errorf("%w: effective policy cannot be encoded", ErrInvalid)
+	}
+	return encoded, nil
+}
+
+// storedJSON uses exactly the CHECK constraint's representation, including
+// whitespace, Unicode escapes and numeric expansion. Check before INSERT so a
+// deterministic rejection does not abort a caller's transaction.
+func (r *Repository) storedJSON(ctx context.Context, encoded []byte, maximum int) ([]byte, error) {
+	var stored []byte
+	if err := r.db.QueryRow(ctx, `SELECT $1::jsonb::text`, encoded).Scan(&stored); err != nil {
+		return nil, classifyRepositoryWrite(err)
+	}
+	if len(stored) > maximum {
+		return nil, fmt.Errorf("%w: stored credential JSON is too large", ErrInvalid)
+	}
+	return stored, nil
+}
+
+func (r *Repository) validateGatewayPolicy(ctx context.Context, policy EffectiveGatewayPolicy) error {
+	if err := policy.Validate(); err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(policy)
+	if err != nil {
+		return ErrInvalid
+	}
+	_, err = r.storedJSON(ctx, encoded, maximumGatewayPolicyBytes)
+	return err
+}
+
+func validateRecord(record Record) error {
+	if err := validateCredentialID(record.CredentialID); err != nil {
+		return err
+	}
+	if err := record.LLMGateway.ValidateRef(); err != nil {
+		return fmt.Errorf("%w: credential Gateway ref is invalid", ErrInvalid)
+	}
+	if strings.TrimSpace(record.RemoteKeyID) == "" || len(record.RemoteKeyID) > MaximumRemoteKeyIDBytes ||
+		!utf8.ValidString(record.RemoteKeyID) {
+		return fmt.Errorf("%w: remote key ID is invalid", ErrInvalid)
+	}
+	if record.Label != "" && (strings.TrimSpace(record.Label) == "" ||
+		!utf8.ValidString(record.Label) || utf8.RuneCountInString(record.Label) > MaximumCredentialLabel) {
+		return fmt.Errorf("%w: credential label is invalid", ErrInvalid)
+	}
+	if err := validateEffectiveGatewayPolicy(record.EffectivePolicy); err != nil {
+		return err
+	}
+	if record.Envelope.SchemaVersion != CredentialSchemaVersion ||
+		!contentdigest.Valid(record.Envelope.KeyID) ||
+		len(record.Envelope.Nonce) != 12 || len(record.Envelope.Ciphertext) < 17 ||
+		len(record.Envelope.Ciphertext) > MaximumTokenBytes+16 || record.CreatedAt.IsZero() {
+		return fmt.Errorf("%w: encrypted credential envelope is invalid", ErrInvalid)
+	}
+	return nil
+}
+
+func validateCredentialID(value string) error {
+	if len(value) > 128 {
+		return fmt.Errorf("%w: credential ID is invalid", ErrInvalid)
+	}
+	// Reuse the wire contract's exact shared configuration-ID grammar.
+	if err := (llmgateway.LLMCredentialRef{CredentialID: value}).Validate(); err != nil {
+		return fmt.Errorf("%w: credential ID is invalid", ErrInvalid)
+	}
+	return nil
+}
+
+func validateOperation(operation Operation) error {
+	// A JSON escape can use six input bytes for one stored character. This
+	// bounds parsing only; storedJSON enforces the exact persisted byte limit.
+	if !operationIDPattern.MatchString(operation.OperationID) ||
+		!contracts.ValidIdempotencyKey(operation.IdempotencyKey) ||
+		!contentdigest.Valid(operation.RequestHash) ||
+		validateCredentialID(operation.CredentialID) != nil || !validOperationKind(operation.Kind) ||
+		(operation.Phase != OperationPrepared && operation.Phase != OperationCompleted &&
+			operation.Phase != OperationAbandoned) ||
+		operation.CreatedAt.IsZero() || operation.UpdatedAt.Before(operation.CreatedAt) ||
+		len(operation.Request) == 0 || len(operation.Request) > 6*maximumOperationRequestBytes {
+		return fmt.Errorf("%w: credential operation is invalid", ErrInvalid)
+	}
+	var object map[string]json.RawMessage
+	if err := strictjson.Decode(operation.Request, &object); err != nil || object == nil {
+		return fmt.Errorf("%w: credential operation request is invalid", ErrInvalid)
+	}
+	return nil
+}
+
+func validOperationKind(kind OperationKind) bool {
+	return kind == OperationCreate || kind == OperationDelete
+}
+
+func recordsEqual(left, right Record) bool {
+	leftPolicy, leftErr := json.Marshal(left.EffectivePolicy)
+	rightPolicy, rightErr := json.Marshal(right.EffectivePolicy)
+	return leftErr == nil && rightErr == nil && left.CredentialID == right.CredentialID &&
+		left.LLMGateway == right.LLMGateway && left.RemoteKeyID == right.RemoteKeyID &&
+		left.Label == right.Label && bytes.Equal(leftPolicy, rightPolicy) &&
+		left.Envelope.SchemaVersion == right.Envelope.SchemaVersion &&
+		left.Envelope.KeyID == right.Envelope.KeyID && bytes.Equal(left.Envelope.Nonce, right.Envelope.Nonce) &&
+		bytes.Equal(left.Envelope.Ciphertext, right.Envelope.Ciphertext) &&
+		persistencepostgres.Timestamp(left.CreatedAt).Equal(persistencepostgres.Timestamp(right.CreatedAt))
+}
+
+func operationsEqual(left, right Operation) bool {
+	return left.OperationID == right.OperationID && left.IdempotencyKey == right.IdempotencyKey &&
+		left.RequestHash == right.RequestHash && left.CredentialID == right.CredentialID &&
+		left.Kind == right.Kind && left.Phase == right.Phase &&
+		jsonSemanticEqual(left.Request, right.Request) &&
+		persistencepostgres.Timestamp(left.CreatedAt).Equal(persistencepostgres.Timestamp(right.CreatedAt)) &&
+		persistencepostgres.Timestamp(left.UpdatedAt).Equal(persistencepostgres.Timestamp(right.UpdatedAt))
+}
+
+func jsonSemanticEqual(left, right []byte) bool {
+	var leftValue, rightValue any
+	return json.Unmarshal(left, &leftValue) == nil && json.Unmarshal(right, &rightValue) == nil &&
+		reflect.DeepEqual(leftValue, rightValue)
+}
+
+func classifyRepositoryWrite(err error) error {
+	if class := persistencepostgres.ConstraintError(err, ErrConflict, ErrInvalid); class != nil {
+		return persistencepostgres.WrapError(class.Error(), errors.Join(class, err))
+	}
+	return persistencepostgres.WrapError("persist encrypted credential state", err)
+}

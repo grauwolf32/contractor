@@ -1,0 +1,330 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/common.schema.json",
+  "$defs": {
+    "apiVersion": {"const": "contractor/v1alpha1"},
+    "opaqueId": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "selector": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*@[A-Za-z0-9][A-Za-z0-9._+-]*$"},
+    "capabilityRef": {"$ref": "#/$defs/selector", "maxLength": 256},
+    "name": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$", "not": {"pattern": "[^A-Za-z0-9_.-]"}},
+    "resourceId": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$", "not": {"pattern": "[^A-Za-z0-9_.:-]"}},
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "mediaType": {
+      "type": "string",
+      "maxLength": 255,
+      "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$",
+      "not": {"pattern": "[^a-z0-9!#$&^_.+/-]"}
+    },
+    "timestamp": {"type": "string", "format": "date-time"},
+    "artifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["namespace", "name"],
+      "properties": {
+        "namespace": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$", "not": {"pattern": "[^A-Za-z0-9_.-]"}},
+        "name": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$", "not": {"pattern": "[^A-Za-z0-9_.-]"}},
+        "revision": {"$ref": "#/$defs/opaqueId"}
+      }
+    },
+    "exactArtifactRef": {
+      "allOf": [
+        {"$ref": "#/$defs/artifactRef"},
+        {"required": ["revision"]}
+      ]
+    },
+    "terminationError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": {"$ref": "#/$defs/opaqueId"},
+        "message": {"$ref": "#/$defs/opaqueId"},
+        "retryable": {"type": "boolean"}
+      }
+    },
+    "agentTemplateRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["templateId", "version", "digest"],
+      "properties": {
+        "templateId": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+        "version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"},
+        "digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "workerRuntimeRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtimeId", "version"],
+      "properties": {
+        "runtimeId": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+        "version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"}
+      }
+    },
+    "modelPolicyRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policyId", "version", "digest"],
+      "properties": {
+        "policyId": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+        "version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"},
+        "digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "resolvedModelPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "model"],
+      "properties": {
+        "supportsImages": {"type": ["boolean", "null"], "description": "Operator-confirmed image input support for the pinned model on its selected Gateway route. Null or absent means unconfirmed."},
+        "ref": {"$ref": "#/$defs/modelPolicyRef"},
+        "model": {"type": "string", "minLength": 1},
+        "contextWindowTokens": {"type": "integer", "minimum": 1, "maximum": 100000000},
+        "maxOutputTokens": {"type": "integer", "minimum": 1},
+        "maxModelCalls": {"type": "integer", "minimum": 1, "maximum": 1000},
+        "maxToolCalls": {"type": "integer", "minimum": 1, "maximum": 10000},
+        "maxWorkerCalls": {"type": "integer", "minimum": 1, "maximum": 10000},
+        "maxTotalTokens": {"type": "integer", "minimum": 1, "maximum": 100000000},
+        "temperature": {"type": "number", "minimum": 0}
+      }
+    },
+    "workerSummarizerModelPolicy": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/resolvedModelPolicy"
+        },
+        {
+          "required": [
+            "contextWindowTokens",
+            "maxOutputTokens",
+            "maxModelCalls"
+          ],
+          "properties": {
+            "maxModelCalls": {
+              "const": 1
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "maxToolCalls"
+                ]
+              },
+              {
+                "required": [
+                  "maxWorkerCalls"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "workerSummarizerConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contextWindowRatio", "includeReasoning"],
+      "properties": {
+        "instructions": {
+          "allOf": [
+            {"$ref": "#/$defs/resolvedAgentTemplate/properties/instructions"},
+            {"properties": {"text": {"maxLength": 8000, "pattern": "\\S"}}}
+          ]
+        },
+        "cumulativeBudget": {"type": "integer", "minimum": 1, "maximum": 100000000},
+        "contextWindowRatio": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "includeReasoning": {"type": "boolean"}
+      }
+    },
+    "workerCompactorModelPolicy": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/resolvedModelPolicy"
+        },
+        {
+          "required": [
+            "contextWindowTokens",
+            "maxOutputTokens",
+            "maxModelCalls",
+            "maxTotalTokens"
+          ],
+          "properties": {
+            "maxModelCalls": {
+              "const": 1
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "maxToolCalls"
+                ]
+              },
+              {
+                "required": [
+                  "maxWorkerCalls"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "workerContextManagement": {
+      "description": "The one effective Worker context branch of an allocation (WRK-R184): none, the template terminal@1 summarizer, or compact@1, which wholly replaces the template summarizer.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["strategy"],
+          "properties": {"strategy": {"enum": ["none", "terminal@1"]}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["strategy", "instructions", "includeReasoning", "contextWindowRatio", "keepRecentGroups", "maxCompactions"],
+          "properties": {
+            "strategy": {"const": "compact@1"},
+            "instructions": {
+              "allOf": [
+                {"$ref": "#/$defs/resolvedAgentTemplate/properties/instructions"},
+                {"properties": {"text": {"maxLength": 8000, "pattern": "\\S"}}}
+              ]
+            },
+            "includeReasoning": {"type": "boolean"},
+            "contextWindowRatio": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+            "keepRecentGroups": {"type": "integer", "minimum": 1, "maximum": 16},
+            "maxCompactions": {"type": "integer", "minimum": 1, "maximum": 16}
+          }
+        }
+      ]
+    },
+    "toolsetRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["toolsetId", "version"],
+      "properties": {
+        "toolsetId": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+        "version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"}
+      }
+    },
+    "sandboxProfileRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sandboxProfileId", "version"],
+      "properties": {
+        "sandboxProfileId": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+        "version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"}
+      }
+    },
+    "toolExecution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "arguments", "resultArtifact", "timeoutSeconds"],
+      "properties": {
+        "tool": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"},
+        "resultArtifact": {"type": "string", "minLength": 1, "maxLength": 128, "x-maxBytes": 128},
+        "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 3600},
+        "arguments": {
+          "type": "object", "maxProperties": 32,
+          "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"},
+          "additionalProperties": {
+            "oneOf": [
+              {"type": "object", "additionalProperties": false, "required": ["source", "name"], "properties": {
+                "optional": {"const": true}, "source": {"const": "parameter"}, "name": {"type": "string", "minLength": 1, "maxLength": 128, "x-maxBytes": 128},
+                "default": {"type": "string", "maxLength": 8192, "x-maxBytes": 8192}
+              }},
+              {"type": "object", "additionalProperties": false, "required": ["source", "name", "parse"], "properties": {
+                "optional": {"const": true}, "source": {"const": "parameter"}, "name": {"type": "string", "minLength": 1, "maxLength": 128, "x-maxBytes": 128},
+                "parse": {"const": "integer"}, "default": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+              }},
+              {"type": "object", "additionalProperties": false, "required": ["source", "name"], "properties": {
+                "source": {"const": "artifact"}, "name": {"type": "string", "minLength": 1, "maxLength": 128, "x-maxBytes": 128}, "optional": {"const": true}
+              }},
+              {"type": "object", "additionalProperties": false, "required": ["source", "value"], "properties": {
+                "source": {"const": "literal"}, "value": {"oneOf": [
+                  {"type": "string", "maxLength": 8192, "x-maxBytes": 8192}, {"type": "boolean"},
+                  {"type": "number", "minimum": -9007199254740991, "maximum": 9007199254740991}
+                ]}
+              }}
+            ]
+          }
+        }
+      }
+    },
+    "projectSitemapPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "collectObservations"],
+      "properties": {
+        "version": {"const": "sitemap-access@1"},
+        "collectObservations": {"type": "boolean"},
+        "deployment": {"$ref": "#/$defs/resourceId"},
+        "snapshotInputs": {"type": "array", "maxItems": 8, "uniqueItems": true, "items": {"$ref": "#/$defs/name"}}
+      }
+    },
+    "resolvedAgentTemplate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "description", "runtime", "toolsets", "sandboxProfile"],
+      "if": {"properties": {"runtime": {"properties": {"runtimeId": {"const": "tool"}, "version": {"const": "1"}}}}},
+      "then": {
+        "required": ["execution"],
+        "properties": {"instructions": false, "summarizer": false, "skills": {"maxItems": 0}, "toolsets": {"minItems": 1, "maxItems": 1, "items": {"properties": {"tools": {"maxItems": 1}}}}, "sandboxProfile": {"properties": {"sandboxProfileId": {"const": "local-workdir"}, "version": {"const": "1"}}}}
+      },
+      "else": {"required": ["instructions"], "properties": {"execution": false}},
+      "properties": {
+        "execution": {"$ref": "#/$defs/toolExecution"},
+        "ref": {"$ref": "#/$defs/agentTemplateRef"},
+        "description": {"type": "string", "minLength": 1},
+        "runtime": {"$ref": "#/$defs/workerRuntimeRef"},
+        "instructions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ref", "digest", "text"],
+          "properties": {
+            "ref": {"type": "string", "minLength": 1},
+            "digest": {"$ref": "#/$defs/digest"},
+            "text": {"type": "string", "minLength": 1}
+          }
+        },
+        "responseRecovery": {"const": "document@1"},
+        "summarizer": {"$ref": "#/$defs/workerSummarizerConfig"},
+        "sitemap": {"$ref": "#/$defs/projectSitemapPolicy"},
+        "toolsets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ref", "tools"],
+            "properties": {
+              "ref": {"$ref": "#/$defs/toolsetRef"},
+              "tools": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+            }
+          }
+        },
+        "skills": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["namespace", "name"],
+            "properties": {
+              "namespace": {"const": "skills"},
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+              }
+            }
+          }
+        },
+        "sandboxProfile": {"$ref": "#/$defs/sandboxProfileRef"}
+      }
+    }
+  }
+}

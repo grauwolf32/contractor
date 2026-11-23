@@ -1,0 +1,159 @@
+package control
+
+import (
+	"encoding/json"
+	"fmt"
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+)
+
+func TestSharedPrivateRegistrationNormalizationFingerprintAndProjection(t *testing.T) {
+	t.Parallel()
+
+	registration, err := contracts.DecodePrivateStrict[AgentRegistration](
+		contractstest.ReadFixture(t, "valid", "agent-registration.json"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := AgentRegistrationFingerprint(registration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changedObservation := registration
+	changedObservation.ObservedState = AgentFenced
+	second, err := AgentRegistrationFingerprint(changedObservation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != second {
+		t.Fatal("observation changed the immutable registration fingerprint")
+	}
+	changedCapability := registration
+	changedCapability.SupportedRuntimeAdapters = []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP}
+	third, err := AgentRegistrationFingerprint(changedCapability)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if third == first {
+		t.Fatal("adapter capability change did not change the registration fingerprint")
+	}
+	changedPlacement := registration
+	changedPlacement.PlacementLabels = []string{"cloud/hetzner"}
+	withPlacement, err := AgentRegistrationFingerprint(changedPlacement)
+	if err != nil || withPlacement == first {
+		t.Fatalf("placement declaration did not change immutable fingerprint: %v", err)
+	}
+	normalizedPlacement := NormalizeAgentRegistration(changedPlacement)
+	normalizedPlacement.PlacementLabels[0] = "local/lab"
+	if changedPlacement.PlacementLabels[0] != "cloud/hetzner" {
+		t.Fatal("normalized placement labels alias registration memory")
+	}
+	projection := RuntimeAdapterCapabilityProjection(registration)
+	if fmt.Sprint(projection) != "[caido-graphql@1 http-proxy@1 otlp-http@1]" {
+		t.Fatalf("unexpected Operations projection: %v", projection)
+	}
+	projection[0] = "mutated@1"
+	if registration.SupportedRuntimeAdapters[0] != runtimesettings.RuntimeAdapterCaidoGraphQL {
+		t.Fatal("Operations projection aliases private registration memory")
+	}
+
+	capabilities, err := contracts.DecodePrivateStrict[contracts.WorkspaceCapabilities](
+		contractstest.ReadFixture(t, "valid", "workspace-capabilities.json"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registration.WorkspaceCapabilities = &capabilities
+	withWorkspace, err := AgentRegistrationFingerprint(registration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if withWorkspace == first {
+		t.Fatal("workspace capability did not change the immutable registration fingerprint")
+	}
+	normalized := NormalizeAgentRegistration(registration)
+	normalized.WorkspaceCapabilities.Modes[0] = contracts.WorkspaceModeOverlay
+	if registration.WorkspaceCapabilities.Modes[0] != contracts.WorkspaceModeDirect {
+		t.Fatal("normalized workspace capability aliases registration memory")
+	}
+}
+
+func TestCompletionCapabilityCloneDoesNotGrantOrShareSupport(t *testing.T) {
+	empty := NormalizeAgentRegistration(AgentRegistration{})
+	if empty.Capabilities != nil {
+		t.Fatal("omission invented completion capability")
+	}
+	original := AgentRegistration{Capabilities: &contracts.RuntimeCompletionCapabilities{CompletionContracts: []string{contracts.AuditCheckResultsV1}}}
+	cloned := NormalizeAgentRegistration(original)
+	cloned.Capabilities.CompletionContracts[0] = "changed"
+	if original.Capabilities.CompletionContracts[0] != contracts.AuditCheckResultsV1 {
+		t.Fatal("capability clone aliases mutable source")
+	}
+}
+
+func TestSharedPerformanceGoldenCapabilities(t *testing.T) {
+	var cases struct {
+		ValidCapabilities   []json.RawMessage `json:"validCapabilities"`
+		InvalidCapabilities []json.RawMessage `json:"invalidCapabilities"`
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "performance-cases.json"), &cases); err != nil {
+		t.Fatal(err)
+	}
+	for _, valid := range []bool{true, false} {
+		capabilities := cases.InvalidCapabilities
+		if valid {
+			capabilities = cases.ValidCapabilities
+		}
+		for _, raw := range capabilities {
+			var registration map[string]json.RawMessage
+			if err := json.Unmarshal(contractstest.ReadFixture(t, "valid", "agent-registration.json"), &registration); err != nil {
+				t.Fatal(err)
+			}
+			registration["supportedPerformanceMetricsVersions"] = raw
+			encoded, _ := json.Marshal(registration)
+			value, err := contracts.DecodePrivateStrict[AgentRegistration](encoded)
+			if (err == nil) != valid {
+				t.Fatalf("capability %s validity %v: %v", raw, valid, err)
+			}
+			if valid && len(value.SupportedPerformanceMetricsVersions) != 0 {
+				clone := NormalizeAgentRegistration(value)
+				clone.SupportedPerformanceMetricsVersions[0] = 2
+				if value.SupportedPerformanceMetricsVersions[0] != 1 {
+					t.Fatal("normalization aliases capability")
+				}
+				fingerprint, _ := AgentRegistrationFingerprint(value)
+				value.SupportedPerformanceMetricsVersions = nil
+				withoutCapabilityFingerprint, _ := AgentRegistrationFingerprint(value)
+				if fingerprint == withoutCapabilityFingerprint {
+					t.Fatal("capability missing from fingerprint")
+				}
+			}
+		}
+	}
+}
+
+func TestSharedRegistrationCloneAndNormalizationDetachObservations(t *testing.T) {
+	allocationID := "allocation-original"
+	original, err := contracts.DecodePrivateStrict[AgentRegistration](contractstest.ReadFixture(t, "valid", "agent-registration.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	original.AllocationID = &allocationID
+	original.Capabilities = &contracts.RuntimeCompletionCapabilities{CompletionContracts: []string{contracts.AuditCheckResultsV1}}
+	for _, detached := range []AgentRegistration{original.Clone(), NormalizeAgentRegistration(original)} {
+		*detached.AllocationID = "allocation-changed"
+		detached.Capabilities.CompletionContracts[0] = "changed"
+		detached.SupportedRuntimes[0] = "changed@1"
+		detached.SupportedSandboxProfiles[0] = "changed@1"
+		detached.SupportedRuntimeAdapters[0] = runtimesettings.RuntimeAdapterHTTPTarget
+		detached.SupportedToolsets[0].Tools[0] = "changed"
+		if *original.AllocationID != "allocation-original" || original.Capabilities.CompletionContracts[0] != contracts.AuditCheckResultsV1 || original.SupportedRuntimes[0] == "changed@1" || original.SupportedSandboxProfiles[0] == "changed@1" || original.SupportedRuntimeAdapters[0] == runtimesettings.RuntimeAdapterHTTPTarget || original.SupportedToolsets[0].Tools[0] == "changed" {
+			t.Fatal("registration copy shares mutable data")
+		}
+	}
+}

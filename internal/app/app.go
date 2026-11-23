@@ -1,0 +1,346 @@
+// Package app contains the Contractor Server composition root.
+package app
+
+import (
+	"context"
+	"crypto/tls"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"net"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/auth"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/gitimport"
+	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
+)
+
+// Config contains process-level settings needed by the bootstrap server.
+type Config struct {
+	Operations            OperationalSettings
+	ListenAddress         string
+	PrivateListenAddress  string
+	PrivateURL            string
+	ShutdownTimeout       time.Duration
+	RuntimeRequestTimeout time.Duration
+	WorkerRequestTimeout  time.Duration
+	// DatabaseURL may carry the database password, so it is held as a
+	// self-redacting SecretString (SEC-R88).
+	DatabaseURL                contracts.SecretString
+	ArtifactBlobBackend        blob.Backend
+	ArtifactBlobPath           string
+	ArtifactBlobInlineMaxBytes int64
+	// ArtifactHistory is the retained-history limit of every Artifact
+	// binding (LIM-ART-9).
+	ArtifactHistory             artifactpostgres.HistoryPolicy
+	GitImport                   gitimport.Config
+	OperatorConfigRoot          string
+	ManagedConfigRoot           string
+	CredentialMasterKeyFile     string
+	LLMGatewayAdminBindingsFile string
+	CAFile                      string
+	CertificateFile             string
+	PrivateKeyFile              string
+	DevelopmentLLMGateway       string
+	DevelopmentWorkerToken      contracts.SecretString
+	DevelopmentPlannerToken     contracts.SecretString
+	PlannerTimeout              time.Duration
+	PublicBearerToken           contracts.SecretString
+	LocalAuthFile               string
+	BrowserOrigins              []string
+	InsecureLoopbackCookie      bool
+	TrustedProxies              []string
+	PerformanceMetrics          bool
+	Pprof                       bool
+	PprofListen                 string
+
+	CertificateExpiryWarningWindow time.Duration
+}
+
+// RunCLI parses process configuration and runs the Server until cancellation.
+func RunCLI(
+	ctx context.Context,
+	args []string,
+	getenv func(string) string,
+	logger *slog.Logger,
+) error {
+	err := runCLI(ctx, args, getenv, logger)
+	if errors.Is(err, errHelpShown) {
+		return nil
+	}
+	return err
+}
+
+func runCLI(
+	ctx context.Context,
+	args []string,
+	getenv func(string) string,
+	logger *slog.Logger,
+) error {
+	if len(args) > 0 && args[0] == "config" {
+		return runConfigCLI(args[1:], logger)
+	}
+	if len(args) > 0 && args[0] == "blobs" {
+		return runBlobCleanupCLI(ctx, args[1:], getenv, logger)
+	}
+	if len(args) > 0 && args[0] == "migrate" {
+		return runMigrateCLI(ctx, args[1:], getenv, logger)
+	}
+	if len(args) > 0 && args[0] == "auth" {
+		return runAuthCLI(args[1:])
+	}
+
+	cfg, err := ParseConfig(args, getenv)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(cfg.DatabaseURL.Reveal()) == "" {
+		return errors.New("database URL is required")
+	}
+	if cfg.PublicBearerToken.Reveal() == "" {
+		return errors.New("CONTRACTOR_PUBLIC_BEARER_TOKEN is required")
+	}
+	bootstrap, err := auth.LoadBootstrap(cfg.LocalAuthFile)
+	if err != nil {
+		return fmt.Errorf("load local authentication: %w", err)
+	}
+	authentication, err := auth.NewService(bootstrap, auth.Options{})
+	if err != nil {
+		return fmt.Errorf("configure local authentication: %w", err)
+	}
+	browserOrigins, err := auth.NewOriginPolicy(cfg.BrowserOrigins, cfg.InsecureLoopbackCookie)
+	if err != nil {
+		return fmt.Errorf("configure browser origins: %w", err)
+	}
+	trustedPeers, err := auth.NewPeerPolicy(cfg.TrustedProxies)
+	if err != nil {
+		return fmt.Errorf("configure trusted proxies: %w", err)
+	}
+	if strings.TrimSpace(cfg.CAFile) == "" || strings.TrimSpace(cfg.CertificateFile) == "" ||
+		strings.TrimSpace(cfg.PrivateKeyFile) == "" {
+		return errors.New("Control Plane certificate, private key, and deployment CA are required")
+	}
+	if cfg.PlannerTimeout <= 0 {
+		return errors.New("Planner timeout is required")
+	}
+	cfg.Operations.logEffective(logger, cfg.RuntimeRequestTimeout)
+	pool, err := persistencepostgres.OpenPool(ctx, cfg.DatabaseURL.Reveal(), cfg.Operations.Database.poolOptions(logger))
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	if err := persistencepostgres.VerifyMigrations(ctx, pool); err != nil {
+		return fmt.Errorf("verify database migrations: %w", err)
+	}
+	profilingServer, err := configureProfiling(cfg)
+	if err != nil {
+		return err
+	}
+	if profilingServer != nil {
+		defer func() { _ = profilingServer.Close() }()
+	}
+	// Credential recovery, the process-local Runtime Agent Registry, Scheduler
+	// and private API must have one owner per database. A standby serves only
+	// health and unready status until the dedicated PostgreSQL session wins.
+	lease, err := awaitControlPlaneLease(ctx, pool, cfg.ListenAddress, cfg.ShutdownTimeout, logger)
+	if errors.Is(err, context.Canceled) && ctx.Err() != nil {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer lease.Close()
+	activeContext, cancelActive := context.WithCancelCause(ctx)
+	watchDone := lease.watch(activeContext, cancelActive)
+	defer func() {
+		cancelActive(nil)
+		<-watchDone
+	}()
+	ctx = activeContext
+	backend, blobStore, err := backends.Open(ctx, cfg.ArtifactBlobBackend, cfg.ArtifactBlobPath, cfg.ArtifactBlobInlineMaxBytes)
+	if err != nil {
+		return err
+	}
+	if closer, ok := blobStore.(io.Closer); ok {
+		defer closer.Close()
+	}
+	logger.Info("artifact blob storage initialized", "large_payload_backend", backend)
+	storage, err := artifactpostgres.NewStorage(blob.NewRuntime(blobStore, logger), cfg.ArtifactHistory)
+	if err != nil {
+		return err
+	}
+	configurationManager, bundles, err := loadServerConfiguration(cfg.OperatorConfigRoot, cfg.ManagedConfigRoot, logger)
+	if err != nil {
+		return fmt.Errorf("load configuration: %w", err)
+	}
+	if err := configurationManager.ConfigureModelSelection(ctx, settingsstore.NewPostgresStore(pool)); err != nil {
+		return fmt.Errorf("configure deployment model selection: %w", err)
+	}
+	credentialSet, err := configureCredentials(ctx, pool, lease.server, configurationManager, cfg, storage)
+	if err != nil {
+		return err
+	}
+	plannerTelemetryRegistry, err := telemetry.NewBuiltinPlannerAdapterRegistry()
+	if err != nil {
+		return fmt.Errorf("configure Planner telemetry adapters: %w", err)
+	}
+
+	control, err := configureControlPlane(
+		pool, configurationManager, cfg, credentialSet, plannerTelemetryRegistry, logger, storage)
+	if err != nil {
+		return err
+	}
+	// ServeSystem returns only after the Scheduler stopped, so no lifecycle
+	// call outlives these Runtime Agent connections (CTL-R164).
+	defer control.runtimeClient.Close()
+	catalogs, err := configureCatalogs(ctx, pool, configurationManager, bundles, bootstrap.Principal.UserID, logger, storage)
+	if err != nil {
+		return err
+	}
+	workflows, err := configureWorkflows(
+		pool, cfg, catalogs, control, credentialSet, plannerTelemetryRegistry, logger, storage)
+	if err != nil {
+		return err
+	}
+	eventListener, err := runstore.NewPostgresRunEventListener(pool)
+	if err != nil {
+		return fmt.Errorf("configure WorkflowRun event listener: %w", err)
+	}
+	eventHub, err := publicevents.NewHub(publicevents.Options{
+		Context: ctx, Authentication: authentication, Origins: browserOrigins,
+		Runs: runstore.NewPostgresStore(pool, storage), Operations: control.registry,
+		RunNotifications: eventListener, Logger: logger,
+	})
+	if err != nil {
+		return fmt.Errorf("configure public event WebSocket: %w", err)
+	}
+	defer eventHub.Close()
+	audits, err := configureAudits(cfg, pool, configurationManager, credentialSet, catalogs, workflows, logger, storage)
+	if err != nil {
+		return err
+	}
+	evals, err := configureEvals(pool, configurationManager, credentialSet, audits, workflows, logger, storage)
+	if err != nil {
+		return fmt.Errorf("configure Evals: %w", err)
+	}
+	handlers, err := configureHTTP(
+		pool, configurationManager, cfg, authentication, browserOrigins, trustedPeers, eventHub,
+		credentialSet, control, catalogs, workflows, audits, evals, logger, storage)
+	if err != nil {
+		return err
+	}
+	runners := handlers.runners
+	runners = append(runners, evals.coordinator)
+	if profilingServer != nil {
+		runners = append(runners, profilingServer)
+	}
+
+	publicListener, err := net.Listen("tcp", cfg.ListenAddress)
+	if err != nil {
+		return fmt.Errorf("listen on %q: %w", cfg.ListenAddress, err)
+	}
+	privateTCPListener, err := net.Listen("tcp", cfg.PrivateListenAddress)
+	if err != nil {
+		_ = publicListener.Close()
+		return fmt.Errorf("listen privately on %q: %w", cfg.PrivateListenAddress, err)
+	}
+	privateListener := tls.NewListener(privateTCPListener, control.tls)
+	if err := lease.attachPrivate(privateListener); err != nil {
+		_ = publicListener.Close()
+		return err
+	}
+	err = ServeSystem(
+		ctx,
+		publicListener,
+		privateListener,
+		cfg.ShutdownTimeout,
+		logger,
+		handlers.public,
+		handlers.private,
+		runners,
+	)
+	if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, context.Canceled) {
+		return errors.Join(err, cause)
+	}
+	return err
+}
+
+// serveHandler runs the standby process handler until this Server takes the
+// Control Plane lease or shuts down.
+func serveHandler(
+	ctx context.Context,
+	listener net.Listener,
+	shutdownTimeout time.Duration,
+	logger *slog.Logger,
+	handler http.Handler,
+) error {
+	server := &http.Server{
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       time.Minute,
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.Serve(listener)
+	}()
+
+	logger.Info("contractor server listening", "address", listener.Addr().String())
+
+	select {
+	case err := <-errCh:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return fmt.Errorf("serve HTTP: %w", err)
+	case <-ctx.Done():
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		_ = server.Close()
+		return fmt.Errorf("shutdown HTTP server: %w", err)
+	}
+
+	if err := <-errCh; err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("serve HTTP during shutdown: %w", err)
+	}
+	logger.Info("contractor server stopped")
+	return nil
+}
+
+func newProcessHandler(readiness http.Handler, publicAPI ...http.Handler) http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", writeHealthy)
+	mux.Handle("GET /readyz", readiness)
+	if len(publicAPI) == 1 && publicAPI[0] != nil {
+		mux.Handle("/v1/", publicAPI[0])
+	}
+	return mux
+}
+
+func newPrivateHandler(controlHandler http.Handler, artifactHandler http.Handler) http.Handler {
+	mux := http.NewServeMux()
+	mux.Handle("/private/v1/config", controlHandler)
+	mux.Handle("/private/v1/agents/", controlHandler)
+	mux.Handle("/private/v1/allocations/", artifactHandler)
+	return mux
+}
+
+func writeHealthy(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = io.WriteString(w, "{\"status\":\"ok\"}\n")
+}

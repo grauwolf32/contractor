@@ -1,0 +1,86 @@
+schema_version: "1.0"
+id: V416-008
+title: "Share the Nuclei rulepack media and byte admission contract"
+milestone: main-review-2026-10-25
+epic: scan-tools
+kind: chore
+introduced_by: V406-003
+priority: P3
+status: completed
+depends_on: []
+languages: [go, python, typescript]
+goal: >-
+  Give rulepack metadata validation one owning Go contract and shared boundary
+  fixtures so Run, sweep, Audit Planner, Runtime and UI cannot drift on the
+  same media and byte rules.
+context:
+  review: "2026-10-25 main review at f9fda28f1c9ffa4baaf3052c141e652c8593a080; common input-admission improvement."
+  specification:
+    - docs/spec/tools/scanners.md#SCN-R238
+    - docs/spec/tools/scanners.md#SCN-R239
+    - docs/spec/configuration/workflows.md#WFL-R88
+    - docs/spec/audits/scans.md#ASC-R152
+  finding: >-
+    internal/contracts/scan/nuclei.go:15 owns byte constants, but callers repeat
+    their relationship to the media type: internal/runservice/public.go:202,
+    internal/scanservice/service.go:151 and
+    internal/planner/scan/audit_inputs.go:150-157. Python repeats the boundary
+    in toolsets/scan/nuclei_rulepack.py. The new Audit/UI path omitted that
+    relation altogether (V416-002). Existing api/testdata/nuclei-input-cases.json
+    should be extended or complemented with actual consumed media/size boundary
+    cases rather than another independent list of expected constants.
+  decision: >-
+    This task extracts the existing metadata rule with production callers and
+    cross-language evidence; V416-002 installs it earlier in Audit admission
+    and Web scan selection. V416-001 separately corrects Eval staging from the
+    pinned per-slot Workflow sourceScope. Do not unify scope IDs across these
+    contracts: an ordinary owner rulepack belongs to UserScope, and a Web scan
+    Audit's optional input belongs to ProjectScope. Sharing the rule does not
+    require a new universal artifact-admission framework.
+scope:
+  in:
+    - Introduce or reuse a small internal/contracts/scan metadata predicate for supported rulepack media and encoded size; replace existing Run, remote sweep and Audit Planner copies without changing their admission timing or public error mapping.
+    - Keep each caller's exact-ref, profile-media, provenance and scope validation explicit; retain capped reads independently of the metadata predicate.
+    - Add shared fixtures for supported media, zero and negative metadata, both exact ceilings, one byte over, and unsupported media; record which layer owns empty-content semantic rejection so extraction preserves existing behavior.
+    - Make Go and Runtime production validators consume the same fixture cases; make the UI consume the cases when V416-002 adds its validator, with no unused UI export in this chore.
+    - Record the owning metadata contract and its callers; use existing architecture layers and fixture gates.
+  out:
+    - Moving admission earlier or changing public error classes, accepted contents, byte limits, source scopes or APIs.
+    - Moving ZIP expansion, YAML parsing or native Nuclei validation out of the Runtime.
+    - A generic validator registry, new persistence table, fallback or unused exported helper.
+acceptance_criteria:
+  - id: A1
+    given: Existing Run, remote sweep and Audit Planner production paths
+    when: Rulepack metadata is validated
+    then: All use the owning media/byte rule, preserve existing caller-specific errors and capped reads, and no duplicate ceiling expression or unused helper remains in those paths.
+  - id: A2
+    given: Shared media/size fixtures covering both exact ceilings and their adjacent values
+    when: Go and Runtime validators run
+    then: They agree on the common metadata contract; empty-content semantic checks remain separately specified and existing valid input behavior does not change.
+  - id: A3
+    given: Ordinary user-scoped inputs, Project Audit inputs and omitted rulepacks
+    when: Existing integration and scanner suites run
+    then: Scope, exact identity, installed/custom selection, rejection timing and error mapping remain unchanged, with no new fallback.
+tests:
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" go test -count=1 ./internal/contracts/scan ./internal/runservice ./internal/scanservice ./internal/planner/scan'
+    covers: [A1, A2, A3]
+  - command: make test-runtime
+    covers: [A2, A3]
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" make test-wire-cross-language'
+    covers: [A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification:
+  environment: Isolated UTF-8 PostgreSQL test database; Go 1.26.9 and locked Python 3.13 environment.
+  passed:
+    - go test -count=1 ./internal/contracts/scan ./internal/runservice ./internal/scanservice ./internal/planner/scan (PostgreSQL enabled).
+    - make test-wire-cross-language; 270 fixtures, 319 Go and 211 Python shared tests; 1213 selected Runtime tests plus 313 contract tests.
+    - make lint; generated dependency fingerprint refreshed with make docs-dependencies.
+    - make test-runtime on an immutable Linux arm64 snapshot of 60ec3e3f3dcfb765eba423512262ff9d65864d35; 4724 passed, 55 skipped, verify-runtime passed.
+  environment_limits: >-
+    The initial macOS run had 4634 passed, 39 skipped and 106 failures,
+    predominantly unsupported Linux process/socket APIs plus environment/timing
+    cases. Linux verification uses a normal user, the locked Python environment,
+    Go 1.26.9 and the standard /usr/bin/python3 required by test CLI fixtures.
+    No failing tests were filtered out. Expected opt-in skips remain reported.
+implementation_commit: 60ec3e3f3dcfb765eba423512262ff9d65864d35

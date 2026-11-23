@@ -1,0 +1,8 @@
+{
+  "name": "contractor-erd",
+  "private": true,
+  "description": "Lays out docs/spec/database-erd.html; see README.md.",
+  "dependencies": {
+    "elkjs": "0.9.3"
+  }
+}

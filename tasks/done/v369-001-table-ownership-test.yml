@@ -1,0 +1,88 @@
+schema_version: "1.0"
+id: V369-001
+title: "Assign every table an owner package and test SQL against it"
+milestone: hub-audit-guards-2026-10
+epic: persistence
+kind: chore
+priority: P1
+status: completed
+implementation_commit: "404854167d02478e82d4e314a9255c9eaa348fd3"
+depends_on: []
+languages: [go]
+goal: "Adding an UPDATE of another package's table without an allowlist entry fails the test."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), persistence C1, F1; audits F1; dispatch F4; artifacts F5; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    11 tables have writers in several packages and about 10 SQL dependencies
+    point up the layers (gatewayrecovery writes workflow_runs, telemetry
+    reads stage tables, credentials reads audits and projects, runstore
+    reads projects and thaws artifact_bindings, artifacts deletes runstore
+    rows). archtest sees only imports; rundeletion/boundary_test.go guards
+    only runstore against Audit tables.
+  specification:
+    - docs/spec/platform/persistence.md#PER-R23
+  current_code: >-
+    Re-verified on a07f5e9e: scheduler no longer writes the gateway tables
+    (it calls gatewayrecovery.EndStage and ReleaseAdmission), and the
+    registry check also finds the exclusive row locks the audit counted as
+    reads: memory (Planner Memory write fence) and controlplane (allocation
+    placement) lock Run and Stage rows, auditservice locks Audit, review and
+    finding rows, auditstore locks the deleting Project and the
+    scheduler_settings row, findingintake locks Audit rows.
+  siblings: >-
+    The registry check covers every package, so the runstore-only
+    TestRunstoreNamesNoAuditOrFindingTables in
+    internal/rundeletion/boundary_test.go is removed; its deletion-step test
+    stays. The copies of the table list are tied to one registry: the
+    PostgreSQL integration test reads wantTables from it,
+    TestTableOwnershipMatchesTheSchemaDocuments checks scripts/erd/meta.json
+    (tables and groups) and the Table owners index of persistence.md, and
+    scripts/check_database_erd.py still ties the ERD page to the migrations.
+    Not changed: scripts/erd/build_erd.py lists the packages that use each
+    table with its own regular expression for the ERD's "where in code"
+    panel; it is a reading aid that nothing checks against.
+  decision: >-
+    Guarantee (PER-R23): each table and view has one owner package, and only
+    it writes the relation, where a write includes LOCK TABLE and the
+    exclusive row locks FOR UPDATE and FOR NO KEY UPDATE, because they take
+    part in the owner's lock order. Other packages read a relation only
+    where [reads] of internal/persistence/table_ownership.txt grants it with
+    a reason, shared row locks included. [known] lists the foreign accesses
+    of today, each with its reason and the open task that removes it; the
+    test fails when an entry outlives its access or names a finished task.
+    Mapping: Run and Stage writes and locks of scheduler, gatewayrecovery,
+    memory and controlplane to V370-001; the other cross-package writes and
+    locks (findingintake, runstore, artifacts, projectlifecycle, rundeletion,
+    auditstore on projects and scheduler_settings) and the reads V370-002
+    names (credentials and evalstore on Audit tables, scheduler and evalstore
+    copying the artifact metadata query) to V370-002; auditservice reads and
+    row locks of auditstore tables to V370-004; runstore's own Runtime
+    credential validator to V370-012. Reads that point up the layer stack
+    and that no task removes stay granted reads with their reason: artifacts
+    and telemetry on Run and Stage tables, credentials and runstore on
+    projects. Scanner limits, documented in sql_access_test.go: a relation
+    name that reaches SQL only through a function argument, and a lock clause
+    kept apart from its FROM clause, are not seen. Alternatives rejected:
+    deriving read permissions from the archtest layers (the layer table is
+    test code of another package, and a downward read still deserves a
+    reason); generating meta.json or persistence.md from the registry
+    (meta.json keeps the descriptions, the ERD page needs a database to
+    rebuild, and a drift test finds the same errors without a build step);
+    counting row locks as reads (that would hide the copied Run and Stage
+    lock-and-check code V370-001 removes). Reversal: when a guarantee needs
+    one statement to change relations of two owners and their APIs cannot
+    give it inside one transaction, record it in the owner's document and
+    let the registry grant that write.
+scope:
+  in:
+    - "One ownership file (table -> owner package, read/write), seeded from scripts/erd/meta.json; a test scans Go SQL text and fails on unlisted foreign access; an allowlist with a reason per entry that later tasks shrink; wantTables, ERD groups and persistence.md generated from or checked against it."
+  out:
+    - "Moving the accesses (V370-001, V370-002)."
+acceptance_criteria:
+  - id: A1
+    text: "Adding an UPDATE of another package's table without an allowlist entry fails the test."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/persistence/..."
+    covers: [A1]

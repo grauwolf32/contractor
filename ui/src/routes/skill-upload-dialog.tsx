@@ -1,0 +1,162 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useId, useRef, useState, type FormEvent } from "react";
+
+import {
+  ARTIFACT_NAME_PATTERN,
+  writeArtifact,
+  type ArtifactWriteResponse,
+} from "../api/artifacts";
+import { usePublicAPI } from "../api/context";
+import { queryKeys } from "../api/query-keys";
+import { Dialog, DialogHeader } from "../app/dialog";
+import { ErrorNotice } from "../app/error-notice";
+import { Button, Field } from "../ui";
+import {
+  artifactFileStem,
+  MAXIMUM_SKILL_ARCHIVE_BYTES,
+  SKILL_ARCHIVE_MEDIA_TYPE,
+} from "./artifacts/artifact-file";
+import { ArtifactFileDrop } from "./artifacts/common";
+
+export function SkillUploadDialog({
+  onClose,
+  onWritten,
+}: {
+  onClose: () => void;
+  onWritten: (result: ArtifactWriteResponse) => void;
+}) {
+  const api = usePublicAPI();
+  const queryClient = useQueryClient();
+  const heading = useId();
+  const description = useId();
+  const nameInput = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const mutation = useMutation({
+    mutationFn: ({ name, file }: { name: string; file: File }) =>
+      writeArtifact(api, {
+        namespace: "skills",
+        name,
+        mediaType: SKILL_ARCHIVE_MEDIA_TYPE,
+        payload: file,
+      }),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.artifacts.all,
+      });
+      onWritten(result);
+    },
+    onError: async () => {
+      // Reconcile an ambiguous write without automatically repeating the PUT.
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.artifacts.all,
+      });
+    },
+  });
+
+  function selectFile(selected: File | undefined) {
+    if (mutation.isPending) return;
+    setFile(selected ?? null);
+    setError(null);
+    mutation.reset();
+    if (selected !== undefined && name.trim() === "")
+      setName(artifactFileStem(selected.name));
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (mutation.isPending) return;
+    setError(null);
+    mutation.reset();
+    const selectedName = name.trim();
+    if (!ARTIFACT_NAME_PATTERN.test(selectedName)) {
+      setError(
+        "Name must use 1–128 letters, digits, dot, dash, or underscore.",
+      );
+    } else if (file === null) {
+      setError("Choose a Skill ZIP package to upload.");
+    } else if (file.size > MAXIMUM_SKILL_ARCHIVE_BYTES) {
+      setError("Skill package exceeds the 16 MiB upload limit.");
+    } else {
+      mutation.mutate({ name: selectedName, file });
+    }
+  }
+
+  return (
+    <Dialog
+      className="ui-dialog ui-panel skill-upload-dialog"
+      labelledBy={heading}
+      describedBy={description}
+      initialFocusRef={nameInput}
+      onRequestClose={() => {
+        if (!mutation.isPending) onClose();
+      }}
+    >
+      <DialogHeader
+        id={heading}
+        title="Upload Skills"
+        close={{
+          label: "Close upload dialog",
+          disabled: mutation.isPending,
+          onClose: onClose,
+        }}
+      />
+      <p id={description} className="muted-copy">
+        Upload one reviewed ZIP package with a root <code>SKILL.md</code>, up to{" "}
+        {MAXIMUM_SKILL_ARCHIVE_BYTES / (1024 * 1024)} MiB. Every Project can use
+        it.
+      </p>
+      <p className="ui-caption skill-upload-format">
+        Stored as a Skill package: <code>{SKILL_ARCHIVE_MEDIA_TYPE}</code>
+      </p>
+      <form onSubmit={submit}>
+        <fieldset
+          disabled={mutation.isPending}
+          className="ui-stack skill-upload-fields"
+          data-gap="4"
+        >
+          <Field label="Name">
+            {(control) => (
+              <input
+                {...control}
+                ref={nameInput}
+                name="name"
+                required
+                maxLength={128}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+            )}
+          </Field>
+          <ArtifactFileDrop
+            file={file}
+            maximumBytes={MAXIMUM_SKILL_ARCHIVE_BYTES}
+            onSelect={selectFile}
+          />
+        </fieldset>
+        {error === null ? null : (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+        {mutation.error === null ? null : (
+          <ErrorNotice error={mutation.error} reconcileWrite />
+        )}
+        <div className="ui-dialog-actions">
+          <Button disabled={mutation.isPending} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            type="submit"
+            pending={mutation.isPending}
+            pendingLabel="Uploading…"
+          >
+            Upload
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}

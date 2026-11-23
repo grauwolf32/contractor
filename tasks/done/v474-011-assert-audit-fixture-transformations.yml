@@ -1,0 +1,53 @@
+schema_version: '1.0'
+id: V474-011
+title: Keep derived Audit process fixtures aligned with the ordinary report producer
+milestone: model-tool-interfaces-2026-11
+epic: planner-worker
+kind: chore
+introduced_by: V474-003
+priority: P1
+status: completed
+depends_on: [V474-003, V474-004]
+languages: [go]
+goal: Derived Audit scenarios reach their assigned checker without retaining an unintended ordinary report stage.
+context:
+  authority: User implementation request 2026-11-21 includes migration of current callers and their real-process checks.
+  finding: >-
+    tests/e2e/audit_compaction_test.go:220 and audit_hypotheses_process_test.go:48 replace an
+    initial_work string that V474-003 changed in basicProcessProgram. The replacements silently
+    do nothing. The combined process gate fails before the Audit checker and lease-loss waits
+    for a checkpoint that cannot occur. Focused V474-004 checks preceded that producer migration.
+  boundary: >-
+    These are test-only profile transformations. Keep production Workflow, result, compaction,
+    lease and evidence semantics unchanged. Fail immediately if a required fixture replacement
+    has no unique source match, rather than running a different scenario.
+  specification:
+  - docs/spec/audits/worker-completion.md
+  - docs/spec/execution/server-operations.md#SOP-R13
+scope:
+  in:
+  - Update both checklist-seeded profile derivatives and inspect all basicProcessProgram transformations.
+  - Assert required replacements occur exactly once and validate the resulting fixture before Audit execution.
+  - Cover both compaction outcomes and fixed hypotheses through their existing real-process regressions.
+  out: [Production tool changes, changing budgets or weakening assertions, live models, paused V417 work]
+acceptance_criteria:
+- id: A1
+  text: Both seeded derivatives have no initial ordinary work and preserve their three-item checklist/checker setup. A missing or repeated source match fails before an Audit Run is submitted.
+- id: A2
+  text: Trusted completion, lost publication acknowledgement, compaction lease loss and fixed-hypothesis scenarios pass unchanged through real Server, Runtime and PostgreSQL.
+tests:
+- command: go test -count=1 ./tests/e2e
+  covers: [A1]
+- command: go test -tags=e2e -count=1 -timeout=10m ./tests/e2e -run '^(TestAuditCompactionPreservesTrustedCompletionAcrossProcesses|TestAuditCompactionLeaseLossAcrossProcesses|TestAuditFixedHypothesesAcrossProductionProcesses)$'
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2]
+implementation_commit: 9e62b79900191319bf1e5de8d0683587ef6b6386
+verification:
+  date: '2026-11-22'
+  result: >-
+    The complete untagged E2E helper package passed. All three listed real-process roots passed
+    in 37.545 seconds, preserving trusted result receipts, lost-acknowledgement reconciliation,
+    compaction cancellation and fixed hypothesis pins. Required fixture replacements now require
+    exactly one source match; both seeded derivatives use one shared constructor and initial-work
+    definition. Full make lint passed. Production source and configured models are unchanged.

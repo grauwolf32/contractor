@@ -1,0 +1,89 @@
+schema_version: '1.0'
+id: V405-004
+title: Add Audit labels inherited by Runs and select placement through ordinary labels
+milestone: runtime-placement-labels-2026-10
+epic: audits
+kind: feature
+priority: P2
+status: completed
+depends_on:
+- V405-002
+- V405-003
+languages:
+- go
+- typescript
+goal: Audits carry ordinary key/value labels, pin them at start and pass them to every child Run. Reserved cloud/local keys derive placement requirements; UI uses labels rather than a separate location selector.
+context:
+  proposal: docs/proposals/0043-runtime-placement-labels.md
+scope:
+  in:
+  - User clarification on 2026-10-23 supersedes a separate placement picker and fleet-count inventory. Reuse ordinary labels in UI and the existing Run metadata key/value contract.
+  - Audit draft/start/read labels, an immutable start snapshot, and exact inheritance into every child Run alongside reserved system audit.* labels.
+  - Derive cloud/local requirements from keys with optional provider/site values; broad cloud with empty value matches every cloud provider. Reject contradictory requirements before mutation.
+  - Shared UI validation, offline-label retention, Workflow launch/repeat, Audit launch and detail projections.
+  - User-requested UI refinement with editable label chips, quick cloud/local additions and concise inheritance feedback.
+  - Rename the existing misleading Runtime placement configuration block, use shared UI components/themes
+    and bump the UI patch version.
+  out:
+  - Separate location selectors, fleet-count inventory, a new configuration catalog, RuntimeConfig bindings for placement labels, per-Stage overrides or changes to started Audit labels.
+requirements:
+- id: R1
+  text: Arbitrary ordinary labels are inherited from the immutable Audit start snapshot. cloud with an empty value derives cloud; cloud=aws derives cloud/aws; local uses the same rule. Other labels never affect placement. No current fleet lookup is required to accept a valid offline requirement.
+- id: R2
+  text: Bound the Audit label map so the child Run retains room for its system audit.* labels; reject reserved-key collisions. Shared fixtures cover extraction and validation, with strict persisted reads and unchanged RuntimeConfig labels.
+failure_outcomes:
+- operation: Placement declaration, selection or observation at the task boundary
+  permanent: Malformed, oversized or inconsistent input is rejected before mutation using the existing
+    invalid_request/400 or registration-conflict/409 classification; no retry.
+  retryable: Reuse subsystem storage_transaction_conflict/503 and existing bounded registration, controller
+    or capacity backoff; read failures never fabricate empty success.
+  ambiguous: Reconcile registration by immutable instance fingerprint and keyed writes through existing
+    request receipts; do not introduce another journal.
+  cancelled: Existing request/controller owner joins in-flight work; no new background worker survives
+    cancellation.
+  timeout: Existing registration/request/controller budgets own calls; capacity waiting does not consume
+    the execution budget before admission.
+cardinality:
+- collection: Placement declarations and launch requirements
+  expected: 1 location path per instance or launch
+  maximum: 32 labels of at most 63 ASCII bytes each
+  bound: Canonical sorted unique arrays, one compatible ancestor chain; no fleet IDs copied into launch
+    snapshots.
+- collection: Inherited Audit metadata
+  expected: Two to five ordinary labels
+  maximum: 28 user labels plus at most four system audit.* labels on every child Run
+  bound: Shared normalization and OpenAPI reject oversized or reserved maps before mutation; trusted Run creation validates the exact inherited snapshot.
+
+lifecycle:
+- entity: Placement labels on existing Runtime incarnations, Runs, Audits or allocations
+  delete: Follow the owning existing entity deletion API and authorization.
+  cascade: No new side-table lifecycle; parent deletion removes its embedded placement data.
+  retention: Runtime declarations live with their incarnation; immutable requirements and allocation provenance
+    live with their owning retained Run/Audit.
+acceptance_criteria:
+- id: A1
+  given: Ordinary Workflow and Audit labels including cloud=aws, local=lab and a selected offline location
+  when: The owner launches, starts, replays, repeats or dispatches later rounds
+  then: Placement derives from labels, all Audit labels reach every child Run, and no started Audit or existing Run changes its snapshot.
+- id: A2
+  given: Too many labels, reserved system keys, contradictory cloud/local values and stale draft revisions
+  when: The forms render at 390 px in light, dark and black themes and submit
+  then: Errors and conflicts are explicit, inherited maps stay within the Run label bound, and UI reports only Server-confirmed state.
+tests:
+- command: make ui-verify
+  covers:
+  - A1
+  - A2
+- command: go test -tags=integration ./internal/contracts/runlabels ./internal/auditservice ./internal/auditcontroller ./internal/auditstore/... ./internal/runservice ./internal/runstore ./internal/controlplane ./internal/httpapi/public
+  covers:
+  - A1
+  - A2
+- command: make verify-public-api
+  covers:
+  - A1
+- command: make lint
+  covers:
+  - A1
+  - A2
+
+implementation_commit: 204fd960cabb30bd467789ffeafe3092092023ae

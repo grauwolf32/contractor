@@ -1,0 +1,287 @@
+package runtimeconfig
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sort"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/credentialerrors"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
+)
+
+// PinnedLabel records the exact mutable binding observation that selected one
+// immutable RuntimeConfig version. Explicit is false only for the mandatory
+// default layer.
+type PinnedLabel struct {
+	Label           string `json:"label"`
+	Explicit        bool   `json:"explicit"`
+	BindingRevision uint64 `json:"bindingRevision"`
+	Config          Ref    `json:"config"`
+}
+
+// RunSnapshot is immutable Run input. Credential identifiers are retained for
+// deletion fencing and allocation-time resolution, but secret material never
+// crosses this boundary.
+type RunSnapshot struct {
+	Default              PinnedLabel   `json:"default"`
+	Labels               []PinnedLabel `json:"labels"`
+	LLMCredentialIDs     []string      `json:"llmCredentialIds"`
+	RuntimeCredentialIDs []string      `json:"runtimeCredentialIds"`
+}
+
+// RunSnapshot's credential members, which an Audit baseline snapshot repeats
+// at its top level. Credential deletion checks and their indexes read them
+// from stored Run and Audit snapshots, so renaming a tag must rename its
+// constant; internal/persistence pins both.
+const (
+	LLMCredentialIDsMember     = "llmCredentialIds"
+	RuntimeCredentialIDsMember = "runtimeCredentialIds"
+)
+
+// NormalizeLabels validates a Runtime label set that a Run selects or a
+// Runtime Agent is given, and returns its canonical order; request order has
+// no meaning. runtimesettings.CanonicalRuntimeLabels defines the set.
+func NormalizeLabels(source []string) ([]string, error) {
+	labels, err := runtimesettings.CanonicalRuntimeLabels(source)
+	if err != nil {
+		return nil, invalid("Runtime labels must be at most %d unique valid labels other than default", runtimesettings.MaxRuntimeLabels)
+	}
+	return labels, nil
+}
+
+// PinRunSnapshot must be called with the owning PostgreSQL transaction and a
+// credential lookup bound through that same transaction. It locks all
+// selected binding rows in lexical order, validates exact immutable versions
+// and same-layer conflicts, then returns a compact safe snapshot for the caller
+// to insert with the WorkflowRun in the same transaction. Exact bodies remain
+// reachable through immutable refs in runtime_config_versions.
+func PinRunSnapshot(
+	ctx context.Context,
+	tx pgx.Tx,
+	explicitLabels []string,
+	runtimeCredentials RuntimeCredentialValidator,
+	llmCredentials TransactionLLMCredentialLookup,
+	modelFree ...bool,
+) (RunSnapshot, error) {
+	if len(modelFree) > 1 {
+		return RunSnapshot{}, invalid("Run RuntimeConfig pinning accepts at most one model-free selection")
+	}
+	labels, err := NormalizeLabels(explicitLabels)
+	if err != nil {
+		return RunSnapshot{}, err
+	}
+	allLabels := append([]string{DefaultLabel}, labels...)
+	if tx == nil {
+		return RunSnapshot{}, invalid("Run RuntimeConfig pinning requires a PostgreSQL transaction")
+	}
+	// A selected label without a binding is a request error: the Run, Audit
+	// or Eval names it, so the request reports ErrUnknownLabel.
+	repository := NewRepository(tx)
+	bindings, err := repository.LockBindings(ctx, allLabels)
+	if errors.Is(err, ErrNotFound) {
+		return RunSnapshot{}, ErrUnknownLabel
+	}
+	if err != nil {
+		return RunSnapshot{}, err
+	}
+	if len(bindings) != len(allLabels) {
+		return RunSnapshot{}, ErrUnknownLabel
+	}
+
+	byLabel := make(map[string]Binding, len(bindings))
+	for _, binding := range bindings {
+		byLabel[binding.Label] = binding
+	}
+	// One statement reads every pinned version, however many labels the Run
+	// selects; versions are immutable, so the locked bindings fix them.
+	versions, err := repository.versionsOfBindings(ctx, bindings)
+	if errors.Is(err, ErrNotFound) {
+		return RunSnapshot{}, ErrUnknownLabel
+	}
+	if err != nil {
+		return RunSnapshot{}, err
+	}
+	result := RunSnapshot{Labels: make([]PinnedLabel, 0, len(labels))}
+	explicitEntries := make([]LayerEntry, 0, len(labels))
+	llmIDs := make(map[string]struct{})
+	runtimeIDs := make(map[string]struct{})
+
+	for _, label := range allLabels {
+		binding, ok := byLabel[label]
+		if !ok {
+			return RunSnapshot{}, ErrUnknownLabel
+		}
+		version := versions[binding.Ref]
+		if len(modelFree) == 1 && modelFree[0] {
+			version.Spec = WithoutWorkerModel(PinnedRuntimeConfig{Spec: version.Spec}).Spec
+		}
+		if validateErr := validateSpecRuntimeCredentials(ctx, version.Spec, runtimeCredentials); validateErr != nil {
+			return RunSnapshot{}, validateErr
+		}
+		if validateErr := validateRunLLMCredential(ctx, version.Spec, llmCredentials); validateErr != nil {
+			return RunSnapshot{}, validateErr
+		}
+		collectCredentialIDs(version.Spec, llmIDs, runtimeIDs)
+		pin := PinnedLabel{
+			Label: label, Explicit: label != DefaultLabel,
+			BindingRevision: binding.Revision, Config: binding.Ref,
+		}
+		if label == DefaultLabel {
+			result.Default = pin
+			continue
+		}
+		result.Labels = append(result.Labels, pin)
+		explicitEntries = append(explicitEntries, LayerEntry{
+			Label: label, Ref: binding.Ref, Spec: version.Spec,
+		})
+	}
+	if _, err := MergeSameLayer(explicitEntries); err != nil {
+		return RunSnapshot{}, err
+	}
+	result.LLMCredentialIDs = sortedSet(llmIDs)
+	result.RuntimeCredentialIDs = sortedSet(runtimeIDs)
+	if err := result.Validate(); err != nil {
+		return RunSnapshot{}, err
+	}
+	return result, nil
+}
+
+func (s RunSnapshot) Validate() error {
+	if s.Default.Label != DefaultLabel || s.Default.Explicit || s.Default.BindingRevision == 0 ||
+		validateRef(s.Default.Config) != nil {
+		return invalid("Run RuntimeConfig snapshot default is invalid")
+	}
+	labels := make([]string, 0, len(s.Labels))
+	for _, pin := range s.Labels {
+		labels = append(labels, pin.Label)
+	}
+	if runtimesettings.ValidateCanonicalRuntimeLabels(labels) != nil {
+		return invalid("Run RuntimeConfig label snapshot is invalid")
+	}
+	for _, pin := range s.Labels {
+		if !pin.Explicit || pin.BindingRevision == 0 || validateRef(pin.Config) != nil {
+			return invalid("Run RuntimeConfig label snapshot is invalid")
+		}
+	}
+	if err := validateCredentialIDSet(s.LLMCredentialIDs, true); err != nil {
+		return err
+	}
+	return validateCredentialIDSet(s.RuntimeCredentialIDs, false)
+}
+
+func (s RunSnapshot) ExplicitLabels() []string {
+	result := make([]string, len(s.Labels))
+	for index := range s.Labels {
+		result[index] = s.Labels[index].Label
+	}
+	return result
+}
+
+func validateRunLLMCredential(
+	ctx context.Context, spec Spec, lookup resolved.CredentialLookup,
+) error {
+	patch := spec.Worker.LLMGateway
+	if !patch.Present || !patch.Credential.Present || patch.Credential.Clear {
+		return nil
+	}
+	if lookup == nil {
+		return invalid("RuntimeConfig LLM credential validator is not configured")
+	}
+	metadata, err := lookup.LookupLLMCredential(ctx, patch.Credential.Value)
+	if err != nil {
+		if contextError := ctx.Err(); contextError != nil {
+			return contextError
+		}
+		if errors.Is(err, credentialerrors.LLMNotFound) {
+			return persistencepostgres.WrapError(
+				"invalid RuntimeConfig: LLM credential is unavailable", errors.Join(ErrInvalid, err),
+			)
+		}
+		return persistencepostgres.WrapError("validate RuntimeConfig LLM credential", err)
+	}
+	if metadata.Ref.CredentialID != patch.Credential.Value {
+		return invalid("RuntimeConfig LLM credential identity does not match")
+	}
+	if patch.Gateway.Present && metadata.LLMGateway != patch.Gateway.Value {
+		return invalid("RuntimeConfig LLM credential is bound to another Gateway")
+	}
+	return nil
+}
+
+func collectCredentialIDs(spec Spec, llm, runtime map[string]struct{}) {
+	if patch := spec.Worker.LLMGateway; patch.Present && patch.Credential.Present && !patch.Credential.Clear {
+		llm[patch.Credential.Value] = struct{}{}
+	}
+	for _, credentialID := range []string{
+		atomicTelemetryCredential(spec.Worker.Telemetry),
+		atomicProxyCredential(spec.Worker.HTTPProxy),
+		atomicCaidoCredential(spec.Worker.Caido),
+		atomicInteractshCredential(spec.Worker.Interactsh),
+		atomicTelemetryCredential(spec.Planner.Telemetry),
+	} {
+		if credentialID != "" {
+			runtime[credentialID] = struct{}{}
+		}
+	}
+}
+
+func atomicTelemetryCredential(value AtomicPatch[TelemetryConfig]) string {
+	if value.Present && !value.Clear {
+		return value.Value.Credential
+	}
+	return ""
+}
+
+func atomicProxyCredential(value AtomicPatch[HTTPProxyConfig]) string {
+	if value.Present && !value.Clear {
+		return value.Value.Credential
+	}
+	return ""
+}
+
+func atomicCaidoCredential(value AtomicPatch[CaidoConfig]) string {
+	if value.Present && !value.Clear {
+		return value.Value.Credential
+	}
+	return ""
+}
+
+func atomicInteractshCredential(value AtomicPatch[InteractshConfig]) string {
+	if value.Present && !value.Clear {
+		return value.Value.Credential
+	}
+	return ""
+}
+
+func sortedSet(source map[string]struct{}) []string {
+	result := make([]string, 0, len(source))
+	for value := range source {
+		result = append(result, value)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func validateCredentialIDSet(values []string, llm bool) error {
+	previous := ""
+	for _, value := range values {
+		valid := validateID("Runtime credential ID", value, 128) == nil
+		if llm {
+			valid = (&llmgateway.LLMCredentialRef{CredentialID: value}).Validate() == nil
+		}
+		if !valid || value <= previous {
+			return invalid("Run RuntimeConfig credential snapshot is invalid")
+		}
+		previous = value
+	}
+	return nil
+}
+
+func (s RunSnapshot) String() string {
+	return fmt.Sprintf("RuntimeConfigSnapshot(default=%s, labels=%d)", s.Default.Config.String(), len(s.Labels))
+}

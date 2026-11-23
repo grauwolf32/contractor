@@ -1,0 +1,392 @@
+{
+  "pairId": "a678e71fd3f4ef1f08d5ef0c085bb7ca16e2ed6832a444577c3a840ba044bc9a",
+  "suiteId": "trace-small",
+  "caseId": "unsafe-query",
+  "sample": 1,
+  "a": {
+    "member": {
+      "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+      "suiteId": "trace-small",
+      "caseId": "unsafe-query",
+      "sample": 1,
+      "variantId": "a",
+      "caseSha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+      "bindingSha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+      "eligibility": "eligible",
+      "reason": null
+    },
+    "execution": {
+      "ref": {
+        "kind": "run",
+        "id": "run-1ead5992"
+      },
+      "state": "succeeded",
+      "startedAt": "2026-09-19T10:00:00Z",
+      "finishedAt": "2026-09-19T10:00:02Z",
+      "reason": null
+    },
+    "resultSha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+    "assessmentSha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+    "conflicting": false,
+    "assessment": "pass",
+    "usage": {
+      "inputTokens": {
+        "value": 80,
+        "unit": "tokens",
+        "completeness": "complete",
+        "sourceRefs": [
+          "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+        ],
+        "scope": {
+          "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+          "kind": "workflow",
+          "executions": [
+            {
+              "kind": "run",
+              "id": "run-1ead5992"
+            }
+          ],
+          "missing": [],
+          "interval": null
+        }
+      },
+      "outputTokens": {
+        "value": 0,
+        "unit": "tokens",
+        "completeness": "complete",
+        "sourceRefs": [
+          "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+        ],
+        "scope": {
+          "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+          "kind": "workflow",
+          "executions": [
+            {
+              "kind": "run",
+              "id": "run-1ead5992"
+            }
+          ],
+          "missing": [],
+          "interval": null
+        }
+      },
+      "totalTokens": {
+        "value": 80,
+        "unit": "tokens",
+        "completeness": "complete",
+        "sourceRefs": [
+          "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+        ],
+        "scope": {
+          "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+          "kind": "workflow",
+          "executions": [
+            {
+              "kind": "run",
+              "id": "run-1ead5992"
+            }
+          ],
+          "missing": [],
+          "interval": null
+        }
+      },
+      "cachedInputTokens": {
+        "value": null,
+        "unit": "tokens",
+        "completeness": "unavailable",
+        "sourceRefs": [],
+        "scope": {
+          "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+          "kind": "workflow",
+          "executions": [
+            {
+              "kind": "run",
+              "id": "run-1ead5992"
+            }
+          ],
+          "missing": [
+            "counter unavailable"
+          ],
+          "interval": null
+        }
+      },
+      "modelCalls": {
+        "value": 1,
+        "unit": "calls",
+        "completeness": "complete",
+        "sourceRefs": [
+          "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+        ],
+        "scope": {
+          "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+          "kind": "workflow",
+          "executions": [
+            {
+              "kind": "run",
+              "id": "run-1ead5992"
+            }
+          ],
+          "missing": [],
+          "interval": null
+        }
+      },
+      "toolCalls": {
+        "value": 0,
+        "unit": "calls",
+        "completeness": "complete",
+        "sourceRefs": [
+          "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+        ],
+        "scope": {
+          "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+          "kind": "workflow",
+          "executions": [
+            {
+              "kind": "run",
+              "id": "run-1ead5992"
+            }
+          ],
+          "missing": [],
+          "interval": null
+        }
+      },
+      "toolFailures": {
+        "value": 0,
+        "unit": "calls",
+        "completeness": "complete",
+        "sourceRefs": [
+          "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+        ],
+        "scope": {
+          "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+          "kind": "workflow",
+          "executions": [
+            {
+              "kind": "run",
+              "id": "run-1ead5992"
+            }
+          ],
+          "missing": [],
+          "interval": null
+        }
+      },
+      "wallMs": {
+        "value": 2000,
+        "unit": "milliseconds",
+        "completeness": "complete",
+        "sourceRefs": [
+          "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+        ],
+        "scope": {
+          "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+          "kind": "workflow",
+          "executions": [
+            {
+              "kind": "run",
+              "id": "run-1ead5992"
+            }
+          ],
+          "missing": [],
+          "interval": {
+            "start": "2026-09-19T10:00:00Z",
+            "end": "2026-09-19T10:00:02Z"
+          }
+        }
+      }
+    }
+  },
+  "b": {
+    "member": {
+      "memberId": "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+      "suiteId": "trace-small",
+      "caseId": "different",
+      "sample": 1,
+      "variantId": "b",
+      "caseSha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+      "bindingSha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+      "eligibility": "eligible",
+      "reason": null
+    },
+    "execution": {
+      "ref": {
+        "kind": "run",
+        "id": "run-d2281c43"
+      },
+      "state": "succeeded",
+      "startedAt": "2026-09-19T10:00:00Z",
+      "finishedAt": "2026-09-19T10:00:02Z",
+      "reason": null
+    },
+    "resultSha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+    "assessmentSha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+    "conflicting": false,
+    "assessment": "pass",
+    "usage": {
+      "inputTokens": {
+        "value": 70,
+        "unit": "tokens",
+        "completeness": "complete",
+        "sourceRefs": [
+          "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+        ],
+        "scope": {
+          "memberId": "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+          "kind": "workflow",
+          "executions": [
+            {
+              "kind": "run",
+              "id": "run-d2281c43"
+            }
+          ],
+          "missing": [],
+          "interval": null
+        }
+      },
+      "outputTokens": {
+        "value": 0,
+        "unit": "tokens",
+        "completeness": "complete",
+        "sourceRefs": [
+          "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+        ],
+        "scope": {
+          "memberId": "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+          "kind": "workflow",
+          "executions": [
+            {
+              "kind": "run",
+              "id": "run-d2281c43"
+            }
+          ],
+          "missing": [],
+          "interval": null
+        }
+      },
+      "totalTokens": {
+        "value": 70,
+        "unit": "tokens",
+        "completeness": "complete",
+        "sourceRefs": [
+          "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+        ],
+        "scope": {
+          "memberId": "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+          "kind": "workflow",
+          "executions": [
+            {
+              "kind": "run",
+              "id": "run-d2281c43"
+            }
+          ],
+          "missing": [],
+          "interval": null
+        }
+      },
+      "cachedInputTokens": {
+        "value": null,
+        "unit": "tokens",
+        "completeness": "unavailable",
+        "sourceRefs": [],
+        "scope": {
+          "memberId": "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+          "kind": "workflow",
+          "executions": [
+            {
+              "kind": "run",
+              "id": "run-d2281c43"
+            }
+          ],
+          "missing": [
+            "counter unavailable"
+          ],
+          "interval": null
+        }
+      },
+      "modelCalls": {
+        "value": 1,
+        "unit": "calls",
+        "completeness": "complete",
+        "sourceRefs": [
+          "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+        ],
+        "scope": {
+          "memberId": "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+          "kind": "workflow",
+          "executions": [
+            {
+              "kind": "run",
+              "id": "run-d2281c43"
+            }
+          ],
+          "missing": [],
+          "interval": null
+        }
+      },
+      "toolCalls": {
+        "value": 0,
+        "unit": "calls",
+        "completeness": "complete",
+        "sourceRefs": [
+          "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+        ],
+        "scope": {
+          "memberId": "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+          "kind": "workflow",
+          "executions": [
+            {
+              "kind": "run",
+              "id": "run-d2281c43"
+            }
+          ],
+          "missing": [],
+          "interval": null
+        }
+      },
+      "toolFailures": {
+        "value": 0,
+        "unit": "calls",
+        "completeness": "complete",
+        "sourceRefs": [
+          "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+        ],
+        "scope": {
+          "memberId": "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+          "kind": "workflow",
+          "executions": [
+            {
+              "kind": "run",
+              "id": "run-d2281c43"
+            }
+          ],
+          "missing": [],
+          "interval": null
+        }
+      },
+      "wallMs": {
+        "value": 2000,
+        "unit": "milliseconds",
+        "completeness": "complete",
+        "sourceRefs": [
+          "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+        ],
+        "scope": {
+          "memberId": "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+          "kind": "workflow",
+          "executions": [
+            {
+              "kind": "run",
+              "id": "run-d2281c43"
+            }
+          ],
+          "missing": [],
+          "interval": {
+            "start": "2026-09-19T10:00:00Z",
+            "end": "2026-09-19T10:00:02Z"
+          }
+        }
+      }
+    }
+  },
+  "exclusions": [],
+  "regression": false
+}

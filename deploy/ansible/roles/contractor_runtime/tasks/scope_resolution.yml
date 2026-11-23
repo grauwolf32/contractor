@@ -1,0 +1,23 @@
+---
+- name: Resolve Podman scope limits privately
+  block:
+    - name: Derive uniform scope limits with the deployed Runtime parser
+      ansible.builtin.command:
+        argv: ["{{ __contractor_runtime_python }}", -I, "{{ contractor_runtime_prefix }}/tools/podman_scope_policy.py"]
+        stdin: "{{ __contractor_runtime_ready | map(attribute='argv') | list | to_json }}"
+      become: true
+      become_user: "{{ contractor_runtime_user }}"
+      changed_when: false
+      register: __contractor_runtime_scope_resolution
+      no_log: true
+
+    - name: Record the validated scope policy
+      no_log: true
+      ansible.builtin.set_fact:
+        __contractor_runtime_scope_policy: "{{ __contractor_runtime_scope_resolution.stdout | from_json }}"
+  rescue:
+    - name: Report the scope resolution failure safely
+      ansible.builtin.fail:
+        msg: >-
+          Podman scope/limits rejected settings or inconsistent instance policies; check the Runtime
+          arguments and common CPU, memory and PID bounds. Raw parser output is withheld.

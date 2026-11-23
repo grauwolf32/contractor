@@ -1,0 +1,421 @@
+package app
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
+	"github.com/grauwolf32/contractor/internal/agentskills"
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func TestPostgresRunSkillInitializerUsesCommittedExactSelection(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedAppPool(t, ctx)
+	workflow := appSkillWorkflow(t)
+	workflowSnapshot, err := json.Marshal(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
+	owner, _ := service.User("owner-1")
+	packageA := appSkillPackage(t, "Package A.")
+	created, err := owner.Write(
+		ctx,
+		artifacts.ArtifactRef{Namespace: contracts.AgentSkillNamespace, Name: "review"},
+		artifacts.Payload{MediaType: agentskills.MediaType, Data: packageA},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
+		store := runstore.NewPostgresStore(tx, artifactpgtest.NewStorage())
+		txService := artifacts.NewService(artifactpgtest.NewStorage().Repository(tx))
+		catalog, _ := agentskills.NewCatalog(txService)
+		refs, err := resolved.WorkflowSkillRefs(workflow)
+		if err != nil {
+			return err
+		}
+		selected, err := catalog.SelectRunSources(ctx, "owner-1", refs)
+		if err != nil {
+			return err
+		}
+		if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
+			LaneClass: resolved.LaneClassModel,
+			RunID:     "run-skill-init", OwnerID: "owner-1",
+			WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
+			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
+			Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
+		}); err != nil {
+			return err
+		}
+		if err := store.SetRunSkillSelections(ctx, "run-skill-init", selected); err != nil {
+			return err
+		}
+		return catalog.RequireRunSources(ctx, "owner-1", selected)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	packageB := appSkillPackage(t, "Package B.")
+	if _, err := owner.Write(
+		ctx,
+		artifacts.ArtifactRef{Namespace: contracts.AgentSkillNamespace, Name: "review"},
+		artifacts.Payload{MediaType: agentskills.MediaType, Data: packageB},
+		created.Ref.Revision,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	initializer := &runSkillInitializer{storage: artifactpgtest.NewStorage(), pool: pool}
+	initialized, err := initializer.InitializeRunSkills(ctx, "run-skill-init")
+	if err != nil || initialized.State != runstore.RunPending ||
+		len(initialized.SkillSnapshot) != 1 || initialized.SkillSnapshot[0].Artifact == nil ||
+		initialized.SkillSnapshot[0].Source == nil ||
+		*initialized.SkillSnapshot[0].Source.Revision != *created.Ref.Revision {
+		t.Fatalf("initialized Run = (%+v, %v)", initialized, err)
+	}
+	run, _ := service.Run("run-skill-init")
+	forked, err := run.Read(ctx, *initialized.SkillSnapshot[0].Artifact)
+	if err != nil || string(forked.Payload.Data) != string(packageA) {
+		t.Fatalf("pinned Run package = (%d bytes, %v)", len(forked.Payload.Data), err)
+	}
+	lineage, err := run.ListLineage(
+		ctx, *initialized.SkillSnapshot[0].Artifact, artifacts.LineagePageQuery{Limit: 10},
+	)
+	if err != nil || len(lineage) != 1 || lineage[0].Source.Revision == nil ||
+		*lineage[0].Source.Revision != *created.Ref.Revision {
+		t.Fatalf("Run Skill lineage = (%+v, %v)", lineage, err)
+	}
+	replayed, err := initializer.InitializeRunSkills(ctx, "run-skill-init")
+	if err != nil || replayed.State != runstore.RunPending ||
+		replayed.SkillSnapshot[0].Artifact == nil ||
+		*replayed.SkillSnapshot[0].Artifact.Revision != *initialized.SkillSnapshot[0].Artifact.Revision ||
+		*replayed.SkillSnapshot[0].Source.Revision != *created.Ref.Revision {
+		t.Fatalf("post-commit response-loss replay = (%+v, %v)", replayed, err)
+	}
+}
+
+func TestPostgresRunSkillInitializerRollsBackInvalidSetAndDoesNotBlockAnotherRun(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedAppPool(t, ctx)
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
+	owner, _ := service.User("owner-1")
+	validPayload := appSkillPackageForName(t, "alpha", "Valid package.")
+	valid, err := owner.Write(
+		ctx,
+		artifacts.ArtifactRef{Namespace: contracts.AgentSkillNamespace, Name: "alpha"},
+		artifacts.Payload{MediaType: agentskills.MediaType, Data: validPayload},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalidCanary := "invalid-skill-content-recognizable-canary"
+	if _, err := owner.Write(
+		ctx,
+		artifacts.ArtifactRef{Namespace: contracts.AgentSkillNamespace, Name: "omega-invalid"},
+		artifacts.Payload{MediaType: agentskills.MediaType, Data: []byte(invalidCanary)},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	invalidWorkflow := appSkillWorkflowWithNames(t, "alpha", "omega-invalid")
+	createAppSkillRunSelection(t, ctx, pool, invalidWorkflow, "run-invalid-skills")
+	initializer := &runSkillInitializer{storage: artifactpgtest.NewStorage(), pool: pool}
+	failed, err := initializer.InitializeRunSkills(ctx, "run-invalid-skills")
+	if err != nil || failed.State != runstore.RunFailed ||
+		failed.StateReason.Code != agentskills.CodeArchiveInvalid ||
+		failed.StateReason.Message != "skills/omega-invalid" ||
+		strings.Contains(failed.StateReason.Message, invalidCanary) {
+		t.Fatalf("invalid Skill Run termination = (%+v, %v)", failed, err)
+	}
+	var partialForks int
+	if err := pool.QueryRow(ctx, `
+SELECT count(*)
+FROM artifact_binding_revisions
+WHERE scope_kind = 'run' AND scope_id = 'run-invalid-skills'
+  AND namespace = 'skills'`).Scan(&partialForks); err != nil {
+		t.Fatal(err)
+	}
+	if partialForks != 0 {
+		t.Fatalf("invalid package set committed %d partial Run Skill forks", partialForks)
+	}
+
+	validWorkflow := appSkillWorkflowWithNames(t, "alpha")
+	createAppSkillRunSelection(t, ctx, pool, validWorkflow, "run-valid-after-invalid")
+	running, err := initializer.InitializeRunSkills(ctx, "run-valid-after-invalid")
+	if err != nil || running.State != runstore.RunPending ||
+		len(running.SkillSnapshot) != 1 || running.SkillSnapshot[0].Source == nil ||
+		valid.Ref.Revision == nil || *running.SkillSnapshot[0].Source.Revision != *valid.Ref.Revision {
+		t.Fatalf("unrelated valid Run after invalid package = (%+v, %v)", running, err)
+	}
+}
+
+// A Run's Skill sources are a lenient holder (DEL-R63): a Run may commit a
+// selection whose exact revision history retention already removed. Its
+// initialization fails the Run once with the permanent
+// skill_artifact_not_found (RUN-R27) before any StageExecution exists, instead
+// of leaving it initializing behind the retryable skill_artifact_unavailable.
+func TestPostgresRunSkillInitializerFailsRunWhosePinnedSourceIsGone(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedAppPool(t, ctx)
+	policy, err := artifactpostgres.NewHistoryPolicy(artifactpostgres.HistoryRevisionsFloor, artifactpostgres.HistoryBytesFloor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifactHistory = policy
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	workflow := appSkillWorkflow(t)
+	workflowSnapshot, err := json.Marshal(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	refs, err := resolved.WorkflowSkillRefs(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := artifacts.NewService(artifactStorage.Repository(pool))
+	owner, _ := service.User("owner-1")
+	binding := artifacts.ArtifactRef{Namespace: contracts.AgentSkillNamespace, Name: "review"}
+	pinned, err := owner.Write(
+		ctx, binding, artifacts.Payload{MediaType: agentskills.MediaType, Data: appSkillPackage(t, "Pinned.")}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, _ := agentskills.NewCatalog(service)
+	selected, err := catalog.SelectRunSources(ctx, "owner-1", refs)
+	if err != nil || len(selected) != 1 || selected[0].Source == nil ||
+		*selected[0].Source.Revision != *pinned.Ref.Revision {
+		t.Fatalf("selected Skill source = (%+v, %v)", selected, err)
+	}
+	// Two newer revisions push the pinned one out of the binding's retained
+	// history before any holder names it.
+	current := pinned.Ref.Revision
+	for _, description := range []string{"Newer.", "Newest."} {
+		written, err := owner.Write(
+			ctx, binding, artifacts.Payload{MediaType: agentskills.MediaType, Data: appSkillPackage(t, description)},
+			current,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		current = written.Ref.Revision
+	}
+	if _, err := owner.Read(ctx, artifacts.ArtifactRef(*selected[0].Source)); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+		t.Fatalf("read of the removed pinned revision = %v, want not found", err)
+	}
+	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
+		store := runstore.NewPostgresStore(tx, artifactStorage)
+		if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
+			LaneClass: resolved.LaneClassModel,
+			RunID:     "run-source-gone", OwnerID: "owner-1",
+			WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
+			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
+			Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
+		}); err != nil {
+			return err
+		}
+		return store.SetRunSkillSelections(ctx, "run-source-gone", selected)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	initializer := &runSkillInitializer{storage: artifactStorage, pool: pool}
+	for attempt := range 2 {
+		failed, err := initializer.InitializeRunSkills(ctx, "run-source-gone")
+		if err != nil || failed.State != runstore.RunFailed ||
+			failed.StateReason.Code != agentskills.CodeArtifactNotFound ||
+			failed.StateReason.Message != "skills/review" {
+			t.Fatalf("initialization attempt %d of a Run whose pinned source is gone = (%s %+v, %v)",
+				attempt, failed.State, failed.StateReason, err)
+		}
+	}
+	var stageExecutions, forks int
+	if err := pool.QueryRow(ctx, `
+SELECT (SELECT count(*) FROM stage_executions WHERE run_id = 'run-source-gone'),
+       (SELECT count(*) FROM artifact_binding_revisions
+        WHERE scope_kind = 'run' AND scope_id = 'run-source-gone' AND namespace = 'skills')`).
+		Scan(&stageExecutions, &forks); err != nil {
+		t.Fatal(err)
+	}
+	if stageExecutions != 0 || forks != 0 {
+		t.Fatalf("failed initialization left %d StageExecutions and %d Skill forks", stageExecutions, forks)
+	}
+}
+
+func appSkillWorkflow(t *testing.T) resolved.ResolvedWorkflow {
+	return appSkillWorkflowWithNames(t, "review")
+}
+
+func appSkillWorkflowWithNames(t *testing.T, names ...string) resolved.ResolvedWorkflow {
+	t.Helper()
+	root := copyAppConfigTree(t)
+	path := filepath.Join(root, "agent-templates", "artifact_builder.yaml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var selection strings.Builder
+	selection.WriteString("  skills:\n")
+	for _, name := range names {
+		selection.WriteString("    - {namespace: skills, name: ")
+		selection.WriteString(name)
+		selection.WriteString("}\n")
+	}
+	selection.WriteString("  sandboxProfile: local-workdir@1\n")
+	data = bytes.Replace(
+		data,
+		[]byte("  sandboxProfile: local-workdir@1\n"),
+		[]byte(selection.String()),
+		1,
+	)
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return workflow
+}
+
+func appSkillPackage(t *testing.T, description string) []byte {
+	return appSkillPackageForName(t, "review", description)
+}
+
+func appSkillPackageForName(t *testing.T, name, description string) []byte {
+	t.Helper()
+	directory := filepath.Join(t.TempDir(), name)
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	document := "---\nname: " + name + "\ndescription: " + description + "\n---\n# Review\n"
+	if err := os.WriteFile(filepath.Join(directory, "SKILL.md"), []byte(document), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	payload, _, err := agentskills.PackageDirectory(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return payload
+}
+
+func createAppSkillRunSelection(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	workflow resolved.ResolvedWorkflow,
+	runID string,
+) {
+	t.Helper()
+	workflowSnapshot, err := json.Marshal(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
+		store := runstore.NewPostgresStore(tx, artifactpgtest.NewStorage())
+		catalog, err := agentskills.NewCatalog(
+			artifacts.NewService(artifactpgtest.NewStorage().Repository(tx)),
+		)
+		if err != nil {
+			return err
+		}
+		refs, err := resolved.WorkflowSkillRefs(workflow)
+		if err != nil {
+			return err
+		}
+		selected, err := catalog.SelectRunSources(ctx, "owner-1", refs)
+		if err != nil {
+			return err
+		}
+		if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
+			LaneClass: resolved.LaneClassModel,
+			RunID:     runID, OwnerID: "owner-1",
+			WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
+			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
+			Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
+		}); err != nil {
+			return err
+		}
+		if err := store.SetRunSkillSelections(ctx, runID, selected); err != nil {
+			return err
+		}
+		return catalog.RequireRunSources(ctx, "owner-1", selected)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func copyAppConfigTree(t *testing.T) string {
+	t.Helper()
+	source := filepath.Clean("../config/testdata/valid")
+	target := filepath.Join(t.TempDir(), "configs")
+	err := filepath.WalkDir(source, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		relative, err := filepath.Rel(source, path)
+		if err != nil {
+			return err
+		}
+		destination := filepath.Join(target, relative)
+		if entry.IsDir() {
+			return os.MkdirAll(destination, 0o755)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(destination, data, 0o644)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return target
+}
+
+func isolatedAppPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
+	t.Helper()
+	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{})
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
+		t.Fatal(err)
+	}
+	return pool
+}

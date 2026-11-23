@@ -1,0 +1,673 @@
+package findingintake
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"slices"
+	"sort"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/findinganalysis"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+type CollectionPublisher struct {
+	storage *artifactpostgres.Storage
+
+	pool    *pgxpool.Pool
+	reviews CollectionFindings
+}
+
+func NewCollectionPublisher(pool *pgxpool.Pool, reviews CollectionFindings, storage *artifactpostgres.Storage) (*CollectionPublisher, error) {
+	if storage == nil || pool == nil || reviews == nil {
+		return nil, errors.New("finding collection dependencies are incomplete")
+	}
+	return &CollectionPublisher{storage: storage, pool: pool, reviews: reviews}, nil
+}
+
+// collectionObserver consumes one receipt after exact-byte and optional analysis
+// validation, in the same repeatable-read capture as the collection selection.
+type collectionObserver func(Receipt, auditdomain.FindingProposal, auditdomain.FindingCollectionDocument, []auditdomain.FindingCollectionDocument, map[string]auditdomain.FindingCollectionDocument, map[string][]byte, map[string]*artifacts.GitSource, *findinganalysis.Resolved) error
+
+type collectionPublication struct {
+	Schema        string        `json:"schema"`
+	RequestDigest string        `json:"request_digest"`
+	Artifact      ExactArtifact `json:"artifact"`
+}
+
+// PublishCollection captures an explicitly enumerated selection and publishes
+// its complete ZIP and replay receipt in one Artifact-plane transaction.
+// Published snapshots replay before consulting mutable or deleted sources.
+func (p *CollectionPublisher) PublishCollection(ctx context.Context, params PublishCollectionParams) (PublishedCollection, error) {
+	return p.publishCollection(ctx, params, nil)
+}
+
+func (p *CollectionPublisher) publishCollection(ctx context.Context, params PublishCollectionParams, allocation *controlplane.AllocationGrant) (PublishedCollection, error) {
+	request, requestDigest, err := canonicalCollectionRequest(params.Request)
+	if err != nil {
+		return PublishedCollection{}, err
+	}
+	if params.OwnerID == "" {
+		return PublishedCollection{}, ErrInvalid
+	}
+	artifactNamespace := CollectionNamespace
+	if allocation != nil {
+		artifactNamespace = allocation.Namespace
+	}
+	var result PublishedCollection
+	err = postgres.InTxWithRetry(ctx, p.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
+		result = PublishedCollection{}
+		// A competing transaction may have taken its snapshot before this
+		// lock was released; InTxWithRetry replays PostgreSQL's serialization error.
+		scopeKey := params.OwnerID
+		if allocation != nil {
+			scopeKey = "run:" + allocation.RunID
+		}
+		key := postgres.NewAdvisoryKey("finding-collection", scopeKey, request.ClientKey)
+		if err := postgres.LockAdvisory(ctx, tx, key); err != nil {
+			return err
+		}
+		service := artifacts.NewService(p.storage.Repository(tx))
+		user, err := service.User(params.OwnerID)
+		if allocation != nil {
+			owner, project, accessErr := p.allocationReaderContext(ctx, tx, *allocation, "select_project_findings")
+			if accessErr != nil {
+				return accessErr
+			}
+			if owner != params.OwnerID || len(request.Sources) != 1 || request.Sources[0].Kind != "project" || request.Sources[0].ID != project {
+				return ErrAccessDenied
+			}
+			user, err = service.Run(allocation.RunID)
+		}
+		if err != nil {
+			return err
+		}
+		if replay, found, err := readCollectionReplay(ctx, user, request.ClientKey, requestDigest, artifactNamespace); err != nil || found {
+			result = replay
+			return err
+		}
+		var captured time.Time
+		if err := tx.QueryRow(ctx, `SELECT transaction_timestamp()`).Scan(&captured); err != nil {
+			return err
+		}
+		value, contents, err := p.captureCollection(ctx, tx, params.OwnerID, request, captured, nil)
+		if err != nil {
+			return err
+		}
+		payload, err := auditdomain.BuildFindingCollectionPackage(value, contents)
+		if err != nil {
+			return err
+		}
+		write := func(ref contracts.ArtifactRef, payload artifacts.Payload) (artifacts.WriteResult, error) {
+			if allocation != nil {
+				scope, err := artifacts.RunScope(allocation.RunID)
+				if err != nil {
+					return artifacts.WriteResult{}, err
+				}
+				return service.CreateFrozen(ctx, scope, ref, payload)
+			}
+			return user.Write(ctx, ref, payload, nil)
+		}
+		written, err := write(contracts.ArtifactRef{Namespace: CollectionNamespace, Name: request.ClientKey},
+			artifacts.Payload{MediaType: resolved.FindingCollectionMediaType, Data: payload})
+		if err != nil {
+			return err
+		}
+		exact := ExactArtifact{Ref: written.Ref, Digest: auditdomain.DigestBytes(payload), MediaType: written.MediaType, SizeBytes: written.Size}
+		if allocation != nil {
+			scope, err := artifacts.RunScope(allocation.RunID)
+			if err != nil {
+				return err
+			}
+			// The ordinary Stage output must belong to its assigned Agent.
+			// Fork the same immutable version; do not copy package bytes.
+			if forked, err := service.Fork(ctx, artifacts.Fork{Kind: artifacts.LineageContextProjection,
+				Source: scope, SourceRef: written.Ref, Target: scope,
+				TargetRef: contracts.ArtifactRef{Namespace: allocation.Namespace, Name: request.ClientKey}, Frozen: true}); err != nil {
+				return err
+			} else {
+				exact.Ref = forked.TargetRef
+			}
+		}
+		receipt, err := json.Marshal(collectionPublication{Schema: collectionPublicationSchema, RequestDigest: requestDigest, Artifact: exact})
+		if err != nil {
+			return err
+		}
+		if _, err := write(contracts.ArtifactRef{Namespace: CollectionReceiptNamespace, Name: request.ClientKey},
+			artifacts.Payload{MediaType: "application/json", Data: receipt}); err != nil {
+			return err
+		}
+		result = PublishedCollection{Artifact: exact, SnapshotAt: value.SnapshotAt, EntryCount: len(value.Entries)}
+		return nil
+	})
+	if allocation != nil && (errors.Is(err, artifacts.ErrAuditArtifactCollision) || errors.Is(err, artifacts.ErrArtifactConflict) || errors.Is(err, artifacts.ErrArtifactFrozen)) {
+		return PublishedCollection{}, ErrConflict
+	}
+	if err != nil {
+		// A transaction conflict that outlasts the retries stays one: the
+		// caller reports it as the retryable storage_transaction_conflict
+		// (PER-R16).
+		return PublishedCollection{}, err
+	}
+	return result, nil
+}
+
+func readCollectionReplay(ctx context.Context, user artifacts.ScopedStore, key, requestDigest, artifactNamespace string) (PublishedCollection, bool, error) {
+	receiptRef := contracts.ArtifactRef{Namespace: CollectionReceiptNamespace, Name: key}
+	receiptMetadata, err := user.Metadata(ctx, receiptRef)
+	if errors.Is(err, artifacts.ErrArtifactNotFound) {
+		// An orphan/caller-created target must not be mistaken for an absent
+		// publication and overwritten. Only the paired receipt proves replay.
+		_, targetErr := user.Metadata(ctx, contracts.ArtifactRef{Namespace: CollectionNamespace, Name: key})
+		if errors.Is(targetErr, artifacts.ErrArtifactNotFound) {
+			return PublishedCollection{}, false, nil
+		}
+		if targetErr != nil {
+			return PublishedCollection{}, false, targetErr
+		}
+		return PublishedCollection{}, false, ErrConflict
+	}
+	if err != nil {
+		return PublishedCollection{}, false, err
+	}
+	if receiptMetadata.MediaType != "application/json" || receiptMetadata.Size > 4096 {
+		return PublishedCollection{}, false, ErrConflict
+	}
+	read, err := user.Read(ctx, receiptMetadata.Ref)
+	if err != nil {
+		return PublishedCollection{}, false, err
+	}
+	var receipt collectionPublication
+	if read.Payload.MediaType != "application/json" || len(read.Payload.Data) > 4096 || strictjson.Decode(read.Payload.Data, &receipt) != nil ||
+		receipt.Schema != collectionPublicationSchema || receipt.Artifact.Ref.ValidateExact() != nil ||
+		receipt.Artifact.Ref.Namespace != artifactNamespace || receipt.Artifact.Ref.Name != key || receipt.Artifact.MediaType != resolved.FindingCollectionMediaType ||
+		receipt.Artifact.SizeBytes <= 0 || receipt.Artifact.SizeBytes > auditdomain.MaximumArchiveBytes {
+		return PublishedCollection{}, false, ErrConflict
+	}
+	if receipt.RequestDigest != requestDigest {
+		return PublishedCollection{}, false, ErrCollectionKeyConflict
+	}
+	metadata, err := user.Metadata(ctx, receipt.Artifact.Ref)
+	if err != nil {
+		return PublishedCollection{}, false, err
+	}
+	if metadata.Digest != receipt.Artifact.Digest || metadata.MediaType != receipt.Artifact.MediaType || metadata.Size != receipt.Artifact.SizeBytes {
+		return PublishedCollection{}, false, blob.ErrIntegrity
+	}
+	zip, err := user.Read(ctx, receipt.Artifact.Ref)
+	if err != nil {
+		return PublishedCollection{}, false, err
+	}
+	value, pkg, err := auditdomain.DecodeFindingCollectionPackage(zip.Payload.Data)
+	if err != nil {
+		return PublishedCollection{}, false, err
+	}
+	if pkg.Digest != receipt.Artifact.Digest {
+		return PublishedCollection{}, false, blob.ErrIntegrity
+	}
+	return PublishedCollection{Artifact: receipt.Artifact, SnapshotAt: value.SnapshotAt, EntryCount: len(value.Entries), Replayed: true}, true, nil
+}
+
+// captureCollection reads the selection with a fixed number of statements
+// per source and per publication, never per entry: one authorization of
+// every source, one receipt authorization per source (after one expansion of
+// an Audit source's selected findings, FND-R159), then the selected
+// receipts, their holds, the Audits of those holds and the source Runs in one
+// statement each, and the documents in exact-read batches.
+func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, ownerID string, request PublishCollectionRequest, captured time.Time, observe collectionObserver) (auditdomain.FindingCollection, map[string][]byte, error) {
+	value := auditdomain.FindingCollection{
+		Schema: auditdomain.FindingCollectionSchema, SnapshotAt: captured.UTC().Format(time.RFC3339Nano),
+		Sources: []auditdomain.FindingCollectionSource{}, Entries: []auditdomain.FindingCollectionEntry{}, Documents: []auditdomain.FindingCollectionDocument{},
+	}
+	fail := func(err error) (auditdomain.FindingCollection, map[string][]byte, error) {
+		return auditdomain.FindingCollection{}, nil, err
+	}
+	sources, err := authorizedCollectionSources(ctx, tx, ownerID, request.Sources)
+	if err != nil {
+		return fail(err)
+	}
+	selected := make(map[string]bool)
+	// requestingAudits names, per receipt, the Audit sources that selected it.
+	selectedSources := make(map[string][]auditdomain.FindingCollectionSource)
+	for _, source := range request.Sources {
+		value.Sources = append(value.Sources, auditdomain.FindingCollectionSource{Kind: source.Kind, ID: source.ID})
+		if !sources[collectionSourceKey(source.Kind, source.ID)] {
+			return fail(ErrNotFound)
+		}
+		ids := append([]string{}, source.ReceiptIDs...)
+		if (source.Kind == "audit" || source.Kind == "project") && len(source.Findings) != 0 {
+			var contributing []string
+			var err error
+			if source.Kind == "audit" {
+				contributing, err = p.reviews.SelectCollectionFindings(ctx, tx, ownerID, source.ID, source.Findings)
+			} else {
+				selections := make([]auditstore.FindingRevision, len(source.Findings))
+				for i, f := range source.Findings {
+					selections[i] = auditstore.FindingRevision{FindingID: f.FindingID, Revision: f.Revision}
+				}
+				contributing, err = querystore.New(tx, p.storage).CollectionReceiptIDs(ctx, ownerID, source.ID, selections, "project")
+				err = collectionStoreError(err)
+			}
+			if err != nil {
+				return fail(err)
+			}
+			ids = append(ids, contributing...)
+		}
+		if len(ids) > auditdomain.MaximumCollectionEntries*2 {
+			return fail(ErrInvalid)
+		}
+		allowed, err := authorizedCollectionReceipts(ctx, tx, ownerID, source, ids)
+		if err != nil {
+			return fail(err)
+		}
+		for _, id := range ids {
+			if !allowed[id] {
+				return fail(ErrNotFound)
+			}
+			selected[id] = true
+			if !slices.Contains(selectedSources[id], auditdomain.FindingCollectionSource{Kind: source.Kind, ID: source.ID}) {
+				selectedSources[id] = append(selectedSources[id], auditdomain.FindingCollectionSource{Kind: source.Kind, ID: source.ID})
+			}
+			if len(selected) > auditdomain.MaximumCollectionEntries {
+				return fail(fmt.Errorf("%w: expanded collection selection limit", ErrInvalid))
+			}
+		}
+	}
+	ids := make([]string, 0, len(selected))
+	for id := range selected {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	reviews := map[string]*auditdomain.FindingCollectionFinding{}
+	if observe == nil {
+		reviews, err = p.reviews.ReadCollectionFindings(ctx, tx, ownerID, ids)
+		if err != nil {
+			return fail(err)
+		}
+	}
+	auditScope := ""
+	if observe != nil {
+		if len(request.Sources) != 1 || request.Sources[0].Kind != "audit" {
+			return fail(ErrInvalid)
+		}
+		auditScope = request.Sources[0].ID
+	}
+	if len(request.Sources) == 1 && request.Sources[0].Kind == "project" {
+		auditScope = "project"
+	}
+	receipts, err := readCollectionReceipts(ctx, tx, ownerID, ids, auditScope)
+	if err != nil {
+		return fail(err)
+	}
+	holdAudits, err := collectionHoldAudits(ctx, tx, ownerID, receipts)
+	if err != nil {
+		return fail(err)
+	}
+	liveRuns := make([]CollectionSelection, 0)
+	seenRuns := make(map[string]bool)
+	for _, id := range ids {
+		if origin := receipts[id].Origin; !origin.RunDeleted && !seenRuns[origin.RunID] {
+			seenRuns[origin.RunID] = true
+			liveRuns = append(liveRuns, CollectionSelection{Kind: "run", ID: origin.RunID})
+		}
+	}
+	runs, err := authorizedCollectionSources(ctx, tx, ownerID, liveRuns)
+	if err != nil {
+		return fail(err)
+	}
+	builder := collectionDocuments{
+		repository: p.storage.Repository(tx),
+		documents:  map[string]auditdomain.FindingCollectionDocument{}, contents: map[string][]byte{}, git: map[string]*artifacts.GitSource{},
+	}
+	planned := make([]plannedCollectionEntry, 0, len(ids))
+	for _, id := range ids {
+		receipt := receipts[id]
+		entry := auditdomain.FindingCollectionEntry{
+			ReceiptID: receipt.ReceiptID, ProposalID: receipt.ProposalID, RunID: receipt.Origin.RunID, InvocationID: receipt.Origin.InvocationID,
+			SelectedSources: selectedSources[id], Retention: string(receipt.Retention), Evidence: []auditdomain.FindingCollectionEvidence{}, Finding: reviews[id],
+		}
+		if receipt.Origin.Audit != nil {
+			origin := receipt.Origin.Audit
+			entry.AuditOrigin = &auditdomain.FindingCollectionAuditOrigin{AuditID: origin.AuditID, ExecutionID: origin.ExecutionID, TaskID: origin.TaskID, Hypothesis: origin.Hypothesis}
+		}
+		// Retained copies remain usable after the source Run is deleted. Check
+		// ownership of each hold rather than interpreting scoped JSON as a grant.
+		holds := []AuditHold{}
+		for _, hold := range receipt.AuditHolds {
+			if project, owned := holdAudits[hold.AuditID]; owned && project == hold.ProjectID {
+				holds = append(holds, hold)
+				entry.AuditHolds = append(entry.AuditHolds, hold.AuditID)
+			}
+		}
+		sort.Strings(entry.AuditHolds)
+		sort.Slice(holds, func(i, j int) bool { return holds[i].AuditID < holds[j].AuditID })
+		scope := auditdomain.FindingCollectionSource{Kind: "run", ID: receipt.Origin.RunID}
+		proposal, evidence := receipt.Proposal, receipt.Evidence
+		if !receipt.Origin.RunDeleted && !runs[collectionSourceKey("run", receipt.Origin.RunID)] {
+			return fail(ErrNotFound)
+		}
+		if receipt.ProjectProposal != nil && receipt.ProjectID != nil {
+			scope = auditdomain.FindingCollectionSource{Kind: "project", ID: *receipt.ProjectID}
+			proposal, evidence = *receipt.ProjectProposal, receipt.ProjectEvidence
+		} else if receipt.Origin.RunDeleted {
+			return fail(ErrNotFound)
+		}
+		if !sameCollectionContent(proposal, receipt.Proposal) || len(evidence) != len(receipt.Evidence) {
+			return fail(blob.ErrIntegrity)
+		}
+		if receipt.Origin.Audit != nil && receipt.Origin.Audit.HypothesisSnapshot != nil {
+			if receipt.ProjectID == nil || entry.AuditOrigin == nil {
+				return fail(blob.ErrIntegrity)
+			}
+			entry.AuditOrigin.HypothesisSnapshotDocumentID, err = builder.add(auditdomain.FindingCollectionSource{Kind: "project", ID: *receipt.ProjectID}, *receipt.Origin.Audit.HypothesisSnapshot)
+			if err != nil {
+				return fail(err)
+			}
+		}
+		entry.ProposalDocumentID, err = builder.add(scope, proposal)
+		if err != nil {
+			return fail(err)
+		}
+		documentIDs := make([]string, len(evidence))
+		for i, item := range evidence {
+			if !sameCollectionContent(item, receipt.Evidence[i]) {
+				return fail(blob.ErrIntegrity)
+			}
+			if documentIDs[i], err = builder.add(scope, item); err != nil {
+				return fail(err)
+			}
+		}
+		planned = append(planned, plannedCollectionEntry{entry: entry, clientKey: receipt.ClientKey, evidenceDocumentIDs: documentIDs})
+	}
+	if err := builder.read(ctx); err != nil {
+		return fail(err)
+	}
+	var analysisResolver findinganalysis.Resolver
+	for _, plan := range planned {
+		entry := plan.entry
+		decoded, err := auditdomain.DecodeFindingProposal(builder.contents[entry.ProposalDocumentID])
+		if err != nil || decoded.ClientKey != plan.clientKey || len(decoded.EvidenceIDs) != len(plan.evidenceDocumentIDs) {
+			return fail(blob.ErrIntegrity)
+		}
+		for i, documentID := range plan.evidenceDocumentIDs {
+			if decoded.EvidenceIDs[i] != fmt.Sprintf("evidence-%d", i+1) {
+				return fail(blob.ErrIntegrity)
+			}
+			entry.Evidence = append(entry.Evidence, auditdomain.FindingCollectionEvidence{EvidenceID: decoded.EvidenceIDs[i], DocumentID: documentID})
+		}
+		evidenceDocuments := make([]auditdomain.FindingCollectionDocument, 0, len(plan.evidenceDocumentIDs))
+		origins := make(map[string]auditdomain.FindingCollectionDocument, len(plan.evidenceDocumentIDs))
+		receipt := receipts[entry.ReceiptID]
+		for index, id := range plan.evidenceDocumentIDs {
+			evidenceDocuments = append(evidenceDocuments, builder.documents[id])
+			exact := receipt.Evidence[index]
+			origin := auditdomain.FindingCollectionDocument{Scope: auditdomain.FindingCollectionSource{Kind: "run", ID: receipt.Origin.RunID}, Ref: exact.Ref, Digest: exact.Digest, MediaType: exact.MediaType, SizeBytes: exact.SizeBytes}
+			origin.ID, err = auditdomain.FindingCollectionDocumentID(origin)
+			if err != nil {
+				return fail(err)
+			}
+			origins[id] = origin
+		}
+		analysis, err := analysisResolver.Resolve(ctx, decoded.ClientKey, evidenceDocuments, builder.contents, origins)
+		if err != nil {
+			return fail(err)
+		}
+		if observe != nil {
+			if err := observe(receipt, decoded, builder.documents[entry.ProposalDocumentID], evidenceDocuments, origins, builder.contents, builder.git, analysis); err != nil {
+				return fail(err)
+			}
+		}
+		sort.Slice(entry.Evidence, func(i, j int) bool { return entry.Evidence[i].EvidenceID < entry.Evidence[j].EvidenceID })
+		value.Entries = append(value.Entries, entry)
+	}
+	for _, doc := range builder.documents {
+		value.Documents = append(value.Documents, doc)
+	}
+	sort.Slice(value.Documents, func(i, j int) bool { return value.Documents[i].ID < value.Documents[j].ID })
+	return value, builder.contents, nil
+}
+
+// plannedCollectionEntry is an entry whose documents are planned but not yet
+// read: the proposal is checked against its receipt once every document of
+// the publication has been read.
+type plannedCollectionEntry struct {
+	entry               auditdomain.FindingCollectionEntry
+	clientKey           string
+	evidenceDocumentIDs []string
+}
+
+// requestedAuditHold returns the hold of the first requesting Audit in the
+// AuditID-ordered holds, so the published copy is deterministic.
+
+func collectionSourceKey(kind, id string) string {
+	return kind + "\x00" + id
+}
+
+// authorizedCollectionSources returns, keyed by collectionSourceKey, the
+// sources among selections that the owner may read: its Runs and Audits.
+func authorizedCollectionSources(ctx context.Context, tx pgx.Tx, ownerID string, selections []CollectionSelection) (map[string]bool, error) {
+	allowed := make(map[string]bool, len(selections))
+	if len(selections) == 0 {
+		return allowed, nil
+	}
+	kinds, ids := make([]string, len(selections)), make([]string, len(selections))
+	for index, selection := range selections {
+		kinds[index], ids[index] = selection.Kind, selection.ID
+	}
+	rows, err := tx.Query(ctx, authorizedCollectionSourcesSQL, ownerID, kinds, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var kind, id string
+		if err := rows.Scan(&kind, &id); err != nil {
+			return nil, err
+		}
+		allowed[collectionSourceKey(kind, id)] = true
+	}
+	return allowed, rows.Err()
+}
+
+// authorizedCollectionReceipts returns the receipts among ids that the owner
+// may select through source.
+func authorizedCollectionReceipts(ctx context.Context, tx pgx.Tx, ownerID string, source CollectionSelection, ids []string) (map[string]bool, error) {
+	allowed := make(map[string]bool, len(ids))
+	if len(ids) == 0 {
+		return allowed, nil
+	}
+	rows, err := tx.Query(ctx, authorizedCollectionReceiptsSQL, ownerID, ids, source.Kind, source.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		allowed[id] = true
+	}
+	return allowed, rows.Err()
+}
+
+// readCollectionReceipts reads the selected receipts of the owner with every
+// Audit hold of each.
+func readCollectionReceipts(ctx context.Context, tx pgx.Tx, ownerID string, ids []string, auditScope string) (map[string]Receipt, error) {
+	receipts := make(map[string]Receipt, len(ids))
+	if len(ids) == 0 {
+		return receipts, nil
+	}
+	rows, err := tx.Query(ctx, readCollectionReceiptsSQL, ids, ownerID)
+	if err != nil {
+		return nil, fmt.Errorf("read selected finding receipts: %w", err)
+	}
+	scanned, err := scanReceiptRows(rows)
+	if err != nil {
+		return nil, err
+	}
+	var holds map[string][]AuditHold
+	if auditScope == "project" {
+		holds = map[string][]AuditHold{}
+	} else if auditScope == "" {
+		holds, err = readRunAuditHoldsBatch(ctx, tx, ids)
+	} else {
+		var rows pgx.Rows
+		rows, err = tx.Query(ctx, readExportAuditHoldsSQL, ids, auditScope)
+		if err == nil {
+			holds, err = scanAuditHoldsBatch(rows, len(ids))
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	for _, receipt := range scanned {
+		receipt.AuditHolds = holds[receipt.ReceiptID]
+		if receipt.AuditHolds == nil {
+			receipt.AuditHolds = []AuditHold{}
+		}
+		receipts[receipt.ReceiptID] = receipt
+	}
+	for _, id := range ids {
+		if _, ok := receipts[id]; !ok {
+			return nil, ErrNotFound
+		}
+	}
+	return receipts, nil
+}
+
+// collectionHoldAudits returns the Project of every Audit holding one of the
+// receipts that the owner owns in a Project it also owns.
+func collectionHoldAudits(ctx context.Context, tx pgx.Tx, ownerID string, receipts map[string]Receipt) (map[string]string, error) {
+	projects := make(map[string]string)
+	auditIDs := make([]string, 0)
+	seen := make(map[string]bool)
+	for _, receipt := range receipts {
+		for _, hold := range receipt.AuditHolds {
+			if !seen[hold.AuditID] {
+				seen[hold.AuditID] = true
+				auditIDs = append(auditIDs, hold.AuditID)
+			}
+		}
+	}
+	if len(auditIDs) == 0 {
+		return projects, nil
+	}
+	rows, err := tx.Query(ctx, collectionHoldAuditsSQL, auditIDs, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var auditID, projectID string
+		if err := rows.Scan(&auditID, &projectID); err != nil {
+			return nil, err
+		}
+		projects[auditID] = projectID
+	}
+	return projects, rows.Err()
+}
+
+// collectionDocuments plans the documents of a publication, deduplicated and
+// within the collection limits, and then reads them all in exact-read
+// batches.
+type collectionDocuments struct {
+	repository *artifactpostgres.Repository
+	documents  map[string]auditdomain.FindingCollectionDocument
+	contents   map[string][]byte
+	git        map[string]*artifacts.GitSource
+	planned    []plannedCollectionDocument
+	size       int64
+}
+
+type plannedCollectionDocument struct {
+	id       string
+	request  artifactpostgres.ExactReadRequest
+	expected ExactArtifact
+}
+
+// add plans one document and returns its ID; a document already planned is
+// planned once.
+func (b *collectionDocuments) add(scope auditdomain.FindingCollectionSource, exact ExactArtifact) (string, error) {
+	doc := auditdomain.FindingCollectionDocument{Scope: scope, Ref: exact.Ref, Digest: exact.Digest, MediaType: exact.MediaType, SizeBytes: exact.SizeBytes}
+	id, err := auditdomain.FindingCollectionDocumentID(doc)
+	if err != nil {
+		return "", err
+	}
+	if _, ok := b.documents[id]; ok {
+		return id, nil
+	}
+	if len(b.documents) >= auditdomain.MaximumCollectionDocuments || exact.SizeBytes > auditdomain.MaximumArchiveBytes-b.size {
+		return "", fmt.Errorf("%w: collection document limit", ErrInvalid)
+	}
+	var artifactScope artifacts.Scope
+	if scope.Kind == "run" {
+		artifactScope, err = artifacts.RunScope(scope.ID)
+	} else {
+		artifactScope, err = artifacts.ProjectScope(scope.ID)
+	}
+	if err != nil {
+		return "", err
+	}
+	doc.ID = id
+	b.documents[id] = doc
+	b.planned = append(b.planned, plannedCollectionDocument{
+		id: id, request: artifactpostgres.ExactReadRequest{Scope: artifactScope, Ref: exact.Ref}, expected: exact,
+	})
+	b.size += exact.SizeBytes
+	return id, nil
+}
+
+// read reads every planned document, at most MaxExactReadBatchSize per
+// statement, and keeps its bytes once they match the planned identity. The
+// planned sizes stay within MaximumArchiveBytes, below one batch's payload
+// bound.
+func (b *collectionDocuments) read(ctx context.Context) error {
+	for start := 0; start < len(b.planned); start += artifacts.MaxExactReadBatchSize {
+		batch := b.planned[start:min(start+artifacts.MaxExactReadBatchSize, len(b.planned))]
+		requests := make([]artifactpostgres.ExactReadRequest, len(batch))
+		for index, document := range batch {
+			requests[index] = document.request
+		}
+		reads, err := b.repository.ReadExactBatch(ctx, requests)
+		if errors.Is(err, blob.ErrTooLarge) {
+			// The planned sizes fit one batch, so stored sizes disagree with
+			// the receipts.
+			return blob.ErrIntegrity
+		}
+		if err != nil {
+			return err
+		}
+		for index, read := range reads {
+			expected := batch[index].expected
+			if int64(len(read.Payload.Data)) != expected.SizeBytes || read.Payload.MediaType != expected.MediaType ||
+				auditdomain.DigestBytes(read.Payload.Data) != expected.Digest {
+				return blob.ErrIntegrity
+			}
+			b.contents[batch[index].id] = read.Payload.Data
+			if b.git == nil {
+				b.git = map[string]*artifacts.GitSource{}
+			}
+			b.git[batch[index].id] = read.GitSource
+		}
+	}
+	return nil
+}
+
+func sameCollectionContent(a, b ExactArtifact) bool {
+	return a.Digest == b.Digest && a.MediaType == b.MediaType && a.SizeBytes == b.SizeBytes
+}

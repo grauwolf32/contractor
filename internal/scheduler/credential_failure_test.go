@@ -1,0 +1,139 @@
+package scheduler
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"strings"
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/credentials"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/jackc/pgx/v5/pgconn"
+)
+
+func TestCredentialFailuresClassifyRetryabilityAndLogSafeCause(t *testing.T) {
+	const secret = "credential-secret-in-provider-error"
+	for _, test := range []struct {
+		name      string
+		err       error
+		retryable bool
+		cause     string
+	}{
+		{"not found", credentials.ErrNotFound, false, "credential_not_found"},
+		{"runtime not found", fmt.Errorf("%w: %s", credentials.ErrRuntimeCredentialNotFound, secret), false, "credential_not_found"},
+		{"runtime missing with cleanup deadline", errors.Join(credentials.ErrRuntimeCredentialNotFound, context.DeadlineExceeded), false, "credential_not_found"},
+		{"runtime missing with cleanup cancellation", errors.Join(credentials.ErrRuntimeCredentialNotFound, context.Canceled), false, "credential_not_found"},
+		{"invalid", fmt.Errorf("%w: %s", credentials.ErrInvalid, secret), false, "credential_invalid"},
+		{"crypto", credentials.ErrCrypto, false, "credential_unreadable"},
+		{"deadline", context.DeadlineExceeded, true, "context_ended"},
+		{"connection", fmt.Errorf("query %s: %w", secret, &pgconn.PgError{Code: persistencepostgres.SQLStateConnectionFailure}), true, "storage_unavailable"},
+		{"serialization", &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure}, true, "storage_unavailable"},
+		{"lock-timeout", &pgconn.PgError{Code: persistencepostgres.SQLStateLockNotAvailable}, true, "storage_unavailable"},
+		{"lost-connection", fmt.Errorf("query %s: %w", secret, io.ErrUnexpectedEOF), true, "storage_unavailable"},
+		{"closed-connection", fmt.Errorf("query %s: %w", secret, pgconn.ErrConnClosed), true, "storage_unavailable"},
+		{"constraint", &pgconn.PgError{Code: persistencepostgres.SQLStateUniqueViolation}, false, "configuration_unavailable"},
+		{"unclassified", errors.New(secret), false, "configuration_unavailable"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			s := &Scheduler{options: Options{
+				Logger: slog.New(slog.NewTextHandler(&logs, nil)),
+				Credentials: credentialResolverFunc(func(context.Context, llmgateway.LLMCredentialRef, llmgateway.LLMGatewayConfigRef) (contracts.SecretString, error) {
+					return contracts.SecretString{}, test.err
+				}),
+				RuntimeCredentials: runtimeCredentialResolverFunc(func(context.Context, string, []runtimesettings.RuntimeCredentialKind, func(runtimesettings.RuntimeCredentialKind, []byte) error) error {
+					return test.err
+				}),
+			}}
+			run := runstore.WorkflowRun{RunID: "run-1"}
+			execution := runstore.StageExecution{StageExecutionID: "stage-1"}
+
+			_, plannerErr := s.resolveCredential(t.Context(), resolved.ResolvedConsumerExecutionConfig{
+				LLMGateway: &llmgateway.ResolvedLLMGatewayConfig{},
+				Credential: &llmgateway.LLMCredentialRef{CredentialID: "planner-credential"},
+			})
+			_, workerErr := s.materializeRuntimeSettings(t.Context(), runtimeconfig.ResolvedRuntimeConfig{
+				Caido: &runtimeconfig.CaidoConfig{Credential: "caido-lab"},
+			})
+			for _, err := range []error{plannerErr, workerErr} {
+				if err == nil || strings.Contains(err.Error(), secret) {
+					t.Fatalf("credential error = %v", err)
+				}
+				failure := s.credentialFailure(run, execution, "config_unavailable", "Execution configuration is unavailable", err)
+				if failure.Retryable != test.retryable {
+					t.Fatalf("Retryable = %v, want %v for %v", failure.Retryable, test.retryable, test.err)
+				}
+			}
+			if strings.Contains(logs.String(), secret) || strings.Count(logs.String(), "cause="+test.cause) != 2 {
+				t.Fatalf("credential failure log = %q", logs.String())
+			}
+		})
+	}
+}
+
+type failingCredentialRecords struct{ err error }
+
+func (r failingCredentialRecords) GetCredential(context.Context, string) (credentials.Record, error) {
+	return credentials.Record{}, r.err
+}
+
+// The production resolver composes development and managed providers; its
+// errors must keep storage and context causes so transient failures retry.
+func TestCompositeCredentialFailuresKeepRetryableCauses(t *testing.T) {
+	const secret = "credential-secret-in-provider-error"
+	development, err := credentials.NewStaticProvider(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name  string
+		err   error
+		cause string
+	}{
+		{"serialization", &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure, Message: secret}, "storage_unavailable"},
+		{"deadlock", &pgconn.PgError{Code: persistencepostgres.SQLStateDeadlockDetected, Message: secret}, "storage_unavailable"},
+		{"connection", &pgconn.PgError{Code: persistencepostgres.SQLStateConnectionFailure, Message: secret}, "storage_unavailable"},
+		{"closed-connection", pgconn.ErrConnClosed, "storage_unavailable"},
+		{"shutdown", context.Canceled, "context_ended"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			managed, err := credentials.NewEncryptedProvider(failingCredentialRecords{test.err}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			composite, err := credentials.NewCompositeProvider(development, managed)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var logs bytes.Buffer
+			s := &Scheduler{options: Options{
+				Logger: slog.New(slog.NewTextHandler(&logs, nil)), Credentials: composite,
+			}}
+			_, resolveErr := s.resolveCredential(t.Context(), resolved.ResolvedConsumerExecutionConfig{
+				LLMGateway: &llmgateway.ResolvedLLMGatewayConfig{},
+				Credential: &llmgateway.LLMCredentialRef{CredentialID: "managed-credential"},
+			})
+			if resolveErr == nil || strings.Contains(resolveErr.Error(), secret) {
+				t.Fatalf("credential error = %v", resolveErr)
+			}
+			failure := s.credentialFailure(
+				runstore.WorkflowRun{RunID: "run-1"}, runstore.StageExecution{StageExecutionID: "stage-1"},
+				"config_unavailable", "Execution configuration is unavailable", resolveErr,
+			)
+			if !failure.Retryable || !strings.Contains(logs.String(), "cause="+test.cause) ||
+				strings.Contains(logs.String(), secret) {
+				t.Fatalf("failure = %+v, log = %q", failure, logs.String())
+			}
+		})
+	}
+}

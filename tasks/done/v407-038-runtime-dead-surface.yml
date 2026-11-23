@@ -1,0 +1,113 @@
+schema_version: '1.0'
+id: V407-038
+title: Move the shared filesystem tool error type into toolsets.common
+milestone: server-runtime-review-2026-10
+epic: quality
+kind: chore
+introduced_by: V366-005
+priority: P3
+status: completed
+implementation_commit: df1271b407db1de37ea6c1e9b9b451c3c7dbd078
+depends_on: []
+languages:
+- python
+goal: Remove the filesystem toolset dependency used only for its shared error class while retaining all
+  selectable tool capabilities and their contracts.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  finding: runtime/src/contractor_runtime/toolsets/edit_files/tools.py:23 and workspace_changes/tools.py:32
+    import FilesystemToolError from filesystem/tools.py:64-69. runtime/pyproject.toml:153-159,211-224
+    explicitly permits that existing shared-type chain, so this is a removable architectural exception
+    rather than an undiscovered layer violation. read_openapi_document remains a supported selectable
+    tool via openapi/tools.py:178-180, internal/config/resolved/descriptors.go:220 and api/testdata/toolset-descriptors.json:115;
+    openapi/tools.py:191 also names it in CAS reconciliation guidance. Absence from shipped configs alone
+    does not justify deleting its API or requiring every export to appear in a shipped manifest.
+  validation: 'Cleanup only on dc7012e8: edit_files and workspace_changes both import FilesystemToolError.
+    read_openapi_document has no shipped-template selection but is registered and custom-selectable, and
+    CAS recovery guidance names it; this is not evidence of unreachable production code.'
+  siblings: FilesystemToolError definition and imports in filesystem, edit_files, workspace_changes and
+    their tests; import-linter layer and protected-chain declarations. Other declared chains, especially
+    taint_annotations -> code_analysis, are independent.
+plan:
+- Move the unchanged FilesystemToolError implementation to a focused module under toolsets.common and
+  update all production/test imports, including workspace_changes. Do not keep a compatibility re-export
+  at the old filesystem path.
+- Reclassify filesystem as an independent concrete toolset once both consumers use common; delete only
+  the now-unneeded filesystem protected-chain contract and its comments. Preserve exhaustive layer checks
+  and the separate code-analysis chain.
+- Keep exception codes, messages and existing non-retryable callback behavior unchanged. Use existing
+  filesystem/edit/change tool suites and import-linter to verify the relocation.
+- Retain read_openapi_document, its selection registration, descriptor/fixture and reconciliation guidance
+  exactly as they are. Do not introduce an every-export-must-be-shipped gate or delete tool tests as part
+  of this shared-type refactor.
+scope:
+  in:
+  - Shared error-type relocation; both consumer imports; removal of the obsolete filesystem import-linter
+    exception.
+  out:
+  - Removing or wiring read_openapi_document, changing its 256-KiB full-read limit, adding pagination,
+    editing tool descriptors or changing selectable capabilities.
+  - A gate that equates absence from shipped manifests with dead code.
+  - Filesystem error classification changes or changes to other declared toolset chains.
+acceptance_criteria:
+- id: A1
+  text: FilesystemToolError has one definition under toolsets.common; filesystem, edit_files and workspace_changes
+    import it without cross-toolset dependencies or compatibility re-exports. Import-linter no longer
+    needs the filesystem protected chain.
+- id: A2
+  text: Existing filesystem/edit/change behavior, error codes/messages, retryability and test outcomes
+    are unchanged except for import paths. The separate code-analysis chain and exhaustive layer enforcement
+    remain valid.
+- id: A3
+  text: read_openapi_document remains selectable with its current schema, descriptor and CAS guidance;
+    no tool deletion or shipped-selection policy is introduced.
+tests:
+- command: cd runtime && uv run --locked pytest -q tests/test_filesystem_toolset.py tests/test_edit_files_toolset.py
+    tests/test_workspace_changes_toolset.py tests/test_openapi_toolset.py
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+verification:
+  date: '2026-10-23'
+  revision: df1271b407db1de37ea6c1e9b9b451c3c7dbd078
+  environment: Worktree contractor-wt/r3, branch claude/rv-r3 on base ac982d28, macOS arm64 (Darwin),
+    Python 3.13 via uv sync --locked, Node 24.20 with Corepack pnpm. No PostgreSQL tests are in scope
+    (Python-only refactor), so CONTRACTOR_TEST_DATABASE_URL was not used.
+  database_tests_configured: false
+  introduced_by_note: V366-005 declared edit_files, workspace_changes -> filesystem as a protected
+    chain instead of moving the shared error type into toolsets.common; the import itself predates
+    task tracking (a224c0c7).
+  results:
+  - 'A1: FilesystemToolError is defined once, in runtime/src/contractor_runtime/toolsets/common/filesystem_errors.py
+    (class body unchanged). filesystem, edit_files and workspace_changes import it from there; no module
+    or test imports it from toolsets.filesystem. filesystem moved to the concrete-toolsets layer and
+    the toolsets-chain-filesystem protected contract was deleted (runtime/pyproject.toml, docs/development.md).'
+  - 'A1 mutation: restoring the old import in edit_files/tools.py makes uv run lint-imports report
+    "contractor_runtime.toolsets.edit_files is not allowed to import contractor_runtime.toolsets.filesystem"
+    (3 kept, 1 broken); with the change, 4 kept, 0 broken.'
+  - 'A2: class name (used in tool error messages and error_type telemetry), code attribute, message
+    and the absent retryable attribute (non-retryable tool responses) are unchanged; only import paths
+    changed in production and tests. The layers contract stays exhaustive and the taint_annotations
+    -> code_analysis chain is KEPT.'
+  - 'A3: openapi/tools.py, internal/config/resolved/descriptors.go and api/testdata/toolset-descriptors.json
+    are untouched; read_openapi_document remains registered, selectable and named in CAS guidance.'
+  - 'cd runtime && uv run --locked pytest -q tests/test_filesystem_toolset.py tests/test_edit_files_toolset.py
+    tests/test_workspace_changes_toolset.py tests/test_openapi_toolset.py: 91 passed.'
+  - 'Sibling suites using the error type (test_numbered_file_reads, test_toolset_cursors, test_local_direct_tool_consumers,
+    test_filesystem_observations, test_projectfs_legacy_parity): 43 passed.'
+  - 'make lint: passed (ruff, import-linter 4 kept / 0 broken, check_tasks, release graph and the rest).'
+  - 'make test-runtime: 4286 passed, 105 failed, 39 skipped. All 105 failures are macOS environment
+    failures (61 OSError Errno 43 Protocol not supported for Linux socket types, pidfd_open missing,
+    Podman sandbox, Linux address-space limits) in podman_*, tool_process, trailmark_child, projectfs_local_*,
+    local_direct_faults and code_analysis_graph tests. The same command on unmodified base ac982d28 in
+    a temporary worktree failed the same 105 tests plus the timing-sensitive test_code_analysis_shallow
+    event-loop-gap test (106 failed, 4285 passed); none involves the moved type.'
+  declined:
+  - Removing or wiring read_openapi_document and any shipped-selection gate are out of scope (scope.out).

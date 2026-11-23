@@ -1,0 +1,15 @@
+{
+  "task_id": "V60-023",
+  "verified_on": "2026-09-20",
+  "base_commit": "5856beb5c13429f4be54856015ad7e86bd8b573d",
+  "implementation_commit": "033cccd4be01fa8c5012ad8a271c0b2e996a3b8e",
+  "reproduction": "Before fix four protected-positional cases and a missing-value case failed.",
+  "commands": [
+    "go test -count=1 ./internal/cli"
+  ],
+  "results": [
+    "All CLI tests passed in combined cli/publicclient run. Explicit separator, interspersed flags, stdin and invalid/missing option values are covered."
+  ],
+  "logs": ".local/review-fixes/",
+  "scope": "Local source and regression checks; no deployment, real models or external security targets."
+}

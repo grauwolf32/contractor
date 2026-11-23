@@ -1,0 +1,1156 @@
+# Review and reports
+
+Requirement prefix: `REV` · [Specification index](../README.md)
+
+## Purpose and scope
+
+This document owns what Audit results may and may not claim and how people
+act on them: the separation of Run outcome, evidence, assessment and triage;
+evidence content; finding identity and duplicates; coverage; optional canonical
+Project analyst verdicts and severity; the human-readable and
+machine-readable reports; finding backtrace and offline attribution; direct
+findings verified inside the source Workflow; owner import of ordinary-Run
+proposals; Audit retention, Audit-managed artifact links and holds; the
+effects of Run deletion on Audit reports and collection; Audit deletion; and
+the finding, provenance and report reads of the public API.
+
+It leaves to other documents:
+
+- AuditProfile, standard packages, baseline and scope, the durable records,
+  the result-layer table, the Audit, Round and item lifecycle (including the
+  completion requirements and item execution states), item origin and the Audit endpoint table:
+  [audits](audits.md).
+- Collection of Audit child Runs, Audit-side proposal retention during
+  collection, budgets and omission accounting: [execution](execution.md).
+- Terminal Run hard deletion, its Audit collection gate and Project deletion:
+  [retention and deletion](../artifacts/retention-and-deletion.md).
+- The reserved `audit-*` Project namespace as seen by generic Artifact routes:
+  [artifact store](../artifacts/artifact-store.md) (ART-R26).
+- Finding proposals, intake and finding collections:
+  [findings](../findings/findings.md).
+- Audit Overview: [ui](../ui/ui.md); review navigation journeys:
+  [journeys](../ui/journeys.md).
+- Public API conventions: [public API](../api/public-api.md).
+- Shared registries: [limits](../platform/limits.md),
+  [errors](../platform/errors.md),
+  [failure model](../platform/failure-model.md) and
+  [lifecycle](../platform/lifecycle.md).
+
+## Concepts
+
+Terms are defined once in [the glossary](../glossary.md); the ones this
+document owns are:
+
+- **Analyst verdict.** An owner's `true_positive` or `false_positive` decision
+  on a canonical Project Finding through the direct owner command.
+- **Analyst severity.** The owner-assigned severity of a `true_positive`
+  finding, distinct from the Worker's `severity_suggestion`.
+- **Applicability coverage.** `(satisfied + violated) / selected applicable`.
+- **Finding fingerprint.** A grouping hint combining scope snapshot, subject
+  and normalized issue family; it never merges finding identities.
+- **Duplicate link.** An acyclic, human-decided link inside one Project from a
+  finding to its canonical target.
+- **Backtrace.** The retained relations that lead from a canonical Project Finding to its
+  source proposals, receipts and originating Runs, its verifying items,
+  attempts and Runs, their Workflow closures and its checklist origins.
+- **Direct verification.** Discovery and verification of a finding inside the
+  same Run, without consuming an earlier hypothesis.
+- **Direct verification reference.** The retained record of a direct
+  verification: source Run and exact Workflow closure, result artifact
+  revision/digest, evidence refs, contract revision/digest, semantic
+  assessment and acceptance record.
+- **Frozen contract artifact.** The Audit artifact created on acceptance of a
+  direct verification that freezes the `ResolvedWorkflow` snapshot, its closure
+  digest, the selected output declaration, the result schema and the
+  identity/evidence binding rule.
+- **AuditArtifactLink.** The Audit record that retains exact immutable content
+  independently of source Run lifetime and makes an Audit-managed binding
+  visible to owner-facing Audit projections.
+- **Recovery staging.** An Audit-managed binding that exists before its
+  receipt or report-link transaction commits; it is not an acceptance signal.
+- **Audit hold.** An exact Audit evidence hold or accepted proposal hold that
+  keeps retained revisions alive under Audit ownership.
+- **Deletion intent.** The dedicated `deletion_requested_at` marker that
+  records that owner or Project deletion requested an Audit's deletion.
+
+## Model
+
+The result layers (Run outcome, check observation, hypothesis assessment,
+requirement evaluation, finding triage and Audit completion) and the durable
+records `ProjectFinding`, `AuditArtifactLink` and `AuditCollectionReceipt` are
+defined in [audits](audits.md). This document states the rules that keep the
+layers apart and that govern those records.
+
+### Direct analyst edits
+
+The Project Finding owner accepts explicit revision-checked edits with idempotency
+and immutable edit history (FND-R212). Audit results and sources remain independent
+immutable facts; absent analyst fields mean no current assessment.
+
+### Analyst verdict
+
+| Verdict | Triage effect | Severity |
+| --- | --- | --- |
+| `true_positive` | `confirmed`, subject to the profile evidence contract | Required: `informational`, `low`, `medium`, `high` or `critical` |
+| `false_positive` | `rejected` with the false-positive reason | No effective severity |
+| none (unreviewed) | — | Null analyst severity; presentation/filtering uses FND-R235 |
+
+### Coverage states
+
+| Coverage row | States |
+| --- | --- |
+| Requirement | `satisfied`, `violated`, `inconclusive`, `not-tested`, `not-applicable` |
+| Operation | `traced-complete`, `traced-partial`, `unmapped`, `not-tested` |
+
+### Report artifacts
+
+| Artifact | Media type | Content |
+| --- | --- | --- |
+| `report.md` | `text/markdown` | Human-readable report with headings and coverage, finding and attempt tables |
+| `report.json` | not specified | Machine-readable report |
+
+### Report availability
+
+Reports are optional retained artifacts. Completion without an aggregate report
+returns `unavailable`; a retained exact pair returns `ready`. Partial pairs and
+integrity failures remain errors (REV-R201). No candidate or acceptance request
+participates in execution or report reads.
+
+### Backtrace relations
+
+```mermaid
+flowchart LR
+    F["Project Finding"] -->|first and contributing| P["FindingProposal"]
+    P --> R["Trusted receipt"]
+    R --> OR["Originating Run"]
+    P -->|verifying items| I["AuditItem, any round"]
+    I --> A["AuditExecutionItem attempts"]
+    A --> RE["Exact results and evidence"]
+    A --> E["AuditExecution"]
+    E --> VR["Verification Run"]
+    F --> AS["Current analyst state and immutable edit history"]
+    P -->|independent results| DV["Direct verification history artifact"]
+    DV -->|shared source and verifier| OR
+    OR --> W["Workflow name, configuration version, closure digest, retained configuration reference"]
+    VR --> W
+    I --> CL["Checklist package revision/digest, entry key/version"]
+    P --> CL
+    F -->|duplicate link| CT["Canonical Finding in the same Project"]
+```
+
+## Requirements
+
+### Result layers and claims
+
+**REV-R1.** A succeeded Run never automatically confirms a finding or
+satisfies a requirement.
+
+**REV-R2.** A failed or cancelled Run does not refute a hypothesis.
+
+**REV-R3.** Supported describes a check result; confirmed is the canonical owner assessment produced
+by an explicit Project Finding edit. Neither determines the other.
+
+**REV-R4.** Severity and confidence are distinct fields.
+
+**REV-R5.** Problem publication explicitly selects a claim and exact evidence. It requires no formal
+human confirmation request. Observations and hypotheses without publication intent
+remain ordinary materials (FND-R210).
+
+**REV-R6.** Finding production and current assessment have no AuditProfile confirmation policy.
+Audit completion remains an execution/coverage property under AUD-R175 through AUD-R177.
+
+### Evidence
+
+**REV-R7.** Every accepted observation records its exact inputs,
+instrument and version, actor role, observation time, output refs, scope,
+limitations and truncation.
+
+**REV-R8.** For live HTTP observations, evidence also records the
+observation time and an available deployment marker. For an Audit-selected
+Runtime HTTP capture, `observed_at` is the first captured request attempt's start
+instant, immediately before transport dispatch (UTC RFC 3339); it is not response completion, evidence submission or
+report generation time; a timestamp alone does not prove the request reached
+the target, and transport failures remain in the retained capture. The standalone capture's `request_id` and `request_tag`, together with
+its trusted original Run/invocation, bind the exact selected Artifact. `deployment_marker`, when available, comes only from
+the allocation's pinned sitemap deployment policy; it is owner-provided
+attribution, not proof that the target software stayed unchanged. Coverage
+reads preserve these fields; the check evidence view labels the time as the start of the HTTP
+request attempt and the deployment as declared, with request identity under
+Technical details. Exact selected exchange Artifacts retained by ordinary result collection
+remain independently readable after permitted source Run deletion.
+
+A summary without a selected capture is model-authored assertion evidence and
+carries no inferred target observation time or deployment. Exact Run, task,
+Workflow and actor attribution and the collection event remain in the existing
+collection provenance/receipt. A required `http-observation` kind or registered
+`http-probe` finding check needs selected HTTP evidence for a conclusive result;
+`active-test` alone does not identify an instrument. Other active/source checks
+retain their evidence policy. Missing capture yields an explicit gap and an
+inconclusive/blocked result, never a fabricated current-time observation.
+
+Rationale: pinned source does not prove that a live target remained unchanged.
+
+**REV-R9.** Code, documents and HTTP responses are untrusted data;
+instructions embedded in them grant no tools or approvals.
+
+### Finding identity
+
+**REV-R10.** Qualified equality admits one canonical Project Finding under FND-R174 through FND-R178,
+retaining every independent source receipt and result. Weak overlap is only a candidate
+hint. Audit membership references the same identity and current revision.
+
+**REV-R11.** An explicit duplicate edit creates an acyclic same-Project canonical Finding link. It
+preserves the original identities and source history.
+
+**REV-R12.** One finding may map to multiple requirements, and a
+requirement may be violated without a technical vulnerability, for example
+because required documentary evidence is absent.
+
+### Coverage
+
+**REV-R13.** Coverage starts with one row per selected requirement or
+operation (LIM-REV-1).
+
+**REV-R14.** Every selected requirement gets an initial
+`not-tested` coverage row, even when no automated Workflow applies.
+
+**REV-R15.** Manual and documentary requirements remain in the original coverage denominator.
+Missing evidence is an explicit gap, without a formal review request or completion gate.
+
+**REV-R16.** `not-applicable` requires a rationale and a
+policy-authorized decision.
+
+**REV-R17.** Requirement and operation states share one typed
+coverage field but are not interchangeable.
+
+**REV-R18.** `traced-complete` means every requested trace
+dimension completed with no gap; some completed dimensions plus any gap is
+`traced-partial`; no completed dimension with a known resolution gap is
+`unmapped`.
+
+**REV-R19.** The semantic assessment of a result is retained
+independently of its coverage state; for example, a complete trace may still
+have an inconclusive security assessment.
+
+**REV-R20.** Technical Run failure, collection failure and semantic
+assessment remain three distinct report dimensions.
+
+**REV-R21.** Exclusions and N/A rationales are reported separately.
+
+**REV-R22.** Applicability coverage is
+`(satisfied + violated) / selected applicable`; `inconclusive` remains a
+separate count.
+
+**REV-R23.** A zero denominator is `N/A`, never 100%.
+
+**REV-R193.** Technical Task progress uses the common ready/selected/settled
+states. A settled Task with a technical gap is counted separately from one
+without a gap. Semantic verdicts and evidence limitations remain in exact Task
+results; neither settlement nor `supported`/`refuted` implies a vulnerability.
+Workspace counts follow UI-R144. The retired coverage-status buckets and
+current-Round coverage endpoint are not part of the executable contract.
+
+When a limit prevents more hypotheses or executions, the retention of counts,
+omission reasons and coverage gaps is specified in [execution](execution.md)
+(AUX-R87); the report includes those limits (REV-R79).
+
+### Human review
+
+Formal item/report approvals are removed. Pinned scope and operation policy remain;
+ordinary Project Finding edits use FND-R212. Unresolved evidence stays visible in
+Task results and never blocks completion. Report availability follows REV-R201.
+
+**REV-R24.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R25.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R26.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R27.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R200.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R28.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R29.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R30.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R31.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R32.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R33.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R34.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R35.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R36.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R37.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R38.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R39.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R40.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R41.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R42.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R43.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R189.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R44.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R45.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R46.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R47.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R188.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R48.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R49.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R50.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R51.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+**REV-R52.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
+
+#### Analyst verdict and severity
+
+**REV-R53.** The owner records true_positive plus severity, false_positive, needs_evidence, reopen or
+duplicate through the sole Project Finding PATCH operation. Every Audit and Project
+entry point calls that operation.
+
+**REV-R54.** There is no separate analyst role or second approval
+system.
+
+**REV-R55.** The canonical edit records authoritative actor/time, rationale, coherent
+verdict/state/severity/duplicate fields and a new Finding revision. Its immutable
+history is an ordinary Project Artifact, not a separate decision state machine.
+
+**REV-R56.** A verdict requires a rationale; `true_positive` also
+requires a severity from `informational | low | medium | high | critical`. A
+rationale of a finding or review decision holds at most 64 KiB of UTF-8
+(LIM-REV-11).
+
+**REV-R57.** `false_positive` has no analyst severity. Presentation/filtering
+can still show the distinct producer suggestion under FND-R235.
+
+**REV-R58.** An unreviewed finding has a null analyst verdict and
+severity; the Worker's `severity_suggestion` remains separate and is never a
+fallback analyst rating. Presentation/filtering and needs-review counts follow FND-R235.
+
+**REV-R59.** True positive sets confirmed and requires severity; false positive sets rejected without
+severity. Publication and human assessment are separate operations, with no profile
+confirmation gate.
+
+**REV-R60.** Other rejection reasons, `duplicate` and `needs-evidence` do
+not imply a false positive.
+
+**REV-R61.** The canonical Project row is the only current assessment owner. Other views read it
+directly; historical source ratings and reports never supply fallback current fields.
+
+**REV-R62.** Reopen stores verdict reopen and state proposed; needs_evidence stores state needs-
+evidence; duplicate stores state duplicate and a validated same-Project target. These
+actions clear analyst severity while retaining prior immutable history.
+
+**REV-R63.** Corrections use the same direct Project CAS/idempotency command and append an immutable
+edit fact. No pending request is created.
+
+**REV-R64.** Retired: the Finding review endpoint and create/reuse request operation are removed.
+Direct Project edits are specified by FND-R212.
+
+**REV-R65.** Corrections never rewrite the proposal, check result,
+earlier assessment or decision.
+
+**REV-R66.** A new source or check result never clears, confirms or overwrites an existing current
+analyst assessment. Only an explicit owner edit changes it.
+
+**REV-R67.** Accepted check results append immutable Project-retained result facts and provenance.
+They create no current assessment pointer, advance no Finding revision and expire no
+Finding requests.
+
+**REV-R68.** Project Findings remain editable after an Audit completes or is deleted, until Project
+deletion begins. An edit does not restart execution.
+
+**REV-R69.** Canonical edits advance the Finding and Project fence revisions. They do not fan out
+state or revision writes to every referencing Audit.
+
+**REV-R70.** A retained report preserves the Finding and source/result state it
+captured. Subsequent analyst edits never rewrite its exact bytes.
+
+### Reports
+
+**REV-R201.** Common Task coordination may complete an Audit with ordinary
+retained Task results and no aggregate report. In that case `getAuditReport`
+returns HTTP 200 with `status: unavailable`, without report artifacts or content.
+Completion does not imply report generation or acceptance. Inbox and Reports
+treat this absence as a normal read; direct report navigation links to the
+check's Task results. A partial retained report pair or an integrity/storage
+failure remains an error.
+
+**REV-R71.** The human-readable report is `report.md` with media type
+`text/markdown`, headings, and coverage, finding and attempt tables.
+
+**REV-R72.** The machine-readable report remains `report.json`.
+
+**REV-R73.** The Audit Report view renders `report.md` with the
+existing safe Markdown preview and downloads the exact Markdown bytes.
+
+**REV-R74.** Report commit and exact retained-report reads require the current media type `text/markdown`.
+
+**REV-R75.** Historical `text/plain` summaries are unsupported;
+readers never relabel or rewrite their artifacts.
+
+**REV-R76.** Report reads require the retained descriptor to match the
+artifact's actual media type, digest and byte length.
+
+**REV-R77.** Rejected reads leave report links,
+review decisions and Audit history unchanged (FAIL-REV-4).
+
+**REV-R78.** The report covers the items of every Round, ordered by
+Round ordinal and then item ordinal, and each report item names its
+`roundId`.
+
+**REV-R79.** The report includes baseline, profile and standard
+versions, scope, the coverage matrix, confirmed and proposed findings
+separately, unresolved questions, exclusions, incomplete evidence, human
+decisions, limits and reproducible provenance.
+
+**REV-R80.** Any ASVS statement is limited to the selected version, level,
+scope and evidence policy; partial automation is not described as complete
+compliance.
+
+**REV-R194.** A report carries at most 100,000 findings (LIM-REV-7). Its
+machine-readable `report.json` is at most 64 MiB and its `report.md` at most
+64 KiB (LIM-REV-8). An Audit whose report would pass either bound cannot form
+a structurally valid report and fails (FAIL-AUD-9).
+
+**REV-R195.** Each report finding shows the report projection that finding
+intake stored with its first receipt (FND-R158); finalization reads no
+proposal artifact. Every finding in the confirmed, proposed, rejected, duplicate
+and needs-evidence sections of `report.json` includes required `preconditions`,
+with the exact original strings in order and `[]` for no conditions. Human
+verdicts and later contributions do not replace the first receipt's conditions.
+The conditions count in existing projection, page and complete report byte
+budgets. The Markdown report retains its bounded summary/counts contract.
+Previously accepted report bytes remain immutable; the retained
+projection contract is defined by [PER-R43](../platform/persistence.md#PER-R43).
+
+**REV-R196.** Finalization records the report's item and finding entries in
+pages, in report order: the items of each Round, then the findings of each
+state. A page holds at most 200 entries, a findings page ends with the
+finding whose report projection brings its projections to 8 MiB, and one
+finalization attempt records at most 32 pages (LIM-REV-9). An attempt that reaches its budget
+returns with its pages recorded; an attempt that times out or fails keeps the
+pages it recorded. The next attempt resumes after the last recorded page and
+never reads a recorded page again (FAIL-REV-13). Once every page is recorded,
+one attempt assembles both artifacts from the recorded entries and commits or
+freezes them.
+
+**REV-R197.** Recorded pages belong to the Audit revision they were read at.
+A revision change while `finalizing` makes them stale: the next page or the
+report commit fails its revision check, and the report is built again from
+the new revision. Every exit from `finalizing` discards the pages in the same
+transaction (LIFE-REV-6).
+
+### Finding backtrace and offline attribution
+
+**REV-R81.** A script starts with Project ID and canonical Finding ID, reads its current assessment
+and follows bounded source/history pages through the public API. No SQL, narrative
+parsing or inferred Run labels are required.
+
+**REV-R82.** Hypothesis content, when present, remains in an exact
+FindingProposal.
+
+The retained relations distinguish discovery from verification
+(see [Backtrace relations](#backtrace-relations)):
+
+**REV-R83.** A finding links to its exact first proposal and every
+explicitly contributing proposal; each proposal links to its trusted receipt
+and originating Run.
+
+**REV-R84.** Accepted task/result associations retain item, attempt, execution and exact result
+provenance as immutable Project history when they concern a Finding source. Association
+is explicit; matching subject text or sharing a Run does not establish it.
+
+**REV-R85.** Failed, inconclusive and superseded attempts remain
+visible.
+
+**REV-R86.** Source history records exact independent result/contract refs and their semantic
+conclusions. The current analyst assessment has no inferred latest, representative or
+aggregate verification result.
+
+**REV-R87.** Missing verification is represented by an empty set
+and a reason, never an invented successful check.
+
+**REV-R88.** Each originating or verification Run links to its
+immutable Workflow name, its configuration version when available and its
+complete ResolvedWorkflow closure digest; the exact retained configuration
+reference used to compute that digest is preserved independently of the
+mutable catalog.
+
+**REV-R89.** The origin also records Run ID, stage execution ID,
+allocation ID and invocation ID from trusted state; for Audit Runs it includes
+the Audit, round and execution identity and the role.
+
+**REV-R90.** Items and proposals link to the exact checklist
+package revision/digest and entry key/version, with `scheme`, `version` and
+`requirement_id` for standards.
+
+**REV-R91.** A validated standards mapping and a causal source
+checklist are distinct: attaching an ASVS reference does not prove that ASVS
+generated the hypothesis.
+
+**REV-R92.** Missing mappings are preserved as unmapped, and
+direct discoveries as having no checklist source.
+
+**REV-R93.** Receipt origins are captured at intake; checklist origins and
+proposal-to-item relations are bound at trusted inventory, import or worklist
+acceptance.
+
+**REV-R94.** Result import resolves invocation-local proposal keys to
+exact receipts and validates item membership.
+
+**REV-R95.** A finding discovered while checking an item inherits that
+item's checklist origin only through this validated association; sharing a
+Run, batch, subject or fingerprint never links a proposal to every item.
+
+**REV-R96.** References outside the authorized Audit or imported
+inputs are rejected (FAIL-REV-5).
+
+**REV-R97.** The lineage write and its corresponding acceptance commit
+atomically; replay cannot create another contribution (FAIL-REV-5).
+
+**REV-R98.** Backtrace preserves both the first source and
+additional contributors without claiming each was an independent discovery.
+
+**REV-R99.** A same-Project duplicate link preserves each original Finding and proposal. Ratings are
+never copied to the target or its peers.
+
+**REV-R100.** A script can count distinct confirmed canonical findings per
+source Workflow or checklist, and separately count participation in
+verification.
+
+**REV-R101.** Retries, multiple evidence refs, multiple checklist
+mappings and duplicate proposals must not inflate unique-finding counts.
+
+**REV-R102.** Comparisons should state baseline, scope, profile and
+Workflow digest, separate unreviewed and inconclusive work, and use attempted
+items or Runs as denominators when measuring yield.
+
+**REV-R103.** The Server supplies provenance and ratings; aggregation and
+the choice of attribution policy belong to the external script.
+
+**REV-R104.** Project-owned immutable source/result history retains original Audit/Run IDs, Workflow
+closure and exact configuration provenance, item/attempt/checklist associations and
+analyst edit history after the live execution parents disappear (FND-R214).
+
+**REV-R105.** Public projections expose `runDeleted` instead of
+requiring a live Run join.
+
+**REV-R106.** Configuration provenance contains no credential values or
+active grants.
+
+**REV-R107.** This retention applies to child checks, imported
+ordinary-Run proposals and finding relations; source-owned holds are released
+only after that retention is durable.
+
+**REV-R108.** Project-retained Finding sources and history last until ordinary Project cleanup;
+deleting an Audit does not delete them. Audit-only execution records retain their normal
+Audit lifetime.
+
+### Direct findings verified inside the source Workflow
+
+**REV-R109.** A Workflow may discover and verify a finding in the same
+Run without consuming an earlier hypothesis; this is a supported path for both
+ordinary and Audit Runs.
+
+**REV-R110.** The finding candidate of a direct verification still
+uses trusted intake and a receipt, but no synthetic hypothesis, AuditItem or
+additional verification Run is created just to complete a lineage chain.
+
+**REV-R111.** The same Run may be recorded as both the source and
+the verifier; an actual check execution retains its existing item/attempt
+link.
+
+**REV-R112.** Treating the source Workflow as verifier requires its
+exact pinned output/evidence contract to define verification and the accepted
+result to satisfy that contract.
+
+**REV-R113.** A direct verification retains a direct verification
+reference containing the source Run and exact Workflow closure, the result
+artifact revision/digest, the evidence refs, the contract revision/digest, the
+semantic assessment and the acceptance record.
+
+**REV-R114.** For an ordinary Run, validation and retention occur on
+import into a compatible Audit; for an Audit Run they occur during trusted
+collection and assessment.
+
+**REV-R115.** Direct verification uses the existing acceptance and
+receipt mechanism and grants no new model authority.
+
+**REV-R116.** Intake alone records a candidate; a successful Run or a
+model assertion of verification does not create an accepted verification
+reference.
+
+**REV-R117.** Without a valid result contract the finding remains a
+candidate with no accepted verification, eligible for further checks or human
+evidence review.
+
+**REV-R118.** A Workflow opts in through exactly one required primary
+Workflow output whose declared media types include
+`application/vnd.contractor.audit.direct-verifications+json` (LIM-REV-6).
+
+**REV-R119.** Multiple matching primary outputs are ambiguous and
+therefore do not verify anything.
+
+**REV-R120.** The frozen output uses this bounded, strictly decoded
+envelope:
+
+```yaml
+schema: contractor.audit.direct-verifications.v1
+verifications:
+  - invocation_id: worker-invocation-7
+    client_key: candidate-local-7
+    assessment: supported
+    summary: The exact retained trace establishes the reported path.
+    evidence_ids: [ev-12]
+```
+
+**REV-R121.** Entries are ordered by `(invocation_id, client_key)`,
+identities are unique, and assessments are limited to `supported`, `refuted`,
+`inconclusive` or `blocked`.
+
+**REV-R122.** Every selected evidence ID must belong to the exact
+proposal receipt.
+
+**REV-R123.** The Server matches only the receipt currently being
+imported; it does not search by title, subject, Run-wide client key or mutable
+binding.
+
+**REV-R124.** On accepted direct verification the Server retains the exact frozen result in finding-
+materials under ordinary Project Artifact ownership and creates a frozen contract
+containing the pinned ResolvedWorkflow, closure digest, selected output declaration,
+schema and identity/evidence binding rule.
+
+**REV-R125.** Exact result/contract descriptors and the independent conclusion are stored in an
+ordinary immutable finding-history Artifact. Execution-local Audit links may reference
+those bytes, without owning their final lifetime.
+
+**REV-R126.** The bytes of the forked result and the contract artifact
+count against the Audit evidence budget and survive permitted source Run and
+catalog deletion (LIFE-REV-2).
+
+**REV-R127.** Replay matches the current deterministic assessment
+identity derived from the destination Audit and the proposal receipt,
+validates its stored content and does not add links or retained bytes again
+(FAIL-REV-6).
+
+**REV-R128.** Replay reads and verifies the deterministic current history Artifact identified by
+destination Audit and receipt. Changed content conflicts; a missing current operation is
+absent. No legacy ID lookup, old assessment table or fallback reader exists.
+
+**REV-R129.** An absent, unfrozen, malformed, ambiguous, mismatched or
+budget-exceeding opt-in output leaves the proposal unassessed; it never turns
+Run success into evidence (FAIL-REV-6).
+
+**REV-R130.** History accepts both accepted item-attempt results and direct Workflow results. Neither
+is another current Finding state.
+
+**REV-R131.** Further checks may supplement either path without
+changing the original source.
+
+**REV-R132.** Source history preserves direct verification as such, including its original Audit/Run
+identity and exact result/contract; it invents no item or attempt.
+
+**REV-R133.** The exact result, contract and provenance of a direct
+verification are preserved after permitted source Run deletion
+(LIFE-REV-2).
+
+**REV-R134.** Verified evidence and analyst decisions are independent. An accepted supported/refuted
+result never changes current TP/FP, severity or duplicate state.
+
+**REV-R135.** Offline attribution can credit discovery and
+verification to the same Workflow while counting one unique finding.
+
+The evidence budget (`maxEvidenceBytes`, LIM-AUX-6) and its accounting are
+specified in [execution](execution.md) (AUX-R45).
+
+### Proposal import from ordinary Runs
+
+**REV-R136.** An owner may import an exact ordinary-Run proposal into an owned non-terminal Audit in
+the same Project. Import retains materials in Project, links Audit membership and
+records any compatible direct result. It does not create a Finding without the original
+explicit publication intent and does not mutate current assessment.
+
+**REV-R137.** The same exact receipt may be imported into multiple
+compatible Audits owned by the same owner.
+
+**REV-R138.** Each Audit independently retains its execution membership and accepted result history.
+The canonical Finding, current analyst assessment and retained exact material belong to
+Project. Replay reuses the destination operation and the same Project material without
+an additional current state (FAIL-REV-7).
+
+**REV-R139.** Finding identity is Project-scoped. A direct result history operation is identified by
+its original Audit and receipt; it is immutable provenance, with no Audit-owned Finding
+identity.
+
+**REV-R140.** Deleting any destination Audit removes only its execution membership/links/holds. It
+does not change canonical Finding fields, independent result facts or exact Project-
+retained evidence (FND-R214).
+
+**REV-R141.** A receipt read through an Audit exposes only that requesting Audit membership/hold,
+while the proposal bytes come from the same immutable Project copy used by every
+destination. It neither falls back to another Audit nor hydrates other Audit
+memberships.
+
+**REV-R142.** After source Run deletion, the Audit inbox omits a native
+child receipt the Audit never retained, such as a proposal whose collection
+was rejected, because no readable copy remains for it (LIFE-REV-4).
+
+A proposal from a non-Audit Run stays attached to that Run until import
+([audits](audits.md), AUD-R161); finding imports are fenced during a report
+decision (AUD-R180). The effect of hard deletion of the source Run on its
+proposal receipts is specified in
+[retention and deletion](../artifacts/retention-and-deletion.md) (DEL-R28,
+DEL-R29), and how an import racing that deletion serializes in DEL-R31 to
+DEL-R33. An end-to-end example is in
+[Proposal from an ordinary Run](#proposal-from-an-ordinary-run).
+
+### Audit retention and publication
+
+**REV-R143.** `AuditArtifactLink` retains exact immutable content
+independently of source Run lifetime (LIFE-REV-2).
+
+**REV-R144.** Trusted import forks accepted ordinary role outputs into
+create-only AuditScope bindings and records a receipt (ART-R136). Existing
+check-result packages and their explicit evidence retain their owning protected
+ProjectScope contract.
+
+**REV-R145.** Binding keys include the Audit identity and version; a
+collision never overwrites another result.
+
+**REV-R146.** Accepted ordinary role outputs are frozen AuditScope bindings.
+Other Audit-managed bindings are created frozen in the
+Server-derived, reserved `audit-*` Project namespace: imported check results and
+external evidence through the trusted import, and Server-generated material
+(task packages, worklists, execution manifests and task sets, inventories,
+retained standards, direct-verification contracts and reports) through the
+one trusted Audit writer. A generic Project artifact write never creates or
+advances a binding under the reserved prefix.
+
+**REV-R147.** Such a binding may exist briefly as recovery staging
+before its receipt or report-link transaction commits; this is why generic
+Project routes hide the entire reserved prefix (ART-R26).
+
+**REV-R148.** Owner-facing Audit report and evidence projections
+expose only exact bindings that have a committed `AuditArtifactLink`;
+database-internal staging is not an acceptance signal.
+
+**REV-R149.** Crash replay accepts an existing binding only when it is
+frozen and its bytes, media type and size match and, for an imported binding,
+its exact source Run revision and import lineage match as well. Any other
+existing binding is a permanent integrity failure, never overwritten
+(FAIL-REV-8).
+
+**REV-R150.** Workers see only exact RunScope inputs and have no Audit
+or Project Artifact authority.
+
+Generic Project route hiding, the ban on ordinary public Project Artifact
+mutation writing or deleting Audit-managed bindings, and owner uploads through
+non-reserved namespaces form the explicit reserved-prefix policy of
+[artifact store](../artifacts/artifact-store.md) (ART-R26).
+
+**REV-R151.** Audit-level credential dispatch holds and evidence holds
+are not released by the same transition.
+
+**REV-R187.** Dispatch holds may be released once dispatch is durably closed
+and no unresolved child submission intent can create another Run
+(LIFE-AUD-1).
+
+**REV-R152.** Per-Run credential holds follow the ordinary Run lifecycle.
+
+**REV-R153.** Exact Audit evidence holds and accepted proposal holds
+remain until Audit deletion or until an explicit later retention policy
+transfers and releases them (LIFE-REV-3).
+
+The Audit-level credential dispatch holds themselves are described in
+[audits](audits.md) (AUD-R17). How collection copies every committed proposal
+of an Audit child Run into an Audit hold, or records it as rejected, before the
+Run becomes deletable is specified in [execution](execution.md) (AUX-R48 to
+AUX-R53).
+
+### Effects of Run deletion on Audits
+
+The Audit collection gate on hard deletion of an Audit-bound Run, the
+receipt required even for a failed, cancelled, output-less or invalid Run, the
+retention of AuditExecution and AuditExecutionItem through a nullable
+non-cascading Run relation, the revision advance of every affected Audit even
+when that Audit is terminal (LIM-DEL-1), the
+serialization with proposal imports and the rule that Run deletion never
+changes a finding assessment or a frozen report-review subject are specified
+in [retention and deletion](../artifacts/retention-and-deletion.md) (DEL-R17,
+DEL-R18, DEL-R23, DEL-R25, DEL-R30 to DEL-R33, DEL-R57, DEL-R58).
+
+**REV-R154.** If the trusted collector cannot validate pinned internal data,
+or the Store rejects a collection request by its content alone so that no
+retry can commit it, the collector records the bounded
+`collection-contract-invalid` disposition, settles the affected items as
+invalid with blocked coverage, and preserves their prior requested and
+completed coverage arrays (FAIL-REV-9). This is a cleanup-safe technical
+outcome, never accepted evidence, after which Run deletion is allowed
+(DEL-R57, DEL-R58).
+
+**REV-R155.** While an Audit is `finalizing`, the external-retention
+invalidation caused by Run deletion preserves its `updatedAt`: report
+`generatedFrom` uses that frozen timestamp, and Run availability is not part
+of the report payload.
+
+**REV-R156.** A report write conflicts if the same pinned build identity has different bytes. A
+changed Audit or Project revision starts another immutable build name and preserves
+abandoned exact artifacts. Run deletion preserves generatedFrom while invalidating
+execution availability; final commit checks both current revisions (FND-R218).
+
+**REV-R157.** In other Audit states, Run deletion advances
+`updatedAt` normally.
+
+**REV-R158.** The revision and ETag, rather than the timestamp alone,
+remain the authoritative change token.
+
+### Audit deletion
+
+**REV-R159.** Deleting an Audit is a durable operation that runs these
+phases in order (FAIL-REV-11, LIFE-REV-5):
+
+1. close dispatch and release future-dispatch credential holds;
+2. cancel, drain and collect owned Runs;
+3. release evidence and accepted-proposal holds;
+4. only then purge AuditScope artifacts, Audit-managed Project bindings and
+   domain rows (DEL-R68).
+
+Immutable history and item rows that reference a hold are removed in bounded
+steps while releasing that hold; its material stays available until all such
+references and holds are gone.
+
+Every controller publication or retention, including preparation and later
+Round packages and imported reports, locks its live claim and then its Audit
+in the transaction that inserts or replays the binding. The transaction
+rejects a deleting or missing Audit and an expired or replaced claim with
+`ErrClaimLost`. Purge takes the same claim-before-Audit lock order. Start
+staging instead holds the draft Audit row; finding intake holds the Audit
+through its existing decision transaction. Artifact storage never reads Audit
+tables to infer this authority.
+
+**REV-R160.** Audit purge removes its execution rows, report pages, Audit links
+and execution-local holds through the existing bounded owner cleanup. Canonical
+Project Findings, independent sources and edit history remain until Project purge.
+
+**REV-R161.** Audit deletion cleanup runs regardless of owner or Audit
+queue pause.
+
+**REV-R162.** Deletion intent is represented by a dedicated
+`deletion_requested_at` marker, not inferred from the stop reason.
+
+**REV-R163.** Cancellation finishes as `cancelled` when no deletion
+was requested and deterministically continues to `deleting` when owner or
+Project deletion supplied the durable intent.
+
+The Audit cancellation and drain phase that Project deletion runs before its
+Run and ProjectScope purge, the exclusion of Audit work from a deleting
+Project, the deletion intent Project deletion supplies and the release of
+every Audit hold by a completed Project purge are specified in
+[retention and deletion](../artifacts/retention-and-deletion.md) (DEL-R40,
+DEL-R45, DEL-R50, DEL-R55, DEL-R56). Cancellation and drain of owned Runs are
+specified in [execution](execution.md).
+
+### Finding, provenance and report reads
+
+The endpoints are listed in [audits](audits.md); this section specifies the
+behaviour of the finding, provenance and report reads.
+
+**REV-R164.** Findings use bounded server pages.
+
+**REV-R165.** Finding pages return bounded candidate windows and no lifetime total;
+empty matching pages may still have a continuation. Workspace aggregate counts
+are separate reads.
+
+**REV-R166.** Finding lists support filters for triage
+disposition, analyst verdict (including unreviewed) and analyst severity, and
+distinguish analyst severity from a model suggestion.
+
+**REV-R167.** Retired: Audit review endpoints and acceptance UI are removed (ACT-R9).
+
+**REV-R198.** Retired: Audit review endpoints and acceptance UI are removed (ACT-R9).
+
+**REV-R199.** GET /v1/findings reads compact canonical summaries through an immutable owner-scoped
+index. Each window examines bounded candidate rows before visibility and current-field
+filters; it never hydrates per-Audit receipt, assessment or decision copies. The live
+signed keyset binds owner, endpoint and filters, with no cross-Project snapshot
+guarantee.
+
+**REV-R168.** Audit Findings include auditRevision, projectRevision and asOf;
+Project Findings include projectRevision. Optional revision pins and continuations
+require the corresponding current fences.
+
+**REV-R169.** Signed continuation cursors bind owner, Audit, normalized
+filters and revision.
+
+**REV-R170.** A canonical page rechecks the Project fence after reading its bounded candidate window.
+Audit-filtered pages also recheck the Audit revision. A concurrent change returns 409;
+there is no count or full-source hydration on a Finding list.
+
+**REV-R171.** Filter changes clear incompatible cursors and
+revision pins.
+
+**REV-R190.** Refresh explicitly starts a new context.
+
+**REV-R172.** Coverage links also pin the summary revision. Every coverage
+page is read at one Audit revision and reports it as `auditRevision`; an
+optional `auditRevision` pins a page, and the current Round it defaults to, to
+that revision, and signed continuation cursors bind the Round and revision, so
+a page whose Audit changes returns 409 (FAIL-REV-12). The UI pins every page
+of a batch to the revision it read before the batch and rejects mixed
+revisions.
+
+**REV-R173.** Finding detail identifies its Project, canonical revision, immutable first-source claim,
+current analyst fields and duplicate target. Sources and result/history material use
+separate bounded reads.
+
+**REV-R174.** Project source pages expose stable receipt/proposal IDs, trusted Audit/Run origin, exact
+retained proposal descriptor, evidence count and optional canonical Finding link. Exact
+receipt detail exposes evidence and original claim; ordinary source-history pages expose
+accepted immutable result and contract artifacts. No removed Audit provenance DTO or
+second Finding state is reconstructed.
+
+**REV-R175.** Checklist sources and standards mappings are separate
+fields.
+
+**REV-R176.** These reads use the same ownership checks and
+generated OpenAPI client as the UI.
+
+**REV-R177.** Project source/history responses carry projectRevision. Audit membership pages
+additionally carry auditRevision.
+
+**REV-R191.** Bounded keyset provenance cursors bind to those revisions.
+
+**REV-R192.** A change during provenance traversal returns a conflict and
+requires restarting rather than silently mixing histories (FAIL-REV-12).
+
+**REV-R178.** The script pins each complete Project source/history traversal, restarts on revision
+conflicts and checks the current Finding revision before publishing its buffered output.
+
+**REV-R179.** The public contract includes
+[`docs/examples/project-finding-backtrace.sh`](../../examples/project-finding-backtrace.sh),
+which reads ratings and follows revision-bound pagination to emit one
+finding's complete backtrace; no analytics service, dashboard or direct SQL
+access is required.
+
+**REV-R180.** Retired: Audit review endpoints and acceptance UI are removed (ACT-R9).
+
+**REV-R181.** Retired: Audit review endpoints and acceptance UI are removed (ACT-R9).
+
+**REV-R182.** A duplicate edit accepts an exact same-Project canonical target, including an ID
+obtained from another page. Owner/CAS validation, cycle and bounded path checks still
+apply.
+
+#### Reviews view
+
+**REV-R183.** Retired: formal Audit item/report approvals are removed (ACT-R9).
+
+**REV-R184.** Retired: Audit review endpoints and acceptance UI are removed (ACT-R9).
+
+**REV-R185.** Retired: Audit review endpoints and acceptance UI are removed (ACT-R9).
+
+**REV-R186.** Retired: Audit review endpoints and acceptance UI are removed (ACT-R9).
+
+## Interfaces
+
+- Finding, report, coverage, proposal-inbox, proposal-import and
+  delete endpoints are part of the
+  [public API schema](../../../api/openapi/contractor-public-v1.yaml):
+  `listAuditFindings`, `getAuditFinding`, `listProjectFindings`,
+  `getProjectFinding`, `editProjectFinding`, `listProjectFindingSources`,
+  `getProjectFindingSource`, `listProjectFindingSourceHistory`, `getAuditReport`, `listAuditCoverage`,
+  `listAuditFindingProposals`, `importAuditFindingProposal` and
+  `deleteAudit`. Their paths and purposes are listed in
+  [audits](audits.md); shared conventions are in
+  [public API](../api/public-api.md).
+- Direct verification output: one required primary Workflow output declaring
+  the media type `application/vnd.contractor.audit.direct-verifications+json`,
+  whose content is the `contractor.audit.direct-verifications.v1` envelope with
+  `verifications` entries of `invocation_id`, `client_key`, `assessment`,
+  `summary` and `evidence_ids` (REV-R118 to REV-R123).
+- Reports: `report.md` (`text/markdown`) and `report.json`
+  (REV-R71, REV-R72).
+- Backtrace example:
+  [`docs/examples/project-finding-backtrace.sh`](../../examples/project-finding-backtrace.sh)
+  (REV-R179).
+
+## Limits, failures and errors
+
+Registry entries owned by this document:
+
+- [LIM-REV-1](../platform/limits.md): one initial coverage row per selected
+  requirement or operation (REV-R13).
+- [LIM-REV-2](../platform/limits.md): retired approval lifecycle bound (ACT-R9).
+- [LIM-REV-3](../platform/limits.md): retired approval lifecycle bound (ACT-R9).
+- [LIM-REV-4](../platform/limits.md): retired approval lifecycle bound (ACT-R9).
+- [LIM-REV-5](../platform/limits.md): retired Finding-review event bound (REV-R67).
+- [LIM-REV-6](../platform/limits.md): exactly one required primary Workflow
+  output opts in to direct verification (REV-R118).
+- [LIM-REV-7](../platform/limits.md): at most 100,000 findings per report
+  (REV-R194).
+- [LIM-REV-8](../platform/limits.md): 64 MiB machine report and 64 KiB
+  Markdown summary (REV-R194).
+- [LIM-REV-9](../platform/limits.md): report finalization pages and the
+  pages one attempt records (REV-R196).
+- [LIM-REV-11](../platform/limits.md): at most 64 KiB of UTF-8 per Project edit
+  rationale (REV-R56).
+- [FAIL-REV-1](../platform/failure-model.md): retired approval operation (ACT-R9).
+- [FAIL-REV-2](../platform/failure-model.md): retired approval operation (ACT-R9).
+- [FAIL-REV-3](../platform/failure-model.md): retired Finding-review operation (REV-R64).
+- [FAIL-REV-4](../platform/failure-model.md): exact retained report reads (REV-R77).
+- [FAIL-REV-5](../platform/failure-model.md): lineage write at result import
+  (REV-R96, REV-R97).
+- [FAIL-REV-6](../platform/failure-model.md): direct verification acceptance
+  (REV-R127, REV-R129).
+- [FAIL-REV-7](../platform/failure-model.md): proposal import into a
+  destination Audit (REV-R138).
+- [FAIL-REV-8](../platform/failure-model.md): creation of Audit-managed
+  frozen bindings (REV-R149).
+- [FAIL-REV-9](../platform/failure-model.md): Audit collection that no retry
+  can commit (REV-R154).
+- [FAIL-REV-10](../platform/failure-model.md): report write while
+  `finalizing` (REV-R156).
+- [FAIL-REV-11](../platform/failure-model.md): Audit deletion
+  (REV-R159).
+- [FAIL-REV-12](../platform/failure-model.md): revision-fenced pagination of
+  Audit Findings (REV-R170); Project source/history
+  pages use the canonical Project fence (FND-R217).
+- [FAIL-REV-13](../platform/failure-model.md): bounded, resumable report
+  finalization (REV-R196, REV-R197).
+- [LIFE-REV-1](../platform/lifecycle.md): source/result backtrace retained by the
+  Project (REV-R104, REV-R108).
+- [LIFE-REV-2](../platform/lifecycle.md): Audit-managed artifacts and their
+  `AuditArtifactLink` records (REV-R143, REV-R126,
+  REV-R133).
+- [LIFE-REV-3](../platform/lifecycle.md): Audit evidence and accepted
+  proposal holds (REV-R153, REV-R140).
+- [LIFE-REV-4](../platform/lifecycle.md): native child proposal receipts the
+  Audit never retained (REV-R142).
+- [LIFE-REV-5](../platform/lifecycle.md): Audit and the rows it owns
+  (REV-R159, REV-R160).
+- [LIFE-REV-6](../platform/lifecycle.md): recorded report finalization pages
+  (REV-R197).
+- [Errors](../platform/errors.md): the collection disposition
+  `collection-contract-invalid` (REV-R154). The revision-fence conflict uses
+  the generic `409` conflict response of the
+  [public API](../api/public-api.md) (REV-R170, FAIL-REV-12).
+
+Limits owned elsewhere and used here: `maxEvidenceBytes` (LIM-AUX-6,
+[execution](execution.md)); the Audit revision advance on Run deletion
+(LIM-DEL-1, [retention and deletion](../artifacts/retention-and-deletion.md)).
+Failure entries owned elsewhere: a proposal import racing source Run
+deletion (FAIL-DEL-6); Audit-bound Run deletion before collection
+(FAIL-DEL-1).
+
+## Security
+
+Pinned scope, selected tools and allowed/prohibited operation policy bound target
+activity (ACT-R9). Project Finding edits use the owner-authenticated command with
+revision CAS and idempotency (FND-R212). Archived historical facts and consent have
+no current authority (FND-R215). Code, documents
+and HTTP responses are untrusted data (REV-R9). Workers have no
+Audit or Project Artifact authority (REV-R150); generic Project routes
+hide Audit-managed bindings (ART-R26). Lineage rejects references outside the
+authorized inputs (REV-R96) and never links proposals to items by
+shared Run, batch, subject or fingerprint (REV-R95); direct
+verification grants no new model authority (REV-R115). Retained
+configuration provenance contains no credential values or active grants
+(REV-R106). The shared model is in [security](../platform/security.md).
+
+## Observability
+
+Audit lifecycle and retained result transitions use the ordinary Audit event history.
+Project Finding edits advance the canonical Finding and Project revisions without
+fan-out to Audits (REV-R69). Finding projections carry their current revision fences
+(REV-R168), and retained provenance reports `runDeleted` (REV-R105). Historical
+approval events may remain as opaque facts; no current reader interprets them as
+authority. Shared rules are in [observability](../platform/observability.md).
+
+## Invariants
+
+1. No Run outcome, model text or artifact confirms a finding, satisfies a
+   requirement, refutes a hypothesis or approves work (REV-R1,
+   REV-R2, REV-R28, REV-R116).
+2. Only pinned scope, tool and operation policy govern execution; historical
+   decision metadata grants no current authority (ACT-R9, FND-R215).
+3. Decisions and corrections never rewrite observations, proposals, check
+   results, earlier assessments, earlier decisions or a retained report
+   (REV-R33, REV-R65, REV-R70).
+4. Every selected requirement has a coverage row, and a zero denominator is
+   never reported as 100% (REV-R14, REV-R23).
+5. Unique-finding counts are not inflated by retries, evidence refs, checklist
+   mappings or duplicate proposals (REV-R101).
+6. Content an Audit retained survives source Run and catalog deletion until
+   Audit or Project purge, and deleting one destination Audit never affects
+   another (REV-R143, REV-R126, REV-R140,
+   REV-R108).
+7. Paginated finding and provenance reads never mix revisions
+   (REV-R170, REV-R191, REV-R192).
+
+## Examples
+
+### Proposal from an ordinary Run
+
+1. A non-Audit Worker with `security-findings@1` submits a proposal.
+2. Proposal/receipt remains attached to its exact Run.
+3. Owner imports that exact revision into a compatible Audit or creates a
+   finding-verification Audit.
+4. Import retains provenance; Worker never chooses the Project/Audit or starts work.
+5. If the owner instead hard-deletes the source Run, unimported proposals are
+   durably discarded and purged with the source Run; imported revisions remain
+   retained by their Project.
+
+The direct verification envelope example is shown with REV-R120.
+
+**REV-R202.** Hypothesis history consists of exact accepted Tasks and their
+ordinary retained outputs/gaps. Supported, refuted and inconclusive describe
+the stated claim under recorded tested conditions. Insufficient negative probes
+remain inconclusive for an existential bug claim. Verdict polarity neither
+publishes nor assesses a Project Finding. Coverage keeps the original fixed
+source denominator and exposes unavailable/unadmitted requirements as unchecked;
+additional manual work cannot increase that denominator. The UI offers assertion
+creation, revision editing and explicit checking through the same Task command,
+shows stale-revision conflicts, and retries ambiguous commands with their frozen
+original key/body/revision.
+
+## Non-goals
+
+- A separate global Hypothesis entity or generic graph engine for backtrace
+  (REV-R82).
+- Semantic or model-based deduplication beyond existing qualified equality.
+- Cross-Audit snapshot export.
+- An analytics service, dashboard or direct SQL access for attribution
+  (REV-R179, REV-R103).
+- A separate analyst role or second approval system (REV-R54).
+- Formal Audit approval requests (ACT-R9) and historical `text/plain` report summaries
+  (REV-R75).
+
+**REV-R204.** Existing Task, attempt, material and result readers distinguish
+an acknowledged model judgment from ACT-R19 system interruption and ordinary
+technical Run outcome. System inconclusive means no accepted conclusion, not a
+model assessment of evidence sufficiency. Unknown activity/progress stays
+unknown; absence of a note is not proof that work never began. Model limitations
+and explicit source interpretations keep their attribution. Incidental Findings
+remain independently visible and neither replace nor settle the assigned check.

@@ -1,0 +1,52 @@
+---
+- name: Preflight the instance privately
+  block:
+    - name: Check with the Runtime parser the settings of {{ __contractor_runtime_instance.name }}
+      ansible.builtin.command:
+        argv: >-
+          {{ [__contractor_runtime_python, '-I', '-c',
+              'import sys; from contractor_runtime.settings import parse_settings; parse_settings(sys.argv[1:], {})']
+             + __contractor_runtime_instance.argv[1:] }}
+        chdir: "{{ __contractor_runtime_instance.root }}"
+      become: true
+      become_user: "{{ contractor_runtime_user }}"
+      changed_when: false
+      no_log: true
+
+    - name: Probe the executables of {{ __contractor_runtime_instance.name }}
+      ansible.builtin.command:
+        argv: ["{{ __contractor_runtime_python }}", -I, "{{ contractor_runtime_prefix }}/tools/private_command.py"]
+        stdin: >-
+          {{ {'argv': [__contractor_runtime_python, '-I', contractor_runtime_prefix ~ '/tools/probe_tools.py'],
+              'environment': __contractor_runtime_instance.environment | combine({'HOME': contractor_runtime_home})} | to_json }}
+        chdir: "{{ __contractor_runtime_instance.root }}"
+      become: true
+      become_user: "{{ contractor_runtime_user }}"
+      register: __contractor_runtime_probe
+      changed_when: false
+      no_log: true
+
+    - name: Require exactly the configured validators and scanners
+      no_log: true
+      ansible.builtin.assert:
+        that: __contractor_runtime_advertised == __contractor_runtime_expected
+        fail_msg: Configured tools and probed capabilities disagree.
+        quiet: true
+      vars:
+        __contractor_runtime_found: "{{ __contractor_runtime_probe.stdout | from_json }}"
+        __contractor_runtime_advertised: >-
+          {{ (__contractor_runtime_found['openapi@1'] | select('equalto', 'validate_openapi') | list
+              + __contractor_runtime_found['likec4@1'] | select('equalto', 'validate_likec4') | list
+              + __contractor_runtime_found['scan@1']) | sort }}
+        __contractor_runtime_expected: >-
+          {{ ((['validate_openapi'] if __contractor_runtime_instance.capabilities.openapi_validator else [])
+              + (['validate_likec4'] if __contractor_runtime_instance.capabilities.likec4_validator else [])
+              + __contractor_runtime_instance.capabilities.scanners | map('regex_replace', '^', 'scan_') | list) | sort }}
+  rescue:
+    - name: Report the preflight failure safely
+      ansible.builtin.fail:
+        msg: >-
+          Instance {{ __contractor_runtime_instance.name }}:
+          {{ 'args/runtime_parser rejected settings' if ansible_failed_task.name is match('Check with the Runtime parser')
+             else 'tools/capability_probe failed or returned invalid/mismatched capabilities' }}.
+          Check the configured fields and installed tools; raw command output is withheld.

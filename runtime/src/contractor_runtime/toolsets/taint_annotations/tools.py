@@ -1,0 +1,763 @@
+"""Atomic structured taint annotations over one project workspace."""
+
+from __future__ import annotations
+
+import asyncio
+import re
+import unicodedata
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from types import MappingProxyType
+from typing import Any, Literal
+
+import contractor_runtime.toolsets.common.source_languages as language_support
+from contractor_runtime.adapters import AdapterHandles
+from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
+from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.core.lines import split_lines
+from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics
+from contractor_runtime.observations import (
+    WorkspaceToolObservation,
+    annotation_tool_observation,
+)
+from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
+from contractor_runtime.projectfs.storage import WorkspaceStorageError, WorkspaceWriter
+from contractor_runtime.threads import to_thread_until_done
+from contractor_runtime.toolsets.code_analysis.tools import (
+    SHALLOW_PINNED_DEPENDENCIES,
+    dependency_versions_match,
+)
+from contractor_runtime.toolsets.common.annotation_syntax import (
+    MAX_ANNOTATION_BYTES,
+    AnnotationSyntaxError,
+    annotation_args,
+    annotation_calls,
+    annotation_token,
+    argument_token,
+    canonical_annotation,
+    comment_marker,
+)
+from contractor_runtime.toolsets.common.annotation_targets import (
+    AnnotationParseResult,
+    AnnotationTarget,
+    parse_annotation_targets,
+)
+from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.resources import ToolResources
+from contractor_runtime.toolsets.common.source_languages import Language
+from contractor_runtime.workspace import AllocationWorkspace
+
+TAINT_ANNOTATIONS_REF = "taint-annotations@1"
+EXPORTED_TOOLS = frozenset({"annotate_trace", "annotate_validate", "annotate_sink"})
+PINNED_DEPENDENCIES = MappingProxyType(dict(SHALLOW_PINNED_DEPENDENCIES))
+
+MAX_SOURCE_FILE_BYTES = 4 * 1024 * 1024
+MAX_SYMBOL_CHARS = 256
+MAX_DEFINITION_LINE = 2_147_483_647
+
+_ERROR_CODES = frozenset(
+    {
+        "workspace_required",
+        "taint_annotation_input_invalid",
+        "taint_annotation_language_unsupported",
+        "taint_annotation_target_not_found",
+        "taint_annotation_target_ambiguous",
+        "taint_annotation_conflict",
+        "taint_annotation_workspace_changed",
+        "taint_annotation_capacity_exceeded",
+        "taint_annotation_cancelled",
+        "taint_annotation_closing",
+        "taint_annotation_unavailable",
+    }
+)
+
+AnnotationKind = Literal["trace", "validate", "sink"]
+
+
+class TaintAnnotationError(RuntimeError):
+    """Stable model-facing failure without source, path, or annotation values."""
+
+    def __init__(self, code: str, *, retryable: bool = False) -> None:
+        if code not in _ERROR_CODES:
+            code = "taint_annotation_unavailable"
+            retryable = True
+        self.code = code
+        self.retryable = retryable
+        super().__init__(f"Taint annotation operation failed ({code})")
+
+
+class _WorkspaceChanged(RuntimeError):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class _AnnotationRequest:
+    path: str
+    symbol: str
+    kind: AnnotationKind
+    body: str
+    logical_key: str
+    definition_line: int
+
+
+@dataclass(frozen=True, slots=True)
+class _MutationPlan:
+    target: AnnotationTarget
+    source: str
+    line: str
+    marker: str
+    indent: str
+
+
+class TaintAnnotationsToolsetFactory:
+    ref = TAINT_ANNOTATIONS_REF
+    exported_tools = EXPORTED_TOOLS
+    # Tools whose successful calls record a workspace observation (their
+    # contractor_observation); the Server reads the same set (TLS-R38).
+    workspace_observation_tools = EXPORTED_TOOLS
+    infrastructure_channels = MappingProxyType({})
+    requires_workspace = True
+    workspace_access = "write"
+
+    def __init__(self) -> None:
+        self._available_tools = EXPORTED_TOOLS
+
+    async def probe(self) -> frozenset[str]:
+        self._available_tools = frozenset()
+        if not dependency_versions_match(PINNED_DEPENDENCIES):
+            return frozenset()
+        if not await asyncio.to_thread(language_support.probe_all_parsers):
+            return frozenset()
+        self._available_tools = EXPORTED_TOOLS
+        return self._available_tools
+
+    async def create_selected(
+        self,
+        *,
+        selected: Sequence[str],
+        allocation_id: str,
+        run_id: str,
+        namespace: str,
+        runtime_settings: RuntimeSettings,
+        workspace: AllocationWorkspace,
+        resources: ToolResources,
+        adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
+        project_workspace: WorkspaceWriter | None = None,
+    ) -> Mapping[str, Any]:
+        del allocation_id, run_id, namespace, runtime_settings, workspace, adapter_handles
+        require_selected_tools(
+            selected,
+            self._available_tools,
+            description="unavailable selected taint annotation tools",
+        )
+        if project_workspace is None:
+            raise TaintAnnotationError("workspace_required")
+        metrics = require_metrics(resources, "taint-annotations@1")
+        session = _TaintAnnotationSession(project_workspace)
+        builders: dict[str, Callable[[], Any]] = {
+            "annotate_trace": lambda: AnnotateTraceTool(session, metrics),
+            "annotate_validate": lambda: AnnotateValidateTool(session, metrics),
+            "annotate_sink": lambda: AnnotateSinkTool(session, metrics),
+        }
+        return {name: builders[name]() for name in selected}
+
+
+class _TaintAnnotationSession:
+    def __init__(self, writer: WorkspaceWriter) -> None:
+        self._writer: WorkspaceWriter | None = writer
+        self._lock = asyncio.Lock()
+        self._closed = False
+        self._closing = False
+
+    async def close(self) -> None:
+        self._closing = True
+        async with self._lock:
+            self._closed = True
+            self._writer = None
+
+    async def annotate(self, request: _AnnotationRequest) -> dict[str, Any]:
+        async with self._lock:
+            if self._closing or self._closed or self._writer is None:
+                raise TaintAnnotationError("taint_annotation_closing")
+            writer = self._writer
+            try:
+                source = await writer.read_text(request.path)
+            except asyncio.CancelledError:
+                raise
+            except WorkspaceStorageError as error:
+                raise _map_workspace_error(error) from None
+            except Exception:
+                raise TaintAnnotationError("taint_annotation_unavailable", retryable=True) from None
+
+            try:
+                encoded = source.encode("utf-8", errors="strict")
+            except UnicodeError:
+                raise TaintAnnotationError("taint_annotation_language_unsupported") from None
+            if len(encoded) > MAX_SOURCE_FILE_BYTES:
+                raise TaintAnnotationError("taint_annotation_capacity_exceeded")
+            header = Language.C
+            if language_support.is_header(request.path):
+                header = await _workspace_header_language(writer)
+            language = language_support.detect_language(request.path, header=header)
+            if language is None:
+                raise TaintAnnotationError("taint_annotation_language_unsupported")
+            try:
+                plan, updated, result = await to_thread_until_done(
+                    _prepare_mutation,
+                    source,
+                    encoded,
+                    language,
+                    request,
+                    name="taint-annotation-cpu",
+                )
+            except asyncio.CancelledError:
+                raise
+            except TaintAnnotationError:
+                raise
+            except Exception:
+                raise TaintAnnotationError("taint_annotation_unavailable", retryable=True) from None
+
+            def transform(current: str) -> str:
+                if current != plan.source:
+                    raise _WorkspaceChanged
+                return updated
+
+            try:
+                await writer.update_text(request.path, transform)
+            except asyncio.CancelledError:
+                raise
+            except _WorkspaceChanged:
+                raise TaintAnnotationError(
+                    "taint_annotation_workspace_changed", retryable=True
+                ) from None
+            except TaintAnnotationError:
+                raise
+            except WorkspaceStorageError as error:
+                raise _map_workspace_error(error) from None
+            except Exception:
+                raise TaintAnnotationError("taint_annotation_unavailable", retryable=True) from None
+            return result
+
+
+class _BaseAnnotationTool:
+    # Keep these runtime class attributes unannotated. Google ADK asks
+    # typing.get_type_hints() for a callable instance while building its JSON
+    # Schema; inherited forward annotations are then evaluated without this
+    # module's globals and fail before the first model call.
+    name = ""
+    kind = ""
+    description = ""
+
+    def __init__(self, session: _TaintAnnotationSession, metrics: ToolMetrics) -> None:
+        self._session = session
+        self._metrics = metrics
+        self.__name__ = self.name
+        self.__doc__ = self.description
+
+    async def close(self) -> None:
+        await self._session.close()
+
+    def contractor_observation(
+        self,
+        tool_args: Mapping[str, Any],
+        result: Any,
+    ) -> WorkspaceToolObservation:
+        return annotation_tool_observation(tool_args, result)
+
+    def contractor_raw_argument_error(self, args: object) -> TaintAnnotationError | None:
+        if _valid_raw_arguments(self.name, args):
+            return None
+        error = TaintAnnotationError("taint_annotation_input_invalid")
+        self._recorded().fail(error)
+        return error
+
+    async def _invoke(self, request_factory: Callable[[], _AnnotationRequest]) -> dict[str, Any]:
+        with self._recorded() as call:
+            request = request_factory()
+            result = await self._session.annotate(request)
+            call.succeed({"kind": self.kind, "changed": result["changed"]})
+            return result
+
+    def _recorded(self) -> RecordedToolCall:
+        return RecordedToolCall(
+            self._metrics,
+            self.name,
+            {},
+            bound_error=_normalize_error,
+            cancelled=lambda: TaintAnnotationError("taint_annotation_cancelled", retryable=True),
+        )
+
+
+class AnnotateTraceTool(_BaseAnnotationTool):
+    name = "annotate_trace"
+    kind = "trace"
+    description = """Insert a canonical @trace comment above an exact function.
+
+    Resolves the function, selects the language comment syntax, preserves
+    indentation and handles existing annotations. Use this for trace annotations.
+
+    Args:
+        path: Project-relative source file path.
+        symbol: Exact name in the definition: "get" for Python/Java methods,
+            "Handler::get" for an out-of-line C++ method, or "Handler.get"
+            for a Lua dotted function.
+        target: Assignment target identifier; defaults to "unknown".
+        args: Comma-separated name:state pairs; states are tainted, validated,
+            clean or derived. Empty omits argument states.
+        calls: Comma-separated relevant callee symbols; empty omits calls.
+        definition_line: 1-based definition line to disambiguate the symbol;
+            0 requires resolution by name alone.
+
+    Returns:
+        path, symbol, kind, annotationLine, definitionLine and changed.
+    """
+
+    async def __call__(
+        self,
+        path: str,
+        symbol: str,
+        target: str = "unknown",
+        args: str = "",
+        calls: str = "",
+        definition_line: int = 0,
+    ) -> dict[str, Any]:
+        def build_request() -> _AnnotationRequest:
+            normalized_path = _path(path)
+            normalized_symbol = _symbol(symbol)
+            normalized_target = _token(target)
+            normalized_args = _args(args)
+            normalized_calls = _calls(calls)
+            body = f"target={normalized_target}"
+            if normalized_args:
+                body += f" args={normalized_args}"
+            if normalized_calls:
+                body += f" calls={normalized_calls}"
+            return _request(
+                normalized_path,
+                normalized_symbol,
+                "trace",
+                body,
+                normalized_target,
+                definition_line,
+            )
+
+        return await self._invoke(build_request)
+
+
+class AnnotateValidateTool(_BaseAnnotationTool):
+    name = "annotate_validate"
+    kind = "validate"
+    description = """Insert a canonical @validate comment above an exact function.
+
+    Use when the function validates or sanitizes the named argument. Selects the
+    language comment syntax and preserves indentation.
+
+    Args:
+        path: Project-relative source file path.
+        symbol: Exact name in the definition: "get" for Python/Java methods,
+            "Handler::get" for an out-of-line C++ method, or "Handler.get"
+            for a Lua dotted function.
+        arg: Name of the validated argument.
+        kind: Validation label, such as "regex", "schema", "length" or "allowlist".
+        definition_line: 1-based definition line to disambiguate the symbol;
+            0 requires resolution by name alone.
+
+    Returns:
+        path, symbol, kind, annotationLine, definitionLine and changed.
+    """
+
+    async def __call__(
+        self,
+        path: str,
+        symbol: str,
+        arg: str,
+        kind: str,
+        definition_line: int = 0,
+    ) -> dict[str, Any]:
+        def build_request() -> _AnnotationRequest:
+            normalized_arg = _argument_token(arg)
+            normalized_kind = _token(kind)
+            return _request(
+                _path(path),
+                _symbol(symbol),
+                "validate",
+                f"arg={normalized_arg} kind={normalized_kind}",
+                f"{normalized_arg}:{normalized_kind}",
+                definition_line,
+            )
+
+        return await self._invoke(build_request)
+
+
+class AnnotateSinkTool(_BaseAnnotationTool):
+    name = "annotate_sink"
+    kind = "sink"
+    description = """Insert a canonical @sink comment above an exact function.
+
+    Use when the function directly performs or clearly wraps the sink. Selects
+    the language comment syntax and preserves indentation.
+
+    Args:
+        path: Project-relative source file path.
+        symbol: Exact name in the definition: "get" for Python/Java methods,
+            "Handler::get" for an out-of-line C++ method, or "Handler.get"
+            for a Lua dotted function.
+        kind: Exact sink label from the selected trace Skill, such as
+            "db.query", "shell.exec" or "http.request".
+        arg: Argument reaching the sink; defaults to "unknown".
+        definition_line: 1-based definition line to disambiguate the symbol;
+            0 requires resolution by name alone.
+
+    Returns:
+        path, symbol, kind, annotationLine, definitionLine and changed.
+    """
+
+    async def __call__(
+        self,
+        path: str,
+        symbol: str,
+        kind: str,
+        arg: str = "unknown",
+        definition_line: int = 0,
+    ) -> dict[str, Any]:
+        def build_request() -> _AnnotationRequest:
+            normalized_kind = _token(kind)
+            normalized_arg = _argument_token(arg)
+            return _request(
+                _path(path),
+                _symbol(symbol),
+                "sink",
+                f"kind={normalized_kind} arg={normalized_arg}",
+                f"{normalized_kind}:{normalized_arg}",
+                definition_line,
+            )
+
+        return await self._invoke(build_request)
+
+
+def _request(
+    path: str,
+    symbol: str,
+    kind: AnnotationKind,
+    body: str,
+    logical_key: str,
+    definition_line: int,
+) -> _AnnotationRequest:
+    if (
+        not isinstance(definition_line, int)
+        or isinstance(definition_line, bool)
+        or definition_line < 0
+        or definition_line > MAX_DEFINITION_LINE
+    ):
+        raise TaintAnnotationError("taint_annotation_input_invalid")
+    line = f"@{kind} {body}"
+    if len(line.encode("utf-8")) > MAX_ANNOTATION_BYTES:
+        raise TaintAnnotationError("taint_annotation_capacity_exceeded")
+    return _AnnotationRequest(path, symbol, kind, body, logical_key, definition_line)
+
+
+def _prepare_mutation(
+    source: str,
+    encoded: bytes,
+    language: Language,
+    request: _AnnotationRequest,
+) -> tuple[_MutationPlan, str, dict[str, Any]]:
+    parsed = _parse_target_file(encoded, language)
+    plan = _plan_mutation(source, language, parsed, request)
+    updated, result = _apply_plan(source, plan, request)
+    return plan, updated, result
+
+
+def _plan_mutation(
+    source: str,
+    language: Language,
+    parsed: AnnotationParseResult,
+    request: _AnnotationRequest,
+) -> _MutationPlan:
+    lines = split_lines(source, keepends=True)
+    marker = comment_marker(language)
+    selected: _MutationPlan | None = None
+    for target in parsed.targets:
+        if target.name != request.symbol:
+            continue
+        source_line = _without_newline(lines[target.insertion_line - 1])
+        indent = source_line[: len(source_line) - len(source_line.lstrip(" \t"))]
+        line = f"{indent}{marker} @{request.kind} {request.body}"
+        plan = _MutationPlan(target, source, line, marker, indent)
+        if _matches_selector(lines, plan, request.definition_line):
+            if selected is not None:
+                raise TaintAnnotationError("taint_annotation_target_ambiguous")
+            selected = plan
+    if selected is None:
+        raise TaintAnnotationError("taint_annotation_target_not_found")
+    plan = selected
+    # A declaration can begin inside an expression on a line whose beginning
+    # is still literal text (for example, `${function ...}` in a JS template).
+    # Adding a whole line there is not a source comment.
+    if not plan.target.insertion_is_line_start:
+        raise TaintAnnotationError("taint_annotation_input_invalid")
+    if len(plan.line.encode("utf-8")) > MAX_ANNOTATION_BYTES:
+        raise TaintAnnotationError("taint_annotation_capacity_exceeded")
+    if not canonical_annotation(plan.line, plan.indent, language, plan.target.insertion_line):
+        raise TaintAnnotationError("taint_annotation_input_invalid")
+    return plan
+
+
+def _matches_selector(lines: Sequence[str], plan: _MutationPlan, definition_line: int) -> bool:
+    if not definition_line or definition_line in plan.target.selector_lines:
+        return True
+    block = _annotation_block(lines, plan.target.insertion_line - 1, plan.indent, plan.marker)
+    for index, value in block:
+        if value == plan.line:
+            # The existing line is the natural receipt. Reconstruct the
+            # selectors before that line or later block lines were inserted.
+            # This also reconciles a lost response from an earlier no-op.
+            shift = plan.target.insertion_line - (index + 1)
+            return any(
+                line - shift <= definition_line <= line for line in plan.target.selector_lines
+            )
+    return False
+
+
+def _apply_plan(
+    source: str,
+    plan: _MutationPlan,
+    request: _AnnotationRequest,
+) -> tuple[str, dict[str, Any]]:
+    lines = split_lines(source, keepends=True)
+    insertion_index = plan.target.insertion_line - 1
+    block = _annotation_block(lines, insertion_index, plan.indent, plan.marker)
+    exact = next((index for index, value in block if value == plan.line), None)
+    if exact is not None:
+        return source, _result(request, exact + 1, plan.target.definition_line, False)
+    if request.kind == "trace":
+        for _, value in block:
+            if not value.startswith(f"{plan.indent}{plan.marker} @trace "):
+                continue
+            existing_target = _trace_target(value, plan.indent, plan.marker)
+            if existing_target is None or existing_target == request.logical_key:
+                raise TaintAnnotationError("taint_annotation_conflict")
+    elif any(
+        value.startswith(f"{plan.indent}{plan.marker} @{request.kind}")
+        and not _canonical_existing(value, plan.indent, plan.marker, request.kind)
+        for _, value in block
+    ):
+        raise TaintAnnotationError("taint_annotation_conflict")
+    newline = _comment_newline(source)
+    if (
+        len(source.encode("utf-8")) + len(plan.line.encode("utf-8")) + len(newline.encode("ascii"))
+        > MAX_SOURCE_FILE_BYTES
+    ):
+        raise TaintAnnotationError("taint_annotation_capacity_exceeded")
+    lines.insert(insertion_index, plan.line + newline)
+    return "".join(lines), _result(
+        request,
+        insertion_index + 1,
+        plan.target.definition_line + 1,
+        True,
+    )
+
+
+def _comment_newline(source: str) -> str:
+    """Return the LF-based line break the file uses for an inserted comment.
+
+    A lone CR ends a read_file line but not a line comment in several parser
+    grammars (Python, Go), so a comment ended by it would swallow the
+    definition below.
+    """
+
+    index = source.find("\n")
+    return "\r\n" if index > 0 and source[index - 1] == "\r" else "\n"
+
+
+def _annotation_block(
+    lines: Sequence[str],
+    insertion_index: int,
+    indent: str,
+    marker: str,
+) -> list[tuple[int, str]]:
+    prefix = f"{indent}{marker} @"
+    result: list[tuple[int, str]] = []
+    index = insertion_index - 1
+    while index >= 0:
+        value = _without_newline(lines[index])
+        if not value.startswith(prefix):
+            break
+        result.append((index, value))
+        index -= 1
+    result.reverse()
+    return result
+
+
+def _trace_target(value: str, indent: str, marker: str) -> str | None:
+    prefix = f"{indent}{marker} @trace target="
+    if not value.startswith(prefix):
+        return None
+    target = value[len(prefix) :].split(" ", 1)[0]
+    try:
+        return _token(target)
+    except TaintAnnotationError:
+        return None
+
+
+def _canonical_existing(
+    value: str,
+    indent: str,
+    marker: str,
+    kind: AnnotationKind,
+) -> bool:
+    body = value.removeprefix(f"{indent}{marker} @{kind} ")
+    try:
+        if kind == "validate":
+            match = re.fullmatch(r"arg=([^ ]+) kind=([^ ]+)", body)
+            return bool(match and _argument_token(match.group(1)) and _token(match.group(2)))
+        match = re.fullmatch(r"kind=([^ ]+) arg=([^ ]+)", body)
+        return bool(match and _token(match.group(1)) and _argument_token(match.group(2)))
+    except TaintAnnotationError:
+        return False
+
+
+def _result(
+    request: _AnnotationRequest,
+    annotation_line: int,
+    definition_line: int,
+    changed: bool,
+) -> dict[str, Any]:
+    return {
+        "path": request.path,
+        "symbol": request.symbol,
+        "kind": request.kind,
+        "annotationLine": annotation_line,
+        "definitionLine": definition_line,
+        "changed": changed,
+    }
+
+
+def _path(value: str) -> str:
+    if not isinstance(value, str):
+        raise TaintAnnotationError("taint_annotation_input_invalid")
+    try:
+        return normalize_project_path(value, allow_root=False)
+    except ProjectPathError:
+        raise TaintAnnotationError("taint_annotation_input_invalid") from None
+
+
+def _symbol(value: str) -> str:
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value) > MAX_SYMBOL_CHARS
+        or unicodedata.normalize("NFC", value) != value
+        or any(
+            character.isspace() or unicodedata.category(character).startswith("C")
+            for character in value
+        )
+        or any(character in ",=#@" for character in value)
+    ):
+        raise TaintAnnotationError("taint_annotation_input_invalid")
+    return value
+
+
+def _syntax_value(normalize: Callable[[str], str], value: str) -> str:
+    try:
+        return normalize(value)
+    except AnnotationSyntaxError as error:
+        code = (
+            "taint_annotation_capacity_exceeded"
+            if error.capacity
+            else "taint_annotation_input_invalid"
+        )
+        raise TaintAnnotationError(code) from None
+
+
+def _token(value: str) -> str:
+    return _syntax_value(annotation_token, value)
+
+
+def _argument_token(value: str) -> str:
+    return _syntax_value(argument_token, value)
+
+
+def _args(value: str) -> str:
+    return _syntax_value(annotation_args, value)
+
+
+def _calls(value: str) -> str:
+    return _syntax_value(annotation_calls, value)
+
+
+_RAW_ARGUMENT_FIELDS = MappingProxyType(
+    {
+        "annotate_trace": (
+            {"path": str, "symbol": str},
+            {"target": str, "args": str, "calls": str, "definition_line": int},
+        ),
+        "annotate_validate": (
+            {"path": str, "symbol": str, "arg": str, "kind": str},
+            {"definition_line": int},
+        ),
+        "annotate_sink": (
+            {"path": str, "symbol": str, "kind": str},
+            {"arg": str, "definition_line": int},
+        ),
+    }
+)
+
+
+def _valid_raw_arguments(tool_name: str, args: object) -> bool:
+    if type(args) is not dict or tool_name not in _RAW_ARGUMENT_FIELDS:
+        return False
+    required, optional = _RAW_ARGUMENT_FIELDS[tool_name]
+    if not set(required).issubset(args) or set(args) - set(required) - set(optional):
+        return False
+    fields = dict(required)
+    fields.update(optional)
+    for name, value in args.items():
+        expected = fields[name]
+        if expected is int:
+            if not isinstance(value, int) or isinstance(value, bool):
+                return False
+        elif type(value) is not expected:
+            return False
+    return True
+
+
+def _map_workspace_error(error: WorkspaceStorageError) -> TaintAnnotationError:
+    code = error.args[0] if error.args and isinstance(error.args[0], str) else ""
+    if code == "binary_file_unsupported":
+        return TaintAnnotationError("taint_annotation_language_unsupported")
+    if code == "workspace_not_found":
+        return TaintAnnotationError("taint_annotation_target_not_found")
+    if code in {"workspace_limit_exceeded"}:
+        return TaintAnnotationError("taint_annotation_capacity_exceeded")
+    if code in {"workspace_path_invalid", "workspace_type_conflict"}:
+        return TaintAnnotationError("taint_annotation_input_invalid")
+    return TaintAnnotationError("taint_annotation_unavailable", retryable=True)
+
+
+def _normalize_error(error: Exception) -> TaintAnnotationError:
+    if isinstance(error, TaintAnnotationError):
+        return error
+    return TaintAnnotationError("taint_annotation_unavailable", retryable=True)
+
+
+async def _workspace_header_language(writer: WorkspaceWriter) -> Language:
+    """Resolve the ``.h`` grammar from the workspace exactly as code analysis does."""
+
+    try:
+        metadata = await writer.observation_metadata()
+    except asyncio.CancelledError:
+        raise
+    except WorkspaceStorageError as error:
+        raise _map_workspace_error(error) from None
+    except Exception:
+        raise TaintAnnotationError("taint_annotation_unavailable", retryable=True) from None
+    return language_support.header_language(metadata.managed_text_paths)
+
+
+def _parse_target_file(source: bytes, language: Language) -> AnnotationParseResult:
+    return parse_annotation_targets(language_support.load_parser(language), source, language)
+
+
+def _without_newline(value: str) -> str:
+    return value.removesuffix("\n").removesuffix("\r")

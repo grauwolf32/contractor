@@ -1,0 +1,86 @@
+schema_version: '1.0'
+id: V410-031
+title: Name the shared bridge module separately from its mitmproxy implementation
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: chore
+introduced_by: V410-030
+priority: P3
+status: completed
+depends_on: [V410-030]
+languages: [python, markdown]
+goal: Keep the common bridge name independent of the selected protocol implementation without changing HTTP behavior.
+context:
+  authority: >-
+    User decision 2026-11-04: the module should be named bridge; mitmproxy is a
+    concrete implementation. Rename and organize the existing code accordingly.
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R138
+  - docs/spec/tools/http-caido.md#HTP-R148
+  boundary_decision: >-
+    adapters.bridge exposes the existing per-invocation HTTPProxyBridge and its
+    classified BridgeFailure. adapters.bridge.mitmproxy contains MitmproxyEngine
+    and all native protocol, ingress, exchange and lifecycle internals. The
+    existing HTTPTransport composition point selects that concrete implementation.
+    The common bridge delegates ingress creation to its acquired implementation;
+    it does not import native protocol classes. This is namespace/ownership
+    cleanup, not a backend registry, new configurable provider contract or fallback.
+scope:
+  in:
+  - Move the existing bridge and native engine files into the bridge package with an explicit mitmproxy implementation package.
+  - Rename HTTPEngine to MitmproxyEngine and expose the existing classified failure through the common bridge boundary.
+  - Update actual production/test imports, the experiment Runtime import probe and current documentation links.
+  - Keep existing test file names and historical measurement artifacts so past evidence remains attributable to its recorded commit.
+  out:
+  - New protocol features, provider registration/configuration, fallback transports or changes to admission/session/limit/lifecycle behavior.
+acceptance_criteria:
+- id: A1
+  text: Production callers use adapters.bridge for the common handle/failure and explicitly select adapters.bridge.mitmproxy.MitmproxyEngine at the existing composition point; replaced modules and class aliases are absent.
+- id: A2
+  text: Native implementation details live below bridge.mitmproxy, and common ingress ownership delegates construction to the acquired engine without importing concrete protocol classes.
+- id: A3
+  text: Existing HTTP, scanner, lifecycle and memory probes continue to run, imports obey Runtime layers, and live documentation links resolve without rewriting historical evidence.
+tests:
+- command: make test-runtime
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+- command: cd runtime && uv run ruff check ../scripts/experiments/mitmproxy_embedding.py
+  covers: [A3]
+- command: cd runtime && uv run ruff format --check ../scripts/experiments/mitmproxy_embedding.py
+  covers: [A3]
+- command: cd runtime && UV_OFFLINE=1 uv run python ../scripts/experiments/mitmproxy_embedding.py --output /tmp/v410-031-mitmproxy-embedding.json
+  covers: [A1, A2, A3]
+- command: cd runtime && uv run python ../scripts/experiments/mitmproxy_production_memory.py --output /tmp/v410-031-native-memory.json
+  covers: [A3]
+- command: python3 scripts/check_spec.py
+  covers: [A3]
+- command: cd runtime && uv run python ../scripts/check_tasks.py
+  covers: [A3]
+verification:
+  date: '2026-11-04'
+  namespace: Common adapters.bridge imports without loading mitmproxy; all six replaced module names fail import and no compatibility aliases remain.
+  focused: The complete selected HTTP engine, bridge, socket, real Nuclei, identity, allocation and HTTP-tool suites passed (148 cases).
+  lint: make lint passed, including Runtime import layers, Ruff check/format and task/spec checks.
+  experiment: Three original protocol experiment repetitions and three production-engine memory processes passed; temporary outputs are /tmp/v410-031-mitmproxy-embedding.json and /tmp/v410-031-native-memory.json. Historical evidence was preserved.
+  earlier_full_runtime: >-
+    make test-runtime failed: 5942 passed, 135 skipped, three failures. Two scanner capability
+    probes passed when the full scanner package ran separately; the remaining Podman flood
+    test returned sandbox_timeout instead of sandbox_output_limit with a 150 ms deadline.
+  isolated_packages: >-
+    Full test_scan_toolset.py and test_podman_engine.py rerun produced 194 passed and the
+    same one Podman deadline failure. The exact three-case CLI selection reproduced it
+    again. Production sandbox code and its test were not modified by this task.
+  baseline: >-
+    Extracted runtime/src from the unchanged HEAD into /tmp/v410-031-baseline-src and
+    selected it with PYTHONPATH. The identical Podman CLI selection failed on that source
+    too (one failed, two passed). This demonstrates the failure predates the bridge rename.
+  final_full_runtime: >-
+    On 2026-11-04 after V410-032/033/034, make test-runtime passed: 5988 passed,
+    135 skipped in 425.64 seconds, followed by successful Runtime release-report
+    verification. The full conformance matrix accepted the same JUnit report.
+    make lint passed on the same production revision. Earlier unrelated failures
+    remain recorded above as historical evidence and did not reproduce in this run.
+  completion_state: Namespace implementation and every listed verification command have passed; final broad Runtime verification removes the remaining completion blocker.
+  delivery: Local branch codex/sitemap-source-comparison; not merged into main.
+implementation_commit: a5e21bc4bf7071a6647e08398d771f2f38146771

@@ -1,0 +1,521 @@
+# Podman startup policy
+
+## Release verification (V31-008)
+
+The opt-in executor is implemented and V31-008 is **completed**. Both
+`make test-podman-release` and repository-wide `make verify` passed. The
+[executable acceptance matrix](../tests/e2e/podman_sandbox_matrix.yml) maps all
+eleven specification cases to source-owned tests and mandatory gates.
+
+From the repository root, with a dedicated test PostgreSQL database and an
+already installed approved image:
+
+```sh
+CONTRACTOR_TEST_PODMAN_IMAGE='localhost/contractor-supervisor@sha256:<digest>' \
+CONTRACTOR_TEST_DATABASE_URL='<test PostgreSQL DSN>' \
+make test-podman-release
+make verify
+```
+
+The release target fails if the image variable, database variable or local
+Podman is absent. Real gates validate the pinned image and rootless policy;
+they do not pull/build images or call a live model. Ordinary unit tests retain
+their opt-in skips; the aggregate explicitly enables the real tests. Database
+process tests create isolated schemas. Container recovery targets only the
+test's unique owner; no global prune or shared database reset is used.
+
+Verification on 2026-09-06:
+
+- Arch Linux, kernel `7.1.9-arch1-2`, local rootless Podman `6.1.0`, systemd
+  cgroup v2, seccomp enabled. This host has neither SELinux nor AppArmor enabled;
+  the result does not certify those deployments or remote engines.
+- Preinstalled image:
+  `localhost/contractor-supervisor@sha256:faea9fa41ec757ad3c18bf3a947409692f2fcc374a87c1d209185175b0d215ca`.
+- `make test-podman-release`: **passed**, including all eleven matrix cases,
+  Go configuration/placement/scheduler tests, 296 Python unit tests,
+  291 local-direct regressions, the 52-test supervisor gate, 12 workflow tests,
+  five new real release cases, both production-process Go scenarios and four
+  workspace process tests. Mandatory real invocations had no skips.
+- `make verify`: **passed** after Run resume (`16c41112`) and telemetry capture
+  (`c101495f`) were committed separately. Go vet/tests/build, Python
+  lint/format/build and 1,304 Python tests passed (30 opt-in tests skipped).
+  UI generation, lint, formatting, typecheck, 244 tests, six server tests and
+  production build passed. The earlier generated-API diff blocker is resolved.
+- The release implementation is `27f606c9b0a192c4adff9cf3202f1d3e72595144`.
+  Repository-wide verification ran in the shared worktree; remaining unrelated
+  changes were not included in the Podman commits. These gates are not a claim
+  that every other pending task or every deployment environment is verified.
+
+The resource tests verify effective cgroup CPU/memory/PID limits, actual CPU
+throttling and exhaustion termination, a bounded `/tmp`, network `none`,
+read-only image files, nonzero workload UID, dropped capabilities and seccomp.
+Default policy remains 2 CPUs, 2 GiB RAM, 256 PIDs and 256 MiB `/tmp`; exhaustion
+tests also exercise smaller explicit limits. There is **no bind disk quota**.
+Command/output limits and cancellation/descendant cleanup are tested separately.
+The Go scenario verifies placement, edit → container command → explicit exact
+artifact publication, authoritative release, and container/file disposal.
+
+The new cancellation case exposed a guardian transport race: rejecting an
+allocation could close the socket while command completion sent its check.
+Transport failures are now typed cleanup failures, keeping the owner's control
+channel available to acknowledge confirmed teardown. They never count as proof
+that a workload stopped. A focused closed-socket regression covers this path.
+
+Skill scripts and future read-only skill mounts remain out of scope.
+
+## Networked sandbox
+
+Select `sandboxProfile: podman-network@1` in an AgentTemplate using the same
+`code-execution@1` / `exec_command` Toolset. Enable both `--podman-enabled true`
+and `--podman-network-enabled true` on the Runtime; the environment spelling is
+`CONTRACTOR_PODMAN_NETWORK_ENABLED=true`. The network opt-in defaults to false.
+The approved image, stable owner, local-direct workspace and all existing
+resource/deadline limits are still required.
+
+This profile uses fixed rootless `pasta`, which must be installed on the host.
+It has a private network namespace and does not publish ports or join the host
+network. The original `podman@1` continues to use `none`. No tool argument,
+Runtime label or Skill can switch a running allocation between those modes.
+Both `probe` and `prepare` owner RPCs carry an exact `network` member (`none`
+or `pasta`), validated against the immutable operator policy. Creation owns the
+mode alongside its identity, so a replay with another mode is incompatible.
+
+Startup probes the isolated profile first and, when enabled, runs the complete
+probe again for the networked profile. Each probe must confirm cleanup before
+advertisement. A definite network failure leaves the isolated profile usable;
+uncertain cleanup fences registration. Diagnostics retain `podmanNetwork=none`
+for the isolated profile and `podmanNetworkProfileAvailable` for the second
+profile. The common finite discovery deadline bounds both probes.
+
+Networked commands can access the deployment network and download dependencies.
+They do not inherit HTTP Toolset target filtering, proxy routes, target/Gateway
+credentials or environment values. Operators enforce any required egress
+boundary through deployment networking. Audit classifies `exec_command` as an
+active tool for this profile, so the pinned Project setting controls automatic,
+approval-required or prohibited execution. Offline execution is not classified
+as active solely because it uses `exec_command`.
+
+The real command gate includes HTTP egress versus isolated denial and fatal
+command cleanup for both profiles:
+
+```sh
+CONTRACTOR_RUN_PODMAN_SUPERVISOR_GATE=1 uv run pytest -W error \
+  tests/test_podman_execution_integration.py
+```
+
+## Implementation history
+
+V31-001 registers authoring/placement contracts and parses immutable startup
+policy. It does **not** install an execution factory, invoke Podman, pull images
+or advertise `podman@1` / `code-execution@1`. V31-002 adds a private engine
+adapter, still without startup/allocation wiring or capability advertisement.
+V31-003 adds the approved image and independent guardian/completion proof;
+V31-004 adds the allocation lifecycle and startup recovery gate. V31-005 adds
+bounded `exec_command`; V31-006 enables paired `podman@1` / `code-execution@1`
+advertisement only after the complete startup probe below. Policy is opt-in;
+disabled settings never invoke Podman.
+
+The profile requires an explicit Stage project workspace in `direct` mode and
+local Runtime workspace storage. Ordinary `local-workdir@1` Workers keep their
+existing memory/direct and overlay behavior, including in a mixed Stage.
+Selecting `podman@1` alone adds no tools. `code-execution@1` selects only
+`exec_command` and requires that exact profile; there is no host fallback.
+
+## Operator settings
+
+All options have environment equivalents: replace `--podman-` with
+`CONTRACTOR_PODMAN_`, uppercase the suffix and replace hyphens with underscores.
+For example, `--podman-command-max-seconds` is
+`CONTRACTOR_PODMAN_COMMAND_MAX_SECONDS`. CLI values override environment values.
+
+| CLI option | Default | Accepted bound/policy |
+|---|---|---|
+| `--podman-enabled` | `false` | Explicit `true` or `false` |
+| `--podman-image` | unset | Required when enabled; at most 512 characters, `repository@sha256:` plus 64 lowercase hex digits |
+| `--podman-owner` | unset | Required when enabled; stable unique service ID, `[a-z0-9][a-z0-9_-]{0,62}` |
+| `--podman-cpus` | 2 | Finite positive number, at most 64 |
+| `--podman-memory-bytes` | 2147483648 | Positive integer, at most 64 GiB |
+| `--podman-pids` | 256 | Positive integer, at most 4096 |
+| `--podman-tmpfs-bytes` | 268435456 | Positive integer, at most 4 GiB and no larger than memory |
+| `--podman-command-max-seconds` | 300 | Integer, 60–3600; accommodates the tool's fixed 60-second default. `exec_command` advertises it and rejects larger `timeout_seconds` |
+| `--podman-prepare-max-seconds` | 30 | Positive integer, at most 120 |
+| `--podman-stop-grace-seconds` | 5 | Positive integer, at most 30 |
+| `--podman-preview-bytes` | 32768 | Positive integer, at most 1 MiB per stream |
+| `--podman-output-max-bytes` | 1048576 | Positive integer, at most 16 MiB; at least twice the preview limit |
+
+Image repository names use the conservative grammar
+`[a-z0-9]+(?:[._:/-][a-z0-9]+)*` before the digest suffix. Tags without a digest,
+URLs, host paths, whitespace and credentials are rejected. Supplied policy is
+validated even when disabled. Enabled policy also requires
+`--workspace-storage local`; the existing workspace root settings still apply.
+Parsing verifies syntax only; the engine and startup probe verify image
+availability and service-owner locking before capability advertisement.
+
+There are no image/resource/environment fields in Workflow or model tool input.
+Network is fixed to `none` for `podman@1` and `pasta` for `podman-network@1`;
+engine access is local rootless Podman, shell is
+`/bin/sh -c`, and mounts/user mapping are operator-owned implementation policy.
+No remote engine, host socket, arbitrary mount, host environment inheritance,
+privileged mode or skill-script mount is introduced. The workspace bind has no
+per-allocation hard disk quota; API acquisition limits do not enforce disk quota.
+
+## Private execution boundary
+
+`ExecutionRequest(command, cwd="", timeout_seconds=60)` bounds UTF-8 shell text
+to 64 KiB and canonicalizes cwd using the existing workspace path grammar.
+The executor also validates the on-disk directory under the shared
+workspace guard: lexical validation alone does not exclude symlink races.
+Its effective deadline includes lock wait and cleanup and is bounded by
+request, operator and invocation deadlines. The confirmed lease is enforced
+continuously rather than as a launch-time deadline: its loss revokes a running
+command (see lease renewal below).
+
+The `sandbox-execution` channel is distinct from `runtime-subprocess-launcher`.
+The selected tool receives only `SandboxExecutor`; allocation lifecycle code
+retains `PreparedExecution` for preparation, rejection, stop and removal. The
+independent Podman owner and guardian retain container identity and lease control.
+No lifecycle/engine handle is added to ordinary tools or the ADK Worker context.
+`PodmanExecutor` and `LifecycleBackend` implement this active execution boundary.
+
+The structured result has `status`, nullable `exitCode`, `stdout`, `stderr`,
+`stdoutTruncated`, `stderrTruncated`, `durationMs` and nullable stable `errorCode`.
+Nonzero program exit is still `completed`; infrastructure failures have no
+trusted program exit code. Request/output and ownership fields are excluded
+from diagnostic reprs. Preview limits count captured bytes before UTF-8
+replacement; the private result ceiling allows the worst-case 3× replacement
+expansion. The executor enforces the configured capture limits.
+
+Tool execution reports `sandbox_invalid_command`, `sandbox_invalid_cwd`,
+`sandbox_unavailable`, `sandbox_timeout`, `sandbox_output_limit`,
+`sandbox_cleanup_failed` or `sandbox_outcome_unknown`. Sandbox selection can
+also report `sandbox_incompatible`. A confirmed local create failure produces
+`sandbox_preparation_failed` inside the engine; allocation preparation exposes
+it as `allocation_preparation_failed` after cleanup.
+
+Verification:
+
+```sh
+cd runtime
+uv run pytest -W error tests/test_podman_settings.py tests/test_podman_contracts.py tests/test_capabilities.py
+```
+
+From the repository root, also run
+`go test -count=1 ./internal/config ./internal/scheduler ./internal/controlplane`.
+
+## Private engine adapter (V31-002)
+
+`PodmanEngine` exposes `open`, `create`, `inspect`, `start`, `stop`, `remove`,
+`discover` and `close`. Calls take absolute monotonic deadlines, with a 120-second
+implementation ceiling and the configured shorter preparation ceiling for
+creation. Future lifecycle wiring converts its lease/invocation deadlines once
+and retains the workspace guard/content until removal is confirmed.
+
+The adapter rejects a root/elevated host identity and checks local engine
+rootless status. It uses `/usr/bin/podman --remote=false` with structured argv,
+not a host shell. Host environment is constructed from the current passwd entry,
+fixed executable search path, `/run/user/<uid>`, the corresponding local D-Bus
+address and locale. Runtime secrets, proxies, remote-engine selectors and custom
+environment variables are not copied. A private executable/transport seam exists
+for deterministic tests, not for Workflow configuration.
+
+Creation uses the pinned image with pull disabled, keep-id UID/GID mapping,
+private namespaces, no network, dropped capabilities, no-new-privileges,
+explicit resource limits and disabled persistent container logging. Image volumes,
+health checks, proxy inheritance and default container environment are disabled.
+The fixed container environment is PATH, HOME=/tmp and LANG. The only project
+bind is the trusted hydrated `run_workdir` at `/workspace`; `/tmp` is bounded
+tmpfs. Bind propagation is private and nonrecursive, with private SELinux
+relabeling rather than disabled host confinement or recursive ownership changes.
+The approved image entrypoint is the isolated inert PID 1 described below.
+Only PID 1 runs as namespace root (a subordinate host UID), with no capabilities;
+workload exec must explicitly select the nonzero keep-id UID/GID.
+`--dns=none` is not supplied: Podman 6.1 rejects it with `--network=none`.
+
+The service owner holds a nonblocking exclusive flock in the private directory
+`/run/user/<uid>/contractor-podman-owners`. All services sharing a local engine
+must use that same lock namespace. The directory and lock file must be owned by
+the Runtime user and have modes 0700 and 0600. Symlinks, hard-linked lock files,
+inode replacement and permission changes fail closed. Lock files are never
+unlinked on release, avoiding concurrent owners locking different inodes.
+
+Every create attempt gets a generated immutable creation ID before CLI launch.
+Creation records five labels under `io.contractor.sandbox.`: managed=1, owner,
+incarnation, allocation and creation. The generated name is
+`contractor-<creation-id>`. Engine operations retain full container IDs and verify
+all labels plus the exact name/ID from inspect. Discovery filters by owner and
+managed label but independently verifies every returned container. It includes
+predecessors for later recovery; they can be removed, not started as new work.
+
+An uncertain create is reconciled by its original creation label, not replayed.
+If no resource can yet be found, the attempt remains owned: absence does not
+authorize a second create or unlocking the service. This deliberately sacrifices
+availability on ambiguous failures. When discovery later finds the resource,
+verified removal clears the attempt, even if create never returned its ID.
+One narrower case can be confirmed: a local `podman create` CLI that exits on its
+own with a nonzero status and a successful creation-filtered `ps --all` that finds
+no container. The engine then reports preparation failure and normal allocation
+or probe cleanup releases the content pin and owner flock. If discovery fails or
+its deadline expires, later cleanup repeats that check before releasing anything.
+A signaled CLI, timeout/cancellation, transport failure or malformed zero-status
+response remains uncertain even when discovery currently finds nothing.
+Repeated start does not restart exited work. Stop/remove exit codes alone are
+not confirmation: inspect verifies termination/removal, and failed inspect only
+means absence if `podman container exists` returns its documented code 1. Code
+125 is uncertainty. No broad or forced removal is used; `ps --all` is read-only,
+owner-filtered discovery. At most 1024 active attempts/discovered resources are
+accepted; confirmed removal releases the active record and pinned descriptor.
+
+Engine operations are serialized by an owning task. Cancelling/timing out its
+caller leaves that task and the service lock retained, including delayed CLI
+spawn and kernel reaping. Waiting callers have their own finite deadlines and
+cannot launch after cancellation. CLI stdout/stderr are drained concurrently,
+with a combined 1 MiB hard bound; stderr is discarded, never logged. A CLI
+timeout/overflow closes pipes and kills/reaps the CLI child while its
+leader is still alive. This is **not** evidence that its container has stopped.
+An unconfirmed kernel operation prevents owner release rather than reporting a
+reusable resource. Inherited output pipes are closed at the deadline; no group
+signal is sent using a remembered PID after the CLI leader has exited.
+
+This adapter does not claim isolation against arbitrary same-user host writers
+replacing a bind path between checks. Only trusted allocation hydration code may
+supply the root; pin checks complement, not replace, lifecycle/guard ownership.
+The engine alone does not guarantee Runtime-death cleanup: the V31-004 owner
+below retains in-flight CLI ownership across Runtime death. Mock CLI tests do not establish effective kernel resource,
+UID mapping, confinement or descendant/liveness guarantees; the real rootless
+image/probe gates remain mandatory before advertisement.
+
+Run `cd runtime && uv run pytest -W error tests/test_podman_engine.py tests/test_podman_contracts.py`.
+The gate includes a scripted engine transport, real fake CLI child processes,
+delayed spawn, bounded output, cancelled waiters and cross-process owner locks.
+It does not create or delete real Podman containers.
+
+Flag and exit-code references: [Podman create](https://docs.podman.io/en/latest/markdown/podman-create.1.html),
+[local/remote engine selection](https://docs.podman.io/en/latest/markdown/podman.1.html),
+[container exists](https://docs.podman.io/en/latest/markdown/podman-container-exists.1.html).
+
+## Host guardian and image (V31-003)
+
+The selected trust boundary is a separate, isolated host Python process holding
+an inherited `SOCK_SEQPACKET` socket, a pinned exact container cgroup directory
+and a PID 1 pidfd. No filesystem socket or secret token exists. These descriptors
+are close-on-exec and explicitly passed **only** to the guardian; neither the
+image nor Podman/workload children receive them. Container PID 1 has a different
+UID from workload code, no capabilities, an immutable isolated-mode interpreter,
+no command API and no project imports. It only waits and reaps orphans. Workload
+code cannot signal/ptrace that PID 1, see host guardian PIDs, or write cgroup
+controls through its read-only cgroup mount.
+
+`open_fence` accepts an already ownership-verified running inspect record. It
+pins only the exact `libpod-<full container ID>.scope` below this user's systemd
+delegation, validates PID membership and subordinate UID, opens a real pidfd
+and verifies freeze/kill write authority. Broader cgroup parents are never
+destructive targets. Unsupported cgroup layouts fail; this MVP requires rootless
+Podman with a systemd-managed cgroup v2 delegation. Python builds without
+`os.pidfd_open` use the named libc API, not hard-coded syscall numbers or PID-only
+liveness checks. These filesystem checks must run off the Runtime event loop
+when allocation wiring is added.
+
+Private protocol messages are bounded to 256 bytes and serialized:
+
+| Request | Trusted acknowledgement | Meaning |
+|---|---|---|
+| Start with confirmed monotonic lease deadline | `ready` | Independent expiry is armed |
+| `renew` with confirmed monotonic lease deadline | `renewed` | Deadline is min(confirmed lease, now + 10 s) |
+| `check` after every launch has settled | `clean` | Frozen recursive cgroup inventory contained only the live, pinned PID 1 |
+| `stop` | `stopped` | Entire cgroup is unpopulated and PID 1 has exited |
+
+Freeze waits at most one second and never beyond liveness expiry. Inventory
+includes descendant cgroups, irrespective of fork/reparent/double-fork/setsid
+or inherited output descriptors. Only a clean, still-live scope is unfrozen.
+A survivor, invalid packet, expired/missing renewal, Runtime socket EOF or
+failed proof triggers `cgroup.kill` for the whole scope, independently of Podman
+CLI responsiveness. Kernel-confirmed empty state, not CLI exit or process-group
+signals, authorizes a stopped receipt. Unconfirmed termination produces no
+success receipt. There is no restart or reconnect/revival protocol.
+
+The guardian polls at 25 ms; the real gate exercises both finite expiry with a
+living controller and SIGKILL of the Runtime-side controller without a successor.
+This assumes the trusted guardian and kernel remain scheduled/functional; host
+failure or uninterruptible kernel operations are not magically bounded. No
+unconfirmed cleanup is advertised as successful. Deployment must preserve the
+guardian long enough to enforce shutdown when stopping the Runtime service.
+
+`CompletionGate.confirm` reuses `ExecutionResult`: it promotes a private
+transport's completed result only after a guardian receipt **and** a fresh
+ownership-verified running engine state. Workload output is never parsed as
+control messages. Any exception permanently invalidates that gate and disconnects
+the guardian to terminate execution. The caller retains the common workspace
+guard until termination is confirmed; an exception is not permission to release
+files or reuse the allocation. Guardian spawn owns duplicated descriptors and
+reaps late children even after caller cancellation.
+
+Lifecycle/executor integration obligations remain explicit:
+
+- Hold the service owner, pin/hydrate content, start only the inert image and
+  arm/verify the guardian before permitting any workload launch.
+- Fence in-flight create/start/exec operations during recovery and teardown;
+  do not treat this attachment primitive as a replacement for lifecycle ownership.
+- Serialize commands and filesystem operations under the common workspace guard.
+  A `check` is valid only after all launch attempts have settled: an unrelated
+  host actor starting a new exec after the frozen inventory invalidates that proof.
+- Run every workload with the nonzero keep-id UID/GID, no interactive stdin/PTY,
+  fixed environment and bounded concurrent output capture. Feed completion only
+  trusted command status, never output text. Podman's ambiguous 125/126/127 exit
+  classes must remain infrastructure uncertainty unless separately proven.
+- Convert confirmed lease deadlines once to monotonic time, renew more frequently
+  than ten seconds and fail the allocation on renewal/protocol uncertainty.
+- On timeout, cancellation, output overflow or uncertain launch, terminate the
+  container and confirm kernel/engine cleanup before releasing workspace ownership.
+  Remove the exact owned container before deleting mounted content.
+
+Build/provision instructions are in [deploy/podman](../deploy/podman/README.md).
+The mandatory task gates are `uv run pytest -W error tests/test_podman_supervisor.py`
+from `runtime`, and `make test-podman-supervisor` from the repository root with
+an explicit preinstalled digest-pinned `CONTRACTOR_TEST_PODMAN_IMAGE`. Passing
+the ordinary suite's opt-in skips does not satisfy the real gate. The gate also
+checks actual CPU throttling, memory OOM enforcement, PID exhaustion, tmpfs size,
+network isolation, seccomp/no-new-privileges and mutual host/container file edits.
+
+Kernel semantics: [cgroup v2 freezer, kill and populated state](https://docs.kernel.org/admin-guide/cgroup-v2.html).
+
+## Allocation lifecycle and surviving owner (V31-004)
+
+`PodmanWorkdirFactory` prepares ordinary private scratch; its path is never a
+container ID. After project hydration, `AllocationService` records a private
+`PreparedExecution` handle before awaiting container creation/start and guardian
+readiness. Only then are selected tools and the Worker constructed. Identical
+prepare reuses the allocation; conflicting prepare is rejected. Individual A2A
+calls, including an `INPUT_REQUIRED` pause, do not stop or recreate its container.
+Neither the Worker context nor ordinary tools receive lifecycle/engine handles.
+
+Finalize rejects execution, lets the existing Worker termination/artifact path
+finish and confirms container stop, retaining bind data. Abort and confirmed
+lease loss remove the container before discarding project files. Release retains
+one shielded cleanup task and removes container, project files, scratch and
+adapters in that order. A timeout/cancelled response does not cancel ownership or
+authorize idle capacity. Failed prepare also retains its context when removal is
+uncertain, so authoritative release cannot bypass its outstanding resources.
+The existing artifact write fence and release-confirmation edge are unchanged.
+
+An independent host owner process runs the engine and holds its service flock.
+Runtime communicates over two inherited, close-on-exec socket pairs: framed
+`SOCK_STREAM` lifecycle/command RPC (16 MiB maximum JSON frame) and a separately
+serviced `SOCK_SEQPACKET` health/rejection channel (8 KiB maximum packet).
+There is no listening filesystem/network socket,
+shell RPC, model-visible channel, inherited Runtime environment or stdout
+protocol. Caller cancellation retains a late RPC response until it can be
+drained; a subsequent remove cannot mistake a late prepare response for proof.
+
+Runtime sends a pulse every 250 ms using `LeaseWatchdog.confirmed_deadline`.
+The owner caps authority at the earlier of that confirmed lease and receipt
+time plus three seconds; it may not renew its own liveness indefinitely. The
+allocation-spec lease is the initial confirmed-lease snapshot, not a permanent
+allocation TTL: successful subsequent heartbeat acknowledgements extend the
+guardian's authority through the watchdog. Expired or replayed acknowledgements
+do not revive execution. Runtime event-loop stalls therefore expire the guardian
+even while the independent owner is alive. Because the lease is renewed while a
+command runs, it never caps the command deadline. Instead, an expired or absent
+pulse, a reject or Runtime EOF revokes the entry: the owner aborts the in-flight
+`podman exec` with `sandbox_unavailable` and stops the container, and the
+guardian kills the scope independently.
+
+On Runtime EOF the owner disconnects the guardian immediately, joins uncertain
+engine operations, discovers/removes exact owned containers and only then
+releases its flock. A late create may finish, but cannot proceed to start after
+authority loss. An unconfirmed/absent create remains fenced; only a completed
+failed CLI exit with verified absence is cleared. No second create or global
+prune is issued for uncertainty. The owner never deletes workspace files. A successor
+must acquire the same owner and complete recovery before scratch orphan cleanup,
+workspace-provider initialization or capability discovery. Cleanup uncertainty
+fails startup instead of advertising idle capacity.
+
+Dedicated scratch/project roots retain `.contractor-podman-owner-v1`, outside
+the mounted content, next to the persistent Runtime work-root lock
+`contractor-runtime.lock` ([0700 root and lock rules](../docs/operations/runtime-configuration.md#label-driven-runtime-infrastructure)).
+Released allocations leave only these two files in scratch. A disabled or
+differently configured owner cannot silently delete those roots' predecessors.
+The marker is not automatically removed;
+changing owner or disabling this deployment on the same roots requires an
+operator migration after confirmed teardown. Embedders using built-in factories
+receive the same project-provider recovery gate. Manually constructed providers
+must supply their trusted `before_initialize` recovery hook.
+
+Deployment must let both the host owner and guardian survive Runtime termination
+long enough to finish their work; killing the whole service cgroup defeats that
+assumption. Killing the owner/guardian themselves, arbitrary same-user host
+mutation, host failure and indefinitely blocked kernel operations are not
+bounded-success guarantees. No cleanup receipt is synthesized for uncertainty.
+Service-manager configuration is provided in the
+[V31-007 deployment recipe](../deploy/podman/README.md#service-manager-lifetime-and-recovery).
+
+Verification from `runtime`:
+
+```sh
+uv run pytest -W error tests/test_podman_allocation.py tests/test_podman_recovery.py
+uv run pytest -W error tests/test_allocation.py tests/test_abort.py tests/test_lease_watchdog.py tests/test_projectfs_storage.py
+CONTRACTOR_RUN_PODMAN_SUPERVISOR_GATE=1 uv run pytest -W error tests/test_podman_owner_integration.py
+```
+
+The last command additionally requires the explicitly preinstalled digest-pinned
+`CONTRACTOR_TEST_PODMAN_IMAGE`. It proves owner-lock exclusivity, graceful owner
+close, Runtime SIGKILL cleanup and Runtime SIGSTOP lease expiry with a real
+workload writer. It never pulls/builds an image and does not delete bind data.
+
+## Verified startup capabilities (V31-006)
+
+Recovery is mandatory before scratch or workspace orphan cleanup. An unreachable
+engine or unresolved predecessor is not a clean negative probe: startup fails
+unready because old mounts cannot safely be discarded. After recovery, ordinary
+profiles and the workspace provider are probed first. Memory storage or a missing
+local direct capability skips the Podman test without affecting ordinary tools.
+
+For compatible local storage, the provider creates a marker-owned probe workspace.
+The surviving owner uses separate `probe-<random>` allocation identities and the
+same pinned image, mount options, engine transport, cgroup guardian and execution
+UID as real allocations. It verifies:
+
+- Local rootless Podman, systemd cgroup v2, seccomp and the preinstalled image's
+  `cgroup-guardian-v1` label; no pull, build, privilege escalation or fallback.
+- Kernel-enforced finite memory, CPU and PID limits in the pinned scope;
+  scope swap is finite and at most the configured memory limit. Descendant
+  cgroups can impose tighter limits; zero swap is not inferred from CLI flags.
+- Actual nonzero UID/GID, zero effective capabilities, no-new-privileges,
+  seccomp, read-only image, network-none and effective `/tmp` size, plus mutual
+  host/container file visibility using fixed, content-free test programs.
+- A double-forked, new-session writer is rejected by the completion proof and
+  the exact scope becomes empty. A second container's writer is killed by a
+  short guardian deadline while its control socket remains open, without renewals
+  or a Podman stop substituting for expiry.
+- Exact removal of both probe containers before the provider deletes bind files.
+
+Podman-enabled discovery has a 60-second total budget (disabled deployments
+retain their 30-second total); ordinary probes have 5 seconds each,
+and the shared Podman probe has at most 30 seconds, including 8 seconds reserved
+for cleanup. The earlier pre-listener recovery is separately bounded by
+`prepare_max_seconds`. Insufficient remaining cleanup budget skips the optional
+Podman probe before creation. Work runs in the independent owner; blocking file
+checks run off the event loop. A timeout/cancelled reply retains the operation and
+bind directory, invalidates any late success and prevents registration. Recovery
+must confirm removal before the provider can discard these stale files.
+
+Bootstrap runs before an allocation/control lease exists and permits only the
+fixed self-test programs. Its guardian leases are finite (at most eight seconds
+for completion checks and 1.5 seconds for the expiry check), capped by the startup
+deadline, and are never used as authority for model-selected work.
+
+Confirmed negative probes omit both capabilities while preserving unrelated
+usable profiles/tools. Unconfirmed cleanup prevents registration entirely; the
+listener never becomes ready or an allocatable idle slot. Results are cached for
+the immutable process/storage configuration, not dynamically re-probed during an
+allocation. Profile-only selection still grants no model-visible execution tool.
+
+Successful diagnostics contain only the image digest, verified numeric resource
+bounds, network `none`, and `podmanBindDiskQuotaEnforced=false`. They contain no
+host path, owner identity, repository name, command, output or credential. The
+bind has **no per-allocation disk quota**. Failed diagnostics use fixed probe-phase
+identifiers; uncertain cleanup is a content-free startup error.
+
+`make test-podman-supervisor` now includes the full startup capability test, the
+real command/owner tests and the existing adversarial/resource-enforcement gate.
+Set `CONTRACTOR_TEST_PODMAN_IMAGE` to the preinstalled digest-pinned image. The
+normal suite explicitly skips the real-host tests; skips do not satisfy this gate.

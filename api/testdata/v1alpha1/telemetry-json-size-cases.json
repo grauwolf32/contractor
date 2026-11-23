@@ -1,0 +1,16 @@
+[
+  {
+    "name": "html-and-line-separators",
+    "unit": "<>&\u2028\u2029",
+    "repeat": 300,
+    "compact_bytes": 2711,
+    "valid": true
+  },
+  {
+    "name": "over-argument-limit",
+    "unit": "<>&\u2028\u2029",
+    "repeat": 455,
+    "compact_bytes": 4106,
+    "valid": false
+  }
+]

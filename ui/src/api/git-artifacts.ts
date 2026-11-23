@@ -1,0 +1,130 @@
+import { getSharedConfig } from "./shared-config";
+import { requireContractHeaders, type PublicAPI } from "./client";
+import { ARTIFACT_NAME_PATTERN } from "./artifacts";
+import { stringRule } from "./contract";
+import { invalidAPIResponse, publicAPIError, requireData } from "./error";
+import type { components } from "./generated/public";
+
+type GitKeyState = components["schemas"]["GitKeyState"];
+export type GitImportMode = NonNullable<
+  components["schemas"]["GitImportRequest"]["mode"]
+>;
+export type GitImportResult = components["schemas"]["GitImportResult"];
+export type GitSource = components["schemas"]["GitSource"];
+export const gitKeyQueryKey = ["settings", "git-key"] as const;
+/** The SSH key bound the Server applies, 32 KiB of UTF-8 (LIM-GIT-3). */
+export const GIT_PRIVATE_KEY = stringRule("GitPrivateKey");
+
+export async function getGitKey(
+  api: PublicAPI,
+  signal?: AbortSignal,
+): Promise<GitKeyState> {
+  return requireData(
+    await api.request((client) =>
+      client.GET("/v1/settings/git-key", { signal: signal ?? null }),
+    ),
+  );
+}
+export async function replaceGitKey(
+  api: PublicAPI,
+  privateKey: string,
+  signal: AbortSignal,
+): Promise<GitKeyState> {
+  return requireData(
+    await api.request((client) =>
+      client.PUT("/v1/settings/git-key", { body: { privateKey }, signal }),
+    ),
+  );
+}
+export async function removeGitKey(
+  api: PublicAPI,
+  signal: AbortSignal,
+): Promise<void> {
+  const result = await api.request((client) =>
+    client.DELETE("/v1/settings/git-key", { signal }),
+  );
+  if (!result.response.ok)
+    throw publicAPIError(result.response.status, result.error);
+}
+interface GitImportDraft {
+  mode?: GitImportMode;
+  projectId?: string;
+  namespace: string;
+  name: string;
+  repositoryUrl: string;
+  ref?: string;
+  expectedRevision?: string;
+}
+export async function importGitArtifact(
+  api: PublicAPI,
+  draft: GitImportDraft,
+  signal: AbortSignal,
+): Promise<GitImportResult> {
+  if (
+    !ARTIFACT_NAME_PATTERN.test(draft.namespace) ||
+    !ARTIFACT_NAME_PATTERN.test(draft.name)
+  )
+    throw new TypeError(
+      "Artifact namespace and name must use ASCII letters, digits, dots, underscores or hyphens, without spaces.",
+    );
+  const params = {
+    path: { namespace: draft.namespace, name: draft.name },
+    header:
+      draft.expectedRevision === undefined
+        ? { "If-None-Match": "*" as const }
+        : { "If-Match": `"${draft.expectedRevision}"` },
+  };
+  requireContractHeaders(
+    draft.projectId === undefined
+      ? "POST /v1/artifacts/{namespace}/{name}/git-import"
+      : "POST /v1/projects/{projectId}/artifacts/{namespace}/{name}/git-import",
+    params.header,
+  );
+  const { limits } = await getSharedConfig(api, signal);
+  if (
+    new TextEncoder().encode(draft.repositoryUrl).length >
+    limits.gitImportUrlMaxBytes
+  )
+    throw new TypeError(
+      `Repository URL must be at most ${limits.gitImportUrlMaxBytes} UTF-8 bytes.`,
+    );
+  const body = {
+    repositoryUrl: draft.repositoryUrl,
+    mode: draft.mode ?? "snapshot",
+    ...(draft.ref === undefined ? {} : { ref: draft.ref }),
+  };
+  const response =
+    draft.projectId === undefined
+      ? await api.request((client) =>
+          client.POST("/v1/artifacts/{namespace}/{name}/git-import", {
+            params,
+            body,
+            signal,
+          }),
+        )
+      : await api.request((client) =>
+          client.POST(
+            "/v1/projects/{projectId}/artifacts/{namespace}/{name}/git-import",
+            {
+              params: {
+                ...params,
+                path: { ...params.path, projectId: draft.projectId! },
+              },
+              body,
+              signal,
+            },
+          ),
+        );
+  const result = requireData(response);
+  // Cross-field: the Server imported into the requested Artifact.
+  if (
+    result.artifact.namespace !== draft.namespace ||
+    result.artifact.name !== draft.name
+  ) {
+    throw invalidAPIResponse(
+      response.response.status,
+      "Git import response is incomplete; inspect the Artifact library before retrying",
+    );
+  }
+  return result;
+}

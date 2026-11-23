@@ -1,0 +1,1 @@
+Execute the declared scanner once. Preserve its actual outcome and normalized evidence. Publish problem candidates only through the following explicit Server operation. A partial scan can contribute complete positive observations; it cannot claim complete coverage.

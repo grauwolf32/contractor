@@ -1,0 +1,556 @@
+"""Private Runtime protocol base models and validation."""
+
+from __future__ import annotations
+
+import ipaddress
+import json
+import math
+import re
+import unicodedata
+from datetime import datetime
+from enum import StrEnum
+from typing import Annotated, ClassVar, Literal, Self
+from urllib.parse import urlsplit
+
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
+
+from contractor_runtime.shared_config import get_shared_config
+
+API_VERSION = "contractor/v1alpha1"
+ARTIFACT_NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
+# Opaque private Artifact list cursor (LIM-ART-5): unpadded base64url issued by
+# the Server; api/testdata/v1alpha1/artifact-list-cases.json pins the grammar.
+MAX_ARTIFACT_LIST_CURSOR_LENGTH = 512
+ARTIFACT_LIST_CURSOR_PATTERN = re.compile(rf"[A-Za-z0-9_-]{{1,{MAX_ARTIFACT_LIST_CURSOR_LENGTH}}}")
+# RFC 6838 restricted names in canonical lowercase, without parameters or
+# wildcards, at most 255 characters as in the public MediaType schema;
+# api/testdata/v1alpha1/media-type-cases.json pins the grammar and bound.
+MEDIA_TYPE_PATTERN = re.compile(
+    r"(?=.{3,255}\Z)[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*"
+)
+# Values that Operations shows. Tool names and logical Agent names use the
+# public ConfigId grammar, instance and allocation IDs the public ResourceId
+# grammar; api/testdata/v1alpha1/runtime-capability-cases.json pins them and
+# the capability bounds to the Go contracts and the schemas.
+NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
+MAX_RESOURCE_ID_LENGTH = 256
+RESOURCE_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}")
+MAX_RUNTIME_CAPABILITY_REFS = 128
+MAX_RUNTIME_CAPABILITY_REF_LENGTH = 256
+MAX_TOOLSET_CAPABILITY_TOOLS = 256
+ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
+VERSION_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]*$")
+DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
+SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+NATIVE_SKILL_TOOL_NAMES = frozenset({"list_skills", "load_skill", "load_skill_resource"})
+WORKER_SUBTASK_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+WORKER_FAILURE_CODE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+RUN_METADATA_LABEL_KEY_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
+# A Runtime label set (RCF-R117 to RCF-R120, LIM-RCF-25, LIM-RCF-26); the
+# Server defines it in internal/contracts/runtimesettings/runtime_labels.go.
+DEFAULT_RUNTIME_LABEL = "default"
+MAX_RUNTIME_LABELS = 32
+MAX_RUNTIME_LABEL_BYTES = 63
+# The relative workspace path grammar (WSP-R13): workspace targets and the
+# files a Worker reports reading, and the larger Worker State paths.
+MAX_WORKSPACE_TARGET_BYTES = 1024
+MAX_WORKSPACE_TARGET_COMPONENTS = 32
+MAX_WORKER_STATE_PATH_BYTES = 4096
+MAX_WORKER_STATE_PATH_COMPONENTS = 128
+MAX_UINT64 = 2**64 - 1
+# 2^53-1, the largest integer every JSON consumer, TypeScript and a
+# google.protobuf.Value double included, carries exactly; contracts.MaxExactInteger
+# on the Server. It bounds the report integers (OBS-R111, LIM-OBS-17) and every
+# WorkerCompletion integer, which crosses the A2A DataPart as a double
+# (WRK-R164, LIM-WRK-27).
+MAX_EXACT_INTEGER = 2**53 - 1
+_STATE_METRIC_NAME_PATTERN = re.compile(r"^[a-z0-9_]+(?:\.[a-z0-9_]+)*$")
+# Whitespace of the private wire's text checks: the Unicode White_Space
+# characters, which the Server's strings.TrimSpace (unicode.IsSpace) trims.
+# str.strip() and str.isspace() also treat the information separators
+# U+001C..U+001F as whitespace, which the Server accepts as text.
+# api/testdata/v1alpha1/blank-text-cases.json pins the set for both sides.
+WHITESPACE = (
+    "\t\n\v\f\r \x85\xa0\u1680\u2000\u2001\u2002\u2003\u2004\u2005"
+    "\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000"
+)
+
+
+def _to_camel(value: str) -> str:
+    first, *rest = value.split("_")
+    return first + "".join(part.capitalize() for part in rest)
+
+
+def trim_whitespace(value: str) -> str:
+    """Remove leading and trailing WHITESPACE, as the Server's strings.TrimSpace does."""
+
+    return value.strip(WHITESPACE)
+
+
+def is_blank(value: str) -> bool:
+    """Return whether value is empty or consists only of WHITESPACE."""
+
+    return not trim_whitespace(value)
+
+
+def json_byte_size(value: object) -> int:
+    """Count compact UTF-8 JSON bytes, the measure of every private-wire byte bound.
+
+    The Server measures the same with contracts.ResultJSONSize (WRK-R37): U+2028,
+    U+2029 and other non-ASCII characters count their UTF-8 bytes, and only the
+    escapes JSON requires count extra. api/testdata/v1alpha1/json-byte-size-cases.json
+    pins the rule for both sides. NaN, infinities, unsupported types and lone
+    surrogates raise ValueError or TypeError.
+    """
+
+    return len(
+        json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode(
+            "utf-8"
+        )
+    )
+
+
+def relative_path_problem(value: str, *, max_bytes: int, max_components: int) -> str | None:
+    """Return why value is not a relative workspace path, or None when it is one (WSP-R13).
+
+    A relative path is non-empty NFC UTF-8 of at most ``max_bytes`` bytes without a
+    leading slash, backslash, NUL or URI; it has at most ``max_components``
+    components, none empty, "." or ".." or holding a control character, and its
+    first component is not a Windows drive (an ASCII letter and a colon). This is the
+    one Python definition of the rule; the Server's contracts.RelativePathProblem
+    applies it with the same problem texts, and
+    api/testdata/v1alpha1/workspace-path-cases.json pins both. The byte bound is
+    checked first, so the work is bounded by ``max_bytes``.
+    """
+
+    if not value:
+        return "must not be empty"
+    try:
+        size = len(value.encode("utf-8"))
+    except UnicodeEncodeError:
+        return "must be valid UTF-8"
+    if size > max_bytes:
+        return f"exceeds the byte bound of {max_bytes} UTF-8 bytes"
+    if value != unicodedata.normalize("NFC", value):
+        return "must be NFC-normalized"
+    if value.startswith("/") or "\\" in value or "\x00" in value or "://" in value:
+        return "must be a relative POSIX path without a backslash, NUL or URI"
+    parts = value.split("/")
+    if len(parts) > max_components:
+        return f"exceeds the depth bound of {max_components} components"
+    for part in parts:
+        if part in {"", ".", ".."}:
+            return "contains an invalid component: empty, '.' or '..'"
+        if any(ord(character) < 0x20 or ord(character) == 0x7F for character in part):
+            return "contains a control character"
+    first = parts[0]
+    if len(first) >= 2 and first[0].isascii() and first[0].isalpha() and first[1] == ":":
+        return "must not start with a Windows drive"
+    return None
+
+
+def _require_text(field: str, value: str, *, max_bytes: int | None = None) -> str:
+    if is_blank(value):
+        raise ValueError(f"{field} must not be empty")
+    if max_bytes is not None and len(value.encode("utf-8")) > max_bytes:
+        raise ValueError(f"{field} exceeds {max_bytes} UTF-8 bytes")
+    return value
+
+
+# Tool argument numbers keep only a small decimal exponent (LIM-OBS-16): the
+# Server stores a number as its full decimal expansion. -7 keeps probabilities
+# to one in ten million and float32 epsilon; 19 keeps every 64-bit integer.
+MIN_ARGUMENT_NUMBER_EXPONENT = -7
+MAX_ARGUMENT_NUMBER_EXPONENT = 19
+# The one marker that replaces a number a summary cannot keep, NaN and
+# infinities included; the Server writes the same marker.
+ARGUMENT_NUMBER_MARKER = "[NUMBER_OUT_OF_RANGE]"
+
+
+def argument_number_in_range(value: int | float) -> bool:
+    """Whether a tool argument number stays within LIM-OBS-16 as JSON writes it.
+
+    A number is kept when it is zero or the decimal exponent of its leading
+    digit lies between -7 and 19. The Server applies the same rule to the
+    literal it receives, which for a float is its repr; an integer is written
+    without an exponent, so its magnitude alone decides.
+    """
+
+    if isinstance(value, int):
+        return abs(value) < 10 ** (MAX_ARGUMENT_NUMBER_EXPONENT + 1)
+    if not math.isfinite(value):
+        return False
+    mantissa, _, exponent = repr(value).lower().partition("e")
+    shift = int(exponent) if exponent else 0
+    if not MIN_ARGUMENT_NUMBER_EXPONENT <= shift <= MAX_ARGUMENT_NUMBER_EXPONENT:
+        return False
+    integer, _, fraction = mantissa.lstrip("-").partition(".")
+    if integer.strip("0"):
+        lead = len(integer.lstrip("0")) - 1
+    elif fraction.strip("0"):
+        lead = -(len(fraction) - len(fraction.lstrip("0")) + 1)
+    else:
+        return True
+    return MIN_ARGUMENT_NUMBER_EXPONENT <= lead + shift <= MAX_ARGUMENT_NUMBER_EXPONENT
+
+
+def _require_argument_numbers(value: object) -> None:
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        if not argument_number_in_range(value):
+            raise ValueError("tool argument numbers must stay within their range")
+    elif isinstance(value, dict):
+        for item in value.values():
+            _require_argument_numbers(item)
+    elif isinstance(value, list):
+        for item in value:
+            _require_argument_numbers(item)
+
+
+def _require_tool_arguments(value: dict[str, object]) -> None:
+    _require_argument_numbers(value)
+    try:
+        size = json_byte_size(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError("tool arguments are invalid") from error
+    if size > 4096:
+        raise ValueError("tool arguments exceed 4096 JSON bytes")
+
+
+def _require_resource_id(field: str, value: str) -> str:
+    if RESOURCE_ID_PATTERN.fullmatch(value) is None:
+        raise ValueError(
+            f"{field} must be a resource identifier of at most {MAX_RESOURCE_ID_LENGTH} characters"
+        )
+    return value
+
+
+def _require_url(field: str, value: str) -> str:
+    parsed = urlsplit(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.username is not None:
+        raise ValueError(f"{field} must be an absolute HTTP(S) URL without user information")
+    return value
+
+
+def _require_aware_datetime(field: str, value: datetime) -> datetime:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError(f"{field} must include an offset")
+    return value
+
+
+class AgentObservedState(StrEnum):
+    IDLE = "idle"
+    ALLOCATED = "allocated"
+    DRAINING = "draining"
+    FENCED = "fenced"
+
+
+class WorkerSessionMode(StrEnum):
+    ISOLATED = "isolated"
+    SHARED = "shared"
+
+
+class ReconciliationAction(StrEnum):
+    CONTINUE = "continue"
+    DRAIN = "drain"
+    RELEASE = "release"
+    REREGISTER = "reregister"
+
+
+def _bounded_completion(value):
+    # The optional completion object is bounded before its strict model
+    # validation (LIM-AWC-12). An unknown kind or phase is not dropped: the
+    # model rejects it like any other malformed value (AWC-R115).
+    if isinstance(value, dict) and json_byte_size(value) > 4096:
+        raise ValueError("completion diagnostics exceed their bound")
+    return value
+
+
+def _require_state_workspace_path(value: str) -> str:
+    if (
+        relative_path_problem(
+            value,
+            max_bytes=MAX_WORKER_STATE_PATH_BYTES,
+            max_components=MAX_WORKER_STATE_PATH_COMPONENTS,
+        )
+        is not None
+    ):
+        raise ValueError("Worker State workspace path is invalid")
+    return value
+
+
+RUNTIME_ADAPTER_REFS = frozenset(
+    {"caido-graphql@1", "interactsh-http@1", "http-proxy@1", "otlp-http@1", "http-target@1"}
+)
+_HEADER_NAME_PATTERN = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
+_RUNTIME_ADAPTER_ERROR_CODES = frozenset(
+    {
+        "close_failed",
+        "delivery_failed",
+        "flush_failed",
+        "flush_timeout",
+        "queue_overflow",
+        "request_failed",
+    }
+)
+# Byte-for-byte the same expressions as internal/helpers/cabundle/validate.go. Every
+# construct is ASCII-only, so Python re and Go RE2 agree on what they match.
+_CERTIFICATE_BLOCK = (
+    r"-----BEGIN CERTIFICATE-----\r?\n((?:[A-Za-z0-9+/=]+\r?\n)+)-----END CERTIFICATE-----"
+)
+_CERTIFICATE_BLOCK_PATTERN = re.compile(_CERTIFICATE_BLOCK)
+_CA_BUNDLE_PATTERN = re.compile(
+    r"(?:[\t\n\f\r ]*\n)?"
+    + _CERTIFICATE_BLOCK
+    + r"(?:[\t\n\f\r ]*\n"
+    + _CERTIFICATE_BLOCK
+    + r")*[\t\n\f\r ]*"
+)
+_FORBIDDEN_RUNTIME_HEADERS = frozenset(
+    {
+        "connection",
+        "content-length",
+        "host",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "proxy-connection",
+        "te",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
+    }
+)
+RuntimeCredentialKind = Literal[
+    "caido-bearer@1",
+    "interactsh-token@1",
+    "http-origin-basic@1",
+    "http-origin-bearer@1",
+    "http-proxy-basic@1",
+    "http-proxy-bearer@1",
+    "otlp-headers@1",
+    "target-basic@1",
+    "target-bearer@1",
+    "target-cookies@1",
+    "target-api-keys@1",
+]
+HTTPProxyTarget = Literal["llm-gateway", "tool-http", "tool-subprocess"]
+WorkspaceMode = Literal["direct", "overlay"]
+WorkspaceStorage = Literal["local", "memory"]
+
+
+def _require_sorted_unique(field: str, values: list[str], *, maximum: int) -> None:
+    if len(values) > maximum or values != sorted(set(values)):
+        raise ValueError(f"{field} must be sorted, unique, and contain at most {maximum} items")
+
+
+def _require_runtime_endpoint(field: str, value: str) -> str:
+    problem = f"{field} must be a bounded HTTP(S) endpoint without userinfo, query or fragment"
+    try:
+        parsed = urlsplit(value)
+        host = parsed.hostname or ""
+        port = parsed.port
+    except ValueError:
+        raise ValueError(problem) from None
+    if (
+        value != trim_whitespace(value)
+        or not 1 <= len(value.encode("utf-8")) <= 2048
+        or parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or not host
+        or parsed.username is not None
+        or parsed.password is not None
+        or "?" in value
+        or "#" in value
+        or parsed.netloc.endswith(":")
+        or port == 0
+        or any(char in host for char in "%<>\\^|`{}")
+        or any(char in WHITESPACE for char in host)
+    ):
+        raise ValueError(problem)
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        last = host.removesuffix(".").rsplit(".", 1)[-1]
+        if ":" in host or not last or all("0" <= char <= "9" for char in last):
+            raise ValueError(problem) from None
+    return value
+
+
+def _require_workspace_target(value: str) -> str:
+    """Accept "" (the workspace root) or a relative path of the target grammar."""
+
+    if value == "":
+        return value
+    problem = relative_path_problem(
+        value,
+        max_bytes=MAX_WORKSPACE_TARGET_BYTES,
+        max_components=MAX_WORKSPACE_TARGET_COMPONENTS,
+    )
+    if problem is not None:
+        raise ValueError(f"workspace target {problem}")
+    return value
+
+
+def _require_runtime_labels(field: str, labels: list[str]) -> None:
+    """Accept a Runtime label set in its canonical order.
+
+    At most MAX_RUNTIME_LABELS labels of the label grammar, none of them the
+    default label, strictly ascending; the shared cases of
+    api/testdata/v1alpha1/runtime-label-set-cases.json hold the Server and the
+    browser to the same verdicts.
+    """
+
+    if len(labels) > MAX_RUNTIME_LABELS:
+        raise ValueError(f"{field} must contain at most {MAX_RUNTIME_LABELS} Runtime labels")
+    for label in labels:
+        if (
+            not label.isascii()
+            or not 1 <= len(label) <= MAX_RUNTIME_LABEL_BYTES
+            or ID_PATTERN.fullmatch(label) is None
+            or label == DEFAULT_RUNTIME_LABEL
+        ):
+            raise ValueError(f"{field} contains an invalid Runtime label")
+    if labels != sorted(set(labels)):
+        raise ValueError(f"{field} must be sorted and unique")
+
+
+def _require_selector(field: str, value: str) -> str:
+    if value.count("@") != 1:
+        raise ValueError(f"{field} must use exact <id>@<version> syntax")
+    identifier, version = value.split("@")
+    if ID_PATTERN.fullmatch(identifier) is None or VERSION_PATTERN.fullmatch(version) is None:
+        raise ValueError(f"{field} has an invalid exact selector")
+    return value
+
+
+def _require_capability_ref(field: str, value: str) -> str:
+    if len(value) > MAX_RUNTIME_CAPABILITY_REF_LENGTH:
+        raise ValueError(
+            f"{field} must contain at most {MAX_RUNTIME_CAPABILITY_REF_LENGTH} characters"
+        )
+    return _require_selector(field, value)
+
+
+def _require_digest(field: str, value: str) -> str:
+    if DIGEST_PATTERN.fullmatch(value) is None:
+        raise ValueError(f"{field} must be sha256 followed by 64 lowercase hex characters")
+    return value
+
+
+def _require_worker_subtask_id(value: str) -> str:
+    if (
+        len(value.encode("ascii", errors="ignore")) != len(value)
+        or not 1 <= len(value) <= 128
+        or WORKER_SUBTASK_ID_PATTERN.fullmatch(value) is None
+    ):
+        raise ValueError("subtaskId is invalid")
+    return value
+
+
+def normalize_run_metadata_labels(value: dict[str, str]) -> dict[str, str]:
+    if not isinstance(value, dict):
+        raise ValueError("runMetadataLabels must be an object")
+    if len(value) > get_shared_config().run_metadata_max_labels:
+        raise ValueError(
+            f"runMetadataLabels exceed {get_shared_config().run_metadata_max_labels} entries"
+        )
+    if any(not isinstance(key, str) for key in value):
+        raise ValueError("runMetadataLabels contain an invalid key")
+    result: dict[str, str] = {}
+    for key in sorted(value):
+        label_value = value[key]
+        if (
+            not key
+            or len(key.encode("utf-8")) > get_shared_config().run_metadata_key_max_bytes
+            or RUN_METADATA_LABEL_KEY_PATTERN.fullmatch(key) is None
+            or key.startswith("contractor.")
+        ):
+            raise ValueError("runMetadataLabels contain an invalid key")
+        if not isinstance(label_value, str):
+            raise ValueError("runMetadataLabels contain an invalid value")
+        encoded = label_value.encode("utf-8")
+        if len(encoded) > get_shared_config().run_metadata_value_max_bytes or "\0" in label_value:
+            raise ValueError("runMetadataLabels contain an invalid value")
+        result[key] = label_value
+    return result
+
+
+def _require_worker_result_text(value: str) -> str:
+    if is_blank(value) or len(value.encode("utf-8")) > get_shared_config().worker_result_max_bytes:
+        raise ValueError(
+            "Worker result must contain 1.."
+            f"{get_shared_config().worker_result_max_bytes} UTF-8 bytes"
+        )
+    return value
+
+
+class WireModel(BaseModel):
+    # Optional fields mean omission unless their owning wire schema allows null.
+    nullable_fields: ClassVar[frozenset[str]] = frozenset()
+
+    model_config = ConfigDict(
+        alias_generator=_to_camel,
+        populate_by_name=True,
+        extra="forbid",
+        strict=True,
+    )
+
+    @field_validator("*", mode="after")
+    @classmethod
+    def reject_optional_null(cls, value, info: ValidationInfo):
+        name = info.field_name
+        if (
+            value is None
+            and name is not None
+            and not cls.model_fields[name].is_required()
+            and name not in cls.nullable_fields
+        ):
+            raise ValueError(f"{name} must be omitted, not null")
+        return value
+
+
+def _require_runtime_adapter_ref(value: str) -> str:
+    if value not in RUNTIME_ADAPTER_REFS:
+        raise ValueError("unknown RuntimeAdapter ref")
+    return value
+
+
+class StrictWireModel(WireModel):
+    """Wire-only names, including aliases shadowed by a correctly named member."""
+
+    model_config = ConfigDict(populate_by_name=False, validate_by_name=False)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_non_wire_members(cls, value: object) -> object:
+        if isinstance(value, dict):
+            names = {field.alias or name for name, field in cls.model_fields.items()}
+            if value.keys() - names:
+                raise ValueError("private protocol contains an unknown member")
+        return value
+
+
+class VersionedWireModel(WireModel):
+    api_version: Literal[API_VERSION]
+
+
+class TerminationError(WireModel):
+    code: str
+    message: str
+    retryable: bool
+
+    @model_validator(mode="after")
+    def validate_error(self) -> Self:
+        _require_text("code", self.code)
+        _require_text("message", self.message)
+        return self
+
+
+RuntimeAdapterRef = Annotated[str, AfterValidator(_require_runtime_adapter_ref)]

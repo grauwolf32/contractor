@@ -1,0 +1,808 @@
+from __future__ import annotations
+
+import asyncio
+import json
+from pathlib import Path, PurePosixPath
+from typing import Any
+
+import pytest
+from platform_markers import linux_filesystem
+
+import contractor_runtime.toolsets.code_analysis.tools as code_analysis
+from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.projectfs.storage import ManagedWorkspaceTree, WorkspaceSnapshot
+from contractor_runtime.telemetry.metrics import MetricsState
+from contractor_runtime.toolsets.code_analysis.ids import (
+    MAX_SYMBOL_ID_BYTES,
+    decode_symbol_id,
+    encode_symbol_id,
+    symbol_id_matches_upstream,
+)
+from contractor_runtime.toolsets.code_analysis.tools import (
+    CORE_GRAPH_TOOLS,
+    GRAPH_TOOLS,
+    CodeAnalysisError,
+    CodeAnalysisToolsetFactory,
+)
+from contractor_runtime.toolsets.code_analysis.trailmark_child import (
+    _record_strongest_relationship,
+)
+from contractor_runtime.toolsets.common.resources import ToolResources
+from contractor_runtime.workspace import AllocationWorkspace
+
+
+def test_symbol_id_is_allocation_local_and_bound_to_complete_upstream_id() -> None:
+    key = bytes(range(32))
+    digest = "sha256:" + "a" * 64
+    symbol_id = encode_symbol_id(key, digest, 7, "module:Class.method")
+    decoded = decode_symbol_id(key, symbol_id)
+
+    assert decoded.snapshot_digest == digest
+    assert decoded.index == 7
+    assert symbol_id_matches_upstream(key, decoded, "module:Class.method") is True
+    assert symbol_id_matches_upstream(key, decoded, "module:Other.method") is False
+    with pytest.raises(ValueError):
+        decode_symbol_id(bytes(reversed(key)), symbol_id)
+
+
+SYMBOL_ID_OPERATIONS = {
+    "find_callers": lambda session, value: session.find_relationships(
+        "find_callers", value, "", 10
+    ),
+    "find_callees": lambda session, value: session.find_relationships(
+        "find_callees", value, "", 10
+    ),
+    "paths_between-source": lambda session, value: session.paths_between(value, "cas1", 5, 5),
+    "paths_between-target": lambda session, value: session.paths_between("cas1", value, 5, 5),
+    "entrypoint_paths_to": lambda session, value: session.entrypoint_paths_to(value, 5, 5),
+}
+
+
+@pytest.mark.parametrize("operation", sorted(SYMBOL_ID_OPERATIONS))
+def test_every_symbol_id_operation_applies_the_same_shape_rule_before_the_snapshot(
+    tmp_path: Path,
+    operation: str,
+) -> None:
+    longest = "c" * MAX_SYMBOL_ID_BYTES
+    rejected_shapes: list[Any] = ["", "cas1.é", longest + "c", None, 7]
+
+    async def scenario() -> None:
+        reader = CountingReader({"app.py": "def target():\n    return 1\n"})
+        session = code_analysis._CodeAnalysisSession(reader, graph_scratch=tmp_path)
+        call = SYMBOL_ID_OPERATIONS[operation]
+        for value in rejected_shapes:
+            with pytest.raises(CodeAnalysisError) as rejected:
+                await call(session, value)
+            assert rejected.value.code == "code_analysis_symbol_not_found"
+            assert rejected.value.retryable is False
+        # The shape check rejects before the call reads a workspace snapshot.
+        assert reader.snapshots == 0
+        # The longest ASCII value passes the shape check; the graph host then
+        # rejects the forged token with the same code, without a child.
+        with pytest.raises(CodeAnalysisError) as forged:
+            await call(session, longest)
+        assert forged.value.code == "code_analysis_symbol_not_found"
+        assert reader.snapshots == 1
+        await session.close()
+        assert list(tmp_path.iterdir()) == []
+
+    asyncio.run(scenario())
+    key = bytes(range(32))
+    for value in rejected_shapes:
+        with pytest.raises(ValueError, match="invalid symbol ID"):
+            decode_symbol_id(key, value)
+
+
+def test_c_header_definition_is_mirrored_only_with_an_activating_source(tmp_path: Path) -> None:
+    header = "static inline int helper(int x) { return x + 1; }\n"
+
+    async def scenario() -> None:
+        linked, _, _ = await _tools(
+            tmp_path / "linked",
+            MutableReader(
+                {
+                    "a.c": '#include "include/util.h"\nint main(void) { return helper(2); }\n',
+                    "include/util.h": header,
+                }
+            ),
+        )
+        summary = await linked["graph_summary"]()
+        assert summary["coverage"]["analyzedFiles"] == 2
+        assert summary["coverage"]["unsupportedSourceFiles"] == 0
+        helper = (await linked["find_symbol"]("helper"))["items"]
+        assert any(item["path"] == "include/util.h" and item["kind"] != "proxy" for item in helper)
+        main = (await linked["find_symbol"]("main"))["items"][0]
+        callees = await linked["find_callees"](main["symbolId"])
+        assert any(
+            item["name"] == "helper"
+            and item["path"] == "include/util.h"
+            and item["kind"] != "proxy"
+            for item in callees["items"]
+        )
+        await _close(linked)
+
+        standalone, _, _ = await _tools(
+            tmp_path / "standalone", MutableReader({"include/util.h": header})
+        )
+        summary = await standalone["graph_summary"]()
+        assert summary["coverage"]["analyzedFiles"] == 0
+        assert summary["coverage"]["unsupportedSourceFiles"] == 1
+        await _close(standalone)
+
+    asyncio.run(scenario())
+
+
+def test_graph_admits_headers_only_when_they_resolve_to_c(tmp_path: Path) -> None:
+    header = "static inline int helper(int x) { return x + 1; }\n"
+
+    async def scenario() -> None:
+        # Shallow analysis and taint annotation parse these headers as C++,
+        # which Trailmark's activated C parser must not contradict.
+        cpp, _, _ = await _tools(
+            tmp_path / "cpp",
+            MutableReader(
+                {
+                    "include/util.h": header,
+                    "src/a.c": "int c_main(void) { return 0; }\n",
+                    "src/b.cpp": "int b() { return 1; }\n",
+                    "src/c.cpp": "int c() { return 2; }\n",
+                }
+            ),
+        )
+        summary = await cpp["graph_summary"]()
+        assert summary["coverage"]["analyzedFiles"] == 3
+        assert summary["coverage"]["unsupportedSourceFiles"] == 1
+        assert (await cpp["find_symbol"]("helper"))["items"] == []
+        await _close(cpp)
+
+        c_tools, _, _ = await _tools(
+            tmp_path / "c",
+            MutableReader(
+                {
+                    "include/util.h": header,
+                    "src/a.c": '#include "include/util.h"\nint main(void) { return helper(2); }\n',
+                    "src/b.c": "int other(void) { return 1; }\n",
+                    "third_party/lib.cc": "int lib() { return 3; }\n",
+                }
+            ),
+        )
+        summary = await c_tools["graph_summary"]()
+        assert summary["coverage"]["analyzedFiles"] == 4
+        assert summary["coverage"]["unsupportedSourceFiles"] == 0
+        helper = (await c_tools["find_symbol"]("helper"))["items"]
+        assert any(item["path"] == "include/util.h" and item["kind"] != "proxy" for item in helper)
+        await _close(c_tools)
+
+    asyncio.run(scenario())
+
+
+def test_graph_reports_case_variant_extensions_as_unsupported(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        tools, _, scratch = await _tools(
+            tmp_path,
+            MutableReader(
+                {
+                    "Tool.PY": "def upper_tool():\n    return 1\n",
+                    "app.py": "def lower_app():\n    return upper_tool()\n",
+                    "native/impl.C": "int upper_c(void) { return 3; }\n",
+                    "native/impl.H": "int upper_h(void);\n",
+                    "contracts/Token.SOL": "contract Token {}\n",
+                }
+            ),
+        )
+        summary = await tools["graph_summary"]()
+        assert summary["languages"] == ["python"]
+        assert summary["coverage"]["analyzedFiles"] == 1
+        assert summary["coverage"]["unsupportedSourceFiles"] == 4
+        assert summary["coverage"]["incomplete"] is False
+        found = (await tools["find_symbol"]("upper_tool"))["items"]
+        assert found and all(item["kind"] == "proxy" for item in found)
+        mirrors = list(scratch.glob("code-analysis-mirror-*"))
+        assert len(mirrors) == 1
+        assert sorted(
+            path.relative_to(mirrors[0]).as_posix()
+            for path in mirrors[0].rglob("*")
+            if path.is_file()
+        ) == [".trailmark/entrypoints.toml", "app.py"]
+        await _close(tools)
+
+    asyncio.run(scenario())
+
+
+def test_core_graph_tools_expose_duplicate_identity_and_exact_relationships(
+    tmp_path: Path,
+) -> None:
+    files = {
+        "a.py": (
+            "class A:\n"
+            "    def target(self):\n"
+            "        return 1\n"
+            "    def caller_a(self):\n"
+            "        return self.target()\n"
+        ),
+        "b.py": (
+            "class B:\n"
+            "    def target(self):\n"
+            "        return 2\n"
+            "    def caller_b(self):\n"
+            "        return self.target()\n"
+        ),
+    }
+
+    async def scenario() -> None:
+        tools, _, scratch = await _tools(tmp_path, MutableReader(files))
+        description = tools["find_symbol"].__doc__
+        assert description is not None
+        assert "Symbol name or qualified name" in description
+        assert "Do not pass an opaque symbolId" in description
+        summary = await tools["graph_summary"]()
+        assert set(summary) == {
+            "nodeCount",
+            "callEdgeCount",
+            "entrypointCount",
+            "languages",
+            "coverage",
+        }
+        assert summary["nodeCount"] == 8
+        assert summary["callEdgeCount"] == 2
+        assert summary["languages"] == ["python"]
+
+        found = await tools["find_symbol"]("TARGET")
+        assert found["observedTotal"] == 2
+        assert found["truncated"] is False
+        assert [item["path"] for item in found["items"]] == ["a.py", "b.py"]
+        ids = [item["symbolId"] for item in found["items"]]
+        assert len(set(ids)) == 2
+        assert all(value.startswith("cas1.") for value in ids)
+        assert all("target" not in value.casefold() for value in ids)
+
+        qualified = await tools["find_symbol"]("A.target")
+        assert [(item["name"], item["path"]) for item in qualified["items"]] == [("target", "a.py")]
+
+        first_callers = await tools["find_callers"](ids[0])
+        second_callers = await tools["find_callers"](ids[1])
+        assert [(item["name"], item["confidence"]) for item in first_callers["items"]] == [
+            ("caller_a", "certain")
+        ]
+        assert [(item["name"], item["confidence"]) for item in second_callers["items"]] == [
+            ("caller_b", "certain")
+        ]
+
+        caller = (await tools["find_symbol"]("caller_a"))["items"][0]
+        callees = await tools["find_callees"](caller["symbolId"])
+        assert [(item["name"], item["path"]) for item in callees["items"]] == [("target", "a.py")]
+
+        with pytest.raises(CodeAnalysisError) as bare_name:
+            await tools["find_callers"]("target")
+        assert bare_name.value.code == "code_analysis_symbol_not_found"
+        prefix, body, signature = ids[0].split(".")
+        tampered_id = ".".join(
+            (prefix, body, ("A" if signature[0] != "A" else "B") + signature[1:])
+        )
+        with pytest.raises(CodeAnalysisError) as tampered:
+            await tools["find_callers"](tampered_id)
+        assert tampered.value.code == "code_analysis_symbol_not_found"
+        assert len(tuple(scratch.glob("code-analysis-mirror-*"))) == 1
+        await _close(tools)
+        assert list(scratch.iterdir()) == []
+
+    asyncio.run(scenario())
+
+
+def test_call_relationships_deduplicate_sites_before_pagination(tmp_path: Path) -> None:
+    files = {
+        "app.py": (
+            "def helper(x):\n    return x\n\n"
+            "def extra(x):\n    return x\n\n"
+            "def main():\n"
+            "    helper(1)\n    helper(2)\n    helper(3)\n"
+            "    extra(1)\n    extra(2)\n\n"
+            "def other():\n    helper(4)\n"
+        )
+    }
+
+    async def scenario() -> None:
+        tools, _, _ = await _tools(tmp_path, MutableReader(files))
+        summary = await tools["graph_summary"]()
+        assert summary["callEdgeCount"] == 6
+        symbols = {
+            name: (await tools["find_symbol"](name))["items"][0]["symbolId"]
+            for name in ("helper", "main")
+        }
+
+        callees = await tools["find_callees"](symbols["main"], limit=2)
+        assert {item["name"] for item in callees["items"]} == {"helper", "extra"}
+        assert callees["observedTotal"] == 2
+        assert callees["truncated"] is False
+
+        callers = await tools["find_callers"](symbols["helper"], limit=2)
+        assert [item["name"] for item in callers["items"]] == ["main", "other"]
+        assert callers["observedTotal"] == 2
+        assert callers["truncated"] is False
+
+        paths = await tools["paths_between"](symbols["main"], symbols["helper"])
+        assert [[node["name"] for node in path] for path in paths["items"]] == [["main", "helper"]]
+        await _close(tools)
+
+    asyncio.run(scenario())
+
+
+def test_repeated_relationship_keeps_strongest_confidence_regardless_of_order() -> None:
+    for confidence_order in (
+        ("uncertain", "inferred", "certain"),
+        ("certain", "uncertain", "inferred"),
+    ):
+        index: dict[str, dict[str, str]] = {}
+        for confidence in confidence_order:
+            _record_strongest_relationship(index, "caller", "callee", confidence)
+        assert index == {"caller": {"callee": "certain"}}
+
+
+def test_callees_include_bounded_unresolved_proxy_projection(tmp_path: Path) -> None:
+    files = {
+        "service.py": (
+            "class Service:\n    def handle(self):\n        return self.dependency.do_thing()\n"
+        )
+    }
+
+    async def scenario() -> None:
+        tools, _, _ = await _tools(tmp_path, MutableReader(files))
+        handle = (await tools["find_symbol"]("Service.handle"))["items"][0]
+        result = await tools["find_callees"](handle["symbolId"])
+        assert result["observedTotal"] == 1
+        assert result["items"][0]["kind"] == "proxy"
+        assert result["items"][0]["path"] == "service.py"
+        assert result["items"][0]["confidence"] in {
+            "certain",
+            "inferred",
+            "uncertain",
+        }
+        assert set(result["items"][0]) == {
+            "symbolId",
+            "name",
+            "kind",
+            "path",
+            "line",
+            "endLine",
+            "column",
+            "confidence",
+        }
+        await _close(tools)
+
+    asyncio.run(scenario())
+
+
+def test_find_symbol_pagination_is_deterministic_and_integrity_protected(
+    tmp_path: Path,
+) -> None:
+    files = {f"module_{index:03d}.py": "def target():\n    return 1\n" for index in range(60)}
+
+    async def scenario() -> None:
+        tools, _, _ = await _tools(tmp_path, MutableReader(files))
+        first = await tools["find_symbol"]("target", limit=20)
+        assert len(first["items"]) == 20
+        assert first["observedTotal"] == 60
+        assert first["truncated"] is True
+        assert first["nextCursor"]
+        second = await tools["find_symbol"]("TARGET", cursor=first["nextCursor"], limit=20)
+        assert len(second["items"]) == 20
+        assert first["items"][-1]["path"] < second["items"][0]["path"]
+        assert {item["symbolId"] for item in first["items"]}.isdisjoint(
+            item["symbolId"] for item in second["items"]
+        )
+        encoded_body, encoded_signature = first["nextCursor"].split(".", 1)
+        tampered = (
+            encoded_body
+            + "."
+            + (("A" if encoded_signature[0] != "A" else "B") + encoded_signature[1:])
+        )
+        with pytest.raises(CodeAnalysisError) as rejected:
+            await tools["find_symbol"]("target", cursor=tampered, limit=20)
+        assert rejected.value.code == "code_analysis_cursor_invalid"
+        await _close(tools)
+
+    asyncio.run(scenario())
+
+
+def test_edit_invalidates_child_cursor_and_symbol_id_before_rebuild(tmp_path: Path) -> None:
+    reader = MutableReader(
+        {
+            "a.py": "def target():\n    return 1\n",
+            "b.py": "def target():\n    return 2\n",
+        }
+    )
+
+    async def scenario() -> None:
+        tools, _, scratch = await _tools(tmp_path, reader)
+        first = await tools["find_symbol"]("target", limit=1)
+        old_id = first["items"][0]["symbolId"]
+        old_cursor = first["nextCursor"]
+        assert old_cursor
+        assert len(tuple(scratch.glob("code-analysis-mirror-*"))) == 1
+
+        reader.write("a.py", "def replacement():\n    return 3\n")
+        with pytest.raises(CodeAnalysisError) as stale:
+            await tools["find_callers"](old_id)
+        assert stale.value.code == "code_analysis_stale_symbol"
+        assert list(scratch.iterdir()) == []
+
+        with pytest.raises(CodeAnalysisError) as stale_cursor:
+            await tools["find_symbol"]("target", cursor=old_cursor, limit=1)
+        assert stale_cursor.value.code == "code_analysis_workspace_changed"
+        assert list(scratch.iterdir()) == []
+
+        fresh = await tools["find_symbol"]("replacement")
+        assert fresh["observedTotal"] == 1
+        assert fresh["items"][0]["symbolId"] != old_id
+        assert len(tuple(scratch.glob("code-analysis-mirror-*"))) == 1
+        await _close(tools)
+
+    asyncio.run(scenario())
+
+
+def test_symbol_ids_cannot_cross_allocation_sessions(tmp_path: Path) -> None:
+    files = {"app.py": "def target():\n    return 1\n"}
+
+    async def scenario() -> None:
+        factory = CodeAnalysisToolsetFactory(
+            workspace_storage="local", graph_probe_root=tmp_path / "probe"
+        )
+        assert await factory.probe() >= CORE_GRAPH_TOOLS
+        first, _, first_scratch = await _tools(
+            tmp_path / "first",
+            MutableReader(files),
+            factory=factory,
+        )
+        second, _, second_scratch = await _tools(
+            tmp_path / "second",
+            MutableReader(files),
+            factory=factory,
+        )
+        first_id = (await first["find_symbol"]("target"))["items"][0]["symbolId"]
+        await second["graph_summary"]()
+        with pytest.raises(CodeAnalysisError) as rejected:
+            await second["find_callers"](first_id)
+        assert rejected.value.code == "code_analysis_symbol_not_found"
+        assert len(tuple(first_scratch.glob("code-analysis-mirror-*"))) == 1
+        assert len(tuple(second_scratch.glob("code-analysis-mirror-*"))) == 1
+        await _close(first)
+        await _close(second)
+
+    asyncio.run(scenario())
+
+
+def test_graph_results_are_bounded_relative_and_metrics_are_content_free(
+    tmp_path: Path,
+) -> None:
+    query_canary = "SensitiveGraphNameCanary"
+    files = {
+        "nested/app.py": (
+            f"def {query_canary}():\n    return 1\n\ndef caller():\n    return {query_canary}()\n"
+        )
+    }
+
+    async def scenario() -> None:
+        tools, metrics, scratch = await _tools(tmp_path, MutableReader(files))
+        found = await tools["find_symbol"](query_canary)
+        callers = await tools["find_callers"](found["items"][0]["symbolId"])
+        serialized = json.dumps({"found": found, "callers": callers}, sort_keys=True)
+        assert str(tmp_path) not in serialized
+        assert len(serialized.encode("utf-8")) < 256 * 1024
+        assert all(not item["path"].startswith("/") for item in found["items"])
+
+        retained = json.dumps(metrics.snapshot(), sort_keys=True)
+        assert query_canary not in retained
+        assert str(tmp_path) not in retained
+        assert "cas1." not in retained
+        assert metrics.tool_calls[-1].arguments is None
+        await _close(tools)
+        assert list(scratch.iterdir()) == []
+
+    asyncio.run(scenario())
+
+
+@linux_filesystem
+def test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor(
+    tmp_path: Path,
+) -> None:
+    component = "long_segment_" + "x" * 35
+    prefix = "/".join(component + f"_{index:02d}" for index in range(31))
+    files = {
+        f"{prefix}/module_{index:03d}.py": "def target():\n    return 1\n" for index in range(180)
+    }
+
+    async def scenario() -> None:
+        tools, _, _ = await _tools(tmp_path, MutableReader(files))
+        first = await tools["find_symbol"]("target", limit=200)
+        assert 0 < len(first["items"]) < 180
+        assert first["observedTotal"] == 180
+        assert first["truncated"] is True
+        assert first["nextCursor"]
+        assert len(json.dumps(first, separators=(",", ":")).encode("utf-8")) <= 256 * 1024
+
+        second = await tools["find_symbol"]("target", cursor=first["nextCursor"], limit=200)
+        assert second["items"]
+        assert first["items"][-1]["path"] < second["items"][0]["path"]
+        await _close(tools)
+
+    asyncio.run(scenario())
+
+
+def test_path_tools_use_exact_ids_depth_and_limit_plus_one(tmp_path: Path) -> None:
+    files = {
+        "app.py": (
+            "def target():\n"
+            "    return 1\n\n"
+            "def left():\n"
+            "    return target()\n\n"
+            "def right():\n"
+            "    return target()\n\n"
+            "def entry():\n"
+            "    left()\n"
+            "    return right()\n\n"
+            "def main():\n"
+            "    return entry()\n"
+        )
+    }
+
+    async def scenario() -> None:
+        tools, metrics, _ = await _tools(tmp_path, MutableReader(files))
+        symbols = {
+            name: (await tools["find_symbol"](name))["items"][0]["symbolId"]
+            for name in ("main", "target")
+        }
+        first = await tools["paths_between"](
+            symbols["main"],
+            symbols["target"],
+            max_depth=4,
+            limit=1,
+        )
+        assert set(first) == {"items", "truncated", "coverage"}
+        assert first["truncated"] is True
+        assert len(first["items"]) == 1
+        assert [item["name"] for item in first["items"][0]] in (
+            ["main", "entry", "left", "target"],
+            ["main", "entry", "right", "target"],
+        )
+        assert all("confidence" not in item for item in first["items"][0])
+
+        too_shallow = await tools["paths_between"](
+            symbols["main"],
+            symbols["target"],
+            max_depth=3,
+        )
+        assert too_shallow["items"] == []
+        assert too_shallow["truncated"] is False
+
+        from_entrypoints = await tools["entrypoint_paths_to"](
+            symbols["target"],
+            max_depth=4,
+            limit=1,
+        )
+        assert from_entrypoints["items"]
+        assert from_entrypoints["truncated"] is True
+        assert from_entrypoints["items"][0][-1]["symbolId"] == symbols["target"]
+
+        with pytest.raises(CodeAnalysisError) as bare_name:
+            await tools["paths_between"]("main", symbols["target"])
+        assert bare_name.value.code == "code_analysis_symbol_not_found"
+        with pytest.raises(CodeAnalysisError) as bad_depth:
+            await tools["entrypoint_paths_to"](symbols["target"], max_depth=0)
+        assert bad_depth.value.code == "code_analysis_input_invalid"
+        retained = json.dumps(metrics.snapshot(), sort_keys=True)
+        assert symbols["target"] not in retained
+        await _close(tools)
+
+    asyncio.run(scenario())
+
+
+def test_unreachable_target_in_dense_call_graph_answers_without_timeout(
+    tmp_path: Path,
+) -> None:
+    functions = "".join(
+        f"def f{index:02d}():\n"
+        + "".join(f"    f{(index + step) % 30:02d}()\n" for step in range(1, 5))
+        + "\n"
+        for index in range(30)
+    )
+    files = {"app.py": functions + "def target():\n    return 1\n\ndef main():\n    f00()\n"}
+
+    async def scenario() -> None:
+        tools, _, scratch = await _tools(tmp_path, MutableReader(files))
+        symbols = {
+            name: (await tools["find_symbol"](name))["items"][0]["symbolId"]
+            for name in ("f00", "target")
+        }
+        mirrors = tuple(scratch.glob("code-analysis-mirror-*"))
+        started = asyncio.get_running_loop().time()
+        between = await tools["paths_between"](symbols["f00"], symbols["target"])
+        from_entrypoints = await tools["entrypoint_paths_to"](symbols["target"])
+        assert asyncio.get_running_loop().time() - started < 5
+        assert between["items"] == [] and between["truncated"] is False
+        assert all(len(path) == 1 for path in from_entrypoints["items"])
+        assert from_entrypoints["truncated"] is False
+        # The child survived: no query timeout discarded the mirror.
+        assert tuple(scratch.glob("code-analysis-mirror-*")) == mirrors
+        await _close(tools)
+
+    asyncio.run(scenario())
+
+
+def test_entrypoint_paths_keep_duplicate_targets_exact(tmp_path: Path) -> None:
+    files = {
+        "a.py": "def target():\n    return 'a'\n\ndef main():\n    return target()\n",
+        "b.py": "def target():\n    return 'b'\n\ndef main():\n    return target()\n",
+    }
+
+    async def scenario() -> None:
+        tools, _, _ = await _tools(tmp_path, MutableReader(files))
+        targets = (await tools["find_symbol"]("target"))["items"]
+        assert [item["path"] for item in targets] == ["a.py", "b.py"]
+
+        selected = targets[0]
+        result = await tools["entrypoint_paths_to"](
+            selected["symbolId"],
+            max_depth=2,
+            limit=10,
+        )
+        assert result["items"]
+        assert all(path[-1]["symbolId"] == selected["symbolId"] for path in result["items"])
+        assert all(path[-1]["path"] == "a.py" for path in result["items"])
+        assert all(
+            len({item["symbolId"] for item in path}) == len(path) for path in result["items"]
+        )
+        await _close(tools)
+
+    asyncio.run(scenario())
+
+
+def test_attack_surface_complexity_and_exception_tools_are_slim(tmp_path: Path) -> None:
+    files = {
+        "app.py": (
+            "from fastapi import FastAPI\n"
+            "app = FastAPI()\n\n"
+            "@app.get('/items')\n"
+            "def route(value):\n"
+            "    if value:\n"
+            "        for item in value:\n"
+            "            if item:\n"
+            "                raise ValueError('bad')\n"
+            "    return 1\n\n"
+            "def simple():\n"
+            "    raise TypeError('other')\n"
+        )
+    }
+
+    async def scenario() -> None:
+        tools, _, _ = await _tools(tmp_path, MutableReader(files))
+        surface = await tools["attack_surface"]()
+        route = next(item for item in surface["items"] if item["name"] == "route")
+        assert route["entrypointKind"] == "api"
+        assert route["trustLevel"] == "untrusted_external"
+        assert route["assetValue"] == "high"
+        assert "attributes" not in route
+        assert not route["path"].startswith("/")
+
+        hotspots = await tools["complexity_hotspots"](threshold=2)
+        assert hotspots["items"]
+        assert hotspots["items"][0]["name"] == "route"
+        assert hotspots["items"][0]["complexity"] >= 2
+        assert [item["complexity"] for item in hotspots["items"]] == sorted(
+            (item["complexity"] for item in hotspots["items"]),
+            reverse=True,
+        )
+
+        raises = await tools["functions_that_raise"]("ValueError")
+        assert [(item["name"], item["path"]) for item in raises["items"]] == [("route", "app.py")]
+        assert (await tools["functions_that_raise"]("valueerror"))["items"] == []
+        await _close(tools)
+
+    asyncio.run(scenario())
+
+
+def test_advanced_collection_cursor_is_argument_bound_and_resumable(tmp_path: Path) -> None:
+    functions = "\n\n".join(
+        f"def raises_{index:03d}():\n    raise ValueError('{index}')" for index in range(35)
+    )
+
+    async def scenario() -> None:
+        tools, _, _ = await _tools(
+            tmp_path,
+            MutableReader({"errors.py": functions + "\n"}),
+        )
+        first = await tools["functions_that_raise"]("ValueError", limit=10)
+        assert len(first["items"]) == 10
+        assert first["observedTotal"] == 35
+        assert first["truncated"] is True
+        second = await tools["functions_that_raise"](
+            "ValueError",
+            cursor=first["nextCursor"],
+            limit=10,
+        )
+        assert first["items"][-1]["name"] < second["items"][0]["name"]
+        with pytest.raises(CodeAnalysisError) as wrong_argument:
+            await tools["functions_that_raise"](
+                "TypeError",
+                cursor=first["nextCursor"],
+                limit=10,
+            )
+        assert wrong_argument.value.code == "code_analysis_cursor_invalid"
+        await _close(tools)
+
+    asyncio.run(scenario())
+
+
+class MutableReader:
+    def __init__(self, files: dict[str, str]) -> None:
+        self._tree = ManagedWorkspaceTree(
+            directories=_directories(files),
+            text_files=dict(files),
+        )
+
+    async def snapshot(self) -> WorkspaceSnapshot:
+        return self._tree.snapshot()
+
+    async def read_text(self, path: str) -> str:
+        return self._tree.text_files[path]
+
+    def write(self, path: str, text: str) -> None:
+        self._tree.directories.update(_directories({path: text}))
+        self._tree.text_files[path] = text
+
+
+class CountingReader(MutableReader):
+    def __init__(self, files: dict[str, str]) -> None:
+        super().__init__(files)
+        self.snapshots = 0
+
+    async def snapshot(self) -> WorkspaceSnapshot:
+        self.snapshots += 1
+        return await super().snapshot()
+
+
+async def _tools(
+    root: Path,
+    reader: MutableReader,
+    *,
+    factory: CodeAnalysisToolsetFactory | None = None,
+) -> tuple[dict[str, Any], MetricsState, Path]:
+    root.mkdir(parents=True, exist_ok=True)
+    selected_factory = factory or CodeAnalysisToolsetFactory(
+        workspace_storage="local", graph_probe_root=root / "probe"
+    )
+    if factory is None:
+        assert await selected_factory.probe() >= GRAPH_TOOLS
+    scratch = root / "allocation"
+    scratch.mkdir(mode=0o700)
+    metrics = MetricsState()
+    tools = await selected_factory.create_selected(
+        selected=tuple(sorted(GRAPH_TOOLS)),
+        allocation_id=f"allocation-{root.name}",
+        run_id="run-code-graph",
+        namespace="analysis",
+        runtime_settings=RuntimeSettings(
+            llm_gateway_url="https://llm.example/v1",
+            llm_gateway_token="temporary-token",
+            artifact_api_url="https://server.example/private/v1/artifacts",
+            request_timeout_seconds=10,
+        ),
+        workspace=AllocationWorkspace(root=root, path=scratch),
+        resources=ToolResources(metrics=metrics),
+        project_workspace=reader,
+    )
+    return dict(tools), metrics, scratch
+
+
+async def _close(tools: dict[str, Any]) -> None:
+    for tool in reversed(tuple(tools.values())):
+        await tool.close()
+
+
+def _directories(files: dict[str, str]) -> set[str]:
+    result: set[str] = set()
+    for path in files:
+        parent = PurePosixPath(path).parent
+        while str(parent) != ".":
+            result.add(str(parent))
+            parent = parent.parent
+    return result

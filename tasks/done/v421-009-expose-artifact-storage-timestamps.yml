@@ -1,0 +1,402 @@
+schema_version: "1.0"
+id: V421-009
+title: Expose retained Artifact storage timestamps through metadata and Technical details
+milestone: data-model-consumers-2026-10
+epic: projects-artifacts
+kind: feature
+priority: P2
+status: completed
+implementation_commit: a7da863e71b33bc9373c2b987ad72c9482aa134c
+depends_on: []
+languages: [go, typescript]
+goal: >-
+  Give each retained Artifact storage timestamp a real, owner-authorized
+  diagnostic consumer. A user inspecting a material can distinguish when its
+  storage scope, shared blob registry row and immutable version were created
+  from when its logical binding was last changed. Preserve all four existing
+  columns and the ordinary material/revision dates; do not remove historical
+  facts merely because the current UI does not consume them.
+context:
+  specification:
+    - docs/spec/artifacts/artifact-store.md#ART-R9
+    - docs/spec/artifacts/artifact-store.md#ART-R55
+    - docs/spec/artifacts/artifact-store.md#ART-R69
+    - docs/spec/artifacts/artifact-store.md#ART-R77
+    - docs/spec/artifacts/blob-storage.md#BLB-R18
+    - docs/spec/artifacts/blob-storage.md#BLB-R39
+    - docs/spec/artifacts/retention-and-deletion.md
+    - docs/spec/api/public-api.md#API-R1
+    - docs/spec/api/public-api.md#API-R68
+    - docs/spec/ui/ui.md#UI-R195
+    - docs/spec/ui/journeys.md#UIJ-R18
+    - docs/spec/tools/memory.md#MEM-R24
+  design:
+    - docs/design/ui/README.md
+    - ui/src/ui/README.md
+  finding: >-
+    internal/persistence/migrations/000001_baseline.sql:2394,2423,2471,2494
+    retain artifact_bindings.updated_at, artifact_blobs.created_at,
+    artifact_scopes.created_at and artifact_versions.created_at. The first
+    is advanced by internal/artifacts/postgres_write_sql.go:21 and by
+    Freeze/ThawOutputs in internal/artifacts/postgres_fork.go:82,100, but
+    current metadata projections and UI have no reader for these four facts.
+    Public ArtifactMetadata.createdAt is the selected binding revision's
+    creation time, not one of these physical registry creation times.
+  user_decision: >-
+    On 2026-10-27 the user explicitly rejected deleting these timestamp
+    columns and requested useful API/UI diagnostic consumers. This task
+    adds that capability; it is a feature and needs no introduced_by.
+  boundary_decision: >-
+    Extend the existing ArtifactMetadata representation with one required,
+    read-only storageTimestamps object containing exactly scopeCreatedAt,
+    blobCreatedAt, versionCreatedAt and bindingUpdatedAt. Use it in the
+    existing shared material Technical details component. All User, Project
+    and Run metadata/list/version projections that return ArtifactMetadata
+    implement the same representation. Do not add an orphan diagnostics
+    endpoint, a separate timestamp ledger or arbitrary storage identifiers.
+    The task may be reopened only if measured page cost or an explicit
+    privacy requirement prevents this owner-authorized metadata projection;
+    removing facts or weakening authorization is not the fallback.
+  related_tasks:
+    - >-
+      V9-001 already owns private binding-created/revision-created metadata
+      used by MemoryTools. Preserve that contract; these four additional
+      diagnostic dates do not redefine Memory timestamps.
+    - >-
+      V179-008 established shared Artifact views across scopes. Extend that
+      shared view rather than introduce three separate implementations.
+    - >-
+      V410-010 owns retained-history eviction and exact holds. This task
+      consumes existing dates and does not change that retention policy.
+  revalidated_on_main: >-
+    Still applicable on main 1716e40db. Preserve all four columns. artifact_scopes.created_at lacks a creation-time immutability guard: reserve migration 000054 for a column-scoped guard that permits existing revision_count updates. Artifact JSON payload bytes may contain arbitrary keys; never use payload fields as authoritative storage metadata.
+scope:
+  in:
+    - >-
+      Specify the four diagnostic timestamp meanings in the owning Artifact
+      and blob specifications, document the public read-only representation
+      in OpenAPI and update the UI specification without renumbering requirements.
+    - >-
+      Project all four values from existing registry rows in current/exact
+      Metadata, current binding lists and retained version pages for UserScope,
+      ProjectScope and RunScope. Keep authorization and hidden-namespace
+      filtering in their existing routes and repositories.
+    - >-
+      Generate both public clients and UI validators from the public contract;
+      add one shared contract fixture for valid timestamp meanings and invalid
+      shapes, used by relevant Go/API and UI tests.
+    - >-
+      Render all four values with precise labels and explanations in the
+      shared material Technical details component. Retain ordinary Created,
+      exact revision, current/historical, size, format and lock presentation.
+    - >-
+      Add real-PostgreSQL regressions across both blob backends and API/UI
+      coverage for deduplication, exact forks, CAS, freeze/thaw, history and purge.
+  out:
+    - Deleting or renaming the four retained database columns.
+    - Changing ArtifactRef, ETags, content digests, payloads, CAS or allocation grants.
+    - >-
+      Adding physical blob keys, version IDs, foreign scope IDs, filesystem
+      paths, timestamps of staging/orphan files, reference counts or other
+      owners' bindings. Preserve already public content digests and exact refs;
+      shared registry dates imply no foreign access grant.
+    - >-
+      Changing private Runtime metadata/tools, adding model arguments or
+      projecting these diagnostic dates into Memory notes or Worker context.
+    - >-
+      New timestamp tables, event ledgers, polling services, age-based GC,
+      payload reads to answer metadata, filesystem stat calls or repaired dates.
+requirements:
+  - id: R1
+    text: >-
+      Preserve artifact_blobs.created_at, artifact_versions.created_at,
+      artifact_scopes.created_at and artifact_bindings.updated_at. The
+      storageTimestamps object is derived read-only metadata, never accepted
+      from payloads or writable public JSON fields. Existing immutable creation
+      protections remain enforced on write; unknown/duplicate/case-aliased
+      request members stay rejected by the owning strict JSON boundary.
+  - id: R2
+    text: >-
+      scopeCreatedAt means creation of the containing ArtifactRegistry scope
+      row. blobCreatedAt means first registration of the retained shared blob
+      row, not upload time for this material, file mtime or creation of the
+      currently attached filesystem object generation. versionCreatedAt means
+      creation of the selected immutable storage-version row. bindingUpdatedAt
+      means the current logical binding row's last mutation, including freeze
+      and thaw; it is not a claim that content bytes changed then.
+  - id: R3
+    text: >-
+      Repeated identical writes may share blobCreatedAt while creating new
+      immutable versions and revisions. An exact fork reuses source version
+      and blob dates while creating independent target binding/revision dates
+      in its target scope. A later filesystem object replacement retains the
+      blob registry creation date. No reader invents an ordering such as
+      scopeCreatedAt <= versionCreatedAt; a reused source version may predate
+      its target scope. Never describe these dates as user authorship time.
+  - id: R4
+    text: >-
+      Resolve the exact authorized revision and all four timestamp values in
+      one bounded consistent registry query/view. On historical reads, blob
+      and version dates belong to the selected historical revision, while
+      bindingUpdatedAt describes the owning binding's current mutation time
+      and is explicitly labelled as such. Preserve existing metadata.createdAt
+      as selected revision creation time and private binding/revision headers.
+  - id: R5
+    text: >-
+      Return every diagnostic value as a present non-null canonical RFC 3339
+      UTC-Z timestamp with PostgreSQL precision preserved. Validate nonzero
+      stored dates and public response shape strictly. Missing/corrupt facts
+      fail through the existing classified metadata error path; do not replace
+      them with now, epoch, another date, an empty string or cached values.
+      Public clients reject missing, null, malformed and wrong-revision data.
+  - id: R6
+    text: >-
+      All existing User, Project and Run metadata, binding-list and version-list
+      routes implement one OpenAPI ArtifactMetadata/storageTimestamps shape.
+      The existing owner/scope checks and reserved-namespace filters apply
+      before projection and pagination. Non-disclosing foreign/missing results
+      remain 404. No route accepts a blob ID or arbitrary scope selector.
+  - id: R7
+    text: >-
+      The metadata query reads no payload bytes or filesystem objects and does
+      not perform an additional query per row. Lists retain their exact keyset
+      ordering, limit+1 lookahead, filters and cursor identity; diagnostic dates
+      are not new sort keys. The fixed object has four timestamps and at most
+      512 encoded UTF-8 bytes per returned row; record this bound in the spec.
+  - id: R8
+    text: >-
+      The shared User/Project/Run material Technical details view consumes all
+      four fields, displays absolute dates with timezone, and explains shared
+      blob/version dates and binding state changes in plain language. Keep
+      ordinary material/revision dates intact. Historical selection changes
+      must render the exact selected metadata; loading/error states do not
+      retain dates from another material or pretend unavailable data exists.
+  - id: R9
+    text: >-
+      Use existing Facts, TechnicalDetails and timestamp formatting components,
+      theme tokens and keyboard disclosure behavior. Verify 390 px width and
+      light, dark and black themes; technical labels do not overflow or become
+      color-only. Bump ui/package.json for the delivered UI release and regenerate
+      derived files using the existing generators rather than hand-editing them.
+  - id: R10
+    text: >-
+      This read capability introduces no mutation, receipt, lease or retention
+      authority. CAS rejection stores nothing; freeze/thaw changes binding
+      state/timestamp without changing revision or blob/version creation dates.
+      Existing exact holds, reference-safe purge, shared-version/blob reuse and
+      age-independent collection remain unchanged, including after the source
+      binding is purged while an authorized fork survives.
+failure_outcomes:
+  - operation: Read authorized Artifact metadata or one metadata/version page
+    permanent: >-
+      Existing malformed query/cursor/ref is 400 invalid_request; unauthenticated
+      access keeps its existing 401 response; missing, foreign, hidden or purged
+      bindings/revisions remain owner-safe 404. Invalid stored dates return the
+      existing integrity/internal failure, without fabricated success metadata.
+    retryable: >-
+      Preserve classified 503 storage_transaction_conflict and existing
+      Retry-After behavior for definite PostgreSQL conflicts; do not add an
+      independent retry loop. UI uses its existing bounded failed-read backoff
+      and explicit retry while showing unavailable data truthfully.
+    ambiguous: >-
+      A lost read response has no write side effects. Repeating an exact read
+      selects the same retained revision; a versionless retry may observe the
+      newer committed binding and returns its matching exact revision.
+    cancelled: >-
+      Request cancellation propagates through the existing query context and
+      releases rows/connections; UI navigation aborts obsolete requests and
+      rejects late responses for the previous scope/material/revision.
+    timeout: >-
+      Reuse the owning Artifact metadata handler/database request timeout and
+      client request cancellation. No filesystem or full-transfer timeout is
+      introduced by a metadata-only request.
+cardinality:
+  - collection: One ArtifactMetadata storageTimestamps object
+    expected: Exactly four timestamp strings
+    maximum: Four keys and 512 encoded UTF-8 bytes
+    bound: One authorized registry projection, no payload bytes or filesystem I/O
+  - collection: Current binding or retained version page within one authorized scope
+    expected: Existing caller-selected page size, typically 50
+    maximum: 200 returned rows with one existing limit+1 lookahead row
+    bound: >-
+      One bounded SQL query per page and at most 102400 additional encoded
+      UTF-8 response bytes for the timestamp objects; no N+1 reads. Containing
+      scopes may exceed one page and all continuation pages remain reachable.
+lifecycle:
+  - entity: Read-only diagnostic projection of existing Artifact rows
+    delete: >-
+      No independent deletion operation. Existing authorized Run/Project purge,
+      retained-history eviction and shared-reference rules own row deletion.
+    cascade: >-
+      Diagnostic availability follows the exact retained revision and its
+      owning binding/scope; a surviving fork continues to expose its retained
+      version/blob dates after source purge. No new state or foreign pin is added.
+    retention: >-
+      Original registry creation dates persist unchanged while their rows
+      exist. Reads do not refresh binding timestamps, retention or expiry.
+acceptance_criteria:
+  - id: A1
+    given: >-
+      A real PostgreSQL store with one User, Project and Run material, each
+      having at least two revisions, and a non-UTC database session timezone.
+    when: >-
+      The owner requests current/exact metadata, binding lists and all retained
+      version pages through the production store and public handlers.
+    then: >-
+      Every response matches OpenAPI and the shared fixture, exposes all four
+      original dates as canonical UTC-Z values with preserved precision and
+      keeps createdAt tied to the selected revision. No date is guessed.
+  - id: A2
+    given: >-
+      Identical-content independent writes and an exact fork into a newly
+      created scope, with shared physical blob/version references as appropriate.
+    when: >-
+      Their owner-authorized metadata is read and the original source binding
+      is later purged while a target fork survives.
+    then: >-
+      Deduplicated writes share the retained blob date, forks preserve source
+      blob/version dates, target scope/binding/revision identity remains
+      independent, and the surviving target still reports the exact original
+      facts without source authorization or a payload copy/read.
+  - id: A3
+    given: >-
+      A real stored binding, a successful CAS update, a stale CAS request and
+      a Run output eligible for the existing terminal freeze/continuation thaw.
+    when: Each path executes through its production mutation and metadata read.
+    then: >-
+      Physical creation dates remain immutable; a rejected CAS changes no
+      timestamps; successful binding state changes expose their stored update
+      date. Freeze/thaw leaves content revision and blob/version dates intact,
+      and UI never labels bindingUpdatedAt as content modification. Assertions
+      compare stored facts and deterministic fixtures, not wall-clock delays.
+  - id: A4
+    given: >-
+      Other-owner scopes, hidden namespaces, missing/purged exact revisions,
+      malformed requests, corrupt date test cases and a cancelled/failed read.
+    when: Metadata is requested through each affected public scope route/client.
+    then: >-
+      Existing owner-safe statuses and classified conflicts remain accurate,
+      corrupt dates never become a successful invented timestamp, strict
+      clients reject invalid shapes, and no physical IDs, paths, foreign
+      bindings, retained payloads or stale UI dates leak into responses.
+  - id: A5
+    given: >-
+      A realistic scope with at least 1000 bindings and one binding with at
+      least 250 retained revisions, including tied creation timestamps.
+    when: >-
+      Metadata and version collections are fully walked using small pages
+      and the maximum supported page size with query/response accounting.
+    then: >-
+      Every exact row appears once; cursor/filter behavior remains unchanged;
+      each page stays one bounded query with limit+1 rows and fixed timestamp
+      overhead; metadata reads perform zero payload/filesystem operations.
+  - id: A6
+    given: >-
+      The shared material detail UI for User, Project and Run scopes, including
+      current, historical, reused/forked and unavailable metadata fixtures.
+    when: >-
+      Technical details is opened by keyboard at 390 px and ordinary desktop
+      width in light, dark and black themes, then scope/revision is changed.
+    then: >-
+      All four server dates have an explicit visible diagnostic consumer and
+      accurate semantics; ordinary Created/revision information remains intact;
+      disclosure/focus works, dates never overflow, and no prior selection's
+      values survive loading or failure as if they belonged to the new item.
+  - id: A7
+    given: Both blob backends and the existing shared metadata, Memory and purge contracts
+    when: Required package, API, UI, fixture and lifecycle verification completes
+    then: >-
+      Real-store dedup/fork/repair/purge checks and existing Memory timestamp,
+      CAS/history/hold regressions pass. Generators, OpenAPI, clients, spec and
+      UI release version agree; no new endpoint/table or age-based GC exists.
+tests:
+  - command: >-
+      TMPDIR=/private/tmp go test -tags=integration -count=1 ./internal/artifacts
+      ./internal/httpapi/public ./internal/projectlifecycle ./internal/memory
+    covers: [A1, A2, A3, A4, A5, A7]
+  - command: >-
+      TMPDIR=/private/tmp CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test
+      -tags=integration -count=1 ./internal/artifacts ./internal/httpapi/public
+      ./internal/projectlifecycle ./internal/memory
+    covers: [A1, A2, A3, A4, A5, A7]
+  - command: make verify-public-api
+    covers: [A1, A4, A7]
+  - command: make verify-public-api-postgres
+    covers: [A1, A2, A4, A5, A7]
+  - command: make test-artifact-history-postgres
+    covers: [A2, A3, A7]
+  - command: make ui-verify
+    covers: [A1, A4, A6, A7]
+  - command: make ui-browser-mocked
+    covers: [A4, A6]
+  - command: "TMPDIR=/private/tmp go test -count=1 ./internal/cli ./internal/runstore"
+    covers: [A1, A3, A4, A7]
+  - command: make lint
+    covers: [A1, A4, A5, A6, A7]
+verification_notes: >-
+  PostgreSQL commands require CONTRACTOR_TEST_DATABASE_URL pointing to a
+  disposable database. An unset URL causes skips and is not evidence of A1-A5
+  or A7; a configured unreachable database must fail. Extend the existing
+  artifact detail/history/API tests and public contract fixtures rather than
+  claim a zero-match selection ran. The UI browser scenario must exercise
+  the new disclosure and record all three themes/390 px checks. If implementation
+  changes a store or handler beyond the packages listed above, run that touched
+  package's full suite too. No verification command is claimed executed by
+  this pending task.
+
+implementation_notes:
+  - >-
+    Existing metadata/list/version SQL now joins the single scope row and projects
+    four original registry dates. Stored dates are validated and normalized to
+    UTC, without payload reads, new storage objects or chronology guesses.
+  - >-
+    Migration 000054 adds a column-scoped creation-time guard for artifact_scopes;
+    its revision counter remains writable. Blob/version guards and all existing
+    retention/purge behavior remain unchanged.
+  - >-
+    Both public clients were regenerated. The actual handwritten CLI metadata
+    reader additionally rejects absent/null/noncanonical dates and a wrong exact
+    revision; the generated Go model alone does not enforce required properties.
+  - >-
+    Run input uploads/imports now fetch authoritative exact metadata instead
+    of constructing timestamps from the browser clock/import date. Metadata
+    requests consume cancellation signals; a newer input selection/confirmation
+    or component release cancels a pending read and prevents a late overwrite.
+  - >-
+    All four dates have a shared Technical details reader, absolute timezone
+    labels and exact UTC tooltips. UI release is 0.10.9; ordinary Created remains
+    the selected revision's timestamp. Existing response fixtures were updated
+    to the required public shape, not repaired by a production fallback.
+verification_results:
+  date: "2026-10-27"
+  postgres: >-
+    Full internal/artifacts, internal/httpapi/public, internal/projectlifecycle
+    and internal/memory suites passed with PostgreSQL and filesystem blob
+    modes on the lane's disposable database. The new real-path cases cover
+    dedup/fork/CAS/freeze/thaw/repair/purge, exact/public scope reads, bad dates,
+    1001 bindings and 251 tied-date revisions with one query per page and no
+    payload operations. Full internal/cli and internal/runstore suites passed.
+  contracts: >-
+    make verify-public-api, make verify-public-api-postgres and
+    make test-artifact-history-postgres passed. A shared Go/UI fixture closes
+    missing/null/extra fields, non-UTC and zero dates without imposing false
+    scope-versus-shared-version chronology.
+  ui: >-
+    Final make ui-verify passed 197 test files, 2458 tests plus one expected
+    failure, 17 server tests and the build. make ui-browser-mocked passed all
+    100 browser tests across 23 specs after final cancellation changes.
+    Storage-date screenshots were visually inspected at 390 px in light,
+    dark and black; the new checks also exercise desktop layout and keyboard
+    disclosure. Earlier runs caught and corrected missing metadata/ETag/size
+    test-fixture responses; no skipped database case is claimed as a pass.
+  generated: >-
+    Public Go and UI clients, ERD and the Audit/Workflow dependency page were
+    regenerated with their owning commands. git diff --check passed.
+  lint: >-
+    Final make lint passed after all code, fixture and verification updates,
+    including generated clients, release graph, task layout, specification,
+    shared-fixture source ownership, ERD freshness, layers and Runtime checks.
+  merge_status: >-
+    Implementation is on codex/v421-artifact-times and is not merged into main.
+    The coordinator owns the preserving branch merge and integrated V421-010
+    verification; no integrated release-verify run is claimed by this lane.

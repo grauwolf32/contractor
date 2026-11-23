@@ -1,0 +1,114 @@
+schema_version: "1.0"
+id: V371-016
+title: "Give the Idempotency-Key grammar one Go definition"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+priority: P3
+status: archived
+archive:
+  date: "2026-10-24"
+  previous_status: pending
+  reason: >-
+    Delivered by V407-021 (8e04023078af7b917e0811d660febcbe7e25159e, fix(api):
+    give Idempotency-Key and request bounds one definition; task completed at
+    cb975a8fc72e90173ba771156354968bf3acae01). V407-021 took this task's scope
+    as its Idempotency-Key part and recorded the V371-016 criteria in its
+    verification.v371_016 block; no commit had V371-016 as its primary
+    purpose, so it is archived rather than completed. Per-criterion evidence,
+    re-read on b523ae77:
+    A1 holds. contracts.ValidIdempotencyKey (internal/contracts/common.go:122-124,
+    MaxIdempotencyKeyLength at :46) is the only check: the public header
+    reader (internal/httpapi/public/request.go:43), Eval
+    (evaldomain/mutation.go:25, MutationPrecondition, answering eval_invalid
+    before any receipt; evalstore/store.go:137), runtimeconfig
+    (normalize.go:786, DigestIdempotencyKey), projectstore/store.go:301,
+    auditstore/internal/pgstore/validation.go:41 and :694 (Audit submission
+    keys), auditservice/finding_review.go:381 and :395,
+    auditservice/action_review.go:186, runstore/store.go:645,
+    credentials/repository.go:231 and :433, credentials/lifecycle.go:638 and
+    :665, credentials/runtime_repository.go:364, config/manager.go:569 and
+    the CLI (internal/cli/root.go:354). TestSharedIdempotencyKeyCasesGateEveryKeyedOperation,
+    TestSharedIdempotencyKeyCasesGateEvalMutations,
+    TestSharedIdempotencyKeyCasesGateProjectCreation and
+    TestSharedIdempotencyKeyCasesGateOptionalKeys
+    (internal/httpapi/public/idempotency_key_test.go) send the invalid shared
+    keys (a/b, -a and the rest) to every keyed operation; the PostgreSQL
+    tests TestSharedPostgresEvalReceiptsKeepOnlyPublicIdempotencyKeys
+    (evalstore) and TestSharedPostgresIdempotencyKeyChecksMatchSharedCases
+    (persistence/postgres) show nothing is written. Eval answers its
+    documented 422 eval_invalid (API-R70), as V407-021 decided.
+    A2 holds. TestPublicIdentifierGrammarsHaveOneGoDefinition
+    (internal/contracts/grammar_owner_test.go) scans api, cmd, internal,
+    tests and tools for a regular expression of the bounded Idempotency-Key
+    language or its hand-written punctuation, with listed separately owned
+    rules (X-Request-ID, finding intake identity, credential operation ID,
+    event subscription ID) and a second pattern in a listed file reported.
+    A3 holds. api/testdata/public/idempotency-key-cases.json is read by
+    contracts (TestSharedIdempotencyKeyCases), the OpenAPI parameter check
+    (TestSharedIdempotencyKeyCasesMatchPublicHeaderParameters), the
+    PostgreSQL CHECK patterns, the CLI
+    (TestSharedIdempotencyKeyCasesBindExplicitCLIKeys), evaldomain,
+    runtimeconfig and the UI (ui/src/mutations/idempotency.test.ts, through
+    IDEMPOTENCY_KEY in ui/src/api/contract).
+    Commands run on b523ae77: go test -count=1 ./internal/contracts/...
+    ./internal/httpapi/public ./internal/evaldomain ./internal/runtimeconfig
+    passed (without a database); with CONTRACTOR_TEST_DATABASE_URL set to a
+    scratch database, go test -count=1 -run Idempotency ./internal/evalstore
+    ./internal/persistence/postgres ./internal/httpapi/public ./internal/runstore
+    passed and -v showed the two PostgreSQL tests above PASS, not SKIP;
+    cd ui && corepack pnpm test --run src/mutations passed (4 tests).
+    make lint was not run for this record; V407-021 recorded it passing on
+    2026-10-24.
+depends_on: []
+languages: [go, typescript]
+goal: "Every handler and store that accepts an Idempotency-Key applies the OpenAPI IdempotencyKey grammar from one definition, so no path accepts a key the public contract rejects."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (group G4), recorded 2026-10-12; verified on a07f5e9"
+  specification: "docs/spec/api/public-api.md#API-R69"
+  severity: low
+  finding: >-
+    The OpenAPI IdempotencyKey and OptionalIdempotencyKey parameters
+    (api/openapi/contractor-public-v1.yaml:6397-6416) allow 1 to 128
+    characters matching [A-Za-z0-9][A-Za-z0-9._:-]*. Go copies the grammar at
+    least six times: credentials/repository.go:33, projectstore/store.go:21,
+    auditstore/validation.go:20, auditservice/finding_review.go:886
+    (validIdempotencyKey), runstore/store.go:677 (validateIdempotencyKey) and
+    httpapi/public/run_handlers.go:255-267 (requireIdempotencyKey, called by
+    16 public handlers). Two paths apply a looser rule: evaldomain/mutation.go:17-25
+    (IdentifyMutation, used by the Eval operations through
+    httpapi/public/eval_helpers.go:65-77, which reference the same OpenAPI
+    parameter) accepts any visible ASCII, so an Eval mutation accepts a key
+    such as "a/b" that the contract rejects; runtimeconfig/normalize.go:701-706
+    (DigestIdempotencyKey, used by publisher.go:77, management.go:309 and
+    principal.go:664) accepts any non-blank text. V368-024 left these copies
+    alone because they are not the ResourceId grammar. All predate the
+    shallow history (boundary 6349621).
+  siblings: >-
+    UI: ui/src/mutations/idempotency.ts:1 (IDEMPOTENCY_KEY_PATTERN for the
+    keys it generates). CLI: internal/cli/root.go:344 passes an explicit key
+    unchecked; publicclient.NewIdempotencyKey generates one. Audit submission
+    keys (runstore/audit_run.go:28, auditstore/validation.go:698) reuse the
+    grammar and are in scope.
+scope:
+  in:
+    - "One exported Go definition of the key grammar (in contracts) used by every path above; the Eval and runtimeconfig paths reject keys outside it."
+    - "A shared case list checked against the OpenAPI pattern, the Go definition and the UI pattern, and the identifier source scan of V368-024 extended to this grammar."
+  out:
+    - "Replay and conflict semantics, and the receipt mechanisms (V370-007)."
+acceptance_criteria:
+  - id: A1
+    given: "An Idempotency-Key the OpenAPI pattern rejects, such as 'a/b' or '-a'"
+    when: "It is sent to a Run, Project, Audit, credential, configuration and Eval mutation"
+    then: "Each answers its invalid-request error and writes nothing."
+  - id: A2
+    text: "The source scan finds no second Go definition of the grammar."
+  - id: A3
+    text: "Every shared case gets the same verdict from Go, the UI and the OpenAPI schema."
+tests:
+  - command: "go test ./internal/contracts/... ./internal/httpapi/public ./internal/evaldomain ./internal/runtimeconfig"
+    covers: [A1, A2, A3]
+  - command: "cd ui && corepack pnpm test --run src/mutations"
+    covers: [A3]
+  - command: make lint
+    covers: [A1, A2, A3]

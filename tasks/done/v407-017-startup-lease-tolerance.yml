@@ -1,0 +1,128 @@
+schema_version: '1.0'
+id: V407-017
+title: Document and test inherited startup lease connection and query budgets
+milestone: server-runtime-review-2026-10
+epic: execution-core
+kind: chore
+introduced_by: V107-001
+priority: P3
+status: completed
+implementation_commit: 6970c5171ec096bb4babca542d9d7fd76b305498
+depends_on: []
+languages:
+- go
+goal: Make the existing bounded startup lease behavior explicit and prevent loss of inherited connection/query
+  deadlines without changing timeout or standby policy.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/platform/persistence.md
+  finding: internal/app/single_active.go:75-80 copies the pool ConnConfig for the startup lease session.
+    persistence/postgres/pool.go:72-87 installs a connect timeout and budgetTracer; budget_tracer.go:35-37,71-72
+    bounds each query. The initial call uses the process context but is therefore not unbounded. The startup
+    budget and the later lease-specific tolerance have different ownership, which should be explicit in
+    documentation and regression coverage.
+  validation: Validated against main dc7012e8 on 2026-10-23. The original indefinite-hang claim was disproved.
+    net.Pipe probes with a stalled startup handshake and a stalled first query returned the inherited
+    timeout under context.Background(). Defaults are 5s connect and 20s query; the later lease liveness
+    tolerance is 10s. This task does not choose a new mandatory startup 10s policy.
+  siblings: Startup OpenPool.Ping and migration verification precede lease acquisition; lease keepalive
+    configuration, first acquire and holderPID use the copied connection. Later standby acquisition/reconnect
+    and active liveness probes keep their own established tolerance.
+plan:
+- Document which configured budget owns initial connect, keepalive configuration, first advisory-lock
+  acquire and holder lookup, and contrast that ownership with the existing standby/active probe tolerance.
+- Add tests that inspect the copied connection configuration and tracer-created deadlines with an injected
+  clock or deadline-recording transport; verify caller deadlines are not extended.
+- Use a controlled protocol peer/dialer to exercise cancellation of startup handshake and query paths.
+  Assert propagation and cleanup via synchronization, not elapsed wall-clock limits.
+- Retain current startup error, standby and takeover behavior. Record that the reviewed infinite-hang
+  allegation is declined; any different startup tolerance is a separate design decision.
+scope:
+  in:
+  - Documentation and regression coverage for already enforced startup connection/query budgets.
+  out:
+  - Changing timeout values, replacing configured query budgets with a mandatory 10s tolerance, or changing
+    startup failure into standby/retry behavior.
+acceptance_criteria:
+- id: A1
+  text: Tests prove that the dedicated startup lease session retains configured ConnectTimeout and the
+    query budget tracer, and that an earlier caller deadline is respected by connect/query operations.
+- id: A2
+  text: A controlled stalled peer observes cancellation and connection cleanup for the handshake and initial
+    query paths; assertions use deadline ownership and explicit synchronization, not elapsed-time performance
+    thresholds.
+- id: A3
+  text: The persistence specification describes existing startup/standby/active budget ownership without
+    introducing a new availability policy. The declined unbounded-startup allegation and its evidence
+    remain in this task validation and the research report, not in the normative requirements.
+tests:
+- command: go test -count=1 ./internal/app/... ./internal/persistence/postgres/...
+  covers:
+  - A1
+  - A2
+  - A3
+- command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/app/...
+    ./internal/persistence/postgres/...
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64; Go 1.26.9, Node 24.20.0 with pnpm and the locked Runtime venv; local PostgreSQL 17.11
+    shared by parallel agents, database contractor_test_h.
+  finding_recheck: >-
+    Rechecked on base 7023e96e: internal/app/single_active.go:75-85 (dialControlPlaneLeaseSession) connects
+    with pool.Config().ConnConfig.Copy(); persistence/postgres/pool.go:72-87 sets ConnectTimeout, the
+    server-side statement/lock/idle startup parameters and the budgetTracer; budget_tracer.go:35-37,71-72
+    bounds each traced statement. pgx v5.10.0 ConnConfig.Copy keeps the tracer pointer, DialFunc,
+    ConnectTimeout and RuntimeParams, and pgconn applies ConnectTimeout to the whole attempt (dial, TLS,
+    startup handshake, authentication). The finding holds as stated; no production behaviour changed.
+  decisions:
+  - The reviewed indefinite-hang allegation stays declined. Evidence, now as regression tests rather than
+    ad hoc probes - TestControlPlaneLeaseStartupStallEndsAtItsBudgetOwner stalls the handshake, keepalive
+    configuration, first acquisition and holder lookup under a context without a deadline, and each ends at
+    its inherited budget (database.connectTimeout or database.queryTimeout) with DeadlineExceeded. The
+    allegation is recorded only here and in docs/research/2026-10-23-server-runtime-review.md (D11), not in
+    the normative requirements.
+  - Startup keeps the configured database budgets as its owner; no mandatory 10 s startup tolerance and no
+    standby-and-retry after a failed startup step. PER-R28's rationale records that a different startup
+    availability target is a separate decision that would replace the requirement.
+  - The tolerance window is documented as the owner of standby acquisition probes and reconnects (nested
+    with the inherited budgets, whichever ends first) and, alone, of the active liveness probe, which pgx
+    sends as a protocol-level ping outside the query tracer. LIM-PER-3, the Tolerance window concept and its
+    glossary entry now say so; this is existing behaviour, not a new policy.
+  - 'Spec IDs added: PER-R27 (startup lease step budgets), PER-R28 (tolerance window contrast), FAIL-PER-4
+    (startup lease step outcomes), invariant 23 in docs/spec/platform/persistence.md, concept and glossary
+    entry Startup lease steps. No migration, limit or error code added. Renumbered after closing (first
+    PER-R26, PER-R27, FAIL-PER-3 and invariant 22) because the unmerged V407-027 already takes those numbers.'
+  - 'Out of scope, found while testing: a standby that is shut down can race its own readiness listener in
+    awaitControlPlaneLease (single_active.go select on ctx.Done() versus done, both ready after
+    cancellation) and return "standby readiness listener stopped: listener exited before lease
+    acquisition", which app.go reports as a process error instead of a clean shutdown. Observed in 2 of 20
+    holder-lookup runs before the test stopped asserting the standing-by shutdown error. Introduced by
+    V107-001 (3262cb82); needs its own defect task.'
+  commands:
+  - 'go test -count=1 ./internal/app/... ./internal/persistence/postgres/... passed (CONTRACTOR_TEST_DATABASE_URL
+    set, so the PostgreSQL tests ran, including TestPostgresControlPlaneLeaseSessionInheritsStartupBudgets).'
+  - 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/app/...
+    ./internal/persistence/postgres/... passed on the final tree. Three earlier runs failed only in the
+    unchanged TestPostgresControlPlaneLeaseHolderIgnoresOtherDatabases, whose cleanup DROP DATABASE ... WITH
+    (FORCE) exceeded its 10 s budget; the same command passed twice on the unmodified base 7023e96e, the
+    test passed 3 of 3 runs right after the new tests, and a manual DROP DATABASE on the shared cluster took
+    4.4 s, so it is checkpoint contention from parallel agents, not this change.'
+  - go test -race -count=3 and go test -count=12 -cpu 1,4 (24 runs) of the final
+    TestControlPlaneLeaseStartupStallEndsAtItsBudgetOwner passed; go test -race -count=3 of
+    TestPostgresControlPlaneLeaseSessionInheritsStartupBudgets passed.
+  - 'Regression evidence: with the lease session dialed from a copy whose ConnectTimeout and Tracer are
+    cleared, every configured-budget stage of the stalled-peer test fails ("the end of the stalled startup
+    was never observed") and the caller-deadline query stages record no statements; clearing ConnectTimeout
+    and RuntimeParams fails the PostgreSQL test ("lease session connect ran without a deadline"); dropping
+    the tolerance timeout from the standby probe fails its deadline check.'
+  - make lint passed after make docs-dependencies and make tasks-backlog.
+  database_tests_configured: true

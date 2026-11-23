@@ -1,0 +1,91 @@
+schema_version: '1.0'
+id: V466-006
+title: Preserve scanner deadline classification across competing HTTP timers
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V422-003
+priority: P1
+status: completed
+depends_on:
+- V410-030
+- V422-003
+languages:
+- python
+- markdown
+goal: An expired total scan deadline reports scan_timeout regardless of which HTTP timer settles first,
+  while earlier request failures and independent shorter HTTP timeouts keep their classifications.
+context:
+  authority: User assignment 2026-11-10 approves the reviewed remaining Nuclei timeout prerequisite before
+    V417-003 acceptance and isolated Audit compaction. This repairs the existing deadline contract; it
+    does not widen compaction behavior or scanner privileges.
+  specification:
+  - docs/spec/tools/scanners.md#SCN-R254
+  - docs/spec/tools/scanners.md#SCN-R263
+  finding: runtime/src/contractor_runtime/adapters/bridge/proxy.py:108-115 classified its deadline timeout
+    as scan_request_failed. mitmproxy/ingress.py:248-253 also converted a delegated HTTP timeout bounded
+    by the remaining scan deadline to scan_request_failed. Either can settle before the outer ScanSession
+    timer and stop the process first. Full Runtime acceptance failed the real Nuclei owner-termination
+    timeout case with that code instead of scan_timeout; isolation could pass. Following blame through
+    the native-engine replacement proves both original mappings came from V422-003 commit dac5fe9c6e368e6514e1bbfaac20d073ad765c41.
+    V410-030 commit fb127850b6e73fe38deed027be45e33cd84ab62e retained those classifications during native
+    integration.
+  siblings: The common bridge serves controlled Nuclei, SQLMap, Katana and ffuf through ScanSession. Correct
+    both the IPC timer and delegated target outcome. Permanent target denial, ordinary connection/IPC
+    failures, shorter per-request deadlines, cancellation and fatal bridge/lease exceptions retain their
+    current behavior. Standalone process timeouts already return scan_timeout.
+  boundary: The existing bridge owns HTTP adaptation and knows the total monotonic scan deadline. Classify
+    a timeout there using that deadline; keep first failure, process joining and publication owners. No
+    new timer, retry, outcome enum, receipt or transport API is required.
+  evidence: tasks/evidence/v466-006-deadline-verification-20261110.json
+scope:
+  in:
+  - Preserve total-deadline timeout classification in both bridge completion paths.
+  - Deterministic regressions for both timer orderings and earlier independent failures.
+  - Real Nuclei process/socket cleanup and complete Runtime verification with heavy I/O disabled.
+  - Clarify the existing deadline ownership in the scanner specification.
+  out:
+  - Timeout increases, test sleeps, live-model settings, retry behavior or new scanner capabilities.
+acceptance_criteria:
+- id: A1
+  text: Both the bridge IPC timeout and delegated HTTP timeout report scan_timeout once the total deadline
+    expires, independent of the outer scanner timer's scheduling.
+- id: A2
+  text: Earlier HTTP timeouts and connection failures retain scan_request_failed; denial, fatal infrastructure
+    failures and cancellation remain distinct and owned resources are joined.
+- id: A3
+  text: The real Nuclei cancel, lease-loss and timeout cases and the complete Runtime suite pass; deterministic
+    regressions fail on the uncorrected mappings without wall-clock assertions.
+tests:
+- command: cd runtime && uv run pytest -W error tests/test_http_proxy_bridge.py tests/test_bridge_ingress.py
+    tests/test_bridge_lifecycle.py tests/test_controlled_scan_process.py tests/test_nuclei_engagement.py
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: 08fee86cc8d1000bdbdd28626fbcf87e4cc3bae0
+verification_history:
+- Before the correction, both deterministic total-deadline regressions fail with scan_request_failed;
+  the eight shorter-timeout, connection-failure and denial controls pass.
+- The corrected focused suite passes 103 tests, including the real Nuclei process/socket cases. Complete
+  Runtime and lint acceptance remain outstanding.
+verification_results:
+- Both total-deadline regressions fail before the correction while eight independent timeout/failure/denial
+  controls pass.
+- The focused declared suite passes 103 tests. After the test-style correction, all 17 tests in the changed
+  module pass, and the complete Runtime suite passes 6199 tests with 135 declared skips excluded from
+  passing coverage.
+- All ten deterministic timeout/denial/failure controls and the three real Nuclei cancel/lease-loss/timeout
+  cases pass in the complete Runtime report.
+- make lint passes, including Ruff, import layers, task/spec checks and the regenerated dependency graph.
+  No optional heavy-I/O flag was enabled.

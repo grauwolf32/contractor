@@ -1,0 +1,585 @@
+{
+  "task": "V58-012",
+  "status": "verified",
+  "version": "0.3.0",
+  "codeRevision": "a894fba6f1b0621e42d7f651a95b0e908ed3c785",
+  "findings": 32,
+  "taskImplementationCommits": {
+    "V58-008": "b41a01e3097bf5c1c248fbabdb42c674603b9225",
+    "V58-004": "ddba9e7b922bccee0683e469d440482a9c81ffbc",
+    "V58-011": "7ae6013fbdcfe3eb961033861982ac09fffd1e19",
+    "V58-003": "03653c78930a4fd283ae49d648726f13b85e6a29",
+    "V58-009": "a6ae161ee8ea272a3af2dcd8d64112d1bb141e7d",
+    "V58-007": "846b1c1197c075916324c585ee964f24edec9386",
+    "V58-001": "bc489b1586a4c4bb04d6e32e1f3f988a3debdad6",
+    "V58-010": "f5ae4a4f39bc5a1d0bbb15ea2ae3e7248c6cad4e",
+    "V58-005": "640b48902b5b7a03d3b59c106e601f6c22f4a9b7",
+    "V58-002": "7f5e987f59b58b4cdedbbc60b5f3853e3c8bdcbf",
+    "V58-006": "974cbda9923efb13d2b04caff06381d5938998a6",
+    "V58-012": "44af478a74d998daba0fb1de87c90c704b6c929c"
+  },
+  "checks": {
+    "command": "make ui-generate-check ui-lint ui-typecheck ui-test ui-build",
+    "uiTests": 413,
+    "uiTestFiles": 60,
+    "staticServerTests": 9,
+    "result": "passed"
+  },
+  "browser": {
+    "states": 105,
+    "captures": 218,
+    "widths": [
+      320,
+      390,
+      1440
+    ],
+    "overflow": [],
+    "pageErrors": [],
+    "actionErrors": [],
+    "blockedWrites": [],
+    "externalRequests": [],
+    "handledAPIerrors": [
+      {
+        "view": "project-artifact-zip-390",
+        "details": [
+          {
+            "path": "/v1/projects/project_26f02cc01364ebe6d382dd6cc3091122/artifacts/sources/nextcloud-daa077b4a0b14c26/archive",
+            "status": 422
+          }
+        ]
+      },
+      {
+        "view": "project-artifact-zip-1440",
+        "details": [
+          {
+            "path": "/v1/projects/project_26f02cc01364ebe6d382dd6cc3091122/artifacts/sources/nextcloud-daa077b4a0b14c26/archive",
+            "status": 422
+          }
+        ]
+      }
+    ],
+    "semanticElements": 16878,
+    "comparisons": [
+      {
+        "view": "runs-completed",
+        "width": 1440,
+        "measure": "pageHeightPx",
+        "before": 15449,
+        "after": 3787,
+        "reductionPercent": 75.5
+      },
+      {
+        "view": "runs-completed",
+        "width": 390,
+        "measure": "pageHeightPx",
+        "before": 23283,
+        "after": 7708,
+        "reductionPercent": 66.9
+      },
+      {
+        "view": "operations-allocations-completed",
+        "width": 1440,
+        "measure": "pageHeightPx",
+        "before": 15673,
+        "after": 4193,
+        "reductionPercent": 73.2
+      },
+      {
+        "view": "operations-allocations-completed",
+        "width": 390,
+        "measure": "pageHeightPx",
+        "before": 31415,
+        "after": 15366,
+        "reductionPercent": 51.1
+      },
+      {
+        "view": "audit-checks",
+        "width": 1440,
+        "measure": "pageHeightPx",
+        "before": 16641,
+        "after": 5762,
+        "reductionPercent": 65.4
+      },
+      {
+        "view": "audit-checks",
+        "width": 390,
+        "measure": "pageHeightPx",
+        "before": 26316,
+        "after": 7600,
+        "reductionPercent": 71.1
+      },
+      {
+        "view": "run-1-succeeded",
+        "width": 1440,
+        "measure": "primaryHeadingY",
+        "before": 925,
+        "after": 584
+      },
+      {
+        "view": "run-1-succeeded",
+        "width": 390,
+        "measure": "primaryHeadingY",
+        "before": 1379,
+        "after": 746
+      },
+      {
+        "view": "eval-detail",
+        "width": 1440,
+        "measure": "primaryHeadingY",
+        "before": 1996,
+        "after": 328
+      },
+      {
+        "view": "eval-detail",
+        "width": 390,
+        "measure": "primaryHeadingY",
+        "before": 3419,
+        "after": 409
+      }
+    ]
+  },
+  "probes": {
+    "archiveDefault": {
+      "color": "rgb(233, 237, 243)",
+      "background": "rgb(36, 49, 67)",
+      "font": "16px",
+      "width": 188.875,
+      "height": 44,
+      "opacity": "1"
+    },
+    "archiveHover": {
+      "color": "rgb(233, 237, 243)",
+      "background": "rgb(48, 65, 87)",
+      "font": "16px",
+      "width": 188.875,
+      "height": 44,
+      "opacity": "1"
+    },
+    "gitInput": {
+      "color": "rgb(233, 237, 243)",
+      "background": "rgb(12, 16, 22)",
+      "font": "16px",
+      "width": 746.8125,
+      "height": 45.1875,
+      "opacity": "1"
+    },
+    "gitInputPlaceholder": {
+      "color": "rgb(143, 156, 173)",
+      "background": "rgb(12, 16, 22)"
+    },
+    "nestedDialogTabEscapes": 0,
+    "afterFirstEscape": {
+      "dialogs": 1,
+      "focus": "GitImport a repository as a source archive"
+    },
+    "afterSecondEscape": {
+      "dialogs": 0,
+      "focus": "Add artifact"
+    },
+    "auditProfileDefault": {
+      "value": "[\"openapi-operation-trace\",\"5\"]",
+      "selected": "openapi-operation-trace@5 · latest loaded version",
+      "options": [
+        "openapi-operation-trace@5 · latest loaded version",
+        "openapi-operation-trace@4",
+        "openapi-operation-trace@3",
+        "openapi-operation-trace@2",
+        "owasp-asvs-5-0-l1-source-review@2 · latest loaded version",
+        "owasp-asvs-5-0-l1-source-review@1",
+        "owasp-top10-2025-source-risk@2 · latest loaded version",
+        "owasp-top10-2025-source-risk@1",
+        "source-checklist@3 · latest loaded version",
+        "source-checklist@2",
+        "source-checklist@1"
+      ]
+    },
+    "mobileAuditNavigation": true,
+    "readRecovery": {
+      "filter": "projects",
+      "url": "http://127.0.0.1:4273/artifacts?namespace=projects",
+      "alerts": 0
+    },
+    "disabledTelemetry": {
+      "enabled": false,
+      "captureVisible": false,
+      "endpointVisible": false
+    },
+    "enabledTelemetry": {
+      "captureVisible": true,
+      "endpointVisible": true
+    },
+    "blockedWrites": []
+  },
+  "deployment": {
+    "revision": "a894fba6f1b0621e42d7f651a95b0e908ed3c785",
+    "version": "0.3.0",
+    "release": "/home/ruslan/src/contractor/.local/demo/releases/ui-design-review-a894fba6-20260919T202724Z",
+    "coreRelease": "/home/ruslan/src/contractor/.local/demo/releases/main-be33cebb-20260919T192159Z",
+    "status": "deployed",
+    "beforePids": {
+      "contractor-demo-ui": "205214",
+      "contractor-demo-server": "205180",
+      "contractor-demo-runtime-a": "205215",
+      "contractor-demo-runtime-b": "205216",
+      "contractor-demo-lan-proxy": "39982"
+    },
+    "createdAt": "2026-09-19T20:27:24.880Z",
+    "queueBefore": {
+      "paused": true,
+      "revision": "29",
+      "updatedAt": "2026-09-08T05:42:17.868911Z"
+    },
+    "counts": {
+      "runs": 147,
+      "agents": 4,
+      "onlineAgents": 2
+    },
+    "deployedAt": "2026-09-19T20:27:25.434Z",
+    "smoke": [
+      {
+        "origin": "http://127.0.0.1:4173",
+        "version": "0.3.0",
+        "health": "ok",
+        "routes": 4,
+        "assets": 4,
+        "browser404": "ok"
+      },
+      {
+        "origin": "http://192.168.1.217:4173",
+        "version": "0.3.0",
+        "health": "ok",
+        "routes": 4,
+        "assets": 4,
+        "browser404": "ok"
+      }
+    ],
+    "pids": {
+      "contractor-demo-ui": "266185",
+      "contractor-demo-server": "205180",
+      "contractor-demo-runtime-a": "205215",
+      "contractor-demo-runtime-b": "205216",
+      "contractor-demo-lan-proxy": "39982"
+    },
+    "queueAfter": {
+      "paused": true,
+      "revision": "29",
+      "updatedAt": "2026-09-08T05:42:17.868911Z"
+    },
+    "serverStateUnchanged": true,
+    "coreReleaseUnchanged": true
+  },
+  "postDeploymentBrowser": [
+    {
+      "id": "skill-browse",
+      "width": 390
+    },
+    {
+      "id": "zip-browse",
+      "width": 1440
+    },
+    {
+      "id": "audit-runs",
+      "width": 1440
+    },
+    {
+      "id": "audit-runs",
+      "width": 390
+    },
+    {
+      "id": "skill-browse",
+      "width": 1440
+    },
+    {
+      "id": "home",
+      "width": 390
+    },
+    {
+      "id": "home",
+      "width": 1440
+    },
+    {
+      "id": "run-restored",
+      "width": 390
+    },
+    {
+      "id": "run-restored",
+      "width": 1440
+    },
+    {
+      "id": "eval-detail",
+      "width": 1440
+    },
+    {
+      "id": "operations-performance",
+      "width": 390
+    },
+    {
+      "id": "audit-report",
+      "width": 390
+    },
+    {
+      "id": "audit-report",
+      "width": 1440
+    },
+    {
+      "id": "zip-browse",
+      "width": 390
+    },
+    {
+      "id": "eval-detail",
+      "width": 390
+    },
+    {
+      "id": "operations-performance",
+      "width": 1440
+    }
+  ],
+  "resolutions": [
+    {
+      "finding": "D01",
+      "tasks": [
+        "V58-001"
+      ],
+      "result": "Run viewing with caido provenance is restored; failure of an optional projection no longer hides results."
+    },
+    {
+      "finding": "D02",
+      "tasks": [
+        "V58-002"
+      ],
+      "result": "The New Audit form fits at 390 and 320 px; long versions and links do not stretch the page."
+    },
+    {
+      "finding": "D03",
+      "tasks": [
+        "V58-002"
+      ],
+      "result": "ZIP file text retains contrast on hover and selection; file rows are 44 px high."
+    },
+    {
+      "finding": "D04",
+      "tasks": [
+        "V58-003"
+      ],
+      "result": "Bounded Skill YAML frontmatter is shown as metadata; the main Markdown is read separately, and Source preserves the original."
+    },
+    {
+      "finding": "D05",
+      "tasks": [
+        "V58-002",
+        "V58-012"
+      ],
+      "result": "Page and portal-dialog fields share sizes, backgrounds, labels and focus styles; the Agent version selector was checked."
+    },
+    {
+      "finding": "D06",
+      "tasks": [
+        "V58-004",
+        "V58-010"
+      ],
+      "result": "Run and allocation history is compact; identifiers, labels and metrics are available in expanded details."
+    },
+    {
+      "finding": "D07",
+      "tasks": [
+        "V58-004",
+        "V58-011"
+      ],
+      "result": "Run results appear before rerun controls; successful execution offers Read results, with metrics collapsed."
+    },
+    {
+      "finding": "D08",
+      "tasks": [
+        "V58-003"
+      ],
+      "result": "Content viewing appears before updates; version and provenance are available through Details and Versions in every scope."
+    },
+    {
+      "finding": "D09",
+      "tasks": [
+        "V58-005"
+      ],
+      "result": "Audit shows Partial coverage, the proportion of completed checks, candidates and decisions separately from execution status."
+    },
+    {
+      "finding": "D10",
+      "tasks": [
+        "V58-005"
+      ],
+      "result": "A Finding summary and a link to the decision appear before the long text; unreviewed Findings come first, with a verdict filter."
+    },
+    {
+      "finding": "D11",
+      "tasks": [
+        "V58-005",
+        "V58-012"
+      ],
+      "result": "Checks, Coverage and child Runs use retained method/path values or Check N; Runs link to the exact check."
+    },
+    {
+      "finding": "D12",
+      "tasks": [
+        "V58-005"
+      ],
+      "result": "Profiles within a family are ordered by numeric version; the latest loaded compatible version is suggested, with older versions available."
+    },
+    {
+      "finding": "D13",
+      "tasks": [
+        "V58-006"
+      ],
+      "result": "Home explicitly shows a paused queue; healthy Runtime and free slots do not imply permission to start."
+    },
+    {
+      "finding": "D14",
+      "tasks": [
+        "V58-002",
+        "V58-009",
+        "V58-012"
+      ],
+      "result": "Headers, forms and Settings are more compact; repeated decorative blocks and duplicate Audit stop reasons are removed."
+    },
+    {
+      "finding": "D15",
+      "tasks": [
+        "V58-006"
+      ],
+      "result": "Project overview shows next actions, recent results, sources and the number of unreviewed Findings, with an explicit counting scope."
+    },
+    {
+      "finding": "D16",
+      "tasks": [
+        "V58-007"
+      ],
+      "result": "Workflow uses its published description or explicitly states that none is available; matching input formats do not imply task readiness."
+    },
+    {
+      "finding": "D17",
+      "tasks": [
+        "V58-007",
+        "V58-012"
+      ],
+      "result": "Agent versions are grouped on the current result page and available through a selector; search and cursors are preserved."
+    },
+    {
+      "finding": "D18",
+      "tasks": [
+        "V58-003"
+      ],
+      "result": "Skills show their purpose and file count; opening a package preserves Catalog/Skills context."
+    },
+    {
+      "finding": "D19",
+      "tasks": [
+        "V58-008"
+      ],
+      "result": "Evals show the latest execution and case/leg/sample; Runs appear before settings. A quality verdict is not inferred from succeeded."
+    },
+    {
+      "finding": "D20",
+      "tasks": [
+        "V58-009"
+      ],
+      "result": "RuntimeConfig shows effective labels/default; the duplicate digest is removed, Built-in replaces the placeholder date, and unchanged Rebind is disabled."
+    },
+    {
+      "finding": "D21",
+      "tasks": [
+        "V58-009"
+      ],
+      "result": "Cross-links were added between Runtime defaults, Models/Gateways, Credentials/Budgets and Scheduler/Git."
+    },
+    {
+      "finding": "D22",
+      "tasks": [
+        "V58-003",
+        "V58-009",
+        "V58-011"
+      ],
+      "result": "Upload, create and clone open on demand; disabled RuntimeConfig sections hide dependent fields, while drafts are preserved."
+    },
+    {
+      "finding": "D23",
+      "tasks": [
+        "V58-007"
+      ],
+      "result": "Objective and authorization scope are multiline; labels are human-readable, while exact keys and wire values are preserved."
+    },
+    {
+      "finding": "D24",
+      "tasks": [
+        "V58-010"
+      ],
+      "result": "Current CPU/RAM/GPU/DB readings and charts appear before detailed counters; units, freshness and collection gaps are preserved."
+    },
+    {
+      "finding": "D25",
+      "tasks": [
+        "V58-003",
+        "V58-011"
+      ],
+      "result": "Errors name the operation and offer a read retry; writes are not retried automatically. ZIP-limit errors explain browsing bounds; 404 offers navigation."
+    },
+    {
+      "finding": "D26",
+      "tasks": [
+        "V58-002",
+        "V58-011"
+      ],
+      "result": "Audit and Operations use a labeled mobile section selector; responsive lists were checked on desktop/mobile and at the critical 320 px width."
+    },
+    {
+      "finding": "D27",
+      "tasks": [
+        "V58-002",
+        "V58-005",
+        "V58-011"
+      ],
+      "result": "Primary actions are emphasized for each journey; Delete remains neutral until interaction, confirmation stays explicit, and focus management was checked."
+    },
+    {
+      "finding": "D28",
+      "tasks": [
+        "V58-006"
+      ],
+      "result": "Project cards are more compact: duplicate type/icon elements were removed, IDs shortened with full values available, and dates show elapsed time."
+    },
+    {
+      "finding": "D29",
+      "tasks": [
+        "V58-005",
+        "V58-012"
+      ],
+      "result": "A readable report Summary appears before exports; the UUID heading is smaller, with a link to coverage gaps."
+    },
+    {
+      "finding": "D30",
+      "tasks": [
+        "V58-009"
+      ],
+      "result": "Published configuration is separate from new-version creation; Clone opens a prepared editable draft."
+    },
+    {
+      "finding": "D31",
+      "tasks": [
+        "V58-010"
+      ],
+      "result": "Runtime Agents are ordered online-first with a connection-status filter; available labels/capabilities are used, and missing hostnames are not invented."
+    },
+    {
+      "finding": "D32",
+      "tasks": [
+        "V58-002",
+        "V58-006",
+        "V58-010",
+        "V58-012"
+      ],
+      "result": "Login and the shell read the version from package.json; dates have context, GiB/TiB are readable, and accents and fields are consistent."
+    }
+  ],
+  "limitations": [
+    "Browser uses a fixture auth session and live authenticated REST reads; password login and authenticated WebSocket reconnect are not claimed as live-tested.",
+    "Archive Nextcloud exceeds existing browsing limits; both widths verify the precise error and original download action.",
+    "No new Eval verdict protocol or toolset-configuration protocol is introduced."
+  ]
+}

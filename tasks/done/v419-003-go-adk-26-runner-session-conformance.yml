@@ -1,0 +1,173 @@
+schema_version: '1.0'
+id: V419-003
+title: Verify Go ADK v2 tool history and Planner session lifecycle
+milestone: go-adk-26-upgrade-2026-10
+epic: planner-worker
+kind: chore
+priority: P1
+status: completed
+depends_on:
+- V419-002
+languages:
+- go
+- markdown
+goal: Prove real Runner behavior preserves strict tools, truthful history, fail-closed persistence and
+  bounded cancellation on v2.6.
+context:
+  verification_authority: 'User direction on 2026-10-25: do not run a full verification after this upgrade.
+    Use the affected-owner Go suites, real PostgreSQL/race checks, shared wire fixtures and the five selected
+    process parents below. Do not run global test-go, release-verify, make lint, UI, full Runtime or all
+    E2E tests. Record this as targeted verification, not a fresh full release pass.'
+  authority: User authorized implementing Runtime first then Server. Runtime acceptance is complete; Go
+    tasks start only after their declared prerequisites complete. The later explicit no-full-rerun instruction
+    controls the final verification scope.
+  review: tasks/evidence/v419-go-adk-26-review.json
+  runner_conformance_evidence: tasks/evidence/v419-go-adk-26-runner-conformance.json
+  specification:
+  - docs/spec/execution/planners.md#PLN-R1
+  - docs/spec/execution/planners.md#PLN-R81
+  - docs/spec/execution/planners.md#PLN-R94
+  - docs/spec/execution/planners.md#PLN-R106
+  - docs/spec/execution/planners.md#PLN-R107
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/execution/scheduler.md
+  implementation_boundary: Update owning numbered specifications, limits/errors/failure/lifecycle registries
+    and every affected reader/writer with implementation. A planned extension is not current shipped behavior.
+    No legacy readers, v1/v2 production branches, native SDK resume, new receipt store or model substitution.
+    Scheduler retains claims, queues, Stage identities, transitions, retries and completed recovery; only
+    configuration plumbing, mechanical imports and regression fixtures may change there.
+scope:
+  in:
+  - Runner/tool/history regressions and real-store/race coverage for both Streamline and Router; necessary
+    fixes preserving existing contracts.
+  out:
+  - Opt-in compaction semantics, new persistence entities, raw transcript durability and Scheduler algorithm
+    changes.
+acceptance_criteria:
+- id: A1
+  given: Malformed tools and interrupted history variants
+  when: Real v2 Runner builds requests and dispatches tools
+  then: Schemas/results remain exact, useful history is preserved under the declared projection, and rejected
+    or uncertain calls are never blindly executed again.
+- id: A2
+  given: Budget edges and finish outcomes
+  when: Both modeled Planners run
+  then: Attempts/known tokens are counted once and single-Worker/finish contracts remain intact.
+- id: A3
+  given: Disposable PostgreSQL and injected write outcomes
+  when: Session append/recovery runs
+  then: Invalid writes are nonretryable, outages keep existing classification, and failure fences further
+    work/candidates.
+- id: A4
+  given: Cancel, deadline or consumer stop at each boundary
+  when: Runner unwinds
+  then: All local work joins before return with no post-return effects or automatic retry.
+- id: A5
+  given: Secret canaries in new ADK event fields
+  when: RAM roundtrip and durable/public projections are inspected
+  then: Required in-memory data survives and no forbidden raw content reaches persistent facts.
+tests:
+- command: go test -race -p=1 -json -count=1 -timeout=20m ./internal/planner ./internal/planner/router
+    ./internal/planner/session ./internal/planner/streamline ./tests/integration/streamline
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+requirements:
+- id: R1
+  text: Test real Runner-to-Gateway messages for complete pairs, call-only, response-only plus useful
+    text, repeated tool names with distinct IDs, empty/synthetic IDs and interrupted dispatch. Assert
+    model projection separately from raw session events; ADK orphan cleanup cannot prove an uncertain
+    remote call never executed.
+- id: R2
+  text: Keep the exact core/Memory/State schemas and output shapes under JSON normalization. Cover missing/extra/null/bool/string/fractional/integral-number/array
+    inputs through dispatch, valid array results, invalid finish shapes and zero side effects for rejected
+    unknown/parallel/stale calls.
+- id: R3
+  text: Prove ordinary model callbacks still charge every admitted call/known usage once, preserve missing/inconsistent
+    usage failures and safe Gateway classes, and allow finish after the last permitted Worker call. Root
+    wrapper must not introduce automatic retries or extra Worker dispatches.
+- id: R4
+  text: Exercise actual PostgreSQL ordinary-event append rejection, transient failure and ambiguous acknowledgement
+    through the production adapter; preserve errors.As classification and PLN-R106. No candidate or next
+    model/tool call may escape a required session-write failure.
+- id: R5
+  text: Use barriers to cancel during main model, Worker call, event persistence and early consumer stop.
+    All SDK goroutines and iterators join before Planner return; no late callback, write or model request.
+    Maintain separate original deadline, recovery and cleanup ownership.
+- id: R6
+  text: Extend allowlist canary tests for Event Output, NodeInfo, IsolationScope, RequestedInput, StateDelta
+    and direct response serialization. Keep full required event data in RAM while durable/public facts
+    remain bounded and redacted.
+- id: R7
+  text: Preserve completed-result recovery without any ADK/model/Worker call and unfinished-session failure
+    without SDK resume. Keep the existing Scheduler claim/transition behavior; tests may inspect it without
+    introducing an ADK workflow above Planner.
+failure_outcomes:
+- operation: Verification, model/tool execution and existing session mutations covered by this task
+  permanent: Invalid input and deterministic store rejection keep their existing safe nonretryable class.
+    A required verification failure blocks completion; do not relax assertions or add permanent xfails.
+  retryable: Use only the existing bounded transport/recovery policy within the original deadline; no
+    migration-specific retry or rerun-until-green.
+  ambiguous: Reconcile through the existing receipt/session sequence and same operation identity. A lost
+    reply does not prove nonexecution; never blindly repeat a Worker call or append.
+  cancelled: Invocation/test owner cancels and joins local work before teardown; already-dispatched remote
+    effects follow existing reconciliation.
+  timeout: Keep invocation, transport, completion-write, cleanup and test-harness deadlines distinct;
+    expiration admits no new semantic attempt.
+cardinality:
+- collection: Planner calls, plan, event history and their containing serialized requests/session state
+  expected: Default 32 model calls and 32 subtasks, one active dispatch and one executed tool per model
+    turn.
+  maximum: 'Existing ceilings: 1000 model calls, 1000 subtasks, 10000 Worker calls, 256-KiB initial input,
+    4-MiB Gateway request, 2-MiB session JSON and 256 recorded fact digests; inventory the current constants
+    before writing scale fixtures.'
+  bound: Respect both item and containing byte/work limits. Independent maxima need not fit simultaneously;
+    a containing limit must reject honestly before side effects. No unbounded callback scans or copies.
+lifecycle:
+- entity: Invocation-local SDK sessions, tools, clients, test fixtures and safe verification evidence
+  delete: Existing invocation owner or isolated test harness tears down only its own resources.
+  cascade: Join all goroutines/iterators before erasing context and releasing Worker handles; retain existing
+    durable result/receipt ownership.
+  retention: No new durable entity or raw transcript. Safe evidence records versions, cases and outcomes
+    without credentials, raw prompts or temporary-path prerequisites.
+test_prerequisites:
+- Commands are future implementation acceptance, not checks completed by this planning change. Record
+  exact revision, Go/ADK versions, module graph/checksums, commands, executed case counts, skips and outcomes.
+  Required cases cannot be skipped or match zero tests.
+- Use disposable real PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set for persistence acceptance; an
+  unreachable configured database fails. Canonicalize TMPDIR as Makefile does. Full package suites accompany
+  focused regressions. make test-streamline does not cover Router, so run all internal/planner packages
+  too.
+- Use actual pinned ADK Runner/tool dispatch and controlled Gateway responses. tests/integration/streamline
+  uses a fake WorkerInvoker and does not prove a real Server/Runtime process. Register new process cases
+  in the release graph and provide their fixtures/prerequisites.
+- Use testdata and test-only pseudo-Skills rather than reading live configs. Use injected clocks, synchronization
+  barriers and work/byte/row counters, not wall-clock assertions. Live Gateway benchmarks are outside
+  deterministic acceptance; keep configured models unchanged.
+- No dependency on Python V418 or Worker compaction V417 is implied. Cross-language regression uses the
+  currently supported Runtime lock. New shared grammar or wire changes, if actually needed, must update
+  all implementations and shared fixtures in the owning task.
+- Targeted verification uses GOMAXPROCS=2, Go package parallelism=1, canonical TMPDIR and an agent-owned
+  disposable PostgreSQL database. Validate nonzero executed case inventories from Go JSON reports; a command
+  exit alone is not proof. The only ordinary optional skips are the two named live-Gateway tests and the
+  explicitly optional real-Collector test. Do not retry failed gates until green without a diagnosed change.
+verification:
+  source_commit: 39e4775ad1a69d36a04ee4c7f31f311375cf17ab
+  evidence: tasks/evidence/v419-go-adk-26-runner-conformance.json
+  result: The one final scoped PostgreSQL/race command passed all five packages, 145 top-level tests and
+    374 pass records (321 executed passed leaves). All 84 existing required manifest cases plus 16 new
+    cases passed; the only skips were the two explicitly opt-in live Gateway tests. All 16 SDK projection
+    observations matched the declared v2 dispositions. This is targeted owner verification, not a repeated
+    full release pass.
+  cancellation_contract: Active Worker cancellation also cancels the required failDispatch plan write.
+    Both supported v1.6 and v2.6 return the documented retryable planner_plan_persistence_failed with
+    the original context.Canceled cause, joined local work and no replay. The initial planner_cancelled
+    expectation was rejected after an actual historical Runner/PostgreSQL probe; no production behavior
+    or error precedence was changed.
+implementation_commit: 660143a9befc65103f2be1bd381bf27640a66ee7

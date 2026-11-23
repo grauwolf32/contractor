@@ -1,0 +1,947 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import subprocess
+import threading
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+from unittest.mock import AsyncMock
+
+import pytest
+from document_preparation_probes import (
+    PreparationGate,
+    loop_callback,
+    observe_threads,
+    yield_to_loop,
+)
+from document_write_faults import FaultInjectingArtifactClient
+from fakes.worker_state import WorkerState
+from google.adk.tools import FunctionTool
+from google.genai import types
+from shared_config_defaults import MAX_ARTIFACT_BYTES
+
+import contractor_runtime.toolsets.likec4.tools as likec4_module
+from contractor_runtime.artifacts import (
+    ArtifactAPIError,
+    ArtifactResponseLimitError,
+    ArtifactValue,
+)
+from contractor_runtime.contracts import (
+    API_VERSION,
+    ArtifactRef,
+    ArtifactWriteResult,
+    RuntimeSettings,
+)
+from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.factories import built_in_factories
+from contractor_runtime.llm.openai import _tools
+from contractor_runtime.toolsets.likec4.tools import (
+    MAX_DOCUMENT_UTF8_BYTES,
+    LikeC4ToolsetFactory,
+    _run_likec4,
+)
+from contractor_runtime.worker.instrumentation import _safe_tool_response
+from contractor_runtime.workspace import AllocationWorkspace
+
+SECRET = "likec4-tool-recognizable-secret"
+BASE_DOCUMENT = """specification {
+  element actor
+  element system
+}
+model {
+  customer = actor 'Customer'
+  app = system 'Application'
+  customer -> app 'Uses'
+}
+views {
+  view index {
+    include *
+  }
+}
+"""
+
+
+def test_likec4_editing_validation_and_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        state = WorkerState()
+        tools = await make_tools(tmp_path, client, state, namespace="architecture")
+        captured: dict[str, Any] = {}
+
+        monkeypatch.setattr(
+            likec4_module.shutil,
+            "which",
+            lambda name: "/opt/likec4/bin/likec4" if name == "likec4" else None,
+        )
+
+        def run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+            source = Path(command[command.index("--file") + 1])
+            project = Path(command[-1])
+            captured.update(
+                {
+                    "command": command,
+                    "kwargs": kwargs,
+                    "content": source.read_text(),
+                    "source": source,
+                    "project": project,
+                }
+            )
+            assert source.parent == project
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                json.dumps(
+                    {
+                        "valid": True,
+                        "errors": [],
+                        "stats": {"totalFiles": 1, "totalErrors": 0},
+                    }
+                ).encode(),
+                b"ignored banner",
+            )
+
+        monkeypatch.setattr(
+            "contractor_runtime.core.process.run_command", AsyncMock(side_effect=run)
+        )
+        written = await tools["write_likec4"](BASE_DOCUMENT + f"// {SECRET}\n")
+        appended = await tools["append_likec4"]("// generated from source\n")
+        replaced = await tools["replace_likec4"]("Application", "Backend Application")
+        assert replaced["replacementCount"] == 1
+        revisions = [
+            written["artifact"]["revision"],
+            appended["artifact"]["revision"],
+            replaced["artifact"]["revision"],
+        ]
+        assert len(set(revisions)) == 3
+        assert client.write_count == 3
+
+        read = await tools["read_likec4"](start_line=5, max_lines=6)
+        assert "Backend Application" in read["text"]
+        assert read["artifact"] == replaced["artifact"]
+        validation = await tools["validate_likec4"]()
+        assert validation["valid"]
+        assert validation["issues"] == []
+        assert validation["stats"] == {"totalFiles": 1, "totalErrors": 0}
+        assert "Backend Application" in captured["content"]
+        assert captured["command"][:5] == [
+            "/opt/likec4/bin/likec4",
+            "validate",
+            "--json",
+            "--no-layout",
+            "--file",
+        ]
+        assert captured["kwargs"].get("input") is None
+        assert captured["kwargs"]["timeout"] == 30
+        assert (
+            captured["kwargs"]["max_output_bytes"] == 2 * likec4_module.MAX_VALIDATOR_OUTPUT_BYTES
+        )
+        assert "shell" not in captured["kwargs"]
+        assert captured["kwargs"]["env"]["CI"] == "1"
+        assert SECRET not in repr(captured["kwargs"]["env"])
+        assert not captured["project"].exists()
+        assert not list(tmp_path.glob(".likec4-validate-*"))
+
+        observed = {
+            (ref.namespace, ref.name, ref.revision)
+            for tool in tools.values()
+            for ref in tool.known_exact_refs
+        }
+        assert (
+            "architecture",
+            "architecture",
+            replaced["artifact"]["revision"],
+        ) in observed
+        metrics = repr(state.metrics.snapshot())
+        assert SECRET not in metrics
+        assert "Backend Application" not in metrics
+        assert state.metrics.counters["tool_calls.validate_likec4"] == 1
+
+        sessions = {id(tool._session): tool._session for tool in tools.values()}
+        assert len(sessions) == 1
+        for tool in tools.values():
+            await tool.close()
+            assert tool._secrets == ()
+        session = next(iter(sessions.values()))
+        assert session._document is None
+        assert session._revision is None
+
+    asyncio.run(scenario())
+
+
+def test_exact_seed_is_copied_and_later_stage_resumes(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        seed_data = BASE_DOCUMENT.encode()
+        seed = client.seed("inputs", "existing-likec4", "text/vnd.likec4", seed_data)
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+
+        with pytest.raises(TypeError, match="revision"):
+            await tools["load_likec4"]("inputs", "existing-likec4", revision=None)
+        copied = await tools["load_likec4"]("inputs", "existing-likec4")
+        assert copied["copied"] and copied["changed"]
+        assert copied["artifact"]["namespace"] == "architecture"
+        assert client.history[("inputs", "existing-likec4", seed.revision)].data == seed_data
+        writes_after_copy = client.write_count
+
+        later = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        resumed = await later["load_likec4"]("architecture", "architecture")
+        assert not resumed["copied"] and not resumed["changed"]
+        assert client.write_count == writes_after_copy
+        updated = await later["append_likec4"]("// resumed\n")
+        assert updated["artifact"]["revision"] != copied["artifact"]["revision"]
+        assert client.history[("inputs", "existing-likec4", seed.revision)].data == seed_data
+
+    asyncio.run(scenario())
+
+
+def test_likec4_tools_enforce_shared_memory_source_target_and_ref_visibility(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        hidden = client.seed("analysis", "memory.hidden", "text/vnd.likec4", BASE_DOCUMENT.encode())
+        allowed = client.seed(
+            "inputs",
+            "memory.workflow_input",
+            "text/vnd.likec4",
+            BASE_DOCUMENT.encode(),
+        )
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        session = tools["load_likec4"]._session
+        calls_before = (client.read_count, client.write_count)
+
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["load_likec4"](hidden.namespace, hidden.name, target_name="safe_target")
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["load_likec4"](
+                allowed.namespace, allowed.name, target_name="memory.hidden_target"
+            )
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["write_likec4"](BASE_DOCUMENT, target_name="memory.hidden_target")
+        assert (client.read_count, client.write_count) == calls_before
+        assert session._document is None and session._target_name is None
+
+        copied = await tools["load_likec4"](allowed.namespace, allowed.name)
+        assert copied["artifact"]["namespace"] == "architecture"
+        observed = {
+            (ref.namespace, ref.name) for tool in tools.values() for ref in tool.known_exact_refs
+        }
+        assert (hidden.namespace, hidden.name) not in observed
+        assert (allowed.namespace, allowed.name) in observed
+
+    asyncio.run(scenario())
+
+
+def test_plain_text_seed_is_canonicalized_on_copy(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        seed = client.seed("inputs", "plain", "text/plain", BASE_DOCUMENT.encode())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        copied = await tools["load_likec4"]("inputs", "plain")
+        assert copied["mediaType"] == "text/vnd.likec4"
+        target = client.bindings[("architecture", "architecture")]
+        assert target.media_type == "text/vnd.likec4"
+        assert target.data == BASE_DOCUMENT.encode()
+        assert client.history[("inputs", "plain", seed.revision)].media_type == "text/plain"
+
+    asyncio.run(scenario())
+
+
+def test_seed_requires_media_type_utf8_and_size_without_target_write(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        client.seed("inputs", "binary-media", "application/octet-stream", BASE_DOCUMENT.encode())
+        client.seed("inputs", "binary", "text/vnd.likec4", b"\xff")
+        client.seed(
+            "inputs",
+            "large",
+            "text/vnd.likec4",
+            b"x" * (MAX_DOCUMENT_UTF8_BYTES + 1),
+        )
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+
+        with pytest.raises(ValueError, match=r"text/vnd\.likec4"):
+            await tools["load_likec4"]("inputs", "binary-media")
+        with pytest.raises(ValueError, match="valid UTF-8"):
+            await tools["load_likec4"]("inputs", "binary")
+        with pytest.raises(ValueError, match="1 MiB"):
+            await tools["load_likec4"]("inputs", "large")
+        assert client.read_limits == [MAX_DOCUMENT_UTF8_BYTES] * 3
+        assert ("architecture", "architecture") not in client.bindings
+        assert client.write_count == 0
+
+    asyncio.run(scenario())
+
+
+def test_replace_bounds_and_stale_cas_preserve_selected_document(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        state = WorkerState()
+        tools = await make_tools(tmp_path, client, state, namespace="architecture")
+        created = await tools["write_likec4"]("node node node\n")
+        created["artifact"]["revision"]
+        writes = client.write_count
+
+        with pytest.raises(ValueError, match="ambiguous"):
+            await tools["replace_likec4"]("node", "service")
+        with pytest.raises(ValueError, match="absent"):
+            await tools["replace_likec4"]("missing", "service")
+        with pytest.raises(ValueError, match="exceeds"):
+            await tools["replace_likec4"]("node", "service", count=4)
+        with pytest.raises(ValueError, match="1 through 100"):
+            await tools["replace_likec4"]("node", "service", count=0)
+        assert client.write_count == writes
+
+        replaced = await tools["replace_likec4"]("node", "service", count=2)
+        assert replaced["replacementCount"] == 2
+        assert replaced["matchingOccurrences"] == 3
+        selected = await tools["read_likec4"]()
+        assert selected["text"] == "service service node\n"
+
+        current = client.bindings[("architecture", "architecture")]
+        external = await client.write_artifact(
+            ArtifactRef(namespace="architecture", name="architecture"),
+            data=b"external update\n",
+            media_type="text/vnd.likec4",
+            expected_revision=current.revision,
+        )
+        with pytest.raises(ValueError, match="CAS"):
+            await tools["append_likec4"]("stale append\n")
+        with pytest.raises(ValueError, match="CAS"):
+            await tools["write_likec4"]("stale whole write\n")
+        assert (await tools["read_likec4"]())["text"] == "service service node\n"
+        durable = client.bindings[("architecture", "architecture")]
+        assert durable.revision == external.artifact.revision
+        assert durable.data == b"external update\n"
+
+        with pytest.raises(ValueError, match="1 MiB"):
+            await tools["append_likec4"]("x" * (MAX_DOCUMENT_UTF8_BYTES + 1))
+        assert client.bindings[("architecture", "architecture")].revision == durable.revision
+        assert "service service" not in repr(state.metrics.snapshot())
+
+    asyncio.run(scenario())
+
+
+def test_read_is_line_and_utf8_bounded(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        await tools["write_likec4"]("one-😀\ntwo-🚀\nthree-🧪\n")
+        result = await tools["read_likec4"](start_line=2, max_lines=1)
+        assert result["text"] == "two-🚀\n"
+        assert result["startLine"] == 2 and result["endLine"] == 2
+        assert result["truncated"]
+        with pytest.raises(ValueError, match="positive integer"):
+            await tools["read_likec4"](start_line=0)
+        with pytest.raises(ValueError, match="line count"):
+            await tools["read_likec4"](start_line=10)
+
+    asyncio.run(scenario())
+
+
+def test_read_numbers_lines_like_read_file(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        await tools["write_likec4"]("model {\x0c\u2028}\r\nviews {\x85}\rspec {}\n")
+        result = await tools["read_likec4"](start_line=2)
+        assert result["totalLines"] == 3
+        assert result["text"] == "views {\x85}\rspec {}\n"
+        assert (result["endLine"], result["truncated"]) == (3, False)
+
+    asyncio.run(scenario())
+
+
+def test_read_never_reports_a_later_line_as_partially_returned(tmp_path: Path) -> None:
+    limit = likec4_module.MAX_VISIBLE_UTF8_BYTES
+
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        await tools["write_likec4"]("a\n" + "b" * limit + "\nc\n")
+        first = await tools["read_likec4"]()
+        assert first["text"] == "a\n"
+        assert (first["endLine"], first["partialLine"], first["truncated"]) == (1, False, True)
+        # Continuing at endLine + 1 reaches the oversized line itself.
+        oversized = await tools["read_likec4"](start_line=first["endLine"] + 1)
+        assert oversized["text"] == "b" * limit
+        assert (oversized["endLine"], oversized["partialLine"]) == (2, True)
+        last = await tools["read_likec4"](start_line=3)
+        assert (last["text"], last["truncated"]) == ("c\n", False)
+
+        await tools["write_likec4"]("a" * (limit - 1) + "\nc\n")
+        filled = await tools["read_likec4"]()
+        assert filled["text"] == "a" * (limit - 1) + "\n"
+        assert (filled["endLine"], filled["partialLine"], filled["truncated"]) == (1, False, True)
+
+    asyncio.run(scenario())
+
+
+def test_read_likec4_keeps_its_prefix_only_long_line_interface(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        tools = await make_tools(
+            tmp_path, MemoryArtifactClient(), WorkerState(), namespace="architecture"
+        )
+        declaration = FunctionTool(tools["read_likec4"])._get_declaration()
+        schema = _tools([types.Tool(function_declarations=[declaration])])[0]["function"][
+            "parameters"
+        ]
+        assert set(schema["properties"]) == {"max_lines", "start_line"}
+
+    asyncio.run(scenario())
+
+
+def test_json_fallback_is_bounded_and_rejects_deep_nesting() -> None:
+    assert likec4_module._extract_json('Update [notice] available\n{"errors": []}\n') == {
+        "errors": []
+    }
+    for text in ("[" * 200_000, "banner " + "{" * 200_000, "x" + "[" * 500_000):
+        with pytest.raises(ValueError):
+            likec4_module._extract_json(text)
+
+
+def test_validation_reports_deeply_nested_output_as_invalid_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: "/bin/likec4")
+    monkeypatch.setattr(
+        "contractor_runtime.core.process.run_command",
+        AsyncMock(
+            side_effect=lambda *_args, **_kwargs: subprocess.CompletedProcess(
+                [], 1, b"[" * 500_000, b""
+            )
+        ),
+    )
+    validation = asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))
+    assert not validation["valid"]
+    assert validation["executionError"] == "LikeC4 returned invalid JSON"
+
+
+def test_validation_accepts_banner_and_current_json_and_normalizes_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: "/bin/likec4")
+    outputs = iter(
+        [
+            subprocess.CompletedProcess(
+                [],
+                1,
+                (
+                    "Update available\n"
+                    + json.dumps(
+                        {
+                            "valid": False,
+                            "errors": [
+                                {
+                                    "message": "Unknown element",
+                                    "file": "/private/tmp/project/main.c4",
+                                    "line": 3,
+                                    "range": {"start": {"line": 3, "character": 2}},
+                                }
+                            ],
+                            "stats": {"totalFiles": 1, "filteredErrors": 1},
+                        }
+                    )
+                ).encode(),
+                b"private stderr banner",
+            ),
+            subprocess.CompletedProcess(
+                [], 0, json.dumps({"valid": True, "errors": [], "stats": {}}).encode(), b""
+            ),
+        ]
+    )
+    monkeypatch.setattr(
+        "contractor_runtime.core.process.run_command",
+        AsyncMock(side_effect=lambda *_args, **_kwargs: next(outputs)),
+    )
+    invalid = asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))
+    assert not invalid["valid"]
+    assert invalid["issues"][0]["file"] == "main.c4"
+    assert "/private/tmp" not in repr(invalid)
+    assert invalid["stats"] == {"totalFiles": 1, "filteredErrors": 1}
+    assert asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))["valid"]
+    assert not list(tmp_path.glob(".likec4-validate-*"))
+
+
+@pytest.mark.parametrize("character", ["x", "я", "😀"])
+def test_bounded_cli_text_keeps_actionable_suffix_within_utf8_limit(character: str) -> None:
+    limit = likec4_module.MAX_DIAGNOSTIC_TEXT_BYTES
+    short = "Expected an element, found `description`."
+    assert likec4_module._bounded_cli_text(short) == short
+    exact = "x" * limit
+    assert likec4_module._bounded_cli_text(exact) == exact
+    message = "Expecting one of:\n" + character * limit + "\nbut found: `description`"
+    bounded = likec4_module._bounded_cli_text(message)
+    assert bounded.startswith("Expecting one of:\n")
+    assert bounded.endswith("but found: `description`")
+    assert "[TRUNCATED]" in bounded
+    assert len(bounded.encode("utf-8")) <= limit
+    assert "\ufffd" not in bounded
+
+
+def test_validation_keeps_found_token_in_long_parser_diagnostic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    message = "Expecting one of:\n" + "  [IdTerminal, ->]\n" * 400 + "but found: `view`"
+    monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: "/bin/likec4")
+    monkeypatch.setattr(
+        "contractor_runtime.core.process.run_command",
+        AsyncMock(
+            side_effect=lambda *_args, **_kwargs: subprocess.CompletedProcess(
+                [],
+                1,
+                json.dumps(
+                    {
+                        "valid": False,
+                        "errors": [
+                            {"message": message, "file": "/private/tmp/main.c4", "line": 17}
+                        ],
+                    }
+                ).encode(),
+                b"",
+            )
+        ),
+    )
+    result = asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))
+    assert not result["valid"]
+    issue = result["issues"][0]
+    assert issue["message"].endswith("but found: `view`")
+    assert len(issue["message"].encode("utf-8")) <= likec4_module.MAX_DIAGNOSTIC_TEXT_BYTES
+    assert issue["line"] == 17 and issue["file"] == "main.c4"
+
+
+@pytest.mark.parametrize(
+    ("result", "message"),
+    [
+        (subprocess.CompletedProcess([], 2, b"{}", b"secret stderr"), "execution failure"),
+        (subprocess.CompletedProcess([], 0, b"", b"secret stderr"), "empty or oversized"),
+        (subprocess.CompletedProcess([], 0, b"not-json", b""), "invalid JSON"),
+        # The legacy bare diagnostic list is not the current CLI output shape.
+        (subprocess.CompletedProcess([], 0, b"[]", b""), "unexpected JSON shape"),
+        (
+            subprocess.CompletedProcess([], 0, json.dumps({"valid": True}).encode(), b""),
+            "unexpected JSON shape",
+        ),
+        (
+            subprocess.CompletedProcess(
+                [], 0, json.dumps({"valid": True, "errors": ["bad"]}).encode(), b""
+            ),
+            "invalid diagnostics",
+        ),
+    ],
+)
+def test_validation_execution_and_output_failures_are_not_clean(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    result: subprocess.CompletedProcess[bytes],
+    message: str,
+) -> None:
+    monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: "/bin/likec4")
+    monkeypatch.setattr(
+        "contractor_runtime.core.process.run_command",
+        AsyncMock(side_effect=lambda *_args, **_kwargs: result),
+    )
+    validation = asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))
+    assert not validation["valid"]
+    assert message in validation["executionError"]
+    assert "secret stderr" not in repr(validation)
+    assert not list(tmp_path.glob(".likec4-validate-*"))
+
+
+def test_validation_missing_timeout_and_oversized_output_are_not_clean(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: None)
+    missing = asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))
+    assert not missing["available"] and not missing["valid"]
+
+    monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: "/bin/likec4")
+
+    def timeout(*_args: Any, **_kwargs: Any) -> Any:
+        raise subprocess.TimeoutExpired("likec4", 30, stderr=b"private timeout banner")
+
+    monkeypatch.setattr(
+        "contractor_runtime.core.process.run_command", AsyncMock(side_effect=timeout)
+    )
+    timed_out = asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))
+    assert not timed_out["valid"] and "timed out" in timed_out["executionError"]
+    assert "private" not in repr(timed_out)
+    assert not list(tmp_path.glob(".likec4-validate-*"))
+
+    monkeypatch.setattr(
+        "contractor_runtime.core.process.run_command",
+        AsyncMock(
+            side_effect=lambda *_args, **_kwargs: subprocess.CompletedProcess(
+                [], 0, b"x" * (likec4_module.MAX_VALIDATOR_OUTPUT_BYTES + 1), b""
+            )
+        ),
+    )
+    oversized = asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))
+    assert not oversized["valid"] and "oversized" in oversized["executionError"]
+
+
+def test_tool_validate_never_maps_cli_failure_to_valid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        await tools["write_likec4"](BASE_DOCUMENT)
+        monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: None)
+        result = await tools["validate_likec4"]()
+        assert not result["valid"]
+        assert not result["validatorAvailable"]
+        assert result["validatorExecutionError"]
+
+    asyncio.run(scenario())
+
+
+def test_factory_rejects_unknown_tools_and_builtin_registry_matches(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        factory = LikeC4ToolsetFactory(lambda _allocation, _settings: MemoryArtifactClient())
+        selected = await factory.create_selected(
+            selected=["read_likec4"],
+            allocation_id="allocation-1",
+            run_id="run-1",
+            namespace="architecture",
+            runtime_settings=runtime_settings(),
+            workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
+            resources=WorkerState().resources,
+        )
+        assert set(selected) == {"read_likec4"}
+        with pytest.raises(ValueError, match="unknown selected tools"):
+            await factory.create_selected(
+                selected=["render_likec4"],
+                allocation_id="allocation-1",
+                run_id="run-1",
+                namespace="architecture",
+                runtime_settings=runtime_settings(),
+                workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
+                resources=WorkerState().resources,
+            )
+
+    asyncio.run(scenario())
+    assert built_in_factories(tmp_path).toolsets["likec4@1"].exported_tools == {
+        "load_likec4",
+        "write_likec4",
+        "read_likec4",
+        "append_likec4",
+        "replace_likec4",
+        "validate_likec4",
+    }
+
+
+@pytest.mark.parametrize("failure", ["lost_transport", "lost_500"])
+def test_likec4_ambiguous_append_adopts_committed_revision(tmp_path: Path, failure: str) -> None:
+    async def scenario() -> None:
+        client = FaultInjectingArtifactClient(MemoryArtifactClient())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        await tools["write_likec4"](BASE_DOCUMENT)
+        client.failure = failure
+        before = len(client.attempts)
+        appended = await tools["append_likec4"]("// once\n")
+        assert appended["artifact"]["revision"] == "revision-2"
+        assert client.inner.write_count == 2
+        assert client.attempts[before:] == [client.attempts[before]] * 2
+        read = await tools["read_likec4"]()
+        assert read["text"].count("// once") == 1
+        assert read["artifact"]["revision"] == "revision-2"
+        later = await tools["append_likec4"]("// later\n")
+        assert later["artifact"]["revision"] == "revision-3"
+        assert client.inner.write_count == 3
+        assert (await tools["read_likec4"]())["text"].count("// once") == 1
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure", ["conflict", "diverged"])
+def test_likec4_concurrent_change_requires_reload(tmp_path: Path, failure: str) -> None:
+    async def scenario() -> None:
+        client = FaultInjectingArtifactClient(MemoryArtifactClient())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        await tools["write_likec4"](BASE_DOCUMENT)
+        client.concurrent_data = (BASE_DOCUMENT + "// concurrent\n").encode()
+        client.failure = failure
+        before = len(client.attempts)
+        with pytest.raises(ToolInputError) as rejected:
+            await tools["append_likec4"]("// mine\n")
+        assert rejected.value.code == "document_changed"
+        assert rejected.value.retryable is False
+        assert "load_likec4" in str(rejected.value)
+        assert "read_likec4" in str(rejected.value)
+        visible = _safe_tool_response("append_likec4", rejected.value)["error"]
+        assert visible["code"] == "document_changed" and visible["retryable"] is False
+        assert "load_likec4" in visible["message"]
+        assert len(client.attempts) - before == (1 if failure == "conflict" else 2)
+        loaded = await tools["load_likec4"]("architecture", "architecture")
+        assert (
+            loaded["artifact"]["revision"]
+            == client.inner.bindings[("architecture", "architecture")].revision
+        )
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("failure", "code"),
+    [
+        ("fenced", "allocation_write_fenced"),
+        ("forbidden", "artifact_access_denied"),
+        ("invalid", "artifact_invalid"),
+    ],
+)
+def test_likec4_definite_rejection_is_not_replayed(tmp_path: Path, failure: str, code: str) -> None:
+    async def scenario() -> None:
+        client = FaultInjectingArtifactClient(MemoryArtifactClient())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        await tools["write_likec4"](BASE_DOCUMENT)
+        client.failure = failure
+        before = len(client.attempts)
+        with pytest.raises(ArtifactAPIError) as rejected:
+            await tools["append_likec4"]("// denied\n")
+        assert rejected.value.code == code
+        assert len(client.attempts) == before + 1
+        assert client.inner.write_count == 1
+
+    asyncio.run(scenario())
+
+
+def test_likec4_document_work_runs_on_worker_threads_while_the_loop_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        order: list[str] = []
+        gate = PreparationGate(likec4_module._decode_document, "decoded", order)
+        threads = observe_threads(
+            monkeypatch,
+            likec4_module,
+            {
+                "_decode_document": ("decode", gate),
+                "_validate_document": ("serialize", None),
+                "_append_candidate": ("append", None),
+                "_replace_candidate": ("replace", None),
+                "_read_window": ("read", None),
+                "_likec4_report": ("validator output", None),
+            },
+        )
+        monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: "/opt/bin/likec4")
+        monkeypatch.setattr(
+            "contractor_runtime.core.process.run_command",
+            AsyncMock(
+                return_value=subprocess.CompletedProcess(
+                    ["likec4"], 0, b'{"valid": true, "errors": []}', b""
+                )
+            ),
+        )
+        client = MemoryArtifactClient()
+        client.seed("inputs", "seed", "text/plain", BASE_DOCUMENT.encode())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+
+        load = asyncio.create_task(tools["load_likec4"]("inputs", "seed"))
+        try:
+            await gate.wait_entered(load)
+            await loop_callback(order)
+            assert not load.done()
+        finally:
+            gate.release.set()
+        loaded = await load
+        assert order == ["loop callback", "decoded"]
+
+        appended = await tools["append_likec4"]("// é\n")
+        replaced = await tools["replace_likec4"]("Application", "Backend Application")
+        read = await tools["read_likec4"](start_line=2, max_lines=3)
+        assert (await tools["validate_likec4"]())["valid"] is True
+        written = await tools["write_likec4"]("model {}\n")
+        assert set(threads) == {
+            "decode",
+            "serialize",
+            "append",
+            "replace",
+            "read",
+            "validator output",
+        }
+        assert all(threading.get_ident() not in seen for seen in threads.values()), threads
+
+        # Sizes come from the validated bytes the call wrote or read.
+        size = len(BASE_DOCUMENT.encode())
+        assert (loaded["utf8Size"], loaded["copied"]) == (size, True)
+        assert (appended["utf8Size"], appended["appendedUtf8Bytes"]) == (size + 6, 6)
+        assert replaced["utf8Size"] == size + 14
+        assert (replaced["replacementCount"], replaced["matchingOccurrences"]) == (1, 1)
+        assert read["utf8Size"] == size + 14
+        assert read["text"] == "  element actor\n  element system\n}\n"
+        assert written["utf8Size"] == len(b"model {}\n")
+        assert client.bindings[("architecture", "architecture")].data == b"model {}\n"
+
+    asyncio.run(scenario())
+
+
+def test_likec4_close_joins_a_cancelled_edit_preparation_before_clearing_the_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        session = tools["append_likec4"]._session
+        written = await tools["write_likec4"](BASE_DOCUMENT)
+        writes = client.write_count
+        order: list[str] = []
+        gate = PreparationGate(likec4_module._append_candidate, "prepared", order)
+        monkeypatch.setattr(likec4_module, "_append_candidate", gate)
+
+        async def close() -> None:
+            await tools["append_likec4"].close()
+            order.append("closed")
+
+        append = asyncio.create_task(tools["append_likec4"]("// cancelled\n"))
+        try:
+            await gate.wait_entered(append)
+            append.cancel()
+            closing = asyncio.create_task(close())
+            await yield_to_loop()
+            # The cancelled call keeps the lock, so close() waits for the thread.
+            assert not append.done()
+            assert not closing.done()
+            assert session._revision == written["artifact"]["revision"]
+        finally:
+            gate.release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await append
+        await closing
+        assert order == ["prepared", "closed"]
+        assert client.write_count == writes
+        assert session._document is None and session._revision is None
+
+    asyncio.run(scenario())
+
+
+async def make_tools(
+    tmp_path: Path,
+    client: MemoryArtifactClient,
+    state: WorkerState,
+    *,
+    namespace: str,
+) -> dict[str, Any]:
+    factory = LikeC4ToolsetFactory(lambda _allocation, _settings: client)
+    selected = await factory.create_selected(
+        selected=sorted(factory.exported_tools),
+        allocation_id="allocation-1",
+        run_id="run-1",
+        namespace=namespace,
+        runtime_settings=runtime_settings(),
+        workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
+        resources=state.resources,
+    )
+    return dict(selected)
+
+
+def runtime_settings() -> RuntimeSettings:
+    return RuntimeSettings(
+        llmGatewayUrl="https://gateway.example/v1",
+        llmGatewayToken=SECRET,
+        artifactApiUrl="https://control.example/private/v1",
+        requestTimeoutSeconds=30,
+    )
+
+
+@dataclass(slots=True)
+class StoredArtifact:
+    revision: str
+    media_type: str
+    data: bytes = field(repr=False)
+
+
+class MemoryArtifactClient:
+    def __init__(self) -> None:
+        self.bindings: dict[tuple[str, str], StoredArtifact] = {}
+        self.history: dict[tuple[str, str, str], StoredArtifact] = {}
+        self._known: dict[tuple[str, str, str], ArtifactRef] = {}
+        self._next_revision = 1
+        self.write_count = 0
+        self.read_count = 0
+        self.read_limits: list[int] = []
+
+    @property
+    def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
+        return tuple(self._known.values())
+
+    def seed(self, namespace: str, name: str, media_type: str, data: bytes) -> ArtifactRef:
+        return self._store(namespace, name, media_type, data)
+
+    async def read_artifact_metadata(self, ref):
+        from types import SimpleNamespace
+
+        stored = (
+            self.bindings[(ref.namespace, ref.name)]
+            if ref.revision is None
+            else self.history[(ref.namespace, ref.name, ref.revision)]
+        )
+        return SimpleNamespace(artifact=ref.model_copy(update={"revision": stored.revision}))
+
+    async def read_artifact(
+        self, ref: ArtifactRef, *, max_bytes: int = MAX_ARTIFACT_BYTES
+    ) -> ArtifactValue:
+        self.read_count += 1
+        self.read_limits.append(max_bytes)
+        if ref.revision is None:
+            stored = self.bindings[(ref.namespace, ref.name)]
+        else:
+            stored = self.history[(ref.namespace, ref.name, ref.revision)]
+        if len(stored.data) > max_bytes:
+            raise ArtifactResponseLimitError("Artifact API response exceeds the read byte limit")
+        exact = ArtifactRef(
+            namespace=ref.namespace,
+            name=ref.name,
+            revision=stored.revision,
+        )
+        self._remember(exact)
+        return ArtifactValue(
+            artifact=exact,
+            media_type=stored.media_type,
+            data=stored.data,
+            binding_created_at=datetime.now(UTC),
+            revision_created_at=datetime.now(UTC),
+        )
+
+    async def write_artifact(
+        self,
+        target: ArtifactRef,
+        *,
+        data: bytes,
+        media_type: str,
+        expected_revision: str | None,
+    ) -> ArtifactWriteResult:
+        key = (target.namespace, target.name)
+        current = self.bindings.get(key)
+        if expected_revision is None:
+            if current is not None:
+                raise ValueError("create-only CAS precondition failed")
+        elif current is None or current.revision != expected_revision:
+            raise ValueError("update CAS precondition failed")
+        exact = self._store(target.namespace, target.name, media_type, data)
+        self.write_count += 1
+        return ArtifactWriteResult(
+            apiVersion=API_VERSION,
+            artifact=exact,
+            mediaType=media_type,
+            size=len(data),
+        )
+
+    def _store(self, namespace: str, name: str, media_type: str, data: bytes) -> ArtifactRef:
+        revision = f"revision-{self._next_revision}"
+        self._next_revision += 1
+        stored = StoredArtifact(revision=revision, media_type=media_type, data=data)
+        self.bindings[(namespace, name)] = stored
+        self.history[(namespace, name, revision)] = stored
+        exact = ArtifactRef(namespace=namespace, name=name, revision=revision)
+        self._remember(exact)
+        return exact
+
+    def _remember(self, ref: ArtifactRef) -> None:
+        assert ref.revision is not None
+        self._known[(ref.namespace, ref.name, ref.revision)] = ref

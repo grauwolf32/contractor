@@ -1,0 +1,33 @@
+{
+  "date": "2026-11-14",
+  "base_commit": "f9eabdec2a37f87c56cc17792907dbc79f828a45",
+  "branch": "codex/graphify-hotspot-fixes",
+  "environment": "macOS arm64, Python 3.13.16, Node 24.20.0; locked dependencies",
+  "database": "No database tests required or configured for these Runtime/UI changes",
+  "heavy_io": "Not enabled",
+  "task": "V467-002",
+  "checks": {
+    "focused_ui": {
+      "tests": 33,
+      "passed": 33
+    },
+    "unfixed_ui": {
+      "tests": 33,
+      "failed": 12,
+      "passed": 21,
+      "note": "All 12 new timer/partial-result checks fail when the three production polling modules are supplied from base_commit"
+    },
+    "ui_verify": {
+      "test_files": 223,
+      "passed": 2527,
+      "expected_failure": 1,
+      "server_tests_passed": 17,
+      "generate_check": "passed",
+      "lint": "passed",
+      "typecheck": "passed",
+      "build": "passed"
+    },
+    "make_lint": "passed"
+  },
+  "policy": "Head and continuation failures share capped exponential backoff; HTTP 403 stops, 408/429 retry; complete recovery resets the base interval"
+}

@@ -1,0 +1,164 @@
+{
+  "task": "V58-014",
+  "implementationCommit": "e981099436b55528c6d5f85873ac8bbb692ad852",
+  "credentialClarificationCommit": "cc3e130b045733559b051be61ff64c4ff5fec18c",
+  "uiVersion": "0.3.3",
+  "verifiedAt": "2026-09-20T05:20:50.230812+00:00",
+  "outcome": "Redundant configuration navigation removed from all five consumers. Contextual Runtime service credential and Git SSH links, shared form styles and managed-inventory clarification retained.",
+  "checks": {
+    "focusedUITests": {
+      "passed": 14,
+      "files": 2,
+      "command": "cd ui && corepack pnpm test --run src/routes/operations/operations.test.tsx src/routes/operations/settings/settings.test.tsx"
+    },
+    "eslintAndPrettier": "passed",
+    "typescriptAppAndE2E": "passed",
+    "productionBuild": "passed",
+    "diffWhitespace": "passed"
+  },
+  "browser": {
+    "views": [
+      "/operations/configurations",
+      "/operations/configurations/llm-gateways/local-litellm/1",
+      "/operations/credentials",
+      "/operations/settings",
+      "/runs/configuration"
+    ],
+    "widths": [
+      1440,
+      390,
+      320
+    ],
+    "previewCaptures": 15,
+    "deployedCaptures": 15,
+    "panelAbsent": true,
+    "documentOverflow": false,
+    "contextualLinks": [
+      {
+        "width": 1440,
+        "name": "Runtime service credentials",
+        "to": "/runs/configuration",
+        "method": "pointer"
+      },
+      {
+        "width": 1440,
+        "name": "Git SSH keys",
+        "to": "/operations/settings",
+        "method": "pointer"
+      },
+      {
+        "width": 390,
+        "name": "Runtime service credentials",
+        "to": "/runs/configuration",
+        "method": "keyboard"
+      },
+      {
+        "width": 390,
+        "name": "Git SSH keys",
+        "to": "/operations/settings",
+        "method": "keyboard"
+      },
+      {
+        "width": 320,
+        "name": "Runtime service credentials",
+        "to": "/runs/configuration",
+        "method": "pointer"
+      },
+      {
+        "width": 320,
+        "name": "Git SSH keys",
+        "to": "/operations/settings",
+        "method": "pointer"
+      }
+    ],
+    "formStyles": [
+      {
+        "runtimeFormSharedStylesRetained": true,
+        "collapsedBlocks": 4
+      }
+    ],
+    "javascriptErrors": [],
+    "apiErrors": [],
+    "attemptedWrites": []
+  },
+  "deployment": {
+    "revision": "e981099436b55528c6d5f85873ac8bbb692ad852",
+    "version": "0.3.3",
+    "release": "/home/ruslan/src/contractor/.local/demo/releases/ui-configuration-cleanup-e9810994-20260920T051925Z",
+    "coreRelease": "/home/ruslan/src/contractor/.local/demo/releases/main-be33cebb-20260919T192159Z",
+    "status": "deployed",
+    "beforePids": {
+      "contractor-demo-ui": "536645",
+      "contractor-demo-server": "205180",
+      "contractor-demo-runtime-a": "205215",
+      "contractor-demo-runtime-b": "205216",
+      "contractor-demo-lan-proxy": "39982"
+    },
+    "createdAt": "2026-09-20T05:19:26.086Z",
+    "queueBefore": {
+      "paused": true,
+      "revision": "29",
+      "updatedAt": "2026-09-08T05:42:17.868911Z"
+    },
+    "counts": {
+      "runs": 147,
+      "agents": 4,
+      "onlineAgents": 2,
+      "managedCredentials": 0,
+      "runtimeCredentials": 2
+    },
+    "deployedAt": "2026-09-20T05:19:26.718Z",
+    "smoke": [
+      {
+        "origin": "http://127.0.0.1:4173",
+        "version": "0.3.3",
+        "health": "ok",
+        "routes": 4,
+        "assets": 4,
+        "browser404": "ok"
+      },
+      {
+        "origin": "http://192.168.1.217:4173",
+        "version": "0.3.3",
+        "health": "ok",
+        "routes": 4,
+        "assets": 4,
+        "browser404": "ok"
+      }
+    ],
+    "pids": {
+      "contractor-demo-ui": "544171",
+      "contractor-demo-server": "205180",
+      "contractor-demo-runtime-a": "205215",
+      "contractor-demo-runtime-b": "205216",
+      "contractor-demo-lan-proxy": "39982"
+    },
+    "queueAfter": {
+      "paused": true,
+      "revision": "29",
+      "updatedAt": "2026-09-08T05:42:17.868911Z"
+    },
+    "serverStateUnchanged": true,
+    "coreReleaseUnchanged": true
+  },
+  "integration": {
+    "before": "c32541f591fd3994ad453291417187a6d8817412",
+    "after": "e981099436b55528c6d5f85873ac8bbb692ad852",
+    "unrelatedChangesPreserved": true,
+    "filesPreserved": 7
+  },
+  "inventory": {
+    "managedLLMCredentials": 0,
+    "runtimeCredentials": 2,
+    "developmentWorkerTokenConfigured": true,
+    "developmentPlannerTokenConfigured": true,
+    "credentialValuesRecorded": false,
+    "observation": "Managed inventory excludes development tokens; token presence was verified without exposing values in the same Server process before the UI-only releases."
+  },
+  "limits": [
+    "Browser tests substitute an authenticated session and make real authorized REST reads; mutations are blocked. Password login and authenticated WebSocket were not tested.",
+    "The populated credential view was checked with a read-only browser fixture during the preceding inventory clarification; no credentials were created."
+  ],
+  "evidenceRoot": ".local/ui-design-implementation/phase-014-removal",
+  "precedingInventoryEvidenceRoot": ".local/ui-design-implementation/phase-014"
+}

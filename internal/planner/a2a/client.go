@@ -1,0 +1,590 @@
+// Package a2a adapts the official A2A Go SDK to Contractor's framework-neutral
+// WorkerInvoker boundary.
+package a2a
+
+import (
+	"context"
+	"crypto/tls"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"strings"
+	"syscall"
+	"time"
+
+	sdk "github.com/a2aproject/a2a-go/v2/a2a"
+	"github.com/a2aproject/a2a-go/v2/a2aclient"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/requestid"
+	"github.com/grauwolf32/contractor/internal/mtls"
+	"github.com/grauwolf32/contractor/internal/planner"
+)
+
+const (
+	stageContentMediaType     = "application/vnd.contractor.stage-content+json"
+	workerCompletionMediaType = "application/vnd.contractor.worker-completion+json"
+	maxAgentCardBytes         = 1 << 20
+	maxA2AResponseBytes       = 1 << 20
+	defaultPollInterval       = 100 * time.Millisecond
+	maxGetTaskFailures        = 4
+	maxGetTaskRetryBackoff    = 500 * time.Millisecond
+	bestEffortCancelTimeout   = 2 * time.Second
+	// maxPollInterval bounds the adaptive GetTask cadence (PLN-R114,
+	// LIM-PLN-7): a running Task is polled first after the configured poll
+	// interval, and every poll that finds it still running doubles the delay
+	// up to this bound, or up to the configured interval when that is longer.
+	maxPollInterval = 2 * time.Second
+)
+
+type Options struct {
+	PollInterval time.Duration
+}
+
+type protocolClient interface {
+	SendMessage(context.Context, *sdk.SendMessageRequest) (sdk.SendMessageResult, error)
+	GetTask(context.Context, *sdk.GetTaskRequest) (*sdk.Task, error)
+	CancelTask(context.Context, *sdk.CancelTaskRequest) (*sdk.Task, error)
+	Destroy() error
+}
+
+type clientBuilder func(context.Context, *sdk.AgentCard) (protocolClient, error)
+
+type Invoker struct {
+	build        clientBuilder
+	pollInterval time.Duration
+	requireHTTPS bool
+	tlsConfig    *tls.Config
+	timeout      time.Duration
+	// wait, when set, replaces the timer between polls, so a test drives the
+	// poll cadence on a virtual clock.
+	wait func(context.Context, time.Duration) error
+}
+
+// Format redacts the invoker as a whole for every verb (SEC-R88): through the unexported tlsConfig field fmt would print the Control Plane's private key.
+func (Invoker) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "a2a.Invoker([REDACTED])")
+}
+
+func NewMTLS(files mtls.Files, timeout time.Duration, options Options) (*Invoker, error) {
+	if timeout <= 0 {
+		return nil, fmt.Errorf("A2A request timeout must be positive")
+	}
+	tlsConfig, err := mtls.ControlPlaneEndpointClientConfig(files)
+	if err != nil {
+		return nil, fmt.Errorf("build A2A mTLS client: %w", err)
+	}
+	pollInterval, err := validatedPollInterval(options)
+	if err != nil {
+		return nil, err
+	}
+	return &Invoker{
+		pollInterval: pollInterval, requireHTTPS: true, tlsConfig: tlsConfig, timeout: timeout,
+	}, nil
+}
+
+func validatedPollInterval(options Options) (time.Duration, error) {
+	if options.PollInterval == 0 {
+		options.PollInterval = defaultPollInterval
+	}
+	if options.PollInterval < 0 {
+		return 0, fmt.Errorf("A2A poll interval must be positive")
+	}
+	return options.PollInterval, nil
+}
+
+func sdkClientBuilder(client *http.Client) clientBuilder {
+	return func(ctx context.Context, card *sdk.AgentCard) (protocolClient, error) {
+		factory := a2aclient.NewFactory(
+			a2aclient.WithDefaultsDisabled(),
+			a2aclient.WithJSONRPCTransport(client),
+			a2aclient.WithConfig(a2aclient.Config{
+				AcceptedOutputModes: []string{workerCompletionMediaType},
+				PreferredTransports: []sdk.TransportProtocol{sdk.TransportProtocolJSONRPC},
+			}),
+		)
+		return factory.CreateFromCard(ctx, card)
+	}
+}
+
+func (i *Invoker) Invoke(
+	ctx context.Context,
+	binding string,
+	handle contracts.WorkerHandle,
+	request contracts.StageContentRequest,
+) (result contracts.WorkerCompletion, runErr error) {
+	if strings.TrimSpace(binding) == "" || strings.TrimSpace(handle.AllocationID) == "" {
+		return contracts.WorkerCompletion{}, planner.NewError(
+			"invalid_worker_handle", "Worker binding and allocation identity are required", false, nil,
+		)
+	}
+	if err := request.Validate(); err != nil {
+		return contracts.WorkerCompletion{}, planner.NewError(
+			"invalid_stage_content", "StageContentRequest violates its contract", false, err,
+		)
+	}
+	card, err := decodeCard(handle, i.requireHTTPS)
+	if err != nil {
+		return contracts.WorkerCompletion{}, err
+	}
+	// The Worker's result is decoded from the body of the response that
+	// carried it, not from the SDK's float64 values.
+	ctx, _ = withResponseCapture(ctx)
+	builder := i.build
+	if i.tlsConfig != nil {
+		// The invocation owns its connections (CTL-R164): SendMessage, every
+		// GetTask poll and a best-effort CancelTask reuse them, and the
+		// deferred Close, which runs after the CancelTask below, ends them
+		// before Invoke returns.
+		transports, ownerErr := mtls.NewRuntimeAgentTransports(i.tlsConfig, i.timeout)
+		if ownerErr != nil {
+			return contracts.WorkerCompletion{}, planner.NewError(
+				"worker_unavailable", "A2A client is not configured", false, nil,
+			)
+		}
+		defer transports.Close()
+		transport, bindErr := transports.RoundTripper(handle.RuntimeAgentID)
+		if bindErr != nil {
+			return contracts.WorkerCompletion{}, planner.NewError(
+				"invalid_worker_handle", "Worker handle has no valid Runtime Agent principal", false, nil,
+			)
+		}
+		client := &http.Client{Transport: transport, Timeout: i.timeout}
+		builder = sdkClientBuilder(cloneBoundedHTTPClient(client))
+	}
+	if builder == nil {
+		return contracts.WorkerCompletion{}, planner.NewError(
+			"worker_unavailable", "A2A client is not configured", false, nil,
+		)
+	}
+	client, buildErr := builder(ctx, card)
+	if buildErr != nil {
+		return contracts.WorkerCompletion{}, transportError(ctx, buildErr)
+	}
+	defer func() { _ = client.Destroy() }()
+	var taskID sdk.TaskID
+	defer func() {
+		if runErr == nil || taskID == "" {
+			return
+		}
+		cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), bestEffortCancelTimeout)
+		defer cancel()
+		_, _ = client.CancelTask(cancelCtx, &sdk.CancelTaskRequest{Tenant: handle.AllocationID, ID: taskID})
+	}()
+
+	part := sdk.NewDataPart(request)
+	part.MediaType = stageContentMediaType
+	message := sdk.NewMessage(sdk.MessageRoleUser, part)
+	response, sendErr := client.SendMessage(ctx, &sdk.SendMessageRequest{
+		Tenant:  handle.AllocationID,
+		Message: message,
+		Config: &sdk.SendMessageConfig{
+			AcceptedOutputModes: []string{workerCompletionMediaType},
+			ReturnImmediately:   true,
+		},
+	})
+	if sendErr != nil {
+		return contracts.WorkerCompletion{}, transportError(ctx, sendErr)
+	}
+	completion, resolveErr := i.resolve(ctx, client, handle.AllocationID, response, &taskID)
+	if resolveErr != nil {
+		return contracts.WorkerCompletion{}, resolveErr
+	}
+	if validation := planner.ValidateWorkerCompletion(completion, request.SubtaskID); validation != nil {
+		return contracts.WorkerCompletion{}, validation
+	}
+	return completion, nil
+}
+
+func (i *Invoker) resolve(
+	ctx context.Context,
+	client protocolClient,
+	allocationID string,
+	response sdk.SendMessageResult,
+	taskID *sdk.TaskID,
+) (contracts.WorkerCompletion, error) {
+	var contextID string
+	delay := i.pollInterval
+	location := resultLocation{wrapped: true, history: -1}
+	for {
+		switch current := response.(type) {
+		case *sdk.Message:
+			if err := validateResultMessageCorrelation(current, "", ""); err != nil {
+				return contracts.WorkerCompletion{}, err
+			}
+			return decodeResultMessage(ctx, current, location)
+		case *sdk.Task:
+			if current == nil || current.ID == "" || current.ContextID == "" {
+				return contracts.WorkerCompletion{}, planner.NewError(
+					"invalid_a2a_response", "Worker returned an invalid A2A Task", false, nil,
+				)
+			}
+			if *taskID == "" {
+				*taskID = current.ID
+				contextID = current.ContextID
+			} else if current.ID != *taskID || current.ContextID != contextID {
+				return contracts.WorkerCompletion{}, planner.NewError(
+					"invalid_a2a_response", "Worker changed A2A Task correlation while polling", false, nil,
+				)
+			}
+			message, history, wait, err := taskMessage(current)
+			if err != nil {
+				return contracts.WorkerCompletion{}, err
+			}
+			if message != nil {
+				if err := validateResultMessageCorrelation(message, current.ID, current.ContextID); err != nil {
+					return contracts.WorkerCompletion{}, err
+				}
+				location.task, location.history = true, history
+				result, err := decodeResultMessage(ctx, message, location)
+				if err != nil {
+					return contracts.WorkerCompletion{}, err
+				}
+				if current.Status.State == sdk.TaskStateFailed && result.Failure == nil {
+					return contracts.WorkerCompletion{}, planner.NewError(
+						"invalid_a2a_response",
+						"Failed A2A Task carried a successful Worker completion",
+						false,
+						nil,
+					)
+				}
+				if current.Status.State == sdk.TaskStateCompleted && result.Result == nil {
+					return contracts.WorkerCompletion{}, planner.NewError(
+						"invalid_a2a_response",
+						"Completed A2A Task carried a failed Worker completion",
+						false,
+						nil,
+					)
+				}
+				return result, nil
+			}
+			if !wait {
+				return contracts.WorkerCompletion{}, planner.NewError(
+					"invalid_a2a_response", "Terminal A2A Task has no Contractor result", false, nil,
+				)
+			}
+			if err := i.sleep(ctx, delay); err != nil {
+				return contracts.WorkerCompletion{}, transportError(ctx, err)
+			}
+			delay = i.nextPollDelay(delay)
+			next, getErr := i.pollTask(ctx, client, allocationID, *taskID)
+			if getErr != nil {
+				if ctx.Err() == nil && errors.Is(getErr, context.DeadlineExceeded) {
+					return contracts.WorkerCompletion{}, planner.NewError(
+						"worker_unavailable", "Worker A2A endpoint is unavailable", true, getErr,
+					)
+				}
+				return contracts.WorkerCompletion{}, transportError(ctx, getErr)
+			}
+			response = next
+			location.wrapped = false
+		default:
+			return contracts.WorkerCompletion{}, planner.NewError(
+				"invalid_a2a_response", "Worker returned an unsupported A2A response", false, nil,
+			)
+		}
+	}
+}
+
+func (i *Invoker) pollTask(
+	ctx context.Context, client protocolClient, allocationID string, taskID sdk.TaskID,
+) (*sdk.Task, error) {
+	backoff := min(i.pollInterval, maxGetTaskRetryBackoff)
+	var lastError error
+	for attempt := range maxGetTaskFailures {
+		historyLength := 1
+		next, err := client.GetTask(ctx, &sdk.GetTaskRequest{
+			Tenant: allocationID, ID: taskID, HistoryLength: &historyLength,
+		})
+		if err == nil {
+			return next, nil
+		}
+		lastError = err
+		if attempt == maxGetTaskFailures-1 || ctx.Err() != nil || !retryableGetTaskError(err) {
+			return nil, err
+		}
+		if err := i.sleep(ctx, backoff); err != nil {
+			return nil, err
+		}
+		backoff = min(backoff*2, maxGetTaskRetryBackoff)
+	}
+	return nil, lastError
+}
+
+// nextPollDelay doubles the delay before the next poll of a Task that is
+// still running, up to maxPollInterval or the configured poll interval when
+// that is longer: a quick Task is noticed after a few short polls, and a
+// Worker call that runs for minutes costs about 30 GetTask requests a minute
+// instead of one per poll interval.
+func (i *Invoker) nextPollDelay(delay time.Duration) time.Duration {
+	limit := max(i.pollInterval, maxPollInterval)
+	if delay <= 0 || delay >= limit/2 {
+		return limit
+	}
+	return 2 * delay
+}
+
+// sleep waits delay, or until ctx ends with its error.
+func (i *Invoker) sleep(ctx context.Context, delay time.Duration) error {
+	if i.wait != nil {
+		return i.wait(ctx, delay)
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func retryableGetTaskError(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, net.ErrClosed) ||
+		errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE) {
+		return true
+	}
+	var networkError net.Error
+	return errors.As(err, &networkError) && (networkError.Timeout() || networkError.Temporary())
+}
+
+func validateResultMessageCorrelation(
+	message *sdk.Message,
+	taskID sdk.TaskID,
+	contextID string,
+) error {
+	if message == nil || message.TaskID == "" || message.ContextID == "" {
+		return planner.NewError(
+			"invalid_a2a_response", "Worker result message has no A2A correlation", false, nil,
+		)
+	}
+	if (taskID != "" && message.TaskID != taskID) ||
+		(contextID != "" && message.ContextID != contextID) {
+		return planner.NewError(
+			"invalid_a2a_response", "Worker result message has mismatched A2A correlation", false, nil,
+		)
+	}
+	return nil
+}
+
+func decodeCard(handle contracts.WorkerHandle, requireHTTPS bool) (*sdk.AgentCard, error) {
+	encoded, err := json.Marshal(handle.AgentCard)
+	if err != nil || len(encoded) == 0 || len(encoded) > maxAgentCardBytes {
+		return nil, planner.NewError(
+			"invalid_worker_handle", "Worker Agent Card is invalid", false, err,
+		)
+	}
+	// Python's protobuf JSON encoder emits an empty StringList as `{}`. The Go
+	// SDK models the same A2A security scope list as `[]`; normalize only that
+	// cross-SDK representation after the original card passed Control Plane
+	// endpoint and mTLS declaration checks.
+	var normalized map[string]any
+	if err := json.Unmarshal(encoded, &normalized); err != nil {
+		return nil, planner.NewError(
+			"invalid_worker_handle", "Worker Agent Card is invalid", false, err,
+		)
+	}
+	normalizeEmptySecurityScopes(normalized)
+	encoded, err = json.Marshal(normalized)
+	if err != nil || len(encoded) > maxAgentCardBytes {
+		return nil, planner.NewError(
+			"invalid_worker_handle", "Worker Agent Card is invalid", false, err,
+		)
+	}
+	var card sdk.AgentCard
+	if err := json.Unmarshal(encoded, &card); err != nil {
+		return nil, planner.NewError(
+			"invalid_worker_handle", "Worker Agent Card is invalid", false, err,
+		)
+	}
+	if len(card.SupportedInterfaces) != 1 || card.SupportedInterfaces[0] == nil {
+		return nil, planner.NewError(
+			"invalid_worker_handle", "Worker Agent Card has no exact A2A interface", false, nil,
+		)
+	}
+	endpoint := card.SupportedInterfaces[0]
+	parsed, parseErr := url.Parse(endpoint.URL)
+	if parseErr != nil || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" ||
+		parsed.Fragment != "" || endpoint.ProtocolBinding != sdk.TransportProtocolJSONRPC ||
+		endpoint.ProtocolVersion != sdk.Version || endpoint.Tenant != handle.AllocationID ||
+		(requireHTTPS && parsed.Scheme != "https") ||
+		(!requireHTTPS && parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return nil, planner.NewError(
+			"invalid_worker_handle", "Worker Agent Card interface is incompatible", false, parseErr,
+		)
+	}
+	return &card, nil
+}
+
+func normalizeEmptySecurityScopes(card map[string]any) {
+	requirements, ok := card["securityRequirements"].([]any)
+	if !ok {
+		return
+	}
+	for _, rawRequirement := range requirements {
+		requirement, ok := rawRequirement.(map[string]any)
+		if !ok {
+			continue
+		}
+		schemes, ok := requirement["schemes"].(map[string]any)
+		if !ok {
+			continue
+		}
+		for name, rawScopes := range schemes {
+			if scopes, ok := rawScopes.(map[string]any); ok && len(scopes) == 0 {
+				schemes[name] = []any{}
+			}
+		}
+	}
+}
+
+// taskMessage selects the Worker message of a terminal Task with its index in
+// the Task history, or -1 for the status message.
+func taskMessage(task *sdk.Task) (*sdk.Message, int, bool, error) {
+	if task == nil || task.ID == "" || task.ContextID == "" {
+		return nil, -1, false, planner.NewError(
+			"invalid_a2a_response", "Worker returned an invalid A2A Task", false, nil,
+		)
+	}
+	switch task.Status.State {
+	case sdk.TaskStateSubmitted, sdk.TaskStateWorking:
+		return nil, -1, true, nil
+	case sdk.TaskStateInputRequired:
+		return nil, -1, false, planner.NewError(
+			"worker_input_required", "Worker requires input unsupported by passthrough@1", false, nil,
+		)
+	case sdk.TaskStateAuthRequired:
+		return nil, -1, false, planner.NewError(
+			"worker_auth_required", "Worker requires authentication unsupported by passthrough@1", false, nil,
+		)
+	case sdk.TaskStateCanceled:
+		return nil, -1, false, planner.NewError(
+			"worker_task_cancelled", "Worker A2A Task was cancelled", true, nil,
+		)
+	case sdk.TaskStateRejected:
+		return nil, -1, false, planner.NewError(
+			"worker_task_rejected", "Worker rejected the A2A Task", false, nil,
+		)
+	case sdk.TaskStateCompleted, sdk.TaskStateFailed:
+		if task.Status.Message != nil {
+			return task.Status.Message, -1, false, nil
+		}
+		for index := len(task.History) - 1; index >= 0; index-- {
+			if task.History[index] != nil && task.History[index].Role == sdk.MessageRoleAgent {
+				return task.History[index], index, false, nil
+			}
+		}
+		if task.Status.State == sdk.TaskStateFailed {
+			return nil, -1, false, planner.NewError(
+				"worker_task_failed", "Worker A2A Task failed without a Contractor result", true, nil,
+			)
+		}
+		return nil, -1, false, nil
+	default:
+		return nil, -1, false, planner.NewError(
+			"invalid_a2a_response", "Worker returned an unknown A2A Task state", false, nil,
+		)
+	}
+}
+
+// decodeResultMessage decodes the WorkerCompletion of message, which the SDK
+// read at location in the latest response of ctx, from that response's bytes,
+// so integers keep their digits and duplicate keys are rejected.
+func decodeResultMessage(
+	ctx context.Context, message *sdk.Message, location resultLocation,
+) (contracts.WorkerCompletion, error) {
+	if message == nil || message.Role != sdk.MessageRoleAgent || len(message.Parts) != 1 ||
+		message.Parts[0] == nil {
+		return contracts.WorkerCompletion{}, planner.NewError(
+			"invalid_a2a_response", "Worker response must be one Agent DataPart", false, nil,
+		)
+	}
+	part := message.Parts[0]
+	if part.MediaType != workerCompletionMediaType {
+		return contracts.WorkerCompletion{}, planner.NewError(
+			"invalid_a2a_response", "Worker response has an incompatible media type", false, nil,
+		)
+	}
+	if _, ok := part.Content.(sdk.Data); !ok {
+		return contracts.WorkerCompletion{}, planner.NewError(
+			"invalid_a2a_response", "Worker response must be one Agent DataPart", false, nil,
+		)
+	}
+	var encoded []byte
+	err := errNoResultData
+	if capture := responseCaptureFrom(ctx); capture != nil {
+		encoded, err = resultData(capture.last(), location)
+	}
+	if err != nil || len(encoded) > maxA2AResponseBytes {
+		return contracts.WorkerCompletion{}, planner.NewError(
+			"invalid_a2a_response", "Worker Contractor payload is invalid or oversized", false, err,
+		)
+	}
+	result, err := contracts.DecodePrivateStrict[contracts.WorkerCompletion](integralNumbers(encoded))
+	if err != nil {
+		return contracts.WorkerCompletion{}, planner.NewError(
+			"invalid_worker_result", "Worker returned an invalid WorkerCompletion", false, err,
+		)
+	}
+	return result, nil
+}
+
+func transportError(ctx context.Context, cause error) *planner.Error {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(cause, context.DeadlineExceeded) {
+		return planner.NewError(
+			"worker_deadline_exceeded", "Worker invocation deadline expired", true, cause,
+		)
+	}
+	if errors.Is(ctx.Err(), context.Canceled) || errors.Is(cause, context.Canceled) {
+		return planner.NewError(
+			"planner_cancelled", "Planner invocation was cancelled", true, cause,
+		)
+	}
+	return planner.NewError(
+		"worker_unavailable", "Worker A2A endpoint is unavailable", true, cause,
+	)
+}
+
+func cloneBoundedHTTPClient(input *http.Client) *http.Client {
+	result := *input
+	base := input.Transport
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	result.Transport = boundedRoundTripper{base: base, limit: maxA2AResponseBytes}
+	result.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return errors.New("A2A redirects are not allowed")
+	}
+	return &result
+}
+
+type boundedRoundTripper struct {
+	base  http.RoundTripper
+	limit int64
+}
+
+func (t boundedRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	outgoing := request.Clone(request.Context())
+	outgoing.Header = request.Header.Clone()
+	outgoing.Header.Set(requestid.Header, requestid.Ensure(request.Context()))
+	response, err := t.base.RoundTrip(outgoing)
+	if err != nil {
+		return nil, err
+	}
+	if response.ContentLength > t.limit {
+		_ = response.Body.Close()
+		return nil, fmt.Errorf("A2A response exceeds its limit")
+	}
+	response.Body = struct {
+		io.Reader
+		io.Closer
+	}{Reader: io.LimitReader(response.Body, t.limit+1), Closer: response.Body}
+	if capture := responseCaptureFrom(request.Context()); capture != nil {
+		response.Body = capture.record(response.Body)
+	}
+	return response, nil
+}

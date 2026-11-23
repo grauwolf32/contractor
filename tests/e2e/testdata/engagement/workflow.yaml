@@ -1,0 +1,30 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: engagement-fixture-check, version: "1"}
+spec:
+  parameters: {}
+  inputs:
+    context: {required: true, mediaTypes: [application/json]}
+  outputs:
+    result: {required: true, primary: true, mediaTypes: [application/json]}
+  executionConfig:
+    workers: {llmGateway: local-litellm@1, credential: development-worker, modelPolicy: engagement_fixture_worker@1}
+  entryStage: check
+  stages:
+    check:
+      objective: Record the bounded preflight fixture result
+      instructions: {ref: instructions/engagement-fixture.md}
+      planner: passthrough@1
+      agents:
+        checker: {template: engagement_fixture_worker@1, namespace: engagement-check}
+      context:
+        artifacts:
+          context: {namespace: inputs, name: context, required: true}
+      result:
+        artifacts:
+          result: {required: true, mediaTypes: [application/json], from: {namespace: engagement-check, name: result}}
+      workflowOutputs: {result: result}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

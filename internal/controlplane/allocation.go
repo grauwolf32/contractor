@@ -1,0 +1,159 @@
+package controlplane
+
+import (
+	"context"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+)
+
+type ArtifactReadPolicy string
+
+const ReadCurrentRun ArtifactReadPolicy = "current_run"
+
+type ArtifactWritePolicy string
+
+const WriteInputsAndIntermediates ArtifactWritePolicy = "inputs_and_intermediates"
+
+type BindingRequirement struct {
+	CompletionContract *contracts.WorkerCompletionContract
+	LogicalAgentName   string
+	Namespace          string
+	WorkerSessionMode  contracts.WorkerSessionMode
+	// ContextManagement is the effective branch (WRK-R184), projected from
+	// the Workflow binding and its template.
+	ContextManagement contracts.WorkerContextManagement
+	AgentTemplate     contracts.ResolvedAgentTemplate
+	ResolvedSkills    []contracts.ResolvedSkill
+	ExecutionConfig   AllocationExecutionConfig
+	Workspace         *contracts.AllocationWorkspaceSpec
+	// RuntimeSelection is the immutable Workflow/Run/escalation selection.
+	// Candidate Agent labels are deliberately resolved later by placement.
+	RuntimeSelection *resolved.ResolvedConsumerExecutionConfig
+}
+
+type ReservationRequest struct {
+	// additionalAdapters comes from trusted allocation preparation at composition.
+	additionalAdapters      []runtimesettings.RuntimeAdapterRef
+	RequiredPlacementLabels []string
+	RunID                   string
+	StageExecutionID        string
+	RunMetadataLabels       runlabels.RunMetadataLabels
+	ProjectID               string
+	Bindings                []BindingRequirement
+	// RuntimeConfig is nil only for the in-process Registry surface used
+	// by focused capacity tests. Production placement always supplies the
+	// immutable Run snapshot.
+	RuntimeConfig *runtimeconfig.RunSnapshot
+	// Admit, when set, sees the selected candidates with their resolved
+	// Runtime configuration before placement becomes durable. An error
+	// discards the candidates, so a deferred Stage leaves no allocation behind.
+	Admit func(context.Context, []Reservation) error
+	// ModelFree marks a Stage of the `tool` lane class (SCH-R175). Its
+	// placement never selects an Agent held for a waiting model Stage, and a
+	// failed placement of any other Stage holds the Agents it could use
+	// (CTL-R155).
+	ModelFree bool
+}
+
+// CandidateEdge is one already-resolved, non-secret compatibility edge. The
+// Registry still rechecks its frozen capability snapshot under the live-state
+// mutex before installing any allocation IDs.
+type CandidateEdge struct {
+	LogicalAgentName          string
+	RuntimeAgentID            string
+	RuntimeAgentInstanceID    string
+	RuntimeAgentLabelRevision uint64
+	RequiredRuntimeAdapters   []runtimesettings.RuntimeAdapterRef
+}
+
+// PinnedReservationConfig is attached only after durable allocation
+// provenance commits. It never contains RuntimeSettings or secret material.
+type PinnedReservationConfig struct {
+	RuntimeAgentLabelRevision   uint64
+	Resolved                    runtimeconfig.ResolvedRuntimeConfig
+	PerformanceCollectionPolicy reporting.PerformanceCollectionPolicy
+	PerformanceMetrics          *reporting.PerformanceMetricsRequest
+}
+
+type AllocationGrant struct {
+	AllocationID         string
+	RuntimeAgentID       string
+	RuntimeInstanceID    string
+	RunID                string
+	StageExecutionID     string
+	LogicalAgentName     string
+	Namespace            string
+	ReadPolicy           ArtifactReadPolicy
+	WritePolicy          ArtifactWritePolicy
+	WriteFenced          bool
+	Lost                 bool
+	SitemapPolicy        *contracts.ProjectSitemapPolicy
+	SitemapTools         []string
+	FindingTools         []string
+	HTTPResultEvidence   bool
+	ProjectArtifactReads []ProjectArtifactReadTarget
+	// LossReason records why the grant was lost. It is set together with Lost
+	// so a consumer that detects the loss through the grant can report the
+	// specific reason instead of collapsing every loss into one code.
+	LossReason AllocationLossReason
+}
+
+// ProjectArtifactReadTarget grants selected operations access to one concrete
+// binding in the durable Run's owning Project. It never carries a scope ID or
+// authorizes a listing, wildcard or write.
+type ProjectArtifactReadTarget struct {
+	Namespace  string
+	Name       string
+	Operations []string
+}
+
+type AllocationLossReason string
+
+const (
+	LossControlLeaseExpired AllocationLossReason = "control_lease_expired"
+	LossRuntimeMismatch     AllocationLossReason = "runtime_state_mismatch"
+)
+
+// AllocationLoss is an irreversible edge emitted once for the durable
+// StageExecution owner. The Registry retains the fenced grant until bounded
+// release reconciliation removes it, including a failed release from an
+// expired owner.
+type AllocationLoss struct {
+	AllocationID      string
+	RuntimeAgentID    string
+	RuntimeInstanceID string
+	RunID             string
+	StageExecutionID  string
+	Reason            AllocationLossReason
+}
+
+type Reservation struct {
+	PlacementLabels             []string
+	CompletionContract          *contracts.WorkerCompletionContract
+	CompletionCapabilities      *contracts.RuntimeCompletionCapabilities
+	Grant                       AllocationGrant
+	ControlURL                  string
+	A2AURL                      string
+	AgentTemplate               contracts.ResolvedAgentTemplate
+	WorkerSessionMode           contracts.WorkerSessionMode
+	ContextManagement           contracts.WorkerContextManagement
+	ResolvedSkills              []contracts.ResolvedSkill
+	ExecutionConfig             AllocationExecutionConfig
+	Workspace                   *contracts.AllocationWorkspaceSpec
+	RunMetadataLabels           runlabels.RunMetadataLabels
+	ProjectID                   string
+	RuntimeAgentLabelRevision   uint64
+	ResolvedRuntimeConfig       *runtimeconfig.ResolvedRuntimeConfig
+	PerformanceCollectionPolicy reporting.PerformanceCollectionPolicy
+	PerformanceMetrics          *reporting.PerformanceMetricsRequest
+	LeaseExpiresAt              time.Time
+	// initialLeaseExpiresAt bounds the lease on a WorkerHandle returned by an
+	// idempotent prepare that succeeded before a later replay refreshed the lease.
+	initialLeaseExpiresAt time.Time
+}

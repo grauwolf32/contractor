@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/engagement-allocation.schema.json",
+  "description": "Private pinned engagement with assigned HTTP routes, identities and optional allocation limits.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "engagement",
+    "engagementDigest",
+    "authorizedBy",
+    "authorizedAt"
+  ],
+  "properties": {
+    "schema": {
+      "const": "contractor.engagement.allocation.v1"
+    },
+    "engagement": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/artifactRef"
+        },
+        {
+          "required": [
+            "revision"
+          ]
+        }
+      ]
+    },
+    "engagementDigest": {
+      "$ref": "common.schema.json#/$defs/digest"
+    },
+    "authorizedBy": {
+      "$ref": "common.schema.json#/$defs/opaqueId"
+    },
+    "authorizedAt": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "http": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "const": "http-target@1"
+        },
+        "routes": {
+          "type": "array",
+          "items": {
+            "$ref": "engagement.schema.json#/$defs/Route"
+          },
+          "minItems": 1,
+          "maxItems": 128
+        },
+        "exclusions": {
+          "type": "array",
+          "items": {
+            "$ref": "engagement.schema.json#/$defs/Route"
+          },
+          "minItems": 0,
+          "maxItems": 128
+        },
+        "protectedDestinations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "hostname": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 253,
+                "pattern": "^[a-z0-9.:-]+$"
+              },
+              "addresses": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 45,
+                  "pattern": "^[0-9a-f:.]+$"
+                },
+                "minItems": 1,
+                "maxItems": 32,
+                "uniqueItems": true
+              },
+              "port": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              }
+            },
+            "required": [
+              "hostname",
+              "addresses",
+              "port"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 256
+        },
+        "identities": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              {
+                "$ref": "engagement.schema.json#/$defs/Identity"
+              },
+              {
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "anonymous",
+                      "basic",
+                      "bearer",
+                      "cookies",
+                      "api-keys"
+                    ]
+                  }
+                },
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "const": "anonymous"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "id": {
+                      "const": "anonymous"
+                    }
+                  },
+                  "not": {
+                    "required": [
+                      "credential"
+                    ]
+                  }
+                },
+                "else": {
+                  "required": [
+                    "credential"
+                  ]
+                }
+              }
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 8
+        },
+        "limits": {
+          "$ref": "engagement.schema.json#/$defs/HTTPLimits"
+        }
+      },
+      "required": [
+        "adapter",
+        "routes",
+        "exclusions",
+        "protectedDestinations",
+        "identities"
+      ]
+    }
+  }
+}

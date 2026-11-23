@@ -1,0 +1,279 @@
+schema_version: "1.0"
+id: V414-030
+title: "Move the Project finding correlation fence off the projects row into a row the findings store owns"
+milestone: review-v407-v409-followups-2026-10
+epic: findings
+kind: defect
+introduced_by: V397-003
+priority: P2
+status: completed
+implementation_commit: cc9b13159bcb66b3b3bf40dd55d5b8f22cb0217f
+depends_on: []
+languages: [go, sql, markdown]
+goal: >-
+  The Project-wide finding correlation revision lives in its own row, owned
+  by internal/auditstore/internal/pgstore. Finding writers lock only that row
+  exclusively, and lock the Project row only shared and without waiting. A
+  concurrent Run creation, Audit start, Project artifact admission or Git
+  import no longer aborts finding import, collection or an analyst decision.
+  Finding writers in the same Project still conflict with each other and with
+  Project deletion, as before. No package writes or exclusively locks
+  projectstore's projects outside projectstore.
+context:
+  review: >-
+    Found during the 2026-10-24 backlog revalidation of V372-009 on b523ae77,
+    and analysed with the user, who asked for a real fix instead of an
+    accepted PER-R23 exception.
+  specification:
+    - docs/spec/findings/findings.md#FND-R177
+    - docs/spec/platform/persistence.md#PER-R23
+    - docs/spec/platform/persistence.md#PER-R16
+  severity: medium
+  finding: >-
+    Migration 000024_finding_automatic_correlation.sql:3-15 stores the opaque
+    finding_correlation_revision as a column of projects, with a
+    monotonic-step trigger. FND-R177 (docs/spec/findings/findings.md:773)
+    asks for exactly that, and for a Project FOR NO KEY UPDATE NOWAIT.
+    contractor_lock_finding_correlation_project (000024:147-156) takes that
+    exclusive lock, and contractor_advance_finding_correlation (000024:157-167)
+    updates the column. Six statement triggers call the advance function:
+    audit_findings insert, delete and update (000024:170, :184, :205),
+    finding_proposal_receipts source-Run deletion (:217), and insert and
+    delete of additional audit_finding_contributions (:235, :250). So does
+    findingintake's Go SQL (internal/findingintake/postgres.go:480,
+    lockFindingImportAuthority).
+    This has two consequences.
+    (1) It breaks PER-R23. findingintake's SQL takes an exclusive row lock on
+    a relation that projectstore owns, and triggers on auditstore and
+    findingintake tables write projects. FND-R177 and PER-R23 contradict
+    each other.
+    (2) It causes false contention, because FOR NO KEY UPDATE conflicts with
+    FOR SHARE. These all hold the Project row FOR SHARE:
+    - every Run creation (contractor_guard_workflow_run_project_admission,
+      000001_baseline.sql:670, through contractor_require_active_project, :1371);
+    - every Project-scope artifact admission
+      (contractor_guard_project_artifact_admission and
+      contractor_guard_project_artifact_binding_admission, :600-660);
+    - Audit start (projectstore LockActiveAuditProject,
+      internal/projectstore/store.go:95-120);
+    - Git import (internal/gitimport/importer.go:151);
+    - Eval checks (internal/evalstore/deletion.go:119).
+    While any of them holds the row, owner import, collection retention and
+    analyst finding decisions abort with 40001. V409-001 only bounded the
+    damage: at most three transactions, then 503
+    storage_transaction_conflict. The Audit Controller keeps creating child
+    Runs in the same Project, so ordinary Audits hit this. Two tests pin the
+    behaviour as intended:
+    TestPostgresProjectFenceConflictKeepsExecutionCollecting
+    (internal/auditimport/finding_fence_conflict_integration_test.go:22) and
+    TestPostgresFindingDecisionReplaysProjectFenceConflict
+    (internal/auditservice/finding_decision_retry_integration_test.go:35).
+  root_cause: >-
+    Only the findings domain writes this counter, yet it was placed on the
+    shared parent row that many unrelated transactions lock shared for
+    lifecycle fencing. Its exclusive lock serializes against all of them,
+    and its writes cross ownership.
+  decision: >-
+    Guarantee: the revision keeps the semantics of FND-R177. It is opaque
+    and exact in 1..9007199254740991. It never decreases or skips, and steps
+    once per affected Project per mutation statement. A natural-key replay
+    does not step it. Contention gives a nonblocking 40001.
+    Chosen: a dedicated fence row per Project, owned by auditstore pgstore.
+    Rejected:
+    (a) Keep the column and route the Go lock through a projectstore API.
+    This meets the letter of PER-R23 for Go SQL, but the false contention
+    stays and the triggers still write projects.
+    (b) An advisory lock. FND-R177 forbids new claims and advisory locks.
+    (c) Weaken the artifact and Run admission locks to FOR KEY SHARE. That
+    breaks their fence against the lifecycle_state change to deleting.
+    AGENTS.md section 3.7 prefers no 1:1 side tables. That guidance targets
+    immutability splits. This row is a separate lock domain with a separate
+    owner, and the spec records why.
+    Reversal condition: the Project row stops being share-locked by
+    unrelated admissions, or findings move under projectstore ownership.
+  siblings: >-
+    In scope:
+    - every caller of the advance function (the six triggers above);
+    - findingintake's Go pre-lock (postgres.go:480);
+    - the readers of the revision: correlationFenceSQL and candidateSourceSQL
+      (internal/auditstore/internal/pgstore/finding_comparisons_sql.go:5, :16),
+      the compare-and-act predicate (:133), and finding reads
+      (finding_reads_sql.go:216, :235);
+    - the retry tests that use a Project FOR SHARE contender to cause a
+      definite conflict: import_retry_integration_test.go:38, :79, :230 and
+      its beginConcurrentRunCreation helper (:566), auditimport
+      finding_fence_conflict_integration_test.go:22 and auditservice
+      finding_decision_retry_integration_test.go:35. After the fix such a
+      contender no longer conflicts, so each test needs a real conflicting
+      writer.
+    Already correct: TestPostgresFindingIntakeSerializesWithProjectDeletion
+    (import_retry_integration_test.go:363) keeps its meaning and must still
+    pass.
+scope:
+  in:
+    - "A migration with the next free number creates the fence table, keyed by project_id with ON DELETE CASCADE from projects. Its revision column is a bigint with the 1..9007199254740991 CHECK and the monotonic single-step trigger moved from projects. The migration backfills one row per existing Project from projects.finding_correlation_revision, which preserves demo data. It then drops that column, the projects_protect_correlation_revision trigger and the trigger's function. A *_migration_test.go in internal/persistence/postgres proves the values are preserved and the column is gone."
+    - "Replace contractor_lock_finding_correlation_project and contractor_advance_finding_correlation. The new functions take projects FOR SHARE NOWAIT, then the fence row FOR NO KEY UPDATE NOWAIT, map lock_not_available to 40001, and step the fence row instead of projects. The six triggers keep calling them. No trigger or function writes projects any more."
+    - "auditstore creates the fence row with ON CONFLICT DO NOTHING, in the same transaction as the Audit insert (internal/auditstore/internal/pgstore/store_sql.go:44)."
+    - "findingintake takes the fence through an auditstore transaction API next to LockFindingIntakeAudit (internal/auditstore/internal/pgstore/finding_intake.go:19, exposed through hookstore). The call stays in lockFindingImportAuthority, after the Run and Audit locks and before any retained artifact admission. findingintake's SQL no longer names the lock function or locks projects exclusively."
+    - "Point the revision readers and the compare-and-act predicate at the fence row. The results, cursors and fences of the finding and correlation reads do not change."
+    - "Rewrite FND-R177 to cover the fence row's ownership, the shared nonblocking Project lock, why the lock order is safe against Project deletion, and the decision with its alternatives and reversal condition. Update the table ownership registry (relation, owner and grants; remove any projects write by findingintake or auditstore), the Table owners index in persistence.md, scripts/erd/meta.json and the generated ERD (make docs-erd)."
+    - "Rework the retry tests listed in siblings so that each causes its definite conflict with a real conflicting holder, for example a concurrent finding writer holding the fence row or a Project metadata update. The V409-001 replay paths stay covered."
+  out:
+    - "Moving the other cross-owner trigger writes (Eval projection, finding hold admission, allocation report receipt) behind their owners. V372-009 lists them."
+    - "The general scan of functions and triggers (V372-009). This task only removes the projects write and lock from that list."
+    - "Changing the V409-001 retry budget or its classification."
+failure_outcomes:
+  - operation: "A finding writer acquires and steps the fence: import, collection retention, analyst decision, purge, contribution or source-Run deletion"
+    success: "One fence step per affected Project per mutation statement, in the caller's transaction. Project ids are locked in sorted order, as today."
+    permanent: "A fence row is missing when a finding mutation needs one. That breaks the invariant: findings exist only inside Audits, and the row is created with the Project's first Audit. The result is a classified internal error, never retried."
+    retryable: "Another finding writer holds the fence row, or the Project row is held exclusively by a deletion claim (FOR UPDATE), a lifecycle change or a metadata update. The writer gets 40001 without waiting, and the existing V409-001 replay applies unchanged: at most three transactions, then 503 storage_transaction_conflict with Retry-After."
+    ambiguous: "Unchanged. The receipts and natural keys of finding intake and decisions reconcile as today; no new receipt mechanism is added."
+    cancelled: "Unchanged. No new work outlives the transaction."
+    timeout: "Finding writers never wait on a new lock. The only new wait happens when two first-Audit creations in one Project race on the fence row's unique key, and the statement timeout bounds it. Audit creation was never nonblocking."
+cardinality:
+  - collection: "Fence rows"
+    expected: "one per Project with an Audit"
+    maximum: "one per Project (the Project limit)"
+    bound: "Each statement locks the distinct affected Projects in sorted order, normally one. No read becomes per-row."
+lifecycle:
+  - entity: "Project finding correlation fence row"
+    delete: "Only with its Project, through ON DELETE CASCADE from projects. Nothing else deletes it."
+    cascade: "Removed when the Project row is deleted at the end of Project deletion."
+    retention: "Kept while the Project exists, including after its last Audit is purged, so the revision never restarts."
+acceptance_criteria:
+  - id: A1
+    text: "Given a transaction holding the fixture Project FOR SHARE, as a concurrent Run creation does, when owner import, collection retention and an analyst finding decision run, then each commits in its first transaction with one fence step and no 40001."
+  - id: A2
+    text: "Given another finding writer of the same Project holding the fence row, when an import, a collection or a decision runs, then it aborts with 40001 without waiting, replays at most three transactions and commits exactly once after release. Persistent contention returns 503 storage_transaction_conflict with no state change."
+  - id: A3
+    text: "Given a Project deletion holding its claim FOR UPDATE, when a finding writer starts, then it aborts with 40001 without waiting. Given a finding writer that took the shared Project lock first, when the deletion locks its claim, then the deletion waits and then purges. No transaction ends with 40P01 in either order."
+  - id: A4
+    text: "The migration preserves every Project's revision exactly. After it, projects has no correlation column or trigger. The fence row steps by exactly one per affected statement and rejects a decrease or a skip, and every Project with an Audit has its fence row."
+  - id: A5
+    text: "TestSQLAccessFollowsTableOwnership and TestTableOwnershipMatchesTheSchemaDocuments pass with the new relation and owner. No production Go SQL outside projectstore locks projects FOR UPDATE or FOR NO KEY UPDATE, and no migration function or trigger outside projectstore writes projects."
+  - id: A6
+    text: "The A1 test fails on b523ae77, where the FOR SHARE contender forces 40001."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags=integration ./internal/findingintake ./internal/auditimport ./internal/auditservice ./internal/auditstore/... ./internal/persistence/..."
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags=integration -run 'TestPostgresFindingIntakeSerializesWithProjectDeletion|TestTableOwnership|TestSQLAccess' ./internal/findingintake ./internal/persistence"
+    covers: [A3, A5]
+  - command: make docs-erd
+    covers: [A5]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5, A6]
+verification_requirements:
+  - "Run with CONTRACTOR_TEST_DATABASE_URL set; a skipped database test is not a pass."
+  - "Show A6 by running the A1 test against b523ae77 and recording that it fails."
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9; local PostgreSQL 17.11 (Homebrew), database
+    contractor_test_v414_fence with per-test schemas and all 41 migrations;
+    the locked Runtime venv and the pnpm UI install for make lint. Branch
+    claude/v414-fence from main 17245309, implementation cc9b1315, then main
+    2193cef5 merged in.
+  commands:
+    - >-
+      go test -count=1 -tags=integration ./internal/findingintake
+      ./internal/auditimport ./internal/auditservice ./internal/auditstore/...
+      ./internal/persistence/... passed before the merge of main (findingintake
+      305s, auditservice 397s, persistence/postgres 78s, persistence 3s;
+      auditimport 106s and auditstore/internal/pgstore 220s in a rerun, see
+      the notes). It ran the new tests
+      TestPostgresFindingIntakeSharesTheProjectWithConcurrentAdmissions (Run
+      creation, Audit start, Project artifact admission),
+      TestPostgresFindingDecisionSharesTheProjectWithChildRunCreation,
+      TestPostgresFindingPurgeSerializesWithProjectDeletionClaim (both
+      orders), TestPostgresSourceRunDeletionWithoutAuditFencesNothing and
+      TestSharedPostgresFindingCorrelationFenceMigrationKeepsEveryRevision,
+      and the reworked V409-001 replay tests with a real conflicting finding
+      writer or Project metadata update.
+    - >-
+      After the merge of main 2193cef5 the same command plus
+      ./internal/projectlifecycle passed except
+      TestPostgresFindingRunDeletionSerializesWithAuditPurge/run_deletion_commits_first
+      ("waited at the wrong lock stage"), a known regression on main since
+      the V414-029 merge that V414-031 fixes, independent of this change.
+    - >-
+      go test -count=1 -tags=integration -run
+      'TestPostgresFindingIntakeSerializesWithProjectDeletion|TestTableOwnership|TestSQLAccess'
+      ./internal/findingintake ./internal/persistence passed. The listed
+      command lacked -tags=integration and selected no test in findingintake,
+      whose test is in an integration-tagged file; the command above is
+      corrected.
+    - >-
+      go test -count=1 -tags=integration ./internal/projectlifecycle
+      ./internal/auditcontroller ./internal/rundeletion ./internal/runservice
+      ./internal/evalstore ./internal/evalservice ./internal/httpapi/public/...
+      ./internal/auditbaseline ./internal/httpapi/privateartifacts passed
+      (dependents of the changed packages). The Project purge test
+      TestProjectDeletionPurgesAuditWithDecidedReviewsAndAssessments now
+      checks the fence row before deletion and its absence after.
+    - make docs-erd regenerated docs/spec/database-erd.html (73 tables, schema 000041).
+    - >-
+      make lint passed before and after the merge of main, after make
+      docs-dependencies.
+  a6: >-
+    In a temporary worktree at b523ae77, the final A1 tests (appended to
+    that revision's own test files, with helpers that need no new API)
+    failed: every subtest of
+    TestPostgresFindingIntakeSharesTheProjectWithConcurrentAdmissions (Run
+    creation, Audit start, Project artifact admission) and
+    TestPostgresFindingDecisionSharesTheProjectWithChildRunCreation ended
+    with "Project correlation is concurrently changing" (SQLSTATE 40001).
+    The worktree was removed.
+  can_fail_checks:
+    - >-
+      Dropping the fence-row join from contractor_finding_correlation_source_deleted
+      failed TestPostgresSourceRunDeletionWithoutAuditFencesNothing with
+      "Project delete-project has no finding correlation fence (SQLSTATE
+      P0004)"; reverted.
+    - >-
+      The migration test's scan of function bodies for writes and exclusive
+      locks of projects matched functions with the old lock and advance
+      statements in a scratch-schema probe, and matches none after the
+      migration.
+  decisions:
+    - >-
+      Receipts exist for every Project-bound Run, Audit or not. A Project
+      that never had an Audit has no fence row, so the source-Run-deletion
+      trigger steps only Projects with a fence row; no finding, contribution
+      or hold can cite such a receipt. Readers read revision 1 for a Project
+      without the row, the row's starting revision.
+    - >-
+      A BEFORE DELETE trigger keeps the fence row while its Project row
+      exists, so only the Project cascade removes it and the revision never
+      restarts (LIFE-FND-4).
+    - >-
+      Audit creation inserts the fence row only when its snapshot shows none,
+      before ON CONFLICT DO NOTHING, so it never waits on a finding writer
+      that holds the existing row; only two first Audits of one Project wait
+      on each other's insert.
+    - >-
+      FND-R177 records the guarantee, the rejected alternatives (projectstore
+      lock API, advisory lock, FOR KEY SHARE admissions) and the reversal
+      condition. FAIL-FND-6 and LIFE-FND-4 follow it; FAIL-AUX-3, FAIL-REV-1
+      and FAIL-REV-7 still describe the unchanged V409-001 replay.
+  notes:
+    - >-
+      The first run of auditimport failed only in
+      TestAuditCompletionRuntimeZIPImporter, because the Runtime venv was
+      still being created (fork/exec runtime/.venv/bin/python); the rerun
+      passed.
+    - >-
+      The Project artifact admission contender writes one committed artifact
+      first, so its ProjectScope row exists: the first artifact of a Project
+      creates that row, and a concurrent first admission waits on its unique
+      key, an artifact-store wait unrelated to the fence.
+    - >-
+      Under five packages in parallel, the budget tests
+      TestPostgresAuditClaimReadsOnlyTheReconcilableAudits and, after the
+      merge, TestPostgresAuditDeletionProbesReadOnlyTheLiveRuns read one or
+      two rows over budget; both passed when the package ran alone, before
+      and after the merge. Their statements do not read the fence table.
+    - >-
+      The finding_proposal_receipts correlation trigger (findingintake) still
+      writes auditstore's finding_correlation_fences through
+      contractor_advance_finding_correlation; V372-009 now lists that write
+      for its registry. Nothing writes projects outside projectstore any more.

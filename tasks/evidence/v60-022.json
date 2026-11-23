@@ -1,0 +1,17 @@
+{
+  "task_id": "V60-022",
+  "verified_on": "2026-09-20",
+  "base_commit": "5856beb5c13429f4be54856015ad7e86bd8b573d",
+  "implementation_commit": "e7f679a493e62f10b6980261c76d36916ee6e5c0",
+  "reproduction": "Before fix0600/0640 forced replacements and new forced files became0644; symlink destination was accepted.",
+  "commands": [
+    "go test -count=1 ./internal/cli ./internal/publicclient",
+    "umask 077 && go test -count=1 ./internal/cli -run \"^(TestForcedDownload|TestDownloadRefuses)\" -v"
+  ],
+  "results": [
+    "CLI and publicclient packages passed. Permission, atomic replacement, existing-file refusal and non-regular-destination regressions pass, including private umask0077.",
+    "Existing regular-file permission bits are preserved; a new forced file is0600; symlink destinations are refused."
+  ],
+  "logs": ".local/review-fixes/",
+  "scope": "Local source and regression checks; no deployment, real models or external security targets."
+}

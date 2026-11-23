@@ -1,0 +1,155 @@
+{
+  "cases": [
+    {
+      "name": "omitted",
+      "request": {
+        "repositoryUrl": "https://example.test/repo.git"
+      },
+      "valid": true,
+      "resolvedMode": "snapshot"
+    },
+    {
+      "name": "snapshot",
+      "request": {
+        "repositoryUrl": "https://example.test/repo.git",
+        "mode": "snapshot"
+      },
+      "valid": true,
+      "resolvedMode": "snapshot"
+    },
+    {
+      "name": "analysis",
+      "request": {
+        "repositoryUrl": "https://example.test/repo.git",
+        "mode": "analysis"
+      },
+      "valid": true,
+      "resolvedMode": "analysis"
+    },
+    {
+      "name": "null",
+      "request": {
+        "repositoryUrl": "https://example.test/repo.git",
+        "mode": null
+      },
+      "valid": false
+    },
+    {
+      "name": "empty",
+      "request": {
+        "repositoryUrl": "https://example.test/repo.git",
+        "mode": ""
+      },
+      "valid": false
+    },
+    {
+      "name": "unknown",
+      "request": {
+        "repositoryUrl": "https://example.test/repo.git",
+        "mode": "filtered"
+      },
+      "valid": false
+    },
+    {
+      "name": "case",
+      "request": {
+        "repositoryUrl": "https://example.test/repo.git",
+        "mode": "Analysis"
+      },
+      "valid": false
+    }
+  ],
+  "analysisSummaries": [
+    {
+      "name": "minimal",
+      "value": {
+        "policy": "source-analysis-v1",
+        "reportPath": ".contractor-import-report.json",
+        "includedFiles": 1,
+        "excludedEntries": 0
+      },
+      "valid": true
+    },
+    {
+      "name": "maximum",
+      "value": {
+        "policy": "source-analysis-v1",
+        "reportPath": ".contractor-import-report.json",
+        "includedFiles": 49999,
+        "excludedEntries": 50000
+      },
+      "valid": true
+    },
+    {
+      "name": "policy",
+      "value": {
+        "policy": "other",
+        "reportPath": ".contractor-import-report.json",
+        "includedFiles": 1,
+        "excludedEntries": 0
+      },
+      "valid": false
+    },
+    {
+      "name": "path",
+      "value": {
+        "policy": "source-analysis-v1",
+        "reportPath": "other.json",
+        "includedFiles": 1,
+        "excludedEntries": 0
+      },
+      "valid": false
+    },
+    {
+      "name": "empty",
+      "value": {
+        "policy": "source-analysis-v1",
+        "reportPath": ".contractor-import-report.json",
+        "includedFiles": 0,
+        "excludedEntries": 0
+      },
+      "valid": false
+    },
+    {
+      "name": "too_many_files",
+      "value": {
+        "policy": "source-analysis-v1",
+        "reportPath": ".contractor-import-report.json",
+        "includedFiles": 50000,
+        "excludedEntries": 0
+      },
+      "valid": false
+    },
+    {
+      "name": "negative_excluded",
+      "value": {
+        "policy": "source-analysis-v1",
+        "reportPath": ".contractor-import-report.json",
+        "includedFiles": 1,
+        "excludedEntries": -1
+      },
+      "valid": false
+    },
+    {
+      "name": "too_many_excluded",
+      "value": {
+        "policy": "source-analysis-v1",
+        "reportPath": ".contractor-import-report.json",
+        "includedFiles": 1,
+        "excludedEntries": 50001
+      },
+      "valid": false
+    },
+    {
+      "name": "extra",
+      "value": {
+        "policy": "source-analysis-v1",
+        "reportPath": ".contractor-import-report.json",
+        "includedFiles": 1,
+        "excludedEntries": 0,
+        "extra": true
+      },
+      "valid": false
+    }
+  ]
+}

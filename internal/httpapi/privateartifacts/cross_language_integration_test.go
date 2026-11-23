@@ -1,0 +1,177 @@
+//go:build integration
+
+package privateartifacts
+
+import (
+	"context"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/localpki"
+	"github.com/grauwolf32/contractor/internal/mtls"
+)
+
+func TestCrossLanguagePrivateArtifactLifecycle(t *testing.T) {
+	repository := newMemoryRepository()
+	harness := newCrossLanguageHarness(t, repository, nil)
+	registry, probe := harness.registry, harness.probe
+
+	result := probe()
+	created, _ := result["createdRevision"].(string)
+	updated, _ := result["updatedRevision"].(string)
+	if created == "" || updated == "" || created == updated ||
+		result["currentRevision"] != created || result["exactRevision"] != created ||
+		result["createdBindingAt"] != result["updatedBindingAt"] ||
+		result["createdBindingAt"] != result["currentBindingAt"] ||
+		result["createdBindingAt"] != result["exactBindingAt"] ||
+		result["createdRevisionAt"] != result["currentRevisionAt"] ||
+		result["createdRevisionAt"] != result["exactRevisionAt"] ||
+		result["createdRevisionAt"] == result["updatedRevisionAt"] ||
+		result["payload"] != "first payload" || result["outputError"] != "artifact_access_denied" ||
+		result["inputError"] != "artifact_access_denied" {
+		t.Fatalf("unexpected cross-language lifecycle: %+v", result)
+	}
+	if _, exists := repository.current("run-a", "inputs", "invented"); exists {
+		t.Fatal("Worker-created input reached the repository")
+	}
+	// The metadata read resolves the current and an exact revision through the
+	// same route, without the payload (ART-R116).
+	metadata, _ := result["metadata"].(map[string]any)
+	exactMetadata, _ := result["exactMetadata"].(map[string]any)
+	currentRef, _ := metadata["artifact"].(map[string]any)
+	exactRef, _ := exactMetadata["artifact"].(map[string]any)
+	if currentRef["revision"] != updated || metadata["mediaType"] != "text/plain" ||
+		metadata["size"] != float64(len("second payload")) || exactRef["revision"] != created ||
+		exactMetadata["size"] != float64(len("first payload")) {
+		t.Fatalf("unexpected cross-language metadata: %+v %+v", metadata, exactMetadata)
+	}
+
+	registry.mu.Lock()
+	registry.grant.WriteFenced = true
+	registry.mu.Unlock()
+	fenced := probe("--mode", "fenced", "--expected-revision", updated)
+	if fenced["code"] != "allocation_write_fenced" || fenced["retryable"] != false {
+		t.Fatalf("fenced cross-language write = %+v", fenced)
+	}
+	current, exists := repository.current("run-a", "builder", "source")
+	if !exists || current.revision != updated || string(current.data) != "second payload" {
+		t.Fatalf("fenced write changed artifact: %+v", current)
+	}
+}
+
+type crossLanguageHarness struct {
+	registry *fakeRegistry
+	probe    func(arguments ...string) map[string]any
+}
+
+// newCrossLanguageHarness serves the production private handler over mTLS for
+// repository and runs the Python ArtifactClient probe against it. wrap, when
+// set, observes every request in front of the handler.
+func newCrossLanguageHarness(
+	t *testing.T, repository artifacts.Repository, wrap func(http.Handler) http.Handler,
+) crossLanguageHarness {
+	t.Helper()
+	repositoryRoot, err := filepath.Abs("../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	temporary := t.TempDir()
+	pkiRoot := filepath.Join(temporary, "pki")
+	generator := localpki.Generator{}
+	ca, err := generator.InitCA(pkiRoot, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf := localpki.LeafOptions{
+		DNSNames: []string{"localhost"}, IPAddresses: []net.IP{net.ParseIP("127.0.0.1")},
+	}
+	controlPlane, err := generator.IssueControlPlane(pkiRoot, localpki.ControlPlaneOptions{LeafOptions: leaf})
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent, err := generator.IssueAgent(pkiRoot, "artifact-agent", leaf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	agentPEM, err := os.ReadFile(agent.Certificate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(agentPEM)
+	if block == nil {
+		t.Fatal("Agent certificate is not PEM")
+	}
+	agentCertificate, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	principalID, err := mtls.RuntimeAgentID(agentCertificate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grant := testGrant("run-a")
+	grant.RuntimeAgentID = principalID
+	registry := &fakeRegistry{grant: grant}
+	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
+		Registry: registry, Artifacts: artifacts.NewService(repository),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wrap != nil {
+		handler = wrap(handler)
+	}
+	tlsConfig, err := mtls.ControlPlaneServerConfig(mtls.Files{
+		Certificate: controlPlane.Certificate, PrivateKey: controlPlane.PrivateKey, CA: ca.Certificate,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewUnstartedServer(handler)
+	server.TLS = tlsConfig
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	probe := func(arguments ...string) map[string]any {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		baseArguments := []string{
+			"tests/artifact_client_probe.py",
+			"--api-url", server.URL + "/private/v1",
+			"--allocation-id", "allocation-1",
+			"--instance-id", "runtime-1",
+			"--ca", ca.Certificate,
+			"--certificate", agent.Certificate,
+			"--private-key", agent.PrivateKey,
+		}
+		command := exec.CommandContext(
+			ctx,
+			filepath.Join(repositoryRoot, "runtime", ".venv", "bin", "python"),
+			append(baseArguments, arguments...)...,
+		)
+		command.Dir = filepath.Join(repositoryRoot, "runtime")
+		output, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("Python ArtifactClient probe: %v\n%.4000s", err, output)
+		}
+		var value map[string]any
+		if err := json.Unmarshal(output, &value); err != nil {
+			t.Fatalf("decode Python probe output %.4000q: %v", output, err)
+		}
+		return value
+	}
+	return crossLanguageHarness{registry: registry, probe: probe}
+}

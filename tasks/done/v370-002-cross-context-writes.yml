@@ -1,0 +1,113 @@
+schema_version: "1.0"
+id: V370-002
+title: "Move the remaining cross-context table writes behind their owners"
+milestone: hub-audit-structure-2026-10
+epic: persistence
+kind: chore
+priority: P2
+status: completed
+implementation_commit: "da645225d168c9c7c1f9ae9122c7b992eb3f5abe"
+depends_on: [V369-001]
+languages: [go]
+goal: "The ownership allowlist has no entries for these accesses."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), persistence C1, C2; artifacts C1, F5; audits C1, C2; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    findingintake writes audit_findings, assessments and links
+    (direct_verification.go:385, 407); runstore thaws artifact_bindings
+    (resume_store.go:136-137); artifacts deletes
+    workflow_run_output_publications (postgres_purge.go:119, 174; the
+    PurgeProject delete is dead code); projectlifecycle writes projects;
+    credentials and evalstore read Audit tables
+    (runtime_repository.go:256-262, submissions_sql.go:31-43); scheduler and
+    evalstore copy the artifact metadata query.
+  specification:
+    - docs/spec/platform/persistence.md#PER-R23
+  current_code: >-
+    Re-verified on 9032a2a, where V369-001's registry lists 20 [known]
+    entries for this task: findingintake wrote audit_artifact_links,
+    audit_finding_assessments and audit_findings in direct verification
+    (direct_verification.go, direct_verification_sql.go) and locked audits
+    FOR UPDATE in proposal import, collection rejection and the import
+    statement's FOR UPDATE OF receipt, audit (postgres.go,
+    postgres_sql.go); runstore thawed artifact_bindings (resume_store.go);
+    artifacts deleted workflow_run_output_publications in PurgeRun and,
+    dead after every Run is gone, in PurgeProject (postgres_purge.go);
+    projectlifecycle claimed, advanced, released, deferred, locked and
+    deleted projects rows (controller.go, controller_sql.go); rundeletion
+    updated finding_proposal_receipts and read finding_proposal_audit_holds
+    (deleter_sql.go); auditstore locked the deleting Project
+    (project_deletion_sql.go) and scheduler_settings FOR UPDATE
+    (execution_intent_sql.go) and read the dispatch window (read.go);
+    credentials read held Audit baselines (runtime_repository.go); evalstore
+    copied the artifact metadata query (evidence.go, evidence_sql.go) and
+    matched an Audit through audit_idempotency with an 'audit.create'
+    literal (submissions_sql.go); scheduler copied the artifact metadata
+    query (postgres_sql.go).
+  decision: >-
+    Every write and exclusive row lock moved into the owner's Go API and runs
+    in the caller's transaction (PER-R23): auditstore LockFindingIntakeAudit
+    and CommitDirectFindingAssessment (the quota and finding.assessed event
+    recorder became internal to it); artifacts PostgresTxRepository
+    ThawOutputs; runstore DeleteLockedRunOutputPublications, called by Run
+    deletion before the RunScope purge because the receipts name the Run
+    revisions; findingintake MarkSourceRunDeleted; projectstore
+    DeletionClaim with ClaimDeletion, AdvanceDeletion,
+    ReleaseDeletionClaim, DeferDeletionClaim, LockDeletionClaim and
+    DeleteClaimedProject (ErrDeletionClaimLost), which projectlifecycle and
+    auditstore's RequestProjectOwnedDeletion use (it now takes the
+    projectstore claim); settingsstore LockSchedulerSettings, which
+    CreateExecutionIntent takes in its own retrying transaction (Within)
+    before the reservation statement, passing max_concurrent_runs in. Reads
+    went to the owners as well where an owner API exists: the scheduler and
+    evalstore read output and evidence metadata through
+    artifacts.PostgresRepository.Metadata, evalstore binds an Audit through
+    auditstore.LookupMutationReplay(MutationCreate), Runtime credential
+    deletion asks auditstore.ListHeldAuditIDsByRuntimeCredential through the
+    required RuntimeCredentialAuditHoldLookup port as LLM credential
+    deletion already did (AUD-R16), and auditstore reads the dispatch window
+    through settingsstore. findingintake's reads of audits (owner, Project,
+    state, policy and evidence budget joins) and audit_finding_assessments
+    (collection listing and direct-verification replay) stay as [reads]
+    grants. The PurgeProject delete of publication receipts is gone.
+    Orders kept or changed on purpose: Run deletion deletes the receipts
+    before the scope lock instead of after it, and so under the
+    transaction's ordinary budget instead of the purge's cleanup budget,
+    as the proposal tombstoning before it; a Run has at most one receipt
+    per Workflow output, and nothing else locks a terminal Run's receipts.
+    The reservation locks the settings row before its claim, Audit and
+    Round rows instead of with the Audit row; only
+    reservations lock the settings row together with other rows and all now
+    take it first, so the order stays deadlock-free and AUX-R6 keeps its
+    defined order (TestPostgresSchedulerSettingsLockOrdersAChange,
+    TestPostgresDispatchReservationOrdersWithSettingsDecrease); the lock
+    strength stays FOR UPDATE. The Project-owned Audit deletion takes the
+    Project lock and then the candidate Audit lock in one transaction, as
+    its single statement did. Evidence verification now reads an exact
+    revision through its binding like every ArtifactStore read, so a
+    revision whose binding a committed Project purge batch already removed
+    reads as unavailable one batch earlier. rundeletion imports
+    findingintake, so findingintake's internal tests reach Run deletion
+    through a deleter that rundeletion_link_test.go (external test package)
+    lends them. Alternatives rejected: a receipt port injected into
+    rundeletion.New (56 call sites, for a dependency that already points
+    along the product layer); FOR SHARE for the settings lock, which would be
+    a granted read but lets reservations of different Audits interleave, a
+    change of lock behaviour outside this task; auditstore methods for each
+    findingintake join, which add narrow reads without an ownership gain.
+    Reversal: if Audit reservations need to run in parallel, revisit the
+    settings lock strength in auditstore and settingsstore together.
+scope:
+  in:
+    - "Each access goes through the owner's store or a port; the dead PurgeProject delete is removed; the V369-001 allowlist shrinks accordingly."
+    - "The [known] entries of internal/persistence/table_ownership.txt that name V370-002, including the FOR UPDATE row locks PER-R23 counts as writes (findingintake on audits, auditstore on the deleting Project and on scheduler_settings) and rundeletion's update of finding_proposal_receipts with its read of the holds. Reads that stay become [reads] grants with their reason."
+  out:
+    - "Behaviour of each path."
+acceptance_criteria:
+  - id: A1
+    text: "The ownership allowlist has no entries for these accesses."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/findingintake ./internal/runstore ./internal/artifacts ./internal/projectlifecycle ./internal/credentials ./internal/evalstore"
+    covers: [A1]

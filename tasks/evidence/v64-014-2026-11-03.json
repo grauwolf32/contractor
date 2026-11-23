@@ -1,0 +1,67 @@
+{
+  "task": "V64-014",
+  "date": "2026-11-03",
+  "status": "completed",
+  "authority": "User requests reconciliation of existing verification and moving V64-014 to done.",
+  "implementation_commit": "e4b6df107d664192de4c3056b4af1c56a682932f",
+  "original_merge": "2ccbf2cdd4790e23d8c8463921865b20500fb44e",
+  "integration_main": "9c35463a0d200c84de0ea851d1c04e7dec6af618",
+  "verification_source": "eac8bf7c85fdf0b87605344a3ab4abcb83dee0ce",
+  "historical_evidence": "tasks/evidence/v64-014-2026-11-01.json",
+  "checks": [
+    {
+      "command": "make require-database",
+      "result": "passed with disposable PostgreSQL; process and owner suites use separate databases"
+    },
+    {
+      "command": "go test -tags=integration -count=1 ./internal/findingintake/... ./internal/auditdomain/... ./internal/auditstore/... ./internal/auditservice/... ./internal/auditimport/... ./internal/auditcontroller/... ./internal/artifacts/... ./internal/persistence/postgres/...",
+      "result": "passed in a fresh complete combined run; no mandatory database skips",
+      "log": "/private/tmp/v64014-final-owners.log"
+    },
+    {
+      "command": "make test-findings-e2e",
+      "result": "passed: all 14 required production-process cases and 206 Runtime Findings cases; zero selected skips",
+      "log": "/private/tmp/v64014-final-process.log"
+    },
+    {
+      "command": "make verify-public-api verify-public-api-postgres",
+      "result": "passed on the recent common-coordinator tree, including the race-backed canonical Project Finding edit/page cases; reused because the completion repair changes only frozen archive data",
+      "log": "/private/tmp/v64028-29-public-gates.log"
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "result": "passed: 368 fixtures, 397 Go and 255 Python shared tests; reused unchanged wire implementation",
+      "log": "/private/tmp/v64027-final-contract-gates.log"
+    },
+    {
+      "command": "make test-runtime",
+      "result": "passed: 5737 passed and 135 existing platform/environment skips, including the two explicitly Linux-only OPS-R1 fixtures; no manual deselection; reused unchanged Runtime implementation",
+      "log": "/private/tmp/v64027-post-rebase-runtime.log"
+    },
+    {
+      "command": "make ui-verify",
+      "result": "passed: 213 files, 2459 tests passed and one expected failure; generation, lint, typecheck, 17 static-server tests and build passed; reused unchanged UI implementation",
+      "log": "/private/tmp/v64028-29-ui-verify.log"
+    },
+    {
+      "command": "make test-config verify-architecture",
+      "result": "passed: the current six common observation/scan programs validate and the architecture model is valid; the eight checklist/assertion programs remain explicitly assigned to V64-012",
+      "log": "/private/tmp/v64027-final-contract-gates.log"
+    },
+    {
+      "command": "make lint",
+      "result": "passed on the verification source, including export/layer/ownership/ERD/task/spec/release graph and Runtime checks",
+      "log": "/private/tmp/v64014-closure-lint.log"
+    },
+    {
+      "command": "go test -count=1 ./tests/eval/agent_instructions",
+      "result": "passed in full after V64-030 restores both historical profiles to their original manifest digests; no manifest rewrite, current configuration or compatibility reader added",
+      "log": "/private/tmp/v64030-eval-archive.log"
+    }
+  ],
+  "verification_limits": [
+    "The historical wider Catalog/Studio mocked-browser and real UI-stack failures in the November 1 evidence are not silently converted to passes. They are outside this task's listed acceptance commands; integrated browser/release acceptance remains with V64-009/V64-011.",
+    "The last global make test-go run failed only on the frozen Eval archive pin. Its entire owning package now passes; a fresh global make test-go is not claimed.",
+    "No Linux execution, live-model quality, deployment or demo database migration is claimed."
+  ]
+}

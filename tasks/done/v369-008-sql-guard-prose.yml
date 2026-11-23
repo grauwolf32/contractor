@@ -1,0 +1,61 @@
+schema_version: "1.0"
+id: V369-008
+title: "Exclude prose from SQL ownership scanning"
+milestone: hub-audit-guards-2026-10
+epic: quality
+kind: defect
+introduced_by: V369-001
+priority: P3
+status: completed
+implementation_commit: "fab046292553d3ff4dff01af4a531b9168bbe05d"
+depends_on: [V369-001, V406-009]
+languages: [go]
+goal: >-
+  SQL ownership checks distinguish ordinary CLI help and diagnostics from
+  executable SQL while retaining coverage of real statements and fragments.
+context:
+  specification:
+    - docs/spec/platform/persistence.md#PER-R23
+  severity: low
+  finding: >-
+    internal/persistence/sql_access_test.go:548 recognizes FROM in every string,
+    so internal/cli/scan_sweep_remote.go:196 (targets come from Projects)
+    falsely counts as a foreign read. TestSQLAccessFollowsTableOwnership fails
+    even though the CLI makes its requests through the public client.
+  siblings: >-
+    CLI help, diagnostics, quoted and concatenated strings can all contain SQL
+    words. Preserve real SQL statements, leading comments, clause fragments,
+    unknown concatenation operands, multi-statements, CTEs, row locks and COPY.
+    SQL placement has its own documented statement-start rule and stays unchanged.
+scope:
+  in:
+    - "Filter SQL ownership candidates by a statement or clause start before inspecting relations."
+    - "Regressions using the unchanged CLI help text and related prose, with positive SQL controls."
+    - "The full repository table ownership and persistence fitness checks."
+  out:
+    - "No CLI wording change, ownership exemption, production behavior change or database mutation."
+acceptance_criteria:
+  - id: A1
+    text: "The unchanged scan-sweep help and prose diagnostics report no SQL relation access, and the repository ownership gate passes."
+  - id: A2
+    text: "SQL statements, comments, concatenated/dynamic fragments, multiple statements, writes and locks retain their relation detection."
+  - id: A3
+    text: "The new regression fails on the original scanner; all persistence fitness tests and make lint pass after the fix."
+tests:
+  - command: "go test -count=1 ./internal/persistence"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A3]
+verification_notes: >-
+  The new negative cases failed on the original scanner. The complete
+  persistence package passes after the fix. A one-time comparison of the
+  production-source access inventory retained all 1136 genuine unique accesses;
+  the only removed access is the false internal/cli read of projects at
+  scan_sweep_remote.go:196. No accesses were added. The temporary comparison
+  test and diagnostic toggle were removed; CTE-fragment controls are retained
+  in the regression suite.
+completion_evidence: >-
+  go test -count=1 ./internal/persistence passed on the final scanner (1.363s),
+  including the real repository ownership scan and the new positive/negative
+  regression controls. Final make lint passed. Production code and the CLI help
+  remain unchanged; no demo restart or database change is required.

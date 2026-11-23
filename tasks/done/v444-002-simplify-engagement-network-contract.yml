@@ -1,0 +1,137 @@
+schema_version: "1.0"
+id: V444-002
+title: Reduce engagement to network policy limits and identities
+milestone: autonomous-http-pentest-2026-10
+epic: http-tools
+kind: chore
+introduced_by: V411-002
+priority: P1
+status: completed
+depends_on: [V444-001, V439-003, V422-003]
+languages: [go, python, json, yaml, typescript]
+goal: Engagement describes allowed network use and identities while Workflow selection determines required execution capabilities.
+demonstration: >-
+  The existing HTTP Audit executes with a strict document containing schema, egress,
+  optional limits and identities. Its selected HTTP tools place on http-target@1;
+  offline work needs no HTTP assignment and unsupported network paths remain refused.
+context:
+  authority:
+    - date: "2026-11-04"
+      decision: >-
+        User accepted engagement responsibility for egress, rate/traffic limits and
+        authorization identities, rejected source modes and backward compatibility,
+        requested tasks on main and authorized starting implementation.
+  specification:
+    - docs/spec/audits/audits.md#AUD-R243
+    - docs/spec/audits/audits.md#AUD-R244
+    - docs/spec/audits/audits.md#AUD-R248
+    - docs/spec/execution/control-plane.md#CTL-R168
+    - docs/spec/execution/control-plane.md#CTL-R169
+    - docs/spec/tools/http-caido.md#HTP-R137
+    - docs/spec/tools/http-caido.md#HTP-R145
+    - docs/spec/tools/scanners.md#SCN-R259
+  boundary: >-
+    Reuse engagementcontract, Audit baseline, engagementadapter, existing template
+    descriptors and allocation HTTP owner. Workflow/tool selection determines
+    required adapters; capability declarations cannot grant network authority.
+    The egress block retains the current HTTP routes/exclusions semantics. Future
+    sandbox/browser/non-HTTP enforcement extends its concrete owner separately.
+  placement_boundary: >-
+    Derive the existing stage-wide adapter union from actual bounded bindings with
+    one immutable baseline lookup. Prepare HTTP assignment per selected Worker.
+    Preserve this grain instead of introducing a per-binding placement framework;
+    reopen only for a concrete mixed Stage needing heterogeneous Runtime capacity.
+  decision: >-
+    Use one strict network document instead of retaining a broad passport with
+    unused optional fields. Keep exact engagement digest and trusted authorization
+    attribution; remove the separate digest of the deleted policy wrapper.
+    Reopen additional fields only for a concrete execution caller and reviewed rule.
+scope:
+  in:
+    - Use schema, egress.routes/exclusions, optional limits and identities; remove target/deployment, policy and the budgets wrapper end to end.
+    - Validate identity origins against current allowed route origins and preserve canonical URL/path/CIDR/exclusion rules.
+    - Derive controlled HTTP adapter needs from actual selected tool/Workflow descriptors; retain strict refusal of unintegrated network paths.
+    - Simplify private projection and snapshot metadata while preserving exact refs/digests, owner/time, private credentials and the existing preparation seam.
+    - Update all Go/Python/schema consumers, public errors/clients when affected, shared fixtures, shipped bindings/instructions and owning spec requirements together.
+  out:
+    - New network protocols, sandbox/browser integration, automatic login, global quotas or a generic transport/plugin framework.
+    - Independent ordinary-Run engagement authoring, new APIs/tables and old-format readers.
+requirements:
+  - id: R1
+    text: HTTP tools and controlled Nuclei use the same allocation-owned scope, credentials and optional limits; selection cannot widen authority.
+  - id: R2
+    text: Offline allocations remain supported; target preparation is passive and never resolves/probes the target merely to establish readiness.
+  - id: R3
+    text: No requiredCapabilities/optionalCapabilities/activeChecks or deployment marker remains in engagement or its execution projection.
+failure_outcomes:
+  - operation: Derive placement requirements and prepare network authority
+    permanent: Invalid/unsupported documents or uncontrolled paths fail before target bytes; unavailable capacity follows existing placement semantics without fallback.
+    retryable: Existing storage and allocation retry boundaries apply; no new request retry or journal.
+    ambiguous: Ordinary Run/start/allocation receipts retain exact authority; no target call reconstructs missing state.
+    cancelled: Join private prepare/HTTP/scanner work before clearing credentials under the existing allocation lifecycle.
+    timeout: Preserve separate identity-material, allocation and request deadlines.
+cardinality:
+  - collection: Routes exclusions identities and protected destinations
+    expected: A few routes and identities per allocation.
+    bound: Preserve current LIM-AUD and LIM-HTP collection/byte ceilings and constant-size local counters.
+lifecycle:
+  - entity: Immutable engagement snapshot and allocation-owned HTTP state
+    delete: Existing drained owner deletion and allocation release.
+    retention: Artifact/credential pins survive ordinary pause/replay; private sessions end with allocation cleanup.
+acceptance_criteria:
+  - id: A1
+    text: Shared Go/Python/schema fixtures accept the reduced network document and reject every removed wrapper/field without compatibility paths.
+  - id: A2
+    text: Real placement/prepare tests select HTTP capacity from actual tools, support offline work and refuse uncontrolled paths before credential exposure or target sends.
+  - id: A3
+    text: Real HTTP/Nuclei scenarios retain scope, identity isolation, shared optional local limits and cancellation/release ownership.
+  - id: A4
+    text: Snapshot readers/writers, errors, generated clients, catalog and specs agree; complete touched-package suites and declared gates pass.
+tests:
+  - command: make require-database
+    covers: [A2, A3]
+  - command: go test -tags=integration -count=1 ./internal/contracts/... ./internal/config/... ./internal/auditservice ./internal/controlplane/... ./internal/app ./internal/httpapi/public ./internal/publicclient/... ./internal/archtest
+    covers: [A1, A2, A4]
+  - command: make test-runtime test-wire-cross-language test-engagement-http-process verify-public-api
+    covers: [A1, A2, A3, A4]
+  - command: make test-nuclei-engagement
+    covers: [A2, A3]
+  - command: make test-config lint
+    covers: [A1, A2, A4]
+implementation_commit: 1b4b6fd94ec5033fd827fd20a944db09a8f5cd65
+verification:
+  date: "2026-11-05"
+  result: >-
+    The strict document is schema/egress/identities/optional limits. Selected HTTP
+    tools, identity/session operations and controlled Nuclei derive the HTTP owner;
+    offline preparation has no HTTP assignment. Exact Artifact/owner/time pins,
+    private credential holds, protected destinations and local limits are retained.
+  commands:
+    - command: make require-database
+      outcome: Passed against the dedicated disposable UTF8 PostgreSQL cluster.
+    - command: go test -tags=integration -count=1 ./internal/contracts/... ./internal/config/... ./internal/auditservice ./internal/controlplane/... ./internal/app ./internal/httpapi/public ./internal/publicclient/... ./internal/archtest ./internal/auditstore/... ./internal/findingintake ./tests/eval/audit_programs
+      outcome: All selected complete packages passed with the real test database configured.
+    - command: make test-wire-cross-language verify-public-api
+      outcome: Passed; 371 fixtures, 405 Go and 258 Python shared tests, with 1429 shared pytest cases passing.
+    - command: make test-engagement-http-process verify-public-api-postgres
+      outcome: Passed; 41 process, 2 PostgreSQL accounting and 157 Runtime cases, zero selected skips; public PostgreSQL API cases also passed under race instrumentation.
+    - command: make test-nuclei-engagement
+      outcome: Real Nuclei process passed and its 41 bridge/transport Runtime cases passed.
+    - command: go test -count=1 ./tests/e2e
+      outcome: Complete ordinary e2e verifier package passed.
+    - command: make test-runtime
+      outcome: Final full suite passed with warnings as errors; 5825 passed, 135 existing platform/environment skips; verify-runtime accepted the report.
+    - command: make test-config
+      outcome: Package suites and shipped catalog validation passed.
+    - command: make lint
+      outcome: Passed, including generated clients, spec/tasks, layers, test-only exports and release graph.
+    - command: make verify-architecture
+      outcome: LikeC4 validation passed.
+  earlier_attempts: >-
+    The first full Runtime run had 36 failures in one redirect diagnostic expectation
+    after correcting a duplicated word; all other 5789 tests passed. All 53 redirect
+    tests and the subsequent complete Runtime run passed after updating that expectation.
+    Earlier lint attempts found import spacing and a stale generated dependency graph;
+    both were corrected before the passing lint run. No URL admission or retry rule
+    was weakened.
+  public_boundary: No public API shape changed in this task; both generated clients remain current.

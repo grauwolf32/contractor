@@ -1,0 +1,55 @@
+import type { EvalExperiment } from "../../api/evals";
+import { StatusGlyph, TechnicalDetails } from "../../ui";
+
+const MESSAGES: Record<string, string> = {
+  eval_pin_mismatch:
+    "The selected versions, inputs or required-equal settings do not match. Review the versions and equality policy before preparing again.",
+  eval_invalid:
+    "Some setup values are invalid. Review the variants, cases and criteria, then save the corrected draft.",
+  eval_not_ready:
+    "The experiment is not ready for this action. Review its setup and required inputs.",
+  eval_preparation_unavailable:
+    "Preparation is temporarily unavailable. The server will retry; you can safely leave this page.",
+  eval_evidence_unavailable:
+    "Required evidence is no longer available. Open the affected execution to inspect its files.",
+  eval_budget_exhausted:
+    "The experiment reached its allowance. Duplicate it to run again with different limits.",
+};
+
+export function EvalDiagnostics({
+  experiment,
+}: {
+  experiment: EvalExperiment;
+}) {
+  if (!experiment.diagnostics?.length) return null;
+  return (
+    <section className="eval-diagnostics" role="alert">
+      <span className="eval-status-glyph">
+        <StatusGlyph tone="blocked" size={18} />
+      </span>
+      <div className="eval-status-body">
+        <strong className="eval-diagnostics-title">
+          {experiment.state === "draft" || experiment.state === "preparing"
+            ? "Preparation needs attention"
+            : "Experiment needs attention"}
+        </strong>
+        {experiment.diagnostics.map((diagnostic, index) => (
+          <div className="ui-stack" data-gap="1" key={index}>
+            <p>
+              {MESSAGES[diagnostic.code] ??
+                `The server could not complete this action. Suggested recovery: ${diagnostic.recovery.replaceAll("_", " ")}.`}
+            </p>
+            {diagnostic.field ? (
+              <p>
+                Field: <code>{diagnostic.field}</code>
+              </p>
+            ) : null}
+            <TechnicalDetails summary="Diagnostic details">
+              <code>{diagnostic.code}</code>
+            </TechnicalDetails>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}

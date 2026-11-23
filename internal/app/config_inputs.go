@@ -1,0 +1,255 @@
+package app
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/gitimport"
+)
+
+// serveConfigInputs is transient parse state. Unlike ServerConfig, it may hold
+// sealed environment credentials and the database URL, so it redacts itself as
+// a whole for every fmt verb, for log/slog and for JSON (SEC-R88): fmt cannot
+// call SecretString's own redaction through its unexported fields.
+type serveConfigInputs struct {
+	settings                    serverConfigValues
+	serverConfigPath            string
+	listenAddress               string
+	privateListenAddress        string
+	privateURL                  string
+	shutdownTimeout             time.Duration
+	runtimeRequestTimeout       time.Duration
+	workerRequestTimeout        time.Duration
+	plannerTimeout              time.Duration
+	databaseURL                 string
+	gitRemotes                  repeatedStringFlag
+	gitKnownHosts               string
+	gitImportLimits             gitimport.Limits
+	blobBackend                 string
+	blobPath                    string
+	blobInlineMaxBytes          string
+	historyMaxRevisions         string
+	historyMaxBytes             string
+	operatorConfigRoot          string
+	managedConfigRoot           string
+	publicBearerToken           contracts.SecretString
+	localAuthFile               string
+	browserOrigins              repeatedStringFlag
+	insecureLoopbackCookie      bool
+	trustedProxies              repeatedStringFlag
+	caFile                      string
+	certificateFile             string
+	privateKeyFile              string
+	developmentWorkerToken      contracts.SecretString
+	developmentPlannerToken     contracts.SecretString
+	performanceMetrics          deferredBooleanFlag
+	pprof                       deferredBooleanFlag
+	pprofListen                 string
+	credentialMasterKeyFile     string
+	llmGatewayAdminBindingsFile string
+	developmentLLMGateway       string
+
+	certificateExpiryWarningWindow time.Duration
+}
+
+func (c serveConfigInputs) String() string                 { return "app.serveConfigInputs([REDACTED])" }
+func (c serveConfigInputs) GoString() string               { return c.String() }
+func (c serveConfigInputs) Format(state fmt.State, _ rune) { _, _ = io.WriteString(state, c.String()) }
+func (c serveConfigInputs) LogValue() slog.Value           { return slog.StringValue(c.String()) }
+func (c serveConfigInputs) MarshalJSON() ([]byte, error)   { return json.Marshal(c.String()) }
+
+func loadServeConfigInputs(args []string, getenv func(string) string) (*serveConfigInputs, error) {
+	serverConfigPath, err := discoverServerConfigPath(args, getenv)
+	if err != nil {
+		return nil, err
+	}
+	settings := defaultServerConfigValues()
+	if serverConfigPath != "" {
+		settings, err = loadServerConfig(serverConfigPath, settings)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	listenAddress := settings.listenAddress
+	if value := getenv("CONTRACTOR_PUBLIC_LISTEN"); value != "" {
+		listenAddress = value
+	}
+	privateListenAddress := settings.privateListenAddress
+	if value := getenv("CONTRACTOR_PRIVATE_LISTEN"); value != "" {
+		privateListenAddress = value
+	}
+	privateURL := settings.privateURL
+	if value := getenv("CONTRACTOR_PRIVATE_URL"); value != "" {
+		privateURL = value
+	}
+	shutdownTimeout := settings.shutdownTimeout
+	runtimeRequestTimeout := settings.runtimeRequestTimeout
+	workerRequestTimeout := settings.workerRequestTimeout
+	plannerTimeout := settings.plannerTimeout
+	databaseURL := getenv("CONTRACTOR_DATABASE_URL")
+	gitRemotes := repeatedStringFlag{values: settings.gitAllowedRemotes, clearOnFirstSet: true}
+	if value := getenv("CONTRACTOR_GIT_ALLOWED_REMOTES"); value != "" {
+		gitRemotes.values = strings.Split(value, ",")
+		gitRemotes.clearOnFirstSet = true
+	}
+	gitLimits := settings.gitImportLimits
+	if err := gitImportEnvironment(&gitLimits, getenv); err != nil {
+		return nil, err
+	}
+	gitKnownHosts := settings.gitKnownHostsFile
+	if value := getenv("CONTRACTOR_GIT_KNOWN_HOSTS_FILE"); value != "" {
+		gitKnownHosts = value
+	}
+	blobBackend := settings.artifactBlobBackend
+	if value := getenv("CONTRACTOR_ARTIFACT_BLOB_BACKEND"); value != "" {
+		blobBackend = value
+	}
+	blobPath := settings.artifactBlobPath
+	if value := getenv("CONTRACTOR_ARTIFACT_BLOB_PATH"); value != "" {
+		blobPath = value
+	}
+	blobInlineMaxBytes := strconv.FormatInt(settings.artifactBlobInlineMaxBytes, 10)
+	if value := getenv("CONTRACTOR_ARTIFACT_BLOB_INLINE_MAX_BYTES"); value != "" {
+		blobInlineMaxBytes = value
+	}
+	historyMaxRevisions := strconv.FormatInt(settings.artifactHistoryMaxRevisions, 10)
+	if value := getenv("CONTRACTOR_ARTIFACT_HISTORY_MAX_REVISIONS"); value != "" {
+		historyMaxRevisions = value
+	}
+	historyMaxBytes := strconv.FormatInt(settings.artifactHistoryMaxBytes, 10)
+	if value := getenv("CONTRACTOR_ARTIFACT_HISTORY_MAX_BYTES"); value != "" {
+		historyMaxBytes = value
+	}
+	operatorConfigRoot := settings.operatorConfigRoot
+	if value := getenv("CONTRACTOR_OPERATOR_CONFIG_ROOT"); value != "" {
+		operatorConfigRoot = value
+	}
+	managedConfigRoot := settings.managedConfigRoot
+	if value := getenv("CONTRACTOR_MANAGED_CONFIG_ROOT"); value != "" {
+		managedConfigRoot = value
+	}
+	publicBearerToken := contracts.NewSecretString(getenv("CONTRACTOR_PUBLIC_BEARER_TOKEN"))
+	localAuthFile := settings.localAuthFile
+	if value := getenv("CONTRACTOR_LOCAL_AUTH_FILE"); value != "" {
+		localAuthFile = value
+	}
+	browserOrigins := repeatedStringFlag{
+		values:          append([]string(nil), settings.browserOrigins...),
+		clearOnFirstSet: true,
+	}
+	if encoded := getenv("CONTRACTOR_BROWSER_ORIGINS"); encoded != "" {
+		browserOrigins.values = strings.Split(encoded, ",")
+	}
+	insecureLoopbackCookie := settings.insecureLoopbackCookie
+	if encoded := getenv("CONTRACTOR_INSECURE_LOOPBACK_COOKIE"); encoded != "" {
+		if encoded != "true" && encoded != "false" {
+			return nil, errors.New("CONTRACTOR_INSECURE_LOOPBACK_COOKIE must be true or false")
+		}
+		parsed, err := strconv.ParseBool(encoded)
+		if err != nil {
+			return nil, errors.New("CONTRACTOR_INSECURE_LOOPBACK_COOKIE must be true or false")
+		}
+		insecureLoopbackCookie = parsed
+	}
+	trustedProxies := repeatedStringFlag{
+		values:          append([]string(nil), settings.trustedProxies...),
+		clearOnFirstSet: true,
+	}
+	if encoded := getenv("CONTRACTOR_TRUSTED_PROXIES"); encoded != "" {
+		trustedProxies.values = strings.Split(encoded, ",")
+	}
+	caFile := settings.caFile
+	if value := getenv("CONTRACTOR_CA_FILE"); value != "" {
+		caFile = value
+	}
+	certificateFile := settings.certificateFile
+	if value := getenv("CONTRACTOR_CONTROL_PLANE_CERT_FILE"); value != "" {
+		certificateFile = value
+	}
+	privateKeyFile := settings.privateKeyFile
+	if value := getenv("CONTRACTOR_CONTROL_PLANE_KEY_FILE"); value != "" {
+		privateKeyFile = value
+	}
+	certificateExpiryWarningWindow := defaultCertificateExpiryWarningWindow
+	if value := getenv("CONTRACTOR_CERT_EXPIRY_WARNING_WINDOW"); value != "" {
+		parsed, err := time.ParseDuration(value)
+		if err != nil {
+			return nil, errors.New("CONTRACTOR_CERT_EXPIRY_WARNING_WINDOW must be a duration")
+		}
+		certificateExpiryWarningWindow = parsed
+	}
+	developmentWorkerToken := contracts.NewSecretString(getenv("CONTRACTOR_LLM_GATEWAY_TOKEN"))
+	developmentPlannerToken := contracts.NewSecretString(getenv("CONTRACTOR_PLANNER_LLM_GATEWAY_TOKEN"))
+	performanceMetrics := deferredBooleanFlag{
+		value: getenv("CONTRACTOR_PERFORMANCE_METRICS"), fallback: settings.performanceMetrics,
+	}
+	pprof := deferredBooleanFlag{value: getenv("CONTRACTOR_PPROF"), fallback: settings.pprof}
+	pprofListen := settings.pprofListen
+	if value := getenv("CONTRACTOR_PPROF_LISTEN"); value != "" {
+		pprofListen = value
+	}
+	credentialMasterKeyFile := settings.credentialMasterKeyFile
+	if value := getenv("CONTRACTOR_CREDENTIAL_MASTER_KEY_FILE"); value != "" {
+		credentialMasterKeyFile = value
+	}
+	llmGatewayAdminBindingsFile := settings.llmGatewayAdminBindingsFile
+	if value := getenv("CONTRACTOR_LLM_GATEWAY_ADMIN_BINDINGS_FILE"); value != "" {
+		llmGatewayAdminBindingsFile = value
+	}
+
+	developmentLLMGateway := settings.developmentLLMGateway
+	if value := getenv("CONTRACTOR_DEVELOPMENT_LLM_GATEWAY"); value != "" {
+		developmentLLMGateway = value
+	}
+	if err := settings.operations.applyEnvironment(getenv); err != nil {
+		return nil, err
+	}
+	return &serveConfigInputs{
+		settings:                    settings,
+		serverConfigPath:            serverConfigPath,
+		listenAddress:               listenAddress,
+		privateListenAddress:        privateListenAddress,
+		privateURL:                  privateURL,
+		shutdownTimeout:             shutdownTimeout,
+		runtimeRequestTimeout:       runtimeRequestTimeout,
+		workerRequestTimeout:        workerRequestTimeout,
+		plannerTimeout:              plannerTimeout,
+		databaseURL:                 databaseURL,
+		gitRemotes:                  gitRemotes,
+		gitKnownHosts:               gitKnownHosts,
+		gitImportLimits:             gitLimits,
+		blobBackend:                 blobBackend,
+		blobPath:                    blobPath,
+		blobInlineMaxBytes:          blobInlineMaxBytes,
+		historyMaxRevisions:         historyMaxRevisions,
+		historyMaxBytes:             historyMaxBytes,
+		operatorConfigRoot:          operatorConfigRoot,
+		managedConfigRoot:           managedConfigRoot,
+		publicBearerToken:           publicBearerToken,
+		localAuthFile:               localAuthFile,
+		browserOrigins:              browserOrigins,
+		insecureLoopbackCookie:      insecureLoopbackCookie,
+		trustedProxies:              trustedProxies,
+		caFile:                      caFile,
+		certificateFile:             certificateFile,
+		privateKeyFile:              privateKeyFile,
+		developmentWorkerToken:      developmentWorkerToken,
+		developmentPlannerToken:     developmentPlannerToken,
+		performanceMetrics:          performanceMetrics,
+		pprof:                       pprof,
+		pprofListen:                 pprofListen,
+		credentialMasterKeyFile:     credentialMasterKeyFile,
+		llmGatewayAdminBindingsFile: llmGatewayAdminBindingsFile,
+		developmentLLMGateway:       developmentLLMGateway,
+
+		certificateExpiryWarningWindow: certificateExpiryWarningWindow,
+	}, nil
+}

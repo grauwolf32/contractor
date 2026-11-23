@@ -1,0 +1,75 @@
+schema_version: '1.0'
+id: V458-008
+title: Integrate retained LLM cost accounting and UI into current main
+milestone: llm-cost-reporting-2026-11
+epic: operations
+kind: chore
+priority: P1
+status: completed
+depends_on: [V458-001, V458-002, V458-003, V458-004, V458-005, V458-006, V458-007]
+languages: [go, python, sql, typescript, markdown, yaml]
+goal: Main includes the verified attributed Run Audit and Project LLM cost feature while preserving current scanner engagement and credential behavior.
+context:
+  authority: User request 2026-11-09 explicitly authorizes merging the completed LLM cost branch into main; no demo deployment or business-data reset is requested.
+  finding: >-
+    Feature head 61916812e24f3b5c9c295d507df4510433ada099 and current main
+    e3291ab0c67f0b0b7bd2ced40bef343464633fa4 diverge in public and Runtime
+    schemas, Audit UI, generated clients and migration numbers. Main already
+    owns migration 000002 for execution origins and 000003 for combined API keys.
+  design: >-
+    Reconcile in an isolated integration branch, renumber the unshipped cost
+    migration after current main, regenerate derived sources and run the
+    combined boundary checks before a no-fast-forward merge. Preserve the
+    clean main checkout and leave the unrelated dirty primary checkout intact.
+  co_land: V458-009 corrects scanner verification fixtures and V458-010 completes the Audit operation inventory. Both corrections must be included in the final verified integration head before main is updated.
+scope:
+  in:
+  - Reconcile existing changes, migration order, generated clients and UI release version without adding new product behavior.
+  - Validate merged Go PostgreSQL Runtime wire public API and browser paths, including missing-report retention.
+  - Land the verified revision in local main and record the merge result.
+  out:
+  - Remote push, demo deployment, live inference, new tables and unrelated user edits.
+acceptance_criteria:
+  - id: A1
+    text: Current main contains the completed LLM cost feature and missing-report correction alongside the scanner engagement and credential changes, with sequential migrations and generated sources consistent.
+  - id: A2
+    text: Combined focused Go and PostgreSQL suites, complete Runtime and UI checks, wire and public contracts, mocked browser gate and lint succeed; owned test resources are removed.
+  - id: A3
+    text: Main is merged without changing the dirty primary checkout; task evidence records the immutable implementation and local merge status without claiming deployment or a full release gate.
+tests:
+  - command: go test -race -count=1 ./internal/planner/session
+    covers: [A1, A2]
+  - command: go test -race -count=1 ./internal/auditdomain
+    covers: [A1, A2]
+  - command: make test-runtime
+    covers: [A1, A2]
+  - command: make test-wire-cross-language
+    covers: [A1, A2]
+  - command: make verify-public-api
+    covers: [A1, A2]
+  - command: make verify-public-api-postgres
+    covers: [A1, A2]
+  - command: make ui-verify
+    covers: [A1, A2]
+  - command: make ui-browser-mocked
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification:
+  results:
+  - Reconciled both parents in merge 88cc94d0a. All 389 main-only paths retained exact contents and modes; feature-only paths retain exact content except regenerated clients, the byte-identical cost migration rename and the two explicitly added process-browser inventory entries.
+  - Migration order is baseline 000001, main execution origin 000002, main combined API keys 000003 and unshipped LLM cost fields 000004. ERD regeneration retains 60 tables and 70 foreign keys. UI release is 0.11.28.
+  - The broad Go integration/race/PostgreSQL command passed contracts, gatewayrecovery, all other Planner packages, telemetry, runstore, runservice, runcost composition callers, projectstore, auditstore, auditservice, auditimport, controlplane, persistence, project lifecycle, app, public API and Scheduler. Its initial nonzero result came only from Planner session fixture edges and the Audit operation inventory; V458-009 and V458-010 fixed those and both complete packages passed again with race detection.
+  - Full Runtime gate passed 6120 tests with 135 declared optional/platform skips, and report verification succeeded. Optional heavy I/O was not enabled; skips are not passing coverage.
+  - make ui-verify passed 223 files and 2503 tests plus one existing expected failure, all 17 static server cases, typecheck and build. The complete mocked browser gate passed 221 tests in 33 specs with no skips or retries, including cost views in three themes at 390 and 1440 pixels.
+  - make verify-public-api, make verify-public-api-postgres, make test-wire-cross-language and UV_OFFLINE=true make lint passed. The shared gate verified 379 fixtures with 432 Go and 271 Python shared tests; one optional disk-heavy case was explicitly skipped.
+  - Six unrelated primary working-tree files retain exact hashes and modes and the staged index and HEAD remain identical to the preservation snapshot. The owned database contractor_llm_cost_merge_20261109 was dropped and its absence verified.
+  - Main was updated through no-fast-forward merge 26dc491cd70c43a701b8e0668fd0bca48e569a53 after rechecking its expected head and clean checkout. Its tree is identical to the verified integration head 73bcf84efeeb2bce23e8a76ba39e978c30c96391. No remote push, live model, demo deployment or complete release gate was run.
+implementation_commit: 26dc491cd70c43a701b8e0668fd0bca48e569a53
+delivery:
+  date: '2026-11-09'
+  merged_into_main: true
+  merge_commit: 26dc491cd70c43a701b8e0668fd0bca48e569a53
+  main_first_parent: e3291ab0c67f0b0b7bd2ced40bef343464633fa4
+  feature_head: 61916812e24f3b5c9c295d507df4510433ada099
+  verified_integration_head: 73bcf84efeeb2bce23e8a76ba39e978c30c96391

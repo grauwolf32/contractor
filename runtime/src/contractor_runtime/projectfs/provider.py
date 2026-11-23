@@ -1,0 +1,372 @@
+"""Immutable process-level providers for disposable project workspaces."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import shutil
+import stat
+import uuid
+from collections.abc import Awaitable, Callable
+from contextlib import suppress
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Protocol
+
+from contractor_runtime.contracts import (
+    WorkspaceCapabilities,
+    WorkspaceMode,
+    WorkspaceStorage,
+)
+from contractor_runtime.contracts import (
+    WorkspaceLimits as WireWorkspaceLimits,
+)
+from contractor_runtime.projectfs.config import (
+    DEFAULT_WORKSPACE_OPERATION_TIMEOUT_SECONDS,
+    WorkspaceLimits,
+    WorkspaceSettings,
+)
+from contractor_runtime.threads import to_thread_until_done
+
+logger = logging.getLogger(__name__)
+
+LOCAL_DIRECTORY_PREFIX = "workspace-"
+LOCAL_OWNER_MARKER = ".contractor-workspace-owner"
+_LOCAL_OWNER_PREFIX = "contractor-runtime-workspace-v1\n"
+_MEMORY_ROOT = "/contractor-workspaces"
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceCapabilitySnapshot:
+    storage: WorkspaceStorage
+    modes: tuple[WorkspaceMode, ...]
+    limits: WorkspaceLimits
+
+    def wire(self) -> WorkspaceCapabilities:
+        return WorkspaceCapabilities(
+            storage=self.storage,
+            modes=list(self.modes),
+            limits=WireWorkspaceLimits(
+                maxFiles=self.limits.max_files,
+                maxExpandedBytes=self.limits.max_expanded_bytes,
+                maxManagedTextBytes=self.limits.max_managed_text_bytes,
+                maxFileBytes=self.limits.max_file_bytes,
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectWorkspaceStorage:
+    """Opaque provider-owned storage handle; physical locations stay private."""
+
+    storage: WorkspaceStorage
+    root: str = field(repr=False)
+    provider_id: str = field(repr=False)
+    owner_token: str = field(repr=False)
+    operation_timeout_seconds: float = DEFAULT_WORKSPACE_OPERATION_TIMEOUT_SECONDS
+
+
+class WorkspaceProvider(Protocol):
+    @property
+    def capability(self) -> WorkspaceCapabilitySnapshot: ...
+
+    async def probe(self) -> bool: ...
+
+    async def create(self, allocation_id: str) -> ProjectWorkspaceStorage: ...
+
+    async def cleanup(self, storage: ProjectWorkspaceStorage) -> None: ...
+
+
+class LocalWorkspaceProvider:
+    """Own marker-authenticated immediate children below one dedicated root."""
+
+    def __init__(
+        self,
+        settings: WorkspaceSettings,
+        *,
+        before_initialize: Callable[[], Awaitable[None]] | None = None,
+    ) -> None:
+        if settings.storage != "local" or settings.work_root is None:
+            raise ValueError("local workspace provider requires a local work root")
+        self._operation_timeout_seconds = settings.operation_timeout_seconds
+        self._root = settings.work_root
+        self._provider_id = uuid.uuid4().hex
+        self._capability = _capability(settings)
+        self._initialization_lock = asyncio.Lock()
+        self._initialized = False
+        self._before_initialize = before_initialize
+
+    @property
+    def capability(self) -> WorkspaceCapabilitySnapshot:
+        return self._capability
+
+    async def probe(self) -> bool:
+        await self._initialize()
+        storage = await self.create("workspace-capability-probe")
+        await self.cleanup(storage)
+        return True
+
+    async def create(self, allocation_id: str) -> ProjectWorkspaceStorage:
+        if not allocation_id.strip():
+            raise ValueError("allocation ID is required")
+        await self._initialize()
+        owner_token = uuid.uuid4().hex
+        path = self._root / f"{LOCAL_DIRECTORY_PREFIX}{owner_token}"
+        if path.parent != self._root:
+            raise RuntimeError("generated project workspace escaped its root")
+        try:
+            await to_thread_until_done(_create_owned_local_workspace, path, name="workspace-create")
+        except asyncio.CancelledError:
+            # The thread has returned, and nobody owns what it created yet. The
+            # fresh name cannot belong to anything else below this root.
+            await to_thread_until_done(_discard_new_local_workspace, path, name="workspace-create")
+            raise
+        return ProjectWorkspaceStorage(
+            storage="local",
+            operation_timeout_seconds=self._operation_timeout_seconds,
+            root=str(path),
+            provider_id=self._provider_id,
+            owner_token=owner_token,
+        )
+
+    async def cleanup(self, storage: ProjectWorkspaceStorage) -> None:
+        if storage.storage != "local" or storage.provider_id != self._provider_id:
+            raise ValueError("workspace storage belongs to another provider")
+        path = Path(storage.root)
+        expected = f"{LOCAL_DIRECTORY_PREFIX}{storage.owner_token}"
+        if path.parent != self._root or path.name != expected:
+            raise ValueError("refusing to remove an unowned project workspace")
+        await to_thread_until_done(_remove_owned_local_workspace, path, name="workspace-cleanup")
+
+    async def _initialize(self) -> None:
+        async with self._initialization_lock:
+            if self._initialized:
+                return
+            if self._before_initialize is not None:
+                await self._before_initialize()
+            else:
+                # Disabling Podman cannot authorize deleting a previous bind.
+                from contractor_runtime.sandbox.podman.workroots import check_root_policy
+
+                await to_thread_until_done(
+                    check_root_policy, self._root, None, name="workspace-root-policy"
+                )
+            await to_thread_until_done(
+                _initialize_and_cleanup_local_root, self._root, name="workspace-root-cleanup"
+            )
+            self._initialized = True
+
+
+class MemoryWorkspaceProvider:
+    """Give each allocation a unique opaque handle; sessions own their managed trees."""
+
+    def __init__(self, settings: WorkspaceSettings) -> None:
+        if settings.storage != "memory" or settings.work_root is not None:
+            raise ValueError("memory workspace provider does not accept a local work root")
+        self._provider_id = uuid.uuid4().hex
+        self._capability = _capability(settings)
+
+    @property
+    def capability(self) -> WorkspaceCapabilitySnapshot:
+        return self._capability
+
+    async def probe(self) -> bool:
+        storage = await self.create("workspace-capability-probe")
+        await self.cleanup(storage)
+        return True
+
+    async def create(self, allocation_id: str) -> ProjectWorkspaceStorage:
+        if not allocation_id.strip():
+            raise ValueError("allocation ID is required")
+        owner_token = uuid.uuid4().hex
+        root = f"{_MEMORY_ROOT}/{self._provider_id}/{owner_token}"
+        return ProjectWorkspaceStorage(
+            storage="memory",
+            root=root,
+            provider_id=self._provider_id,
+            owner_token=owner_token,
+        )
+
+    async def cleanup(self, storage: ProjectWorkspaceStorage) -> None:
+        expected = f"{_MEMORY_ROOT}/{self._provider_id}/{storage.owner_token}"
+        if (
+            storage.storage != "memory"
+            or storage.provider_id != self._provider_id
+            or storage.root != expected
+        ):
+            raise ValueError("workspace storage belongs to another provider")
+
+
+def build_workspace_provider(
+    settings: WorkspaceSettings | None,
+    *,
+    before_initialize: Callable[[], Awaitable[None]] | None = None,
+) -> WorkspaceProvider | None:
+    if settings is None:
+        return None
+    if settings.storage == "local":
+        return LocalWorkspaceProvider(settings, before_initialize=before_initialize)
+    if settings.storage == "memory":
+        return MemoryWorkspaceProvider(settings)
+    raise ValueError("unsupported workspace storage")
+
+
+def cleanup_stale_local_workspaces(root: Path) -> None:
+    """Remove only immediate, regular, marker-owned allocation directories.
+
+    One undeletable predecessor must not block every later allocation: it is
+    retained with its marker, reported, and retried on the next start.
+    """
+
+    _initialize_local_root(root)
+    retained = 0
+    for candidate in root.iterdir():
+        if _is_owned_directory(candidate):
+            try:
+                _remove_tree(candidate)
+            except OSError as error:
+                retained += 1
+                logger.warning("stale project workspace cleanup failed (%s)", type(error).__name__)
+    if retained:
+        logger.warning("retained %d stale project workspaces for a later start", retained)
+
+
+def _create_owned_local_workspace(path: Path) -> None:
+    path.mkdir(mode=0o700)
+    try:
+        marker = path / LOCAL_OWNER_MARKER
+        marker.write_text(_marker_contents(path.name), encoding="ascii", newline="\n")
+        marker.chmod(0o600)
+    except BaseException:
+        _discard_new_local_workspace(path)
+        raise
+
+
+def _discard_new_local_workspace(path: Path) -> None:
+    # Best effort, as before: a directory left with its marker is removed by
+    # the next start's stale-workspace cleanup.
+    shutil.rmtree(path, ignore_errors=True)
+
+
+def _initialize_and_cleanup_local_root(root: Path) -> None:
+    cleanup_stale_local_workspaces(root)
+
+
+def _remove_owned_local_workspace(path: Path) -> None:
+    if not path.exists() and not path.is_symlink():
+        return
+    if not _is_owned_directory(path):
+        raise ValueError("refusing to remove an unowned project workspace")
+    _remove_tree(path)
+
+
+_DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+
+
+def _remove_tree(path: Path) -> None:
+    """Remove a workspace tree that its workload may have made unreadable.
+
+    Sandbox commands run with the Runtime UID and can ``chmod 000`` their own
+    directories, which defeats ``shutil.rmtree``. Owner ``rwx`` is restored on
+    each directory before it is listed. Every step is relative to a pinned
+    directory descriptor and never follows a symbolic link.
+    """
+
+    parent = os.open(path.parent, _DIRECTORY_FLAGS)
+    try:
+        if not _is_directory_entry(parent, path.name):
+            with suppress(FileNotFoundError):
+                os.unlink(path.name, dir_fd=parent)
+            return
+        # Iterative: a workload-made deep tree cannot exhaust the Python stack.
+        stack = [_open_for_removal(parent, path.name)]
+        pending = stack[0][2]
+        if LOCAL_OWNER_MARKER in pending:
+            # Popped last: a partial failure leaves a marker-owned, retryable tree.
+            pending.remove(LOCAL_OWNER_MARKER)
+            pending.insert(0, LOCAL_OWNER_MARKER)
+        try:
+            while stack:
+                directory, name, pending = stack[-1]
+                if pending:
+                    child = pending.pop()
+                    if _is_directory_entry(directory, child):
+                        stack.append(_open_for_removal(directory, child))
+                    else:
+                        with suppress(FileNotFoundError):
+                            os.unlink(child, dir_fd=directory)
+                    continue
+                stack.pop()
+                os.close(directory)
+                owner = stack[-1][0] if stack else parent
+                os.rmdir(name, dir_fd=owner)
+        finally:
+            for directory, _name, _pending in stack:
+                os.close(directory)
+    finally:
+        os.close(parent)
+
+
+def _is_directory_entry(parent: int, name: str) -> bool:
+    try:
+        return stat.S_ISDIR(os.stat(name, dir_fd=parent, follow_symlinks=False).st_mode)
+    except FileNotFoundError:
+        return False
+
+
+def _open_for_removal(parent: int, name: str) -> tuple[int, str, list[str]]:
+    mode = stat.S_IMODE(os.stat(name, dir_fd=parent, follow_symlinks=False).st_mode)
+    if mode & stat.S_IRWXU != stat.S_IRWXU:
+        try:
+            # fchmodat(AT_SYMLINK_NOFOLLOW) refuses an entry swapped for a link.
+            os.chmod(name, mode | stat.S_IRWXU, dir_fd=parent, follow_symlinks=False)
+        except (NotImplementedError, ValueError):
+            raise PermissionError("cannot restore workspace directory access") from None
+    directory = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent)
+    try:
+        return directory, name, os.listdir(directory)
+    except BaseException:
+        os.close(directory)
+        raise
+
+
+def _initialize_local_root(root: Path) -> None:
+    if not root.is_absolute() or root == Path(root.anchor):
+        raise ValueError("workspace work root must be absolute and non-root")
+    if root.is_symlink():
+        raise ValueError("workspace work root must not be a symlink")
+    if root.exists() and not root.is_dir():
+        raise ValueError("workspace work root must be a directory")
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+
+
+def _is_owned_directory(path: Path) -> bool:
+    if not path.name.startswith(LOCAL_DIRECTORY_PREFIX) or path.is_symlink():
+        return False
+    token = path.name.removeprefix(LOCAL_DIRECTORY_PREFIX)
+    if len(token) != 32 or any(character not in "0123456789abcdef" for character in token):
+        return False
+    try:
+        directory_status = path.lstat()
+        marker = path / LOCAL_OWNER_MARKER
+        marker_status = marker.lstat()
+        if not stat.S_ISDIR(directory_status.st_mode) or not stat.S_ISREG(marker_status.st_mode):
+            return False
+        if marker_status.st_size > 128:
+            return False
+        return marker.read_text(encoding="ascii") == _marker_contents(path.name)
+    except (FileNotFoundError, OSError, UnicodeError):
+        return False
+
+
+def _marker_contents(directory_name: str) -> str:
+    return f"{_LOCAL_OWNER_PREFIX}{directory_name}\n"
+
+
+def _capability(settings: WorkspaceSettings) -> WorkspaceCapabilitySnapshot:
+    return WorkspaceCapabilitySnapshot(
+        storage=settings.storage,
+        modes=("direct", "overlay"),
+        limits=settings.limits,
+    )

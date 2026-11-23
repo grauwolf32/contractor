@@ -1,0 +1,20 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: summarizer_reasoning_worker
+  version: '1'
+
+spec:
+  description: Deterministic Worker fixture with terminal summarization that includes provider reasoning
+  runtime: adk@1
+  instructions:
+    ref: instructions/worker-summarizer.md
+  summarizer:
+    contextWindowRatio: 0.9
+    cumulativeBudget: 20000
+    includeReasoning: true
+  toolsets:
+    - ref: text-artifacts@1
+      tools: [write_text_artifact]
+  sandboxProfile: local-workdir@1

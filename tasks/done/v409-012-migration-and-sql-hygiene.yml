@@ -1,0 +1,242 @@
+schema_version: "1.0"
+id: V409-012
+title: "Test the revision-count and controller-claim backfills and document migration budgets"
+milestone: sql-review-2026-10
+epic: persistence
+kind: chore
+introduced_by: V370-024
+priority: P3
+status: completed
+implementation_commit: 052acac40c9c642b199d158d13d5e199f0206c1e
+depends_on: []
+languages: [sql, go]
+goal: "Prove that the two data-moving migrations preserve their intended invariants and document the existing migration runner without rewriting applied history."
+context:
+  review: "docs/research/2026-10-23-sql-review.md, sections B and C; revalidated on main 1d533b2db885e0162ebabb01d36470f139546009 on 2026-10-23"
+  specification:
+    - docs/spec/platform/persistence.md#PER-R19
+    - docs/spec/platform/persistence.md#PER-R25
+    - docs/spec/artifacts/artifact-store.md#ART-R118
+    - docs/spec/platform/limits.md
+  finding: >-
+    Dedicated upgrade tests were not found for the revision_count backfill in
+    internal/persistence/migrations/000008_run_artifact_revision_limit.sql:25-33
+    (V370-024) or the held-Eval-claim release in
+    000014_controller_claim_shape.sql:14-16 (V370-007). This is a test-coverage
+    gap, not evidence of a failed migration. The runner in
+    internal/persistence/postgres/migrate.go:64-100 applies pending migrations
+    in one transaction and records their checksums. Its operation constraints
+    need an explicit maintenance description.
+  corrected_claims: >-
+    Historical CREATE OR REPLACE definitions are successive schema versions;
+    the installed database has one current function definition. Rewriting
+    applied files or removing ledger entries is not a hygiene fix.
+    MigrationBudgets in internal/persistence/postgres/budgets.go:68-101 has a
+    configurable 120-second statement default, not a fixed 120-second ceiling.
+    The SQL expressions previously cited in pgstore/read.go:145-153,230-236,
+    item_review_renewal.go:203-207, execution.go:153-160,
+    evalstore/projections.go:198-205,283-289 and submissions.go:91-105 are
+    separate statements shorter than ten SQL lines. The existing SQL-placement
+    tests pass; short statements in *_sql.go are also allowed.
+  decision: >-
+    Keep this task as test/documentation maintenance. A new baseline and a
+    shared updated_at helper are separate design/refactoring choices, not
+    necessary corrections of these findings. Reopen a baseline proposal only
+    with an explicit migration route, checksum-ledger handling and a verified
+    backup/data-preservation plan for any demo database; pre-production does
+    not authorize discarding business data. Reconsider a helper only with
+    named production callers and tests preserving distinct observe/advance
+    semantics and dependency direction.
+plan:
+  - "Add *_migration_test.go upgrade coverage for 000008 and 000014 using real PostgreSQL schemas at the immediately preceding migration version, then apply the original migration through the repository's migration test support. A header explanation cannot replace a data-moving migration test."
+  - "For 000008, seed empty and populated RunScopes, exempt outputs and representative ordinary revisions; verify the backfilled count matches the quota definition and subsequent inserts maintain it, including the limit boundary, while lifecycle purge removes the scope and its counter together. Do not invent per-revision decrements: revisions are not individually deleted."
+  - "For 000014, seed free and held Eval claims with nonzero epochs; verify release clears lease fields while preserving epochs and unrelated rows, then reacquisition advances the epoch and the old claim cannot authorize a mutation."
+  - "Document the runner's single transaction for all pending files, checksum immutability, transaction-local budgets, configurable defaults and the fact that CREATE INDEX CONCURRENTLY is unavailable inside this transaction. State who chooses an operation budget and require bounded work or a separately designed data migration when a backfill cannot fit it."
+  - "Run existing migration-ledger, configured-budget and SQL-placement tests as preservation checks. Keep historical migration bytes and the SQL-placement counting rule unchanged."
+scope:
+  in:
+    - "Real-store upgrade tests for 000008 and 000014, including post-upgrade behavior."
+    - "Documentation of the implemented migration transaction and budget contract."
+  out:
+    - "Baseline regeneration, edits to applied migration files, ledger rewrites or demo recreation."
+    - "Schema/runtime behavior changes, application-side migration sweeps, updated_at extraction and relocation of already compliant short SQL."
+acceptance_criteria:
+  - id: A1
+    text: "Given a pre-000008 schema with ordinary and outputs revisions across multiple scopes, when the original migration is applied, then every backfilled count matches the quota contract and later inserts enforce and maintain it, while scope purge removes the counter with its owner. The test fails if the backfill is omitted or miscounts exempt outputs."
+  - id: A2
+    text: "Given free and held pre-000014 Eval claims, when the original migration is applied, then lease fields are cleared as specified, epochs and unrelated data are preserved, and reacquisition invalidates the previous epoch. The test fails if release or epoch preservation is removed."
+  - id: A3
+    text: "The persistence documentation accurately describes the single transaction, immutable ledger, configurable timeout defaults and concurrent-DDL restriction; existing ledger, budget and SQL-placement tests pass without weakening their assertions. No historical migration bytes change."
+decisions:
+  - >-
+    Claims re-verified on base 1af545e9: the backfill is 000008_run_artifact_revision_limit.sql:25-33
+    and the release 000014_controller_claim_shape.sql:14-16; no later migration touches revision_count
+    or eval_controller_claims, and the only earlier coverage of 000014 was one held claim inside
+    TestPostgresMutationReceiptsFoldMigration (000013), which stays unchanged.
+  - >-
+    Both upgrade tests use the existing migration test support: installMigrationPrefix at the
+    preceding version in an isolated schema, then ApplyMigrations, which applies the original embedded
+    files in one run as a real upgrade does. After claude/review-v407-v409 was merged (it brought
+    000034 and its by-name helper embeddedMigration in eval_plan_readiness_migration_test.go), the
+    two upgrade tests and the run test find their predecessor with embeddedMigration(t,
+    "run_artifact_revision_limit") and embeddedMigration(t, "controller_claim_shape") instead of the
+    numbers 7 and 13; no second helper was added.
+  - >-
+    The 000008 test purges the upgraded RunScope with the lifecycle purge's own statements (the
+    contractor.lifecycle_purge setting, then bindings, revisions and the scope row in one transaction)
+    because internal/persistence/postgres cannot import internal/artifacts (import cycle). The real
+    PurgeRun of a Run at 50,000 trigger-counted revisions stays covered by
+    TestPostgresRunRevisionLimitAndBoundedPurge in internal/artifacts, which passes. No per-revision
+    decrement is assumed: the test shows the counter unchanged after the revisions are gone and
+    removed with its scope row.
+  - >-
+    The 000014 test proves "the old claim cannot authorize a mutation" through
+    NewControllerClaims("eval_controller_claims", "experiment_id").Lock, Renew, Release and Live, the
+    helper and table evalstore.checkClaim and ReleaseClaim use; evalstore tests cannot install a
+    migration prefix. The lease uses LeaseSQL with the AvailableCondition candidates, as the shared
+    claim test does.
+  - >-
+    Documentation lives in docs/spec/platform/persistence.md (Schema migrations: PER-R29 one
+    transaction, ledger and lock; PER-R30 immutable ledger and drift; PER-R31 migration budget, chosen
+    by the operator, transaction-local; PER-R32 bounded statements, separate data migration when a
+    backfill cannot fit, statements refused inside a transaction block, the NUL-escape and
+    pulled-up-subquery hazards; PER-R33 upgrade tests; a rationale with the reversal condition),
+    limits LIM-PER-9..LIM-PER-13, failure outcome FAIL-PER-5, glossary terms Migration budget and
+    Migration ledger, and invariants 24-27. docs/deployment.md said lock_timeout bounds "each DDL
+    relation-lock wait"; PostgreSQL applies it to every lock wait, rows included, so the guide now says
+    so and links the rules.
+  - >-
+    The two hazards were checked on PostgreSQL 17.11: '"a\u0000b"'::jsonb fails with 22P05, and json
+    -> and ->> fail the same way; EXPLAIN (VERBOSE) of an UPDATE over a subquery that parses
+    convert_from(doc)::jsonb shows the parse substituted at each of its two references, and once with
+    OFFSET 0. statement_timeout applies to each statement of a multi-statement simple query (two
+    0.7 s sleeps pass under a 1 s timeout), which is how pgx sends a migration file without
+    arguments.
+  - >-
+    Two checks were added so the documented contract is enforced (AGENTS 3.9), without behaviour
+    change: TestEmbeddedMigrationsStayInsideTheMigrationTransaction (no transaction control, no
+    statement PostgreSQL refuses in a transaction block, no timeout setting in any embedded
+    migration, with cases that show the checker refuses each) and
+    TestPostgresMigrationRunCommitsEveryPendingMigrationOrNone (a lock timeout in 000014 rolls back
+    000008 with it, a drifted ledger is refused before any migration runs, and the next run applies
+    8 onward). No historical migration byte and no ledger handling changed.
+  - >-
+    Review correction (client deadline): the migrator sends a migration file as one Exec
+    (migrate.go), and budgetTracer.TraceQueryStart starts one deadline of statement timeout + 5 s
+    per call, so the client deadline covers all statements of a file together while PostgreSQL
+    applies statement_timeout to each statement. The first version of PER-R31, LIM-PER-9 and
+    FAIL-PER-5 said the client ends each statement 5 s after its timeout, which was wrong. PER-R31,
+    PER-R32 (a file must fit both bounds), LIM-PER-9, FAIL-PER-5, invariant 26 and docs/deployment.md
+    now say this, and TestPostgresMigrationClientDeadlineCoversAWholeFile pins it through a pool from
+    OpenPool with a 2 s statement timeout. ApplyMigrations now delegates to an unexported
+    applyMigrations(ctx, pool, budgets, available) so the test can supply its own files; the
+    behaviour is unchanged. The test asserts outcomes, not elapsed times: each fixture is at least
+    1 s from the bound it tests, and pg_sleep never returns early.
+  - >-
+    Upgrade tests and the tracer: upgrade tests (PER-R33) keep applying migrations through the
+    tracer-less isolated pools, as all merged upgrade tests do. At test sizes a file takes seconds at
+    most, far below the 125 s default client deadline, so the tracer could not fail them; the
+    deadline has its own test. A test that measures a file near the default budget must use a pool
+    opened by OpenPool, as PER-R33 now says. Reverse this if an upgrade test starts measuring time
+    near the budget, or if the tracer gains behaviour other than deadlines.
+  - >-
+    Static scan: TestEmbeddedMigrationsStayInsideTheMigrationTransaction now splits statements with
+    explaintest.SplitStatements, which reuses the lexer the column-scoped guard check already uses
+    (nested block comments, plain, escape and dollar-quoted constants, quoted identifiers) and splits
+    where psql does (parentheses, and BEGIN ... END bodies of CREATE [OR REPLACE] FUNCTION or
+    PROCEDURE, where CASE also ends with END). Text the lexer cannot split fails the scan. The
+    hand-written tokenizer and its regular expressions for dollar tags and refused statements were
+    removed. explaintest is test support (internal/archtest), so the new export is allowed by
+    tools/testonlyexports.
+  - >-
+    Enforcement of PER-R32 and PER-R33 (AGENTS 3.9): no gate measures a migration at its bound or
+    detects a data-moving migration without an upgrade test. The spec now says both are review
+    obligations, checked against AGENTS.md sections 3.3 and 6, and records this under Non-goals with
+    the reopen condition: an upgrade within the documented limits that exceeds the default budget, or
+    a data-moving migration that lands without an upgrade test; the replacement is a gate. A missed
+    case fails the run as a timeout and applies nothing (FAIL-PER-5).
+manual_verification:
+  - check: "Manually compare the maintenance description with ApplyMigrations and MigrationBudgets; inspect the diff to confirm that no historical migration changed. This is required for A3 and is not established by lint alone."
+    covers: [A3]
+tests:
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?set a disposable PostgreSQL database URL}" go test -tags=integration -count=1 ./internal/persistence/... ./internal/artifacts/... ./internal/evalstore/...'
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A3]
+verification:
+  date: '2026-10-24'
+  revision: 052acac40c9c642b199d158d13d5e199f0206c1e
+  environment: >-
+    Worktree branch claude/rv-b (base 1af545e9, with claude/review-v407-v409 at f7ccfcd6 merged by
+    c866daf1), macOS arm64, Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20, Python 3.13 with the locked
+    Runtime venv, local PostgreSQL 17.11 database contractor_test_b (CONTRACTOR_TEST_DATABASE_URL
+    set; every database test ran, none skipped).
+  database_tests_configured: true
+  results:
+  - >-
+    go test -tags=integration -count=1 ./internal/persistence/... ./internal/artifacts/...
+    ./internal/evalstore/...: internal/persistence/postgres ok (53.6 s), persistence/explaintest ok,
+    persistence/statesettest ok, internal/artifacts ok (58.2 s, including
+    TestPostgresRunRevisionLimitAndBoundedPurge), internal/evalstore ok (40.2 s). internal/persistence
+    FAIL in one test outside this task: TestSQLAccessFollowsTableOwnership
+    (internal/cli/scan_sweep_remote.go:196 reads projects). It fails identically on the merged base
+    f7ccfcd6 in a scratch worktree, which was removed afterwards; every other internal/persistence
+    test passes, including the SQL-placement tests.
+  - 'go test -race -count=1 -tags=integration ./internal/persistence/postgres/ ./internal/persistence/explaintest/: ok (43.0 s, 1.3 s); go test ./internal/archtest/: ok; go vet of the touched packages and of the explaintest users (runstore, projectlifecycle, auditstore): clean.'
+  - 'make lint: passed (scripts/check_spec.py reports 47 consistent documents; make docs-dependencies regenerated).'
+  - >-
+    A1: TestPostgresRunArtifactRevisionLimitMigrationBackfillsRunScopes installs the version before
+    run_artifact_revision_limit, seeds RunScopes that are populated (inputs, scratch, memory and
+    outputs), empty, outputs-only and at 49,999 ordinary revisions with outputs, a User scope that
+    shares a Run's id and a Project scope, applies the original 000008 through ApplyMigrations and
+    compares every counter with the quota computed in Go from the seeds (16, 0, 0, 49,999; User and
+    Project 0). One statement writing to several scopes then counts only RunScope revisions outside
+    outputs; the 50,000th revision is accepted, the next one and a statement mixing it with an
+    outputs revision are rejected as ClassLimitExceeded with constraint
+    artifact_scopes_run_revision_limit and store nothing, outputs still bind; the lifecycle purge
+    leaves the counter unchanged after the revisions go and removes it with the scope row, while the
+    same-id User scope keeps its 11 revisions.
+  - >-
+    A2: TestPostgresControllerClaimShapeMigrationReleasesEvalLeases installs the version before
+    controller_claim_shape with free Eval claims at epochs 0 and 5, held claims at 4 (live), 7
+    (expired) and 2 (300-byte holder) and a held Audit claim. After the original 000014 every Eval
+    claim is free at its epoch, experiments and the Audit claim are unchanged, no pre-upgrade lease
+    is live, locks, renews or releases (ErrControllerClaimLost), the next LeaseSQL lease returns
+    every claim at epoch + 1, the same holder name at the old epoch stays lost while the new epoch
+    locks, and a held claim without claimed_at is rejected by eval_controller_claim_shape.
+  - >-
+    Tests can fail: in a scratch worktree at base 1af545e9 holding the tests, only the migration
+    files were mutated (scratchpad v409-012/mutate.py). Unmutated both pass; omitting the 000008
+    backfill (counters all 0), counting outputs (22, 50,002 and 4) and dropping the scope_kind
+    filter (run-mixed 25) fail the A1 test at the counter comparison; omitting the 000014 release
+    (the migration fails on eval_controller_claim_shape), resetting the epoch (held-live at epoch 0)
+    and keeping live leases by backfilling claimed_at (held-live not free) fail the A2 test. The
+    worktree was removed afterwards. The switch to embeddedMigration changed only how the
+    predecessor version is found. Applying the client-deadline test's files through the tracer-less
+    isolated pool instead of the OpenPool pool makes it fail ("statements beyond the file deadline
+    together" applies the 8 s file); the file was restored.
+  - >-
+    A3: PER-R29 to PER-R33, LIM-PER-9 to LIM-PER-13 and FAIL-PER-5 were compared with migrate.go (one
+    InTx around the polled schema lock, ledger creation, compareMigrationLedger and the
+    apply-and-record loop with one Exec per file; VerifyMigrations; SHA-256 checksums in
+    loadMigrations), budget_tracer.go (one QueryTimeout deadline per Exec or Query call, AcquireTimeout
+    per acquisition), budgets.go (DefaultMigrationBudgets 120 s and 10 s; 1 ms <= lock < statement <=
+    24 h - 5 s; Budgets of 5 s acquisition, statement + 5 s query, 60 s idle; run deadline max(15
+    min, query + 5 min); ApplyTransactionBudget with set_config(..., true)) and migrate_command.go
+    (environment defaults, flags override, ServerConfig budgets unused).
+    TestPostgresMigrationClientDeadlineCoversAWholeFile shows on an OpenPool pool with a 2 s
+    statement timeout that three 1 s statements apply, one 4 s statement fails with 57014, and eight
+    1 s statements fail as a client timeout without a SQLSTATE, neither leaving the file or the ledger.
+    TestPostgresMigrationRunCommitsEveryPendingMigrationOrNone shows a lock timeout in
+    controller_claim_shape rolling run_artifact_revision_limit back with it, a drifted ledger refused
+    before any migration runs and the next run applying the rest.
+    TestEmbeddedMigrationsStayInsideTheMigrationTransaction passes on every embedded migration
+    (000001 to 000034) and refuses each bad case, including statements after a BEGIN ATOMIC body and
+    unsplittable text; TestSplitStatementsEndsStatementsWherePsqlDoes covers block comments, escape
+    strings, dollar quotes, parentheses and BEGIN ATOMIC. git diff 1af545e9 --
+    internal/persistence/migrations shows only the merged 000034, and no historical migration or
+    ledger handling changed. Existing ledger and budget tests pass unchanged.
+  - >-
+    Declined: make test-runtime and make ui-verify (no Runtime or UI change) and a full make test-go
+    (no production behaviour change; the suites of the touched packages and of the packages the task
+    names ran above).

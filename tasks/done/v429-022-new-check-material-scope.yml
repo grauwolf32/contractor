@@ -1,0 +1,101 @@
+schema_version: "1.0"
+id: V429-022
+title: Explore material-derived scope and an inline checklist editor
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: completed
+depends_on: [V429-021]
+languages: [html, css, javascript, go]
+goal: Let users understand check coverage from their materials, author a custom checklist in the New check preview and inspect Engagement under Scope.
+demonstration: Open API and custom-checklist examples, author and attach three checklist entries locally, see the exact item count update, then inspect a source review without a Scope card and an Engagement scope example without starting any real check.
+context:
+  authority: >-
+    User decisions 2026-11-02: derive scope from artifact type where appropriate;
+    support custom checklist authoring in the UI; omit Scope for source code;
+    consider placing Engagement under Scope. Later review asks for a cleaner, more
+    polished editor that starts with one empty item rather than three examples. This continues the local design
+    exploration, with original OpenDesign data retained and no production transfer.
+  specification: docs/spec/audits/audits.md#AUD-R141
+  design: docs/design/ui/README.md
+  decision: >-
+    Prototype presentation only. Selected exact OpenAPI/checklist contents determine
+    displayed coverage; the profile still owns inventory and limits. Source archives
+    have no file-scope control; authored ASVS full/pilot variants remain in check
+    settings. Inline authoring serializes the current checklist document contract
+    with stable entry keys, static methods, automatic review policy and no required
+    evidence by default. Ordinary Artifact persistence remains the future owner.
+    The Engagement example uses the existing typed contract as a read-only Scope
+    projection. It grants no authority, does not attach an undeclared profile input,
+    and blocks demo Start because compatibility has not been established. Implementing
+    engagement support, arbitrary endpoint subsets or production persistence needs
+    separate work and is outside this task.
+scope:
+  in:
+    - Retained content fixtures, derived API/checklist coverage and source-only scope removal.
+    - Bounded inline checklist editing, local exact revisions, honest dirty/empty readiness and stable IDs.
+    - Read-only Engagement target/routes/exclusions/limits under Scope, with no unsupported launch claim.
+    - Responsive shared-theme presentation, functional browser verification and domain validation of generated documents.
+  out:
+    - Production UI/API/schema/catalog changes, real saves/uploads/launches, new scope authority and model calls.
+requirements:
+  - id: R1
+    text: Coverage uses selected content and profile limits; MIME alone is never proof of document kind or authorization.
+  - id: R2
+    text: Inline checklist entries retain stable key/version/statement/applicability/allowed_methods/required_evidence/review_policy fields from AUD-R141; empty, invalid or unapplied edits cannot start the demo check.
+  - id: R3
+    text: Source-only reviews omit Scope, ASVS variant identities survive, and Engagement remains a separate typed authorization projection under Scope.
+failure_outcomes:
+  - operation: Local checklist apply
+    permanent: Keep edits visible and block Apply/Start for empty statements, byte bounds or profile item overflow.
+    retryable: Correct local fields and apply again; no remote retry exists.
+    ambiguous: No business write occurs; only one local revision is selected per successful Apply.
+    cancelled: Switching check types retains local edits; refresh resets the demo.
+    timeout: Synchronous bounded local work; no background task.
+cardinality:
+  - collection: Checklist entries
+    expected: Three
+    maximum: 128, matching the demonstrated profile; statements at most 64 KiB UTF-8 and document at most 8 MiB from auditdomain limits
+    bound: One bounded editor list and one selected local artifact; applying replaces that artifact rather than accumulating every version in the UI.
+  - collection: Scope examples
+    expected: Six API operations, three checklist items and one engagement
+    maximum: Four check-type examples and four readiness scenarios
+    bound: Fixed synthetic documents, no API enumeration or external target request.
+lifecycle:
+  - entity: Local checklist draft and applied revision
+    delete: Local item removal only, with no persistent application writes.
+    cascade: No Contractor business entity is created.
+    retention: Preserve model originals and prior preview versions; archive reviewed prototype and captures.
+acceptance_criteria:
+  - id: A5
+    text: The checklist editor opens with one empty item, calm initial guidance and a lighter layout with clear add/apply actions; existing project checklists retain their actual items.
+  - id: A1
+    text: API coverage is derived from a real synthetic OpenAPI document; source-only reviews omit Scope; ASVS pilot/full identities remain selectable.
+  - id: A2
+    text: Users can add, edit, remove and apply checklist entries; exact derived counts update, stable keys survive edits, invalid/dirty content blocks Start, and generated JSON validates with the existing Go inventory owner.
+  - id: A3
+    text: Engagement is shown under Scope with real contract fields and no Materials duplication or claim of executable compatibility; desktop and 390px work on all themes without overflow.
+  - id: A4
+    text: Original OpenDesign output and prior previews are preserved, current preview is open, and no production code, business mutation or outbound request is introduced.
+tests:
+  - command: node docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify.mjs
+    covers: [A1, A4]
+  - command: node docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify-scope.mjs
+    covers: [A1, A2, A3, A4, A5]
+  - command: go run docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify-content.go
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A4]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2, A3]
+  - command: git diff --check
+    covers: [A4]
+
+verification:
+  - Final verify.mjs passed 36 layouts and original-controller/token/isolation checks.
+  - Final verify-scope.mjs passed 36 scope/editor/Engagement layouts, one empty initial item with quiet guidance, stable keys/versions, empty/dirty/UTF-8 limits and 128 items.
+  - verify-content.go validated six OpenAPI operations, the checklist fixture, typed Engagement and sixteen final browser-authored documents with existing Go owners.
+  - make lint passed for the scope/editor implementation; final browser/domain and task/spec checks passed after editor polish. No production source changed.
+  - Native desktop editor and mobile Engagement were inspected. V2/V3 candidates, original OpenDesign output and new V4 captures are retained. The final editor is open at 127.0.0.1:17567; no production transfer or main merge.
+implementation_commit: 74eeb84c016cefd63dedbe092d6f056be91c7f7a

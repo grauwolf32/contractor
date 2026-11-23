@@ -1,0 +1,31 @@
+{
+  "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+  "resultSha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+  "checks": [
+    {
+      "id": "evidence-review",
+      "revision": "r1",
+      "rubric": "PRIVATE_RUBRIC_SENTINEL",
+      "expected": {
+        "answer": "PRIVATE_TRUTH_SENTINEL",
+        "location": "/private/oracles/SECRET_PATH_SENTINEL"
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "id": "evidence-1",
+      "artifact": {
+        "scope": "project",
+        "scopeId": "evaluation-1",
+        "namespace": "sources",
+        "name": "trace-source",
+        "revision": "rev-1",
+        "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+        "mediaType": "application/zip",
+        "sizeBytes": 5
+      }
+    }
+  ],
+  "gaps": []
+}

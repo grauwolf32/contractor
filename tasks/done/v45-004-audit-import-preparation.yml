@@ -1,0 +1,76 @@
+schema_version: '1.0'
+id: V45-004
+title: Separate Audit result preparation and index pinned standards
+milestone: server-maintainability
+epic: quality
+kind: defect
+introduced_by: V25-007
+priority: P2
+status: completed
+depends_on: []
+languages:
+- go
+goal: Separate Audit result preparation and index pinned standards.
+context:
+  verified_evidence: collectSucceeded spans 233 lines and 10 loops; proposal validation rereads all pinned
+    standards and scans entries/mappings/contracts repeatedly.
+  current_contract: Behavior-preserving refactoring of the existing Go Server. Preserve exact pinned identities,
+    authority checks and operation/resource ownership. Tests describe the required verification, not measured
+    production performance.
+scope:
+  in:
+  - Separate result loading, member/evidence/proposal validation, retention and receipt construction.
+  - Load pinned standards lazily once per collection operation and index exact entries, mappings and evidence
+    contracts.
+  - Preserve deterministic output order and idempotent artifact retention.
+  out:
+  - Global mutable caches, acceptance policy changes, dropping exact digest validation and partial batch
+    acceptance.
+requirements:
+- id: R1
+  text: Keep dependencies explicit and changes confined to this task; preserve unrelated working-tree
+    changes.
+- id: R2
+  text: Use existing behavior tests and add regressions for newly exposed boundaries or bounded query
+    counts.
+acceptance_criteria:
+- id: A1
+  given: The current Server contracts and supported input fixtures.
+  when: The refactored path executes.
+  then: Multiple proposals against the same pinned standards reuse validated packages within one operation
+    and reject invalid or foreign references.
+- id: A2
+  given: Failures, boundary cases and existing lifecycle behavior.
+  when: The relevant regression suite runs.
+  then: Successful, missing, invalid, failed and cancelled results preserve dispositions, evidence ownership,
+    retained artifacts and replay behavior.
+tests:
+- name: import-race
+  command: go test -race -count=1 ./internal/auditimport ./internal/auditdomain ./internal/auditstandards
+  covers:
+  - A1
+  - A2
+- name: postgres-consumers-race
+  command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -race -count=1
+    ./internal/auditcontroller ./internal/auditservice ./internal/app
+  covers:
+  - A1
+  - A2
+- name: diff
+  command: git diff --check
+  covers:
+  - A1
+  - A2
+implementation_commit: 24dea7a68f77f874709990368042820f34bfb135
+verification:
+  verified_on: '2026-09-07'
+  results:
+  - Import, domain and standards race suites passed; PostgreSQL integration race suites passed for
+    auditcontroller, auditservice and app in an isolated temporary PostgreSQL 16 container.
+  - Regression verifies one pinned-standard read per collection attempt across receipt retention and
+    multiple proposals, and fresh exact validation after the retained payload changes between attempts.
+  - Existing tests preserve result dispositions, proposal and evidence membership, exact standard
+    mappings and replay behavior.
+  - collectSucceeded decreased from 233 to 76 lines; preparation, proposal resolution and retention
+    now have separate functions, and standard matching uses indexed lookups.
+  - go vet for import, domain and standards packages and git diff --check passed.

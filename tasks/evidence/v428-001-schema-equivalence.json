@@ -1,0 +1,315 @@
+{
+  "authority": "User-requested baseline fold, 2026-10-31",
+  "source_commit": "bfa7bffa42f2cc29507ee0dc98dc818b1ab89ecf",
+  "source_migrations": [
+    {
+      "name": "000001_baseline.sql",
+      "sha256": "5b9318669eb7edd9841c995681deb982cfa9b1b1d6cb20abd300f21ec797910c"
+    },
+    {
+      "name": "000002_active_run_state_indexes.sql",
+      "sha256": "25da6fd993bf71bcb05dfe932eda4fa55da2118af27c92b80a9918343469ad9d"
+    },
+    {
+      "name": "000003_audit_event_allocator.sql",
+      "sha256": "d2298c5a47ddfbd710dd31a6e079b78912849455defc7a02daaa902e8810e411"
+    },
+    {
+      "name": "000004_audit_report_pages.sql",
+      "sha256": "8e32ae5afab87184d0ef6879f95b0792104ffea0d639f03276e4e1fb3033f660"
+    },
+    {
+      "name": "000005_stage_output_publication_failures.sql",
+      "sha256": "43ea522e132d2ba6cf941b789c4dfc0357bbacad55317e7170d6324253929077"
+    },
+    {
+      "name": "000006_scheduler_claim_order.sql",
+      "sha256": "b90e5b99c25eebcb2885e378973ac19b6286fdf55900b5c6cdb2d471cd5828d7"
+    },
+    {
+      "name": "000007_gateway_recovery_probe_holder_index.sql",
+      "sha256": "a216ee61c298e721b3b31f4243b56e06f1cc95bde15e0b1f4b9dc2c537a9435c"
+    },
+    {
+      "name": "000008_run_artifact_revision_limit.sql",
+      "sha256": "ce7949731bea05ad1437e8d8cff4b1bb800cd41930ac16c0703534c3e869194e"
+    },
+    {
+      "name": "000009_project_artifact_listing_index.sql",
+      "sha256": "d519577ae5e778cbfbd74289594795d314bb94382070268b9d4ef29c497432be"
+    },
+    {
+      "name": "000010_finding_receipt_project_purge.sql",
+      "sha256": "a32ee016fd77abd602931ee0e578cf8b56f230d83e930ecffb128cc4b1ad5a9b"
+    },
+    {
+      "name": "000011_foreign_key_probe_indexes.sql",
+      "sha256": "4ccc50fc22f4bcb9a5f2ec1dd2c4e2c4613c0c6dd850deaaa7e169b2b29af075"
+    },
+    {
+      "name": "000012_workflow_run_trigger_conditions.sql",
+      "sha256": "5eedda98e1f1138827b1dc4808be9461625b49307bb74ddc4b3290dc00fd2fb0"
+    },
+    {
+      "name": "000013_mutation_receipts.sql",
+      "sha256": "2b79b34af4f602ec68e80e4cfa6996edc67607ce19cea62d4d0b06ed30952c85"
+    },
+    {
+      "name": "000014_controller_claim_shape.sql",
+      "sha256": "b66b6ad0807c09d74fbd627f53e847a5a6c63425187aab609e41f5b077b42760"
+    },
+    {
+      "name": "000015_per_blob_storage.sql",
+      "sha256": "01a2a5510b8114aff65a945bc38d0b218e2397f97cfdea04283599628541a8e9"
+    },
+    {
+      "name": "000016_summary_planner_escalation.sql",
+      "sha256": "795d099d61c03c476a0e4833c986a1135c3ee54668010907838a8a4d738d70a4"
+    },
+    {
+      "name": "000017_audit_purge_pointer_indexes.sql",
+      "sha256": "ba6763879d2f4edffcbc459d3c99584a0661e88747f9e500548c9799409a6095"
+    },
+    {
+      "name": "000018_eval_projection_lock_order.sql",
+      "sha256": "e76e66f1082ed0adf4eca6af779725add357b4512b800c7ceea334e8ca739e92"
+    },
+    {
+      "name": "000019_project_active_checks.sql",
+      "sha256": "a7205bff8401e206db7247e8e891b48290b43563ef797dffedefff61ecd21949"
+    },
+    {
+      "name": "000020_model_selection_settings.sql",
+      "sha256": "727a518b279e607002e3b14820d38a4364ecb623c6b325601769658805fdb457"
+    },
+    {
+      "name": "000021_git_analysis_provenance.sql",
+      "sha256": "87bccc16e496d6d7b01e4b34f24ae98d393924dde522763db1556f48e0ac6626"
+    },
+    {
+      "name": "000022_finding_fingerprint_projection.sql",
+      "sha256": "69d81fe851933f511a4d2b346255b78d50d535edd2aa174cc603331c764252b6"
+    },
+    {
+      "name": "000023_finding_structural_anchors.sql",
+      "sha256": "673a4247c22e39297281e23fcf94e7648c0797aae7ba0a637a58fc3c2b281a17"
+    },
+    {
+      "name": "000024_finding_automatic_correlation.sql",
+      "sha256": "2c2a4e5274fe507f87bd5aaefd49852b9dbdcadffbd4373fc97198933f098a69"
+    },
+    {
+      "name": "000025_finding_comparison_reads.sql",
+      "sha256": "59858bfd144457177aa897d2208639e6c95b5c53ac5814f962bf82cf8258490e"
+    },
+    {
+      "name": "000026_model_free_lane_pool.sql",
+      "sha256": "89e3e8678d3334fd04835fcef5933b9ffada9d2268a21e6b16f3ef60838e56e6"
+    },
+    {
+      "name": "000027_audit_dispatch_windows.sql",
+      "sha256": "ef367144c75f4d41d8c4a671053c0fecaf8e0b8f6a3681afc67ea4ef6bf0862b"
+    },
+    {
+      "name": "000028_interactsh_credential.sql",
+      "sha256": "97e9e97f8123846f63a69c72bd9fffb24cba66fc81e8024d97565918cec0f9f0"
+    },
+    {
+      "name": "000029_eval_stage_metrics_retention.sql",
+      "sha256": "7eff8bd27655f42430027d57cec3f4e513122aa05efba69db392f64dbac1db20"
+    },
+    {
+      "name": "000030_allocation_report_received.sql",
+      "sha256": "52d68385c8540955898216fe722ed943dbf6c88693b76d7ac6d815fcce384d46"
+    },
+    {
+      "name": "000031_scan_sweeps.sql",
+      "sha256": "1cf71c436fc4c8648fc518cbcd738c9194317e812f04bca7fa8eb22a5df5e7a1"
+    },
+    {
+      "name": "000032_runtime_placement_labels.sql",
+      "sha256": "1261323fd9f279af9e4f0bc80ffd5f2146a6241f99ba087fd64659e45ac16099"
+    },
+    {
+      "name": "000033_audit_snapshot_labels.sql",
+      "sha256": "eca0b028241525be1db0439daefe8c56b4d0de3fef029094748922b724ec49b9"
+    },
+    {
+      "name": "000034_stage_trigger_scope_and_held_audit_indexes.sql",
+      "sha256": "9ba3ef83c192591257f88d0213208ea38418a808ca635320ab397cf6dc551543"
+    },
+    {
+      "name": "000035_eval_plan_readiness.sql",
+      "sha256": "dae76f99f0573cd3237b0138a6f2a54548c4ceafb8238eb88447878124bc0395"
+    },
+    {
+      "name": "000036_audit_item_review_subject_index.sql",
+      "sha256": "68af17cdb53ba219bc603246c244b4e9a20d33de0a173198f34537557cfe5208"
+    },
+    {
+      "name": "000037_trigger_scope_for_unrelated_updates.sql",
+      "sha256": "03f24f02ab51f4fa0bb2bbba3f83cfb007d8b6474f15fe5bcd3bdee05c1b6e02"
+    },
+    {
+      "name": "000038_eval_view_pair_filters.sql",
+      "sha256": "7cbdb6bf27f69a433cd950e471020e95f4d293e94fc75be1b421a96724dc8afc"
+    },
+    {
+      "name": "000039_index_consolidation.sql",
+      "sha256": "e959514df3b31db9df55ba02d167a6df58152d5f433a0df38eed1090dcf41a12"
+    },
+    {
+      "name": "000040_eval_experiment_list_indexes.sql",
+      "sha256": "ca596e23f6975655046dadf8e78d253cb25c01d28886003ad22e6ab61461c0cf"
+    },
+    {
+      "name": "000041_finding_correlation_fences.sql",
+      "sha256": "c7620c5c2d3e783783c2fe5f826e03a5f368ad8bc677018fb19977e7018d4b5c"
+    },
+    {
+      "name": "000042_finding_hold_receipt_time.sql",
+      "sha256": "a2d8e7851200999f8dcdfb641ceb3295d35026eff6d800131f68a09431665f05"
+    },
+    {
+      "name": "000043_artifact_history_retention.sql",
+      "sha256": "614a2e7561849e9b5b9e31d49acca0c04f34e5928e0925757567044c5ea25421"
+    },
+    {
+      "name": "000044_target_credentials.sql",
+      "sha256": "90ccc16594bbf48af39ecde9e5957d78ab80dd62ca45109c0650b67b627f3fdd"
+    },
+    {
+      "name": "000045_discarded_finding_report_projection.sql",
+      "sha256": "3ed2632dca1633044df7d121b7e680642d329c857ed150ecee18993e04bf73ba"
+    },
+    {
+      "name": "000046_audit_round_results.sql",
+      "sha256": "4d3a4b822337825a8fdffe87c41e3ca11332677fe5eb413abf608801c9ea21f0"
+    },
+    {
+      "name": "000047_audit_retained_dependencies.sql",
+      "sha256": "48cfa44073a4cce19cf59bc798a401e505ca5bc52ad02b5b1dcf37c93836ad16"
+    },
+    {
+      "name": "000048_audit_typed_admission.sql",
+      "sha256": "2b1aad3a25360cce76d80ee62c88a46ee0f2f894f6f88c08ad5caf8491f3a9bf"
+    },
+    {
+      "name": "000049_project_sitemap_receipts.sql",
+      "sha256": "afaa69409e1e3539a4795ba681999ee771270b3ffeb7f07857ea023f717ed9d7"
+    },
+    {
+      "name": "000050_context_projection_lineage.sql",
+      "sha256": "d5f6776c8a27bda9e59486388e4f4b576454fcabf544ddc53d4be4ae84b69ecf"
+    },
+    {
+      "name": "000051_audit_accepted_plan_projection.sql",
+      "sha256": "34eb2da9377c6ed4e4e79dc5abb98ec8417ca77a7a525361d66ff97a486ad5cc"
+    },
+    {
+      "name": "000052_audit_execution_manifest_transition.sql",
+      "sha256": "1b12d8cb83367ce87f57fc4fa42933ac9e69583e5e20d0c29c6bda37c9c94658"
+    },
+    {
+      "name": "000053_audit_admission_chain_transition.sql",
+      "sha256": "1882c47de761b26ea5b2a6a4b74b67a726c01034280b3dd95c6bfab5840b9d49"
+    },
+    {
+      "name": "000054_artifact_scope_creation_immutable.sql",
+      "sha256": "f50ca7f2e8668446bdb4710050b0a90f497b700143fb8f09f9ec733c82c3fd1e"
+    },
+    {
+      "name": "000055_finding_report_preconditions_transition.sql",
+      "sha256": "2aade8e227bf9f2eb45bdbdbf3b23aab851aefee518010f69081756dd885736d"
+    },
+    {
+      "name": "000056_project_mutation_receipts.sql",
+      "sha256": "f5e67667048894a2188d6f458a90a6828375bdb03df872868df5bed0b5e006cf"
+    },
+    {
+      "name": "000057_audit_pentest_actions.sql",
+      "sha256": "2a7b391d1d5b2e14082f44608617034c07a652a2f744de3d29fe9e04bcdbff5e"
+    },
+    {
+      "name": "000058_pentest_identity_actions.sql",
+      "sha256": "5c98860c0421e2dd3c57a0c5368cd5ccc1419b1e974eb8ffeacd9a7e67ae29c3"
+    },
+    {
+      "name": "000059_server_operation_stages.sql",
+      "sha256": "a0fa161567dda9ea27572cdaf0b43ebadd473e38b9e48e05d3f5675f7ee391ae"
+    },
+    {
+      "name": "000060_manual_pentest_sessions.sql",
+      "sha256": "4fa3e3379ab71116a5135fb9f059d65af280836daec3fa8ae5bd6c654ba4b3bd"
+    },
+    {
+      "name": "000061_explicit_audit_http_credentials.sql",
+      "sha256": "26a1f6d7669ea51b4bcbb76c44d9d2a87f4a77487169b2a9f32fb79d4f9f636c"
+    },
+    {
+      "name": "000062_remove_pentest_request_journal.sql",
+      "sha256": "6d266cb0b25614c4391fab88ed8d0373f903d6744168c7923a263b10775b600d"
+    },
+    {
+      "name": "000063_restorable_table_functions.sql",
+      "sha256": "8a0445658a2ac2ee8fc40aa7b5c3c2caa36623fd78d8fbc0e0639a042c0ec06c"
+    },
+    {
+      "name": "000064_canonical_git_source_url_bound.sql",
+      "sha256": "c245c2db24040871571ab66a2ea124751a0c09d0e7baef7be2ab606795d7b94c"
+    },
+    {
+      "name": "000065_project_active_run_index.sql",
+      "sha256": "ebe3f25f603a3b58498adcc921da43ad3c702fe40441baf71f572b1dd19110e0"
+    }
+  ],
+  "comparison": "Equal PostgreSQL catalogs and seed rows, excluding the migration ledger, physical dropped-column gaps and the per-database scheduler seed timestamp.",
+  "normalizations": [
+    {
+      "object": "finding_anchor_projection_shape",
+      "reason": "PostgreSQL flattened nested AND operands when restoring its CHECK expression."
+    },
+    {
+      "object": "finding_fingerprint_projection_shape",
+      "reason": "PostgreSQL flattened nested AND operands when restoring its CHECK expression."
+    },
+    {
+      "object": "finding_proposal_receipts_report_projection_check",
+      "reason": "PostgreSQL flattened nested AND operands when restoring its CHECK expression."
+    },
+    {
+      "object": "contractor_valid_run_runtime_snapshot(jsonb,text[])",
+      "reason": "PostgreSQL added an unused column alias to the second UNION ALL branch; the first branch owns output names."
+    }
+  ],
+  "counts": {
+    "relations": 76,
+    "columns": 880,
+    "constraints": 755,
+    "indexes": 290,
+    "triggers": 141,
+    "functions": 146,
+    "views": 1,
+    "sequences": 1,
+    "seed_rows": 1,
+    "placement_seed": 1,
+    "scheduler_seed": 1,
+    "row_counts": 74,
+    "sequence_state": 1
+  },
+  "catalog_sha256": "170aedc7422f490a0dda990f90c8cdd6a43acece4be398194812e011df4f8682",
+  "baseline_sha256": "8e99174cbbb0f4ee8f9ebb8510ea6372d36bd024e6e7630b524a2734e918df71",
+  "verification": {
+    "fresh_production_migrator": {
+      "applied": 1,
+      "current_version": 1
+    },
+    "production_migrator_replay": {
+      "applied": 0,
+      "current_version": 1
+    },
+    "retired_chain_ledger": "Rejected as migration drift without changes; catalog and data compared again after rejection.",
+    "postgres_version": "17.11",
+    "scheduler_seed": "updated_at remains the per-database clock_timestamp() default; all stable seed fields and row counts compare equal."
+  }
+}

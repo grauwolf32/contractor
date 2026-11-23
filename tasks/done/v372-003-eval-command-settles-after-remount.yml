@@ -1,0 +1,54 @@
+schema_version: "1.0"
+id: V372-003
+title: "Settle a finished Eval command in the controls that observe it"
+milestone: hub-audit-defects-2026-10
+epic: evals
+kind: defect
+priority: P1
+status: completed
+implementation_commit: "4ccff939f750f0ac8ae275339caa9b0d1d6f4b98"
+depends_on: []
+languages: [typescript]
+goal: "Every mounted Eval controls instance leaves the waiting state as soon as it observes that its pending command finished, even when another instance ran the poll that finished it."
+context:
+  review: "CI run 38177979932 of PR grauwolf32/contractor#544 (head 81cacf9), job release-verify-browser-a, TestManagedEvalsNativeStack"
+  severity: medium
+  finding: >-
+    ui/src/routes/evals/controls.tsx:196-203 settles a polled command only
+    inside the query function of the instance that runs the fetch. The
+    detail view (ui/src/routes/evals/detail.tsx:275-281) replaces the
+    controls while a command runs: DraftSetup is keyed by revision and the
+    ready view mounts a new EvalControls. A replacement reads the pending
+    command from storage and joins the earlier instance's in-flight poll; the
+    poll settles only the unmounted instance, the shared receipt reads
+    completed, polling stops, and the new instance keeps the command pending
+    with every command button disabled. In the browser stack Start stayed
+    disabled for 15 s under "Prepare: completed. Waiting for the server to
+    confirm." although the experiment was ready. The outcome depends on
+    whether the experiment poll or the command poll lands first, so the test
+    fails intermittently. The code predates the shallow history (6349621), so
+    introduced_by is unknown.
+  siblings: >-
+    The mutation path settles from its own onSuccess with the response of the
+    request it sent, which belongs to the instance that sent it; a
+    replacement recovers the stored command and observes its receipt through
+    the same query, so the observed-receipt path covers it. No other Eval
+    component polls commands.
+scope:
+  in:
+    - "Settle from the receipt each instance observes (an effect on the query data) instead of inside the query function; keep one settle per command and instance."
+    - "A component test in which the controls observe a finished receipt they never fetched and must leave the waiting state."
+  out:
+    - "The experiment polling cadence and the Server command API."
+acceptance_criteria:
+  - id: A1
+    text: "Given a stored pending command whose finished receipt is already in the query cache, when the controls mount, then they clear the stored command, show the receipt and enable the commands without fetching."
+  - id: A2
+    text: "A command the controls poll themselves still settles once, with the experiment and list refreshes."
+  - id: A3
+    text: "The component test fails on the previous code."
+tests:
+  - command: "cd ui && corepack pnpm exec vitest run src/routes/evals"
+    covers: [A1, A2, A3]
+  - command: "cd ui && corepack pnpm exec eslint src/routes/evals && corepack pnpm exec tsc --noEmit -p ."
+    covers: [A1]

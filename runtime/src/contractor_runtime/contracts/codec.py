@@ -1,0 +1,133 @@
+"""Private Runtime protocol codec models and validation."""
+
+from __future__ import annotations
+
+from functools import cache
+from types import UnionType
+from typing import Annotated, Any, Literal, Union, get_args, get_origin
+
+from pydantic import (
+    BaseModel,
+    ValidationError,
+)
+
+from contractor_runtime.contracts.base import API_VERSION, VersionedWireModel, WireModel
+from contractor_runtime.contracts.reports import AllocationFinalResponse, RuntimeReport
+from contractor_runtime.strict_json import DuplicateJSONKey, strict_json_loads
+
+
+class PrivateProtocolDecodeError(ValueError):
+    """Bounded private-wire failure whose rendering never includes input."""
+
+    def __init__(self, reason: Literal["version", "duplicate_key", "schema", "invariant"]):
+        self.reason = reason
+        super().__init__(f"private protocol {reason} error")
+
+
+def decode_private[PrivateModelT: WireModel](
+    model: type[PrivateModelT], raw: str | bytes
+) -> PrivateModelT:
+    """Decode one secret-bearing private document without reflecting input in errors."""
+
+    if (
+        issubclass(model, AllocationFinalResponse)
+        and len(raw.encode("utf-8") if isinstance(raw, str) else raw) > 1024 * 1024
+    ):
+        raise PrivateProtocolDecodeError("schema")
+    try:
+        value = strict_json_loads(raw)
+    except DuplicateJSONKey:
+        raise PrivateProtocolDecodeError("duplicate_key") from None
+    except (ValueError, UnicodeDecodeError, TypeError):
+        raise PrivateProtocolDecodeError("schema") from None
+    if not isinstance(value, dict):
+        raise PrivateProtocolDecodeError("schema")
+    if issubclass(model, VersionedWireModel) and value.get("apiVersion") != API_VERSION:
+        raise PrivateProtocolDecodeError("version")
+    try:
+        _require_wire_names(model, value)
+    except _WireMemberError:
+        raise PrivateProtocolDecodeError("schema") from None
+    try:
+        # Keep Pydantic's strict JSON conversions (notably RFC 3339 strings to
+        # aware datetimes) after the duplicate-key pre-scan above.
+        return model.model_validate_json(raw, context={"private_wire": True})
+    except ValidationError as error:
+        reason: Literal["schema", "invariant"] = "invariant"
+        if any(item["type"] != "value_error" for item in error.errors(include_input=False)):
+            reason = "schema"
+        raise PrivateProtocolDecodeError(reason) from None
+
+
+class _WireMemberError(ValueError):
+    def __init__(self):
+        super().__init__("private protocol contains an unknown member")
+
+
+@cache
+def _wire_fields(model: type[BaseModel]) -> dict[str, Any]:
+    return {field.alias or name: field.annotation for name, field in model.model_fields.items()}
+
+
+def _require_wire_names(annotation: Any, value: object) -> None:
+    """Check model members without changing Pydantic's strict JSON conversions.
+
+    Pydantic 2.13 silently drops some disabled optional name aliases. Model
+    before/wrap validators also lose JSON-only datetime conversions, so this
+    boundary check walks existing field metadata before ordinary validation.
+    Untyped JSON and dictionary keys retain their own contracts.
+    """
+    origin = get_origin(annotation)
+    args = get_args(annotation)
+    if origin is Annotated:
+        _require_wire_names(args[0], value)
+    elif origin in {Union, UnionType}:
+        candidates = [
+            item
+            for item in args
+            if (
+                isinstance(value, dict)
+                and (
+                    get_origin(item) is dict
+                    or (isinstance(item, type) and issubclass(item, BaseModel))
+                )
+            )
+            or (isinstance(value, list) and get_origin(item) in {list, tuple})
+        ]
+        if not candidates or Any in args:
+            return
+        for item in candidates:
+            try:
+                _require_wire_names(item, value)
+            except _WireMemberError:
+                continue
+            return
+        raise _WireMemberError
+    elif (
+        isinstance(annotation, type)
+        and issubclass(annotation, BaseModel)
+        and isinstance(value, dict)
+    ):
+        fields = _wire_fields(annotation)
+        if value.keys() - fields.keys():
+            raise _WireMemberError
+        for name, child in value.items():
+            if annotation is RuntimeReport and name == "resources":
+                # The report owner discards malformed optional telemetry;
+                # it must run this check inside its existing isolation path.
+                continue
+            _require_wire_names(fields[name], child)
+    elif origin is dict and isinstance(value, dict):
+        for child in value.values():
+            _require_wire_names(args[1], child)
+    elif origin in {list, tuple} and isinstance(value, list):
+        for child in value:
+            _require_wire_names(args[0], child)
+
+
+def decode_private_value[PrivateModelT: WireModel](
+    model: type[PrivateModelT], value: dict
+) -> PrivateModelT:
+    """Validate an A2A DataPart with exact wire names, including nested models."""
+    _require_wire_names(model, value)
+    return model.model_validate(value)

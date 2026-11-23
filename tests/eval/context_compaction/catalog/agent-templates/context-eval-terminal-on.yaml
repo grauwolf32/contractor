@@ -1,0 +1,22 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: context-eval-terminal-on
+  version: '4'
+spec:
+  description: Deterministic Worker fixture with one-shot terminal summarization enabled
+  runtime: adk@1
+  instructions:
+    ref: instructions/context-eval-worker.md
+  summarizer:
+    contextWindowRatio: 0.006
+    cumulativeBudget: 20000
+    includeReasoning: true
+  toolsets:
+  - ref: run-artifacts@1
+    tools:
+    - read_artifact
+  - ref: text-artifacts@1
+    tools:
+    - write_text_artifact
+  sandboxProfile: local-workdir@1

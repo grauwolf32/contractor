@@ -1,0 +1,59 @@
+---
+# Reads the instance's JSON log since __contractor_runtime_since. A started process is
+# accepted only after "runtime agent registered" (the Control Plane accepted
+# its capability snapshot) and an available probe for every expected ref.
+# The journal shows Toolset-level outcomes; instance.yml checked single tools.
+
+- name: Read registration events privately
+  block:
+    - name: Wait for the registration of {{ __contractor_runtime_instance.name }}
+      ansible.builtin.shell:
+        cmd: >-
+          journalctl --no-pager --output=cat --since=@{{ __contractor_runtime_since }}
+          _SYSTEMD_USER_UNIT={{ __contractor_runtime_instance.unit | quote }} _UID={{ __contractor_runtime_uid }};
+          printf 'STATE=%s\n' "$({{ __contractor_runtime_systemctl | map('quote') | join(' ') }} show
+          --property=ActiveState --value {{ __contractor_runtime_instance.unit | quote }})"
+      register: __contractor_runtime_journal
+      until: >-
+        __contractor_runtime_journal.stdout is search('"message":"runtime agent (registered|failed)')
+        or __contractor_runtime_journal.stdout is search('STATE=(failed|inactive)')
+      retries: "{{ (contractor_runtime_verify_timeout_seconds | int / 3) | round(0, 'ceil') | int }}"
+      delay: 3
+      changed_when: false
+      failed_when: false
+      no_log: true
+  rescue:
+    - name: Report the registration read timeout safely
+      ansible.builtin.fail:
+        msg: >-
+          Instance {{ __contractor_runtime_instance.name }}: registration/read_timeout.
+          Check service health and journal access; raw output is withheld.
+
+- name: Classify the private registration events
+  ansible.builtin.set_fact:
+    __contractor_runtime_registration: >-
+      {{ __contractor_runtime_journal.stdout | contractor_registration_summary(__contractor_runtime_instance.probe_refs) }}
+  no_log: true
+
+- name: Require the registration of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.assert:
+    that:
+      - not __contractor_runtime_registration.malformed
+      - __contractor_runtime_registration.registered
+      - not __contractor_runtime_registration.failed
+    fail_msg: >-
+      Instance {{ __contractor_runtime_instance.name }}: registration/{{
+        'malformed_events' if __contractor_runtime_registration.malformed
+        else 'runtime_failed' if __contractor_runtime_registration.failed
+        else 'deadline_exceeded' }}. Check service health and Runtime configuration;
+      raw journal lines are withheld.
+    quiet: true
+
+- name: Require the expected capabilities of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.assert:
+    that: __contractor_runtime_registration.missing | length == 0
+    fail_msg: >-
+      Instance {{ __contractor_runtime_instance.name }}: registration/missing_capabilities
+      {{ __contractor_runtime_registration.missing | join(', ') }}.
+    success_msg: >-
+      {{ __contractor_runtime_instance.name }} registered with {{ __contractor_runtime_instance.probe_refs | sort | join(', ') }}.

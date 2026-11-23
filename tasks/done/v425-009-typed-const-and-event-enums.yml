@@ -1,0 +1,72 @@
+schema_version: '1.0'
+id: V425-009
+title: Give every OpenAPI const schema and every events schema enum a type
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: chore
+introduced_by: V372-025
+priority: P3
+status: completed
+depends_on: []
+languages:
+- go
+- typescript
+- yaml
+- json
+- markdown
+goal: Generated clients get concrete types for const schemas and event enums, and the V372-025 gate covers
+  both documents.
+context:
+  origin: Reported by a lane of the 2026-10-30 defect wave and rechecked on main fde39a943 by the coordinator.
+  finding: After V372-025 typed every OpenAPI enum, 91 untyped const schemas in api/openapi/contractor-public-v1.yaml
+    still generate interface{} in internal/publicclient/generated, and api/events/contractor-events-v1.schema.json
+    has 15 untyped enums.
+  specification:
+  - docs/spec/api/public-api.md#API-R68
+  revalidated: >-
+    2026-10-31: 91 OpenAPI const schemas and 49 event schemas (15 enum,
+    34 const) lack types. Extend the same gate to both literal constraints
+    in both documents, distinguishing schema maps and literal example data.
+  siblings: Every schema document under api/ that the generators or the UI read.
+scope:
+  in:
+  - Add types, regenerate both clients with their generators and fix callers.
+  - Extend the V372-025 gate to const and to api/events.
+  out:
+  - Changing values.
+acceptance_criteria:
+- id: A1
+  text: No untyped const or enum remains in either document and the generated Go client has no interface{}
+    for them.
+- id: A2
+  text: The gate fails on a new untyped const or enum.
+tests:
+- command: make verify-public-api
+  covers:
+  - A1
+  - A2
+- command: make ui-verify
+  covers:
+  - A1
+- command: make lint
+  covers:
+  - A2
+- command: go test -count=1 ./internal/httpapi/public/... ./internal/publicclient/... ./internal/cli
+  covers:
+  - A1
+  - A2
+implementation_commit: 30b688deff53232208738bf78ac06c424ec24ca9
+verification:
+  date: '2026-10-31'
+  commands:
+  - make generate-public-client ui-generate regenerated the Go client and UI schema bundles; the TypeScript literal types already matched and needed no byte changes.
+  - make verify-public-api passed.
+  - make ui-verify passed on UI 0.10.22, including all 214 test files and the production build.
+  - go test -count=1 ./internal/httpapi/public/... ./internal/publicclient/... ./internal/cli passed with the disposable PostgreSQL database configured.
+  - make lint passed.
+  regression: >-
+    The extended gate failed on all 140 missing types before the schema edits.
+    Probes cover missing and mismatched const/enum types, false/null constants,
+    nested schemas, nullable types, schema dictionaries and literal example data.
+    A structural comparison against the pre-change documents confirmed that
+    only the 91 OpenAPI and 49 event type declarations changed existing data.

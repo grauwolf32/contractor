@@ -1,0 +1,174 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-027",
+  "verified_on": "2026-09-20",
+  "base_commit": "8edeabf21194f5bba8dd258d53a072af713c630e",
+  "implementation_commit": "f72102a16258172d726a2688b51b5334fb103aeb",
+  "report": "docs/research/2026-09-20-v60-008-audit-product-review.md",
+  "status": "All required focused, migration, exact broad package and Audit hardening checks passed; no selected skips.",
+  "finding": {
+    "priority": "P2",
+    "original_failure": "Same exact ordinary-Run receipt imported into a second compatible Audit fails audit_findings_pkey SQLSTATE23505.",
+    "normative_basis": "Explicit V60-008 decision: permit multiple compatible Audits with independent finding/review/assessment/hold ownership; spec19 sections15.2/16 require exact retention and replay without rewriting accepted history.",
+    "implementation": [
+      "Forward-only migration062 updates future finding admission to SHA256 JSON array of Audit+receipt; no historical row/ID rewrite.",
+      "New direct-assessment ID includes Audit; legacy receipt-only ID replay lookup filters owning Audit and still rejects changed semantic/result/contract.",
+      "Existing Audit-scoped retained artifact names remain valid; opaque finding-ID test assumptions replaced by record lookup."
+    ],
+    "followup": "8c426a74 removes migration062 trailing blank line, changing embedded checksum without SQL semantic change.",
+    "public_http_outcome": "Existing importAuditFindingProposal handler: 201 for each first destination import, 200 with replayed=true for same-Audit replay. Verified by source plus full public contract package; multi-Audit regression exercises real service/SQL."
+  },
+  "checks": [
+    {
+      "command": [
+        "go",
+        "test",
+        "-tags=integration",
+        "-race",
+        "-count=1",
+        "./internal/findingintake",
+        "-run",
+        "^TestPostgresSameReceiptImportsIntoIndependentAudits$"
+      ],
+      "elapsedSeconds": 4.514,
+      "exitCode": 1,
+      "log": ".local/v60-review/v60-027-before-fix.log",
+      "log_sha256": "18d3bba6b2554cc213593d3d169454862cd8d5768684b1a609252d8de6f3482c",
+      "go_pass_events": 0,
+      "go_fail_events": 1,
+      "skip_lines": []
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-tags=integration",
+        "-race",
+        "-count=1",
+        "./internal/findingintake",
+        "-run",
+        "^(TestPostgresSameReceiptImportsIntoIndependentAudits|TestPostgresLegacyDirectAssessmentReplayIsAuditScoped|TestPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion)$"
+      ],
+      "started_at_unix": 1789900930.62297,
+      "duration_seconds": 6.223,
+      "exit_code": 0,
+      "log": ".local/v60-review/v60-027-focused-intake.log",
+      "log_sha256": "80e738fe3cd0373ae6f8630e281790ffc84fef33a3291f5390a19876c3be697b",
+      "go_pass_events": 3,
+      "go_fail_events": 0,
+      "skip_lines": []
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-tags=integration",
+        "-race",
+        "-count=1",
+        "./internal/auditservice",
+        "./internal/httpapi/public",
+        "-run",
+        "^(TestAuditSameReceiptHasIndependentAnalystDecisions|TestPublicAuditPaginationBoundary|TestPublicAuditRunDeletion.*)$"
+      ],
+      "started_at_unix": 1789900994.3730383,
+      "duration_seconds": 14.257,
+      "exit_code": 0,
+      "log": ".local/v60-review/v60-027-focused-review-public.log",
+      "log_sha256": "4d18d947c691666e3126f64fd0d35ca230e88f903d176afe96f38cd90000561c",
+      "go_pass_events": 13,
+      "go_fail_events": 0,
+      "skip_lines": []
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "./internal/persistence/postgres",
+        "-run",
+        "TestPostgresAuditFindingIdentityUpgradePreservesHistory|TestStorageReview|TestPostgresIntegrationMigrationsAndConstraints"
+      ],
+      "started_at": "2026-09-20T10:41:43.523173+00:00",
+      "seconds": 8.814,
+      "exit_code": 0,
+      "pass_records": 8,
+      "skip_records": 0,
+      "log": ".local/v60-review/v60-027-migration.log",
+      "log_sha256": "6808b78a19885aea0b2ec5c9fdd85cc485d881fff2ecd89dc95c74085443172e",
+      "go_pass_events": 8,
+      "go_fail_events": 0,
+      "skip_lines": []
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-tags=integration",
+        "-race",
+        "-count=1",
+        "./internal/findingintake",
+        "./internal/auditstore",
+        "./internal/auditservice",
+        "./internal/httpapi/public",
+        "./internal/persistence/postgres"
+      ],
+      "started_at_unix": 1789901074.1552649,
+      "duration_seconds": 182.006,
+      "exit_code": 0,
+      "log": ".local/v60-review/v60-027-broad.log",
+      "log_sha256": "dd742f93668827ec74af302c8facb7a916d736bf4538b34199d48063eb0164a0",
+      "go_pass_events": 644,
+      "go_fail_events": 0,
+      "skips": []
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "./internal/persistence/postgres",
+        "-run",
+        "^TestPostgresAuditFindingIdentityUpgradePreservesHistory$"
+      ],
+      "started_at_unix": 1789901293.4360273,
+      "duration_seconds": 3.995,
+      "exit_code": 0,
+      "log": ".local/v60-review/v60-027-migration-final.log",
+      "log_sha256": "bb8d26be614a07d79725cc4a820eebb67b2f1e202c6ea7bf80c0aee2d2eaa156",
+      "migration_sha256": "bf0ef4cb2fcec513f101e6172c4e437ba356ccc4e5fd280951b2c228dfd55186"
+    },
+    {
+      "command": [
+        "make",
+        "test-audits-hardening"
+      ],
+      "invoked_as": [
+        "make",
+        "--trace",
+        "test-audit-completion-e2e",
+        "test-audits-hardening",
+        "test-findings-e2e"
+      ],
+      "exit_code": 0,
+      "source_commit": "45b31abfd848739a0a1b32d7027028989a911a25",
+      "elapsed_seconds": null,
+      "timing_note": "Shared invocation; no invented per-target wall time. Subsequent Findings gate failed and does not invalidate completed Audit target.",
+      "log": ".local/v60-review/v60-audits-hardening-segment.log",
+      "log_sha256": "8cb713edf5bed41d1485ecaa6b85e6245893070cbe07b863ac6c733de9d37c6a",
+      "shared_log": ".local/v60-review/v60-final-audit.log",
+      "shared_log_sha256": "5c9b66d844d280d1e224793ba453e15255f89f9f7deac3313dfbb514a10b4d0a",
+      "go_passing_events": 193,
+      "go_skips": [],
+      "ui_tests": 34,
+      "ui_files": 3
+    }
+  ],
+  "required_remaining": [],
+  "evidence_limits": [
+    "Disposable real PostgreSQL17 and test artifacts, no live model/production mutation.",
+    "Legacy assessment replay regression installs the pre-upgrade writer identity as an immutable row and calls the real replay query; migration regression applies actual schema61→62 and preserves complete legacy history.",
+    "Counts include subtests."
+  ]
+}

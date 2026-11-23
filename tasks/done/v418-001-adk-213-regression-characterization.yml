@@ -1,0 +1,179 @@
+schema_version: '1.0'
+id: V418-001
+title: Freeze ADK migration regressions and the logical execution contract
+milestone: adk-213-upgrade-2026-10
+epic: planner-worker
+kind: chore
+priority: P1
+status: completed
+depends_on:
+- V418-008
+- V418-009
+languages:
+- python
+- markdown
+goal: Make the observed ADK 2.8 to 2.13 incompatibilities reproducible on real Runner paths and resolve
+  the expected Contractor outcomes before the atomic dependency migration.
+context:
+  authority: 'User request on 2026-10-25: plan the ADK 2.13 upgrade with every identified compatibility
+    change, adjust the existing compaction series, and keep model consultation as a proposal. These pending
+    tasks do not start implementation or change the current delivery focus.'
+  review: tasks/evidence/v418-adk-213-review.json
+  characterization: tasks/evidence/v418-adk-213-characterization.json
+  specification:
+  - docs/spec/execution/worker.md#WRK-R65
+  - docs/spec/execution/worker.md#WRK-R106
+  - docs/spec/execution/worker.md#WRK-R167
+  - docs/spec/audits/worker-completion.md
+  - docs/spec/tools/toolsets.md#TLS-R29
+  - docs/spec/platform/observability.md#OBS-R23
+  finding: 'The dated exploratory run selected 326 cases: 315 passed, 10 failed and one real-Go-API case
+    was skipped with ADK 2.13.0. The same ten failing cases passed on the existing 2.8 environment and
+    failed again with only ADK, google-genai and authlib replaced. Five failures lose completion reminders,
+    three change interrupted-call history, one retains an unknown tool name and one starts/counts a callback
+    after the deadline. The last case made only one provider request, not two. Exact tested source revision
+    was not captured in that run and must not be inferred from a later HEAD.'
+  implementation_boundary: Preserve the owning Contractor contracts; update numbered specs, limits/error/failure/lifecycle
+    registries and affected implementations together when an explicit clarification is necessary. No ADK-version
+    branches, legacy readers, dual production runtimes, model replacement, silent retries, new receipt
+    store or speculative public API. Read current code and re-establish the dated evidence before implementation.
+  execution_authority: 'User authorized implementation on2026-10-25: finish Runtime V418 before the Server
+    Go ADK migration.'
+scope:
+  in:
+  - Preserve existing real-Runner assertions; extend test-local fixtures for missing cases and capture
+    a sanitized reproducible case manifest.
+  - Record a concrete logical Contractor invocation versus ADK turn mapping and interrupted-history projection
+    contract in the owning spec before implementation, without claiming the migration has shipped.
+  out:
+  - Production dependency bump or behavior changes; those land together in V418-002.
+  - Permanent expected-failure tests, skipped regression gates, a multi-version production adapter or
+    a new compaction implementation.
+acceptance_criteria:
+- id: A1
+  given: The current supported lock and the ten recorded regressions
+  when: The full affected baseline modules run
+  then: All ten execute and pass, or a separately owned current-baseline defect is resolved before this
+    task completes; original expectations remain intact.
+- id: A2
+  given: Real ADK calls with controlled tools and an injected clock
+  when: The extended negative scenarios run
+  then: Tests distinguish raw-type rejection, side effects, model admission, provider requests, per-call
+    accounting and release; deliberately corrupted fixtures fail.
+- id: A3
+  given: Candidate ADK 2.13 and the same fixtures
+  when: The isolated characterization is recorded
+  then: Every observed mismatch has a stable scenario and a Contractor outcome, with test exit codes preserved;
+    candidate failure evidence does not masquerade as a passing release check.
+- id: A4
+  given: Logical invocation and SDK turn/history alternatives
+  when: The migration contract is selected
+  then: One supported design is recorded with its ownership, bounds and reversal condition; it enables
+    V418-002 without any dependency on V417 or Consult.
+tests:
+- command: cd runtime && uv run --locked pytest -W error tests/test_adk_runtime.py tests/test_audit_completion_continuation.py
+    tests/test_audit_completion_runtime.py tests/test_openai_gateway_llm.py tests/test_instrumentation.py
+    tests/test_run_artifacts_toolset.py tests/test_adk_migration_contracts.py
+  covers:
+  - A1
+  - A2
+  - A4
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+requirements:
+- id: R1
+  text: Re-run the ten named cases from the evidence on the current locked baseline. Characterize the
+    candidate in a disposable environment, recording exact revision, Python/platform, dependency versions
+    and lock/requirements digests. Candidate failures remain failure evidence, never green acceptance
+    or suppressed xfails.
+- id: R2
+  text: Separate one public logical invocation/A2A task/subtask/State owner from internal ADK run turns.
+    State begin/complete, total budgets, deadline, observed references and completion collector must remain
+    singular while every intended Runtime reminder reaches the next actual Gateway request.
+- id: R3
+  text: 'Specify incomplete-history handling before changing assertions: preserve a truthful bounded record
+    of never-dispatched, completed, failed, cancelled and ambiguous dispatched calls. Only a call proven
+    never dispatched may be described as not executed; cancellation or a lost response does not prove
+    absence of external effects. Do not silently lose useful call/result context or replay a side effect.
+    Distinguish raw session evidence from model-visible projection and document exact normalization and
+    receipt reconciliation.'
+- id: R4
+  text: Add real-dispatch characterization for scalar/list numeric types, bool/string/null/unknown/missing
+    arguments, before rejection, hallucinated tools, cancelled parallel tools, completed siblings and
+    empty/whitespace/thought-only output. Separate current contractual assertions from observations of
+    SDK behavior and proposed candidate acceptance. Test public behavior rather than importing a private
+    SDK implementation as the oracle.
+- id: R5
+  text: Use controllable barriers/clock jumps to distinguish before-model admission, counted attempts,
+    actual provider requests and cancelled spans. Cover ordinary and Audit flows, shared and isolated
+    sessions, main/finalizer/summarizer phases and complete tool batches.
+- id: R6
+  text: Keep baseline characterization executable with honest outcomes. Where a new regression exposes
+    a current 2.8 defect rather than a migration mismatch, preserve that finding and assign its owning
+    fix before closing the baseline task; do not demand that all newly discovered outcomes already pass.
+    Do not weaken existing assertions to accommodate the candidate. Resolve ambiguous required outcomes
+    in the owning spec and record alternatives, evidence and reversal condition.
+- id: R7
+  text: Retain safe evidence under tasks/evidence with case IDs and upstream immutable links. Do not store
+    test credentials, raw prompts/reasoning or temporary absolute paths as future required inputs. Tests
+    do not depend on this chat or on a surviving /tmp environment.
+test_prerequisites:
+- Commands below are future implementation acceptance gates, not checks already passed by this planning
+  change. A required command, selected case or dependency setup must not be skipped or match zero tests.
+- Run full suites of every touched package/module, in addition to focused regressions. Use real ADK dispatch
+  and controlled Gateway responses; persistence/process claims require disposable real PostgreSQL and
+  real Server/Runtime processes. Never read live configs from unit tests; use testdata and pseudo-Skills.
+- Use injected clocks, synchronization barriers, work/row/byte counters and bounded fixture sizes. Timing
+  samples are informational, never flaky wall-clock pass thresholds. Keep configured live models unchanged;
+  no live Gateway is part of these deterministic tasks.
+- Use the repository lock for acceptance, except the explicitly isolated candidate characterization in
+  V418-001. Preserve unrelated user changes. Record the tested revision, lock digest, command, executed
+  case count, skips and outcome. The 326-case exploratory run is not a substitute for make test-runtime
+  or a release gate.
+failure_outcomes:
+- operation: Verification setup and evidence collection
+  permanent: Strict invalid input or unsupported SDK behavior fails with the owning classified outcome;
+    no permissive fallback or endless retry. A required verification failure blocks completion.
+  retryable: Reuse the existing bounded transport/recovery or cleanup policy only; no SDK upgrade-specific
+    retry loop or rerun-until-green.
+  ambiguous: Reconcile existing receipts, trusted observations and the same operation identity. Test evidence
+    preserves the original uncertain outcome; never repeat an external append or side effect blindly.
+  cancelled: The existing invocation/allocation or fixture owner cancels and joins all work before cleanup;
+    no later dispatch or unowned callback may outlive release.
+  timeout: Execution deadline, per-request timeout, cleanup timeout and harness timeout remain distinct;
+    injected expiration cannot start a new admitted attempt.
+cardinality:
+- collection: Calls, event history, retained State/metrics and fixture cases
+  expected: Several sequential logical invocations, parallel tool batches and multiple internal Runner
+    turns; scale task adds long histories.
+  maximum: Existing owning model/tool/subtask/State/Skill byte and item ceilings; V418-006 must inventory
+    the containing limits before choosing maximum fixtures.
+  bound: Work follows admitted finite inputs and retained history; no unbounded full-catalog scan, private-history
+    copy or unrestricted per-callback rescan. Verify bytes/items/work counters, not only input length.
+lifecycle:
+- entity: Existing allocation-local sessions, clients, tools, callbacks and test evidence
+  delete: Existing invocation/allocation owner or isolated test harness owns teardown; never touch another
+    allocation or user database.
+  cascade: Join generators, tools, clients and serializers before deleting session/workspace state. Preserve
+    required publication receipts through their existing owner.
+  retention: No new durable runtime entity. Keep only bounded safe test evidence and ordinary published
+    results under existing retention policies.
+verification:
+  baseline: 283passed in all selected baseline modules, including15new real-Runner type/empty-output regressions.
+  candidate: Exact ADK2.13/genai2.33/authlib1.9.1 isolated characterization:270passed13failed,0skips;
+    allfailureIDs retained with true nonzero exit.
+  native_full: Linux/nonroot/Python3.13.5/Go1.26.9 locked2.8 baseline make test-runtime and report verifier
+    exited0:4797passed55allowed optional skips. Exactsource hashes and skipcategories recorded.
+  lint: Full make lint passed after baseline fixes; spec/dependency graph/backlog checks rerun for the
+    logical-owner clarification.
+  baseline_defects: V418-008 and V418-009 completed before this characterization is closed; their failures
+    were not attributed to ADK2.13 or suppressed.
+implementation_commit: 4f658bb93e33e1129cf9c4a1ca72f0eb184b87d5

@@ -1,0 +1,600 @@
+import type { SharedConfig } from "../../api/shared-config";
+import { useSharedConfig } from "../../config/shared-config";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type FormEvent, useId, useState } from "react";
+import { useSearchParams } from "react-router";
+
+import { usePublicAPI } from "../../api/context";
+import { queryKeys } from "../../api/query-keys";
+import {
+  normalizeRunMetadataLabelSelectors,
+  type RunMetadataLabelSelector,
+} from "../../api/run-metadata-labels";
+import {
+  deleteRun,
+  listRuns,
+  TERMINAL_RUN_STATES,
+  type WorkflowRunState,
+  type RunSummary,
+} from "../../api/runs";
+import { CursorControls } from "../../app/cursor-controls";
+import { useURLCursorStack } from "../../app/pagination";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatTimestamp, plural } from "../../app/format";
+import { RefreshButton } from "../../app/refresh-button";
+import { RecordedTime } from "../../app/recorded-time";
+import { QueryView } from "../../app/query-view";
+import { Icon } from "../../app/icon";
+import {
+  AlertDialog,
+  Button,
+  EmptyState,
+  Facts,
+  Field,
+  IconButton,
+  IdChip,
+} from "../../ui";
+import {
+  DisclosureChevron,
+  RunMetadataLabelChips,
+  RunStateChip,
+} from "./components";
+import { RunListSourceContext } from "./source-context";
+import { RunIdLink, RunsFilter } from "./list-parts";
+import { RUN_STATE_LABELS } from "../../app/vocabulary";
+
+const EVAL_FILTER_KEYS = ["purpose", "eval.name", "eval.id", "eval.leg"];
+
+/** The eval filter fields: label key, form field and label. */
+const EVAL_FIELDS = [
+  ["eval.name", "evalName", "Eval name"],
+  ["eval.id", "evalID", "Eval ID"],
+  ["eval.leg", "evalLeg", "Eval leg"],
+] as const;
+
+const STATE_OPTIONS = [
+  { value: "" as const, label: "All" },
+  ...TERMINAL_RUN_STATES.map((state) => ({
+    value: state,
+    label: RUN_STATE_LABELS[state].label,
+  })),
+];
+
+function decodeLabelSelectors(
+  values: readonly string[],
+  limits: SharedConfig["limits"],
+): RunMetadataLabelSelector[] {
+  return normalizeRunMetadataLabelSelectors(
+    values.map((value) => {
+      const separator = value.indexOf("=");
+      if (separator <= 0) {
+        throw new TypeError(
+          "Every Run metadata label filter must use key=value.",
+        );
+      }
+      return {
+        key: value.slice(0, separator),
+        value: value.slice(separator + 1),
+      };
+    }),
+    limits,
+  );
+}
+
+function safelyDecodeLabelSelectors(
+  values: readonly string[],
+  limits: SharedConfig["limits"],
+): {
+  selectors: RunMetadataLabelSelector[];
+  error?: string;
+} {
+  try {
+    return { selectors: decodeLabelSelectors(values, limits) };
+  } catch (error) {
+    return {
+      selectors: [],
+      error:
+        error instanceof Error
+          ? error.message
+          : "Run metadata label filters are invalid.",
+    };
+  }
+}
+
+function selectorToken(selector: RunMetadataLabelSelector): string {
+  return `${selector.key}=${selector.value}`;
+}
+
+function selectorLabel(selector: RunMetadataLabelSelector): string {
+  return selector.value === ""
+    ? selector.key
+    : `${selector.key}:${selector.value}`;
+}
+
+/**
+ * The URL parameters for a change made inside Completed. A terminal
+ * `?state=` without a `view` opens Completed (S18), so the view is named
+ * before a change can drop that state: pressing "All" must not switch to
+ * the Queue.
+ */
+function completedParams(current: URLSearchParams): URLSearchParams {
+  return current.has("view")
+    ? new URLSearchParams(current)
+    : new URLSearchParams([["view", "completed"], ...current]);
+}
+
+function firstSelectorValue(
+  selectors: readonly RunMetadataLabelSelector[],
+  key: string,
+): string {
+  return selectors.find((selector) => selector.key === key)?.value ?? "";
+}
+
+function RunLabelFilters({
+  selectors,
+  parseError,
+  onReplace,
+}: {
+  selectors: readonly RunMetadataLabelSelector[];
+  parseError: string | undefined;
+  onReplace: (selectors: readonly RunMetadataLabelSelector[]) => void;
+}) {
+  const { limits } = useSharedConfig();
+  const [validationError, setValidationError] = useState<string | undefined>();
+  const [filtersOpen, setFiltersOpen] = useState(
+    selectors.length > 0 || parseError !== undefined,
+  );
+  const fingerprint = selectors.map(selectorToken).join("\u0000");
+
+  function addExact(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    try {
+      onReplace([
+        ...selectors,
+        {
+          key: String(data.get("labelKey") ?? ""),
+          value: String(data.get("labelValue") ?? ""),
+        },
+      ]);
+      setValidationError(undefined);
+      form.reset();
+    } catch (error) {
+      setValidationError(
+        error instanceof Error ? error.message : "Label filter is invalid.",
+      );
+    }
+  }
+
+  function applyEval(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const next = selectors.filter(
+      (selector) => !EVAL_FILTER_KEYS.includes(selector.key),
+    );
+    next.push({ key: "purpose", value: "eval" });
+    for (const [key, field] of EVAL_FIELDS) {
+      const value = String(data.get(field) ?? "");
+      if (value !== "") {
+        next.push({ key, value });
+      }
+    }
+    try {
+      onReplace(next);
+      setValidationError(undefined);
+    } catch (error) {
+      setValidationError(
+        error instanceof Error ? error.message : "Eval filter is invalid.",
+      );
+    }
+  }
+
+  function remove(selector: RunMetadataLabelSelector): void {
+    onReplace(
+      selectors.filter(
+        (candidate) =>
+          candidate.key !== selector.key || candidate.value !== selector.value,
+      ),
+    );
+    setValidationError(undefined);
+  }
+
+  return (
+    <details
+      className="run-label-filters runs-label-filters"
+      open={filtersOpen}
+      onToggle={(event) => setFiltersOpen(event.currentTarget.open)}
+    >
+      <summary className="runs-label-filters-summary">
+        <DisclosureChevron />
+        <span className="runs-label-filters-title">
+          <strong>Metadata &amp; eval filters</strong>
+          <small>Find Runs by their labels</small>
+        </span>
+        <span
+          className="runs-label-filters-count"
+          data-active={selectors.length > 0 ? "" : undefined}
+        >
+          {plural(selectors.length, "active filter")}
+        </span>
+      </summary>
+      <div className="runs-label-filters-body">
+        <p className="ui-caption">
+          Every active key=value pair must match. Values are exact and may
+          contain “=”. Filters are URL-visible; do not use labels for secrets.
+        </p>
+        <form
+          className="runs-filter-form"
+          key={fingerprint}
+          onSubmit={applyEval}
+        >
+          {EVAL_FIELDS.map(([key, name, label]) => (
+            <Field key={name} label={label}>
+              {(control) => (
+                <input
+                  {...control}
+                  name={name}
+                  type="text"
+                  defaultValue={firstSelectorValue(selectors, key)}
+                />
+              )}
+            </Field>
+          ))}
+          <Button size="sm" type="submit">
+            Apply eval filters
+          </Button>
+        </form>
+        <form className="runs-filter-form" onSubmit={addExact}>
+          <Field label="Label key">
+            {(control) => (
+              <input
+                {...control}
+                name="labelKey"
+                type="text"
+                autoComplete="off"
+              />
+            )}
+          </Field>
+          <Field label="Label value">
+            {(control) => (
+              <input
+                {...control}
+                name="labelValue"
+                type="text"
+                autoComplete="off"
+              />
+            )}
+          </Field>
+          <Button
+            size="sm"
+            type="submit"
+            disabled={selectors.length >= limits.runMetadataMaxLabels}
+          >
+            Add filter
+          </Button>
+        </form>
+        {parseError === undefined && validationError === undefined ? null : (
+          <p className="ui-field-error" role="alert">
+            {parseError ?? validationError}
+          </p>
+        )}
+        {parseError === undefined ? null : (
+          <Button size="sm" onClick={() => onReplace([])}>
+            Clear malformed metadata filters
+          </Button>
+        )}
+        {selectors.length === 0 ? (
+          <p className="ui-caption">
+            No metadata filters applied — all Runs are included.
+          </p>
+        ) : (
+          <div className="runs-active-filters">
+            {selectors.map((selector) => (
+              <span
+                className="runs-active-filter"
+                key={selectorToken(selector)}
+              >
+                <code>{selectorLabel(selector)}</code>
+                <IconButton
+                  size="xs"
+                  variant="ghost"
+                  label={`Remove filter ${selectorLabel(selector)}`}
+                  icon={<Icon name="close" />}
+                  onClick={() => remove(selector)}
+                />
+              </span>
+            ))}
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() => {
+                onReplace([]);
+                setValidationError(undefined);
+              }}
+            >
+              Clear metadata filters
+            </Button>
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function contextSummary(labels: Readonly<Record<string, string>>): string {
+  const count = Object.keys(labels).length;
+  return (
+    labels["eval.name"] ??
+    labels.purpose ??
+    (count === 0 ? "Details" : plural(count, "label"))
+  );
+}
+
+function CompletedRunRow({
+  run,
+  onDelete,
+}: {
+  run: RunSummary;
+  onDelete: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const contextId = useId();
+  return (
+    <>
+      <tr data-expanded={expanded ? "" : undefined}>
+        <td className="run-list-id-cell">
+          <RunIdLink runId={run.runId} returnLabel="Completed" />
+        </td>
+        <td className="run-list-workflow-cell">
+          <span className="runs-cell-label">Workflow</span>
+          <code>{run.workflow}</code>
+        </td>
+        <td className="run-list-state-cell">
+          <RunStateChip state={run.state} />
+        </td>
+        <td className="run-list-labels-cell">
+          <button
+            type="button"
+            className="runs-context-toggle"
+            aria-label={`Context for ${run.runId}`}
+            aria-expanded={expanded}
+            aria-controls={contextId}
+            onClick={() => setExpanded((value) => !value)}
+          >
+            <DisclosureChevron />
+            <span>{contextSummary(run.labels)}</span>
+          </button>
+        </td>
+        <td className="run-list-finished-cell">
+          <span className="runs-cell-label">Finished</span>
+          {run.finishedAt === undefined ? (
+            "—"
+          ) : (
+            <RecordedTime value={run.finishedAt} />
+          )}
+        </td>
+        <td className="run-list-actions-cell">
+          {run.deletable === true ? (
+            <IconButton
+              className="runs-delete"
+              size="sm"
+              variant="ghost"
+              label={`Delete Run ${run.runId}`}
+              icon={<Icon name="delete" />}
+              onClick={onDelete}
+            />
+          ) : null}
+        </td>
+      </tr>
+      {expanded ? (
+        <tr className="runs-context-row">
+          <td colSpan={6}>
+            <section
+              className="runs-context-details"
+              id={contextId}
+              aria-label={`Context for ${run.runId}`}
+            >
+              <RunMetadataLabelChips
+                labels={run.labels}
+                empty="No metadata labels."
+              />
+              <Facts
+                className="runs-inline-facts"
+                items={[
+                  {
+                    term: "Run ID",
+                    value: <IdChip value={run.runId} label="Run ID" />,
+                  },
+                  { term: "Created", value: formatTimestamp(run.createdAt) },
+                  { term: "Updated", value: formatTimestamp(run.updatedAt) },
+                ]}
+              />
+            </section>
+          </td>
+        </tr>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Runs → Completed: terminal Runs newest first (S18), filtered by state and
+ * exact metadata labels, with deletion for Runs the Server marks deletable.
+ * Filters and the page cursor live in the URL.
+ */
+export function CompletedRunsPanel() {
+  const { limits } = useSharedConfig();
+  const api = usePublicAPI();
+  const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedState = searchParams.get("state");
+  const state = TERMINAL_RUN_STATES.find(
+    (candidate) => candidate === requestedState,
+  ) as WorkflowRunState | undefined;
+  const pages = useURLCursorStack();
+  const [deleteTarget, setDeleteTarget] = useState<string | undefined>();
+  const cursor = pages.cursor;
+  const encodedLabelSelectors = searchParams.getAll("label");
+  const decoded = safelyDecodeLabelSelectors(encodedLabelSelectors, limits);
+  const selectorTokens = decoded.selectors.map(selectorToken);
+  const options = {
+    ...(state === undefined ? {} : { state }),
+    lifecycle: "terminal" as const,
+    ...(cursor === undefined ? {} : { cursor }),
+    labelSelectors: decoded.selectors,
+  };
+  const query = useQuery({
+    queryKey: queryKeys.runs.list(state, cursor, selectorTokens, "terminal"),
+    queryFn: () => listRuns(api, options),
+    enabled: decoded.error === undefined,
+  });
+  const deletion = useMutation({
+    mutationFn: (runId: string) => deleteRun(api, runId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.runs.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.projects.all }),
+      ]);
+      setDeleteTarget(undefined);
+    },
+  });
+
+  function replaceState(selected: WorkflowRunState | ""): void {
+    const next = completedParams(searchParams);
+    next.delete("cursor");
+    if (selected === "") {
+      next.delete("state");
+    } else {
+      next.set("state", selected);
+    }
+    setSearchParams(next, { replace: true });
+  }
+
+  function replaceLabelSelectors(
+    nextSelectors: readonly RunMetadataLabelSelector[],
+  ): void {
+    const normalized = normalizeRunMetadataLabelSelectors(
+      nextSelectors,
+      limits,
+    );
+    const next = completedParams(searchParams);
+    next.delete("cursor");
+    next.delete("label");
+    for (const selector of normalized) {
+      next.append("label", selectorToken(selector));
+    }
+    setSearchParams(next, { replace: true });
+  }
+
+  return (
+    <RunListSourceContext
+      value={{ kind: "completed", label: "Completed", options }}
+    >
+      <div className="runs-view">
+        <div className="runs-toolbar">
+          <div className="runs-filters">
+            <RunsFilter
+              label="State"
+              options={STATE_OPTIONS}
+              value={state ?? ""}
+              onChange={replaceState}
+            />
+          </div>
+          <RefreshButton
+            className="runs-icon-button"
+            size="sm"
+            isFetching={query.isFetching}
+            disabled={decoded.error !== undefined}
+            onRefresh={() => void query.refetch()}
+          />
+        </div>
+        <RunLabelFilters
+          key={encodedLabelSelectors.join("\u0000")}
+          selectors={decoded.selectors}
+          parseError={decoded.error}
+          onReplace={replaceLabelSelectors}
+        />
+        <div className="runs-results">
+          {decoded.error !== undefined ? (
+            <EmptyState title="Clear the malformed metadata filters to load Runs." />
+          ) : (
+            <QueryView
+              query={query}
+              loading={
+                <p className="ui-caption" aria-live="polite">
+                  Loading completed Runs…
+                </p>
+              }
+              isEmpty={(data) => data.items.length === 0}
+              empty={
+                <EmptyState title="No completed Runs match this view.">
+                  <p>Terminal Runs appear here after execution finishes.</p>
+                </EmptyState>
+              }
+            >
+              {(data) => (
+                <table className="runs-table" data-has-actions="">
+                  <thead>
+                    <tr>
+                      <th scope="col">Run</th>
+                      <th scope="col">Workflow</th>
+                      <th scope="col">State</th>
+                      <th scope="col">Context &amp; details</th>
+                      <th scope="col">Finished</th>
+                      <th scope="col">
+                        <span className="ui-visually-hidden">Actions</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.items.map((run) => (
+                      <CompletedRunRow
+                        key={run.runId}
+                        run={run}
+                        onDelete={() => {
+                          deletion.reset();
+                          setDeleteTarget(run.runId);
+                        }}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </QueryView>
+          )}
+        </div>
+        <CursorControls
+          size="sm"
+          label="Run pages"
+          {...pages.controls(query.data?.page)}
+        />
+        {deleteTarget === undefined ? null : (
+          <AlertDialog
+            eyebrow="Permanent action"
+            title="Delete completed Run?"
+            confirmLabel="Delete Run"
+            pendingLabel="Deleting…"
+            pending={deletion.isPending}
+            error={
+              deletion.error === null ? null : (
+                <ErrorNotice error={deletion.error} />
+              )
+            }
+            onCancel={() => {
+              deletion.reset();
+              setDeleteTarget(undefined);
+            }}
+            onConfirm={() => deletion.mutate(deleteTarget)}
+          >
+            <p>
+              This permanently removes Run <code>{deleteTarget}</code>, its
+              execution history, and all Run-owned Artifacts. Shared source
+              Artifacts and published Project outputs are retained.
+            </p>
+          </AlertDialog>
+        )}
+      </div>
+    </RunListSourceContext>
+  );
+}

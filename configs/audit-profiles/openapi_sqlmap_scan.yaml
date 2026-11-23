@@ -1,0 +1,97 @@
+apiVersion: contractor/v1alpha1
+kind: AuditProfile
+metadata:
+  name: openapi-sqlmap-scan
+  version: '1'
+spec:
+  schema: contractor.audit.program.v1
+  inputs:
+    openapi:
+      required: true
+      media_types:
+      - application/json
+      - application/yaml
+    engagement:
+      required: true
+      media_types:
+      - application/vnd.contractor.engagement+json
+    request_values:
+      required: false
+      media_types:
+      - application/json
+  workflows:
+    prepare:
+      ref: openapi-prepare-work@1
+      inputs:
+        engagement:
+          source: audit-input
+          name: engagement
+        openapi:
+          source: audit-input
+          name: openapi
+        request_values:
+          source: audit-input
+          name: request_values
+      parameters:
+        checking_workflow: scan
+        selection: scan-requests
+        max_items: '16'
+        credential_id: ''
+        scanner: sqlmap
+      outputs:
+        work: work
+      parameter_inputs:
+        credential_id: credential_id
+        server: server
+        operations: operations
+        test_parameters: test_parameters
+    scan:
+      ref: audit-openapi-sqlmap-scan@1
+      inputs:
+        engagement:
+          source: audit-input
+          name: engagement
+        operation:
+          source: task-input
+        openapi:
+          source: task-input
+        request_values:
+          source: audit-input
+          name: request_values
+      parameters:
+        credential_id: ''
+      outputs: {}
+      parameter_inputs:
+        credential_id: credential_id
+        server: server
+        operations: operations
+        test_parameters: test_parameters
+  hypotheses: {}
+  initial_work:
+  - key: prepare-operations
+    workflow: prepare
+    objective: Prepare bounded independent operation work from the exact selected contract and execution
+      parameters
+  limits:
+    max_tasks: 17
+    max_iterations: 1
+    max_tasks_per_iteration: 17
+    batch_size: 1
+    max_submitted_runs: 48
+    max_attempts: 3
+    deadline_seconds: 86400
+    max_evidence_bytes: 67108864
+    max_hypotheses: 1
+    max_hypothesis_revisions: 1
+    max_hypothesis_bytes: 32768
+  policy:
+    active_operations: allowed
+  parameters:
+    credential_id:
+      required: false
+    server:
+      required: true
+    operations:
+      required: true
+    test_parameters:
+      required: true

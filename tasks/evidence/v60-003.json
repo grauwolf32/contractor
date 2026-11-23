@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-003",
+  "verified_on": "2026-09-20",
+  "timezone": "Europe/Moscow",
+  "base_commit": "35a3ab94ffd2e250e27892fbc8cec26c9de63067",
+  "implementation_commit": "85845acab28fc64bfe5429118700b89b26502691",
+  "environment": {
+    "go": "go1.25.6 linux/amd64",
+    "database": "Dedicated local disposable PostgreSQL contractor_v59_tests; unique isolated test schemas created and removed by repository helpers.",
+    "execution": "Isolated worktree; actual PostgreSQL and real HTTP handlers/services; no live models or external services."
+  },
+  "reproduced_before_fix": [
+    {
+      "finding": "PR-02",
+      "source_commit": "75e9758c66fa6f5418d1cf647844588f1620a275",
+      "method": "Temporary Go overlay TestDomainReviewProvenanceMutationDuringHydrationConflicts using the actual handler and a deterministic service interleaving. Relevant production files are unchanged between this commit and the task base.",
+      "command": "go test -overlay /tmp/contractor-domain-review-ppbyi2y5/overlay.json ./internal/httpapi/public -run '^TestDomainReviewProvenanceMutationDuringHydrationConflicts$' -count=1 -timeout=30s",
+      "observed": "FAIL: HTTP 200 with Audit/finding revisions 9/4 and new current-assessment record after service state advanced to 10/5; desired conflict absent.",
+      "boundary": "Original reproduction used a fake service interleaving, not PostgreSQL scheduling. Committed regressions exercise real service and PostgreSQL."
+    },
+    {
+      "finding": "PR-03",
+      "source_commit": "75e9758c66fa6f5418d1cf647844588f1620a275",
+      "method": "Temporary Go overlay TestDomainReviewProvenanceSingleConnection against the dedicated PostgreSQL database, isolated schema.",
+      "command": "go test -overlay /tmp/contractor-domain-review-ppbyi2y5/overlay.json ./internal/auditservice -run '^TestDomainReviewProvenanceSingleConnection$' -count=1 -timeout=30s -v",
+      "observed": "MaxConns=2 PASS (~0.03 s); MaxConns=1 FAIL after 1.989518628 s: authorize Audit finding receipt: context deadline exceeded. Control GetFinding succeeded with either pool size. Acquired connections after failure: 0.",
+      "boundary": "Nested acquisition stalled the request; this was not a persistent connection leak."
+    }
+  ],
+  "implemented": [
+    "The HTTP handler passes both revision-envelope values as explicit optional service pins; explicit zero remains a conflicting pin rather than disabling validation.",
+    "The service takes owner-scoped joined Audit/finding revision snapshots before reading and after all query and receipt hydration work. Changed revisions reject the page, including its SupportsCurrent assessment selection. Direct unpinned service callers receive the same before/after check.",
+    "Provenance rows are checked and closed before receipt hydration. Unique receipt IDs use the existing bounded GetAuditReceipts path in groups of at most 200; record order, repeated receipts and the 201st cursor sentinel are preserved.",
+    "Existing first-proposal GetFinding validation, exact payload/hold hydration and all-or-error missing receipt behavior are retained. Public schemas, cursor encoding, authorization and retention policies are unchanged."
+  ],
+  "regressions": [
+    "TestFindingProvenanceConsistentReadsWithSingleConnection: MaxConns=1; source proposal, two check attempts and direct verification remain in order with retained deleted-source provenance and exact refs.",
+    "Explicit correct pins succeed; zero Audit or finding pins conflict; foreign owner and foreign Audit return not found.",
+    "Real SQL tracer commits a current-assessment mutation before provenance query and during exact receipt hydration; each read returns conflict with no partial items, and a fresh read selects the new current assessment.",
+    "Empty provenance page also conflicts after an intervening revision mutation.",
+    "First page contains 201 distinct receipt identities; following page preserves three records reusing the original receipt. Each source identity, Run ID, RunDeleted and exact ref is checked.",
+    "Removing a contributing receipt hold rejects the entire page with ErrNotFound; the same single-connection pool can immediately read the original finding.",
+    "TestPublicAuditPaginationBoundary: existing 199/200 pages, 201 HTTP rejection, signed continuations and owner checks remain valid. New real handler/service interleavings independently change Audit or finding revision after envelope reads and receive HTTP 409.",
+    "TestAuditFindingReviewHandlersBindCASIdempotencyAndProvenanceRevision additionally verifies both service pins match the returned envelope."
+  ],
+  "checks": [
+    {
+      "command": "go test ./internal/auditservice -run '^TestFindingProvenanceConsistentReadsWithSingleConnection$' -count=1 -timeout=60s -v",
+      "result": "PASS",
+      "package_seconds": 4.625,
+      "database": "executed; final 201-distinct-receipt and unavailable-receipt cases included"
+    },
+    {
+      "command": "go test ./internal/httpapi/public -run '^(TestPublicAuditPaginationBoundary|TestAuditFindingReviewHandlersBindCASIdempotencyAndProvenanceRevision)$' -count=1 -timeout=90s -v",
+      "result": "PASS",
+      "package_seconds": 5.077,
+      "database": "executed"
+    },
+    {
+      "command": "go test -race -count=1 ./internal/auditservice ./internal/httpapi/public",
+      "result": "PASS",
+      "package_seconds": {
+        "auditservice": 17.028,
+        "public": 41.368
+      },
+      "database": "executed; performed before final test-only addition of 201 unique receipt case"
+    },
+    {
+      "command": "make verify-public-api-postgres",
+      "result": "PASS",
+      "package_seconds": 8.688,
+      "database": "executed TestPublicAuditPaginationBoundary under -race"
+    },
+    {
+      "command": "go test -race -count=1 ./internal/auditservice",
+      "result": "PASS",
+      "package_seconds": 22.751,
+      "database": "executed after final 201-distinct-receipt and unavailable-receipt test addition; public production/tests unchanged since preceding full run"
+    },
+    {
+      "command": "git diff --check; git diff --cached --check",
+      "result": "PASS"
+    }
+  ],
+  "acceptance": {
+    "A1": "PASS: real PostgreSQL mutations before service read, before provenance SQL and during receipt hydration reject mismatched Audit/finding revisions.",
+    "A2": "PASS: one-connection real PostgreSQL handles retained exact history, 201 unique receipts, missing receipt rejection and owner isolation.",
+    "A3": "PASS: V59 maximum pagination and stable continuation checks passed; both original failures recorded above."
+  },
+  "boundaries": [
+    "The fence detects Audit/finding revision changes. It does not add missing revision invalidation to upstream mutations of external objects. Independently confirmed PR-06 concerns Run deletion changing provenance fields without advancing Audit/finding revisions and remains separate work.",
+    "Attempt.RunID and source Origin.RunID can identify different Runs; their RunDeleted flags are preserved independently.",
+    "New database fixtures use retained PostgreSQL artifact payloads and schema-valid contribution/attempt setup, not live Runtime execution. This task does not claim filesystem-backend, load/saturation or end-to-end model coverage.",
+    "Recorded test timings are execution observations, not a performance benchmark."
+  ],
+  "review": "Root and independent quality review found no material issues in the final V60-003 scope; upstream Run deletion revision invalidation was separated as PR-06."
+}

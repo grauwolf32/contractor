@@ -1,0 +1,464 @@
+package public
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/configtest"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
+	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
+	"github.com/grauwolf32/contractor/internal/performance"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
+	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
+	"github.com/grauwolf32/contractor/internal/runservice"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPublicPool(t, ctx)
+	variantRoot := configtest.CopyWithModelVariants(t, "../../../testdata/configs")
+	configurationManager, _, err := configload.NewManager(config.ManagerOptions{
+		OperatorRoot: variantRoot,
+		ManagedRoot:  filepath.Join(t.TempDir(), "managed-configs"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	nextRunID := "run-public"
+	managedCredentials := newFakeManagedCredentials()
+	gateway, err := configurationManager.LLMGateway("local-litellm@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	managedCredentials.lookups["development-worker"] = resolved.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: "development-worker"}, LLMGateway: gateway.Ref}
+
+	runtimeConfigs := newFakeRuntimeConfigManagement(runtimeconfig.GatewayResolverFunc(
+		func(_ context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
+			return configurationManager.LLMGateway(selector)
+		},
+	))
+	runtimeCredentials := newFakeRuntimeCredentialManagement()
+	runtimePrincipals := newFakeRuntimeAgentPrincipalManagement()
+	authentication := newTestAuthentication(t)
+	origins := mustTestOrigins(t)
+	operations := newFakeOperationsReader()
+	schedulerSettings := settingsstore.NewPostgresStore(pool)
+	eventHub, err := publicevents.NewHub(publicevents.Options{
+		Context: ctx, Authentication: authentication, Origins: origins,
+		Runs: runs, Operations: operations,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(eventHub.Close)
+	runDetails, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool, artifactpgtest.NewStorage(), nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	services := testServices{Transfers: artifactpgtest.NewRuntime(),
+		Authentication: authentication, BrowserOrigins: origins,
+		Config: configurationManager, ConfigurationPublisher: configurationManager,
+		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
+		RuntimeConfigs: runtimeConfigs, RuntimeCredentials: runtimeCredentials,
+		RuntimeAgentPrincipals:  runtimePrincipals,
+		Projects:                projectstore.NewPostgresStore(pool),
+		ProjectDeletionNotifier: &countingWaker{},
+		Audits:                  &fakeAuditManagement{},
+		FindingProposals:        missingFindingProposals{},
+		FindingCollections:      missingFindingCollections{},
+		FindingExports:          missingFindingExports{},
+		Evals:                   unservedEvals{}, EvalNotifier: &countingWaker{},
+		GitImports: unavailableGitImports{}, GitKeys: unavailableGitKeys{},
+		GatewayRecovery: noGatewayWait{}, RunNotifier: &recordingRunNotifier{},
+		Runs: runs, RunDetails: runDetails, RunQueue: runs, RunLifecycle: runs, RunDeletion: rundeletion.New(pool, artifactpgtest.NewStorage()), Artifacts: service,
+		Operations: operations, OperationsInvalidator: operations,
+		Performance: performance.NewReadService(
+			false, nil, nil, performance.NewHistoryRepository(pool, time.Now), time.Now,
+		),
+		AllocationResources: telemetry.NewRepository(pool),
+		SchedulerSettings:   schedulerSettings, Events: eventHub,
+		BearerToken:  contracts.NewSecretString(testBearerToken),
+		NewID:        func(string) (string, error) { return nextRunID, nil },
+		NewRequestID: func() (string, error) { return "request-integration", nil },
+		Logger:       slog.New(slog.DiscardHandler), Now: time.Now,
+	}
+	services.RunCreator = newTestRunCreator(t, services, runs, integrationUnitOfWork{pool: pool, credentials: managedCredentials}, false)
+	handler, err := NewHandler(services.dependencies())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	settingsPut := schedulerSettingsRequest(http.MethodPut, `{"maxConcurrentRuns":3}`, `"1"`)
+	settingsPutResponse := httptest.NewRecorder()
+	handler.ServeHTTP(settingsPutResponse, settingsPut)
+	if settingsPutResponse.Code != http.StatusOK || settingsPutResponse.Header().Get("ETag") != `"2"` {
+		t.Fatalf(
+			"PostgreSQL Scheduler settings PUT = %d headers=%v body=%s",
+			settingsPutResponse.Code, settingsPutResponse.Header(), settingsPutResponse.Body.String(),
+		)
+	}
+	persistedSettings, err := settingsstore.NewPostgresStore(pool).GetSchedulerSettings(ctx)
+	if err != nil || persistedSettings.MaxConcurrentRuns != 3 || persistedSettings.Revision != 2 {
+		t.Fatalf("restarted Scheduler settings store = (%+v, %v)", persistedSettings, err)
+	}
+	settingsGet := authenticatedRequest(
+		http.MethodGet, "/v1/operations/settings/scheduler", bytes.NewReader(nil),
+	)
+	settingsGetResponse := httptest.NewRecorder()
+	handler.ServeHTTP(settingsGetResponse, settingsGet)
+	if settingsGetResponse.Code != http.StatusOK ||
+		settingsGetResponse.Body.String() != settingsPutResponse.Body.String() {
+		t.Fatalf("PostgreSQL Scheduler settings GET = %d %s", settingsGetResponse.Code, settingsGetResponse.Body.String())
+	}
+
+	put := authenticatedRequest(http.MethodPut, "/v1/artifacts/projects/source", bytes.NewReader([]byte("original")))
+	put.Header.Set("Content-Type", "text/plain")
+	putResponse := httptest.NewRecorder()
+	handler.ServeHTTP(putResponse, put)
+	if putResponse.Code != http.StatusCreated {
+		t.Fatalf("PUT source = %d: %s", putResponse.Code, putResponse.Body.String())
+	}
+
+	createBody := []byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"eval","eval.id":"eval_postgres","eval.leg":"a"},"parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+	create := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(createBody))
+	create.Header.Set(idempotencyKeyHeader, "postgres-create-run")
+	createResponse := httptest.NewRecorder()
+	handler.ServeHTTP(createResponse, create)
+	if createResponse.Code != http.StatusAccepted {
+		t.Fatalf("POST Run = %d: %s", createResponse.Code, createResponse.Body.String())
+	}
+	storedRun, err := runs.GetRun(ctx, "run-public")
+	if err != nil || storedRun.State != runstore.RunPending || storedRun.OwnerID != "user-1" ||
+		len(storedRun.WorkflowSnapshot) == 0 || storedRun.MetadataLabels["eval.id"] != "eval_postgres" {
+		t.Fatalf("stored Run = (%+v, %v)", storedRun, err)
+	}
+	nextRunID = "run-duplicate-must-not-exist"
+	retry := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(createBody))
+	retry.Header.Set(idempotencyKeyHeader, "postgres-create-run")
+	retryResponse := httptest.NewRecorder()
+	handler.ServeHTTP(retryResponse, retry)
+	if retryResponse.Code != http.StatusAccepted || retryResponse.Header().Get("Idempotency-Replayed") != "true" ||
+		retryResponse.Body.String() != createResponse.Body.String() {
+		t.Fatalf("POST Run retry = %d headers=%v body=%s", retryResponse.Code, retryResponse.Header(), retryResponse.Body.String())
+	}
+	if _, err := runs.GetRun(ctx, nextRunID); !errors.Is(err, runstore.ErrNotFound) {
+		t.Fatalf("response-loss retry created another Run: %v", err)
+	}
+	differentBody := []byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"eval","eval.id":"eval_postgres","eval.leg":"b"},"parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+	reused := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(differentBody))
+	reused.Header.Set(idempotencyKeyHeader, "postgres-create-run")
+	reusedResponse := httptest.NewRecorder()
+	handler.ServeHTTP(reusedResponse, reused)
+	assertIdempotencyConflict(t, reusedResponse)
+
+	user, _ := service.User("user-1")
+	current, err := user.Read(ctx, contracts.ArtifactRef{Namespace: "projects", Name: "source"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	update := authenticatedRequest(http.MethodPut, "/v1/artifacts/projects/source", bytes.NewReader([]byte("new user revision")))
+	update.Header.Set("Content-Type", "text/plain")
+	update.Header.Set("If-Match", httpx.QuotedETag(current.Ref.Revision))
+	updateResponse := httptest.NewRecorder()
+	handler.ServeHTTP(updateResponse, update)
+	if updateResponse.Code != http.StatusOK {
+		t.Fatalf("update source = %d: %s", updateResponse.Code, updateResponse.Body.String())
+	}
+	runArtifacts, _ := service.Run("run-public")
+	pinnedInput, err := runArtifacts.Read(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"})
+	if err != nil || string(pinnedInput.Payload.Data) != "original" {
+		t.Fatalf("Run input after user update = (%q, %v)", pinnedInput.Payload.Data, err)
+	}
+
+	nextRunID = "run-rollback"
+	missingBody := []byte(`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"missing"}}}`)
+	missing := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(missingBody))
+	missing.Header.Set(idempotencyKeyHeader, "postgres-missing-run")
+	missingResponse := httptest.NewRecorder()
+	handler.ServeHTTP(missingResponse, missing)
+	if missingResponse.Code != http.StatusNotFound {
+		t.Fatalf("missing source Run = %d: %s", missingResponse.Code, missingResponse.Body.String())
+	}
+	if _, err := runs.GetRun(ctx, "run-rollback"); !errors.Is(err, runstore.ErrNotFound) {
+		t.Fatalf("rolled-back Run lookup error = %v", err)
+	}
+
+	intermediate, err := runArtifacts.Write(
+		ctx, contracts.ArtifactRef{Namespace: "builder", Name: "result"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("final bytes")}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var outputRef contracts.ArtifactRef
+	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		txArtifacts := artifacts.NewService(artifactpgtest.NewStorage().Repository(tx))
+		bound, err := artifactstest.BindOutput(ctx, txArtifacts, "run-public", "result", intermediate.Ref)
+		if err != nil {
+			return err
+		}
+		outputRef = bound.TargetRef
+		if err := artifactstest.FreezeOutputs(ctx, txArtifacts, "run-public"); err != nil {
+			return err
+		}
+		if _, err := runstore.NewPostgresStore(tx, artifactpgtest.NewStorage()).TransitionRun(ctx, "run-public", runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "fixture_admitted"}); err != nil {
+			return err
+		}
+		_, err = runstore.NewPostgresStore(tx, artifactpgtest.NewStorage()).TransitionRun(
+			ctx, "run-public", runstore.RunRunning, runstore.RunSucceeded,
+			runstore.Reason{Code: "outputs_frozen"},
+		)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	download := authenticatedRequest(http.MethodGet, "/v1/runs/run-public/outputs/result", bytes.NewReader(nil))
+	downloadResponse := httptest.NewRecorder()
+	handler.ServeHTTP(downloadResponse, download)
+	if downloadResponse.Code != http.StatusOK || downloadResponse.Body.String() != "final bytes" ||
+		downloadResponse.Header().Get("ETag") != httpx.QuotedETag(outputRef.Revision) ||
+		downloadResponse.Header().Get("Content-Type") != "text/plain" {
+		t.Fatalf("download = status %d, headers %v, body %q", downloadResponse.Code, downloadResponse.Header(), downloadResponse.Body.String())
+	}
+	repeatRequest := authenticatedRequest(
+		http.MethodGet, "/v1/runs/run-public/repeat-draft", bytes.NewReader(nil),
+	)
+	repeatResponse := httptest.NewRecorder()
+	handler.ServeHTTP(repeatResponse, repeatRequest)
+	var repeat runRepeatDraftResponse
+	if repeatResponse.Code != http.StatusOK || json.Unmarshal(repeatResponse.Body.Bytes(), &repeat) != nil ||
+		repeat.Draft == nil ||
+		repeat.Draft.Inputs["source"].Status != repeatStatusAvailable ||
+		repeat.Draft.Inputs["source"].Artifact == nil ||
+		!repeat.Draft.Inputs["source"].Artifact.Equal(current.Ref) ||
+		repeat.Draft.Inputs["source"].Metadata == nil || repeat.Draft.Inputs["source"].Metadata.Current {
+		t.Fatalf("PostgreSQL repeat draft = %d %s", repeatResponse.Code, repeatResponse.Body.String())
+	}
+	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
+		LaneClass: resolved.LaneClassModel,
+		RunID:     "run-lineage-two", OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
+		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
+		Parameters:    map[string]string{},
+		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifactstest.ForkInput(ctx, service, "user-1", current.Ref, "run-lineage-two", "source"); err != nil {
+		t.Fatal(err)
+	}
+
+	queryTargets := map[string]string{
+		"Workflow list":          "/v1/workflows",
+		"Workflow detail":        "/v1/workflows/artifact-copy/versions/1",
+		"Run list":               "/v1/runs?state=succeeded",
+		"User Artifact list":     "/v1/artifacts",
+		"User Artifact metadata": "/v1/artifacts/projects/source/metadata",
+		"User Artifact lineage":  "/v1/artifacts/projects/source/lineage?revision=" + url.QueryEscape(*current.Ref.Revision),
+		"Run Artifact list":      "/v1/runs/run-public/artifacts",
+		"Run Artifact metadata":  "/v1/runs/run-public/artifacts/inputs/source/metadata",
+		"Run Artifact lineage":   "/v1/runs/run-public/artifacts/inputs/source/lineage",
+		"Run Artifact download":  "/v1/runs/run-public/artifacts/inputs/source",
+	}
+	for name, target := range queryTargets {
+		request := authenticatedRequest(http.MethodGet, target, bytes.NewReader(nil))
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s = %d: %s", name, response.Code, response.Body.String())
+		}
+	}
+	lineageRequest := authenticatedRequest(
+		http.MethodGet,
+		"/v1/artifacts/projects/source/lineage?revision="+url.QueryEscape(*current.Ref.Revision)+"&limit=1",
+		bytes.NewReader(nil),
+	)
+	lineageResponse := httptest.NewRecorder()
+	handler.ServeHTTP(lineageResponse, lineageRequest)
+	var lineage artifactLineagePageResponse
+	if lineageResponse.Code != http.StatusOK || json.Unmarshal(lineageResponse.Body.Bytes(), &lineage) != nil ||
+		len(lineage.Items) != 1 || !lineage.Page.HasMore || lineage.Page.NextCursor == nil {
+		t.Fatalf("first PostgreSQL lineage page = %d: %s", lineageResponse.Code, lineageResponse.Body.String())
+	}
+	nextLineageRequest := authenticatedRequest(
+		http.MethodGet,
+		"/v1/artifacts/projects/source/lineage?revision="+url.QueryEscape(*current.Ref.Revision)+
+			"&limit=1&cursor="+url.QueryEscape(*lineage.Page.NextCursor),
+		bytes.NewReader(nil),
+	)
+	nextLineageResponse := httptest.NewRecorder()
+	handler.ServeHTTP(nextLineageResponse, nextLineageRequest)
+	var remainingLineage artifactLineagePageResponse
+	if nextLineageResponse.Code != http.StatusOK ||
+		json.Unmarshal(nextLineageResponse.Body.Bytes(), &remainingLineage) != nil ||
+		len(remainingLineage.Items) != 1 || remainingLineage.Page.HasMore {
+		t.Fatalf("second PostgreSQL lineage page = %d: %s", nextLineageResponse.Code, nextLineageResponse.Body.String())
+	}
+
+	versionsRequest := authenticatedRequest(
+		http.MethodGet, "/v1/artifacts/projects/source/versions?limit=1", bytes.NewReader(nil),
+	)
+	versionsResponse := httptest.NewRecorder()
+	handler.ServeHTTP(versionsResponse, versionsRequest)
+	var versions artifactPageResponse
+	if versionsResponse.Code != http.StatusOK || json.Unmarshal(versionsResponse.Body.Bytes(), &versions) != nil ||
+		len(versions.Items) != 1 || !versions.Items[0].Current || !versions.Page.HasMore ||
+		versions.Page.NextCursor == nil {
+		t.Fatalf("first PostgreSQL Artifact history page = %d: %s", versionsResponse.Code, versionsResponse.Body.String())
+	}
+	nextVersions := authenticatedRequest(
+		http.MethodGet,
+		"/v1/artifacts/projects/source/versions?limit=1&cursor="+url.QueryEscape(*versions.Page.NextCursor),
+		bytes.NewReader(nil),
+	)
+	nextVersionsResponse := httptest.NewRecorder()
+	handler.ServeHTTP(nextVersionsResponse, nextVersions)
+	var previousVersions artifactPageResponse
+	if nextVersionsResponse.Code != http.StatusOK ||
+		json.Unmarshal(nextVersionsResponse.Body.Bytes(), &previousVersions) != nil ||
+		len(previousVersions.Items) != 1 || previousVersions.Items[0].Current {
+		t.Fatalf("second PostgreSQL Artifact history page = %d: %s", nextVersionsResponse.Code, nextVersionsResponse.Body.String())
+	}
+
+	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
+		LaneClass: resolved.LaneClassModel,
+		RunID:     "run-foreign", OwnerID: "user-2", WorkflowName: "artifact-copy", WorkflowVersion: "1",
+		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
+		Parameters:    map[string]string{},
+		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	foreign := authenticatedRequest(
+		http.MethodGet, "/v1/runs/run-foreign/artifacts/inputs/source/metadata", bytes.NewReader(nil),
+	)
+	foreignResponse := httptest.NewRecorder()
+	handler.ServeHTTP(foreignResponse, foreign)
+	if foreignResponse.Code != http.StatusNotFound {
+		t.Fatalf("foreign PostgreSQL RunScope query = %d: %s", foreignResponse.Code, foreignResponse.Body.String())
+	}
+	// Experiments select authored Workflows through ordinary public Run creation.
+	snapshots := map[string]string{}
+	for _, variant := range []string{"a", "b"} {
+		nextRunID = "run-variant-" + variant
+		body := []byte(`{"workflow":"artifact-copy-` + variant + `@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+		request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+		request.Header.Set(idempotencyKeyHeader, "variant-"+variant)
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusAccepted {
+			t.Fatalf("variant %s: %d %s", variant, response.Code, response.Body.String())
+		}
+		stored, err := runs.GetRun(ctx, nextRunID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var pinned resolved.ResolvedWorkflow
+		if err := json.Unmarshal(stored.WorkflowSnapshot, &pinned); err != nil {
+			t.Fatal(err)
+		}
+		selected := pinned.Stages["copy"].ExecutionConfig.Agents["builder"]
+		if selected.ModelPolicy.Model != "variant-model-"+variant || selected.Origins.ModelPolicy != "workflow.executionConfig.workers" {
+			t.Fatalf("variant policy: %+v", selected)
+		}
+		snapshots[nextRunID] = string(stored.WorkflowSnapshot)
+	}
+	// Reloading a changed pre-production catalog cannot retarget accepted Runs.
+	policyPath := filepath.Join(variantRoot, "model-policies/test-variant-worker-a.yaml")
+	policy, err := os.ReadFile(policyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(policyPath, []byte(strings.Replace(string(policy), "variant-model-a", "replacement-model", 1)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	restarted, _, err := configload.NewManager(config.ManagerOptions{OperatorRoot: variantRoot, ManagedRoot: filepath.Join(t.TempDir(), "restarted-managed")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed, err := restarted.Workflow("artifact-copy-a@1")
+	if err != nil || changed.Stages["copy"].ExecutionConfig.Agents["builder"].ModelPolicy.Model != "replacement-model" {
+		t.Fatalf("replacement catalog did not load: %v", err)
+	}
+	for id, want := range snapshots {
+		stored, err := runs.GetRun(ctx, id)
+		if err != nil || string(stored.WorkflowSnapshot) != want {
+			t.Fatalf("catalog reload changed accepted %s: %v", id, err)
+		}
+	}
+
+}
+
+type integrationUnitOfWork struct {
+	pool        *pgxpool.Pool
+	credentials resolved.CredentialLookup
+	// wrapArtifacts, when set, wraps the transaction's Artifact repository,
+	// so a test can inject one fault into the otherwise real transaction.
+	wrapArtifacts func(artifacts.Repository) artifacts.Repository
+}
+
+func (u integrationUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artifacts.Service, runservice.RuntimeCredentialValidator) error) error {
+	return persistencepostgres.InTx(ctx, u.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(
+			tx,
+			runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
+				func(pgx.Tx) (resolved.CredentialLookup, error) { return u.credentials, nil },
+			),
+		)
+		if err != nil {
+			return err
+		}
+		var repository artifacts.Repository = artifactpgtest.NewStorage().Repository(tx)
+		if u.wrapArtifacts != nil {
+			repository = u.wrapArtifacts(repository)
+		}
+		return fn(
+			runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx), artifactpgtest.NewStorage()),
+			artifacts.NewService(repository),
+			credentials.NewRuntimeCredentialRepository(tx),
+		)
+	})
+}
+
+func isolatedPublicPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
+	t.Helper()
+	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{})
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
+		t.Fatal(err)
+	}
+	return pool
+}

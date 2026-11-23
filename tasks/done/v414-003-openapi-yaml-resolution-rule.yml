@@ -1,0 +1,213 @@
+schema_version: "1.0"
+id: V414-003
+title: "Read and write OpenAPI YAML under one scalar and key rule in openapi@1, scan preparation and the Audit inventory"
+milestone: review-v407-v409-followups-2026-10
+epic: api-contracts
+kind: defect
+introduced_by: V2-003
+priority: P2
+status: completed
+implementation_commit: 7da21d86313d6a756a86ffe06161f05eca670387
+depends_on: []
+languages: [go, python]
+goal: >-
+  An OpenAPI YAML document means the same JSON value to the Runtime authoring Toolset openapi@1,
+  Server scan preparation (internal/scanplan) and the openapi-operations@1 inventory
+  (internal/auditdomain): one documented rule decides scalar values, mapping keys and merge keys,
+  openapi@1 writes only YAML that reads back under that rule as the value it wrote, and a shared
+  fixture holds all three readers to the same verdicts.
+context:
+  review: >-
+    tasks/done/v407-024-cross-language-limits-and-grammars.yml, decisions, "Open residuals" (b):
+    YAML 1.1/1.2 interop between openapi@1 (PyYAML) and scanplan (go-yaml v4), confirmed on
+    6d0467c0 and predating V407-024. SCN-R253 currently records the divergence as known.
+  specification:
+    - docs/spec/tools/scanners.md#SCN-R124
+    - docs/spec/tools/scanners.md#SCN-R253
+    - docs/spec/audits/audits.md#AUD-R143
+    - docs/spec/audits/audits.md#AUD-R146
+  severity: medium
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/openapi/tools.py:1123-1201 loads with a PyYAML
+    SafeLoader (YAML 1.1 resolvers minus timestamp; core-tagged plain keys keep their source text;
+    flatten_mapping applies merge keys) and :1622-1633 writes with SafeDumper, which quotes only
+    strings that YAML 1.1 would resolve. internal/scanplan/document.go:21-166 and
+    internal/auditdomain/canonical.go:105-202 read with go-yaml v4 (YAML 1.2 core) and reject every
+    mapping key whose tag is not !!str and every merge key. Reproduced on 19f7477f with a
+    scratchpad PyYAML probe and temporary Go tests over the same scalars: (1) writer: openapi@1
+    dumps the strings "0o17", "1e3", "+1e3", "1E3" and "12e03" as plain scalars (x-v: 0o17), which
+    both Go readers read as the numbers 15, 1000, 1000, 1000 and 12000, and as mapping keys
+    (x-k: {0o17: 1}) both Go readers reject the written document as invalid_document /
+    audit_document_invalid. (2) reader: plain values yes/no/on/off read as booleans in openapi@1 and
+    as strings in Go; 1:30 reads as 90 in openapi@1 and "1:30" in Go; 017, 0x1F, 0b101 and 1_000
+    agree. (3) keys: plain keys 0o17, 1e3, 017, 200-style integers, True, null, ~, 0., .5 and
+    2023-01-01 are accepted by openapi@1 as their source text and rejected by both Go readers.
+    (4) merge: `x-m: {<<: {a: 1}, b: 2}` is accepted and merged by openapi@1 and rejected by both
+    Go readers. A seed loaded at the same binding with application/yaml keeps its original bytes
+    (runtime/src/contractor_runtime/toolsets/common/document_session.py:92-97), so openapi@1
+    validates and publishes a document that scan preparation and the inventory then reject.
+  siblings: >-
+    Readers: internal/scanplan parseDocument (scan preparation, openapi-scans@1 inventory, scan
+    Planner input) and internal/auditdomain parseJSONOrYAML (openapi-operations@1, also
+    checklist@1) already agree with each other on every probed scalar; both in scope as fixture
+    consumers and for any change of the key rule. Writer: openapi@1 _dump_document (every write,
+    full read and validate) in scope. UI artifact preview
+    (ui/src/routes/artifacts/previews/openapi-document.ts:80-96, eemeli yaml 2.8.3, YAML 1.2 core)
+    is display-only and already reads like the Server; out of scope, it shows the right value once
+    the writer quotes. Other PyYAML users (agent_skills/package.py, scan/nuclei_rulepack.py) read
+    other formats; out of scope.
+  provenance: >-
+    The writer (yaml.dump with SafeDumper) and SafeLoader come from 38e173d9fcb7 "feat(runtime): add
+    OpenAPI document tools", the implementation_commit of V2-003. The source-text key rule is
+    22282271188d (fix(openapi): accept JSON-compatible YAML, Refs #100, no task record). The Go
+    readers that apply YAML 1.2 were added by 658a88dd68d0 (V25-002, auditdomain) and 8e38e25cce5d
+    (V55-007, scanplan). V407-024 attributed the authoring/preparation disagreement to V2-003 as
+    well.
+  decision: >-
+    Rule to record in SCN-R124 and cite from AUD-R143 and the openapi@1 contract: (1) plain scalar
+    values resolve as YAML 1.2 core does in go-yaml v4, which both Server readers implement today
+    (yes/no/on/off, y/n and 1:30 are strings; 0o17, 017, 0x1F, 0b101, 1_000 and 1e3 are numbers
+    under AUD-R146 / LIM-SCN-67); (2) mapping keys: either (a) the Server rule, every key must
+    resolve to !!str, so openapi@1 rejects a plain 200: key, or (b) the openapi@1 rule since
+    22282271, a plain key with a core tag is the string of its source text, so both Server readers
+    accept 200: as "200"; recommended (b), because unquoted response codes are common in authored
+    OpenAPI YAML (issue #100) and the source text is lossless; (3) merge keys, anchors, aliases and
+    non-core explicit tags reject everywhere; (4) openapi@1 writes every string that rule (1) or
+    YAML 1.1 would read as a non-string as a quoted scalar. Record the chosen key option, the
+    rejected one and the reversal condition in SCN-R124 (AGENTS 3.10).
+scope:
+  in:
+    - "openapi@1 loader: resolve plain scalars under rule (1), apply the chosen key rule (2), reject merge keys (3), on load, seed decode and every mutation input that is YAML."
+    - "openapi@1 writer: quote every string that would not read back as the same string under rule (1) or YAML 1.1 (4), so written bytes mean the same to every reader."
+    - "If key option (b) is chosen: internal/scanplan and internal/auditdomain accept core-tagged plain keys as their source text, with the duplicate check on the resulting strings."
+    - "New shared fixture api/testdata/openapi-yaml-scalar-cases.json: value cases and key cases (YAML text, verdict, JSON value), merge/anchor rejections, and writer round-trip cases (string, the exact scalar openapi@1 must emit); registered in api/testdata/readers.json for Go scanplan, Go auditdomain and Python openapi@1."
+    - "Remove the 'can still parse differently' sentence from SCN-R253 and update SCN-R124."
+  out:
+    - "Per-string length bounds (V414-001)."
+    - "Changing the document byte, depth or node bounds (LIM-SCN-39/41/42)."
+    - "Switching openapi@1 output to JSON or changing its media type."
+acceptance_criteria:
+  - id: A1
+    given: "every value, key, merge and anchor case of openapi-yaml-scalar-cases.json"
+    when: "internal/scanplan, internal/auditdomain and openapi@1 read the case"
+    then: "all three return the fixture's verdict and, when accepted, the fixture's JSON value"
+  - id: A2
+    given: "the writer cases (0o17, 1e3, +1e3, 1E3, 12e03, yes, 1:30 and the other probed strings) as member values and as member names"
+    when: "openapi@1 writes them and the Go readers read the written scalar from the fixture"
+    then: "openapi@1 emits exactly the fixture's scalar and both Go readers read back the original string"
+  - id: A3
+    given: "an application/yaml seed with a merge key loaded at the same binding"
+    when: "load_openapi and validate_openapi run"
+    then: "the Toolset answers the non-retryable tool_input_invalid error and stores nothing, as scan preparation rejects the same bytes"
+  - id: A4
+    given: "the unfixed code at 19f7477f"
+    when: "the fixture consumers run"
+    then: "the Python consumer fails on the 0o17 / 1e3 writer cases, the yes/on value cases and the merge case"
+tests:
+  - command: "go test -count=1 ./internal/scanplan/... ./internal/auditdomain/..."
+    covers: [A1, A2]
+  - command: "cd runtime && uv run --locked pytest -q tests/test_openapi_toolset.py"
+    covers: [A1, A2, A3, A4]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-wire-cross-language"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1]
+decisions:
+  - >-
+    D1 Key rule: option (b). A plain mapping key is the string of its source text whatever it
+    resolves to (200:, 0o17:, 1e3:, true:, ~:, 2023-01-01:, 0x10000000000000000:), the duplicate
+    check compares those strings, a quoted or block key is its string, an explicitly tagged key
+    must be !!str and a plain << is a merge key and rejects. Option (a), every key must resolve
+    to !!str (go-yaml's default, which rejects 200:), was rejected because unquoted response codes
+    are common in authored OpenAPI YAML (issue #100) and the source text is lossless. Reversal
+    condition, recorded in the SCN-R124 rationale: a supported reader cannot recover a plain key's
+    source text, or differently spelled keys such as 1 and 01 must name one member. Both Go
+    readers changed; scanplan no longer applies the overflowing-number check to keys (it did, and
+    auditdomain did not, so the two Go readers also disagreed on keys such as 0x10000000000000000).
+  - >-
+    D2 Scalar rule: plain scalars resolve exactly as go-yaml v4 internal/libyaml/resolver.go
+    does, including its quirks (017 is octal 15, 08 and 018 fall through to floats 8 and 18,
+    1_ is 1, .5_5 is 0.55 because strconv.ParseFloat accepts separating underscores), then the
+    existing documentnumber Integer/Float/LooksNumeric bounds. The Runtime ports resolve,
+    strconv.ParseInt/ParseUint base 0, strconv.ParseFloat's decimal syntax with underscoreOK, and
+    documentnumber in contractor_runtime.toolsets.openapi.yaml_scalars rather than using PyYAML's
+    YAML 1.1 resolvers; a plain date resolves to a string there (go-yaml says !!timestamp, and both
+    readers return the source text either way). Differential check before the commit: 7375 plain
+    scalars (curated plus random strings over 0-9+-._eExXoObB:) in value and key position and 1084
+    documents (explicit tags x texts, merges, anchors, directives, escapes) gave identical verdicts
+    and values in internal/scanplan, internal/auditdomain and openapi@1.
+  - >-
+    D3 Explicit tags (rule 3): !!str (any text), !!int, !!float, !!bool, !!null on scalars, !!map and
+    !!seq on collections; everything else, including !!timestamp, !!binary, !!set, !!omap, !!merge,
+    the non-specific ! and custom tags, rejects everywhere. !!bool and !!null accept only the
+    untagged core spellings (true/True/TRUE, false/False/FALSE; "", ~, null, Null, NULL). This
+    tightened the Go readers: scanplan accepted !!bool 1/t/f via strconv.ParseBool and the scalar
+    "! abc"; auditdomain accepted !!bool tRuE, !!null with any text and accepted explicit
+    !!timestamp as a string, as did scanplan. One Go definition: internal/documentyaml (foundation
+    layer; Scalar, Key, Collection), used by scanplan parseDocument and auditdomain
+    parseJSONOrYAML; their duplicated scalar switches are removed.
+  - >-
+    D4 Writer (rule 4): _OpenAPIDumper.resolve returns the go-yaml tag of a plain scalar, or else
+    the PyYAML YAML 1.1 implicit tag, or bool for y/Y/n/N (YAML 1.1 type repository), so a string
+    that either rule reads as anything else is single-quoted. Checked on every string of the
+    7375-string corpus plus 60 structural strings in value and member position (14872 documents):
+    openapi@1, both Go readers and yaml.safe_load all read back the original string.
+  - >-
+    D5 Siblings fixed in the same paths: mutation inputs (_validate_json_tree) now reject floats
+    outside +-9007199254740991 as they already rejected integers, because a written 1.0e+300 failed
+    LIM-SCN-67/AUD-R146 in both Server readers; strings and member names with surrogate code points
+    (a lone \ud83d from YAML or JSON tool arguments) are rejected instead of crashing the UTF-8
+    write; reader errors raised while PyYAML's Reader is created (non-printable characters) and
+    the ValueError of a \U escape beyond U+10FFFF become tool_input_invalid instead of escaping as
+    Python exceptions; the loader uses go-yaml's double-quoted escapes (no \/, adds \') and rejects
+    %YAML other than 1.1 as go-yaml does. Ruled out: the UI preview (display-only, out of scope by
+    the task), agent_skills/package.py and scan/nuclei_rulepack.py (other formats), Go YAML
+    writers (internal/config/manager.go and internal/auth/bootstrap.go write configuration, not
+    OpenAPI documents); openapi@1 has one parse path (seed decode in load_openapi) and one write
+    path (_dump_document).
+  - >-
+    Open residual (lexical, Runtime stricter only): PyYAML rejects some documents go-yaml accepts,
+    for example a tab between a member name and its value ("v:\ta") or inside a plain scalar
+    ("a\tb"), and a JSON seed with a valid surrogate-pair escape (go-yaml/strictjson combine the
+    pair, PyYAML produces two surrogates that openapi@1 now rejects). These never let openapi@1
+    accept or write a document the Server rejects; SCN-R257 records them. Closing them needs a
+    different YAML parser or a JSON path in openapi@1, a separate task if authored seeds hit them.
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), TMPDIR=/private/tmp, the locked Runtime venv
+    (CPython 3.13.16, PyYAML from uv.lock) and the pnpm UI install for make lint; local PostgreSQL
+    17.11 database contractor_test_v414_api; branch claude/v414-api containing main e92c0272.
+  commands:
+    - >-
+      go test -count=1 ./internal/scanplan/... ./internal/auditdomain/... ./internal/archtest/
+      ./internal/contracts/contractstest/ passed after the merge of main (internal/documentyaml has
+      no own tests; both readers exercise it). TestSharedOpenAPIYAMLScalarCasesMatchRuntimeAuthoring
+      ran 268 subtests in each reader package (122 values, 33 keys, 31 documents, 41 writes as
+      value and member name).
+    - >-
+      cd runtime && uv run --locked pytest -q tests/test_openapi_toolset.py passed (73 tests, exit 0),
+      including test_shared_openapi_yaml_scalar_cases_match_server_readers (A1),
+      test_shared_openapi_yaml_writer_emits_the_scalars_every_reader_reads_back (A2),
+      test_merge_key_seed_at_the_same_binding_is_rejected_before_it_is_kept (A3: tool_input_invalid,
+      non-retryable, no write, validate_openapi reports the document as not loaded, Vacuum not run)
+      and test_mutations_write_strings_every_reader_reads_back_and_bound_numbers.
+    - >-
+      A4: the four new and changed Python tests run against the unfixed tools.py (7da21d86^, byte
+      for byte the file at 19f7477f; via PYTHONPATH over a scratch copy) all fail; a per-case run over the fixture fails 60 cases,
+      among them value yes -> True, value on -> True, the merge-key-flow/block/sequence documents
+      (merged instead of rejected) and the writes 0o17 and 1e3 (emitted plain).
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://localhost/contractor_test_v414_api make
+      test-wire-cross-language passed after the merge ("265 fixtures, 303 Go and 204 Python shared
+      tests"); api/testdata/openapi-yaml-scalar-cases.json is declared for go and python in
+      api/testdata/readers.json.
+    - >-
+      make lint passed (exit 0) after the merge, after make docs-dependencies regenerated
+      docs/spec/audit-workflow-dependencies.html for internal/documentyaml.
+    - >-
+      Runtime tests sharing the openapi toolset (test_tool_input_errors, test_capabilities,
+      test_unconfigured_artifact_clients, test_tool_operation_ownership,
+      test_local_direct_tool_consumers) passed; test_tool_process.py
+      test_detached_descendant_holding_pipes_cannot_stall_stop[timeout|cancel] fails on this macOS
+      host with and without this change (core/process.py is untouched), so it is unrelated.

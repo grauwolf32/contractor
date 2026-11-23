@@ -1,0 +1,57 @@
+{
+  "status": "in_progress; selected process acceptance incomplete",
+  "tasks": [
+    "V466-001",
+    "V466-002"
+  ],
+  "user_decision": "2026-11-10: Skill content in telemetry is acceptable; only credentials are prohibited. Existing external content capture applies exact known credential replacement.",
+  "implementation_commits": {
+    "V466-001": "d1f7af8adff144b95d62cb3916a77d9ff5718837",
+    "V466-002": "7b9392718d9362d4565610b8a90af668262ca771"
+  },
+  "source_sha256": {
+    "tests/e2e/agent_skills_test.go": "198fcb1c1e3df181f91a327e4db99860c8bacb65bb7ed35157ea213b76967395",
+    "tests/e2e/runtime_labels_test.go": "f4af6e6ae3ca69a1c1becaba4c1f8e2d3b5cda4af1c3ad89495441989f5a2430",
+    "tests/e2e/shared_memory_test.go": "587318eaf4f5fd8419786e006b169db53ea78bf9473452be05a8a616d83f630b",
+    "tests/e2e/taint_annotations_test.go": "8ebe185e52ec373cae39c9ee8bff36d2a470b86306abea294a14a0fbe747921e",
+    "tests/e2e/taint_annotations_gateway_test.go": "f4d1e5734ac1bd97ede771bb48c51fe902ec955b8ed965d6476fa1840b5af1a9"
+  },
+  "runtime_lock_sha256": "945f997f38cabe445f1f05a559a26089fdf3bf44c95b523a6d8eb71c8e235c65",
+  "passing_checks": {
+    "Runtime content/redaction": "28 passed",
+    "go test -count=1 ./tests/e2e": "passed",
+    "make lint after both changes": "passed"
+  },
+  "final_process_run": {
+    "command": "go test -tags=e2e -count=1 -timeout=12m -v ./tests/e2e -run '^(TestAgentSkillsMVPProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestProductionMemoryTemplatesAcrossProcesses)$'",
+    "exit_code": 1,
+    "passed_seconds": {
+      "TestAgentSkillsMVPProcesses": 165.15,
+      "TestProductionMemoryTemplatesAcrossProcesses": 103.11
+    },
+    "failed_seconds": {
+      "TestTaintAnnotationsAcrossRealRuntimeProcess": 13.26
+    },
+    "skipped": 0,
+    "failure": "taint_annotations_test.go:284: expected retired workspace_state Workflow output; the Run returns taint_report only",
+    "taint_gateway": "16 model calls, first stage completed, zero fixture failures; the later output assertion prevents clean-reuse and OTLP assertions"
+  },
+  "historical_comparison": {
+    "before": "Agent Skills process assertion classified ordinary Skill package markers as secrets in OTLP. Its complete scenario now passes twice with credential-only checks.",
+    "first_corrected_run": "Skills and Memory passed; taint failed before its first model step because its explicit tool oracle omitted the already-selected finding facade.",
+    "after_oracle_fix": "Taint completes its first scripted stage and reaches the independent retired Workflow-output assertion."
+  },
+  "ownership": {
+    "external_telemetry": "Configured exporter may contain disclosed Skill/Memory/source content after known credential replacement.",
+    "separate_surfaces": "Ordinary logs, public responses, lifecycle events and durable reports retain existing assertions.",
+    "scope": "No production exporter, matcher, template, model, API, workspace protocol or retention behavior changes."
+  },
+  "remaining_work": "V465-002 intentionally removed checkpoint Workflow outputs while preserving internal Stage exports. A separate fixture migration must read the exact Stage checkpoint rather than restore the retired output. Broader V417-003 Runtime and Audit-trace failures remain outside these changes.",
+  "logs": "/private/tmp/contractor-v417-merge-tucvsa8c",
+  "cleanup": {
+    "owned_database_dropped": true,
+    "owned_database": "contractor_test_v417_compaction_20261110_01",
+    "original_six_user_files_bytes_and_modes_preserved": true,
+    "primary_staged_diff_preserved": true
+  }
+}

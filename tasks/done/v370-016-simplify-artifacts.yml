@@ -1,0 +1,103 @@
+schema_version: "1.0"
+id: V370-016
+title: "Simplify the Artifact service and Runtime client"
+milestone: hub-audit-structure-2026-10
+epic: projects-artifacts
+kind: chore
+priority: P3
+status: completed
+implementation_commit: b2be4f72de948767d20da1f5e83a15025976bf33
+depends_on: []
+languages: [go, python]
+goal: "Service exposes only generic operations and tests pass."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), artifacts B, C3, C4, H; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Service (625 lines) has 14 trusted operations, 12 with a single
+    consumer; nine interfaces with one implementation and runtime type
+    checks with ErrQueryUnsupported exist for fakes; five SQLSTATE handlers
+    (postgres_write.go:80-112 and others); Service and Repository validate
+    twice; ImportFindingArtifact is an alias; Python artifacts.py also hosts
+    finding and gateway clients and duplicates validators.
+  decision: >-
+    Reproduced on fc25b5d (Service 695 lines, 13 purpose-specific methods
+    after V368-006 added WriteAuditArtifact). (1) Service keeps only generic
+    operations: the scope views User, Project, Run and Scoped with the generic
+    Namespace policy, and five trusted primitives in trusted.go. Create is the
+    create-only write; CreateFrozen the create-only frozen write with the
+    content replay of REV-R149, the one Audit writer; Fork the create-only
+    fork, one SQL statement for every former fork, parameterized by lineage
+    kind and frozen target, with options for a frozen current source and for
+    replaying a retried fork; Freeze freezes one Namespace of a scope;
+    RequireExact is unchanged. The primitives keep only the rules every caller
+    shares: Run outputs are created only by a fork, audit-* Project bindings
+    only frozen, forks connect User or Project to Run, Run to its Project and
+    Run to the same Run, and Project/Run forks require the Run to belong to
+    the Project. (2) The purpose-specific operations moved to their owners:
+    runrepeat.Retain and Load (repeat request), runservice forkInput,
+    scheduler bindOutput, freezeOutputs and publishRunOutput, agentskills
+    forkSkill, findingintake (proposal Create, audit_import Fork),
+    auditimport RetainRunExact, auditstandards Initialize (Create) and
+    writeRetained (CreateFrozen). ImportFindingArtifact and the other
+    wrappers are gone; findingintake and evalservice read through
+    Service.Scoped instead of the repository. (3) Behaviour notes: output
+    binding is create-only like every production call was
+    (BindOutputExact's expected revision was always nil), so a fork into an
+    existing frozen output now reports a conflict, not ErrArtifactFrozen;
+    FreezeRunOutputs no longer reads workflow_runs to report a missing Run
+    (its callers hold the Run lock); every fork now holds FOR KEY SHARE on
+    its source scope, as input forks and publication already did. (4) The
+    nine interfaces and ErrQueryUnsupported are replaced by one port,
+    Repository, without optional interfaces or runtime type checks, rather
+    than by the concrete repository the scope names: V368-010 decided that
+    the handler and catalog unit suites keep their in-memory doubles with
+    parity tests instead of a database, and those doubles need the seam
+    (public, privateartifacts, agentskills, auditstandards and the artifacts
+    unit tests; the planner, scan, scheduler and gitimport decorators embed
+    it). Reopen when those suites move to PostgreSQL. Service is still built
+    per DBTX at its call sites, so it is not the one composed dependency
+    V368-028 waits for, and the blob runtime stays in the context. (5)
+    Service validates every port request once; PostgresRepository no longer
+    re-validates
+    (ReadExactBatch and RecordGitSource, which are not on the port, validate
+    their own input); validateScope reuses newScope. storeError is the one
+    classifier of write and fork statements (revision limit, deleting scope,
+    missing owner, duplicate), and ensureScope the one scope creation. (6)
+    Python: FindingProposalClient (finding_proposals.py) submits proposals,
+    the Worker factory builds GatewayRecoveryClient on the ArtifactClient's
+    transport, and contracts.validate_artifact_name and validate_media_type
+    are the one Runtime definition of those checks (the client-side
+    _validate_ref was redundant with the ArtifactRef model). artifactstest
+    sets up, for other packages' tests, the state the moved flows create.
+    The public fake's parity test now drives frozen user bindings through
+    Freeze, since outputs are no longer written by CAS.
+scope:
+  in:
+    - "Trusted operations move to consumers over a create-only/fork primitive; concrete repository; one validation and classifier; Python clients split."
+  out:
+    - "Behaviour."
+acceptance_criteria:
+  - id: A1
+    text: "Service exposes only generic operations and tests pass."
+    evidence: >-
+      Service exposes the scope views and Create, CreateFrozen, Fork, Freeze
+      and RequireExact (internal/artifacts/service.go, trusted.go). Verified
+      with focused gates rather than the whole ./internal/... suite: every
+      make lint step; go test -tags integration for artifacts on both
+      backends, auditcontroller, auditimport, auditservice, findingintake,
+      gitimport, httpapi/public, httpapi/privateartifacts, projectlifecycle
+      and the untouched importers of artifacts; go test for the other touched
+      packages; the Runtime test files that use the changed clients, pytest
+      -k artifacts and make test-wire-cross-language. The remaining failures
+      also occur on fc25b5d: the private Artifact probe reads inputs/source,
+      Runtime fakes lack the metadata route, the Podman tests refuse root,
+      the restore test needs a pg_dump of the server's version, and the two
+      large finding collection tests exceed their wall-clock budgets under
+      machine load.
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/artifacts ./internal/..."
+    covers: [A1]
+  - command: "cd runtime && uv run pytest tests -k artifacts"
+    covers: [A1]

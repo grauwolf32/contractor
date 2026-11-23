@@ -1,0 +1,676 @@
+import { findingNeedsReview, findingSeverity } from "./audits";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
+
+import type {
+  Audit,
+  ProjectFinding,
+  FindingSeverity,
+  FindingState,
+  AuditReport,
+  AuditState,
+} from "./audits";
+import { TestPublicAPI as PublicAPI } from "../test/shared-config";
+import { PublicAPIProvider } from "./context";
+import {
+  invalidateCrossProject,
+  useAllChecks,
+  useAllPossibleIssues,
+  useAllReports,
+  useInboxSummary,
+  useProjectsIndex,
+} from "./cross-project";
+import type { Project } from "./projects";
+import * as build from "../test/builders";
+import { deferred } from "../test/deferred";
+import { usePossibleIssuesToReview } from "../routes/projects/overview-data";
+import { getSharedConfig } from "./shared-config";
+
+// LIM-UI-15 in docs/spec/platform/limits.md.
+const MAXIMUM_LOADED_PAGES = 20;
+
+const project = (projectId: string, overrides: Partial<Project> = {}) =>
+  build.project(projectId, {
+    createdAt: "2026-10-01T10:00:00Z",
+    updatedAt: "2026-10-01T10:00:00Z",
+    ...overrides,
+  });
+
+function audit(
+  projectId: string,
+  auditId: string,
+  state: AuditState,
+  options: { revision?: number; updatedAt?: string } = {},
+): Audit {
+  return build.audit(projectId, auditId, state, {
+    revision: options.revision ?? 1,
+    createdAt: "2026-10-01T10:00:00Z",
+    updatedAt: options.updatedAt ?? "2026-10-01T10:00:00Z",
+  });
+}
+
+function finding(
+  auditId: string,
+  findingId: string,
+  options: {
+    state?: FindingState;
+    createdAt?: string;
+    verdict?: "true_positive" | "false_positive";
+    severity?: FindingSeverity;
+  } = {},
+): ProjectFinding {
+  const createdAt = options.createdAt ?? "2026-10-02T10:00:00Z";
+  const value = build.finding(
+    auditId,
+    findingId,
+    {
+      state: options.state ?? null,
+      analystVerdict: options.verdict ?? null,
+      analystSeverity: options.severity ?? null,
+      createdAt,
+      updatedAt: createdAt,
+    },
+    { title: `Finding ${findingId}` },
+  );
+  return value;
+}
+
+const report = (status: AuditReport["status"]): AuditReport =>
+  build.report("audit_report", status);
+
+interface ServerState {
+  projects: Project[];
+  audits: Record<string, Audit[]>;
+  findings?: Record<string, ProjectFinding[]>;
+  reports?: Record<string, AuditReport>;
+  failures?: Record<string, boolean>;
+  continuationFails?: string;
+  reportGate?: Promise<void>;
+}
+
+function json(value: unknown, status = 200): Response {
+  return new Response(JSON.stringify(value), {
+    status,
+    headers: {
+      "content-type": "application/json",
+      "X-Contractor-API-Version": "contractor.public.v1",
+    },
+  });
+}
+function setup(state: ServerState) {
+  const requests: URL[] = [];
+  const requestTimes: number[] = [];
+  let activeReports = 0;
+  let maximumReports = 0;
+  const fetch = vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    requests.push(url);
+    requestTimes.push(Date.now());
+    if (
+      state.failures?.[url.pathname] ||
+      (state.continuationFails === url.pathname &&
+        url.searchParams.has("cursor"))
+    ) {
+      return json(
+        {
+          code: "internal_error",
+          message: "Server failed",
+          retryable: false,
+          requestId: "req_test",
+        },
+        500,
+      );
+    }
+    const audits = Object.values(state.audits).flat();
+    const wanted = (name: string, value: string) =>
+      !url.searchParams.has(name) ||
+      url.searchParams.get(name)!.split(",").includes(value);
+    let items: unknown[];
+    if (url.pathname === "/v1/projects") items = state.projects;
+    else if (url.pathname === "/v1/audits")
+      items = audits.filter((a) => wanted("state", a.state));
+    else if (url.pathname === "/v1/projects/project_a/findings")
+      items = (state.findings?.project_a ?? []).map(build.findingSummary);
+    else if (url.pathname === "/v1/findings")
+      items = Object.values(state.findings ?? {})
+        .flat()
+        .filter(
+          (f) =>
+            state.projects.some((p) => p.projectId === f.projectId) &&
+            wanted("state", f.state ?? "") &&
+            (url.searchParams.get("verdict") === "needs_review"
+              ? findingNeedsReview(f)
+              : wanted("verdict", f.analystVerdict ?? "")) &&
+            (!url.searchParams.has("severity") ||
+              wanted("severity", findingSeverity(f))),
+        )
+        .map(build.findingSummary);
+    else {
+      const match = /^\/v1\/audits\/([^/]+)\/report$/.exec(url.pathname);
+      const found = match === null ? undefined : state.reports?.[match[1]!];
+      activeReports++;
+      maximumReports = Math.max(maximumReports, activeReports);
+      try {
+        await state.reportGate;
+        return found === undefined
+          ? json(
+              {
+                code: "not_found",
+                message: "Not found",
+                retryable: false,
+                requestId: "req_test",
+              },
+              404,
+            )
+          : json(found);
+      } finally {
+        activeReports--;
+      }
+    }
+    const limit = Number(url.searchParams.get("limit") ?? 50);
+    const start = Number(url.searchParams.get("cursor") ?? 0);
+    const hasMore = start + limit < items.length;
+    return json({
+      ...(url.pathname === "/v1/projects/project_a/findings"
+        ? { projectRevision: 1 }
+        : {}),
+      items: items.slice(start, start + limit),
+      page: {
+        hasMore,
+        ...(hasMore ? { nextCursor: String(start + limit) } : {}),
+      },
+    });
+  });
+  const api = new PublicAPI(
+    {
+      uiVersion: "0.1.0",
+      supportedApiVersions: ["contractor.public.v1"],
+      apiBaseUrl: "http://127.0.0.1:8080",
+    },
+    fetch,
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>
+      <PublicAPIProvider api={api}>{children}</PublicAPIProvider>
+    </QueryClientProvider>
+  );
+  const count = (path: string) =>
+    requests.filter((url) => url.pathname === path).length;
+  return {
+    api,
+    requests,
+    requestTimes,
+    queryClient,
+    wrapper,
+    count,
+    maximumReports: () => maximumReports,
+  };
+}
+async function settled(result: { current: { isPending: boolean } }) {
+  await waitFor(() => expect(result.current.isPending).toBe(false));
+}
+const base = (): ServerState => ({
+  projects: [project("project_a"), project("project_b")],
+  audits: {
+    project_a: [audit("project_a", "audit_a", "active")],
+    project_b: [audit("project_b", "audit_b", "completed")],
+  },
+});
+
+describe("paginated polling failures", () => {
+  const readers: {
+    name: string;
+    path: string;
+    interval: number;
+    useRead: () => { partial: boolean };
+  }[] = [
+    {
+      name: "Project index",
+      path: "/v1/projects",
+      interval: 20_000,
+      useRead: () => useProjectsIndex(),
+    },
+    {
+      name: "owner Checks",
+      path: "/v1/audits",
+      interval: 20_000,
+      useRead: () => useAllChecks(),
+    },
+    {
+      name: "owner Findings",
+      path: "/v1/findings",
+      interval: 20_000,
+      useRead: () => useAllPossibleIssues(),
+    },
+    {
+      name: "Project overview Findings",
+      path: "/v1/projects/project_a/findings",
+      interval: 10_000,
+      useRead: () => usePossibleIssuesToReview("project_a"),
+    },
+  ];
+
+  describe.each(readers)("$name", ({ path, interval, useRead }) => {
+    it.each(["head", "continuation"])(
+      "backs off a failed %s and recovers",
+      async (failure) => {
+        const state = base();
+        state.projects = [
+          project("project_a"),
+          ...Array.from({ length: 50 }, (_, i) => project(`extra_${i}`)),
+        ];
+        state.audits.project_a = Array.from({ length: 201 }, (_, i) =>
+          audit("project_a", `audit_${i}`, "active"),
+        );
+        state.findings = {
+          project_a: Array.from({ length: 201 }, (_, i) =>
+            finding("project_a", `finding_${i}`),
+          ),
+        };
+        if (failure === "head") state.failures = { [path]: true };
+        else state.continuationFails = path;
+        const server = setup(state);
+        await getSharedConfig(server.api);
+        vi.useFakeTimers();
+        const hook = renderHook(useRead, { wrapper: server.wrapper });
+        const heads = () =>
+          server.requests.flatMap((request, index) =>
+            request.pathname === path && !request.searchParams.has("cursor")
+              ? [server.requestTimes[index]!]
+              : [],
+          );
+        try {
+          await act(async () => {
+            await vi.advanceTimersByTimeAsync(interval * 3);
+          });
+          const times = heads();
+          expect(times.length).toBeGreaterThanOrEqual(2);
+          expect(times[1]! - times[0]!).toBe(interval * 2);
+          expect(hook.result.current.partial).toBe(true);
+          state.failures = {};
+          delete state.continuationFails;
+          await act(async () => {
+            await vi.advanceTimersByTimeAsync(120_000);
+          });
+          expect(hook.result.current.partial).toBe(false);
+          const recovered = heads();
+          expect(recovered.at(-1)! - recovered.at(-2)!).toBe(interval);
+        } finally {
+          hook.unmount();
+          server.queryClient.clear();
+          vi.useRealTimers();
+        }
+      },
+    );
+  });
+});
+
+describe("owner-wide lists", () => {
+  it("reads projects beyond page 1 and checks beyond 200 without per-project requests", async () => {
+    const state = base();
+    state.projects = Array.from({ length: 51 }, (_, i) =>
+      project(`project_${i}`),
+    );
+    state.audits = {
+      project_50: Array.from({ length: 201 }, (_, i) =>
+        audit("project_50", `audit_${i}`, "active"),
+      ),
+    };
+    const server = setup(state);
+    const { result } = renderHook(() => useAllChecks(), {
+      wrapper: server.wrapper,
+    });
+    await settled(result);
+    expect(result.current.checks).toHaveLength(201);
+    expect(result.current.checks[0]?.project.projectId).toBe("project_50");
+    expect(result.current).toMatchObject({
+      partial: false,
+      truncated: false,
+      error: null,
+    });
+    expect(server.count("/v1/projects")).toBe(2);
+    expect(server.count("/v1/audits")).toBe(2);
+    expect(
+      server.requests.every(
+        (r) => !r.pathname.match(/projects\/[^/]+\/audits/),
+      ),
+    ).toBe(true);
+  });
+  it("stops an owner with more check pages than the cap and reports truncation", async () => {
+    // Owner lists read 200 checks per page.
+    const pageSize = 200;
+    const state = base();
+    const one = audit("project_a", "audit_0", "active");
+    state.audits = {
+      project_a: Array.from(
+        { length: MAXIMUM_LOADED_PAGES * pageSize + 1 },
+        (_, i) => ({ ...one, auditId: `audit_${i}` }),
+      ),
+    };
+    const server = setup(state);
+    const { result } = renderHook(() => useAllChecks(), {
+      wrapper: server.wrapper,
+    });
+    await settled(result);
+    expect(server.count("/v1/audits")).toBe(MAXIMUM_LOADED_PAGES);
+    expect(result.current.checks).toHaveLength(MAXIMUM_LOADED_PAGES * pageSize);
+    expect(result.current).toMatchObject({
+      truncated: true,
+      partial: false,
+      error: null,
+    });
+  });
+  it("filters multiple check states on the Server and shares canonical keys", async () => {
+    const server = setup(base());
+    const { result } = renderHook(
+      () => ({
+        a: useAllChecks({ states: ["active", "completed"] }),
+        b: useAllChecks({ states: ["completed", "active", "active"] }),
+      }),
+      { wrapper: server.wrapper },
+    );
+    await waitFor(() =>
+      expect(result.current.a.isPending || result.current.b.isPending).toBe(
+        false,
+      ),
+    );
+    expect(result.current.a.checks).toHaveLength(2);
+    expect(server.count("/v1/audits")).toBe(1);
+    expect(
+      server.requests
+        .find((r) => r.pathname === "/v1/audits")
+        ?.searchParams.get("state"),
+    ).toBe("active,completed");
+  });
+  it("excludes deleting and evaluation Projects", async () => {
+    const state = base();
+    state.projects[1] = project("project_b", { kind: "evaluation" });
+    state.projects.push(
+      project("deleted", {
+        lifecycle: "deleting",
+        deletion: { phase: "draining", requestedAt: "2026-10-01T00:00:00Z" },
+      }),
+    );
+    const { result } = renderHook(() => useProjectsIndex(), {
+      wrapper: setup(state).wrapper,
+    });
+    await settled(result);
+    expect(result.current.projects.map((p) => p.projectId)).toEqual([
+      "project_a",
+    ]);
+  });
+  it("reports an initial list failure without claiming an empty result is complete", async () => {
+    const state = base();
+    state.failures = { "/v1/audits": true };
+    const { result } = renderHook(() => useAllChecks(), {
+      wrapper: setup(state).wrapper,
+    });
+    await settled(result);
+    expect(result.current.error).toBeInstanceOf(Error);
+    expect(result.current.partial).toBe(true);
+  });
+  it("keeps the last complete collection on a failed head refresh", async () => {
+    const state = base();
+    const server = setup(state);
+    const { result } = renderHook(() => useAllChecks(), {
+      wrapper: server.wrapper,
+    });
+    await settled(result);
+    state.failures = { "/v1/audits": true };
+    await act(() => result.current.refetch());
+    expect(result.current.checks).toHaveLength(2);
+    await waitFor(() => expect(result.current.partial).toBe(true));
+    expect(result.current.error).toBeNull();
+  });
+  it("keeps settled pages and marks a failed continuation partial", async () => {
+    const state = base();
+    state.audits.project_a = Array.from({ length: 201 }, (_, i) =>
+      audit("project_a", `audit_${i}`, "active"),
+    );
+    state.audits.project_b = [];
+    state.continuationFails = "/v1/audits";
+    const server = setup(state);
+    const { result } = renderHook(() => useAllChecks(), {
+      wrapper: server.wrapper,
+    });
+    await settled(result);
+    expect(result.current.checks).toHaveLength(200);
+    expect(result.current.partial).toBe(true);
+    delete state.continuationFails;
+    await act(() => result.current.refetch());
+    await waitFor(() => expect(result.current.checks).toHaveLength(201));
+    expect(result.current.partial).toBe(false);
+  });
+  it("loads every finding page and computes a complete Inbox count", async () => {
+    const state = base();
+    state.findings = {
+      audit_a: Array.from({ length: 201 }, (_, i) =>
+        finding("project_a", `finding_${i}`),
+      ),
+    };
+    const server = setup(state);
+    const { result } = renderHook(
+      () => ({
+        issues: useAllPossibleIssues({ needsReview: true }),
+        summary: useInboxSummary(),
+      }),
+      { wrapper: server.wrapper },
+    );
+    await waitFor(() => expect(result.current.summary.needsDecision).toBe(201));
+    expect(result.current.issues.issues).toHaveLength(201);
+    expect(result.current.issues.total).toBe(201);
+    expect(
+      result.current.summary.partial || result.current.summary.truncated,
+    ).toBe(false);
+    expect(server.count("/v1/findings")).toBe(2);
+  });
+  it("applies finding verdict and analyst severity filters", async () => {
+    const state = base();
+    state.findings = {
+      audit_a: [
+        finding("project_a", "needs_review"),
+        finding("project_a", "high", {
+          state: "confirmed",
+          verdict: "true_positive",
+          severity: "high",
+        }),
+        finding("project_a", "low", {
+          state: "confirmed",
+          verdict: "true_positive",
+          severity: "low",
+        }),
+      ],
+    };
+    const server = setup(state);
+    const { result } = renderHook(
+      () =>
+        useAllPossibleIssues({
+          verdicts: ["true_positive"],
+          severities: ["high"],
+        }),
+      { wrapper: server.wrapper },
+    );
+    await settled(result);
+    expect(result.current.issues.map((i) => i.finding.findingId)).toEqual([
+      "high",
+    ]);
+    expect(
+      server.requests
+        .find((r) => r.pathname === "/v1/findings")
+        ?.searchParams.get("severity"),
+    ).toBe("high");
+  });
+  it("keeps the Inbox count a lower bound beyond the findings page cap", async () => {
+    const state = base();
+    const one = finding("project_a", "finding_0");
+    const pageSize = 200;
+    state.findings = {
+      audit_a: Array.from(
+        { length: MAXIMUM_LOADED_PAGES * pageSize + 1 },
+        (_, index) => ({ ...one, findingId: `finding_${index}` }),
+      ),
+    };
+    const server = setup(state);
+    const { result } = renderHook(() => useInboxSummary(), {
+      wrapper: server.wrapper,
+    });
+    await waitFor(() =>
+      expect(result.current.needsDecision).toBe(
+        MAXIMUM_LOADED_PAGES * pageSize,
+      ),
+    );
+    expect(result.current).toMatchObject({ truncated: true, partial: false });
+    expect(server.count("/v1/findings")).toBe(MAXIMUM_LOADED_PAGES);
+  });
+  it("keeps the Inbox count partial after a failed findings continuation", async () => {
+    const state = base();
+    const one = finding("project_a", "finding_0");
+    state.findings = {
+      audit_a: Array.from({ length: 201 }, (_, index) => ({
+        ...one,
+        findingId: `finding_${index}`,
+      })),
+    };
+    state.continuationFails = "/v1/findings";
+    const { result } = renderHook(() => useInboxSummary(), {
+      wrapper: setup(state).wrapper,
+    });
+    await waitFor(() => expect(result.current.needsDecision).toBe(200));
+    expect(result.current).toMatchObject({ partial: true, truncated: false });
+  });
+  it("filters needs review by suggested severity", async () => {
+    const server = setup(base());
+    const { result } = renderHook(
+      () =>
+        useAllPossibleIssues({
+          verdicts: ["needs_review"],
+          severities: ["high"],
+        }),
+      { wrapper: server.wrapper },
+    );
+    await settled(result);
+    expect(result.current.issues).toEqual([]);
+    expect(server.count("/v1/findings")).toBe(1);
+  });
+  it("refreshes owner lists after decisions without reloading unchanged report payloads", async () => {
+    const state = base();
+    state.reports = { audit_b: report("ready") };
+    state.findings = { audit_a: [finding("project_a", "one")] };
+    const server = setup(state);
+    const { result } = renderHook(
+      () => ({ reports: useAllReports(), issues: useAllPossibleIssues() }),
+      { wrapper: server.wrapper },
+    );
+    await waitFor(() =>
+      expect(
+        result.current.reports.isPending || result.current.issues.isPending,
+      ).toBe(false),
+    );
+    state.findings.audit_a = [];
+    await act(() => invalidateCrossProject(server.queryClient));
+    await waitFor(() => expect(result.current.issues.issues).toHaveLength(0));
+    expect(server.count("/v1/findings")).toBe(2);
+    expect(server.count("/v1/audits/audit_b/report")).toBe(1);
+    state.audits.project_b![0] = audit("project_b", "audit_b", "completed", {
+      revision: 2,
+    });
+    await act(() => invalidateCrossProject(server.queryClient));
+    await waitFor(() =>
+      expect(server.count("/v1/audits/audit_b/report")).toBe(2),
+    );
+  });
+  it("bounds a thousand-check report inventory to one twenty-check window and two transfers", async () => {
+    const state = base();
+    state.audits = {
+      project_a: Array.from({ length: 1000 }, (_, index) =>
+        audit("project_a", `audit_${index}`, "completed"),
+      ),
+    };
+    state.reports = Object.fromEntries(
+      state.audits.project_a!.map((check) => [
+        check.auditId,
+        build.report(check.auditId, "ready", { summary: "x".repeat(32_768) }),
+      ]),
+    );
+    const gate = deferred();
+    state.reportGate = gate.promise;
+    const server = setup(state);
+    const { result, rerender } = renderHook(
+      ({ page }) => useAllReports({ page }),
+      { wrapper: server.wrapper, initialProps: { page: 0 } },
+    );
+    await waitFor(() =>
+      expect(
+        server.requests.filter((url) => url.pathname.endsWith("/report")),
+      ).toHaveLength(2),
+    );
+    expect(server.maximumReports()).toBe(2);
+    expect(
+      server.queryClient
+        .getQueryCache()
+        .findAll({ queryKey: ["cross-project", "report"] }),
+    ).toHaveLength(20);
+    gate.resolve();
+    await settled(result);
+    expect(result.current.reports).toHaveLength(20);
+    expect(
+      server.requests.filter((url) => url.pathname.endsWith("/report")),
+    ).toHaveLength(20);
+    expect(result.current.page).toMatchObject({
+      index: 0,
+      totalChecks: 1000,
+      count: 50,
+      hasNext: true,
+    });
+    for (const entry of server.queryClient
+      .getQueryCache()
+      .findAll({ queryKey: ["cross-project", "report"] }))
+      expect(entry.state.data).toEqual({ status: "ready" });
+    rerender({ page: 1 });
+    await settled(result);
+    expect(result.current.reports).toHaveLength(20);
+    expect(
+      server.requests.filter((url) => url.pathname.endsWith("/report")),
+    ).toHaveLength(40);
+    expect(server.maximumReports()).toBe(2);
+  });
+  it("filters a Project before reading any report payload", async () => {
+    const state = base();
+    state.audits = {
+      project_a: Array.from({ length: 50 }, (_, index) =>
+        audit("project_a", `audit_a_${index}`, "completed"),
+      ),
+      project_b: [audit("project_b", "audit_b", "completed")],
+    };
+    state.reports = { audit_b: report("ready") };
+    const server = setup(state);
+    const { result } = renderHook(
+      () => useAllReports({ projectId: "project_b" }),
+      { wrapper: server.wrapper },
+    );
+    await settled(result);
+    expect(result.current.reports).toHaveLength(1);
+    expect(
+      server.requests
+        .filter((url) => url.pathname.endsWith("/report"))
+        .map((url) => url.pathname),
+    ).toEqual(["/v1/audits/audit_b/report"]);
+  });
+  it("keeps other reports when a payload fails and treats missing reports as normal", async () => {
+    const state = base();
+    state.audits.project_a![0] = audit("project_a", "audit_a", "completed");
+    state.failures = { "/v1/audits/audit_a/report": true };
+    state.reports = { audit_b: report("ready") };
+    const { result } = renderHook(() => useAllReports(), {
+      wrapper: setup(state).wrapper,
+    });
+    await settled(result);
+    expect(result.current.reports).toHaveLength(1);
+    expect(result.current.partial).toBe(true);
+  });
+});

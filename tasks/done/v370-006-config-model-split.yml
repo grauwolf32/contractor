@@ -1,0 +1,73 @@
+schema_version: "1.0"
+id: V370-006
+title: "Separate the configuration data model from the catalog loader"
+milestone: hub-audit-structure-2026-10
+epic: workflows
+kind: chore
+priority: P2
+status: completed
+implementation_commit: "c8cbf2e184705e70d2238327a6a7f2199684eb5c"
+depends_on: []
+languages: [go]
+goal: "The loader's fan-in drops to the packages that load the catalog."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), config B, C5, F5, F6; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    19 of 22 importers of config use only the resolved data model; 47 of 92
+    commits did not touch it. The Descriptors parameter is decorative: five
+    paths read the global registry (sandbox_compatibility.go:11,
+    tool_workflow_inputs.go:14, workflow.go:514, descriptors.go:289,
+    auditservice/compatibility.go:69, findingintake/service.go:283); planner
+    cardinality facts live in scheduler/workflow.go:43-56.
+  decision: >-
+    Reproduced on fc25b5d: 23 production packages imported internal/config;
+    Load, LoadUnion, LoadUnionReadOnly and NewManager took a Descriptors
+    argument that every production caller filled with MVPDescriptors(),
+    while sandbox placement, the Workflow input check, the Stage workspace
+    check, Audit compatibility and finding intake read the global table on
+    their own, and scheduler/workflow.go repeated the Planner/Agent shape
+    rule. (1) One registry: the built-in table is unexported
+    (builtInDescriptors in internal/config/resolved) and read once,
+    normalized, by registeredDescriptors; readers use accessors that hand
+    out no shared table, and the loader takes no descriptor argument. The
+    planned boundary test against MVPDescriptors() outside config became a
+    compile-time guarantee (no package outside internal/config/resolved can
+    name the table) plus TestBuiltInDescriptorTableHasOneReader, which pins
+    the one reader inside it. (2) PlannerFactory descriptors carry
+    SingleAgent and ModelFree; ValidatePlannerAgents applies them at load
+    and in the Workflow graph validation of every snapshot decoder, which
+    now also rejects an unregistered Planner (CAT-R79, LIM-PLN-1/2), so the
+    Scheduler no longer repeats the switch. The native Agent Skills
+    tool-name rule moved into registry normalization, the only place a
+    Toolset can still declare tools. The archived V40 experiment tests in
+    tests/eval/agent_instructions map their retired Toolset refs onto the
+    registered versions with the same tools instead of injecting
+    descriptors. (3) internal/config/resolved holds the resolved Workflow
+    model (the persisted Run and Stage snapshot format), its validation,
+    credentials, execution configuration and the registry;
+    internal/config/auditprofile holds the AuditProfile model, resolution,
+    validation, digest and snapshot decoding. Both are classified in the
+    catalog layer and no forwarding aliases remain; contentdigest.CanonicalJSON
+    is the canonical JSON both digests use. The loader keeps manifest
+    decoding, the Snapshot, discovery, the Manager and publication.
+    Production importers of internal/config drop from 23 packages to 3:
+    internal/app (composition and offline validation), internal/configload
+    (the load path) and internal/httpapi/public (discovery and
+    publication). TestOnlyCatalogOwnersImportTheLoader fails when another
+    package imports the loader. The shipped catalog loads and validates
+    unchanged. Reversal condition: a second descriptor source, such as
+    managed Toolsets, extends the registry rather than restoring a
+    parameter.
+scope:
+  in:
+    - "config/resolved and config/auditprofile packages; one normalized descriptor registry without the parameter; planner facts in the descriptor; boundary test against MVPDescriptors() outside config."
+  out:
+    - "Catalog behaviour."
+acceptance_criteria:
+  - id: A1
+    text: "The loader's fan-in drops to the packages that load the catalog."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/config/... ./internal/scheduler"
+    covers: [A1]

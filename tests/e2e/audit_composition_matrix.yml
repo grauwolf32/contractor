@@ -1,0 +1,65 @@
+{
+  "schema_version": "2.0",
+  "scope": "Common task preparation, exact handoff, retained ordinary outputs and Project publication through real components; no model-quality claim.",
+  "prerequisites": [
+    "disposable PostgreSQL",
+    "locked Runtime",
+    "real sqlmap and nuclei",
+    "Chromium and Node UI"
+  ],
+  "integration": {
+    "github.com/grauwolf32/contractor/internal/auditcontroller": [
+      "TestPostgresCommonControllerPauseHandoffResume",
+      "TestPostgresCommonControllerReconcilesLostCreationAcknowledgement",
+      "TestPostgresCommonControllerDeadlineAndCancellation"
+    ],
+    "github.com/grauwolf32/contractor/internal/runservice": [
+      "TestSharedPostgresCommonTaskCollectsOrdinaryOutputWhilePaused",
+      "TestSharedPostgresCommonTaskBatchKeepsMembershipAndChargesEvidenceOnce"
+    ],
+    "github.com/grauwolf32/contractor/internal/httpapi/public": [
+      "TestAuditTaskOperationsConformAndBindCursors"
+    ]
+  },
+  "process": {
+    "github.com/grauwolf32/contractor/tests/e2e": [
+      "TestAuditCompositionAcrossProductionProcesses/common_tasks_and_retention",
+      "TestAuditCommonScanProfilesAcrossProductionProcesses/sqlmap",
+      "TestAuditCommonScanProfilesAcrossProductionProcesses/nuclei",
+      "TestAuditCommonScanProfilesAcrossProductionProcesses/web",
+      "TestAuditCommonSourcePreparationAcrossProductionProcesses"
+    ]
+  },
+  "browser": {
+    "production": {
+      "file": "ui/e2e/audit-composition.production.ts",
+      "required_tests": 1,
+      "owner": "TestAuditCompositionAcrossProductionProcesses/common_tasks_and_retention"
+    },
+    "mocked": {
+      "file": "ui/e2e/audits.spec.ts",
+      "required_tests": 6,
+      "scope": "Paged Tasks/results at 390 and 1440 px in all themes."
+    }
+  },
+  "workspace": {
+    "integration": {
+      "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore": [
+        "TestSharedPostgresCommonTaskInputsStayExactAcrossProjectEdits",
+        "TestSharedPostgresCommonTaskCollectionAndPurge"
+      ],
+      "github.com/grauwolf32/contractor/internal/httpapi/public": [
+        "TestSharedPublicAuditMaterialPublicationContract"
+      ]
+    },
+    "process": {
+      "github.com/grauwolf32/contractor/tests/e2e": [
+        "TestAuditWorkspaceAcrossProductionProcesses/handoff",
+        "TestAuditWorkspaceAcrossProductionProcesses/publication",
+        "TestAuditWorkspaceAcrossProductionProcesses/replay",
+        "TestAuditWorkspaceAcrossProductionProcesses/cas",
+        "TestAuditWorkspaceAcrossProductionProcesses/authority"
+      ]
+    }
+  }
+}

@@ -1,0 +1,147 @@
+schema_version: "1.0"
+id: V421-005
+title: Remove the unused schema field from managed Eval private rubrics
+milestone: data-model-consumers-2026-10
+epic: evals
+kind: chore
+introduced_by: V38-002
+priority: P3
+status: completed
+implementation_commit: 63385f67d968112ddf2224fdf57b5b777334cdf3
+depends_on: []
+languages: [go, json, typescript, yaml]
+goal: >-
+  Remove PrivateCheck.Schema and its accepted public contract surface while preserving the
+  actual rubric, private expectations, structural evaluator configuration and assessment
+  semantics, so stored private data has an implemented consumer.
+context:
+  specification:
+    - docs/spec/evals/managed-evals.md#EVM-R51
+    - docs/spec/evals/managed-evals.md#EVM-R58
+    - docs/spec/evals/managed-evals.md#EVM-R144
+    - docs/spec/evals/managed-evals.md#EVM-R149
+    - docs/spec/evals/managed-evals.md#EVM-R153
+    - docs/spec/evals/format.md
+    - docs/spec/api/public-api.md#API-R3
+  review: User-requested detailed data-model consumer review on 2026-10-27, finding 5.
+  finding: >-
+    internal/evaldomain/types.go:48 defines PrivateCheck.Schema and
+    api/evals/v1/managed.schema.json:270 accepts up to 65536 characters. plan_cases.go:48-58
+    stores/pins the complete rubric object and review.go:102 returns it, but no production
+    evaluator reads Schema. ui/src/routes/evals/review.tsx:224-236 displays only rubric and
+    expected; datasets.tsx:535-639 has no schema editor. The implemented structural validator
+    instead uses Check.Parameters["schema"] in native_check_execution.go:161. Therefore
+    changing this private field changes bytes/digests without changing assessment or the
+    owner's review information. The review found no owning spec semantics for this field.
+  siblings: >-
+    Remove the member from the managed schema, Go domain type, public OpenAPI EvalPrivateCheck,
+    generated Go/TypeScript clients and validators, dataset import/export and review DTO fixtures,
+    prepared private resources and any task-only/test references. Preserve the distinct
+    Check.Parameters.schema selector for json-schema@1 and the separately frozen portable
+    evaluation resource schemas; do not remove a field merely because it shares the name schema.
+  provenance: >-
+    git blame on internal/evaldomain/types.go:43-48 identifies V38-002, implementation commit
+    d5f31ab94b16f99254e64ebdd20efa89fdb4100a, as the introduction of PrivateCheck.Schema.
+  overlap: >-
+    V421-006 edits the same Eval check/authoring/contract packages but addresses unsupported
+    human-review parameters rather than PrivateCheck.Schema. They are independently testable
+    and need no semantic dependency; coordinate shared schema/fixture generation and commits.
+  revalidated_on_main: >-
+    Still applicable on main 1716e40db; the unused managed PrivateCheck.Schema and all declared contracts remain. The user now authorizes implementation, not only the original task intake.
+scope:
+  in:
+    - Remove the unsupported PrivateCheck.Schema member end to end and reject it as unknown under the current strict managed contract.
+    - Regenerate public clients/validators through the owning generators and update only the fixtures and UI types that declared the removed member.
+    - State the supported private-rubric shape in the owning spec and add shared rejected-field examples plus real PostgreSQL dataset/prepare/review regressions.
+  out:
+    - Removing or changing json-schema@1, Check.Parameters.schema, rubric text, expected values, human-review authority or private-data isolation.
+    - Arbitrary uploaded JSON Schema/scorer execution, new evaluators, a replacement field or compatibility reader for the unused member.
+    - Rewriting frozen portable documents, immutable existing dataset/plan digests or accepted assessments merely to make historical bytes fit a new reader.
+requirements:
+  - id: R1
+    text: >-
+      The managed PrivateCheck contract contains only the supported id, revision, rubric and
+      expected fields. Unknown schema members are rejected by the schema/strict codec before
+      dataset, experiment or mutation-receipt side effects. Remove the member rather than
+      accepting and discarding it or retaining a deprecated optional alias.
+  - id: R2
+    text: >-
+      Update all managed Go/OpenAPI/JSON/TypeScript declarations and generated validators in
+      one change, using make ui-generate and make generate-public-client rather than editing
+      generated files. Shared cases prove the managed schema, domain codec and public boundary
+      agree on the removed field; preserve strict duplicate/unknown-field behavior.
+  - id: R3
+    text: >-
+      Rubric text and expected values remain private, pinned and visible in owner review;
+      ordinary Workflow/Audit inputs and safe reports retain their explicit private-data
+      exclusions. Assessment results for otherwise identical supported inputs remain unchanged.
+  - id: R4
+    text: >-
+      Preserve the implemented structural check's bounded registered schema selector in
+      Check.Parameters and the portable format's own schema fields. Record the pre-production
+      incompatible managed-field removal under API-R3 without introducing legacy readers or
+      silently rewriting immutable stored documents.
+failure_outcomes:
+  - operation: Decode and save a managed dataset/private rubric or prepared resource
+    permanent: A removed schema member returns existing 422 eval_invalid before any store or receipt write; a corrected body may reuse a key that was never recorded.
+    retryable: Valid writes retain existing storage transaction-conflict behavior; unknown-field failures are permanent and not retried.
+    ambiguous: Valid mutations retain existing idempotency receipts and exact content identity; this task adds no mutation mechanism.
+    cancelled: Existing owning request/transaction rollback applies; no new external call or asynchronous work is added.
+    timeout: Existing request and transaction deadlines apply; removal introduces no new budget.
+cardinality:
+  - collection: Private checks in one managed dataset revision and its prepared resources
+    expected: A small private rubric list.
+    maximum: Existing managed maximum of 128 private checks and existing document/plan byte bounds.
+    bound: Remove the unused per-check payload without adding scans, lookups or whole-history rewriting; supported rubric/expectation limits remain unchanged.
+lifecycle:
+  - entity: Existing private dataset revisions and prepared resources
+    delete: Existing owner/Project/Eval deletion fences and purge rules remain the authority.
+    cascade: No entity, table, state or ownership relation is added.
+    retention: Keep immutable digests and retained bytes immutable; strict new writes and reads must not use a legacy-field fallback.
+acceptance_criteria:
+  - id: A1
+    given: A valid managed PrivateCheck, DatasetInput and request containing that check, each modified to include schema.
+    when: Shared codecs and the authenticated public dataset write validate them.
+    then: The removed member is rejected consistently with 422 eval_invalid at the public boundary and no dataset revision or mutation receipt is committed.
+  - id: A2
+    given: A supported rubric with expected values and a dataset without the removed member.
+    when: PostgreSQL-backed dataset storage, native preparation and owner review run.
+    then: Rubric/expectations remain exact and private, pinned resources and review work, and assessment semantics and safe execution/report exclusions are preserved.
+  - id: A3
+    given: A valid json-schema@1 check using Check.Parameters.schema and a frozen portable resource with its own declared schema fields.
+    when: Native structural checks and portable conformance tests run.
+    then: They continue using the registered bounded validators and are not affected by removal of the unrelated managed private-rubric field.
+  - id: A4
+    given: All generated and handwritten managed contracts, fixtures, dataset import/export and review consumers.
+    when: Public API generation/verification, UI verification and package tests run.
+    then: No accepted or emitted PrivateCheck.Schema declaration remains; the rejected-field regression fails on the original code and all required suites pass without skipped database tests.
+tests:
+  - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -count=1 ./api/evals/v1 ./internal/evaldomain ./internal/evalstore ./internal/evalservice ./internal/evalcoordinator'
+    covers: [A1, A2, A3, A4]
+  - command: go test -count=1 ./internal/httpapi/public ./internal/publicclient/...
+    covers: [A1, A2, A4]
+  - command: make verify-public-api
+    covers: [A1, A4]
+  - command: make verify-public-api-postgres
+    covers: [A4]
+  - command: make ui-verify
+    covers: [A2, A3, A4]
+  - command: make lint
+    covers: [A1, A3, A4]
+
+implementation_notes:
+  contract_change: >-
+    API-R3 removal is limited to managed PrivateCheck.schema. The managed codec,
+    public OpenAPI and regenerated Go/TypeScript clients reject it; frozen
+    portable schemas, structural Check.parameters.schema and assessment pins
+    are unchanged. Shared fixtures and the real-PG public regression prove
+    rejection before writes/receipts and corrected reuse of the same key.
+  gate_coverage: >-
+    The existing verify-public-api-postgres target selects Audit pagination and
+    sitemap tests, so its execution alone cannot prove this Eval mutation. Full
+    public/publicclient owner suites and verify-public-api are mandatory too.
+  verification: >-
+    Full Eval owner race suites, full public/publicclient owner suites,
+    verify-public-api, verify-public-api-postgres, ui-verify and make lint
+    passed with the owned disposable PostgreSQL database configured.
+  evidence: tasks/evidence/v421-005-private-rubric.json

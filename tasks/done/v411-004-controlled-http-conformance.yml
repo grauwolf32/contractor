@@ -1,0 +1,283 @@
+schema_version: '1.0'
+id: V411-004
+title: Verify controlled HTTP transport against an independent denial and fault matrix
+milestone: autonomous-http-pentest-2026-10
+epic: http-tools
+kind: chore
+priority: P1
+status: completed
+depends_on:
+- V411-003
+languages:
+- go
+- python
+- json
+- yaml
+- markdown
+goal: Prove the existing V411-003 controlled HTTP production path rejects prohibited traffic and preserves
+  action/accounting/lifecycle guarantees under real transport faults before identities and model-visible
+  tools rely on it.
+context:
+  authority: User request on 2026-10-29 to verify applicability, implement V411-004, run the required
+    checks, close the task and merge it into main under the project rules.
+  proposal:
+  - docs/proposals/0033-autonomous-pentest-audits.md#41-route-policy
+  - docs/proposals/0033-autonomous-pentest-audits.md#42-initial-http-enforcement-implementation
+  - docs/proposals/0033-autonomous-pentest-audits.md#7-preflight-reconnaissance-and-surface-identity
+  - docs/proposals/0033-autonomous-pentest-audits.md#11-action-journal-cancellation-and-recovery
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R1
+  - docs/spec/tools/http-caido.md#HTP-R115
+  - docs/spec/tools/http-caido.md#HTP-R137
+  - docs/spec/tools/http-caido.md#HTP-R138
+  - docs/spec/tools/http-caido.md#HTP-R139
+  - docs/spec/audits/execution.md#AUX-R104
+  - docs/spec/audits/execution.md#AUX-R105
+  - docs/spec/execution/control-plane.md#CTL-R169
+  - docs/spec/execution/control-plane.md#CTL-R4
+  - docs/spec/execution/control-plane.md#CTL-R6
+  code:
+  - tests/e2e
+  - runtime/tests
+  - make/toolsets.mk
+  - make/release.mk
+  - scripts/check_release_verify_graph.py
+scope:
+  in:
+  - Add adversarial deterministic HTTP/HTTPS targets, resolver/protected-alias scenarios and transport
+    fault injection around the already implemented V411-003 production preflight path.
+  - Add make test-pentest-http-process and register the test selection with release-verify; zero cases,
+    skipped mandatory database/process cases or unjustified proof of denial fail.
+  - Extend Runtime fixture coverage for canonical URLs, actual socket peer, first-byte events, cancellation
+    and resource bounds; record conformance evidence without changing intended production behavior.
+  out:
+  - No transport, private action protocol or request-accounting implementation; V411-003 owns all
+    production code and callers. A newly discovered behavior defect needs its own tracked repair before
+    this gate can pass.
+  - No model-visible HTTP tool, login, browser/scanner/MCP path, upstream proxy, sandbox egress filtering,
+    paid-model call or advertised full pentest capability.
+requirements:
+- id: R1
+  text: Exercise the actual V411-003 Server/Runtime preflight and controlled socket path with real
+    deterministic target processes. Mocks may control DNS/time or model output, but cannot stand in
+    for observed target writes or accepted action receipts.
+- id: R2
+  text: Cover allowed requests and denied redirects, rebinding, protected aliases/virtual-host ambiguity,
+    alternative numeric hosts, nested/encoded paths, implicit proxy routes and forbidden loopback/link-local/metadata.
+    Denial asserts zero target-request writes on the prohibited path.
+- id: R3
+  text: Inject delayed/lost/duplicate grants and acknowledgements across allocations, expiry and Server/Runtime
+    restart. Assert sending-before-write, post-write started, one unacknowledged grant, no catch-up
+    burst, no refund of unknown sends and bounded concurrency with injected clocks.
+- id: R4
+  text: Exercise max URL/header/body bytes, redirect/retry limits, stalled streams, cancellation,
+    lease loss and uncertain termination. Verify safe outcomes and quarantine instead of overlapping
+    replacement traffic.
+- id: R5
+  text: Create test-pentest-http-process in the existing make/e2e structure and release graph. Use
+    bounded fixtures, actual case-count checks and mandatory prerequisites. Existing HTTP-tool regressions
+    stay green; this chore changes no intended production behavior.
+failure_outcomes:
+- operation: Start/run/teardown the conformance harness
+  permanent: Invalid fixtures, zero selected cases, observed prohibited write or mismatched ledger
+    outcome fail the gate immediately; no retry hides a failure.
+  retryable: Only bounded fixture startup connection retries before a case begins; record attempts
+    and deadline.
+  ambiguous: Read the original action receipt and independent target-write record; an uncertain result
+    fails explicitly rather than resending the measured target request.
+  cancelled: Harness joins Server/Runtime/target children and cleans temporary resources before return.
+  timeout: Separate finite fixture setup, case and teardown deadlines; no wall-clock correctness assertions.
+cardinality:
+- collection: Connections/redirect attempts within one Audit
+  expected: Five requests per second and two concurrent requests
+  maximum: 20 requests per second, eight concurrent requests, five redirect hops and one additional
+    safe retry
+  bound: V411-003 reserves every physical send; response streaming stops at bounded bytes, and connection
+    attempts remain bounded by the shared resolver limit.
+- collection: One request/response and route policy
+  expected: Anonymous GET/read without a request body and a 256 KiB response.
+  maximum: Response at most 1 MiB or the lower engagement cap, 64 headers/32 KiB aggregate,
+    8,192-byte URL; 128 routes/exclusions and 16 origins. Private action requests are at most 64 KiB.
+  bound: Reject or stream-truncate before unbounded buffering; capture truncation metadata and no
+    hidden retry.
+lifecycle:
+- entity: Conformance fixture processes, temporary certificates and traces
+  delete: Harness tears down on success, failure and cancellation.
+  cascade: Join every process/request before removing isolated fixtures and test schemas.
+  retention: Keep safe assertion diagnostics and exact fixture versions; credentials remain test-only
+    and absent from retained outputs.
+acceptance_criteria:
+- id: A1
+  given: Authorized and prohibited direct HTTP/HTTPS targets with independent request observers
+  when: The complete production preflight path runs every denial-matrix case
+  then: Allowed paths succeed with matching scope/peer/ledger identity and prohibited paths receive
+    zero target-request bytes.
+- id: A2
+  given: Delayed/lost grants and acknowledgements across multiple allocations
+  when: Injected clocks and restart/expiry cases execute
+  then: Actual start spacing, one outstanding grant and unknown usage retention are proven without
+    wall-clock timing assertions.
+- id: A3
+  given: Maximum-sized URL/header/body inputs, redirects and stalled response streams
+  when: The conformance process gate runs
+  then: All limits and truthful truncation/timeout outcomes hold without unbounded buffers or hidden
+    retries.
+- id: A4
+  given: Cancellation, lease loss or unproven target-client termination
+  when: Cleanup and replacement contend
+  then: The fixture demonstrates joined cleanup or capacity quarantine and no overlapping unauthorized
+    replacement send.
+- id: A5
+  given: The release graph and a deliberately empty/broken test selection
+  when: The new gate and existing HTTP regressions execute
+  then: Zero cases/unexpected skips fail, every new scenario has a release owner and ordinary HTTP
+    behavior remains unchanged.
+tests:
+- command: go test -count=1 ./tests/e2e
+  covers:
+  - A5
+- command: make test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-pentest-http-process test-pentest-action-process test-http-caido-e2e test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+test_prerequisites:
+- Disposable PostgreSQL able to create/drop isolated schemas; never print its connection secret.
+- Repository-pinned Go and locked Runtime dependencies; run commands from the repository root unless
+  the command explicitly changes directory.
+verification_requirements:
+- Use testdata fixtures, never the live configs tree outside the documented e2e/eval exceptions. Keep
+  model choice unchanged; deterministic targets need no real Gateway.
+- Run every touched package in full, including any new package introduced by this task. Database tests
+  require disposable PostgreSQL through CONTRACTOR_TEST_DATABASE_URL; an unreachable configured database
+  fails and skipped mandatory cases do not pass.
+- New shared fixtures must be registered with their Go/Python/schema readers in the existing shared-fixture
+  gate. New process selections must fail when zero tests match and be reachable from release-verify.
+- Update the owning normative specification, shared limits/errors/lifecycle registries and public/private
+  contracts in the same change. Preserve existing contract ownership; do not add backward-compatibility
+  readers or edit generated clients manually.
+- This task adds test-pentest-http-process with deterministic real target servers and Server/Runtime
+  processes, using the already complete V411-003 preflight caller. Register all selections with release-verify
+  and assert nonzero selected cases; later feature tasks extend the same gate.
+
+assignment:
+  branch: codex/v411-004-http-conformance
+  claimed: '2026-10-29'
+  base: b93e307b7830ea6b55d04dca4169e68179064cb9
+applicability:
+- V411-003 is completed on main and provides the real controlled transport, action ledger and two
+  process fault scenarios. V411-004 remains applicable because the independent route-denial, resource,
+  lifecycle and restart conformance matrix and its non-skippable release gate are not yet present.
+- This task changes tests and their gate only. A discovered production defect is tracked and repaired
+  separately before its conformance case can pass; the production policy is never weakened by a fixture.
+- The original unfiltered e2e-tagged command also runs the project's explicitly opt-in real scanner
+  and Podman/container tests. The baseline diagnostic demonstrated missing external prerequisites;
+  it is not counted as a pass. Required verification uses the full untagged e2e package plus the
+  canonical release process union, which includes every deterministic tagged process case and
+  preserves the existing opt-in ownership in scripts/check_release_verify_graph.py.
+- Independent TCP and Server/Runtime observers confirmed raw dot-segment redirects were normalized
+  before admission; V411-022 repairs that production defect. The existing Skills process baseline
+  also found a stale public Artifact response DTO introduced by V410-021; V411-023 repairs its
+  test consumers without changing production behavior. Both repairs must pass before this task closes.
+- V411-024 repairs sibling HTTP/Caido and label process assertions that still expected a single
+  advertised adapter after V411-003 added the built-in controlled HTTP capability. It changes no
+  production placement or RuntimeConfig provenance; all affected process owners must pass.
+
+process_verification_execution:
+  reason: The sequential canonical process invocation reached its aggregate 50-minute timeout after
+    33 successful parents; it remains a failed/incomplete diagnostic. While it ran, main delivered
+    shared Artifact reads and one additional adapter-selector regression.
+  final_command: make test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c
+  guarantee: Execute all three existing CI shards on the same integrated source. Their exact union
+    is the complete 36-root canonical deterministic process selection; no test is dropped, no
+    prerequisite or skip check is relaxed, and each shard retains its existing timeout/report gate.
+
+implementation_commit: 9cc2645801bfed9527bd0added24d6d6c290b485
+
+implementation_notes:
+- Independent actual Server/Runtime, native TCP/TLS and real PostgreSQL observers cover forbidden
+  routes, DNS/peer/SNI/proxy boundaries, first-byte ordering, duplicate receipts, bounded bodies and
+  headers, safe retries, cancellation, lease loss and process restarts. No fake target write stands
+  in for transport evidence. The process matrix includes the original dropped-reply/expired-grant cases.
+- Exact injected-clock store tests cover multiple allocations, persisted cooldown, reconstruction,
+  the eight-slot capacity ceiling and the five-field stop proof. Unknown sends keep their charge and
+  capacity. Temporary production mutations removing cooldown or accepting a wrong Runtime instance
+  made the real-store regressions fail and were restored before verification.
+- The process restart observer and real-store replacement-admission tests are complementary. The
+  process fixture alone is not claimed to observe a newly authorized replacement allocation. Direct
+  controlled HTTP does not gain an upstream proxy capability from ordinary HTTP configuration.
+- One manifest requires 38 process identities, two accounting cases and 31 exact parametrized Runtime
+  cases. Empty/missing/skipped/failed/duplicate results are rejected. Unique bounded report directories
+  record executed identities and report/manifest digests only after success. Cold-cache Go dependency
+  setup is separate from the strictly parsed test event stream.
+- The same cases belong to canonical process shard B, the full Runtime report and full Go unit report.
+  The release graph verifies ownership; gate/report/graph unit tests cover broken selections. The
+  independently discovered production redirect defect is fixed separately in V411-022. V411-023 fixes
+  stale public Artifact DTOs; V411-024 reuses the concurrent V410-023 selector instead of duplicating it.
+verification:
+  date: '2026-10-29'
+  source: bc99bfa8e9f64144a0ab0c41bd0b21904d3e29cf
+  main_integrated: 08a6b8310213283269da338536ea49bcf64e6153
+  results:
+  - All three canonical process shards passed on the same integrated source. A ran 11 parents,
+    B ran 12 and C ran 13; their disjoint union exactly equals all 36 canonical roots. All 123
+    results including subtests passed, zero skips/failures; the report validators passed.
+  - make test-pentest-http-process and make test-pentest-action-process passed again after integration.
+    The new gate verified all 38 process identities, two real PostgreSQL cases and 31 native socket
+    cases with zero selected skips. The standalone ordinary HTTP/Caido process regression passed.
+  - make test-runtime passed 5606 tests in 571.35s, with 55 existing optional integration skips.
+    verify-runtime passed and every mandatory socket case ran. Skips require separate rootless
+    Podman (34), optional scanners (16), live Gateway (3), real Go Audit API (1) or Interactsh (1).
+    make test-http-caido-runtime passed all 208 tests. No live-model quality or external-engine claim
+    is made by this deterministic conformance gate.
+  - make test-wire-cross-language passed 426 shared fixtures with 360 Go and 246 Python shared
+    readers; the Runtime shared selection passed 1519 cases and the contracts selection passed 468.
+  - Complete controlplane, privateartifacts, runstore, app, public, projectsitemap, auditservice and
+    pgstore packages passed with -race -tags=integration -count=1 and disposable PostgreSQL; 903
+    top-level tests and 2534 results including subtests, eight package passes and zero skips/failures.
+    The original complete auditservice/pgstore race suites and mutation checks also passed.
+  - Full untagged tests/e2e passed 36 tests and 149 results including subtests, with zero skips/failures.
+    The tagged package compiled, and make verify-public-api passed. The three focused capability
+    process parents and the separate Skills regression passed after integration.
+  - make lint passed on the integrated source. The 77 focused gate/report/release-graph unit tests
+    passed; final lint includes the complete script suites and actual release-graph inspection.
+  - The earlier unfiltered opt-in run, aggregate 50-minute unsharded timeout and host harness
+    PGCONNECT_TIMEOUT configuration error are diagnostic failures, not successful evidence. The
+    final complete process union and clean-environment real-store run above supersede them without
+    dropping scenarios, relaxing policy or suppressing skip/error checks.
+  linux_snapshot:
+    image: localhost/contractor-v421-runtime-base:1
+    source_commit: bc99bfa8e9f64144a0ab0c41bd0b21904d3e29cf
+    archive_sha256: c2ce3a67a2e793c92f7ee482fc6b23fae3d8a5118fe8950d321c484d2d1717f8
+    environment: Native Linux, ordinary contractor-test user, locked dependencies, clean environment,
+      separate disposable databases, GOMAXPROCS=2, GOFLAGS=-p=1 and CI=true.
+    final_tree_comparison: All production code, tests, contracts and gate scripts match this source.
+      Later commits only record task completion, generated backlog and the proposal task link.
+  reports:
+    process_union: /private/tmp/v411004-evidence/integrated-process-summary.json
+    process_a: /private/tmp/v411004-evidence/integrated-process-a.jsonl
+    process_b: /private/tmp/v411004-evidence/integrated-process-b.jsonl
+    process_c: /private/tmp/v411004-evidence/integrated-process-c.jsonl
+    runtime_wire_http: /private/tmp/v411004-evidence/integrated-runtime.log
+    runtime_reports: /private/tmp/v411004-evidence/integrated-runtime-reports
+    go_public_api: /private/tmp/v411004-evidence/integrated-host-status.json
+    focused_repairs: /private/tmp/v411004-evidence/integrated-focused-repairs.log
+    negative_cooldown: /private/tmp/v411004-evidence/negative-cooldown.log
+    negative_stop_proof: /private/tmp/v411004-evidence/negative-stop-proof.log
+    lint: /private/tmp/v411004-evidence/integrated-lint.log

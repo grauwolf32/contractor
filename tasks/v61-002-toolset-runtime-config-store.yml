@@ -1,0 +1,129 @@
+schema_version: "1.0"
+id: V61-002
+title: Extend RuntimeConfig merge and credential lifecycle for configurable toolsets
+milestone: toolset-runtime-configuration
+epic: runtime-config
+kind: feature
+priority: P1
+status: deferred
+deferral:
+  date: "2026-10-11"
+  previous_status: pending
+  reason: >-
+    Implemented and verified on 2026-09-20 on branch
+    feat/v61-toolset-runtime-configuration but never merged; main has since
+    moved about 1,700 commits (contract package split, credential table
+    folds, V3B UI, layer checks). V62 and V64 do not depend on it, so the
+    port is postponed instead of resolving 35 conflicts now.
+  reactivate_when: >-
+    Explicit user decision that external MCP tools are needed (for example
+    for autonomous pentest Audits, proposal 0033); then port the branch onto main
+    rather than reimplementing, renumber its migration and rerun the V61-009
+    release gate.
+  branch_commit: "761068d111291c092d1106aabd81d44ec09cb351"
+implementation_commit: null
+depends_on: [V61-001]
+languages: [go, sql, yaml]
+goal: >-
+  Publish and bind typed toolset settings through existing RuntimeConfig storage
+  with deterministic merging and protected write-only MCP credentials.
+context:
+  authority: User requested generic tool configuration using current RuntimeConfig and bindings with one value per ref on a Run.
+  design: docs/plans/2026-09-19-toolset-runtime-configuration.md
+  specification: docs/spec/configuration/runtime-config.md
+  reuse: >-
+    Reuse immutable runtime_config_versions, binding CAS/locks, publication
+    idempotency, AtomicPatch, canonicalization and RuntimeCredentialService.
+  revalidated: >-
+    2026-10-24 on b523ae77: still deferred, not superseded; main has no MCP or generic
+    worker.toolsets code or specification. The work remains on the unmerged branch
+    origin/feat/v61-toolset-runtime-configuration (head f6dfd6ed16240574ed3565bc6460f737fd072b49,
+    merge base c41a5989, 18 commits). Main is now 2,850 commits past that merge base and git
+    merge-tree reports 75 conflicting paths (35 at deferral), including modify/delete conflicts on
+    files main removed: docs/spec/01-agent-template.md, 02-runtime-and-a2a.md,
+    06-server-ui-and-operations.md, 07-runtime-labels-and-infrastructure-config.md, 19-audits.md,
+    29-tool-workers.md and ui-user-stories.md (retired for the domain documents by af85cc54),
+    internal/config/descriptors.go (now internal/config/resolved/descriptors.go, c8cbf2e1),
+    internal/contracts/agent.go (now internal/contracts/control/agent.go, ToolsetCapability at line
+    26, 6d277c5c), internal/runtimeconfig/principal.go (Agent principal labels now in
+    internal/agentprincipal, 3ecd3f2f) and
+    api/descriptor-parity/toolset-infrastructure-channels.yaml (replaced by
+    api/testdata/toolset-descriptors.json under TLS-R38, 35f59294). The example in reactivate_when
+    no longer applies: proposal 0033 section 14 says V61 MCP configuration is not a prerequisite of
+    the V411 HTTP/API pentest delivery, its section 4.3 keeps MCP tools out of the controlled-proof
+    path without their own gate, and V411-001 explicitly excludes V61 reactivation, so reactivation
+    needs a user decision that names a concrete MCP consumer. Task-specific: V365-011 folded
+    runtime_credential_creations and runtime_credential_tombstones into runtime_credentials
+    (168fff53), V365-012 folded runtime_config_publications into runtime_config_versions (9fc18e38),
+    V370-007 moved keyed receipts to mutation_receipts through KeyedMutation (PER-R24, bce4dba4) and
+    V367-001 folded every migration into 000001_baseline.sql (a0438557). The branch migration
+    000056_mcp_runtime_credentials.sql must be renumbered to the next free number (000040 today) and
+    rebuilt on runtime_credentials_credential_kind_check as last redefined by
+    000028_interactsh_credential.sql, which now also allows interactsh-token@1, http-origin-basic@1
+    and http-origin-bearer@1; V411-001 plans to redefine the same CHECK, so the two changes must be
+    sequenced. Physical-Agent label assignment moved to internal/agentprincipal (service.go,
+    label_holders.go; RCF-R138 to RCF-R144), where the toolset-label rejection now belongs. Header
+    limits still carry OTLP names (internal/credentials/runtime_types.go:24-26, LIM-RCF-19 to
+    LIM-RCF-22), so the protocol-neutral rename stays in scope. Overlap: V414-015 (pending) defines
+    the sendable HTTP field-value grammar for stored credential tokens; mcp-headers@1 must reuse it
+    rather than add another copy.
+  baseline_fold: >-
+    User decision on 2026-10-31 (V428-001): the previous baseline and
+    migrations 000002-000065 are replaced by one current 000001_baseline.sql.
+    Migration numbers and file/line references in the dated revalidation
+    above describe the retired chain. On explicit reactivation, inspect the
+    current baseline and choose the next free migration number from the
+    directory; keep PER-R33 upgrade coverage for any new data-moving change.
+    This maintenance note does not reactivate the deferred task or alter its
+    scope or deferral conditions.
+scope:
+  in:
+    - Add bounded typed Toolsets map, registry normalization/validation, defaults, clones, Spec.Empty and canonical serialization.
+    - Use named constants for new defaults/bounds and reuse existing URL/PEM/document/header limits; give shared credential-header limits protocol-neutral names instead of OTLP-specific names.
+    - Implement atomic per-ref same-layer merge and pure default/Run-layer resolution with deterministic source metadata.
+    - Implement absent/object/per-ref-null semantics, normalize an empty map away and reject null for the whole map.
+    - Add mcp-headers@1 material normalization, service/wire metadata validation and a migration extending the credential-kind CHECK.
+    - Extend typed credential-reference extraction, publish/rebind barriers and SQL binding-usage inspection for the new map.
+    - Reject assigning toolset-bearing labels to physical Runtime Agents and rebinding assigned labels to such configs under existing locks.
+    - Exercise a second test-only native configuration schema to prove shared normalization/merge is not hardcoded to MCP.
+  out:
+    - Add a new configuration or secret table, change credential ownership/auth, resolve secrets during publication or open network connections.
+    - Migrate existing Caido/telemetry/proxy sections into toolsets or introduce a generic deep-merge engine.
+deliverables:
+  - path: internal/runtimeconfig
+    description: Typed model/normalizers/merge, pure Run-toolset resolution, source checks and focused unit/PostgreSQL tests.
+  - path: internal/credentials
+    description: MCP header credential material, usage inspection and lifecycle tests.
+  - path: internal/persistence/migrations
+    description: Additive migration extending existing Runtime credential kinds without a new storage service.
+requirements:
+  - id: R1
+    text: Ref-keyed configuration objects are atomic; no endpoint/credential fields are assembled from different labels, and label order never selects a winner.
+  - id: R2
+    text: All selected-label conflicts are reported before per-agent projection; identical normalized values retain deterministic provenance of their sources.
+  - id: R3
+    text: Credentials use established write-only encryption/idempotency and reference barriers; case-insensitive duplicate headers, CR/LF and SDK-managed headers are rejected.
+  - id: R4
+    text: New settings are Run-owned; both principal assignment and binding mutation enforce this even for mixed configs and null entries.
+acceptance_criteria:
+  - id: A1
+    text: MCP and test-native configs normalize strictly and publish idempotently; unknown refs/keys, missing fields, bounds and kinds fail, while old canonical bytes/digests pass unchanged.
+  - id: A2
+    text: Defaults, replacement, clear, empty map, equal deduplication and conflicting values obey the specified semantics for every label permutation.
+  - id: A3
+    text: MCP credentials round-trip only through the private material API; live binding usage prevents deletion and rebind/delete races preserve referential safety.
+  - id: A4
+    text: Toolset-bearing principal assignment and concurrent rebind are rejected atomically; existing infrastructure-only principal labels still work.
+  - id: A5
+    text: Database publication/replay/migration and reference tests actually execute against isolated PostgreSQL with no mandatory cases skipped.
+tests:
+  - command: go test -race -count=1 ./internal/runtimeconfig ./internal/credentials
+    covers: [A1, A2, A3, A4]
+  - command: make test-runtime-config-postgres test-runtime-credentials test-runtime-principals
+    covers: [A1, A3, A4, A5]
+  - command: make verify-public-api test-wire-cross-language
+    covers: [A1, A3]
+test_prerequisites:
+  - Set CONTRACTOR_TEST_DATABASE_URL to a disposable isolated PostgreSQL instance; do not print connection credentials.
+verification_requirements:
+  - Record executed database cases, publication/deletion/rebind race evidence and old digest fixture results; skipped persistence tests do not satisfy A5.

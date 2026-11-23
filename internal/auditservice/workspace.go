@@ -1,0 +1,75 @@
+package auditservice
+
+import (
+	"context"
+
+	"github.com/grauwolf32/contractor/internal/auditstore"
+)
+
+type FindingPage struct {
+	ContinueAfter *auditstore.ProjectFindingSummary
+	Items         []auditstore.ProjectFindingSummary
+	auditstore.FindingPageBasis
+}
+
+func (s *Service) GetWorkspace(ctx context.Context, ownerID, auditID string) (auditstore.WorkspaceSummary, error) {
+	return s.reads().GetWorkspace(ctx, ownerID, auditID)
+}
+
+// A revision fence includes hydration and the whole-filter count. Audit mutations
+// increment its revision atomically, so a changing view is rejected rather than
+// returning rows/counts/evidence from different revisions. No transaction is held
+// while hydration acquires a pool connection (including single-connection pools).
+func (s *Service) checkPageRevision(ctx context.Context, ownerID, auditID string, revision uint64) error {
+	audit, err := s.Get(ctx, ownerID, auditID)
+	if err != nil {
+		return err
+	}
+	if audit.Revision != revision {
+		return auditstore.ErrConflict
+	}
+	return nil
+}
+
+func (s *Service) ListFindingsPage(ctx context.Context, params auditstore.FindingListParams) (FindingPage, error) {
+	var result FindingPage
+	if params.Limit < 2 {
+		return result, auditstore.ErrInvalid
+	}
+	basis, err := s.reads().FindingPageBasis(ctx, params)
+	if err != nil {
+		return result, err
+	}
+	result.FindingPageBasis = basis
+	if (params.AuditRevision != nil && *params.AuditRevision != result.AuditRevision) ||
+		(params.ProjectRevision != nil && *params.ProjectRevision != result.ProjectRevision) {
+		return result, auditstore.ErrConflict
+	}
+	raw := params
+	raw.State, raw.Verdict, raw.Severity = nil, nil, nil
+	raw.NeedsReview = false
+	candidates, readErr := s.reads().ListFindings(ctx, raw)
+	err = readErr
+	if len(candidates) == params.Limit {
+		candidates = candidates[:len(candidates)-1]
+		last := candidates[len(candidates)-1]
+		result.ContinueAfter = &last
+	}
+	result.Items = make([]auditstore.ProjectFindingSummary, 0, len(candidates))
+	for _, row := range candidates {
+		if row.Matches(params.State, params.Verdict, params.NeedsReview, params.Severity) {
+			result.Items = append(result.Items, row)
+		}
+	}
+	if err != nil {
+		return result, err
+	}
+	after, err := s.reads().FindingPageBasis(ctx, params)
+	if err != nil {
+		return result, err
+	}
+	if after.AuditRevision != basis.AuditRevision || after.ProjectRevision != basis.ProjectRevision {
+		return result, auditstore.ErrConflict
+	}
+	return result, nil
+}

@@ -1,0 +1,55 @@
+schema_version: '1.0'
+id: V406-015
+title: Reuse reserved Namespace constants throughout sweep admission and library SQL
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: scan-tools
+kind: chore
+introduced_by: V406-004
+priority: P2
+status: completed
+depends_on: [V406-004]
+languages: [go]
+goal: Keep reserved Artifact Namespace identities owned by artifactpolicy while preserving sweep and library behavior.
+context:
+  specification:
+  - docs/spec/artifacts/artifact-store.md#ART-R114
+  - docs/spec/artifacts/artifact-store.md#ART-R119
+  - docs/spec/tools/scanners.md#SCN-R244
+  finding: >-
+    The complete main release gate fails TestReservedNamespacesAreNamedOnlyByArtifactPolicy.
+    V406-004 (248e91a408c4b27fec7809919b6bd4d1957c1175) copied contractor-system
+    in internal/runservice/public.go:276, internal/scanservice/service.go:96,
+    internal/scanstore/store.go:80 and internal/artifacts/postgres_query_sql.go:75,
+    plus audit-standards in the same SQL file:154.
+  siblings: >-
+    Replace every production Go copy identified by the unchanged repository-wide
+    ownership test. Existing Runtime/UI ownership scans and artifactpolicy's own
+    definitions remain authoritative; persisted SQL/migration values and test
+    fixtures retain their exact identities.
+scope:
+  in:
+  - Use artifactpolicy constants for sweep source/retained input Namespace validation.
+  - Compose the existing static SQL predicates from the same constants, preserving literal predicates and the library partial index.
+  - Run the unchanged ownership regression and complete touched-package suites against PostgreSQL.
+  out:
+  - Namespace renaming, visibility or authorization changes, new APIs/schema and relaxed ownership guards.
+acceptance_criteria:
+- id: A1
+  text: The unchanged repository-wide reserved Namespace test passes; it fails on the unfixed main code.
+- id: A2
+  text: Every touched package passes its full tests with PostgreSQL, preserving hidden sweep snapshots, owner library filtering and retained input validation.
+- id: A3
+  text: make lint passes and no ownership test or accepted Namespace value is weakened.
+tests:
+- command: go test -count=1 ./internal/artifactpolicy ./internal/artifacts ./internal/runservice ./internal/scanservice ./internal/scanstore
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A3]
+implementation_commit: 17ad4783a431436de839eacadf7860f9c426461e
+verification:
+  date: '2026-10-24'
+  baseline: The complete main release run failed the unchanged ownership regression with all six copied Namespace literals.
+  passed:
+  - go test -count=1 ./internal/artifactpolicy ./internal/artifacts ./internal/runservice ./internal/scanservice ./internal/scanstore; every package with tests passed against a separate PostgreSQL database. scanstore has no test files and is exercised through the scanservice repository suites.
+  - make lint; all task/spec/layer/release-graph and Runtime checks passed.
+  behavior: Reserved identities, static SQL text and partial-index predicates are unchanged; ownership guards and test fixtures are unchanged.

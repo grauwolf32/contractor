@@ -1,0 +1,871 @@
+import { describe, expect, it, vi } from "vitest";
+
+import type { RuntimeConfig } from "../config/runtime-config";
+import {
+  APICompatibilityError,
+  InvalidResponseError,
+  PublicAPIError,
+  publicAPIError,
+} from "./error";
+import { PublicAPI } from "./client";
+import { TEST_SHARED_CONFIG } from "../test/shared-config";
+
+const runtimeConfig: RuntimeConfig = {
+  uiVersion: "0.1.0",
+  supportedApiVersions: ["contractor.public.v1"],
+  apiBaseUrl: "http://127.0.0.1:8080",
+};
+
+const session = {
+  principal: {
+    userId: "user_local",
+    username: "owner",
+    capabilities: ["user", "operations"] as const,
+  },
+  csrfToken: "a".repeat(43),
+  idleExpiresAt: "2026-08-31T20:00:00Z",
+  absoluteExpiresAt: "2026-09-01T12:00:00Z",
+};
+
+function apiResponse(body: unknown, status = 200): Response {
+  return new Response(body === undefined ? undefined : JSON.stringify(body), {
+    status,
+    headers: {
+      "content-type": "application/json",
+      "X-Contractor-API-Version": "contractor.public.v1",
+      "X-Request-ID": "request-test",
+    },
+  });
+}
+
+describe("PublicAPI", () => {
+  it("uses direct credentialed requests and keeps CSRF only in memory", async () => {
+    const requests: Request[] = [];
+    const fetchImplementation = vi.fn<typeof fetch>(async (input) => {
+      const request = input instanceof Request ? input : new Request(input);
+      requests.push(request);
+      if (request.url.endsWith("/v1/auth/session")) {
+        return apiResponse(session);
+      }
+      return apiResponse(undefined, 204);
+    });
+    const api = new PublicAPI(runtimeConfig, fetchImplementation);
+
+    await expect(api.getSession()).resolves.toEqual(session);
+    expect(requests[0]?.url).toBe("http://127.0.0.1:8080/v1/auth/session");
+    expect(requests[0]?.credentials).toBe("include");
+    expect(api.csrf.get()).toBe(session.csrfToken);
+
+    await api.logout();
+    expect(requests[1]?.method).toBe("POST");
+    expect(requests[1]?.headers.get("X-CSRF-Token")).toBe(session.csrfToken);
+    // Browsers own Origin; a script-set value is dropped.
+    expect(requests[1]?.headers.get("Origin")).toBeNull();
+    expect(api.csrf.get()).toBeUndefined();
+  });
+
+  it("returns null for an authoritative 401 and clears stale CSRF", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        apiResponse(
+          {
+            code: "unauthorized",
+            message: "authentication is required",
+            retryable: false,
+            requestId: "request-test",
+          },
+          401,
+        ),
+      ),
+    );
+    api.csrf.replace("stale");
+    await expect(api.getSession()).resolves.toBeNull();
+    expect(api.csrf.get()).toBeUndefined();
+  });
+
+  it("fails explicitly when the Server omits its compatibility signal", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () => new Response("{}", { status: 401 })),
+    );
+    await expect(api.getSession()).rejects.toBeInstanceOf(
+      APICompatibilityError,
+    );
+  });
+
+  it("treats an unversioned proxy 502 as retryable unavailability", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(
+        async () =>
+          new Response("<html>Bad Gateway</html>", {
+            status: 502,
+            headers: { "Content-Type": "text/html" },
+          }),
+      ),
+    );
+    const error = await api.getSession().catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(PublicAPIError);
+    expect(error).not.toBeInstanceOf(APICompatibilityError);
+    expect(error).toMatchObject({
+      status: 502,
+      code: "server_unavailable",
+      retryable: true,
+    });
+  });
+
+  it("keeps a wrong version header incompatible even on a 502", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(
+        async () =>
+          new Response("<html>Bad Gateway</html>", {
+            status: 502,
+            headers: { "X-Contractor-API-Version": "contractor.public.v9" },
+          }),
+      ),
+    );
+    await expect(api.getSession()).rejects.toBeInstanceOf(
+      APICompatibilityError,
+    );
+  });
+
+  it("bounds an oversized Server error before mapping it", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(
+        async () =>
+          new Response("x".repeat(70 * 1024), {
+            status: 500,
+            headers: {
+              "X-Contractor-API-Version": "contractor.public.v1",
+              "X-Request-ID": "request-large",
+            },
+          }),
+      ),
+    );
+    const error = await api.getSession().catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(PublicAPIError);
+    expect((error as PublicAPIError).code).toBe("invalid_error_response");
+    expect((error as PublicAPIError).message).toContain("exceeded");
+  });
+
+  it("requires CSRF and validates caller-provided mutation headers", () => {
+    const api = new PublicAPI(runtimeConfig, vi.fn());
+    expect(() => api.mutationHeaders()).toThrow("CSRF");
+    api.csrf.replace(session.csrfToken);
+    const headers = api.mutationHeaders({
+      idempotencyKey: "draft-123",
+      ifMatch: '"revision-4"',
+      ifNoneMatch: "*",
+    });
+    expect(headers.get("Idempotency-Key")).toBe("draft-123");
+    expect(headers.get("If-Match")).toBe('"revision-4"');
+    expect(headers.get("If-None-Match")).toBe("*");
+    expect(() => api.mutationHeaders({ idempotencyKey: "bad\nvalue" })).toThrow(
+      "visible ASCII",
+    );
+  });
+
+  it("never sends cookies or CSRF outside the configured API boundary", async () => {
+    const fetchImplementation = vi.fn<typeof fetch>();
+    const api = new PublicAPI(runtimeConfig, fetchImplementation);
+    api.csrf.replace(session.csrfToken);
+    await expect(
+      api.request((client) =>
+        client.GET("/v1/auth/session", {
+          baseUrl: "https://attacker.invalid",
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "invalid_client_request" });
+    expect(fetchImplementation).not.toHaveBeenCalled();
+  });
+
+  it("maps malformed response JSON to a safe fallback error", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(
+        async () =>
+          new Response("not-json", {
+            status: 500,
+            headers: {
+              "content-type": "application/json",
+              "X-Contractor-API-Version": "contractor.public.v1",
+            },
+          }),
+      ),
+    );
+    await expect(api.getSession()).rejects.toMatchObject({
+      code: "request_failed",
+      message: "Public API request failed",
+    });
+  });
+
+  it("retains bounded references for each in-use deletion error", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        apiResponse(
+          {
+            code: "credential_in_use",
+            message: "Credential is pinned",
+            retryable: false,
+            requestId: "request-conflict",
+            details: {
+              kind: "credential_in_use",
+              runIds: ["run-2", "run-1"],
+              auditIds: ["audit-1"],
+              bindingLabels: ["default", "debug"],
+            },
+          },
+          409,
+        ),
+      ),
+    );
+    const response = await api.fetch("/v1/test");
+    const error = await api.error(response);
+    expect(error.inUse).toEqual({
+      kind: "credential_in_use",
+      runIds: ["run-2", "run-1"],
+      auditIds: ["audit-1"],
+      bindingLabels: ["default", "debug"],
+    });
+
+    expect(
+      publicAPIError(409, {
+        details: {
+          kind: "runtime_credential_in_use",
+          bindingLabels: ["debug"],
+          projectIds: ["project-one", "project-one"],
+          runIds: ["run-one"],
+          auditIds: ["audit-one"],
+          allocationIds: [],
+        },
+      }).inUse,
+    ).toEqual({
+      kind: "runtime_credential_in_use",
+      bindingLabels: ["debug"],
+      projectIds: ["project-one"],
+      runIds: ["run-one"],
+      auditIds: ["audit-one"],
+      allocationIds: [],
+    });
+    expect(
+      publicAPIError(409, {
+        details: {
+          kind: "runtime_label_in_use",
+          runtimeAgentIds: ["a".repeat(64)],
+        },
+      }).inUse,
+    ).toEqual({
+      kind: "runtime_label_in_use",
+      runtimeAgentIds: ["a".repeat(64)],
+    });
+  });
+
+  it.each([
+    ["a null list", { kind: "credential_in_use", runIds: null }],
+    [
+      "an unsafe reference",
+      { kind: "credential_in_use", runIds: ["../escape"] },
+    ],
+    [
+      "an oversized identifier",
+      {
+        kind: "runtime_credential_in_use",
+        bindingLabels: [],
+        projectIds: ["x".repeat(257)],
+        runIds: [],
+        allocationIds: [],
+      },
+    ],
+    [
+      "too many references",
+      {
+        kind: "runtime_credential_in_use",
+        bindingLabels: [],
+        projectIds: [],
+        runIds: [],
+        allocationIds: Array.from(
+          { length: 129 },
+          (_, index) => `allocation-${index}`,
+        ),
+      },
+    ],
+    [
+      "an invalid Runtime Agent ID",
+      { kind: "runtime_label_in_use", runtimeAgentIds: ["b".repeat(65)] },
+    ],
+  ])("drops in-use details with %s", (_, details) => {
+    const error = publicAPIError(409, {
+      code: "credential_in_use",
+      message: "Credential is pinned",
+      retryable: false,
+      details,
+    });
+    expect(error.inUse).toBeUndefined();
+    expect(error).toMatchObject({ status: 409, code: "credential_in_use" });
+  });
+
+  it("fences direct binary requests and attaches the current CSRF", async () => {
+    let captured: Request | undefined;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        captured = input instanceof Request ? input : new Request(input);
+        return apiResponse(
+          {
+            artifact: {
+              namespace: "projects",
+              name: "source",
+              revision: "revision-1",
+            },
+            mediaType: "application/zip",
+            size: 3,
+          },
+          201,
+        );
+      }),
+    );
+    api.csrf.replace(session.csrfToken);
+    const response = await api.fetch("/v1/artifacts/projects/source", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/zip",
+        "If-None-Match": "*",
+      },
+      body: new Blob(["zip"]),
+    });
+    expect(response.status).toBe(201);
+    expect(captured?.credentials).toBe("include");
+    expect(captured?.headers.get("X-CSRF-Token")).toBe(session.csrfToken);
+    expect(captured?.headers.get("If-None-Match")).toBe("*");
+
+    await expect(
+      api.fetch("https://attacker.invalid/v1/artifacts/x/y"),
+    ).rejects.toMatchObject({ code: "invalid_client_request" });
+    await expect(
+      api.fetch("/v1/artifacts/x/y", {
+        headers: { Authorization: "Bearer forbidden" },
+      }),
+    ).rejects.toMatchObject({ code: "invalid_client_request" });
+  });
+});
+
+describe("authoritative domain authentication failures", () => {
+  it.each(["typed", "direct"])(
+    "clears CSRF and notifies for %s requests",
+    async (transport) => {
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) =>
+          new URL((input as Request).url).pathname === "/v1/config"
+            ? apiResponse(TEST_SHARED_CONFIG)
+            : apiResponse({ code: "unauthorized" }, 401),
+        ),
+      );
+      const listener = vi.fn();
+      api.csrf.replace(session.csrfToken);
+      const unsubscribe = api.subscribeUnauthorized(listener);
+      if (transport === "typed") {
+        await api.request((client) => client.GET("/v1/projects"));
+      } else {
+        await api.fetch("/v1/artifacts/worker/report");
+      }
+      expect(api.csrf.get()).toBeUndefined();
+      expect(listener).toHaveBeenCalledTimes(1);
+      unsubscribe();
+      await api.fetch("/v1/projects");
+      expect(listener).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([401, 403])(
+    "does not turn login failure or forbidden into session loss (%s)",
+    async (status) => {
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async () => apiResponse({ code: "rejected" }, status)),
+      );
+      api.csrf.replace(session.csrfToken);
+      const listener = vi.fn();
+      api.subscribeUnauthorized(listener);
+      if (status === 401) {
+        await expect(
+          api.login({ username: "owner", password: "wrong" }),
+        ).rejects.toBeInstanceOf(PublicAPIError);
+      } else {
+        await api.fetch("/v1/projects");
+      }
+      expect(listener).not.toHaveBeenCalled();
+      expect(api.csrf.get()).toBe(session.csrfToken);
+    },
+  );
+
+  it("ignores an old request's 401 after a new login", async () => {
+    let resolveResponse!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      resolveResponse = resolve;
+    });
+    const freshSession = { ...session, csrfToken: "b".repeat(43) };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) =>
+        (input as Request).url.endsWith("/v1/auth/login")
+          ? apiResponse(freshSession)
+          : pending,
+      ),
+    );
+    api.csrf.replace(session.csrfToken);
+    const listener = vi.fn();
+    api.subscribeUnauthorized(listener);
+    const request = api.fetch("/v1/projects");
+    await api.login({ username: "owner", password: "password" });
+    resolveResponse(apiResponse({ code: "unauthorized" }, 401));
+    await request;
+    expect(api.csrf.get()).toBe(freshSession.csrfToken);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it.each([200, 401])(
+    "does not apply a late session response (%s) after a new login",
+    async (status) => {
+      let resolveResponse!: (response: Response) => void;
+      const pending = new Promise<Response>((resolve) => {
+        resolveResponse = resolve;
+      });
+      const freshSession = { ...session, csrfToken: "b".repeat(43) };
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) =>
+          (input as Request).url.endsWith("/v1/auth/login")
+            ? apiResponse(freshSession)
+            : pending,
+        ),
+      );
+      api.csrf.replace(session.csrfToken);
+      const lookup = api.getSession();
+      await api.login({ username: "owner", password: "password" });
+      resolveResponse(
+        apiResponse(
+          status === 200 ? session : { code: "unauthorized" },
+          status,
+        ),
+      );
+      await lookup;
+      expect(api.mutationHeaders().get("X-CSRF-Token")).toBe(
+        freshSession.csrfToken,
+      );
+    },
+  );
+
+  it("does not restore a session response after logout", async () => {
+    let resolveResponse!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      resolveResponse = resolve;
+    });
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) =>
+        (input as Request).url.endsWith("/v1/auth/logout")
+          ? apiResponse(undefined, 204)
+          : pending,
+      ),
+    );
+    api.csrf.replace(session.csrfToken);
+    const lookup = api.getSession();
+    await api.logout();
+    resolveResponse(apiResponse(session));
+    await lookup;
+    expect(api.csrf.get()).toBeUndefined();
+  });
+});
+
+describe("CSRF refresh after another tab replaces the session", () => {
+  function sharedCookieFetch() {
+    let cookieToken = session.csrfToken;
+    const mutationAttempts: Array<{ token: string | null; body: string }> = [];
+    let sessionReads = 0;
+    const fetchImplementation = vi.fn<typeof fetch>(async (input) => {
+      const request = input instanceof Request ? input : new Request(input);
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/auth/session") {
+        sessionReads++;
+        return apiResponse({ ...session, csrfToken: cookieToken });
+      }
+      if (path === "/v1/auth/login") {
+        cookieToken = "b".repeat(43);
+        return apiResponse({ ...session, csrfToken: cookieToken });
+      }
+      mutationAttempts.push({
+        token: request.headers.get("X-CSRF-Token"),
+        body: await request.text(),
+      });
+      return request.headers.get("X-CSRF-Token") === cookieToken
+        ? apiResponse({ ok: true })
+        : apiResponse(
+            { code: "forbidden", message: "CSRF token is invalid" },
+            403,
+          );
+    });
+    return {
+      fetchImplementation,
+      mutationAttempts,
+      get sessionReads() {
+        return sessionReads;
+      },
+    };
+  }
+
+  it("retries a guarded mutation once with the new token and original body", async () => {
+    const shared = sharedCookieFetch();
+    const tabA = new PublicAPI(runtimeConfig, shared.fetchImplementation);
+    const tabB = new PublicAPI(runtimeConfig, shared.fetchImplementation);
+    await tabA.getSession();
+    await tabB.getSession();
+    await tabA.login({ username: "owner", password: "password" });
+
+    const response = await tabB.fetch("/v1/projects", {
+      method: "POST",
+      headers: { "Idempotency-Key": "create-project-1" },
+      body: JSON.stringify({ name: "project" }),
+    });
+    expect(response.status).toBe(200);
+    expect(shared.sessionReads).toBe(3);
+    expect(tabB.csrf.get()).toBe("b".repeat(43));
+    expect(shared.mutationAttempts).toEqual([
+      { token: session.csrfToken, body: '{"name":"project"}' },
+      { token: "b".repeat(43), body: '{"name":"project"}' },
+    ]);
+  });
+
+  it("refreshes a non-idempotent request without replaying it", async () => {
+    const shared = sharedCookieFetch();
+    const tabA = new PublicAPI(runtimeConfig, shared.fetchImplementation);
+    const tabB = new PublicAPI(runtimeConfig, shared.fetchImplementation);
+    await tabA.getSession();
+    await tabB.getSession();
+    await tabA.login({ username: "owner", password: "password" });
+
+    await expect(
+      tabB.fetch("/v1/test-action", { method: "POST", body: "payload" }),
+    ).rejects.toMatchObject({
+      code: "session_refreshed",
+      message: "Your session changed in another tab. Try this action again.",
+    });
+    expect(shared.mutationAttempts).toHaveLength(1);
+    expect(tabB.csrf.get()).toBe("b".repeat(43));
+    const response = await tabB.fetch("/v1/test-action", {
+      method: "POST",
+      body: "payload",
+    });
+    expect(response.status).toBe(200);
+    expect(shared.mutationAttempts).toHaveLength(2);
+  });
+
+  it("does not retry an unrelated forbidden mutation when the token is unchanged", async () => {
+    let sessionReads = 0;
+    let mutations = 0;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (request) => {
+        if (request.url.endsWith("/v1/auth/session")) {
+          sessionReads++;
+          return apiResponse(session);
+        }
+        mutations++;
+        return apiResponse(
+          { code: "forbidden", message: "Capability denied" },
+          403,
+        );
+      }),
+    );
+    await api.getSession();
+    const response = await api.fetch("/v1/protected", {
+      method: "POST",
+      headers: { "Idempotency-Key": "guarded-action-1" },
+    });
+    expect(response.status).toBe(403);
+    expect(sessionReads).toBe(2);
+    expect(mutations).toBe(1);
+    expect(api.csrf.get()).toBe(session.csrfToken);
+  });
+});
+
+describe("response contract", () => {
+  const project = {
+    projectId: "project_1",
+    kind: "project",
+    name: "Shop",
+    description: "",
+    activeChecks: "automatic",
+    lifecycle: "active",
+    revision: "1",
+    createdAt: "2026-10-01T10:00:00Z",
+    updatedAt: "2026-10-01T10:00:00Z",
+  };
+
+  function readProject(body: unknown, status = 200) {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () => apiResponse(body, status)),
+    );
+    return api.request((client) =>
+      client.GET("/v1/projects/{projectId}", {
+        params: { path: { projectId: "project_1" } },
+      }),
+    );
+  }
+
+  it("passes a conforming success body to the caller", async () => {
+    await expect(readProject(project)).resolves.toMatchObject({
+      data: project,
+    });
+  });
+
+  it.each([
+    ["a missing required member", { ...project, name: undefined }, "#"],
+    ["an unknown member", { ...project, owner: "secret" }, "#/owner"],
+    [
+      "a wrong enum value",
+      { ...project, lifecycle: "archived" },
+      "#/lifecycle",
+    ],
+    ["a pattern mismatch", { ...project, projectId: "-p" }, "#/projectId"],
+  ])("rejects %s with the one invalid-response error", async (_, body, at) => {
+    const error = await readProject(body).catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(InvalidResponseError);
+    expect(error).toMatchObject({
+      status: 200,
+      code: "invalid_api_response",
+      detail: `Server response to GET /v1/projects/{projectId} broke the public contract: the body does not conform at ${at}`,
+    });
+    expect((error as InvalidResponseError).detail).not.toContain("secret");
+  });
+
+  it("refuses a request header that breaks its operation's schema before sending", async () => {
+    const fetchImplementation = vi.fn(async () => apiResponse({}));
+    const api = new PublicAPI(runtimeConfig, fetchImplementation);
+    api.csrf.replace(session.csrfToken);
+    for (const ifMatch of ['"01"', "1", '"1"x', '"123456789012345678901"']) {
+      await expect(
+        api.request((client) =>
+          client.PUT("/v1/queue/control", {
+            params: { header: { "If-Match": ifMatch } },
+            body: { paused: true },
+          }),
+        ),
+      ).rejects.toMatchObject({
+        code: "invalid_client_request",
+        message: expect.stringContaining(
+          "If-Match for PUT /v1/queue/control breaks the public contract",
+        ),
+      });
+    }
+    expect(fetchImplementation).not.toHaveBeenCalled();
+  });
+
+  it("rejects an undeclared success status", async () => {
+    await expect(readProject(project, 203)).rejects.toMatchObject({
+      code: "invalid_api_response",
+      detail: expect.stringContaining("status 203 is not declared"),
+    });
+  });
+
+  it("leaves error envelopes to the error mapping", async () => {
+    const result = await readProject(
+      { code: "not_found", message: "No project" },
+      404,
+    );
+    expect(result.error).toMatchObject({ code: "not_found" });
+  });
+
+  it("validates direct JSON responses read through readJSON", async () => {
+    const api = new PublicAPI(runtimeConfig, vi.fn());
+    const body = {
+      artifact: { namespace: "projects", name: "source", revision: "r1" },
+      mediaType: "application/zip",
+      size: 3,
+    };
+    await expect(
+      api.readJSON(
+        "PUT /v1/artifacts/{namespace}/{name}",
+        apiResponse(body, 201),
+        1024,
+      ),
+    ).resolves.toEqual(body);
+    await expect(
+      api.readJSON(
+        "PUT /v1/artifacts/{namespace}/{name}",
+        apiResponse({ ...body, size: -1 }, 201),
+        1024,
+      ),
+    ).rejects.toBeInstanceOf(InvalidResponseError);
+    await expect(
+      api.readJSON(
+        "PUT /v1/artifacts/{namespace}/{name}",
+        apiResponse(body, 201),
+        8,
+      ),
+    ).rejects.toMatchObject({
+      code: "invalid_api_response",
+      detail: expect.stringContaining("exceeded the client limit"),
+    });
+    await expect(
+      api.readJSON(
+        "PUT /v1/artifacts/{namespace}/{name}",
+        new Response("not json", {
+          status: 201,
+          headers: { "Content-Type": "text/plain" },
+        }),
+        1024,
+      ),
+    ).rejects.toMatchObject({
+      code: "invalid_api_response",
+      detail: expect.stringContaining("was unreadable"),
+    });
+  });
+});
+
+describe("client-side failures and unreadable answers", () => {
+  /** A versioned answer whose body stream breaks while it is read. */
+  function brokenBody(status: number): Response {
+    return new Response(
+      new ReadableStream({
+        pull(controller) {
+          controller.error(new TypeError("connection reset"));
+        },
+      }),
+      {
+        status,
+        headers: {
+          "content-type": "application/json",
+          "X-Contractor-API-Version": "contractor.public.v1",
+        },
+      },
+    );
+  }
+
+  it("reports a request the UI cannot build as a client request error, sending nothing", async () => {
+    const fetchImplementation = vi.fn(async () => apiResponse({}));
+    const api = new PublicAPI(runtimeConfig, fetchImplementation);
+    api.csrf.replace(session.csrfToken);
+
+    // A caller-side grammar check inside the request callback.
+    const grammar = await api
+      .request((client) =>
+        client.POST("/v1/runs", {
+          params: {
+            header: {
+              "Idempotency-Key": api
+                .mutationHeaders({ idempotencyKey: "bad\nvalue" })
+                .get("Idempotency-Key")!,
+            },
+          },
+          body: { workflow: "artifact-copy@2" },
+        }),
+      )
+      .catch((cause: unknown) => cause);
+    expect(grammar).not.toBeInstanceOf(InvalidResponseError);
+    expect(grammar).toMatchObject({
+      status: 0,
+      code: "invalid_client_request",
+      retryable: false,
+      message: expect.stringContaining("visible ASCII"),
+    });
+
+    // A mutation without a session token, through both request paths.
+    api.csrf.clear();
+    for (const attempt of [
+      api.request((client) =>
+        client.PUT("/v1/queue/control", {
+          params: { header: { "If-Match": '"1"' } },
+          body: { paused: true },
+        }),
+      ),
+      api.fetch("/v1/artifacts/projects/source", {
+        method: "PUT",
+        body: new Blob(["zip"]),
+      }),
+    ]) {
+      const error = await attempt.catch((cause: unknown) => cause);
+      expect(error).not.toBeInstanceOf(InvalidResponseError);
+      expect(error).toMatchObject({
+        status: 0,
+        code: "invalid_client_request",
+        message: "An authenticated CSRF token is required",
+      });
+    }
+    expect(fetchImplementation).not.toHaveBeenCalled();
+  });
+
+  it("reports an answer whose body cannot be read as the invalid-response error", async () => {
+    const malformed = vi.fn(
+      async () =>
+        new Response("not-json", {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+            "content-length": "8",
+            "X-Contractor-API-Version": "contractor.public.v1",
+          },
+        }),
+    );
+    const parse = await new PublicAPI(runtimeConfig, malformed)
+      .getSession()
+      .catch((cause: unknown) => cause);
+    expect(malformed).toHaveBeenCalledTimes(1);
+    expect(parse).toBeInstanceOf(InvalidResponseError);
+    expect(parse).toMatchObject({
+      status: 0,
+      code: "invalid_api_response",
+      detail: "Server response to GET /v1/auth/session was unreadable",
+    });
+
+    const broken = await new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () => brokenBody(200)),
+    )
+      .getSession()
+      .catch((cause: unknown) => cause);
+    expect(broken).toBeInstanceOf(InvalidResponseError);
+    expect(broken).toMatchObject({
+      detail: "Server response to GET /v1/auth/session was unreadable",
+    });
+  });
+
+  it("reports an error answer whose body cannot be read as the invalid-response error", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () => brokenBody(500)),
+    );
+    for (const attempt of [
+      api.getSession(),
+      api.fetch("/v1/artifacts/projects/source"),
+    ]) {
+      const error = await attempt.catch((cause: unknown) => cause);
+      expect(error).toBeInstanceOf(InvalidResponseError);
+      expect(error).toMatchObject({
+        status: 0,
+        code: "invalid_api_response",
+        detail: "Server error response was unreadable",
+      });
+    }
+  });
+
+  it("reports a direct JSON body that breaks off as unreadable", async () => {
+    const api = new PublicAPI(runtimeConfig, vi.fn());
+    await expect(
+      api.readJSON(
+        "PUT /v1/artifacts/{namespace}/{name}",
+        brokenBody(201),
+        1024,
+      ),
+    ).rejects.toMatchObject({
+      code: "invalid_api_response",
+      detail:
+        "Server response to PUT /v1/artifacts/{namespace}/{name} was unreadable",
+    });
+  });
+});

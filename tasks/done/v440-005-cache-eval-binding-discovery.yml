@@ -1,0 +1,65 @@
+schema_version: "1.0"
+id: V440-005
+title: "Page Eval capabilities from immutable catalog discovery"
+milestone: httpapi-review-cleanup-2026-11
+epic: evals
+kind: chore
+introduced_by: V370-009
+priority: P2
+status: completed
+depends_on: []
+languages: [go]
+goal: >-
+  A small Eval capabilities page avoids cloning and sorting every Workflow/profile and hashing all bindings on every request.
+context:
+  task_id_history: "HTTP review IDs moved from V439 to V440 on 2026-11-03 because main had already published the V439 Control Plane tasks."
+  authority:
+    - date: "2026-11-02"
+      decision: "User requested fixing the HTTP review P1 and implementing the proposed simplifications and optimizations."
+  review: "HTTP API review in this chat on 2026-11-02."
+  specification:
+    - docs/spec/api/public-api.md
+    - docs/spec/artifacts/blob-storage.md
+    - docs/spec/execution/runs.md
+    - docs/spec/artifacts/projects.md
+    - docs/spec/configuration/catalog.md
+  finding: >-
+    internal/httpapi/public/eval_handlers.go:46 loads full Workflow/Profile copies and rebuilds all bindings and their digest before taking one page.
+  boundary: >-
+    HTTP owns wire validation and rendering; domain owners own edits, exact repeat availability and compatibility. Existing transfer slots, fences, receipts and immutable catalog snapshots remain authoritative.
+  cache_owner: >-
+    The cache is public catalog discovery, retained in httpapi/public under API-R8.
+    Importing the catalog Snapshot into EvalService would violate the existing
+    loader ownership boundary. AuditService still owns compatibility judgement;
+    no catalog-owner exception or new configuration abstraction is introduced.
+  decision: >-
+    Reuse existing owners and helpers. The alternative of leaving orchestration in the HTTP layer is smaller but retains duplicate policy and expensive catalog reads. Reopen only if a concrete production caller requires another boundary.
+  siblings: >-
+    Inspect public/private Artifact transfers, finding JSON intake, all Run/Audit label consumers, Project edits, ordinary/Audit-managed repeat drafts and Eval kind-filtered pages. Unrelated Eval precondition and Audit-corruption P2 findings are outside this request.
+scope:
+  in:
+    - "Reuse immutable configuration snapshots to prepare a lightweight sorted binding projection and fingerprint once per snapshot."
+    - "Keep compatibility authority in auditservice and exact cursor context/view-change behavior, kind filters, output ordering and schema unchanged."
+    - "Bound each page copy to its requested rows; prove snapshot replacement and realistic large-catalog paging without full per-request cloning."
+  out:
+    - "New endpoints, schemas, persistence mechanisms, generated client edits and unrelated review P2 fixes."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Capability reads reuse immutable discovery data and never call the old full Workflow/Profile list methods.
+  - id: A2
+    text: >-
+      Kind filters, pagination, unavailable reasons and stale-cursor rejection agree with the original public contract.
+  - id: A3
+    text: >-
+      A realistic multi-page test proves bounded page projection and snapshot refresh; all touched owner packages pass.
+tests:
+  - command: "go test -tags=integration -count=1 ./internal/config/... ./internal/auditservice/... ./internal/evalservice/... ./internal/httpapi/public/..."
+    covers: [A1, A2, A3]
+  - command: "make verify-public-api"
+    covers: [A1, A2, A3]
+implementation_commit: d58863d005b172c0294b68817c1687f58f990845
+verification:
+  date: "2026-11-03"
+  result: >-
+    Full Config, AuditService, EvalService and public HTTP suites passed against disposable TCP PostgreSQL, including -race. A 502-Workflow catalog proves identical fingerprints/filter/order, page isolation, snapshot refresh and cursor invalidation; a cached one-row projection measured one allocation. Removed Manager.Workflows after it lost its last production caller. make verify-public-api and make lint passed.

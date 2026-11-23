@@ -1,0 +1,61 @@
+package config
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"reflect"
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+)
+
+func TestRetiredWorkflowAndRebasedProfileKeepPinnedSnapshots(t *testing.T) {
+	t.Parallel()
+	root := filepath.Join(t.TempDir(), "configs")
+	if err := os.CopyFS(root, os.DirFS(filepath.Join("..", "..", "testdata", "configs"))); err != nil {
+		t.Fatal(err)
+	}
+	pinned := mustLoad(t, root)
+	workflow, err := pinned.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, err := pinned.AuditProfile("source-checklist@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflowJSON, err := json.Marshal(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profileJSON, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Retire the Workflow and rebase the profile onto new Worker instructions
+	// while keeping its selector.
+	if err := os.Remove(filepath.Join(root, "workflows", "artifact_copy.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	appendFile(t, filepath.Join(root, "instructions", "audit-source-checker-worker.md"), "\nRecord every checked file.\n")
+	current := mustLoad(t, root)
+	if _, err := current.ResolveRunWorkflow(t.Context(), "artifact-copy@1", nil); err == nil {
+		t.Fatal("new Run silently resolved retired Workflow")
+	}
+	rebased, err := current.AuditProfile("source-checklist@1")
+	if err != nil || rebased.Ref.Digest == profile.Ref.Digest {
+		t.Fatalf("rebased profile kept the pinned digest: %v", err)
+	}
+
+	decodedWorkflow, err := resolved.DecodeResolvedWorkflowSnapshot(workflowJSON)
+	if err != nil || !reflect.DeepEqual(workflow, decodedWorkflow) {
+		t.Fatalf("pinned Workflow changed after catalog retirement: %v", err)
+	}
+	decodedProfile, err := auditprofile.DecodePinnedProgram(profileJSON)
+	if err != nil || !reflect.DeepEqual(profile, decodedProfile) {
+		t.Fatalf("pinned AuditProfile changed after catalog rebase: %v", err)
+	}
+}

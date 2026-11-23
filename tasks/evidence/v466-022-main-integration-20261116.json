@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 1,
+  "task": "V466-022",
+  "date": "2026-11-16",
+  "acceptedAt": "2026-11-16T18:52:10.642784+03:00",
+  "mergedIntoLocalMain": true,
+  "mergeCommit": "017b8b289e6da12e68d13d28a592bc7fb66c43ba",
+  "mergeParents": [
+    "926395e18e1850ce277b576cd17ae5737818e08f",
+    "76104ef70bb83a9794c581d48cf7df2efa9d8c7f"
+  ],
+  "sourceHead": "76104ef70bb83a9794c581d48cf7df2efa9d8c7f",
+  "verifiedCodeHead": "017b8b289e6da12e68d13d28a592bc7fb66c43ba",
+  "treeIdentity": {
+    "sourceHead": "76104ef70bb83a9794c581d48cf7df2efa9d8c7f",
+    "mergeHead": "017b8b289e6da12e68d13d28a592bc7fb66c43ba",
+    "mergeChangesComparedToSource": [
+      "tasks/BACKLOG.md",
+      "tasks/index.yml",
+      "tasks/v466-022-release-quality-main-integration.yml"
+    ],
+    "acceptedReleaseBaseline": "7ef5d58deb5ff42cec9175fa4261d169047c1d22",
+    "unchangedReleaseInputs": [
+      "runtime",
+      "ui",
+      "tests/e2e",
+      "scripts",
+      "make",
+      "internal/config",
+      "internal/contracts",
+      "internal/controlplane",
+      "internal/telemetry",
+      "internal/planner",
+      "internal/runstore",
+      "internal/auditcontroller"
+    ],
+    "productionAndTestTreesEqualSource": true
+  },
+  "gates": [
+    {
+      "command": "go test -count=1 ./internal/auditcontroller ./internal/evalservice ./internal/evalstore ./internal/evaldomain",
+      "exitCode": 0,
+      "log": "/private/tmp/contractor-v466-022-merge-20261116-4g3_zcg5/logs/go-packages.log",
+      "logSha256": "sha256:cd549558d21a35cd721f29353eb1ba88d7f591b426a7f50cd363a083a94c0c9d"
+    },
+    {
+      "command": "make verify-public-api-postgres",
+      "exitCode": 0,
+      "log": "/private/tmp/contractor-v466-022-merge-20261116-4g3_zcg5/logs/public-api.log",
+      "logSha256": "sha256:7642965832921971c48b46575ef305a4dcb76b8c05777923b436829cea674e6f"
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "exitCode": 0,
+      "log": "/private/tmp/contractor-v466-022-merge-20261116-4g3_zcg5/logs/wire.log",
+      "logSha256": "sha256:0a0e60b568016088830c512f09c40f525b18bdbc6b13980d4798b0f06db50665"
+    },
+    {
+      "command": "make test-context-compaction-eval-fixtures",
+      "exitCode": 0,
+      "log": "/private/tmp/contractor-v466-022-merge-20261116-4g3_zcg5/logs/fixtures.log",
+      "logSha256": "sha256:07f1d1293124835d9e355b73aca057a839c3767d0fffae27073c8316401adf8c"
+    },
+    {
+      "command": "make lint",
+      "exitCode": 0,
+      "log": "/private/tmp/contractor-v466-022-merge-20261116-4g3_zcg5/logs/lint-final.log",
+      "logSha256": "sha256:01604fef7b3e1ef6a2fbc81611cc5d1ac8c3bfc908ed537012a66c4a65a3cd4a"
+    }
+  ],
+  "wire": {
+    "sharedFixtures": 394,
+    "goSharedTests": 443,
+    "pythonSharedTests": 280,
+    "pythonContractCases": 417,
+    "pythonSharedSelectionPassed": 1562,
+    "optionalHeavySkipped": 1,
+    "skipsArePassingCoverage": false
+  },
+  "offlineEval": {
+    "unitTests": 43,
+    "variants": 7,
+    "classes": 3,
+    "recordedScoredSamples": 105,
+    "goPackages": 2,
+    "liveCalls": 0
+  },
+  "environmentCorrection": {
+    "initialLintExitCode": 2,
+    "reason": "pnpm rejected a dependency-directory symlink outside the isolated project. Removed only that symlink and installed the exact frozen lock offline in the owned worktree. No production or test source changed.",
+    "dependencyInstallExitCode": 0,
+    "finalLintExitCode": 0
+  },
+  "verificationReuse": {
+    "evidence": "tasks/evidence/v417-009-acceptance-20261115.json",
+    "fullReleaseWasNotRepeated": true,
+    "unchangedInputs": [
+      "runtime",
+      "ui",
+      "tests/e2e",
+      "scripts",
+      "make",
+      "internal/config",
+      "internal/contracts",
+      "internal/controlplane",
+      "internal/telemetry",
+      "internal/planner",
+      "internal/runstore",
+      "internal/auditcontroller"
+    ],
+    "basis": "Exact Git tree identity to the accepted release baseline for Runtime/UI/process/gate inputs; current changed Eval owner packages and gates rerun above."
+  },
+  "primaryProtection": {
+    "files": [
+      {
+        "path": "tasks/BACKLOG.md",
+        "sha256": "15a143a107a5e927020bf18b87ab6769c0c8dc0c10efa5f5fbc298519242124e",
+        "mode": 420,
+        "status": " M"
+      },
+      {
+        "path": "tasks/v411-015-http-pentest-workflow-presets.yml",
+        "sha256": "870fd0a720021000fc1a482378040472a19fc3693ba277066a363907b98d8c7a",
+        "mode": 420,
+        "status": " M"
+      },
+      {
+        "path": "tests/eval/pentest/playground.lock.json",
+        "sha256": "a4b98bfdde6b68720803eecb9f8639f22687af8d623c63c3ce15b787dcfa1a70",
+        "mode": 420,
+        "status": " M"
+      },
+      {
+        "path": "tasks/done/v455-003-invoice-lab-http11.yml",
+        "sha256": "d0e3bd9576a545836ded18b0c9740a1e244749991aab9cf453181836ed5fd408",
+        "mode": 420,
+        "status": "??"
+      },
+      {
+        "path": "tasks/evidence/v411-015-demo-20261107.json",
+        "sha256": "2c11d00c3cfb45dc66f2f1ac7fcc3ceef0547840644e0faabc213695729466ea",
+        "mode": 420,
+        "status": "??"
+      },
+      {
+        "path": "tasks/evidence/v455-003-invoice-http11-20261107.json",
+        "sha256": "641c4123c5f5d85189118536de27d6023b0a50dedfd7b259a6ef47dec41f2d47",
+        "mode": 420,
+        "status": "??"
+      }
+    ],
+    "fileCount": 6,
+    "bytesAndModesPreserved": true,
+    "stagedDeltaSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stagedDeltaPreserved": true,
+    "method": "Guarded compare-and-swap of main plus selective restore of clean paths; only the committed index base of the protected working backlog advances."
+  },
+  "cleanup": {
+    "recordedAt": "2026-11-16T15:51:14.643567+00:00",
+    "ownedDatabaseDropped": true,
+    "activeClientsBeforeDrop": 0,
+    "liveModelCalls": 0,
+    "deployment": false,
+    "remotePush": false,
+    "liveStudyRemainsPaused": true
+  },
+  "deliveryLimits": {
+    "v417010RemainsUserPaused": true,
+    "sharedV417004RemainsReservedAndLast": true,
+    "finishWithImplemented": false,
+    "scorerChanges": false,
+    "deployment": false,
+    "remotePush": false
+  },
+  "knownResearchLimit": "Existing immutable scorer failures remain retained; strict field matching and continuation coverage limit their interpretation. No live quality or savings claim is added by this merge."
+}

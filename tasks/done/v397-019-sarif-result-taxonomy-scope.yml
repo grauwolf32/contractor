@@ -1,0 +1,61 @@
+schema_version: '1.0'
+id: V397-019
+title: Keep SARIF classifications scoped to individual results
+milestone: finding-sarif-export-2026-10
+epic: findings
+kind: defect
+introduced_by: V397-008
+priority: P2
+status: completed
+depends_on: [V397-008]
+languages: [go, markdown]
+goal: Preserve exact result classifications without claiming unsupported rule-level taxonomy relationships.
+context:
+  severity: low
+  finding: >-
+    internal/findingexport/sarif/registry.go:207 emits driver.supportedTaxonomies
+    from result StandardRefs while rule definitions have no versioned taxonomy
+    mapping. SARIF Errata 01 section 3.19.26 couples this optional declaration
+    to reportingDescriptor relationships on rules. Result-specific producer
+    classifications do not establish a shared rule classification.
+  format:
+  - https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/sarif-v2.1.0-errata01-os-complete.html
+  specification:
+  - docs/spec/findings/findings.md#FND-R206
+  siblings: >-
+    Run taxonomies and result.taxa remain exact per-result references. Rule
+    definitions, independent ratings, generic/unclassified findings and all
+    API/CLI/UI download consumers must keep working. No Runtime, wire, public
+    field or UI implementation change is required. Schema-only validation cannot
+    express this normative relationship, so the semantic checker and goldens
+    must cover it. Existing historical exports replay their original bytes.
+scope:
+  in:
+  - Omit the optional driver declaration until explicit versioned rule mappings exist; keep native tuples, run taxonomies and result taxa.
+  - Reject a reintroduced unsupported declaration in semantic validation, update goldens and add a real PostgreSQL publication regression.
+  - Bump renderer implementation version for truthful frozen provenance.
+  out:
+  - Inferring uniform rule classifications by unioning result-specific tuples.
+  - GitHub profiles, upload or changes to immutable historical exports.
+acceptance_criteria:
+- id: A1
+  text: Exact result taxa and their versioned definitions survive without unsupported driver/rule classification claims.
+- id: A2
+  text: A schema-valid reintroduced driver declaration fails semantic validation and current publication emits the corrected bytes.
+- id: A3
+  text: A real PostgreSQL export after source deletion proves the same rule, and unchanged consumer packages pass in full.
+tests:
+- command: go test -count=1 ./internal/findinganalysis ./internal/findingexport/...
+  covers: [A1, A2]
+- command: go test -tags=integration -p=2 -count=1 -timeout=20m ./internal/auditservice ./internal/findingintake ./internal/httpapi/public ./internal/publicclient/... ./internal/cli
+  covers: [A1, A2, A3]
+- command: make test-ui-stack-operations
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+implementation_notes:
+- OASIS schema and complete normative text were read from the pinned local copies fetched for V397-008; section 3.19.26 supplies the coupling beyond the JSON Schema.
+- Revisit supportedTaxonomies only when a native versioned rule mapping explicitly declares rule relationships; result classifications alone never satisfy that contract.
+
+implementation_evidence: tasks/evidence/v397-019-verification.json
+implementation_commit: 843bb1e2b6f528bd94796640a84f95c74e282785

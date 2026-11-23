@@ -1,0 +1,74 @@
+schema_version: '1.0'
+id: V466-008
+title: Reject erroneous model responses before Worker tool dispatch
+milestone: worker-context-compaction-2026-10
+epic: audits
+kind: defect
+introduced_by: V417-005
+priority: P1
+status: completed
+implementation_commit: a1fb1338cdd3b467c3b57ce054197db480591454
+depends_on:
+- V417-005
+languages:
+- python
+goal: A genuine Gateway error cannot execute tools, populate trusted Audit results or authorize publication.
+context:
+  authority: User report and fix request on 2026-11-12 reproduces a content_filter response with a
+    submit_check_result tool call that incorrectly publishes a successful compact Audit result.
+  specification:
+  - docs/spec/audits/worker-completion.md#AWC-R130
+  acceptance_evidence: tasks/evidence/v466-008-model-error-tool-dispatch-20261112.json
+  finding: runtime/src/contractor_runtime/worker/runtime.py:625 defers every model error event for
+    compact Audit turns; a tool call in the erroneous response can populate the collector before a
+    subsequent WorkerCompletionRequested overrides the real error. The deferral was introduced by
+    V417-005 commit 354e6beb2. Existing error tests contain no simultaneous tool calls.
+  siblings: All main Worker responses pass through WorkerInstrumentationPlugin.after_model_callback,
+    including ordinary, terminal and compact Audit Workers. Cover errors containing multiple tools,
+    forged control-signal error codes, retained partial submissions and output-limit precedence.
+    Auxiliary compactor, summarizer and finalizer calls are already tool-free and independently reject
+    model errors; verify their existing controls through the full Runtime suite.
+  boundary_decision: Reject genuine model-response errors at the owned after-model callback before
+    ADK dispatches any tool. Preserve safe usage accounting and existing classified Worker failures.
+    Distinguish actual response errors from SDK callback-control events using their execution boundary
+    and typed owned exceptions, never provider error text. Existing completion and compaction control
+    still joins the Runner before acting. No new public error, receipt, retry or persistence owner.
+scope:
+  in:
+  - Main Worker response admission and actual model-error precedence over completion/compaction.
+  - Regression through the production Gateway adapter, real ADK Runner and trusted Audit collector,
+    with error and submit_check_result in the same response and no resulting publication.
+  - Existing ordinary Worker, partial-collector, output-limit, completion and compaction controls.
+  out:
+  - Gateway retry classifications, public contracts, collection schemas, database changes and shared compaction.
+acceptance_criteria:
+- id: A1
+  text: A content_filter Gateway response containing submit_check_result and a parallel side-effect
+    tool fails with worker_execution_failed before either tool executes; no result is accepted or published.
+- id: A2
+  text: Genuine response errors cannot impersonate owned completion/compaction signals or override a
+    previously accepted partial result into success. Ordinary Worker modes also execute no erroneous-response tools;
+    existing output-limit classification and usage accounting are retained.
+- id: A3
+  text: The new same-response regression fails on the unmodified V417-005 implementation. Real owned
+    completion and repeated compaction controls continue to pass with the exact locked ADK dependency.
+tests:
+- command: make test-runtime
+  covers: [A1, A2, A3]
+- command: make test-audit-completion-e2e
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+verification_results:
+- Three same-response regressions fail against isolated original V417-005 sources because Audit publishes
+  successful results. Baseline module paths are asserted before executing the tests.
+- All 275 focused Runtime cases pass without skips, including eight new combined-error/tool controls.
+- make test-runtime passes 6227 tests with 135 declared skips excluded from passing coverage; its report
+  verifier passes. Exact tested source and lock hashes and retained JUnit reports are recorded locally.
+- Audit completion gate passes on the final clean commit: 199 Go and 457 Runtime cases, with no selected skips.
+- Complete make lint passes. An initial formatting failure was corrected by one fixture indentation;
+  normalized test AST and production source bytes remain identical to the passing full Runtime suite.
+- The initial Audit gate attempt required a clean source and ran no cases. Passing evidence comes from
+  the subsequent clean committed runs, not that prerequisite rejection.
+- Owned test processes and database connections reached zero; the disposable database was dropped and
+  absence verified. The owned temporary caffeinate identity was checked, terminated and its session closed.

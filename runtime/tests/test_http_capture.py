@@ -1,0 +1,214 @@
+from __future__ import annotations
+
+import asyncio
+import base64
+import copy
+import json
+from pathlib import Path
+
+import pytest
+from private_schemas import private_validator
+from pydantic import ValidationError
+from shared_config_defaults import (
+    MAX_ARTIFACT_BYTES,
+    MAX_HEADER_BYTES,
+    MAX_REQUEST_BODY_BYTES,
+    MAX_RESPONSE_BODY_BYTES,
+)
+
+from contractor_runtime.contracts.artifacts import http_exchange_artifact_name
+from contractor_runtime.core.http_limits import (
+    MAX_EXCHANGE_ATTEMPTS,
+    MAX_HISTORY,
+)
+from contractor_runtime.toolsets.common import http_capture
+from contractor_runtime.toolsets.common.http_capture import CapturedHTTPExchange, RecentHTTPCaptures
+
+
+def test_shared_http_finding_capture():
+    fixtures = json.loads(
+        (Path(__file__).parents[2] / "api/testdata/http-capture-cases.json").read_text()
+    )
+    assert fixtures["limits"] == {
+        "bufferEntries": MAX_HISTORY,
+        "bufferBytes": http_capture.MAX_CAPTURE_BUFFER_BYTES,
+        "requestBodyBytes": MAX_REQUEST_BODY_BYTES,
+        "responseBodyBytes": MAX_RESPONSE_BODY_BYTES,
+        "headerBytes": MAX_HEADER_BYTES,
+        "attempts": MAX_EXCHANGE_ATTEMPTS,
+        "submissionBytes": MAX_ARTIFACT_BYTES,
+    }
+    for case in fixtures["cases"]:
+        if case["valid"]:
+            CapturedHTTPExchange.model_validate(case["value"])
+            private_validator("http-exchange.schema.json").validate(case["value"])
+            private_validator("http-exchange.schema.json#/$defs/artifact").validate(
+                {
+                    "schema": http_capture.HTTP_EXCHANGE_SCHEMA,
+                    "capture": case["value"],
+                    "origin": {"run_id": "run-test", "invocation_id": "invocation-test"},
+                }
+            )
+        else:
+            with pytest.raises(ValidationError):
+                CapturedHTTPExchange.model_validate(case["value"])
+
+
+def capture(request_id="1"):
+    return {
+        "source": "http",
+        "request_id": request_id,
+        "request_tag": f"r-test-h{request_id}",
+        "attempts": [
+            {
+                "request": {
+                    "method": "GET",
+                    "url": "https://target.example/",
+                    "message": {"kind": "structured", "headers": [], "body_base64": ""},
+                },
+                "error": "timeout",
+            }
+        ],
+    }
+
+
+def test_shared_finding_http_selection_origin():
+    import jsonschema
+
+    fixture = json.loads(
+        (Path(__file__).parents[2] / "api/testdata/http-capture-cases.json").read_text()
+    )
+    validator = private_validator("http-exchange.schema.json#/$defs/selection")
+    for row in fixture["selectionOrigins"]:
+        value = {"httpEvidence": fixture["cases"][0]["value"]} if row["capture"] else {}
+        if row["present"]:
+            value["httpEvidenceInvocationId"] = row["value"]
+        if row["valid"]:
+            validator.validate(value)
+        else:
+            with pytest.raises(jsonschema.ValidationError):
+                validator.validate(value)
+
+
+def test_capture_buffer_count_ownership_replacement_and_clear():
+    async def scenario():
+        buffer = RecentHTTPCaptures()
+        for number in range(1, 131):
+            assert buffer.new_http_request() == number
+            await buffer.put(capture(str(number)), "invocation-1")
+        assert len(buffer._entries) == 128
+        with pytest.raises(ValueError, match="unavailable"):
+            await buffer.get("http", "1", invocation_id="invocation-1")
+        with pytest.raises(ValueError, match="unavailable"):
+            await buffer.get("http", "3", invocation_id="invocation-2")
+        selected = await buffer.get("http", "3", invocation_id="invocation-1")
+        assert selected["attempts"][0]["error"] == "timeout"
+        selected["attempts"].clear()
+        assert (await buffer.get("http", "3"))["attempts"]
+        size = buffer._bytes
+        await buffer.put(capture("130"), "invocation-1")
+        assert buffer._bytes == size and len(buffer._entries) == 128
+        buffer.clear("caido")
+        assert buffer.contains("http", "130")
+        buffer.clear("http")
+        assert buffer._bytes == 0 and not buffer._entries
+
+    asyncio.run(scenario())
+
+
+def test_capture_buffer_real_response_bound_evicts_by_bytes():
+    async def scenario():
+        buffer = RecentHTTPCaptures()
+        body = base64.b64encode(b"x" * MAX_RESPONSE_BODY_BYTES).decode("ascii")
+        for number in range(1, 5):
+            value = capture(str(number))
+            attempt = value["attempts"][0]
+            attempt.pop("error")
+            attempt["response"] = {
+                "status": 200,
+                "complete": True,
+                "message": {"kind": "structured", "headers": [], "body_base64": body},
+            }
+            assert buffer.new_http_request() == number
+            await buffer.put(value, "invocation-1")
+            assert buffer._bytes <= 64 * 1024 * 1024
+        assert len(buffer._entries) == 2
+        assert not buffer.contains("http", "2")
+        assert buffer.contains("http", "3") and buffer.contains("http", "4")
+        buffer.clear("http")
+        assert buffer._bytes == 0
+
+    asyncio.run(scenario())
+
+
+def test_capture_buffer_byte_eviction_is_independent_of_count(monkeypatch):
+    async def scenario():
+        buffer = RecentHTTPCaptures()
+        first = capture()
+        encoded = (
+            CapturedHTTPExchange.model_validate(first).model_dump_json(exclude_none=True).encode()
+        )
+        monkeypatch.setattr(http_capture, "MAX_CAPTURE_BUFFER_BYTES", len(encoded) * 2)
+        for number in range(1, 5):
+            assert buffer.new_http_request() == number
+            await buffer.put(capture(str(number)), "invocation-1")
+        assert len(buffer._entries) == 2
+        assert not buffer.contains("http", "2") and buffer.contains("http", "4")
+        assert buffer._bytes <= http_capture.MAX_CAPTURE_BUFFER_BYTES
+        oversized = copy.deepcopy(first)
+        oversized["attempts"][0]["request"]["message"]["headers"] = [
+            {"name": "X-Fill", "value": "x" * 1000}
+        ]
+        with pytest.raises(ValueError, match="budget"):
+            await buffer.put(oversized, "invocation-1")
+        assert len(buffer._entries) == 2
+
+    asyncio.run(scenario())
+
+
+def test_observation_metadata_shares_capture_ownership_eviction_and_byte_budget(monkeypatch):
+    async def scenario():
+        metadata = http_capture.HTTPObservation("2026-10-27T12:00:00Z", "deployment-test")
+        buffer = RecentHTTPCaptures()
+        buffer.new_http_request()
+        await buffer.put(capture(), "owner", observation=metadata)
+        body, selected = buffer.select_observation("1", "owner")
+        assert selected == metadata
+        assert buffer._bytes == len(body) + metadata.size_bytes
+        assert await buffer.read_exchange(1, "foreign") == ("owner", json.loads(body))
+        assert buffer.select_observation("1", "owner") == (body, metadata)
+        with pytest.raises(ValueError, match="unavailable"):
+            buffer.select_observation("1", "foreign")
+        monkeypatch.setattr(http_capture, "MAX_CAPTURE_BUFFER_BYTES", buffer._bytes + 10)
+        buffer.new_http_request()
+        await buffer.put(capture("2"), "owner", observation=metadata)
+        assert len(buffer._entries) == len(buffer._observations) == 1
+        with pytest.raises(ValueError, match="unavailable"):
+            buffer.select_observation("1", "owner")
+        buffer.clear("http")
+        assert buffer._bytes == 0 and not buffer._observations
+
+    asyncio.run(scenario())
+
+
+def test_shared_standalone_http_exchange_artifacts():
+    from contractor_runtime.toolsets.common.http_capture import HTTPExchangeArtifact
+
+    fixtures = json.loads(
+        (Path(__file__).parents[2] / "api/testdata/http-exchange-artifact-cases.json").read_text()
+    )
+    for case in fixtures["cases"]:
+        if case["valid"]:
+            value = HTTPExchangeArtifact.model_validate(case["value"])
+            assert (
+                http_exchange_artifact_name(
+                    value.origin.invocation_id, value.capture.source, value.capture.request_id
+                )
+                == case["artifact_name"]
+            )
+            private_validator("http-exchange.schema.json#/$defs/artifact").validate(case["value"])
+        else:
+            with pytest.raises(ValidationError):
+                HTTPExchangeArtifact.model_validate(case["value"])
+            # JSON Schema enforces syntax; semantic UTC/calendar checks belong
+            # to the same Go/Python shared capture validators as other fields.

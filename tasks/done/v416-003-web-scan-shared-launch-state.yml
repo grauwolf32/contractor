@@ -1,0 +1,134 @@
+schema_version: "1.0"
+id: V416-003
+title: "Restore shared Audit launch options and state in Web scan"
+milestone: main-review-2026-10-25
+epic: ui
+kind: defect
+introduced_by: V406-018
+priority: P1
+status: completed
+depends_on: []
+languages: [typescript]
+goal: >-
+  Web scan uses the same labels, Runtime configuration, deadline and guarded
+  Audit launch state as other checks while owning only its scanner inputs.
+context:
+  severity: high
+  specification:
+    - docs/spec/ui/ui.md#UI-R203
+    - docs/spec/ui/ui.md#UI-R204
+    - docs/spec/ui/ui.md#UI-R205
+    - docs/spec/audits/audits.md#AUD-R95
+    - docs/spec/audits/audits.md#AUD-R229
+    - docs/spec/audits/audits.md#AUD-R230
+    - docs/spec/audits/audits.md#AUD-R231
+    - docs/spec/audits/audits.md#AUD-R232
+  design: docs/design/ui/README.md
+  finding: >-
+    At reviewed main f9fda28f1c9ffa4baaf3052c141e652c8593a080,
+    ui/src/routes/checks/start/start-page.tsx:29-36 mounts useStartCheck and
+    an independent useWebScanDraft, and line 89 replaces SetupBody with
+    WebScanSetup. The latter omits the shared label and Runtime configuration
+    controls from advanced.tsx:81-88 and 140-151. web-scan-state.ts:33 owns a
+    second useLaunch; lines 188-199 create only profile/inputs/scope and use a
+    fixed 86400-second deadline. Open /checks/new?type=web-scan, select a Project,
+    and choose installed or custom rules: there is no way to request cloud/local
+    placement or a RuntimeConfig binding. Labels or Runtime configuration entered
+    for a generic check are ignored after switching to Web scan. This can run a
+    scan on unintended eligible capacity or without its selected infrastructure
+    settings. V406-018 introduced this branch in
+    c23e2350fa4e086fc614ddbc18c57fd822e1b724.
+  evidence: >-
+    Review render regression confirmed that Web scan has neither the Labels
+    group nor the cloud quick-add control. Source inspection confirms its
+    CreateAuditRequest has no labels/runtimeLabels. The current start and Web
+    scan suites pass, so their success does not cover these missing controls.
+  siblings: >-
+    Generic check setup, incompatible-profile fallback, installed/custom Web
+    scan modes, Save draft, Start check, keyboard start, type/version switches,
+    Project navigation and recovery all share this launch boundary. The ordinary
+    label editor and API validation already exist. Keep standalone Run forms,
+    CLI/API cross-Project scan batches and Server placement unchanged.
+scope:
+  in:
+    - "Use one common Audit launch model and one pending/recovery owner per start page; inject scanner-specific prepared inputs into it instead of maintaining a parallel generic and Web scan launch lifecycle."
+    - "Render shared ordinary labels, cloud/local shortcuts, Runtime configuration and deadline controls for Web scan, with the existing validation, bounds and terminology."
+    - "Build installed/custom Web scan requests through the shared validated options; include shared option changes in exact-request identity and preserve labels/configuration through reads, conflicts and type switches."
+    - "Preserve content-addressed ProjectScope target/settings/rulepack retention, exact input revisions and ordinary create/start receipts, revision fences and navigation."
+    - "Extend real browser/Server launch coverage and full affected UI suites; bump the UI release version and update the owning specification only if a boundary clarification is needed."
+  out:
+    - "Rulepack byte-limit validation, new scanner behavior, backend sweep removal, schema changes, new receipts or a dynamic widget/plugin framework."
+    - "Changing configured models, target authorization policy or live external scans."
+failure_outcomes:
+  - operation: "Prepare exact Web scan inputs and save/start through the common Audit launch model"
+    success: "One draft/start result contains the chosen shared options and exact inputs; navigation follows the authoritative Audit response."
+    permanent: "Invalid metadata, Runtime labels or deadline blocks the applicable action visibly; no silent option drop, fallback placement or extra start is permitted."
+    retryable: "Existing bounded read/request handling and explicit retry retain typed options and the current pending attempt."
+    ambiguous: "Unchanged retry reconciles the same artifact refs, draft/start keys and revision. Editing options creates a new intentional request only after the old attempt is resolved; never replay old inputs as a new scan."
+    cancelled: "Project/type navigation or unmount cannot start or navigate from stale preparation work; existing AbortSignal/attempt ownership settles in-flight work without deleting retained shared material."
+    timeout: "Artifact request, Audit admission and selected execution deadline retain separate existing owners; preparation cannot bypass the common pending guard."
+cardinality:
+  - collection: "Launch state and scanner inputs"
+    expected: "One Project, one pending launch and one selected rule source."
+    maximum: "One pending attempt; at most 28 ordinary labels; existing Runtime-label, deadline and paged material bounds."
+    bound: "Reuse shared validators and paging; no second launch state, fleet scan or extra receipt store."
+lifecycle:
+  - entity: "Audit draft and retained scan inputs"
+    delete: "Existing authorized Audit and Project deletion; UI navigation does not delete shared material."
+    cascade: "Existing Audit baseline, child Run and artifact holds."
+    retention: "Shared options freeze at start; exact material references remain retained through the ordinary baseline lifecycle."
+acceptance_criteria:
+  - id: A1
+    given: "An active Project and installed or custom Web scan mode"
+    when: "The owner selects cloud:aws or local:lab, a Runtime configuration binding and a valid deadline, then saves or starts"
+    then: "The shared controls are available and validated; the real API draft/start and retained baseline contain exactly the chosen labels, RuntimeConfig selection and deadline without requiring source or OpenAPI input."
+  - id: A2
+    given: "Typed shared options and compatible generic/Web scan check types"
+    when: "The owner switches type, changes version, encounters a read failure or uses the incompatible-profile fallback"
+    then: "Shared options remain in one model, are never silently discarded, and follow the same validation and explicit draft-edit rules as generic checks."
+  - id: A3
+    given: "Slow artifact preparation, repeated clicks or keyboard start, and an ambiguous artifact/create/start response"
+    when: "The owner retries the unchanged request or deliberately edits labels/configuration after recovery"
+    then: "One pending guard covers preparation through start, unchanged retries reuse exact inputs and keys, changed requests cannot replay an old selection, and only one intended Audit starts."
+  - id: A4
+    given: "A stale draft revision, an already started Audit or Project/type navigation during preparation"
+    when: "A response arrives or retry is attempted"
+    then: "The shared reconciliation/conflict path reports authoritative state without overwriting a newer draft, starting stale work or navigating from an abandoned attempt."
+  - id: A5
+    given: "Light, dark and black themes at 390px and desktop widths"
+    when: "The owner edits shared controls in both Web scan modes"
+    then: "The controls remain accessible and readable without overflow; ordinary labels and Runtime configuration stay distinct and the UI explains immutability at start."
+  - id: A6
+    given: "Regression tests for the missing controls and shared launch behavior"
+    when: "They run against the original V406-018 branch and the corrected implementation"
+    then: "They fail on the original implementation, pass on the fix, and full affected UI suites plus real Server/Runtime Web scan gate pass with a disposable database."
+tests:
+  - command: "make ui-verify"
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: >-
+      CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" make test-web-scan-ui-stack
+    covers: [A1, A3, A4, A6]
+  - command: "make ui-browser-mocked"
+    covers: [A2, A3, A4, A5, A6]
+  - command: "make lint"
+    covers: [A1, A2, A3, A4, A5, A6]
+validation:
+  environment: "Dedicated codex/v416-ui-ops-fixes worktree; Node 24.20.0 and pinned pnpm; own locked Python 3.13 environment; separate UTF-8 PostgreSQL v416_ui database."
+  decisions:
+    - "useStartCheck owns shared options and the only useLaunch; Web scan supplies validated exact inputs. One common footer, request builder and recovery UI serve both forms."
+    - "The launch guard covers preparation and mutation. Navigation or type/version/Project changes invalidate the attempt; the current artifact call is joined before exit, without further publication or launch. Retained content stays under the ordinary Project lifecycle."
+  evidence:
+    - "The two shared-options regressions fail against original cce0f0a4b28527a1475656df095ec4453ad054c0 because Advanced options is absent; they pass with this implementation."
+    - "All 55 focused start/Web scan tests pass, including installed/custom options, invalid metadata/deadline, shared options through type switches, pending preparation across type/Project/navigation changes, and exact ambiguous-start replay."
+    - "make ui-verify passed: 193 files, 2398 passing tests and one expected failure; 17 Node tests; generation, formatting, lint, typecheck and build."
+    - "make ui-browser-mocked passed all 91 cases in 23 specs. Six additional retained screenshots at 390/1440px in light/dark/black passed; light/black narrow and dark desktop screenshots inspected without overflow."
+    - "make test-web-scan-ui-stack passed with the real Server, Runtime and disposable PostgreSQL. cloud:aws and the selected RuntimeConfig binding are present in the retained baseline; the selected bounded deadline is persisted."
+    - "make docs-dependencies-check, specification consistency and task consistency passed."
+  integration: The coordinating branch completed the required make lint; see integration_verification.
+implementation_commit: 3dedaf8bc0d00b90ff7555eb78bde51e7714340a
+integration_verification:
+  date: "2026-10-25"
+  revision: 4923b9000d57cfa042733c6f5bf512f5e01444f5
+  command: make lint
+  result: passed
+  scope: Integrated implementation and required task-specific suites passed; no platform-limited full Runtime result is substituted for this task's required checks.

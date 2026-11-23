@@ -1,0 +1,61 @@
+{
+  "task": "V471-002",
+  "date": "2026-11-21",
+  "implementation_commit": "05a80a94e5dec7f1d70543b881f92972ca04dbf2",
+  "feature_commit": "1b37d84fa81205f47fac5feef46ca7fa1a105c59",
+  "result": "An explicitly configured memory-snapshot@1 Stage exports selected current-Run logical notes into a frozen ordinary canonical JSON Artifact, without a Planner, Runtime allocation or model. Replay returns the original exact version before mutable note reads.",
+  "checks": [
+    {
+      "command": "go test ./internal/memory/... ./internal/operations/... ./internal/scheduler/... ./internal/config/... ./internal/projectstore/... ./internal/contracts/memorycontract/...",
+      "environment": {
+        "GOFLAGS": "-p=1",
+        "postgresql": "enabled"
+      },
+      "outcome": "passed"
+    },
+    {
+      "command": "make test-memory-snapshot-e2e test-project-facts-e2e",
+      "outcome": "passed",
+      "required_process_cases": 18,
+      "runtime_contract_cases": 294,
+      "notes": "Both named targets share the same complete Findings family once per make invocation. The snapshot case observes all selected content and no ignored note; a Workflow without the operation exports nothing. Snapshot Stage has no Planner session or allocation; only the three ordinary Workers account for 15 scripted calls including existing result finalizers."
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "environment": {
+        "GOFLAGS": "-p=1"
+      },
+      "outcome": "passed",
+      "fixtures": 397,
+      "go_shared_tests": 448,
+      "python_shared_tests": 282,
+      "runtime_selected_passed": 1569,
+      "optional_disk_heavy_skipped": 1
+    },
+    {
+      "command": "make verify-public-api",
+      "outcome": "passed"
+    },
+    {
+      "command": "VITEST_MAX_WORKERS=4 make ui-verify",
+      "outcome": "passed",
+      "test_files": 226,
+      "tests_passed": 2560,
+      "expected_failures": 1
+    },
+    {
+      "command": "make lint",
+      "outcome": "passed"
+    }
+  ],
+  "postgresql_cases": [
+    "selected notes, projectless and attached Project Runs",
+    "replay before changed notes",
+    "16 selected notes within a 128-note notebook and near complete encoded bound",
+    "claim loss, cancellation, deleting Project, foreign Run, changed configuration and output collision",
+    "cancellation after Artifact INSERT rolls back before commit",
+    "independent equal-byte writes have distinct versions; exact forks preserve version and lineage"
+  ],
+  "test_environment": "Owned disposable PostgreSQL cluster only. Default lock capacity caused a schema-cleanup failure in the first parallel run; required suites passed on repeat. Capacity increased to 1024 before subsequent group checks. Optional disk-heavy fixtures remained disabled and are not counted as passes.",
+  "scope": "Extraction Worker, preset and separate Facts UI remain group 2. No new endpoint, receipt table, provider, model selection or deployment."
+}

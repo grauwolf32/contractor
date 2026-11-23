@@ -1,0 +1,895 @@
+package config
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/configtest"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/securefile"
+)
+
+// coreFixtureRoot is the frozen catalog that behavioral tests load or copy. On
+// a copy, configtest adds its test-* policies, artifact builder and
+// artifact-copy Workflow; testdata/<topic> directories add focused slices.
+const coreFixtureRoot = "testdata/valid"
+
+func TestLoadResolvesAndPinsCatalogReferences(t *testing.T) {
+	t.Parallel()
+
+	snapshot := mustLoad(t, coreFixtureRoot)
+
+	policy, err := snapshot.ModelPolicy("worker@1")
+	if err != nil {
+		t.Fatalf("resolve ModelPolicy: %v", err)
+	}
+	assertDigest(t, policy.Ref.Digest)
+	if policy.Model != "worker-model" || policy.MaxOutputTokens != 4096 ||
+		policy.MaxModelCalls != 8 || policy.MaxToolCalls != 16 || policy.MaxTotalTokens != 32768 ||
+		policy.Temperature == nil || *policy.Temperature != 0.1 {
+		t.Fatalf("unexpected resolved ModelPolicy: %+v", policy)
+	}
+
+	template, err := snapshot.agentTemplateForTest("artifact_builder@1")
+	if err != nil {
+		t.Fatalf("resolve AgentTemplate: %v", err)
+	}
+	assertDigest(t, template.Ref.Digest)
+	assertDigest(t, template.Instructions.Digest)
+
+	if len(template.Toolsets) != 1 || template.Toolsets[0].Ref != (contracts.ToolsetRef{ToolsetID: "run-artifacts", Version: "1"}) ||
+		!equalStrings(template.Toolsets[0].Tools, []string{"list_artifacts", "read_artifact", "write_artifact"}) {
+		t.Fatalf("selected tools = %+v", template.Toolsets)
+	}
+
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatalf("resolve Workflow: %v", err)
+	}
+	if workflow.Stages["copy"].ExecutionConfig.Agents["builder"].ModelPolicy.Ref.Digest != policy.Ref.Digest {
+		t.Fatalf("Workflow policy digest = %q, want %q", workflow.Stages["copy"].ExecutionConfig.Agents["builder"].ModelPolicy.Ref.Digest, policy.Ref.Digest)
+	}
+	stage := workflow.Stages[workflow.EntryStage]
+	if stage.Planner != (resolved.PlannerRef{PlannerID: "passthrough", Version: "1"}) {
+		t.Fatalf("planner = %+v", stage.Planner)
+	}
+	if stage.Agents["builder"].Template.Ref != template.Ref {
+		t.Fatalf("Workflow did not pin exact AgentTemplate: %+v", stage.Agents["builder"].Template.Ref)
+	}
+	if stage.WorkflowOutputs["result"] != "copied" || stage.On.Succeeded.Kind != resolved.TransitionSucceed {
+		t.Fatalf("unexpected resolved Stage: %+v", stage)
+	}
+	from := stage.Result.Artifacts["copied"].From
+	if from == nil || *from != (resolved.ArtifactBinding{Namespace: "builder", Name: "copied"}) {
+		t.Fatalf("Stage result binding = %+v", from)
+	}
+
+	instructions, err := snapshot.Instructions("instructions/copy-planner.md")
+	if err != nil {
+		t.Fatalf("resolve instructions: %v", err)
+	}
+	if instructions != stage.Instructions {
+		t.Fatalf("resolved instructions differ: %+v != %+v", instructions, stage.Instructions)
+	}
+}
+
+// Visible-name collisions between Toolsets are TestToolsetVisibleNameCollision.
+func TestToolsetSelectionsAreStrict(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		ref               string
+		tools, normalized []string
+		unknown           string
+	}{
+		{"taint-annotations@1", []string{"annotate_validate", "annotate_trace"}, []string{"annotate_trace", "annotate_validate"}, "annotate"},
+		{"code-analysis@1", []string{"search_def", "find_callers"}, []string{"find_callers", "search_def"}, "search_definition"},
+	} {
+		t.Run(test.ref, func(t *testing.T) {
+			t.Parallel()
+			current := &loader{}
+			selected, err := current.resolveToolsets(&[]toolsetSelectionSource{{Ref: test.ref, Tools: test.tools}})
+			if err != nil {
+				t.Fatalf("valid selection: %v", err)
+			}
+			if got := selected[0].Tools; !equalStrings(got, test.normalized) {
+				t.Fatalf("normalized tools = %v, want %v", got, test.normalized)
+			}
+			if _, err := current.resolveToolsets(&[]toolsetSelectionSource{{Ref: test.ref, Tools: []string{test.unknown}}}); err == nil || !strings.Contains(err.Error(), "does not export selected tool") {
+				t.Fatalf("unknown tool error = %v", err)
+			}
+		})
+	}
+}
+
+func TestCodeAnalysisSelectionLoadsAndDigestsInTemplate(t *testing.T) {
+	t.Parallel()
+
+	root := copyCoreFixture(t)
+	writeFile(t, filepath.Join(root, "agent-templates/source_graph_analyst.yaml"), []byte(codeAnalysisTemplateYAML))
+	snapshot := mustLoad(t, root)
+	template, err := snapshot.agentTemplateForTest("source_graph_analyst@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertDigest(t, template.Ref.Digest)
+	found := false
+	for _, toolset := range template.Toolsets {
+		if toolset.Ref.ToolsetID != "code-analysis" {
+			continue
+		}
+		found = true
+		want := []string{
+			"attack_surface", "complexity_hotspots", "entrypoint_paths_to",
+			"find_callees", "find_callers", "find_symbol", "functions_that_raise",
+			"graph_summary", "list_symbols", "paths_between", "search_def",
+		}
+		if !equalStrings(toolset.Tools, want) {
+			t.Fatalf("normalized code-analysis tools = %v, want %v", toolset.Tools, want)
+		}
+	}
+	if !found {
+		t.Fatal("resolved template omitted code-analysis@1")
+	}
+}
+
+// codeAnalysisTemplateYAML selects every code-analysis@1 tool in authoring
+// order so the loader must normalize the selection before digesting.
+const codeAnalysisTemplateYAML = `apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: source_graph_analyst
+  version: "1"
+spec:
+  description: Inspects the source graph of a workspace
+  runtime: adk@1
+  instructions:
+    ref: instructions/artifact-builder.md
+  toolsets:
+    - ref: code-analysis@1
+      tools:
+        - search_def
+        - list_symbols
+        - graph_summary
+        - find_symbol
+        - find_callers
+        - find_callees
+        - paths_between
+        - entrypoint_paths_to
+        - attack_surface
+        - complexity_hotspots
+        - functions_that_raise
+  sandboxProfile: local-workdir@1
+`
+
+func TestStreamlineRequiresExactlyOneLogicalAgent(t *testing.T) {
+	root := copyCoreFixture(t, "workflow-examples")
+	path := filepath.Join(root, "workflows", "streamline_review_workflow.yaml")
+	example := readFile(t, path)
+	snapshot := mustLoad(t, root)
+	workflow, err := snapshot.Workflow("streamline-review@2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages[workflow.EntryStage]
+	stage.Agents["second"] = stage.Agents["reviewer"]
+	workflow.Stages[workflow.EntryStage] = stage
+	if err := resolved.ValidateWorkflowGraph(workflow); err == nil ||
+		!strings.Contains(err.Error(), "streamline@1 requires exactly one logical Agent binding") {
+		t.Fatalf("ValidateWorkflowGraph error = %v", err)
+	}
+
+	secondBinding := `        second:
+          template: artifact_builder@1
+          namespace: second
+`
+	invalid := strings.Replace(string(example), "      context:\n", secondBinding+"      context:\n", 1)
+	writeFile(t, path, []byte(invalid))
+	loaded, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+	if err == nil || loaded != nil ||
+		!strings.Contains(err.Error(), "streamline@1 requires exactly one logical Agent binding") {
+		t.Fatalf("Load() = (%v, %v), want Streamline cardinality error", loaded, err)
+	}
+}
+
+func TestRouterRequiresAtLeastOneLogicalAgent(t *testing.T) {
+	snapshot := mustLoad(t, copyCoreFixture(t, "workflow-examples"))
+	workflow, err := snapshot.Workflow("router-openapi@2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages[workflow.EntryStage]
+	stage.Agents = map[string]resolved.ResolvedAgentBinding{}
+	workflow.Stages[workflow.EntryStage] = stage
+	if err := resolved.ValidateWorkflowGraph(workflow); err == nil ||
+		!strings.Contains(err.Error(), "router@1 requires at least one logical Agent binding") {
+		t.Fatalf("ValidateWorkflowGraph error = %v", err)
+	}
+}
+
+func TestStoredFixtures(t *testing.T) {
+	t.Parallel()
+
+	valid := mustLoad(t, "testdata/valid")
+	if got, want := valid.Counts(), (Counts{
+		Workflows: 1, AgentTemplates: 1, ModelPolicies: 1, LLMGateways: 1,
+		AuditProfiles: 0, Instructions: 2,
+	}); got != want {
+		t.Fatalf("valid fixture Counts() = %+v, want %+v", got, want)
+	}
+
+	invalid := []string{
+		"unknown-field-policy.yaml",
+		"duplicate-key-policy.yaml",
+		"multiple-documents-policy.yaml",
+		"wrong-kind-policy.yaml",
+	}
+	for _, name := range invalid {
+		t.Run(name, func(t *testing.T) {
+			root := copyCoreFixture(t)
+			fixture := readFile(t, filepath.Join("testdata/invalid", name))
+			writeFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), fixture)
+			snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+			if err == nil || snapshot != nil {
+				t.Fatalf("Load() = (%v, %v), want (nil, error)", snapshot, err)
+			}
+		})
+	}
+}
+
+func TestModelPolicyWorkerBudgetsAreRequiredAndBounded(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name, old, replacement, want string
+	}{
+		{"missing output tokens", "  maxOutputTokens: 4096\n", "", "maxOutputTokens"},
+		{"zero output tokens", "maxOutputTokens: 4096", "maxOutputTokens: 0", "spec.maxOutputTokens"},
+		{"missing model calls", "  maxModelCalls: 8\n", "", "maxModelCalls"},
+		{"zero model calls", "maxModelCalls: 8", "maxModelCalls: 0", "maxModelCalls"},
+		{"negative tool calls", "maxToolCalls: 16", "maxToolCalls: -1", "spec.maxToolCalls"},
+		{"fractional tool calls", "maxToolCalls: 16", "maxToolCalls: 1.5", "decode strict YAML"},
+		{"too many model calls", "maxModelCalls: 8", "maxModelCalls: 1001", "spec.maxModelCalls"},
+		{"too many tool calls", "maxToolCalls: 16", "maxToolCalls: 10001", "spec.maxToolCalls"},
+		{"zero Planner Worker calls", "  maxToolCalls: 16\n", "  maxToolCalls: 16\n  maxWorkerCalls: 0\n", "spec.maxWorkerCalls"},
+		{"missing total tokens", "  maxTotalTokens: 32768\n", "", "maxTotalTokens"},
+		{"too many total tokens", "maxTotalTokens: 32768", "maxTotalTokens: 100000001", "spec.maxTotalTokens"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			root := copyCoreFixture(t)
+			replaceFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), test.old, test.replacement)
+			if snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil || snapshot != nil ||
+				!strings.Contains(err.Error(), test.want) {
+				t.Fatalf("Load() = (%v, %v), want error containing %q", snapshot, err, test.want)
+			}
+		})
+	}
+}
+
+func TestStrictManifestFailuresReturnNoSnapshot(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		mutate func(*testing.T, string)
+		want   []string
+	}{
+		{
+			name: "unknown field",
+			mutate: func(t *testing.T, root string) {
+				appendFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), "unknownField: true\n")
+			},
+			want: []string{"model-policies/test-worker.yaml", "unknownField"},
+		},
+		{
+			name: "duplicate mapping key",
+			mutate: func(t *testing.T, root string) {
+				appendFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), "kind: ModelPolicy\n")
+			},
+			want: []string{"model-policies/test-worker.yaml", "already defined"},
+		},
+		{
+			name: "multiple documents",
+			mutate: func(t *testing.T, root string) {
+				appendFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), `---
+apiVersion: contractor/v1alpha1
+kind: ModelPolicy
+metadata: {name: other, version: "1"}
+spec: {model: other, maxOutputTokens: 1}
+`)
+			},
+			want: []string{"model-policies/test-worker.yaml", "exactly one"},
+		},
+		{
+			name: "empty document",
+			mutate: func(t *testing.T, root string) {
+				writeFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), nil)
+			},
+			want: []string{"model-policies/test-worker.yaml", "exactly one"},
+		},
+		{
+			name: "wrong subtree kind",
+			mutate: func(t *testing.T, root string) {
+				replaceFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), "kind: ModelPolicy", "kind: Workflow")
+			},
+			want: []string{"model-policies/test-worker.yaml", "does not match ModelPolicy subtree"},
+		},
+		{
+			name: "duplicate identity",
+			mutate: func(t *testing.T, root string) {
+				source := readFile(t, filepath.Join(root, "model-policies/test-worker.yaml"))
+				writeFile(t, filepath.Join(root, "model-policies/z/duplicate.yaml"), source)
+			},
+			want: []string{"model-policies/z/duplicate.yaml", "duplicate ModelPolicy identity test-worker@1"},
+		},
+		{
+			name: "unknown runtime",
+			mutate: func(t *testing.T, root string) {
+				replaceFile(t, filepath.Join(root, "agent-templates/artifact_builder.yaml"), "runtime: adk@1", "runtime: missing@1")
+			},
+			want: []string{"agent-templates/artifact_builder.yaml", "unknown WorkerRuntime"},
+		},
+		{
+			name: "unknown tool",
+			mutate: func(t *testing.T, root string) {
+				replaceFile(t, filepath.Join(root, "agent-templates/artifact_builder.yaml"), "read_artifact", "delete_artifact")
+			},
+			want: []string{"agent-templates/artifact_builder.yaml", "does not export selected tool"},
+		},
+		{
+			name: "unknown planner",
+			mutate: func(t *testing.T, root string) {
+				replaceFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), "planner: passthrough@1", "planner: missing@1")
+			},
+			want: []string{"workflows/artifact_copy.yaml", "unknown PlannerFactory"},
+		},
+		{
+			name: "missing required boolean",
+			mutate: func(t *testing.T, root string) {
+				replaceFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), "    source:\n      required: true\n      mediaTypes", "    source:\n      mediaTypes")
+			},
+			want: []string{"workflows/artifact_copy.yaml", "spec.inputs.source.required is required"},
+		},
+		{
+			name: "incompatible output mapping",
+			mutate: func(t *testing.T, root string) {
+				replaceFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), "  outputs:\n    result:\n      required: true\n      mediaTypes: [text/plain]", "  outputs:\n    result:\n      required: true\n      mediaTypes: [application/json]")
+			},
+			want: []string{"workflows/artifact_copy.yaml", "incompatible"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			root := copyCoreFixture(t)
+			test.mutate(t, root)
+			snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+			if err == nil || snapshot != nil {
+				t.Fatalf("Load() = (%v, %v), want (nil, error)", snapshot, err)
+			}
+			for _, expected := range test.want {
+				if !strings.Contains(err.Error(), expected) {
+					t.Fatalf("error %q does not contain %q", err, expected)
+				}
+			}
+		})
+	}
+}
+
+func TestInstructionPathAndFilesystemContainment(t *testing.T) {
+	t.Parallel()
+
+	invalid := []string{
+		"", "/instructions/a.md", "https://example.test/a", `instructions\a.md`,
+		"instructions//a.md", "instructions/./a.md", "instructions/../a.md", "instructions",
+	}
+	for _, value := range invalid {
+		if _, err := validateInstructionRef(value); err == nil {
+			t.Errorf("validateInstructionRef(%q) succeeded", value)
+		}
+	}
+	if got, err := validateInstructionRef("instructions/team/a.md"); err != nil || got != "instructions/team/a.md" {
+		t.Fatalf("valid instruction ref = (%q, %v)", got, err)
+	}
+
+	t.Run("symlink escape", func(t *testing.T) {
+		root := copyCoreFixture(t)
+		outside := filepath.Join(filepath.Dir(root), "outside.md")
+		writeFile(t, outside, []byte("outside\n"))
+		target := filepath.Join(root, "instructions/artifact-builder.md")
+		if err := os.Remove(target); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(outside, target); err != nil {
+			t.Fatal(err)
+		}
+		snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+		if err == nil || snapshot != nil || !strings.Contains(err.Error(), "is a symlink") {
+			t.Fatalf("Load() = (%v, %v), want strict symlink error", snapshot, err)
+		}
+	})
+
+	t.Run("invalid utf8", func(t *testing.T) {
+		root := copyCoreFixture(t)
+		writeFile(t, filepath.Join(root, "instructions/artifact-builder.md"), []byte{0xff, 0xfe})
+		snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+		if err == nil || snapshot != nil || !strings.Contains(err.Error(), "strict UTF-8") {
+			t.Fatalf("Load() = (%v, %v), want UTF-8 error", snapshot, err)
+		}
+	})
+}
+
+func TestManifestDiscoveryRejectsSymlinks(t *testing.T) {
+	t.Parallel()
+
+	root := copyCoreFixture(t)
+	if err := os.Symlink("test-worker.yaml", filepath.Join(root, "model-policies/link.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil || snapshot != nil ||
+		!strings.Contains(err.Error(), "is a symlink") {
+		t.Fatalf("Load() = (%v, %v), want strict symlink error", snapshot, err)
+	}
+}
+
+// Every manifest and instruction resource is read with one file bound
+// (LIM-CAT-5, CAT-R77): a file of exactly the bound loads, one more byte
+// rejects the complete set.
+func TestCatalogFileReadsAreBounded(t *testing.T) {
+	t.Parallel()
+
+	t.Run("instruction", func(t *testing.T) {
+		root := copyCoreFixture(t)
+		path := filepath.Join(root, "instructions", "padding.md")
+		writeFile(t, path, bytes.Repeat([]byte("a"), maximumCatalogFileBytes))
+		if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err != nil {
+			t.Fatalf("instruction at the bound: %v", err)
+		}
+		writeFile(t, path, bytes.Repeat([]byte("a"), maximumCatalogFileBytes+1))
+		snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+		if snapshot != nil || !errors.Is(err, securefile.ErrTooLarge) ||
+			!strings.Contains(err.Error(), `read instruction "instructions/padding.md"`) {
+			t.Fatalf("instruction over the bound = (%v, %v)", snapshot, err)
+		}
+	})
+	t.Run("manifest", func(t *testing.T) {
+		root := copyCoreFixture(t)
+		path := filepath.Join(root, "model-policies", "test-worker.yaml")
+		original := readFile(t, path)
+		// A trailing YAML comment keeps the manifest valid at any length.
+		padded := func(size int) []byte {
+			data := append(append([]byte(nil), original...), "\n#"...)
+			return append(data, bytes.Repeat([]byte("x"), size-len(data))...)
+		}
+		writeFile(t, path, padded(maximumCatalogFileBytes))
+		if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err != nil {
+			t.Fatalf("manifest at the bound: %v", err)
+		}
+		writeFile(t, path, padded(maximumCatalogFileBytes+1))
+		snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+		if snapshot != nil || !errors.Is(err, securefile.ErrTooLarge) ||
+			!strings.Contains(err.Error(), "model-policies/test-worker.yaml: read manifest") {
+			t.Fatalf("manifest over the bound = (%v, %v)", snapshot, err)
+		}
+	})
+}
+
+// A persisted Workflow snapshot is read with the same complete graph check as
+// a catalog load (CAT-R78), so no reader validates it again and none skips it.
+func TestDecodeResolvedWorkflowSnapshotChecksTheWholeGraph(t *testing.T) {
+	t.Parallel()
+
+	snapshot := mustLoad(t, copyCoreFixture(t))
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decoded, err := resolved.DecodeResolvedWorkflowSnapshot(encoded); err != nil || !reflect.DeepEqual(decoded, workflow) {
+		t.Fatalf("valid snapshot = (%+v, %v)", decoded, err)
+	}
+	for name, tamper := range map[string]func(*resolved.ResolvedWorkflow){
+		"missing entry Stage": func(workflow *resolved.ResolvedWorkflow) { workflow.EntryStage = "missing" },
+		"undeclared Workflow output": func(workflow *resolved.ResolvedWorkflow) {
+			workflow.Stages["copy"].WorkflowOutputs["undeclared"] = "copied"
+		},
+		"transition to a missing Stage": func(workflow *resolved.ResolvedWorkflow) {
+			stage := workflow.Stages["copy"]
+			stage.On.Succeeded = resolved.TransitionAction{Kind: resolved.TransitionNext, NextStage: "missing"}
+			workflow.Stages["copy"] = stage
+		},
+		"unregistered Planner": func(workflow *resolved.ResolvedWorkflow) {
+			stage := workflow.Stages["copy"]
+			stage.Planner = resolved.PlannerRef{PlannerID: "passthrough", Version: "2"}
+			workflow.Stages["copy"] = stage
+		},
+	} {
+		tampered := workflow.Clone()
+		tamper(&tampered)
+		encoded, err := json.Marshal(tampered)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if decoded, err := resolved.DecodeResolvedWorkflowSnapshot(encoded); err == nil ||
+			!strings.HasPrefix(err.Error(), "persisted Workflow: ") || !reflect.DeepEqual(decoded, resolved.ResolvedWorkflow{}) {
+			t.Errorf("%s: DecodeResolvedWorkflowSnapshot = (%+v, %v)", name, decoded, err)
+		}
+	}
+}
+
+func TestToolsetVisibleNameCollision(t *testing.T) {
+	t.Parallel()
+
+	root := copyCoreFixture(t)
+	path := filepath.Join(root, "agent-templates/artifact_builder.yaml")
+	// Both registered finding publishers export the model-visible "finding".
+	replaceFile(t, path, "  sandboxProfile: local-workdir@1", `    - ref: security-findings@1
+      tools: [finding]
+    - ref: security-findings-code@1
+      tools: [finding]
+  sandboxProfile: local-workdir@1`)
+	snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+	if err == nil || snapshot != nil || !strings.Contains(err.Error(), "collides between Toolsets") {
+		t.Fatalf("Load() = (%v, %v), want collision error", snapshot, err)
+	}
+}
+
+func TestWorkflowGraphLoadsMultiStageAndBoundedRetry(t *testing.T) {
+	t.Parallel()
+	root := copyCoreFixture(t)
+	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(multiStageWorkflowYAML))
+
+	snapshot := mustLoad(t, root)
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	retry := workflow.Stages["build"].On.Failed.Retry
+	if len(workflow.Stages) != 2 || retry == nil || retry.MaxAttempts != 3 ||
+		retry.Then.Kind != resolved.TransitionNext || retry.Then.NextStage != "review" {
+		t.Fatalf("resolved multi-Stage Workflow = %+v", workflow)
+	}
+}
+
+func TestWorkflowAutomaticRetryMayExceed1024Attempts(t *testing.T) {
+	root := copyCoreFixture(t)
+	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(strings.Replace(
+		multiStageWorkflowYAML, "maxAttempts: 3", "maxAttempts: 1025", 1,
+	)))
+	workflow, err := mustLoad(t, root).Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retry := workflow.Stages["build"].On.Failed.Retry; retry == nil || retry.MaxAttempts != 1025 {
+		t.Fatalf("automatic retry configuration was capped: %+v", retry)
+	}
+}
+
+func TestWorkflowPrimaryMarkerIsAcceptedOnlyOnWorkflowOutputs(t *testing.T) {
+	t.Run("output", func(t *testing.T) {
+		root := copyCoreFixture(t)
+		path := filepath.Join(root, "workflows/artifact_copy.yaml")
+		replaceFile(t, path,
+			"  outputs:\n    result:\n      required: true\n      mediaTypes: [text/plain]",
+			"  outputs:\n    result:\n      required: true\n      primary: true\n      mediaTypes: [text/plain]",
+		)
+		workflow, err := mustLoad(t, root).Workflow("artifact-copy@1")
+		if err != nil || !workflow.Outputs["result"].Primary || workflow.Inputs["source"].Primary ||
+			workflow.Stages["copy"].Result.Artifacts["copied"].Primary {
+			t.Fatalf("resolved primary output marker = (%+v, %v)", workflow, err)
+		}
+	})
+
+	for _, test := range []struct {
+		name, old, replacement, field string
+	}{
+		{
+			name: "input",
+			old:  "  inputs:\n    source:\n      required: true\n      mediaTypes: [text/plain]",
+			replacement: "  inputs:\n    source:\n      required: true\n      primary: true\n" +
+				"      mediaTypes: [text/plain]",
+			field: "spec.inputs.source.primary",
+		},
+		{
+			name: "Stage result",
+			old:  "          copied:\n            required: true\n            mediaTypes: [text/plain]",
+			replacement: "          copied:\n            required: true\n            primary: true\n" +
+				"            mediaTypes: [text/plain]",
+			field: "result.artifacts.copied.primary",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := copyCoreFixture(t)
+			path := filepath.Join(root, "workflows/artifact_copy.yaml")
+			replaceFile(t, path, test.old, test.replacement)
+			snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.field) ||
+				!strings.Contains(err.Error(), "allowed only for Workflow outputs") {
+				t.Fatalf("Load() = (%v, %v), want output-only primary error", snapshot, err)
+			}
+		})
+	}
+}
+
+func TestWorkflowGraphRejectsNextCycle(t *testing.T) {
+	t.Parallel()
+	root := copyCoreFixture(t)
+	cyclic := strings.Replace(
+		multiStageWorkflowYAML,
+		"    review:\n"+reviewStageYAML,
+		"    review:\n"+strings.Replace(reviewStageYAML, "succeed: {}", "next: build", 1),
+		1,
+	)
+	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(cyclic))
+
+	snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+	if err == nil || snapshot != nil || !strings.Contains(err.Error(), "Cycle") {
+		t.Fatalf("Load(cycle) = (%v, %v)", snapshot, err)
+	}
+}
+
+func TestWorkflowGraphRejectsUnreachableStage(t *testing.T) {
+	t.Parallel()
+	root := copyCoreFixture(t)
+	workflow := multiStageWorkflowYAML + "    orphan:\n" + reviewStageYAML
+	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
+
+	snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+	if err == nil || snapshot != nil || !strings.Contains(err.Error(), "unreachable") {
+		t.Fatalf("Load(unreachable) = (%v, %v)", snapshot, err)
+	}
+}
+
+func TestWorkflowTransitionRejectsSuccessPathWithoutRequiredOutput(t *testing.T) {
+	t.Parallel()
+	root := copyCoreFixture(t)
+	workflow := strings.Replace(
+		multiStageWorkflowYAML,
+		"      workflowOutputs:\n        result: copied\n",
+		"",
+		1,
+	)
+	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
+
+	snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+	if err == nil || snapshot != nil || !strings.Contains(err.Error(), "without required output") {
+		t.Fatalf("Load(missing output path) = (%v, %v)", snapshot, err)
+	}
+}
+
+func TestWorkflowTransitionRejectsOptionalResultAsRequiredOutput(t *testing.T) {
+	t.Parallel()
+
+	root := copyCoreFixture(t)
+	workflow := strings.Replace(
+		multiStageWorkflowYAML,
+		"          copied: {required: true, mediaTypes: [text/plain], from: {namespace: builder, name: copied}}\n      workflowOutputs:",
+		"          copied: {required: false, mediaTypes: [text/plain], from: {namespace: builder, name: copied}}\n      workflowOutputs:",
+		1,
+	)
+	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
+	if snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil || snapshot != nil ||
+		!strings.Contains(err.Error(), "without required output") {
+		t.Fatalf("Load() = (%v, %v), want required output error", snapshot, err)
+	}
+}
+
+// A Run binds each Workflow output once and refuses a second mapping
+// (ART-R90); that never happens to a valid Workflow because the graph cannot
+// map one output in two Stages of one path (WFL-R85).
+func TestWorkflowGraphRejectsOutputMappedTwiceOnOnePath(t *testing.T) {
+	t.Parallel()
+	root := copyCoreFixture(t)
+	workflow := strings.Replace(
+		multiStageWorkflowYAML,
+		"      on:\n        succeeded: {next: review}\n",
+		"      workflowOutputs:\n        result: copied\n      on:\n        succeeded: {next: review}\n",
+		1,
+	)
+	if workflow == multiStageWorkflowYAML {
+		t.Fatal("the build Stage of the fixture did not gain an output mapping")
+	}
+	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
+
+	snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+	if err == nil || snapshot != nil ||
+		!strings.Contains(err.Error(), `Workflow output "result" may be mapped more than once on one Graph path`) {
+		t.Fatalf("Load(output mapped twice) = (%v, %v)", snapshot, err)
+	}
+}
+
+func TestWorkflowResultBindingsAreTrustedAndVersionless(t *testing.T) {
+	t.Parallel()
+
+	path := "workflows/artifact_copy.yaml"
+	for _, test := range []struct {
+		name        string
+		old         string
+		replacement string
+		fragment    string
+	}{
+		{
+			name:        "missing",
+			old:         "            from: {namespace: builder, name: copied}\n",
+			replacement: "",
+			fragment:    "result.artifacts.copied.from is required",
+		},
+		{
+			name:        "unassigned namespace",
+			old:         "from: {namespace: builder, name: copied}",
+			replacement: "from: {namespace: reviewer, name: copied}",
+			fragment:    "is not assigned to a Stage Agent",
+		},
+		{
+			name:        "reserved namespace",
+			old:         "from: {namespace: builder, name: copied}",
+			replacement: "from: {namespace: outputs, name: copied}",
+			fragment:    "Runtime-reserved binding",
+		},
+		{
+			name:        "revision",
+			old:         "from: {namespace: builder, name: copied}",
+			replacement: "from: {namespace: builder, name: copied, revision: invented}",
+			fragment:    "field revision not found",
+		},
+		{
+			name:        "workflow input",
+			old:         "      mediaTypes: [text/plain]\n\n  outputs:",
+			replacement: "      mediaTypes: [text/plain]\n      from: {namespace: builder, name: copied}\n\n  outputs:",
+			fragment:    "allowed only for Stage result artifacts",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := copyCoreFixture(t)
+			replaceFile(t, filepath.Join(root, path), test.old, test.replacement)
+			snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.fragment) {
+				t.Fatalf("Load() = (%v, %v), want %q", snapshot, err, test.fragment)
+			}
+		})
+	}
+}
+
+const multiStageWorkflowYAML = `apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata:
+  name: artifact-copy
+  version: "1"
+spec:
+  parameters: {}
+  inputs:
+    source: {required: true, mediaTypes: [text/plain]}
+  outputs:
+    result: {required: true, mediaTypes: [text/plain]}
+  executionConfig:
+    workers: {modelPolicy: test-worker@1, llmGateway: local-litellm@1}
+  entryStage: build
+  stages:
+    build:
+      objective: Build a candidate
+      instructions: {ref: instructions/copy-planner.md}
+      planner: passthrough@1
+      agents:
+        builder: {template: artifact_builder@1}
+      context:
+        artifacts:
+          source: {namespace: inputs, name: source, required: true}
+      result:
+        artifacts:
+          copied: {required: true, mediaTypes: [text/plain], from: {namespace: builder, name: copied}}
+      on:
+        succeeded: {next: review}
+        failed:
+          retry:
+            maxAttempts: 3
+            then: {next: review}
+        interrupted: {fail: {}}
+    review:
+` + reviewStageYAML
+
+const reviewStageYAML = `      objective: Review the candidate
+      instructions: {ref: instructions/copy-planner.md}
+      planner: passthrough@1
+      agents:
+        reviewer: {template: artifact_builder@1, namespace: builder}
+      context:
+        artifacts:
+          candidate: {namespace: builder, name: copied, required: true}
+      result:
+        artifacts:
+          copied: {required: true, mediaTypes: [text/plain], from: {namespace: builder, name: copied}}
+      workflowOutputs:
+        result: copied
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}
+`
+
+func mustLoad(t *testing.T, root string) *Snapshot {
+	t.Helper()
+	snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatalf("Load(%q): %v", root, err)
+	}
+	return snapshot
+}
+
+func assertDigest(t *testing.T, value string) {
+	t.Helper()
+	if len(value) != len("sha256:")+64 || !strings.HasPrefix(value, "sha256:") {
+		t.Fatalf("invalid digest %q", value)
+	}
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
+// copyCoreFixture copies the core fixture catalog with the shared test
+// policies, then adds each named testdata/<topic> catalog slice. Topic files
+// must not replace core files, so every fixture stays attributable.
+func copyCoreFixture(t *testing.T, topics ...string) string {
+	t.Helper()
+	root := configtest.CopyWithPolicies(t, coreFixtureRoot)
+	for _, topic := range topics {
+		if err := os.CopyFS(root, os.DirFS(filepath.Join("testdata", topic))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root
+}
+
+func readFile(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func writeFile(t *testing.T, path string, data []byte) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func appendFile(t *testing.T, path, suffix string) {
+	t.Helper()
+	data := append(readFile(t, path), []byte(suffix)...)
+	writeFile(t, path, data)
+}
+
+func replaceFile(t *testing.T, path, old, replacement string) {
+	t.Helper()
+	data := string(readFile(t, path))
+	if !strings.Contains(data, old) {
+		t.Fatalf("%s does not contain replacement source %q", path, old)
+	}
+	writeFile(t, path, []byte(strings.Replace(data, old, replacement, 1)))
+}

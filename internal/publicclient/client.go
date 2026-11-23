@@ -1,0 +1,327 @@
+package publicclient
+
+import (
+	"bytes"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/helpers/randomid"
+	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
+)
+
+const (
+	APIVersion        = "contractor.public.v1"
+	APIVersionHeader  = "X-Contractor-API-Version"
+	maximumErrorBytes = 64 * 1024
+	// maximumTokenBytes matches the Server's bearer-token bound, so a token
+	// the Server would always reject is refused before any request.
+	maximumTokenBytes = 4096
+	// maximumTokenFileBytes admits one trailing CRLF after the longest token.
+	maximumTokenFileBytes = maximumTokenBytes + 2
+)
+
+type Options struct {
+	Server    string
+	Token     string
+	CAFile    string
+	AllowHTTP bool
+	Timeout   time.Duration
+	// Transfer applies Timeout to every period without progress (connection,
+	// request body, response headers and response body) instead of to the
+	// whole exchange, so a large Artifact is not cut off on a slow link.
+	Transfer  bool
+	UserAgent string
+}
+
+// Format redacts the options as a whole for every verb (SEC-R88): its Token is the bearer token in plain text.
+func (Options) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "publicclient.Options([REDACTED])")
+}
+
+type Client struct {
+	API    *publicapi.ClientWithResponses
+	origin string
+}
+
+func New(options Options) (*Client, error) {
+	origin, err := NormalizeServer(options.Server, options.AllowHTTP)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateToken(options.Token); err != nil {
+		return nil, err
+	}
+	if options.Timeout <= 0 {
+		return nil, errors.New("request timeout must be positive")
+	}
+	transport, err := transport(options.CAFile)
+	if err != nil {
+		return nil, err
+	}
+	var base http.RoundTripper = transport
+	timeout := options.Timeout
+	if options.Transfer {
+		base, timeout = &progressTransport{base: transport, timeout: options.Timeout}, 0
+	}
+	roundTripper := &checkedTransport{
+		base:      base,
+		origin:    origin,
+		token:     options.Token,
+		userAgent: options.UserAgent,
+		timeout:   timeout,
+	}
+	httpClient := &http.Client{
+		Transport: roundTripper,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return errors.New("Contractor public API redirects are not allowed")
+		},
+	}
+	generated, err := publicapi.NewClientWithResponses(origin, publicapi.WithHTTPClient(httpClient))
+	if err != nil {
+		return nil, fmt.Errorf("create generated public API client: %w", err)
+	}
+	return &Client{API: generated, origin: origin}, nil
+}
+
+func (c *Client) Origin() string { return c.origin }
+
+func NormalizeServer(value string, allowHTTP bool) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil ||
+		parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
+		return "", errors.New("server must be an absolute origin without credentials, query, fragment, or path")
+	}
+	switch parsed.Scheme {
+	case "https":
+	case "http":
+		host := net.ParseIP(parsed.Hostname())
+		if !allowHTTP && (host == nil || !host.IsLoopback()) {
+			return "", errors.New("HTTP is allowed only for an IP-literal loopback server; use --allow-http explicitly otherwise")
+		}
+	default:
+		return "", errors.New("server scheme must be https or http")
+	}
+	parsed.Path = ""
+	return strings.TrimSuffix(parsed.String(), "/"), nil
+}
+
+func transport(caFile string) (*http.Transport, error) {
+	base, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil, errors.New("default HTTP transport is unavailable")
+	}
+	result := base.Clone()
+	if strings.TrimSpace(caFile) == "" {
+		return result, nil
+	}
+	pem, err := os.ReadFile(filepath.Clean(caFile))
+	if err != nil {
+		return nil, fmt.Errorf("read CA file: %w", err)
+	}
+	roots, err := x509.SystemCertPool()
+	if err != nil || roots == nil {
+		roots = x509.NewCertPool()
+	}
+	if !roots.AppendCertsFromPEM(pem) {
+		return nil, errors.New("CA file contains no readable certificate")
+	}
+	result.TLSClientConfig = &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}
+	return result, nil
+}
+
+type checkedTransport struct {
+	base      http.RoundTripper
+	origin    string
+	token     string
+	userAgent string
+	timeout   time.Duration
+}
+
+// Format redacts the transport as a whole for every verb (SEC-R88): its token field is the bearer token in plain text.
+func (checkedTransport) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "publicclient.checkedTransport([REDACTED])")
+}
+
+func (t *checkedTransport) roundTripOnce(request *http.Request, cancel func()) (*http.Response, error) {
+	response, err := t.base.RoundTrip(request)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	if response.Body == nil {
+		response.Body = http.NoBody
+	}
+	response.Body = &cancelOnClose{ReadCloser: response.Body, cancel: cancel}
+	versions := response.Header.Values(APIVersionHeader)
+	if len(versions) == 0 && response.StatusCode >= http.StatusBadRequest {
+		if response.Body != nil {
+			_ = response.Body.Close()
+		}
+		return nil, &IntermediaryError{
+			Status: response.StatusCode, RequestID: response.Header.Get("X-Request-ID"),
+		}
+	}
+	if len(versions) != 1 || strings.TrimSpace(versions[0]) != APIVersion {
+		if response.Body != nil {
+			_ = response.Body.Close()
+		}
+		actual := "missing"
+		if len(versions) != 0 {
+			actual = strings.Join(versions, ",")
+		}
+		return nil, &CompatibilityError{Expected: APIVersion, Actual: actual}
+	}
+	if response.StatusCode < http.StatusBadRequest || response.Body == nil {
+		return response, nil
+	}
+	body, readErr := io.ReadAll(io.LimitReader(response.Body, maximumErrorBytes+1))
+	_ = response.Body.Close()
+	if readErr != nil {
+		return nil, fmt.Errorf("read bounded public API error: %w", readErr)
+	}
+	if len(body) > maximumErrorBytes {
+		body, _ = json.Marshal(errorEnvelope{
+			Code:      "invalid_error_response",
+			Message:   "Server error response exceeded the client limit",
+			Retryable: false,
+			RequestID: response.Header.Get("X-Request-ID"),
+		})
+	}
+	response.Body = io.NopCloser(bytes.NewReader(body))
+	response.ContentLength = int64(len(body))
+	response.Header.Set("Content-Length", fmt.Sprint(len(body)))
+	return response, nil
+}
+
+type CompatibilityError struct {
+	Expected string
+	Actual   string
+}
+
+// IntermediaryError preserves the status of a proxy response that did not
+// carry the version header every Contractor Server response provides.
+type IntermediaryError struct {
+	Status    int
+	RequestID string
+}
+
+func (e *IntermediaryError) Error() string {
+	message := fmt.Sprintf("Server or proxy returned HTTP %d %s without a Contractor API version header", e.Status, http.StatusText(e.Status))
+	switch e.Status {
+	case http.StatusRequestEntityTooLarge:
+		message += "; check the proxy request-body size limit"
+	case http.StatusTooManyRequests, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		message += "; try again"
+	}
+	return message
+}
+
+func (e *CompatibilityError) Error() string {
+	return fmt.Sprintf("incompatible Contractor API version: expected %s, received %s", e.Expected, e.Actual)
+}
+
+type response interface {
+	StatusCode() int
+	GetBody() []byte
+}
+
+func CheckResponse(value response, expected ...int) error {
+	if value == nil {
+		return errors.New("public API returned no response")
+	}
+	status := value.StatusCode()
+	for _, candidate := range expected {
+		if status == candidate {
+			return nil
+		}
+	}
+	return DecodeError(status, value.GetBody())
+}
+
+type APIError struct {
+	Status    int
+	Code      string
+	Message   string
+	Retryable bool
+	RequestID string
+}
+
+func (e *APIError) Error() string {
+	detail := fmt.Sprintf("Contractor API: %s", e.Message)
+	if e.Code != "" {
+		detail += " (" + e.Code + ")"
+	}
+	if e.RequestID != "" {
+		detail += " [request " + e.RequestID + "]"
+	}
+	return detail
+}
+
+type errorEnvelope struct {
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	Retryable bool   `json:"retryable"`
+	RequestID string `json:"requestId"`
+}
+
+func DecodeError(status int, body []byte) error {
+	var envelope errorEnvelope
+	if err := json.Unmarshal(body, &envelope); err != nil || envelope.Message == "" {
+		return &APIError{Status: status, Code: "invalid_error_response", Message: http.StatusText(status)}
+	}
+	return &APIError{
+		Status: status, Code: envelope.Code, Message: envelope.Message,
+		Retryable: envelope.Retryable, RequestID: envelope.RequestID,
+	}
+}
+
+func NewIdempotencyKey() (string, error) {
+	return randomid.New("cli_")
+}
+
+func QuoteETag(revision string) (string, error) {
+	if revision == "" || len(revision) > 256 || strings.ContainsAny(revision, "\"\\\r\n") {
+		return "", errors.New("revision cannot be represented as a strong ETag")
+	}
+	return `"` + revision + `"`, nil
+}
+
+func ReadTokenFile(path string) (string, error) {
+	file, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return "", fmt.Errorf("open API token file: %w", err)
+	}
+	defer file.Close()
+	value, err := io.ReadAll(io.LimitReader(file, maximumTokenFileBytes+1))
+	if err != nil {
+		return "", fmt.Errorf("read API token file: %w", err)
+	}
+	if len(value) > maximumTokenFileBytes {
+		return "", errors.New("API token file exceeds 4096 bytes and a line ending")
+	}
+	value = bytes.TrimSuffix(value, []byte("\n"))
+	value = bytes.TrimSuffix(value, []byte("\r"))
+	token := string(value)
+	if err := validateToken(token); err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+func validateToken(token string) error {
+	if token == "" || len(token) > maximumTokenBytes || strings.ContainsAny(token, "\x00\r\n") {
+		return errors.New("API token must contain 1 through 4096 bytes without NUL or newlines")
+	}
+	return nil
+}

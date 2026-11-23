@@ -1,0 +1,727 @@
+package config
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"reflect"
+	"slices"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
+	"github.com/grauwolf32/contractor/internal/helpers/randomid"
+	"go.yaml.in/yaml/v4"
+	"golang.org/x/sys/unix"
+)
+
+const (
+	managedDirectoryMode = 0o750
+	managedManifestMode  = 0o640
+)
+
+var configurationSubtrees = []string{
+	"workflows",
+	"agent-templates",
+	"model-policies",
+	"llm-gateways",
+	"audit-profiles",
+	"instructions",
+}
+
+// ModelPolicyPublication is the typed, path-free body accepted by the
+// managed configuration publisher. Pointer fields distinguish omission from
+// an explicitly invalid zero value.
+type ModelPolicyPublication struct {
+	Model               string   `json:"model"`
+	SupportsImages      *bool    `json:"supportsImages,omitempty" strictjson:"nullable"`
+	ContextWindowTokens *int     `json:"contextWindowTokens,omitempty"`
+	MaxOutputTokens     *int     `json:"maxOutputTokens,omitempty"`
+	MaxModelCalls       *int     `json:"maxModelCalls,omitempty"`
+	MaxToolCalls        *int     `json:"maxToolCalls,omitempty"`
+	MaxWorkerCalls      *int     `json:"maxWorkerCalls,omitempty"`
+	MaxTotalTokens      *int     `json:"maxTotalTokens,omitempty"`
+	Temperature         *float64 `json:"temperature,omitempty"`
+}
+
+type CredentialManagerPublication struct {
+	Implementation string `json:"implementation"`
+	ManagementURL  string `json:"managementUrl"`
+}
+
+type LLMGatewayPublication struct {
+	Protocol          string                               `json:"protocol"`
+	URL               string                               `json:"url"`
+	CredentialManager *CredentialManagerPublication        `json:"credentialManager,omitempty"`
+	FailureSignatures *llmgateway.GatewayFailureSignatures `json:"failureSignatures,omitempty"`
+}
+
+type PublicationRequest struct {
+	Kind           ConfigurationKind
+	Name           string
+	Version        string
+	ModelPolicy    *ModelPolicyPublication
+	LLMGateway     *LLMGatewayPublication
+	IdempotencyKey string
+	ActorID        string
+}
+
+type PublicationResult struct {
+	Resource ConfigurationResource
+	Replayed bool
+}
+
+type ManagerOptions struct {
+	OperatorRoot string
+	ManagedRoot  string
+	// OperatorRootChecks apply at startup and on every reload before a
+	// publication. internal/configload supplies the production set.
+	OperatorRootChecks []OperatorRootCheck
+	Logger             *slog.Logger
+	Now                func() time.Time
+
+	// AfterDurablePublish is a test seam for the publication-before-snapshot-swap
+	// crash window. Production callers leave it nil.
+	AfterDurablePublish func(ConfigurationResource) error
+}
+
+type idempotentPublication struct {
+	requestDigest string
+}
+
+// unswappedPublication is a publication that failed at or after its durable
+// link step, so its manifest may be in the managed root although the current
+// snapshot lacks it. The next publication adopts it when the reload shows it
+// (FAIL-CAT-2).
+type unswappedPublication struct {
+	idempotencyKey string
+	candidate      publicationCandidate
+}
+
+// Manager owns the process-local current immutable configuration snapshot and
+// serializes managed publications. Filesystem locking across Server processes
+// is deliberately outside the single-Server first slice.
+type Manager struct {
+	modelSelection *deploymentModelSelection
+	publicationMu  sync.Mutex
+	current        atomic.Pointer[Snapshot]
+
+	operatorRoot string
+	managedRoot  string
+	rootChecks   []OperatorRootCheck
+	logger       *slog.Logger
+	now          func() time.Time
+	afterPublish func(ConfigurationResource) error
+	idempotency  map[string]idempotentPublication
+	// unswapped holds at most one entry per kind and selector; every
+	// reconciliation that is not drift empties it.
+	unswapped map[string]unswappedPublication
+}
+
+func NewManager(options ManagerOptions) (*Manager, error) {
+	operatorRoot, err := requireStrictRoot(options.OperatorRoot, false)
+	if err != nil {
+		return nil, fmt.Errorf("operator configuration root: %w", err)
+	}
+	// Reject an overlapping managed root before creating it or its subtrees,
+	// so a misconfiguration leaves nothing inside the operator root.
+	// requireStrictRoot reports a path that cannot be resolved here.
+	if location, err := rootLocation(options.ManagedRoot); err == nil && rootsOverlap(operatorRoot, location) {
+		return nil, fmt.Errorf("operator and managed configuration roots must not overlap")
+	}
+	managedRoot, err := requireStrictRoot(options.ManagedRoot, true)
+	if err != nil {
+		return nil, fmt.Errorf("managed configuration root: %w", err)
+	}
+	if rootsOverlap(operatorRoot, managedRoot) {
+		return nil, fmt.Errorf("operator and managed configuration roots must not overlap")
+	}
+	rootChecks := slices.Clone(options.OperatorRootChecks)
+	snapshot, err := LoadUnion(operatorRoot, managedRoot, rootChecks...)
+	if err != nil {
+		return nil, err
+	}
+	now := options.Now
+	if now == nil {
+		now = time.Now
+	}
+	logger := options.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	manager := &Manager{
+		operatorRoot: operatorRoot,
+		managedRoot:  managedRoot,
+		rootChecks:   rootChecks,
+		logger:       logger,
+		now:          now,
+		afterPublish: options.AfterDurablePublish,
+		idempotency:  make(map[string]idempotentPublication),
+		unswapped:    make(map[string]unswappedPublication),
+	}
+	manager.current.Store(snapshot)
+	return manager, nil
+}
+
+// LoadUnionReadOnly applies the Server's root and union checks without creating
+// a missing managed root or its subtrees. Missing managed directories are
+// equivalent to the empty directories NewManager would create at startup.
+func LoadUnionReadOnly(
+	operatorPath, managedPath string, checks ...OperatorRootCheck,
+) (*Snapshot, error) {
+	return loadUnionReadOnly(operatorPath, managedPath, false, checks...)
+}
+
+func loadUnionReadOnly(operatorPath, managedPath string, extendLock bool, checks ...OperatorRootCheck) (*Snapshot, error) {
+	operatorRoot, err := requireStrictRoot(operatorPath, false)
+	if err != nil {
+		return nil, fmt.Errorf("operator configuration root: %w", err)
+	}
+	if strings.TrimSpace(managedPath) == "" {
+		return nil, errors.New("managed configuration root: path is required")
+	}
+	managedRoot, err := filepath.Abs(managedPath)
+	if err != nil {
+		return nil, fmt.Errorf("managed configuration root: %w", err)
+	}
+	_, statErr := os.Lstat(managedRoot)
+	managedExists := statErr == nil
+	if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+		return nil, fmt.Errorf("managed configuration root: %w", statErr)
+	}
+	if managedExists {
+		managedRoot, err = requireStrictRootWithMissingSubtrees(managedRoot, false, true)
+		if err != nil {
+			return nil, fmt.Errorf("managed configuration root: %w", err)
+		}
+	} else {
+		managedRoot, err = resolveMissingRoot(managedRoot)
+		if err != nil {
+			return nil, fmt.Errorf("managed configuration root: %w", err)
+		}
+	}
+	if rootsOverlap(operatorRoot, managedRoot) {
+		return nil, errors.New("operator and managed configuration roots must not overlap")
+	}
+	roots := []configurationRoot{{path: operatorRoot, source: ConfigurationSourceOperator}}
+	if managedExists {
+		roots = append(roots, configurationRoot{path: managedRoot, source: ConfigurationSourceManaged})
+	}
+	return loadConfigurationRoots(roots, loadOptions{
+		allowMissingManagedSubtrees: true, operatorRootChecks: checks, extendCatalogLock: extendLock,
+	})
+}
+
+// rootLocation resolves where a possibly missing root is or would be created,
+// without creating anything.
+func rootLocation(path string) (string, error) {
+	if strings.TrimSpace(path) == "" {
+		return "", errors.New("path is required")
+	}
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	return resolveMissingRoot(absolute)
+}
+
+func resolveMissingRoot(path string) (string, error) {
+	current := path
+	var missing []string
+	for {
+		info, err := os.Lstat(current)
+		if err == nil {
+			resolvedPath, err := filepath.EvalSymlinks(current)
+			if err != nil {
+				return "", err
+			}
+			if !info.IsDir() {
+				info, err = os.Stat(resolvedPath)
+				if err != nil {
+					return "", err
+				}
+				if !info.IsDir() {
+					return "", fmt.Errorf("configuration root ancestor %q is not a directory", current)
+				}
+			}
+			for index := len(missing) - 1; index >= 0; index-- {
+				resolvedPath = filepath.Join(resolvedPath, missing[index])
+			}
+			return resolvedPath, nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", err
+		}
+		missing = append(missing, filepath.Base(current))
+		current = parent
+	}
+}
+
+func (m *Manager) Snapshot() *Snapshot { return m.current.Load() }
+
+func (m *Manager) Workflow(raw string) (resolved.ResolvedWorkflow, error) {
+	return m.Snapshot().Workflow(raw)
+}
+
+func (m *Manager) WorkflowDiscovery() (WorkflowDiscovery, error) {
+	return m.Snapshot().WorkflowDiscovery()
+}
+
+func (m *Manager) AuditProfile(raw string) (auditprofile.PinnedProgram, error) {
+	return m.Snapshot().AuditProfile(raw)
+}
+
+func (m *Manager) AuditProfiles() []auditprofile.PinnedProgram {
+	return m.Snapshot().AuditProfiles()
+}
+
+func (m *Manager) LLMGateway(raw string) (llmgateway.ResolvedLLMGatewayConfig, error) {
+	return m.Snapshot().LLMGateway(raw)
+}
+
+func (m *Manager) ModelPolicy(raw string) (contracts.ResolvedModelPolicy, error) {
+	return m.Snapshot().ModelPolicy(raw)
+}
+
+func (m *Manager) ResolveRunWorkflow(
+	ctx context.Context,
+	raw string,
+	credentials resolved.CredentialLookup,
+) (resolved.ResolvedWorkflow, error) {
+	defaults, err := m.modelDefaults(ctx)
+	if err != nil {
+		return resolved.ResolvedWorkflow{}, err
+	}
+	return m.Snapshot().resolveRunWorkflow(ctx, raw, credentials, defaults)
+}
+
+func (m *Manager) ConfigurationDiscovery(kind ConfigurationKind) (ConfigurationDiscovery, error) {
+	return m.Snapshot().ConfigurationDiscovery(kind)
+}
+
+func (m *Manager) Configuration(
+	kind ConfigurationKind, raw string,
+) (ConfigurationResource, error) {
+	return m.Snapshot().Configuration(kind, raw)
+}
+
+func (m *Manager) Publish(
+	ctx context.Context, request PublicationRequest,
+) (PublicationResult, error) {
+	candidate, err := preparePublication(request)
+	if err != nil {
+		return PublicationResult{}, err
+	}
+
+	m.publicationMu.Lock()
+	defer m.publicationMu.Unlock()
+
+	loaded, err := LoadUnion(m.operatorRoot, m.managedRoot, m.rootChecks...)
+	if err != nil {
+		return PublicationResult{}, classifyReloadFailure(err)
+	}
+	if err := m.reconcile(loaded, candidate); err != nil {
+		return PublicationResult{}, err
+	}
+	// From here on the reloaded union equals the current snapshot.
+	if previous, exists := m.idempotency[request.IdempotencyKey]; exists &&
+		previous.requestDigest != candidate.requestDigest {
+		return PublicationResult{}, fmt.Errorf("%w: Idempotency-Key was already used for another publication", contracts.ErrIdempotencyConflict)
+	}
+	existing, existingErr := loaded.Configuration(request.Kind, candidate.selector.String())
+	if existingErr == nil {
+		if existing.Source != ConfigurationSourceManaged || existing.Ref.Digest != candidate.resource.Ref.Digest {
+			return PublicationResult{}, fmt.Errorf("%w: %s already exists", ErrPublicationConflict, candidate.selector)
+		}
+		m.rememberPublication(request.IdempotencyKey, candidate.requestDigest)
+		return PublicationResult{Resource: existing, Replayed: true}, nil
+	}
+	if !errors.Is(existingErr, ErrConfigurationNotFound) {
+		return PublicationResult{}, existingErr
+	}
+
+	next := loaded.withPublication(candidate)
+	if err := m.writeDurableManifest(candidate); err != nil {
+		if !errors.Is(err, ErrPublicationConflict) {
+			m.rememberUnswapped(request.IdempotencyKey, candidate)
+		}
+		return PublicationResult{}, err
+	}
+	if m.afterPublish != nil {
+		if err := m.afterPublish(candidate.resource); err != nil {
+			m.rememberUnswapped(request.IdempotencyKey, candidate)
+			return PublicationResult{}, err
+		}
+	}
+	m.current.Store(next)
+	m.rememberPublication(request.IdempotencyKey, candidate.requestDigest)
+	return PublicationResult{Resource: candidate.resource}, nil
+}
+
+// reconcile accepts a reloaded union that equals the current snapshot plus
+// managed versions this manager durably linked without swapping its snapshot:
+// a publication whose later step failed, or the identical version the current
+// request retries. It adopts them exactly as the startup load would
+// (CAT-R58), binding each recovered publication's Idempotency-Key. Any other
+// difference, such as an operator-root edit or a managed file the manager did
+// not write, is ErrConfigurationDrift: the publication is refused until the
+// roots match the snapshot again or a restart loads them (CAT-R75).
+func (m *Manager) reconcile(loaded *Snapshot, candidate publicationCandidate) error {
+	current := m.current.Load()
+	expected := current
+	recovered := make([]unswappedPublication, 0, len(m.unswapped))
+	for _, publication := range m.unswapped {
+		if publication.candidate.durableIn(loaded) && !publication.candidate.durableIn(expected) {
+			expected = expected.withPublication(publication.candidate)
+			recovered = append(recovered, publication)
+		}
+	}
+	if candidate.durableIn(loaded) && !candidate.durableIn(expected) {
+		expected = expected.withPublication(candidate)
+	}
+	if !snapshotsEqual(loaded, expected) {
+		return fmt.Errorf("%w; restore them to the loaded configuration or restart the Server", ErrConfigurationDrift)
+	}
+	if expected != current {
+		m.current.Store(loaded)
+	}
+	// A recovered publication committed, so its key stays bound to it even if
+	// the current request reuses the key for another body (API-R69).
+	for _, publication := range recovered {
+		m.rememberPublication(publication.idempotencyKey, publication.candidate.requestDigest)
+	}
+	// Every remembered link is now either in the snapshot or proven absent.
+	clear(m.unswapped)
+	return nil
+}
+
+// classifyReloadFailure reports a reload that no longer yields a valid set as
+// drift: the same roots loaded at startup, so an invalid or incomplete set, or
+// a missing file or directory, means they changed outside the manager. Any
+// other operating-system error (I/O, resource exhaustion, permissions) may
+// not be a change to the roots and stays an unclassified failure.
+func classifyReloadFailure(err error) error {
+	err = fmt.Errorf("reload configuration roots before publication: %w", err)
+	var errno unix.Errno
+	if !errors.As(err, &errno) || errno == unix.ENOENT || errno == unix.ENOTDIR {
+		return reloadDriftError{err: err}
+	}
+	return err
+}
+
+// reloadDriftError classifies a failed reload as drift and keeps its message.
+type reloadDriftError struct{ err error }
+
+func (e reloadDriftError) Error() string   { return e.err.Error() }
+func (e reloadDriftError) Unwrap() []error { return []error{ErrConfigurationDrift, e.err} }
+
+func (m *Manager) rememberUnswapped(key string, candidate publicationCandidate) {
+	m.unswapped[configurationSourceKey(candidate.resource.Ref.Kind, candidate.selector.String())] =
+		unswappedPublication{idempotencyKey: key, candidate: candidate}
+}
+
+// durableIn reports whether a snapshot holds this exact managed version.
+func (c publicationCandidate) durableIn(snapshot *Snapshot) bool {
+	existing, err := snapshot.Configuration(c.resource.Ref.Kind, c.selector.String())
+	return err == nil && existing.Source == ConfigurationSourceManaged &&
+		existing.Ref.Digest == c.resource.Ref.Digest
+}
+
+type publicationCandidate struct {
+	selector      resolved.Selector
+	resource      ConfigurationResource
+	policy        *contracts.ResolvedModelPolicy
+	gateway       *llmgateway.ResolvedLLMGatewayConfig
+	canonicalYAML []byte
+	requestDigest string
+	subtree       string
+}
+
+func preparePublication(request PublicationRequest) (publicationCandidate, error) {
+	if err := validatePublicationKey(request.IdempotencyKey); err != nil {
+		return publicationCandidate{}, err
+	}
+	selector, err := validateMetadata(&metadataSource{Name: request.Name, Version: request.Version})
+	if err != nil {
+		return publicationCandidate{}, fmt.Errorf("%w: %v", ErrInvalidPublication, err)
+	}
+
+	switch request.Kind {
+	case ConfigurationModelPolicies:
+		if request.ModelPolicy == nil || request.LLMGateway != nil {
+			return publicationCandidate{}, fmt.Errorf("%w: model-policies requires exactly one modelPolicy body", ErrInvalidPublication)
+		}
+		if utf8.RuneCountInString(request.ModelPolicy.Model) > 256 {
+			return publicationCandidate{}, fmt.Errorf("%w: model exceeds 256 characters", ErrInvalidPublication)
+		}
+		spec := modelPolicySpecSource{
+			Model:               request.ModelPolicy.Model,
+			SupportsImages:      clone.Pointer(request.ModelPolicy.SupportsImages),
+			ContextWindowTokens: clone.Pointer(request.ModelPolicy.ContextWindowTokens),
+			MaxOutputTokens:     clone.Pointer(request.ModelPolicy.MaxOutputTokens),
+			MaxModelCalls:       clone.Pointer(request.ModelPolicy.MaxModelCalls),
+			MaxToolCalls:        clone.Pointer(request.ModelPolicy.MaxToolCalls),
+			MaxWorkerCalls:      clone.Pointer(request.ModelPolicy.MaxWorkerCalls),
+			MaxTotalTokens:      clone.Pointer(request.ModelPolicy.MaxTotalTokens),
+			Temperature:         clone.Pointer(request.ModelPolicy.Temperature),
+		}
+		if err := validateModelPolicySpec(&spec); err != nil {
+			return publicationCandidate{}, fmt.Errorf("%w: %v", ErrInvalidPublication, err)
+		}
+		policy := contracts.ResolvedModelPolicy{
+			Ref:   contracts.ModelPolicyRef{PolicyID: selector.ID, Version: selector.Version},
+			Model: spec.Model, ContextWindowTokens: optionalIntValue(spec.ContextWindowTokens), MaxOutputTokens: optionalIntValue(spec.MaxOutputTokens),
+			MaxModelCalls: optionalIntValue(spec.MaxModelCalls), MaxToolCalls: optionalIntValue(spec.MaxToolCalls),
+			MaxWorkerCalls: optionalIntValue(spec.MaxWorkerCalls), MaxTotalTokens: optionalIntValue(spec.MaxTotalTokens),
+			Temperature:    clone.Pointer(spec.Temperature),
+			SupportsImages: clone.Pointer(spec.SupportsImages),
+		}
+		digest, digestErr := modelPolicyDigest(selector, policy)
+		if digestErr != nil {
+			return publicationCandidate{}, fmt.Errorf("%w: %v", ErrInvalidPublication, digestErr)
+		}
+		policy.Ref.Digest = digest
+		if err := policy.Validate(); err != nil {
+			return publicationCandidate{}, fmt.Errorf("%w: %v", ErrInvalidPublication, err)
+		}
+		document := modelPolicyDocument{
+			APIVersion: contracts.APIVersion, Kind: modelPolicyKind,
+			Metadata: &metadataSource{Name: selector.ID, Version: selector.Version}, Spec: &spec,
+		}
+		encoded, encodeErr := yaml.Marshal(document)
+		if encodeErr != nil {
+			return publicationCandidate{}, fmt.Errorf("encode ModelPolicy YAML: %w", encodeErr)
+		}
+		resource := ConfigurationResource{
+			Ref:  ConfigurationRef{Kind: request.Kind, Name: selector.ID, Version: selector.Version, Digest: digest},
+			Body: modelPolicyResourceBody(policy), Source: ConfigurationSourceManaged,
+		}
+		return publicationCandidate{
+			selector: selector, resource: resource, policy: &policy, canonicalYAML: encoded,
+			requestDigest: digest, subtree: "model-policies",
+		}, nil
+
+	case ConfigurationLLMGateways:
+		if request.LLMGateway == nil || request.ModelPolicy != nil {
+			return publicationCandidate{}, fmt.Errorf("%w: llm-gateways requires exactly one llmGateway body", ErrInvalidPublication)
+		}
+		if len(request.LLMGateway.URL) > 2048 || request.LLMGateway.CredentialManager != nil &&
+			len(request.LLMGateway.CredentialManager.ManagementURL) > 2048 {
+			return publicationCandidate{}, fmt.Errorf("%w: Gateway URL exceeds 2048 bytes", ErrInvalidPublication)
+		}
+		spec := llmGatewayConfigSpecSource{
+			Protocol: request.LLMGateway.Protocol, URL: request.LLMGateway.URL,
+		}
+		if request.LLMGateway.CredentialManager != nil {
+			spec.CredentialManager = &llmCredentialManagerSpecSource{
+				Implementation: request.LLMGateway.CredentialManager.Implementation,
+				ManagementURL:  request.LLMGateway.CredentialManager.ManagementURL,
+			}
+		}
+		if request.LLMGateway.FailureSignatures != nil {
+			spec.FailureSignatures = failureSignaturesToSource(*request.LLMGateway.FailureSignatures)
+		}
+		gateway, resolveErr := resolveLLMGatewayConfig(selector, &spec)
+		if resolveErr != nil {
+			return publicationCandidate{}, fmt.Errorf("%w: %v", ErrInvalidPublication, resolveErr)
+		}
+		// Persist the normalized URLs used by the digest and in-memory value.
+		spec.URL = gateway.URL
+		if gateway.CredentialManager != nil {
+			spec.CredentialManager.ManagementURL = gateway.CredentialManager.ManagementURL
+		}
+		document := llmGatewayConfigDocument{
+			APIVersion: contracts.APIVersion, Kind: llmGatewayConfigKind,
+			Metadata: &metadataSource{Name: selector.ID, Version: selector.Version}, Spec: &spec,
+		}
+		encoded, encodeErr := yaml.Marshal(document)
+		if encodeErr != nil {
+			return publicationCandidate{}, fmt.Errorf("encode LLMGatewayConfig YAML: %w", encodeErr)
+		}
+		resource := ConfigurationResource{
+			Ref:  ConfigurationRef{Kind: request.Kind, Name: selector.ID, Version: selector.Version, Digest: gateway.Ref.Digest},
+			Body: llmGatewayResourceBody(gateway), Source: ConfigurationSourceManaged,
+		}
+		return publicationCandidate{
+			selector: selector, resource: resource, gateway: &gateway, canonicalYAML: encoded,
+			requestDigest: gateway.Ref.Digest, subtree: "llm-gateways",
+		}, nil
+
+	case ConfigurationAgentTemplates:
+		return publicationCandidate{}, fmt.Errorf("%w: %s is read-only", ErrInvalidPublication, request.Kind)
+	default:
+		return publicationCandidate{}, ErrInvalidConfigurationKind
+	}
+}
+
+func validatePublicationKey(value string) error {
+	if !contracts.ValidIdempotencyKey(value) {
+		return fmt.Errorf("%w: Idempotency-Key is not in the Idempotency-Key grammar", ErrInvalidPublication)
+	}
+	return nil
+}
+
+func (s *Snapshot) withPublication(candidate publicationCandidate) *Snapshot {
+	policies := s.policies
+	gateways := s.gateways
+	if candidate.policy != nil {
+		policies = clone.Map(s.policies)
+		policies[candidate.selector.String()] = candidate.policy.Clone()
+	}
+	if candidate.gateway != nil {
+		gateways = clone.Map(s.gateways)
+		gateways[candidate.selector.String()] = candidate.gateway.Clone()
+	}
+	sources := clone.Map(s.sources)
+	sources[configurationSourceKey(candidate.resource.Ref.Kind, candidate.selector.String())] = ConfigurationSourceManaged
+	return newSnapshot(
+		s.workflows, s.templates, policies, gateways, s.auditProfiles,
+		s.instructions, sources,
+	)
+}
+
+func snapshotsEqual(left, right *Snapshot) bool {
+	return left != nil && right != nil && reflect.DeepEqual(left, right)
+}
+
+func (m *Manager) writeDurableManifest(candidate publicationCandidate) error {
+	directoryPath := filepath.Join(m.managedRoot, candidate.subtree)
+	directoryFD, err := unix.Open(directoryPath, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return fmt.Errorf("open managed configuration subtree: %w", err)
+	}
+	defer unix.Close(directoryFD)
+
+	temporaryName, err := randomid.New(".contractor-publish-")
+	if err != nil {
+		return fmt.Errorf("generate publication temporary name: %w", err)
+	}
+	temporaryName += ".tmp"
+	finalName := candidate.selector.ID + "@" + candidate.selector.Version + ".yaml"
+	temporaryFD, err := unix.Openat(
+		directoryFD,
+		temporaryName,
+		unix.O_WRONLY|unix.O_CREAT|unix.O_EXCL|unix.O_NOFOLLOW|unix.O_CLOEXEC,
+		managedManifestMode,
+	)
+	if err != nil {
+		return fmt.Errorf("create publication temporary file: %w", err)
+	}
+	temporary := os.NewFile(uintptr(temporaryFD), temporaryName)
+	cleanup := true
+	defer func() {
+		if temporary != nil {
+			_ = temporary.Close()
+		}
+		if cleanup {
+			_ = unix.Unlinkat(directoryFD, temporaryName, 0)
+		}
+	}()
+	if _, err := temporary.Write(candidate.canonicalYAML); err != nil {
+		return fmt.Errorf("write publication temporary file: %w", err)
+	}
+	if err := temporary.Sync(); err != nil {
+		return fmt.Errorf("flush publication temporary file: %w", err)
+	}
+	if err := temporary.Close(); err != nil {
+		temporary = nil
+		return fmt.Errorf("close publication temporary file: %w", err)
+	}
+	temporary = nil
+	// Link the complete, flushed inode into place without replacing any existing
+	// entry. Both names use the same directory descriptor, and Linkat is available
+	// on Linux and macOS. A crash before unlink leaves a .tmp name ignored by LoadUnion.
+	if err := unix.Linkat(directoryFD, temporaryName, directoryFD, finalName, 0); err != nil {
+		if errors.Is(err, unix.EEXIST) {
+			return fmt.Errorf("%w: %s already exists", ErrPublicationConflict, candidate.selector)
+		}
+		return fmt.Errorf("atomically publish managed manifest: %w", err)
+	}
+	if err := unix.Unlinkat(directoryFD, temporaryName, 0); err != nil {
+		return fmt.Errorf("remove publication temporary file: %w", err)
+	}
+	cleanup = false
+	if err := unix.Fsync(directoryFD); err != nil {
+		return fmt.Errorf("flush managed configuration directory: %w", err)
+	}
+	return nil
+}
+
+func (m *Manager) rememberPublication(key, requestDigest string) {
+	m.idempotency[key] = idempotentPublication{requestDigest: requestDigest}
+}
+
+func requireStrictRoot(path string, create bool) (string, error) {
+	return requireStrictRootWithMissingSubtrees(path, create, false)
+}
+
+func requireStrictRootWithMissingSubtrees(path string, create, allowMissingSubtrees bool) (string, error) {
+	if strings.TrimSpace(path) == "" {
+		return "", fmt.Errorf("path is required")
+	}
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Lstat(absolute)
+	if errors.Is(err, os.ErrNotExist) && create {
+		if err := os.MkdirAll(absolute, managedDirectoryMode); err != nil {
+			return "", err
+		}
+		info, err = os.Lstat(absolute)
+	}
+	if err != nil {
+		return "", err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return "", fmt.Errorf("root must be a real directory, not a symlink")
+	}
+	resolvedPath, err := filepath.EvalSymlinks(absolute)
+	if err != nil {
+		return "", err
+	}
+	absolute = resolvedPath
+	for _, subtree := range configurationSubtrees {
+		child := filepath.Join(absolute, subtree)
+		childInfo, childErr := os.Lstat(child)
+		if errors.Is(childErr, os.ErrNotExist) && create {
+			childErr = os.Mkdir(child, managedDirectoryMode)
+			if childErr == nil || errors.Is(childErr, os.ErrExist) {
+				// Another initializer may have created this subtree after Lstat.
+				// Recheck it rather than trusting what now occupies the path.
+				childInfo, childErr = os.Lstat(child)
+			}
+		}
+		if errors.Is(childErr, os.ErrNotExist) && allowMissingSubtrees {
+			continue
+		}
+		if childErr != nil {
+			return "", fmt.Errorf("configuration subtree %s: %w", subtree, childErr)
+		}
+		if childInfo.Mode()&os.ModeSymlink != 0 || !childInfo.IsDir() {
+			return "", fmt.Errorf("configuration subtree %s must be a real directory", subtree)
+		}
+	}
+	return absolute, nil
+}
+
+func rootsOverlap(left, right string) bool {
+	leftRelative, leftErr := filepath.Rel(left, right)
+	rightRelative, rightErr := filepath.Rel(right, left)
+	return leftErr == nil && (leftRelative == "." || leftRelative != ".." && !strings.HasPrefix(leftRelative, ".."+string(filepath.Separator))) ||
+		rightErr == nil && (rightRelative == "." || rightRelative != ".." && !strings.HasPrefix(rightRelative, ".."+string(filepath.Separator)))
+}

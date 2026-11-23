@@ -1,0 +1,173 @@
+schema_version: '1.0'
+id: V407-024
+title: Align OpenAPI authoring document bounds with downstream scan preparation
+milestone: server-runtime-review-2026-10
+epic: api-contracts
+kind: defect
+introduced_by: V2-003
+priority: P1
+status: completed
+implementation_commit: 6d0467c001c01f64bb0494f427f9d3bc3fdd47b0
+depends_on: []
+languages:
+- go
+- python
+goal: OpenAPI authoring and scan preparation apply the same document byte, depth and node-count bounds,
+  with shared boundary fixtures and explicit owning specification.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/platform/limits.md
+  severity: high
+  finding: runtime/src/contractor_runtime/toolsets/openapi/tools.py:50-52,1150-1218 accepts up to 4 MiB,
+    depth 128 and 100000 value nodes. internal/scanplan/types.go:7-10 and document.go:173-175 use 2 MiB,
+    depth 64 and 100000 nodes including member names. A 3145826-byte OpenAPI document was accepted by
+    the Runtime parser but rejected by Server parseDocument as source_limit_exceeded. The probe did not
+    run the external vacuum validator. Scanner bounds already exist as LIM-SCN-39,41,42; the authoring
+    tool does not share their boundary fixtures.
+  siblings: OpenAPI document-bound consumers in Runtime authoring, Server scan preparation and Audit inventory
+    generation; docs/spec/platform/limits.md and make test-wire-cross-language. Preserve the existing
+    TestBundledCWEClassificationMatchesRuntime equality gate; do not add a duplicate gate.
+  validation: The 16 KiB Worker summary limit is already documented by LIM-AWC-2 and AWC-R60; comparing
+    it to the generic 64 KiB domain-string limit is not evidence of drift. TestBundledCWEClassificationMatchesRuntime
+    in internal/auditimport/standard_refs_test.go:82-92 already checks byte equality. Finding-ID regex
+    duplication and the redundant Interactsh admission check are separate maintenance candidates, not
+    demonstrated value drift. The SQL placement grammar from V405-002 is absent on dc7012e8 main; it must
+    be checked when that change lands, not treated as an existing main defect or deleted as a shortcut.
+plan:
+- Reference the existing scanner document bounds from the OpenAPI authoring contract and use the same
+  UTF-8 byte/depth/node definitions, including member names. Preserve Server bounds and the distinct semantics
+  of authoring validity versus scan readiness.
+- Add compact shared generated-at-test-time boundary cases for bytes, depth, nodes, keys and values; do
+  not check in multi-megabyte fixture payloads. Cover JSON and YAML with equivalent structures.
+- Enforce these bounds in load/mutation/serialization and validation entry points before external validator
+  execution; retain each boundary's established safe error vocabulary rather than inventing identical
+  cross-protocol code strings.
+- Wire both language consumers into test-wire-cross-language and retain the existing summary and CWE tests
+  unchanged.
+decisions:
+- >-
+  Server scan preparation stays the single definition (LIM-SCN-39/41/42, now stated by SCN-R253):
+  UTF-8 bytes of the stored document, depth with the top-level value at depth 1 and every member name,
+  member value and array element one deeper, and nodes counting every value and every member name.
+  openapi@1 adopts it (2 MiB, 64, 100,000 nodes with keys). Rejected alternatives: raising Server to
+  4 MiB/128 (scope.out: Server limits unchanged) and keeping value-only node counting in the Runtime
+  (an authored document could still fail preparation). api/testdata/openapi-document-bounds.json is the
+  shared definition of the verdicts; its sha256 values pin the Go and Python generators to identical
+  bytes. Reopen only together with a deliberate change of the LIM-SCN entries.
+- >-
+  Error vocabulary stays local: internal/scanplan keeps PreparationError source_limit_exceeded; openapi@1
+  keeps its non-retryable tool_input_invalid ToolInputError, with one message per bound (2 MiB domain
+  limit, maximum nesting depth, node limit). "collection item limit" became "node limit" because the
+  count now includes member names.
+- >-
+  Enforcement points in openapi@1: the seed read limit and _parse_document byte check; a PyYAML event
+  check of anchors, depth and nodes that stops at the first offending event, before the recursive
+  composer runs (this replaces the RecursionError fallback); _validate_json_tree on the parsed tree, on
+  every mutation result and on fragments; the rendered-YAML byte check on every write and read; and
+  validate_openapi checks bytes and the tree before Vacuum, reporting only structure errors beside
+  Vacuum's findings.
+- >-
+  Siblings. openapi-scans@1 inventory, PrepareOpenAPIScanTask and the scan Planner input read use the
+  same scanplan constants and parseDocument, so they are covered. openapi-operations@1
+  (auditdomain.parseJSONOrYAML: 8 MiB LIM-AUD-14, depth 64 LIM-AUD-17 with the same depth convention,
+  250,000 value nodes) encloses these bounds, so every document within LIM-SCN-39/41/42 also fits it
+  (LIM-R6); no change.
+- >-
+  Open residuals outside this task's byte, depth and node bounds; the integrator files them as
+  follow-up tasks. (a) openapi-operations@1 caps every string and member name at 64 KiB
+  (internal/auditdomain/canonical.go MaximumStringBytes), while openapi@1 and internal/scanplan accept
+  longer strings, so an authored document with a longer string passes authoring and scan preparation
+  but fails that inventory (review Q4). (b) YAML 1.1/1.2 interop: openapi@1 parses and dumps with
+  PyYAML (YAML 1.1) and scanplan reads with go-yaml v4 (YAML 1.2). openapi@1 writes the strings 0o17
+  and 1e3 as plain scalars, which scanplan reads as the numbers 15 and 1000, or rejects as
+  invalid_document when 0o17 is a mapping key; an application/yaml seed with a merge key such as
+  `<<: {a: 1}` is accepted and merged by openapi@1 while scanplan rejects the same bytes as
+  invalid_document (!!merge key). Both were confirmed on 6d0467c0 and predate this task.
+- >-
+  Validation dispositions confirmed on ac982d28: the 16 KiB Worker summary (LIM-AWC-2) and the
+  TestBundledCWEClassificationMatchesRuntime byte-equality gate are unchanged and pass; finding-ID regex
+  and Interactsh admission are untouched. The V405-002 SQL placement grammar has landed since dc7012e8
+  (contractor_valid_placement_labels in migration 000032); TestSharedPostgresPlacementLabels already
+  holds it to api/testdata/v1alpha1/placement-label-cases.json and passes in make
+  test-wire-cross-language with the database configured, so no change.
+scope:
+  in:
+  - OpenAPI authoring/scan document-bound agreement, owning spec references, shared fixtures and precise
+    local error mapping.
+  out:
+  - Changing Server limits, equating authoring validation with full scan readiness, changing summary bounds,
+    adding another CWE equality gate, unrelated finding-ID/Interactsh cleanup, or removing SQL placement
+    validation.
+acceptance_criteria:
+- id: A1
+  text: Shared tests give identical accept/reject verdicts at and around 2 MiB, depth 64 and 100000 nodes,
+    with keys counted, for both JSON and YAML.
+- id: A2
+  text: The Runtime rejects the reproduced 3 MiB and over-depth inputs before vacuum; accepted documents
+    still receive their existing semantic validation, and errors remain bounded and use the correct local
+    contract.
+- id: A3
+  text: The existing summary 16 KiB and CWE byte-equality tests remain valid; no unrelated grammar or
+    placement behavior changes are introduced.
+- id: A4
+  text: test-wire-cross-language runs both new boundary consumers, and the byte/depth/key-count regressions
+    fail on the original Runtime implementation.
+tests:
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A4
+- command: cd runtime && uv run --locked pytest -q tests/test_openapi_toolset.py tests/test_audit_completion_contracts.py
+    tests/test_security_findings_toolset.py
+  covers:
+  - A1
+  - A2
+  - A3
+- command: go test -count=1 ./internal/scanplan/... ./internal/auditimport/...
+  covers:
+  - A1
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A3
+  - A4
+verification:
+  date: '2026-10-23'
+  revision: 6d0467c001c01f64bb0494f427f9d3bc3fdd47b0
+  environment: >-
+    Worktree branch claude/rv-r2 on base ac982d28, macOS arm64, Go 1.26.9 (GOTOOLCHAIN=local), Python
+    3.13 with the locked Runtime venv, Node 24.20, local PostgreSQL 17.11 database contractor_test_r2
+    (CONTRACTOR_TEST_DATABASE_URL set).
+  database_tests_configured: true
+  results:
+  - 'make test-wire-cross-language: passed (exit 0); the shared fixture gate ran 232 Go and 185 Python shared
+    tests over 250 fixtures, including TestSharedOpenAPIDocumentBoundsMatchRuntimeAuthoring (internal/scanplan)
+    and test_shared_openapi_document_bounds_match_scan_preparation, with api/testdata/openapi-document-bounds.json
+    read by both declared sides (A1, A4).'
+  - 'cd runtime && uv run --locked pytest -q tests/test_openapi_toolset.py tests/test_audit_completion_contracts.py
+    tests/test_security_findings_toolset.py: 127 passed (A1, A2, A3).'
+  - 'go test -count=1 ./internal/scanplan/... ./internal/auditimport/...: both ok; TestBundledCWEClassificationMatchesRuntime
+    passes unchanged (A3).'
+  - 'make lint: passed after make docs-dependencies regenerated docs/spec/audit-workflow-dependencies.html,
+    whose input fingerprint covers the edited spec, and make tasks-backlog.'
+  - 'A1: all 26 generated documents (13 cases, JSON and YAML) give identical verdicts in Go parseDocument
+    and Runtime load_openapi: 2,097,152 bytes accepted and 2,097,153 and 3,145,826 rejected (also with a
+    two-byte UTF-8 fill), depth 64 accepted and 65 rejected for nested mappings and arrays, 100,000 nodes
+    accepted and 100,001 rejected for values and for member names. The Go side also checks the declared
+    node count and depth of every accepted document.'
+  - 'A2: test_document_beyond_the_bounds_is_rejected_before_vacuum (3,145,826 bytes, depth 65, 50,000 members)
+    rejects load with tool_input_invalid, writes nothing and never awaits Vacuum;
+    test_validation_checks_the_bounds_before_vacuum_and_keeps_semantic_checks shows an in-bounds document
+    still gets its provenance error beside one Vacuum run, and a document beyond any bound fails before
+    Vacuum; test_mutation_beyond_the_byte_bound_preserves_the_published_document covers the write bound.'
+  - 'A4: the shared cases run through the base ac982d28 Runtime (temporary worktree, same generator and load
+    path) accepted all 14 over-limit documents: bytes, multibyte bytes, mapping and array depth, value and
+    member-name node counts; the fixed Runtime gives 0 mismatches.'
+  - 'make test-runtime: 4293 passed, 39 skipped, 106 failed. The failures are the macOS-only podman (96),
+    tool_process (2) and trailmark_child (2) set named in the brief, plus test_code_analysis_graph
+    encoded-ceiling, the 100 ms event-loop-gap test, test_local_direct_faults[socket] and three projectfs
+    local tests, all of which fail identically on base ac982d28 in this environment; no OpenAPI test failed.'

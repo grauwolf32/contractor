@@ -1,0 +1,48 @@
+{
+  "task": "V397-019",
+  "date": "2026-10-30",
+  "branch": "codex/sarif-export",
+  "rendererVersion": "1.1.1",
+  "checks": [
+    {
+      "command": "go test -count=1 ./internal/findinganalysis ./internal/findingexport/...",
+      "outcome": "passed",
+      "log": "/private/tmp/sarif-v397-019-unit-final.log"
+    },
+    {
+      "command": "go test -tags=integration -p=2 -count=1 -timeout=20m ./internal/auditservice ./internal/findingintake ./internal/httpapi/public ./internal/publicclient/... ./internal/cli",
+      "outcome": "passed",
+      "postgres": "dedicated disposable Go database",
+      "log": "/private/tmp/sarif-v397-019-integration.log"
+    },
+    {
+      "command": "make test-ui-stack-operations",
+      "outcome": "passed",
+      "postgres": "dedicated disposable browser database",
+      "browserCases": 93,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0,
+      "seconds": 156.545,
+      "log": "/private/tmp/sarif-v397-019-browser-final.log"
+    },
+    {
+      "command": "make lint",
+      "outcome": "passed",
+      "log": "/private/tmp/sarif-v397-019-lint-final.log"
+    }
+  ],
+  "beforeFix": {
+    "command": "go test -count=1 ./internal/findingexport/sarif -run ^TestRenderCodeGoldensAndNativeClaims$",
+    "outcome": "failed as expected on both code goldens",
+    "log": "/private/tmp/sarif-v397-019-before.log"
+  },
+  "realStoreRegression": {
+    "command": "go test -tags=integration -count=1 ./internal/auditservice -run ^TestFindingExportRetainsResolvedCodeAndSafeHTTPAfterSourceDeletion$",
+    "outcome": "passed",
+    "log": "/private/tmp/sarif-v397-019-postgres-regression.log",
+    "proves": "After source Run deletion, the exact CWE result taxonomy survives with verified code and safe HTTP; no unsupported driver declaration or borrowed other-Audit review appears."
+  },
+  "boundary": "SARIF Errata 01 section 3.19.26 ties optional supportedTaxonomies to rule relationships. Result-only producer tuples do not supply a versioned rule-wide mapping. Revisit only when such a native mapping is explicitly defined.",
+  "delivery": "Not merged into main."
+}

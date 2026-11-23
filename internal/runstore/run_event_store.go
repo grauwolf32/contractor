@@ -1,0 +1,558 @@
+package runstore
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+	"github.com/grauwolf32/contractor/internal/stageresult"
+	"github.com/jackc/pgx/v5"
+)
+
+const (
+	// maxRunEventDataBytes is shared by two 2 MiB bounds, each enforced
+	// authoritatively by a PostgreSQL CHECK on octet_length(column::text).
+	// For Run event data (LIM-API-25) that is workflow_run_events_data_check,
+	// the measure the page budget counts. The check at append is a pre-check
+	// on the submitted JSON bytes: jsonb re-serialises the value, adding a
+	// space after every ':' and ',', so data that passes it can still fail
+	// the CHECK, which rejects the whole append; the Planner writers return
+	// that rejection as ErrInvalid, like the pre-check (PER-R13), and
+	// lifecycle data, whose closed schema holds only bounded identifiers,
+	// cannot reach it. The check at read counts
+	// the stored text. The constant also pre-checks the submitted Planner
+	// session state in StartPlanner and AppendPlannerEvent, which the
+	// planner_session_state_size CHECK bounds in storage (LIM-PLN-9).
+	maxRunEventDataBytes = 2 * 1024 * 1024
+	// maxRunEventPageDataBytes is the budget of persisted data one
+	// ListRunEvents page returns (LIM-API-24), counted as the octet length of
+	// each stored data text. It holds at least four maximum-sized events, so
+	// any committed event fits a fresh page. It bounds the event data a read
+	// transfers, not the Server's memory or a WebSocket frame.
+	maxRunEventPageDataBytes = 8 * 1024 * 1024
+	// maxRunEventPageEvents bounds the events one ListRunEvents page may
+	// request.
+	maxRunEventPageEvents              = 1000
+	maxRunEventTokenBytes              = 128
+	maxRunEventSubtaskObjectiveBytes   = 8 * 1024
+	maxRunEventSubtaskInstructionBytes = 32 * 1024
+	maxRunEventFunctions               = 32
+)
+
+var validRunEventKinds = map[RunEventKind]bool{
+	RunEventPlannerStarted:           true,
+	RunEventPlannerRequestRecorded:   true,
+	RunEventPlannerActivity:          true,
+	RunEventPlannerPlanChanged:       true,
+	RunEventPlannerCurrentChanged:    true,
+	RunEventPlannerDispatchSelected:  true,
+	RunEventPlannerDispatchStarted:   true,
+	RunEventPlannerDispatchCompleted: true,
+	RunEventPlannerFinishRequested:   true,
+	RunEventPlannerCompleted:         true,
+	RunEventPlannerFailed:            true,
+	RunEventLifecycleChanged:         true,
+}
+
+func validateRunEventAppend(value RunEventAppend) error {
+	for field, current := range map[string]string{
+		"Run event ID": value.EventID, "Run event schema version": value.EventSchemaVersion,
+	} {
+		if err := validateOpaque(field, current); err != nil {
+			return err
+		}
+	}
+	if !validRunEventKinds[value.Kind] {
+		return invalidf("unknown WorkflowRun event kind %q", value.Kind)
+	}
+	if value.EventSchemaVersion != contracts.APIVersion {
+		return invalidf("unsupported WorkflowRun event schema version %q", value.EventSchemaVersion)
+	}
+	if len(value.Data) > maxRunEventDataBytes {
+		return invalidf("WorkflowRun event data exceeds its bounded contract")
+	}
+	if value.Kind == RunEventLifecycleChanged {
+		data, err := decodeLifecycleRunEventData(value.Data)
+		if err != nil {
+			return err
+		}
+		return validateLifecycleRunEventData(data)
+	}
+	data, err := decodePlannerRunEventData(value.Data)
+	if err != nil {
+		return err
+	}
+	return validatePlannerRunEventData(value.Kind, data)
+}
+
+type lifecycleRunEventData struct {
+	RunID            string `json:"runId"`
+	Resource         string `json:"resource"`
+	StageExecutionID string `json:"stageExecutionId,omitempty"`
+	State            string `json:"state"`
+}
+
+func decodeLifecycleRunEventData(data json.RawMessage) (lifecycleRunEventData, error) {
+	if len(data) == 0 || len(data) > maxRunEventDataBytes {
+		return lifecycleRunEventData{}, invalidf("WorkflowRun lifecycle event data exceeds its bounded contract")
+	}
+	var result lifecycleRunEventData
+	if err := strictjson.Decode(data, &result); errors.Is(err, strictjson.ErrTrailingData) {
+		return lifecycleRunEventData{}, invalidf("WorkflowRun lifecycle event data contains trailing JSON")
+	} else if err != nil {
+		return lifecycleRunEventData{}, invalidf("WorkflowRun lifecycle event data has an invalid closed schema: %v", err)
+	}
+	return result, nil
+}
+
+func validateLifecycleRunEventData(data lifecycleRunEventData) error {
+	if !contracts.ValidResourceID(data.RunID) || !validRunEventToken(data.State) {
+		return invalidf("WorkflowRun lifecycle event identity or state is invalid")
+	}
+	switch data.Resource {
+	case "run":
+		if data.StageExecutionID != "" {
+			return invalidf("WorkflowRun lifecycle event has an unexpected StageExecution identity")
+		}
+	case "stageExecution":
+		if !contracts.ValidResourceID(data.StageExecutionID) {
+			return invalidf("StageExecution lifecycle event identity is invalid")
+		}
+	default:
+		return invalidf("WorkflowRun lifecycle event resource is invalid")
+	}
+	return nil
+}
+
+func validatePlannerRunEventIdentity(
+	value RunEventAppend,
+	stageExecutionID string,
+	sessionID string,
+	invocationID string,
+) error {
+	data, err := decodePlannerRunEventData(value.Data)
+	if err != nil {
+		return err
+	}
+	if data.StageExecutionID != stageExecutionID || data.SessionID != sessionID ||
+		data.InvocationID != invocationID {
+		return invalidf("WorkflowRun Planner event identity differs from its durable session")
+	}
+	return nil
+}
+
+type plannerRunEventData struct {
+	StageExecutionID string                    `json:"stageExecutionId"`
+	SessionID        string                    `json:"sessionId"`
+	InvocationID     string                    `json:"invocationId"`
+	Plan             *plannerRunPlanProjection `json:"plan,omitempty"`
+	PlanRevision     *uint64                   `json:"planRevision,omitempty"`
+	SubtaskID        string                    `json:"subtaskId,omitempty"`
+	CallID           string                    `json:"callId,omitempty"`
+	WorkerName       string                    `json:"workerName,omitempty"`
+	Outcome          string                    `json:"outcome,omitempty"`
+	Code             string                    `json:"code,omitempty"`
+	Activity         *plannerRunActivity       `json:"activity,omitempty"`
+}
+
+type plannerRunPlanProjection struct {
+	Revision         uint64                    `json:"revision"`
+	Subtasks         []plannerRunSubtask       `json:"subtasks"`
+	CurrentSubtaskID string                    `json:"currentSubtaskId,omitempty"`
+	ActiveDispatch   *plannerRunActiveDispatch `json:"activeDispatch,omitempty"`
+}
+
+type plannerRunSubtask struct {
+	ID           string `json:"id"`
+	Objective    string `json:"objective"`
+	Instructions string `json:"instructions"`
+	Status       string `json:"status"`
+}
+
+type plannerRunActiveDispatch struct {
+	CallID     string `json:"callId"`
+	SubtaskID  string `json:"subtaskId"`
+	WorkerName string `json:"workerName"`
+}
+
+type plannerRunActivity struct {
+	Kind              string   `json:"kind"`
+	Author            string   `json:"author"`
+	FunctionCalls     []string `json:"functionCalls"`
+	FunctionResults   []string `json:"functionResults"`
+	InputTokens       int64    `json:"inputTokens,omitempty"`
+	OutputTokens      int64    `json:"outputTokens,omitempty"`
+	SkipSummarization bool     `json:"skipSummarization,omitempty"`
+	Escalate          bool     `json:"escalate,omitempty"`
+	Truncated         bool     `json:"truncated,omitempty"`
+}
+
+func decodePlannerRunEventData(data json.RawMessage) (plannerRunEventData, error) {
+	if len(data) == 0 || len(data) > maxRunEventDataBytes {
+		return plannerRunEventData{}, invalidf("WorkflowRun event data exceeds its bounded contract")
+	}
+	var result plannerRunEventData
+	if err := strictjson.Decode(data, &result); errors.Is(err, strictjson.ErrTrailingData) {
+		return plannerRunEventData{}, invalidf("WorkflowRun event data contains trailing JSON")
+	} else if err != nil {
+		return plannerRunEventData{}, invalidf("WorkflowRun event data has an invalid closed schema: %v", err)
+	}
+	return result, nil
+}
+
+func validatePlannerRunEventData(kind RunEventKind, data plannerRunEventData) error {
+	for name, value := range map[string]string{
+		"stageExecutionId": data.StageExecutionID,
+		"sessionId":        data.SessionID,
+		"invocationId":     data.InvocationID,
+	} {
+		if !contracts.ValidResourceID(value) {
+			return invalidf("WorkflowRun Planner event %s is invalid", name)
+		}
+	}
+	noDetails := func() bool {
+		return data.Plan == nil && data.PlanRevision == nil && data.SubtaskID == "" &&
+			data.CallID == "" && data.WorkerName == "" && data.Outcome == "" &&
+			data.Code == "" && data.Activity == nil
+	}
+	noPlanOrActivity := func() bool { return data.Plan == nil && data.Activity == nil }
+	switch kind {
+	case RunEventPlannerStarted, RunEventPlannerRequestRecorded:
+		if !noDetails() {
+			return invalidf("WorkflowRun %s event contains unexpected fields", kind)
+		}
+	case RunEventPlannerActivity:
+		if data.Activity == nil || data.Plan != nil || data.PlanRevision != nil ||
+			data.SubtaskID != "" || data.CallID != "" || data.WorkerName != "" ||
+			data.Outcome != "" || data.Code != "" {
+			return invalidf("WorkflowRun Planner activity event has invalid fields")
+		}
+		if err := validatePlannerRunActivity(*data.Activity); err != nil {
+			return err
+		}
+	case RunEventPlannerPlanChanged:
+		if data.Plan == nil || data.PlanRevision != nil || data.SubtaskID != "" ||
+			data.CallID != "" || data.WorkerName != "" || data.Outcome != "" ||
+			data.Code != "" || data.Activity != nil {
+			return invalidf("WorkflowRun Planner plan-changed event has invalid fields")
+		}
+		if err := validatePlannerRunPlan(*data.Plan); err != nil {
+			return err
+		}
+		if data.Plan.ActiveDispatch != nil {
+			return invalidf("WorkflowRun Planner plan-changed event cannot contain an active dispatch")
+		}
+	case RunEventPlannerCurrentChanged:
+		if !noPlanOrActivity() || data.PlanRevision == nil || *data.PlanRevision == 0 ||
+			(data.SubtaskID != "" && !ValidPlannerSubtaskID(data.SubtaskID)) || data.CallID != "" ||
+			data.WorkerName != "" || data.Outcome != "" || data.Code != "" {
+			return invalidf("WorkflowRun Planner current-changed event has invalid fields")
+		}
+	case RunEventPlannerDispatchSelected:
+		if !noPlanOrActivity() || data.PlanRevision == nil || *data.PlanRevision == 0 ||
+			!ValidPlannerSubtaskID(data.SubtaskID) || !ValidPlannerDispatchCallID(data.CallID) ||
+			!contracts.ValidName(data.WorkerName) || data.Outcome != "" || data.Code != "" {
+			return invalidf("WorkflowRun Planner dispatch-selected event has invalid fields")
+		}
+	case RunEventPlannerDispatchStarted:
+		if data.Plan == nil || data.PlanRevision != nil || data.Activity != nil ||
+			!ValidPlannerSubtaskID(data.SubtaskID) || !ValidPlannerDispatchCallID(data.CallID) ||
+			!contracts.ValidName(data.WorkerName) || data.Outcome != "" || data.Code != "" {
+			return invalidf("WorkflowRun Planner dispatch-started event has invalid fields")
+		}
+		if err := validatePlannerRunPlan(*data.Plan); err != nil {
+			return err
+		}
+		active := data.Plan.ActiveDispatch
+		if active == nil || active.SubtaskID != data.SubtaskID || active.CallID != data.CallID ||
+			active.WorkerName != data.WorkerName {
+			return invalidf("WorkflowRun Planner dispatch-started details differ from its plan")
+		}
+	case RunEventPlannerDispatchCompleted:
+		if data.Plan == nil || data.PlanRevision != nil || data.Activity != nil ||
+			!ValidPlannerSubtaskID(data.SubtaskID) || !ValidPlannerDispatchCallID(data.CallID) ||
+			!contracts.ValidName(data.WorkerName) ||
+			(data.Outcome != "succeeded" && data.Outcome != "failed") || data.Code != "" {
+			return invalidf("WorkflowRun Planner dispatch-completed event has invalid fields")
+		}
+		if err := validatePlannerRunPlan(*data.Plan); err != nil {
+			return err
+		}
+		if data.Plan.ActiveDispatch != nil || !plannerRunSubtaskHasStatus(*data.Plan, data.SubtaskID, data.Outcome) {
+			return invalidf("WorkflowRun Planner dispatch-completed details differ from its plan")
+		}
+	case RunEventPlannerFinishRequested:
+		if !noPlanOrActivity() || data.PlanRevision == nil ||
+			(*data.PlanRevision == 0 && data.Outcome != string(stageresult.StageFailed)) || data.SubtaskID != "" ||
+			data.CallID != "" || data.WorkerName != "" || data.Code != "" ||
+			(data.Outcome != string(stageresult.StageSucceeded) && data.Outcome != string(stageresult.StageFailed)) {
+			return invalidf("WorkflowRun Planner finish-requested event has invalid fields")
+		}
+	case RunEventPlannerCompleted:
+		if data.Plan != nil || data.PlanRevision != nil || data.SubtaskID != "" ||
+			data.CallID != "" || data.WorkerName != "" || data.Code != "" || data.Activity != nil ||
+			(data.Outcome != string(stageresult.StageSucceeded) && data.Outcome != string(stageresult.StageFailed)) {
+			return invalidf("WorkflowRun Planner completed event has invalid fields")
+		}
+	case RunEventPlannerFailed:
+		if data.Plan != nil || data.PlanRevision != nil || data.SubtaskID != "" ||
+			data.CallID != "" || data.WorkerName != "" || data.Activity != nil ||
+			data.Outcome != "failure" || !validRunEventToken(data.Code) {
+			return invalidf("WorkflowRun Planner failed event has invalid fields")
+		}
+	default:
+		return invalidf("unknown WorkflowRun event kind %q", kind)
+	}
+	return nil
+}
+
+func validatePlannerRunPlan(plan plannerRunPlanProjection) error {
+	if plan.Revision == 0 || len(plan.Subtasks) == 0 || len(plan.Subtasks) > contracts.MaxPlannerSubtasks {
+		return invalidf("WorkflowRun Planner plan revision or subtask count is invalid")
+	}
+	firstUnresolved := ""
+	running := 0
+	for index, subtask := range plan.Subtasks {
+		if subtask.ID != strconv.Itoa(index) || strings.TrimSpace(subtask.Objective) == "" ||
+			len(subtask.Objective) > maxRunEventSubtaskObjectiveBytes ||
+			strings.TrimSpace(subtask.Instructions) == "" ||
+			len(subtask.Instructions) > maxRunEventSubtaskInstructionBytes {
+			return invalidf("WorkflowRun Planner subtask is invalid")
+		}
+		switch subtask.Status {
+		case "pending", "succeeded", "failed":
+		case "running":
+			running++
+		default:
+			return invalidf("WorkflowRun Planner subtask status is invalid")
+		}
+		if firstUnresolved == "" && (subtask.Status == "pending" || subtask.Status == "running") {
+			firstUnresolved = subtask.ID
+		}
+	}
+	if plan.CurrentSubtaskID != firstUnresolved {
+		return invalidf("WorkflowRun Planner current subtask is invalid")
+	}
+	if plan.ActiveDispatch == nil {
+		if running != 0 {
+			return invalidf("WorkflowRun Planner running subtask has no active dispatch")
+		}
+		return nil
+	}
+	active := plan.ActiveDispatch
+	if running != 1 || active.SubtaskID != plan.CurrentSubtaskID ||
+		!ValidPlannerDispatchCallID(active.CallID) || !contracts.ValidName(active.WorkerName) ||
+		!plannerRunSubtaskHasStatus(plan, active.SubtaskID, "running") {
+		return invalidf("WorkflowRun Planner active dispatch is invalid")
+	}
+	return nil
+}
+
+func validatePlannerRunActivity(activity plannerRunActivity) error {
+	if activity.Kind != "adk_event" {
+		switch activity.Kind {
+		case "scan_owner_acquired", "scan_plan_initialized", "scan_job_started", "scan_job_finished":
+			if activity.Author != "scan_planner" || len(activity.FunctionCalls) != 0 || len(activity.FunctionResults) != 0 ||
+				activity.InputTokens != 0 || activity.OutputTokens != 0 || activity.SkipSummarization || activity.Escalate || activity.Truncated {
+				return invalidf("WorkflowRun scan activity contains unexpected fields")
+			}
+			return nil
+		default:
+			return invalidf("WorkflowRun Planner activity kind is invalid")
+		}
+	}
+	if activity.Kind != "adk_event" || activity.InputTokens < 0 || activity.OutputTokens < 0 {
+		return invalidf("WorkflowRun Planner activity counters are invalid")
+	}
+	switch activity.Author {
+	case "user", "streamline_planner", "router_planner", "other":
+	default:
+		return invalidf("WorkflowRun Planner activity author is invalid")
+	}
+	for _, values := range [][]string{activity.FunctionCalls, activity.FunctionResults} {
+		if len(values) > maxRunEventFunctions {
+			return invalidf("WorkflowRun Planner activity function list is too large")
+		}
+		for _, value := range values {
+			if !validRunEventToken(value) {
+				return invalidf("WorkflowRun Planner activity function name is invalid")
+			}
+		}
+	}
+	return nil
+}
+
+// ValidPlannerSubtaskID reports whether value identifies a Planner subtask: its
+// decimal position below the absolute plan limit, without a leading zero, as
+// the public PlannerSubtask id states. The Planner session applies it before
+// it records a fact, so no fact it accepts can fail its append.
+func ValidPlannerSubtaskID(value string) bool {
+	if value == "" || len(value) > len(strconv.Itoa(contracts.MaxPlannerSubtasks-1)) {
+		return false
+	}
+	position, err := strconv.Atoi(value)
+	return err == nil && position >= 0 && position < contracts.MaxPlannerSubtasks && strconv.Itoa(position) == value
+}
+
+// ValidPlannerDispatchCallID reports whether value is a Server-generated
+// Planner dispatch call ID: "dispatch-" and at least four digits, at most 64
+// bytes, as the public PlannerDispatch callId states.
+func ValidPlannerDispatchCallID(value string) bool {
+	if !strings.HasPrefix(value, "dispatch-") || len(value) > 64 {
+		return false
+	}
+	digits := strings.TrimPrefix(value, "dispatch-")
+	if len(digits) < 4 {
+		return false
+	}
+	for _, current := range digits {
+		if current < '0' || current > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// validRunEventToken applies the public SafeIdentifier grammar, the ResourceId
+// grammar of contracts.ValidResourceID, to a Run event state, code or function
+// name, which the store bounds more tightly.
+func validRunEventToken(value string) bool {
+	return len(value) <= maxRunEventTokenBytes && contracts.ValidResourceID(value)
+}
+
+func plannerRunSubtaskHasStatus(plan plannerRunPlanProjection, id, status string) bool {
+	for _, subtask := range plan.Subtasks {
+		if subtask.ID == id {
+			return subtask.Status == status
+		}
+	}
+	return false
+}
+
+func (s *PostgresStore) GetRunEventCursor(
+	ctx context.Context, runID string,
+) (WorkflowRunEventCursor, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return WorkflowRunEventCursor{}, err
+	}
+	var result WorkflowRunEventCursor
+	err := s.db.QueryRow(ctx, `
+SELECT run_event_generation, next_run_event_sequence - 1
+FROM workflow_runs
+WHERE run_id = $1`, runID).Scan(&result.Generation, &result.Sequence)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return WorkflowRunEventCursor{}, fmt.Errorf("get WorkflowRun event cursor %q: %w", runID, ErrNotFound)
+	}
+	if err != nil {
+		return WorkflowRunEventCursor{}, fmt.Errorf("get WorkflowRun event cursor %q: %w", runID, err)
+	}
+	return result, nil
+}
+
+// ListRunEvents reads the committed events of Run runID after afterSequence
+// in sequence order: at most limit events whose persisted data is together at
+// most maxRunEventPageDataBytes (API-R110). The page ends early when the next
+// event would exceed either bound, and More then reports that event without
+// transferring its data. Every returned event passes the append validation
+// again; an invalid stored event fails the whole read.
+func (s *PostgresStore) ListRunEvents(
+	ctx context.Context, runID string, afterSequence int64, limit int,
+) (WorkflowRunEventPage, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return WorkflowRunEventPage{}, err
+	}
+	if afterSequence < 0 || limit < 1 || limit > maxRunEventPageEvents {
+		return WorkflowRunEventPage{}, invalidf("WorkflowRun event cursor or limit is invalid")
+	}
+	rows, err := s.db.Query(ctx, listRunEventsSQL, runID, afterSequence, limit, maxRunEventPageDataBytes)
+	if err != nil {
+		return WorkflowRunEventPage{}, fmt.Errorf("list WorkflowRun events %q: %w", runID, err)
+	}
+	defer rows.Close()
+	page := WorkflowRunEventPage{Events: make([]WorkflowRunEvent, 0)}
+	last := afterSequence
+	for rows.Next() {
+		var event WorkflowRunEvent
+		var returned bool
+		var data []byte
+		if err := rows.Scan(
+			&event.RunID, &event.SequenceNumber, &event.EventID,
+			&event.EventSchemaVersion, &event.Kind, &event.OccurredAt, &returned, &data,
+		); err != nil {
+			return WorkflowRunEventPage{}, fmt.Errorf("scan WorkflowRun event %q: %w", runID, err)
+		}
+		// The look-ahead is the last walked row, and it never comes first:
+		// one valid event's data is below the page budget, so a first event
+		// that does not fit is invalid rather than a reason to skip it.
+		if page.More || event.SequenceNumber <= last || !returned && len(page.Events) == 0 {
+			return WorkflowRunEventPage{}, fmt.Errorf("persisted WorkflowRun event is invalid")
+		}
+		last = event.SequenceNumber
+		if !returned {
+			page.More = true
+			continue
+		}
+		event.Data = append(json.RawMessage(nil), data...)
+		if !validRunEventKinds[event.Kind] ||
+			validateRunEventAppend(RunEventAppend{
+				EventID: event.EventID, EventSchemaVersion: event.EventSchemaVersion,
+				Kind: event.Kind, Data: event.Data,
+			}) != nil {
+			return WorkflowRunEventPage{}, fmt.Errorf("persisted WorkflowRun event is invalid")
+		}
+		page.Events = append(page.Events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return WorkflowRunEventPage{}, fmt.Errorf("iterate WorkflowRun events %q: %w", runID, err)
+	}
+	return page, nil
+}
+
+// EncodePublicRunEventData returns the exact reduced payload admitted to the
+// public event protocol. It reconstructs typed integers and required empty
+// arrays without round-tripping through map[string]any, and adds the Planner
+// event discriminator that is intentionally not duplicated in durable data.
+func EncodePublicRunEventData(event WorkflowRunEvent) (json.RawMessage, error) {
+	if validateRunEventAppend(RunEventAppend{
+		EventID: event.EventID, EventSchemaVersion: event.EventSchemaVersion,
+		Kind: event.Kind, Data: event.Data,
+	}) != nil {
+		return nil, errors.New("WorkflowRun event is not safe for public delivery")
+	}
+	if event.Kind == RunEventLifecycleChanged {
+		data, err := decodeLifecycleRunEventData(event.Data)
+		if err != nil || data.RunID != event.RunID {
+			return nil, errors.New("decode public lifecycle event")
+		}
+		encoded, err := json.Marshal(data)
+		if err != nil {
+			return nil, errors.New("encode public lifecycle event")
+		}
+		return encoded, nil
+	}
+	data, err := decodePlannerRunEventData(event.Data)
+	if err != nil {
+		return nil, errors.New("decode public Planner event")
+	}
+	if data.Activity != nil {
+		if data.Activity.FunctionCalls == nil {
+			data.Activity.FunctionCalls = []string{}
+		}
+		if data.Activity.FunctionResults == nil {
+			data.Activity.FunctionResults = []string{}
+		}
+	}
+	encoded, err := json.Marshal(struct {
+		EventKind RunEventKind `json:"eventKind"`
+		plannerRunEventData
+	}{EventKind: event.Kind, plannerRunEventData: data})
+	if err != nil {
+		return nil, errors.New("encode public Planner event")
+	}
+	return encoded, nil
+}

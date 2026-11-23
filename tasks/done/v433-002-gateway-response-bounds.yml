@@ -1,0 +1,123 @@
+schema_version: "1.0"
+id: V433-002
+title: Bound Gateway response streaming and move JSON parsing off the event loop
+milestone: runtime-resource-bounds-2026-11
+epic: planner-worker
+kind: defect
+priority: P2
+status: completed
+depends_on: [V432-001]
+languages: [python, go, json, markdown]
+goal: A Gateway cannot make a Runtime buffer or synchronously parse an unbounded response, independently of model token accounting.
+context:
+  authority: >-
+    User request 2026-11-02: recheck the unbounded Gateway response finding and
+    create its fix task. The user requires streamed byte admission and bounded
+    JSON parsing, independently of Worker max_tokens.
+    User decision 2026-11-02: fix the CPU parsing P2s in the existing
+    codex/runtime-shutdown-deadline branch before merging it.
+  specification:
+    - docs/spec/execution/worker.md#WRK-R8
+    - docs/spec/execution/worker.md#WRK-R9
+    - docs/spec/execution/worker.md#WRK-R11
+    - docs/spec/execution/worker.md#WRK-R13
+    - docs/spec/platform/limits.md
+    - docs/spec/platform/failure-model.md
+  finding: >-
+    On main 57634940d40862fb638d4beea212e53a5107994a, llm/client.py:136 uses
+    client.send(request) without stream=True, buffering the entire response.
+    :159 calls response.json() synchronously. A streamed HTTPX reproduction
+    with max_tokens=1 consumed 4,194,347 response bytes and returned 4,194,304
+    text bytes. The 16-KiB error-classification check in llm/errors.py applies
+    only after buffering; token budgets act later in the Worker adapter.
+  origin: >-
+    git blame attributes the eager send and parsing to be33cebbf
+    (perf(runtime): reduce memory during worker execution, 2026-09-19).
+    That commit has no task file and no tracked task records it as an
+    implementation commit, so introduced_by cannot be identified reliably.
+    V42-001 is the earlier Gateway-adapter feature, not this HTTPX rewrite.
+  siblings: >-
+    Cover success and error status bodies, JSON error-signature classification,
+    direct and allocation-proxy clients, ordinary Worker/finalizer/summarizer/
+    compactor calls and recovery probes through GatewayClientHandle. Go Planner
+    requests already use gatewayrecovery.readResponse with a 4-MiB ceiling;
+    compare its rule but do not expand this Runtime fix into a Go client rewrite.
+    Reuse http_body.read_limited_body, as HTTP/Caido already do.
+  implementation_proposal: >-
+    Agent recommendation: use a named 4-MiB response ceiling for received and
+    decoded bytes, matching the existing Go Planner Gateway ceiling. Record
+    the chosen value and overflow classification in the owning spec and limits
+    registry before coding; this value is an engineering proposal, not a
+    previously stated user or ModelPolicy guarantee. Do not derive a byte
+    limit from max_tokens or add a speculative configuration surface.
+  decision: >-
+    Agent implementation decision within the authorized fix: select the
+    proposed 4-MiB received/decoded response ceiling, matching the existing
+    Go Planner client. Keep it fixed and test both consumers against one
+    shared fixture; there is no new configuration or public wire field.
+    Parsing and ADK response projection use joined threads. The simpler
+    alternative of offloading an unbounded response is rejected because it
+    retains the memory defect. Reopen the ceiling only with a concrete valid
+    configured-model response that cannot fit, updating all owners together.
+  boundary: >-
+    GatewayClientHandle owns raw response admission, response closure and
+    transport classification. Parse only admitted bytes through an owned
+    to_thread_until_done operation; Worker still owns usage/accounting and
+    semantic projection. Preserve retryability versus transport retry rules.
+scope:
+  in:
+    - Send requests in streamed mode and enforce received and decompressed byte limits before body accumulation, including unknown/chunked or dishonest Content-Length responses.
+    - Parse admitted JSON off the event loop, handling invalid encoding, malformed JSON and excessive nesting as content-free classified failures; parsing never sees an oversized body.
+    - Preserve bounded error-signature classification, status and Retry-After behavior, response closure, proxy ownership and recovery permit settlement on every outcome.
+    - Document the selected bound and permanent overflow outcome; add actual streamed success/error/compression and cancellation regressions at the real GatewayClientHandle and ADK adapter boundary.
+  out:
+    - Model changes, removal of the result finalizer, new response streaming to ADK, new public/wire fields, generic parser framework and changes to Gateway recovery authority.
+failure_outcomes:
+  success: An in-bound response retains existing ADK projection and usage behavior; the stream closes after admitted parsing.
+  permanent: Oversized or malformed/deep JSON is a content-free protocol failure with no blind transport retry; record how the existing Worker failure projection represents it.
+  retryable: Preserve existing status/signature/Retry-After classifications for admitted error bodies and existing physical-attempt bounds; a byte-limit violation cannot be masked as a connection failure.
+  ambiguous: Preserve request-delivery and recovery semantics for a response lost in flight; do not replay tools or claim that the provider did no work.
+  cancelled: Close the response and join any started JSON parsing before releasing client/allocation ownership; repeated cancellation cannot abandon the thread or recovery permit.
+  timeout: Reading, parsing, physical retries and permit settlement share existing request/invocation deadlines; do not add a second full budget.
+cardinality: One response per physical attempt, currently at most four transport attempts per logical call; bound both raw and decoded bytes and release attempt buffers before retries.
+acceptance_criteria:
+  - id: A1
+    given: A streamed success or error response exceeds the chosen ceiling with or without Content-Length, including a compressed expansion.
+    when: GatewayClientHandle reads it.
+    then: It stops under the received/decoded bounds, closes the stream, raises the documented content-free failure and does not parse the oversized body or retry it as a transport outage.
+  - id: A2
+    given: In-bound valid JSON, malformed/deep JSON or a blocked parse.
+    when: A direct/proxy Worker call or recovery probe completes, times out or receives repeated cancellation.
+    then: JSON parsing runs outside the event-loop thread; outcome, usage, recovery ownership and error precedence remain correct and no owned parse survives cleanup.
+  - id: A3
+    text: Add streamed boundary and overflow regressions that fail on current eager buffering, then pass the full Gateway client, classification, recovery, ADK conformance and HTTP-body suites; verify exact-boundary success and limit-plus-one rejection without a live Gateway.
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_gateway_client.py tests/test_gateway_response_bounds.py tests/test_gateway_error_classification.py tests/test_gateway_recovery.py tests/test_shared_gateway_recovery_participant.py tests/test_openai_gateway_llm.py tests/test_adk_gateway_conformance.py tests/test_http_proxy_adapter.py tests/test_http_body.py
+    covers: [A1, A2, A3]
+  - command: go test -count=1 ./internal/planner/streamline
+    covers: [A3]
+  - command: make test-wire-cross-language
+    covers: [A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification: >-
+  Required focused Runtime suites: 227 passed. The new streamed Gateway
+  cases cover exact byte admission, oversized success/error bodies, gzip and
+  deflate, missing/false Content-Length, malformed/deep JSON, thread identity,
+  repeated cancellation while parsing/projecting/closing and recovery permit
+  settlement. The actual pre-fix main client fails the overflow regression
+  because it feeds the oversized body to JSON parsing. The complete Go
+  streamline package passed. Cross-language gate passed against a disposable
+  local PostgreSQL database: 373 fixtures, 393 Go and 289 Python shared tests
+  (1592 Python cases). The test database was removed after verification.
+  Combined make lint passed with cached pinned toolchains, including all
+  four Runtime layer contracts. No live Gateway or deployment was used.
+implementation_commit: edb7d022fdacdd7b2b89adfd62ee8ba479e03033
+landing: Implemented on codex/runtime-shutdown-deadline; V433-006 records current-main integration, verification and the merge revision.
+integration_verification: >-
+  Combined Runtime selection on the P1/Gateway/findings branch: 5871 passed,
+  133 skipped, 2 deselected in 758.45 seconds. The two inherited macOS
+  exclusions remain V425-001 APFS normalization and V425-002 Trailmark
+  PATH_MAX, exactly as recorded by V433-005; they are not claimed fixed.
+  Full command and output: /tmp/runtime-v433-cpu-full.log. This run is
+  correctness evidence, not a performance comparison.

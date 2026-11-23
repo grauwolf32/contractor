@@ -1,0 +1,591 @@
+{
+  "vectors": [
+    {
+      "projectId": "project-a",
+      "algorithm": "contractor/producer-issue/v1",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "canonical": "[\"contractor/finding-group/v1\",\"project-a\",\"contractor/producer-issue/v1\",\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"]",
+      "groupKey": "a4402cbba3dc4bbf3a6991f221e2b4771984a130b759bafec2a9c9b13dfd97f0"
+    },
+    {
+      "projectId": "project-b",
+      "algorithm": "contractor/producer-issue/v1",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "canonical": "[\"contractor/finding-group/v1\",\"project-b\",\"contractor/producer-issue/v1\",\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"]",
+      "groupKey": "3f3183cb0448d9e2ed67ce4d783c85b52769cc7744c6a577a1c331257ba942da"
+    },
+    {
+      "projectId": "project-a",
+      "algorithm": "contractor/snapshot-issue-anchor/v1",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "canonical": "[\"contractor/finding-group/v1\",\"project-a\",\"contractor/snapshot-issue-anchor/v1\",\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"]",
+      "groupKey": "16a71d10c23b7c7fb239681825856620e3cd9b1298be91a625dbe6a751260e0f"
+    },
+    {
+      "projectId": "project-a",
+      "algorithm": "contractor/fact-evidence/v1",
+      "value": "5091e33ebae3810e6ee2c4d2101beec072f5041e23d09575a499b22b2d168679",
+      "canonical": "[\"contractor/finding-group/v1\",\"project-a\",\"contractor/fact-evidence/v1\",\"5091e33ebae3810e6ee2c4d2101beec072f5041e23d09575a499b22b2d168679\"]",
+      "groupKey": "2386c749dd7ef2f1a4074da8ef8fdda2fa6c8e9676a6e84d81a26cfbada3ed4d"
+    }
+  ],
+  "readPages": [
+    {
+      "name": "empty-work-progress",
+      "schema": "FindingCandidatesPage",
+      "valid": true,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "source": {
+          "auditId": "audit-a",
+          "findingId": "finding-a",
+          "receiptId": "receipt-a",
+          "firstReceiptId": "receipt-a",
+          "hintsAvailability": "unavailable",
+          "hintsReason": "not_recorded",
+          "familiesAvailable": false
+        },
+        "targetBasis": "immutable-first-receipt",
+        "items": [],
+        "rowsExamined": 897,
+        "workLimited": true,
+        "page": {
+          "hasMore": true,
+          "nextCursor": "cursor-a"
+        }
+      }
+    },
+    {
+      "name": "pair-context-without-project-fence",
+      "schema": "FindingComparisonPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "audit-pair",
+          "projectId": "project-a",
+          "auditIds": [
+            "audit-a",
+            "audit-b"
+          ]
+        },
+        "fence": {
+          "projectId": "project-a",
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            },
+            {
+              "auditId": "audit-b",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "leftAuditId": "audit-a",
+        "rightAuditId": "audit-b",
+        "limitations": [
+          "absence-is-not-remediation"
+        ],
+        "items": [],
+        "page": {
+          "hasMore": false
+        }
+      }
+    },
+    {
+      "name": "candidate-work-overflow",
+      "schema": "FindingCandidatesPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "source": {
+          "auditId": "audit-a",
+          "findingId": "finding-a",
+          "receiptId": "receipt-a",
+          "firstReceiptId": "receipt-a",
+          "hintsAvailability": "unavailable",
+          "hintsReason": "not_recorded",
+          "familiesAvailable": false
+        },
+        "targetBasis": "immutable-first-receipt",
+        "items": [],
+        "rowsExamined": 898,
+        "workLimited": true,
+        "page": {
+          "hasMore": true,
+          "nextCursor": "cursor-a"
+        }
+      }
+    },
+    {
+      "name": "continuation-cursor-required",
+      "schema": "FindingCandidatesPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "source": {
+          "auditId": "audit-a",
+          "findingId": "finding-a",
+          "receiptId": "receipt-a",
+          "firstReceiptId": "receipt-a",
+          "hintsAvailability": "unavailable",
+          "hintsReason": "not_recorded",
+          "familiesAvailable": false
+        },
+        "targetBasis": "immutable-first-receipt",
+        "items": [],
+        "rowsExamined": 897,
+        "workLimited": true,
+        "page": {
+          "hasMore": true
+        }
+      }
+    },
+    {
+      "name": "pair-requires-two-audits",
+      "schema": "FindingComparisonPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "audit-pair",
+          "projectId": "project-a",
+          "auditIds": [
+            "audit-a"
+          ]
+        },
+        "fence": {
+          "projectId": "project-a",
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            },
+            {
+              "auditId": "audit-b",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "leftAuditId": "audit-a",
+        "rightAuditId": "audit-b",
+        "limitations": [
+          "absence-is-not-remediation"
+        ],
+        "items": [],
+        "page": {
+          "hasMore": false
+        }
+      }
+    },
+    {
+      "name": "pair-requires-distinct-audits",
+      "schema": "FindingComparisonPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "audit-pair",
+          "projectId": "project-a",
+          "auditIds": [
+            "audit-a",
+            "audit-a"
+          ]
+        },
+        "fence": {
+          "projectId": "project-a",
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            },
+            {
+              "auditId": "audit-b",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "leftAuditId": "audit-a",
+        "rightAuditId": "audit-b",
+        "limitations": [
+          "absence-is-not-remediation"
+        ],
+        "items": [],
+        "page": {
+          "hasMore": false
+        }
+      }
+    },
+    {
+      "name": "cursor-bound",
+      "schema": "FindingCandidatesPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "source": {
+          "auditId": "audit-a",
+          "findingId": "finding-a",
+          "receiptId": "receipt-a",
+          "firstReceiptId": "receipt-a",
+          "hintsAvailability": "unavailable",
+          "hintsReason": "not_recorded",
+          "familiesAvailable": false
+        },
+        "targetBasis": "immutable-first-receipt",
+        "items": [],
+        "rowsExamined": 897,
+        "workLimited": true,
+        "page": {
+          "hasMore": true,
+          "nextCursor": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    },
+    {
+      "name": "candidate-page-bound",
+      "schema": "FindingCandidatesPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "source": {
+          "auditId": "audit-a",
+          "findingId": "finding-a",
+          "receiptId": "receipt-a",
+          "firstReceiptId": "receipt-a",
+          "hintsAvailability": "unavailable",
+          "hintsReason": "not_recorded",
+          "familiesAvailable": false
+        },
+        "targetBasis": "immutable-first-receipt",
+        "items": [
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {}
+        ],
+        "rowsExamined": 897,
+        "workLimited": true,
+        "page": {
+          "hasMore": true,
+          "nextCursor": "cursor-a"
+        }
+      }
+    },
+    {
+      "name": "pair-context-pins-project-state",
+      "schema": "FindingComparisonPage",
+      "valid": true,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "audit-pair",
+          "projectId": "project-a",
+          "auditIds": [
+            "audit-a",
+            "audit-b"
+          ]
+        },
+        "fence": {
+          "projectId": "project-a",
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            },
+            {
+              "auditId": "audit-b",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ],
+          "projectRevision": 3
+        },
+        "leftAuditId": "audit-a",
+        "rightAuditId": "audit-b",
+        "limitations": [
+          "absence-is-not-remediation"
+        ],
+        "items": [],
+        "page": {
+          "hasMore": false
+        }
+      }
+    }
+  ]
+}

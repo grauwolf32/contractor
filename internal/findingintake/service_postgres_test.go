@@ -1,0 +1,622 @@
+//go:build integration
+
+package findingintake
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
+	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func TestPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	pool := isolatedFindingPool(t, ctx)
+	var blobPath string
+	if os.Getenv("CONTRACTOR_TEST_ARTIFACT_BACKEND") == "filesystem" {
+		blobPath = t.TempDir()
+		files, err := filesystem.Open(ctx, blobPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer files.Close()
+		artifactRuntime = blob.NewRuntime(files, nil)
+		artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	}
+
+	const (
+		ownerID      = "finding-owner"
+		projectID    = "finding-project"
+		runID        = "finding-run"
+		stageID      = "finding-stage"
+		allocationID = "finding-allocation"
+	)
+	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
+		ProjectID: projectID, OwnerID: ownerID, Kind: projectstore.KindProject,
+		Name: "Finding project", IdempotencyKey: "finding-project-create",
+		RequestDigest: auditdomain.DigestBytes([]byte("finding-project")),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	snapshot, _, err := configload.LoadUnionReadOnly("../config/testdata/valid", filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages[workflow.EntryStage]
+	binding := stage.Agents["builder"]
+	binding.Template.Toolsets = append(binding.Template.Toolsets, contracts.ToolsetSelection{
+		Ref:   contracts.ToolsetRef{ToolsetID: "security-findings", Version: "1"},
+		Tools: []string{"finding"},
+	})
+	stage.Agents["builder"] = binding
+	// The Stage result feeds the retyped primary output, so it declares the
+	// same media type: a stored snapshot is read as a complete, valid graph.
+	copied := stage.Result.Artifacts["copied"]
+	copied.MediaTypes = []string{auditdomain.DirectVerificationsMediaType}
+	stage.Result.Artifacts["copied"] = copied
+	workflow.Stages[workflow.EntryStage] = stage
+	workflow.Outputs["result"] = resolved.ArtifactSlot{
+		Required: true, Primary: true,
+		MediaTypes: []string{auditdomain.DirectVerificationsMediaType},
+	}
+	workflowJSON, err := json.Marshal(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stageJSON, err := json.Marshal(stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	runs := runstore.NewPostgresStore(pool, artifactStorage)
+	projectRef := projectID
+	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: ownerID, ProjectID: &projectRef,
+		WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
+		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowJSON,
+		Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.TransitionRun(
+		ctx, runID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "finding_test_started"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.TransitionRun(
+		ctx, runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
+		StageExecutionID: stageID, RunID: runID, StageName: workflow.EntryStage, Attempt: 1,
+		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
+		StageContextSchemaVersion: contracts.APIVersion,
+		StageContext: runstore.StageContextSnapshot{
+			Parameters: map[string]string{}, Artifacts: map[string]runstore.PinnedContextArtifact{},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runtimeAgentID := strings.Repeat("a", 64)
+	runtimeInstanceID := "finding-runtime-instance"
+	if err := runs.RecordStageAllocation(ctx, runstore.StageAllocation{
+		AllocationID: allocationID, StageExecutionID: stageID,
+		LogicalAgentName: "builder", Namespace: binding.Namespace,
+		AgentTemplateRef: binding.Template.Ref, WorkerRuntimeRef: binding.Template.Runtime,
+		RuntimeAgentID: runtimeAgentID, RuntimeAgentInstanceID: runtimeInstanceID,
+		RuntimeAgentLabelRevision:         1,
+		RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
+		RuntimeConfiguration:              findingRuntimeConfiguration(),
+		PerformanceCollectionPolicy:       reporting.PerformanceCollectionDisabled,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	grant := controlplane.AllocationGrant{
+		AllocationID: allocationID, RuntimeAgentID: runtimeAgentID,
+		RuntimeInstanceID: runtimeInstanceID, RunID: runID, StageExecutionID: stageID,
+		LogicalAgentName: "builder", Namespace: binding.Namespace,
+	}
+
+	artifactService := artifacts.NewService(artifactStorage.Repository(pool))
+	runArtifacts, err := artifactService.Run(runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidenceWrite, err := runArtifacts.Write(ctx,
+		artifacts.ArtifactRef{Namespace: "builder", Name: "trace"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("trusted evidence")}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	service, err := New(pool, artifactStorage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstInput := testSubmission("worker-invocation-1", "candidate-1", []contracts.ArtifactRef{evidenceWrite.Ref})
+	if blobPath != "" {
+		var leases []func()
+		defer func() {
+			for _, release := range leases {
+				release()
+			}
+		}()
+		for range 4 {
+			_, release, err := artifactStorage.AcquireTransfer(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			leases = append(leases, release)
+		}
+		_, _, submitErr := service.Submit(ctx, grant, firstInput)
+		for _, release := range leases {
+			release()
+		}
+		if !errors.Is(submitErr, blob.ErrTransferCapacity) {
+			t.Fatalf("full-budget proposal submission = %v, want capacity error", submitErr)
+		}
+		report, err := artifactpostgres.CleanupFilesystemBlobs(ctx, pool, blobPath, false)
+		if err != nil || report.Orphans != 0 {
+			t.Fatalf("blob files after rejected proposal = %+v, %v", report, err)
+		}
+	}
+	type submitResult struct {
+		receipt  Receipt
+		replayed bool
+		err      error
+	}
+	start := make(chan struct{})
+	results := make(chan submitResult, 2)
+	var workers sync.WaitGroup
+	for range 2 {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			<-start
+			receipt, replayed, submitErr := service.Submit(ctx, grant, firstInput)
+			results <- submitResult{receipt: receipt, replayed: replayed, err: submitErr}
+		}()
+	}
+	close(start)
+	workers.Wait()
+	close(results)
+	accepted := make([]submitResult, 0, 2)
+	for result := range results {
+		if result.err != nil {
+			t.Fatal(result.err)
+		}
+		accepted = append(accepted, result)
+	}
+	if len(accepted) != 2 || accepted[0].receipt.ReceiptID != accepted[1].receipt.ReceiptID ||
+		accepted[0].replayed == accepted[1].replayed {
+		t.Fatalf("concurrent receipt results = %+v", accepted)
+	}
+	firstReceipt := accepted[0].receipt
+	storedRun, err := runs.GetRun(ctx, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstReceipt.Origin.Workflow.ClosureDigest != auditdomain.DigestBytes(storedRun.WorkflowSnapshot) ||
+		firstReceipt.Origin.RunID != runID || firstReceipt.Origin.InvocationID != firstInput.InvocationID {
+		t.Fatalf("trusted receipt origin = %+v", firstReceipt.Origin)
+	}
+	// Intake stores the proposal's canonical report projection, so Audit
+	// reports never read the proposal artifact back.
+	wantProjection, err := auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(firstInput.Proposal))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var storedProjection string
+	if err := pool.QueryRow(ctx, `SELECT report_projection FROM finding_proposal_receipts WHERE receipt_id = $1`,
+		firstReceipt.ReceiptID).Scan(&storedProjection); err != nil || storedProjection != string(wantProjection) {
+		t.Fatalf("stored report projection = %q, %v; want %q", storedProjection, err, wantProjection)
+	}
+	changed := firstInput
+	changed.Proposal.Title = "Changed after acceptance"
+	if _, _, err := service.Submit(ctx, grant, changed); !errors.Is(err, ErrConflict) {
+		t.Fatalf("changed replay error = %v, want conflict", err)
+	}
+	foreign := grant
+	foreign.AllocationID = "foreign-allocation"
+	foreign.RuntimeAgentID = strings.Repeat("b", 64)
+	foreignInput := testSubmission("worker-invocation-2", "foreign", nil)
+	if _, _, err := service.Submit(ctx, foreign, foreignInput); !errors.Is(err, ErrAccessDenied) {
+		t.Fatalf("foreign allocation error = %v, want access denied", err)
+	}
+
+	secondInput := testSubmission("worker-invocation-3", "candidate-unimported", firstInput.EvidenceRefs)
+	var competing []func()
+	defer func() {
+		for _, release := range competing {
+			release()
+		}
+	}()
+	if blobPath != "" {
+		service.afterPrepare = func(held context.Context) {
+			if _, nested, err := artifactStorage.AcquireTransfer(held); err != nil {
+				t.Fatalf("prepared proposal lost its outer lease: %v", err)
+			} else {
+				nested()
+			}
+			for {
+				_, release, err := artifactStorage.AcquireTransfer(ctx)
+				if errors.Is(err, blob.ErrTransferCapacity) {
+					break
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				competing = append(competing, release)
+			}
+			if len(competing) != 3 {
+				t.Fatalf("other transfers acquired %d slots, want 3", len(competing))
+			}
+		}
+	}
+	secondReceipt, replayed, err := service.Submit(ctx, grant, secondInput)
+	service.afterPrepare = nil
+	for _, release := range competing {
+		release()
+	}
+	if err != nil || replayed {
+		t.Fatalf("second receipt = (%+v, replay=%v, %v)", secondReceipt, replayed, err)
+	}
+	claimOnlyInput := testSubmission("worker-invocation-4", "candidate-claim-only", firstInput.EvidenceRefs)
+	claimOnlyReceipt, replayed, err := service.Submit(ctx, grant, claimOnlyInput)
+	if err != nil || replayed {
+		t.Fatalf("claim-only receipt = (%+v, replay=%v, %v)", claimOnlyReceipt, replayed, err)
+	}
+	directOutput, err := json.Marshal(auditdomain.DirectVerificationSet{
+		Schema: auditdomain.DirectVerificationsSchema,
+		Verifications: []auditdomain.DirectVerificationResult{{
+			InvocationID: firstInput.InvocationID, ClientKey: firstInput.Proposal.ClientKey,
+			Assessment: "supported", Summary: "The exact retained trace verifies the candidate.",
+			EvidenceIDs: []string{"evidence-1"},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	directSource, err := runArtifacts.Write(ctx,
+		artifacts.ArtifactRef{Namespace: "builder", Name: "direct-result"},
+		artifacts.Payload{
+			MediaType: auditdomain.DirectVerificationsMediaType,
+			Data:      directOutput,
+		}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifactstest.BindOutput(ctx, artifactService, runID, "result", directSource.Ref); err != nil {
+		t.Fatal(err)
+	}
+
+	const auditID = "finding-audit"
+	if _, _, err := auditstoretest.NewStore(pool, artifactStorage).CreateDraft(ctx, auditstore.CreateDraftParams{
+		AuditID: auditID, OwnerID: ownerID, ProjectID: projectID,
+		Profile:         auditstore.ProfileIdentity{Name: "finding-review", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
+		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`),
+		InputSelection:  json.RawMessage(`{}`),
+		Limits: auditstore.Limits{
+			MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,
+			MaxSubmittedRuns: 1, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20,
+		},
+		IdempotencyKey: "finding-audit-create", RequestDigest: auditdomain.DigestBytes([]byte("audit")),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE finding_proposal_receipts SET workflow_name = 'forged' WHERE receipt_id = $1`, firstReceipt.ReceiptID); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
+		t.Fatalf("receipt provenance rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+	hold, replayed, err := service.ImportIntoAudit(ctx, ImportRequest{
+		OwnerID: ownerID, AuditID: auditID, RunID: runID, Proposal: firstReceipt.Proposal.Ref,
+	})
+	if err != nil || replayed || hold.Proposal.Ref.Revision == nil || len(hold.Evidence) != 1 {
+		t.Fatalf("first Audit import = (%+v, replay=%v, %v)", hold, replayed, err)
+	}
+	replayHold, replayed, err := service.ImportIntoAudit(ctx, ImportRequest{
+		OwnerID: ownerID, AuditID: auditID, RunID: runID, Proposal: firstReceipt.Proposal.Ref,
+	})
+	if err != nil || !replayed || !replayHold.Proposal.Ref.SameExact(hold.Proposal.Ref) {
+		t.Fatalf("replayed Audit import = (%+v, replay=%v, %v)", replayHold, replayed, err)
+	}
+	if records := readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, firstReceipt.ReceiptID, auditID, artifactStorage); len(records) != 0 {
+		t.Fatalf("premature direct verification: %+v", records)
+	}
+	projectArtifacts, err := artifactService.Project(projectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retained, err := projectArtifacts.Read(ctx, hold.Proposal.Ref)
+	if err != nil || retained.Payload.MediaType != proposalMediaType {
+		t.Fatalf("retained proposal = (%+v, %v)", retained, err)
+	}
+
+	if err := runs.MarkStageAllocationReleased(ctx, allocationID); err != nil {
+		t.Fatal(err)
+	}
+	if err := artifactstest.FreezeOutputs(ctx, artifactService, runID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.TransitionRun(ctx, runID, runstore.RunRunning, runstore.RunSucceeded,
+		runstore.Reason{Code: "finding_test_succeeded"}); err != nil {
+		t.Fatal(err)
+	}
+	trace := &collectionQueryCounter{}
+	actorConfig := pool.Config()
+	actorConfig.ConnConfig.Tracer = trace
+	actorPool, err := pgxpool.NewWithConfig(ctx, actorConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer actorPool.Close()
+	actor, err := New(actorPool, artifactStorage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	collectionCtx := ctx
+	if err := actor.RetainAuditCollectionBatch(collectionCtx, []ImportRequest{
+		{OwnerID: ownerID, AuditID: auditID, RunID: runID, Proposal: firstReceipt.Proposal.Ref},
+		{OwnerID: ownerID, AuditID: auditID, RunID: runID, Proposal: claimOnlyReceipt.Proposal.Ref},
+	}); err != nil {
+		t.Fatalf("terminal collection retention: %v", err)
+	}
+	// The owner import's hold is replayed; the claim-only receipt gains one.
+	for receiptID, want := range map[string]*contracts.ArtifactRef{
+		firstReceipt.ReceiptID: &hold.Proposal.Ref, claimOnlyReceipt.ReceiptID: nil,
+	} {
+		retained, err := readOneAuditReceipt(t, service, ctx, ownerID, auditID, receiptID)
+		if err != nil || len(retained.AuditHolds) != 1 ||
+			(want != nil && !retained.AuditHolds[0].Proposal.Ref.SameExact(*want)) {
+			t.Fatalf("collected receipt %s = (%+v, %v)", receiptID, retained.AuditHolds, err)
+		}
+	}
+	if trace.runReads.Load() != 1 || trace.directReads.Load() != 1 {
+		t.Fatalf("collection resolved Run/output %d/%d times, want once each", trace.runReads.Load(), trace.directReads.Load())
+	}
+	var resultRefJSON, contractRefJSON []byte
+	var directAssessmentID, directResultDigest, directContractDigest string
+	facts := readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, firstReceipt.ReceiptID, auditID, artifactStorage)
+	if len(facts) != 1 {
+		t.Fatalf("direct histories=%+v", facts)
+	}
+	directAssessmentID = facts[0].Original.RecordID
+	resultRefJSON, _ = json.Marshal(facts[0].Materials.Result.Ref)
+	contractRefJSON, _ = json.Marshal(facts[0].Materials.Contract.Ref)
+	directResultDigest, directContractDigest = facts[0].Materials.Result.Digest, facts[0].Materials.Contract.Digest
+	var directResultRef, directContractRef contracts.ArtifactRef
+	if json.Unmarshal(resultRefJSON, &directResultRef) != nil ||
+		json.Unmarshal(contractRefJSON, &directContractRef) != nil ||
+		directResultRef.ValidateExact() != nil || directContractRef.ValidateExact() != nil ||
+		directAssessmentID != deterministicID("direct-assessment", auditID, firstReceipt.ReceiptID) ||
+		directResultDigest == "" || directContractDigest == "" {
+		t.Fatalf("direct verification refs = (%s, %+v, %s, %+v, %s)",
+			directAssessmentID, directResultRef, directResultDigest, directContractRef, directContractDigest)
+	}
+	audits := auditstoretest.NewStore(pool, artifactStorage)
+	beforeReplay, err := audits.Get(ctx, ownerID, auditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := audits.EventsAfter(ctx, ownerID, auditID, 0, pagelimit.MaxRows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assessments := 0
+	for _, event := range events {
+		if event.Kind == "finding.result_retained" &&
+			strings.Contains(string(event.Summary), directAssessmentID) {
+			assessments++
+		}
+	}
+	if assessments != 1 || beforeReplay.Revision != beforeReplay.EventSequence {
+		t.Fatalf("direct assessment event count=%d Audit=%+v", assessments, beforeReplay)
+	}
+	if facts := readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, claimOnlyReceipt.ReceiptID, auditID, artifactStorage); len(facts) != 0 {
+		t.Fatalf("claim without exact verification created history: %+v", facts)
+	}
+	var retainedBefore int64
+	if err := pool.QueryRow(ctx, `
+SELECT retained_evidence_bytes FROM audits WHERE audit_id = $1`, auditID).Scan(&retainedBefore); err != nil {
+		t.Fatal(err)
+	}
+	if _, replayed, err := service.ImportIntoAudit(ctx, ImportRequest{
+		OwnerID: ownerID, AuditID: auditID, RunID: runID, Proposal: firstReceipt.Proposal.Ref,
+	}); err != nil || !replayed {
+		t.Fatalf("accepted direct-verification replay = (replay=%v, %v)", replayed, err)
+	}
+	var retainedAfter int64
+	var directLinks int
+	if err := pool.QueryRow(ctx, `
+SELECT retained_evidence_bytes FROM audits WHERE audit_id = $1`, auditID).Scan(&retainedAfter); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `
+SELECT count(*) FROM audit_artifact_links
+ WHERE audit_id = $1 AND logical_key LIKE 'finding/%/direct-%'`, auditID).Scan(&directLinks); err != nil {
+		t.Fatal(err)
+	}
+	if retainedAfter != retainedBefore || directLinks != 2 {
+		t.Fatalf("direct replay retention = (before=%d after=%d links=%d)",
+			retainedBefore, retainedAfter, directLinks)
+	}
+	afterReplay, err := audits.Get(ctx, ownerID, auditID)
+	if err != nil || afterReplay.Revision != beforeReplay.Revision ||
+		afterReplay.EventSequence != beforeReplay.EventSequence {
+		t.Fatalf("direct assessment replay Audit = (%+v, %v)", afterReplay, err)
+	}
+	// Import the same exact successful source into another compatible Audit.
+	// Its assessment and retained bytes must be independent of the first Audit.
+	const otherAuditID = "finding-audit-other"
+	if _, _, err := auditstoretest.NewStore(pool, artifactStorage).CreateDraft(ctx, auditstore.CreateDraftParams{
+		AuditID: otherAuditID, OwnerID: ownerID, ProjectID: projectID,
+		Profile:         auditstore.ProfileIdentity{Name: "finding-review", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
+		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`),
+		InputSelection:  json.RawMessage(`{}`),
+		Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,
+			MaxSubmittedRuns: 1, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},
+		IdempotencyKey: otherAuditID, RequestDigest: auditdomain.DigestBytes([]byte(otherAuditID)),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	otherRequest := ImportRequest{OwnerID: ownerID, AuditID: otherAuditID, RunID: runID, Proposal: firstReceipt.Proposal.Ref}
+	otherHold, replayed, err := service.ImportIntoAudit(ctx, otherRequest)
+	if err != nil || replayed {
+		t.Fatalf("second Audit direct import: replayed=%v err=%v", replayed, err)
+	}
+	var otherAssessmentID string
+	var otherResultJSON, otherContractJSON []byte
+	otherFacts := readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, firstReceipt.ReceiptID, otherAuditID, artifactStorage)
+	if len(otherFacts) != 1 {
+		t.Fatalf("other direct history=%+v", otherFacts)
+	}
+	otherAssessmentID = otherFacts[0].Original.RecordID
+	otherResultJSON, _ = json.Marshal(otherFacts[0].Materials.Result.Ref)
+	otherContractJSON, _ = json.Marshal(otherFacts[0].Materials.Contract.Ref)
+	var otherResultRef, otherContractRef contracts.ArtifactRef
+	if err := json.Unmarshal(otherResultJSON, &otherResultRef); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(otherContractJSON, &otherContractRef); err != nil {
+		t.Fatal(err)
+	}
+	if otherAssessmentID != deterministicID("direct-assessment", otherAuditID, firstReceipt.ReceiptID) ||
+		otherAssessmentID == directAssessmentID || !otherResultRef.SameExact(directResultRef) || !otherContractRef.SameExact(directContractRef) {
+		t.Fatal("Audit histories must be independent and reuse exact Project materials")
+	}
+	var otherRetainedBefore, otherRetainedAfter int64
+	if err := pool.QueryRow(ctx, `SELECT retained_evidence_bytes FROM audits WHERE audit_id=$1`, otherAuditID).Scan(&otherRetainedBefore); err != nil {
+		t.Fatal(err)
+	}
+	if _, replayed, err := service.ImportIntoAudit(ctx, otherRequest); err != nil || !replayed {
+		t.Fatalf("second Audit direct replay: replayed=%v err=%v", replayed, err)
+	}
+	var assessmentCount, otherLinks int
+	if err := pool.QueryRow(ctx, `SELECT retained_evidence_bytes FROM audits WHERE audit_id=$1`, otherAuditID).Scan(&otherRetainedAfter); err != nil {
+		t.Fatal(err)
+	}
+	assessmentCount = len(readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, firstReceipt.ReceiptID, "", artifactStorage))
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_artifact_links WHERE audit_id=$1 AND logical_key LIKE 'finding/%/direct-%'`, otherAuditID).Scan(&otherLinks); err != nil {
+		t.Fatal(err)
+	}
+	if otherRetainedBefore != otherRetainedAfter || assessmentCount != 2 || otherLinks != 2 {
+		t.Fatalf("independent replay retention: bytes=%d/%d assessments=%d links=%d", otherRetainedBefore, otherRetainedAfter, assessmentCount, otherLinks)
+	}
+	if err := deleteRun(ctx, pool, ownerID, runID); err != nil {
+		t.Fatal(err)
+	}
+	// The first receipt is held by both Audits; each inbox names only its own hold.
+	listed, err := service.ListAuditInbox(ctx, ownerID, auditID, ListQuery{Limit: 10})
+	if err != nil || len(listed) != 2 || listed[0].Retention != RetentionProjectHeld ||
+		!listed[0].Origin.RunDeleted || len(listed[0].AuditHolds) != 1 ||
+		listed[0].AuditHolds[0].AuditID != auditID || !listed[0].AuditHolds[0].Proposal.Ref.SameExact(hold.Proposal.Ref) ||
+		listed[1].Retention != RetentionProjectHeld || !listed[1].Origin.RunDeleted ||
+		len(listed[1].AuditHolds) != 1 || listed[1].AuditHolds[0].AuditID != auditID {
+		t.Fatalf("Audit inbox after Run deletion = (%+v, %v)", listed, err)
+	}
+	otherListed, err := service.ListAuditInbox(ctx, ownerID, otherAuditID, ListQuery{Limit: 10})
+	if err != nil || len(otherListed) != 1 || otherListed[0].ReceiptID != firstReceipt.ReceiptID ||
+		len(otherListed[0].AuditHolds) != 1 || otherListed[0].AuditHolds[0].AuditID != otherAuditID ||
+		!otherListed[0].AuditHolds[0].Proposal.Ref.SameExact(otherHold.Proposal.Ref) {
+		t.Fatalf("other Audit inbox after Run deletion = (%+v, %v)", otherListed, err)
+	}
+	secondAfterDelete, err := readReceiptByID(ctx, pool, secondReceipt.ReceiptID)
+	if err != nil || secondAfterDelete.Retention != RetentionProjectHeld || !secondAfterDelete.Origin.RunDeleted {
+		t.Fatalf("discarded receipt after Run deletion = (%+v, %v)", secondAfterDelete, err)
+	}
+	if _, err := runArtifacts.Read(ctx, firstReceipt.Proposal.Ref); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+		t.Fatalf("source proposal read after Run deletion = %v", err)
+	}
+	if _, err := projectArtifacts.Read(ctx, hold.Proposal.Ref); err != nil {
+		t.Fatalf("retained proposal after Run deletion: %v", err)
+	}
+	for name, ref := range map[string]contracts.ArtifactRef{
+		"direct result": directResultRef, "direct contract": directContractRef,
+		"other proposal": otherHold.Proposal.Ref, "other direct result": otherResultRef, "other contract": otherContractRef,
+	} {
+		if _, err := projectArtifacts.Read(ctx, ref); err != nil {
+			t.Fatalf("retained %s after Run deletion: %v", name, err)
+		}
+	}
+}
+
+func findingRuntimeConfiguration() *runstore.AllocationRuntimeConfiguration {
+	gateway := llmgateway.LLMGatewayConfigRef{
+		GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
+	}
+	return &runstore.AllocationRuntimeConfiguration{
+		ModelPolicy: contracts.ModelPolicyRef{
+			PolicyID: "worker", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64),
+		},
+		Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{
+			LLMGateway: &runtimeconfig.RuntimeFieldOrigin{Layer: runtimeconfig.LayerWorkflow},
+		},
+		Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{
+			Default: runtimesettings.RuntimeLabelBindingProvenance{
+				Label: "default", BindingRevision: 1,
+				Config: runtimesettings.RuntimeConfigRef{
+					Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion,
+					Digest: runtimeconfig.BuiltInDigest,
+				},
+			},
+			RunLabels:       []runtimesettings.RuntimeLabelBindingProvenance{},
+			AgentLabels:     []runtimesettings.RuntimeLabelBindingProvenance{},
+			RuntimeAdapters: []runtimesettings.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
+			RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
+		},
+	}
+}
+
+func isolatedFindingPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
+	t.Helper()
+	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{})
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
+		t.Fatal(err)
+	}
+	return pool
+}

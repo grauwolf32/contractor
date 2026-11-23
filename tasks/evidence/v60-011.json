@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-011",
+  "verified_on": "2026-09-20",
+  "finding": "PR-05",
+  "originating_commit": "7f553b2295051b8ad88a2cea98972727b41afaf8",
+  "initial_full_gate": {
+    "command": "make test-audit-completion-e2e",
+    "exit_code": 2,
+    "seconds": 5.764,
+    "source_commit": "ad77c3ae92676982099019c5401122624813b682",
+    "postgres": true,
+    "test_database_password_matches_ci": true,
+    "environment": "Locked existing Python env with UV_NO_SYNC=1 and PYTHONPATH pointing to reviewed source; dedicated PostgreSQL test container."
+  },
+  "initial_failure": "All331 selected Python cases passed; required old test name was absent after V57-004 rename.",
+  "new_regression_before_fix": {
+    "command": "go test -count=1 ./tests/e2e -run '^TestAuditCompletionGateRejectsIncompleteRuntimeReports/matrix-references-declared-tests$'",
+    "exit_code": 1,
+    "seconds": 0.076,
+    "failure": "mandatory Runtime tests are not declared: tests.test_audit_completion_runtime::test_artifact_observations_survive_a_reminder_and_join_verified_publication"
+  },
+  "assertion_review": "Compared exact7f553b22 rename: original exact observation/publication refs and one write preserved; stronger test additionally proves no model decode/finalizer, exact request identity, reminder/publication state,4model/2toolcalls and terminal lifecycle. Required minimum remains1.",
+  "checks": [
+    {
+      "command": "go test -count=1 ./tests/e2e -run AuditCompletion",
+      "result": "passed",
+      "seconds": 2.012
+    },
+    {
+      "command": "make test-audit-completion-e2e",
+      "exit_code": 0,
+      "seconds": 63.034,
+      "source_base": "8ec2b007a962320c61157e4782dcbb7f59e38622",
+      "uncommitted_verified_files": {
+        "scripts/audit-completion-matrix.json": "9199632ae47095f74b0e59bf3686aa3c226cd0848710111bfe4335d47550fe4c",
+        "tests/e2e/audit_completion_gate_test.go": "20ebbe4e113917b776ff1f571aa735b26d364b9dc96e99817f8d62eb2d015366"
+      },
+      "postgres": true,
+      "test_database_password_matches_ci": true,
+      "environment": "Locked existing Python env with UV_NO_SYNC=1 and PYTHONPATH pointing to reviewed source; dedicated PostgreSQL test container."
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "actual_gate_cases": {
+    "go": 158,
+    "runtime": 331,
+    "selected_skips": 0,
+    "executed_report_sha256": "576554425395c0699a046767ed1862b6d9699ceef59e1e019956974fceac9259"
+  },
+  "independent_review": "execution_review read exact rename diff, matrix and new AST test; no material findings.",
+  "limitations": [
+    "AST checks declarations only; actual collection, parameter counts and execution are established by the full gate.",
+    "This is the Audit completion gate, not the complete make release-verify or live models."
+  ],
+  "local_artifacts": {
+    "executed": ".local/audit-completion-gate/run-mgbnrsqd/executed.json",
+    "run_log": ".local/v60-verification/audit-completion-gate.log"
+  },
+  "log_sha256": {
+    "audit-completion-before-matrix.log": "69087cab717144f64838efcfcb5e252e483e31311f8a44b574f2156b78fbc6b2",
+    "audit-completion-gate.log": "39cd3418925b24ab2a025997643754f0a1fc7f57f2fc77be6abb1962540bfcc5"
+  }
+}

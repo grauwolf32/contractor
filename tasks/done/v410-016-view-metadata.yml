@@ -1,0 +1,128 @@
+schema_version: '1.0'
+id: V410-016
+title: Expose bounded sitemap metadata independently of entries
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V410-002
+priority: P1
+status: completed
+depends_on:
+- V410-002
+languages:
+- python
+- go
+- yaml
+- json
+goal: Expose bounded sitemap metadata independently of entries.
+context:
+  authority: User requested a second assessment, task creation and fixes on 2026-10-27. The raw owner-selected blackbox
+    input finding is withdrawn; secret filtering is removed by V410-018.
+  specification:
+  - docs/spec/artifacts/project-sitemap.md
+  severity: medium
+  finding: 'runtime/src/contractor_runtime/toolsets/sitemap/session.py:196 and :206: an empty map hides retained
+    Source generations needed by configure_sitemap_grouping, while every entry read repeats all map rules and gaps.'
+  siblings: Provide a bounded authorized metadata read for sources, rules and gaps even without entries; integrate
+    the narrowest usable tool contract and capability declaration, preserve source-mode checks and view-bound cursors,
+    and remove unrelated global metadata repetition from entry pages.
+scope:
+  in:
+  - Provide a bounded authorized metadata read for sources, rules and gaps even without entries; integrate the narrowest
+    usable tool contract and capability declaration, preserve source-mode checks and view-bound cursors, and remove
+    unrelated global metadata repetition from entry pages.
+  - Regression coverage on the existing production path and owning contract updates.
+  out:
+  - Unrelated pending sitemap imports, reconciliation and workflow delivery; new persistence or retention mechanisms.
+failure_outcomes:
+- operation: Existing sitemap operation
+  permanent: Preserve classified syntax, authority, exact selection and stale-intent errors.
+  retryable: Use existing attempt and deadline bounds; no new blanket retries.
+  ambiguous: Keep original operation identity and existing receipt or immutable view.
+  cancelled: Join work through existing allocation/transaction lifecycle.
+  timeout: Keep independent operations within their documented bounded allowance.
+cardinality:
+- collection: Existing map, view, source and observation collections
+  expected: Existing proposal workload and realistic regression fixtures
+  maximum: Existing LIM-SMT ceilings; no silently increased limit
+  bound: Every page, batch and transaction remains bounded by existing count and byte constraints.
+lifecycle:
+- entity: Existing sitemap resources
+  delete: Existing Project and allocation lifecycle
+  cascade: No new lifetime or independent persistence owner
+  retention: Existing ArtifactStore exact-reference protection and bounded history
+acceptance_criteria:
+- id: A1
+  text: After rules are cleared, a fresh allocation can discover the complete current source precondition and configure
+    it again.
+- id: A2
+  text: Metadata is paged within existing count/byte limits and checks live authority; entry pages do not repeat
+    unrelated global rules and gaps.
+- id: A3
+  text: Real tool/process and shared capability fixtures cover the selected metadata operation, stale cursors, authorization
+    and empty map.
+tests:
+- command: uv run --project runtime pytest runtime/tests/test_sitemap_*.py runtime/tests/test_capabilities.py
+  covers:
+  - A1
+  - A2
+  - A3
+- command: go test ./internal/contracts ./internal/controlplane ./internal/config
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-project-sitemap-tools-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: ab35b1afbd246ebe62418873a40bc71e98bbaf31
+verification:
+  date: '2026-10-28'
+  result: passed
+  tested_commit: ab35b1afbd246ebe62418873a40bc71e98bbaf31
+  commands:
+  - command: make test-project-sitemap-postgres
+    result: 'Passed on the integrated tree: 13 complete packages, 15 mandatory cases, zero mandatory skips. Includes
+      all new real-store regressions and full projectsitemap/controlplane suites. One producer accepted 257 publications
+      totalling 360501946 encoded bytes with ordinary history retention.'
+  - command: make test-project-sitemap-tools-e2e
+    result: 'Passed on the integrated tree: both actual Server/Runtime/PostgreSQL mandatory scenarios, zero skips,
+      including retained credential-like metadata, owner-selected full input, empty-map metadata and exact source
+      reconfiguration.'
+  - command: uv run --project runtime pytest runtime/tests/test_sitemap_*.py runtime/tests/test_http_*.py runtime/tests/test_capabilities*.py
+    result: 218 passed. This includes every listed narrower Runtime selection.
+  - command: make test-wire-cross-language
+    result: Passed all contracts packages, 323 Runtime contract tests, 285 shared fixtures, 341 Go and 238 Python
+      shared tests; the Python shared selection executed 1341 cases.
+  - command: go test -p=2 ./internal/config/... ./internal/configload/...
+    result: All four configuration packages passed. The separately required complete contracts and controlplane
+      packages also passed through the wire and PostgreSQL gates.
+  - command: make lint
+    result: Passed generated checks, UI gates, go vet/staticcheck/testonlyexports, deployment tests, release graph,
+      tasks/specs/fixtures, Ruff and all four Runtime import contracts.
+  evidence:
+  - Extended the existing list_sitemap_entries operation with scope=metadata; no extra capability or endpoint. Complete
+    source preconditions, rules and gaps are paged even with zero groups, with current authority and scope-bound
+    cursors.
+  - Entry pages no longer repeat global source/rule/gap records. A 1920-record fixture verifies bounded row/byte
+    work, along with refresh, release and revoked-access cases.
+  - Actual Server/Runtime process regression creates rules, clears to zero groups and source generation 2, reads
+    the complete Source via metadata scope, and reuses the returned exact source/revision to configure generation
+    3.
+  limitations:
+  - Verification used disposable local PostgreSQL 17, Go 1.26.9, Node 24.20 and the locked Runtime environment.
+    No demo data or primary checkout files were changed.
+  - Initial verification completed on codex/v410-011-sitemap-metadata before main integration. Original structured-import, reconciliation
+    and remaining delivery tasks retain their status; this does not claim the full V410 release gate.

@@ -1,0 +1,68 @@
+schema_version: "1.0"
+id: V370-015
+title: "Remove duplicated code in config and catalog bundles"
+milestone: hub-audit-structure-2026-10
+epic: workflows
+kind: chore
+priority: P3
+status: completed
+implementation_commit: "86ce594c8320c90860ee1c5418abcbc5497a59d4"
+depends_on: []
+languages: [go]
+goal: "The duplicates are gone and startup discovers bundles once."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), config H; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Two nofollow readers (agentskills/read_nofollow_*.go,
+    auditstandards/read_nofollow*.go); validSkillName
+    (agentskills/path.go:58) duplicates contracts.validAgentSkillName; the
+    graph is validated three times at Audit start and not at all in four
+    snapshot decoders; bundle discovery runs twice at startup
+    (configload.go:22-31, composition_catalogs.go:39, 60); manifest reads
+    are unbounded (loader.go:291, 313).
+  decision: >-
+    All findings reproduced on 4146eea. (1) securefile.ReadBeneath is the one
+    nofollow reader: it opens the root and each component with O_NOFOLLOW
+    from its opened parent (portable to every Unix, unlike Linux-only
+    openat2 RESOLVE_NO_SYMLINKS), does not wait on a FIFO, reads at most the
+    caller's bound and reports a symlink or non-regular path as
+    ErrNotRegular without an errno, so the publication reload still
+    classifies a swapped link as drift. The non-Unix fallbacks were dropped:
+    the module does not build there (internal/artifacts uses
+    syscall.O_NOFOLLOW). agentskills, auditstandards and the catalog loader
+    use it; the loader's bound is 4 MiB per manifest or instruction resource
+    (LIM-CAT-5, CAT-R77), deliberately above the 2 MiB Workflow snapshot
+    limit V368-014 adds, so the read bound protects memory and never
+    preempts that rule; the largest shipped file is 8 KB.
+    TestCatalogFileReadsAreBounded fails without the bound. (2)
+    contracts.ValidAgentSkillName is the one Go skill-name grammar. (3)
+    DecodeResolvedWorkflowSnapshot is strict decode plus ValidateWorkflowGraph,
+    a superset of its former checks (CAT-R78); the scheduler and runservice
+    no longer repeat it, ValidateResolvedWorkflowCredentials and
+    ResolvedWorkflowCredentialIDs no longer validate the graph (their inputs
+    come from the catalog, ResolveRunWorkflow or a decoder), so Audit start
+    validates each role once. TestDecodeResolvedWorkflowSnapshotChecksTheWholeGraph
+    fails on the former decoder. Two findingintake fixtures that retyped the
+    primary output without its Stage result were invalid graphs and now
+    declare the same media type. (4) configload.NewManager and
+    LoadUnionReadOnly return the Bundles their checks validated; the checks
+    keep plans only until the startup load hands them over, so later reloads
+    hold no package bytes; configureCatalogs and config validate use them,
+    and TestBundleDiscoveryIsReachedOnlyThroughConfigload keeps
+    DiscoverBundled inside configload. Reversal condition: a loader that
+    needs bundles from another root (managed bundles) would extend Bundles,
+    not rediscover. Spec numbers LIM-CAT-5, CAT-R77 and CAT-R78 skip
+    LIM-CAT-4 and CAT-R76, which the parallel V368-014 branch uses.
+scope:
+  in:
+    - "One securefile helper with a size bound, contracts name check, validation inside DecodeResolvedWorkflowSnapshot, configload returns its plan."
+  out:
+    - "Catalog behaviour."
+acceptance_criteria:
+  - id: A1
+    text: "The duplicates are gone and startup discovers bundles once."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/config/... ./internal/agentskills ./internal/auditstandards ./internal/configload"
+    covers: [A1]

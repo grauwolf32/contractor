@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V48-003
+title: "Return empty Memory tags as arrays in Planner and Worker projections"
+milestone: shared-memory-production-correctness
+epic: memory
+kind: defect
+introduced_by: V9-001
+priority: P2
+status: completed
+implementation_commit: 84190d6e89460f8ddc237cbf9f1c86ff263d3419
+depends_on: [V9-005]
+languages: [go, python]
+goal: "Make untagged full notes and previews serialize tags as [] consistently in both Memory adapters."
+context:
+  specification: docs/spec/tools/memory.md
+  authority: "User requested tasks for uncovered Memory audit findings on 2026-09-07."
+  code_locations:
+    - "internal/memory/codec.go: FullProjection and PreviewProjection"
+    - "internal/planner/streamline/memory_tools.go: memoryNoteResult and memoryListResult"
+  reproduction: >-
+    Normalize a note without tags and marshal its full and preview projections.
+    append([]string(nil), note.Tags...) yields nil and both Go results contain
+    tags:null. The Python mutation response contains tags:[] instead.
+  overlap: "The three V47 tasks do not change Memory result schemas; the completed V9 codec tests missed serialized empty-tag projections."
+scope:
+  in:
+    - "Ensure both Go projections hold a detached non-nil empty slice when tags are absent."
+    - "Add shared logical JSON expectations for empty tags in full and preview results."
+    - "Exercise the actual Planner tool result serialization as well as Python output, including replacement that clears prior tags."
+  out:
+    - "Stored-payload migration, schema/version changes, new tag semantics or unrelated nil-slice cleanup."
+acceptance_criteria:
+  - id: A1
+    given: "An untagged note or replacement omitting previously populated tags."
+    when: "Write/read/append return full notes and list returns previews through Planner and Worker."
+    then: "Every serialized tags field is [] rather than null or absent; the same logical fixture passes in both languages."
+  - id: A2
+    given: "Notes with populated tags and canonical stored payload fixtures."
+    when: "Projection and serialization run."
+    then: "Tag sorting/deduplication, detached ownership, canonical bytes and storage-identity hiding remain unchanged."
+tests:
+  - command: "go test -count=1 ./internal/memory ./internal/planner/streamline ./internal/planner/router"
+    covers: [A1, A2]
+  - command: "cd runtime && uv run pytest -W error tests/test_memory.py tests/test_memory_toolset.py"
+    covers: [A1, A2]
+  - command: "make test-memory-contracts"
+    covers: [A1, A2]
+
+verification:
+  - "Go Memory and Streamline/Router suites passed, including serialized empty-tag results after create, replacement, append and read."
+  - "70 Python Memory tests passed with warnings treated as errors."
+  - "make test-memory-contracts passed; both adapters consume testdata/memory/projections.json for full and preview JSON expectations."

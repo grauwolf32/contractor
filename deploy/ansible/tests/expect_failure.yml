@@ -1,0 +1,34 @@
+---
+# Runs the role's resolution with the play's variables and requires it to
+# fail with a message containing `expected`.
+- name: Reset the outcome
+  ansible.builtin.set_fact:
+    _test_accepted: false
+
+- name: Resolve a configuration that must be rejected
+  block:
+    - name: Resolve
+      ansible.builtin.include_role:
+        name: contractor_runtime
+        tasks_from: resolve
+    - name: Record an unexpected success
+      ansible.builtin.set_fact:
+        _test_accepted: true
+  rescue:
+    - name: Require the expected message
+      ansible.builtin.assert:
+        that: _test_messages is search(expected, ignorecase=true)
+        fail_msg: "Expected '{{ expected }}', got: {{ _test_messages }}"
+        quiet: true
+      vars:
+        # A failed loop reports its items' messages under results.
+        _test_messages: >-
+          {{ ([ansible_failed_result.msg | default('')]
+              + ansible_failed_result.results | default([]) | map(attribute='msg', default='') | list)
+             | join(' | ') }}
+
+- name: Require the rejection
+  ansible.builtin.assert:
+    that: not _test_accepted
+    fail_msg: The configuration was accepted but must fail with '{{ expected }}'.
+    quiet: true

@@ -1,0 +1,103 @@
+schema_version: '1.0'
+id: V472-001
+title: Export an Audit's Phoenix traces and report tool usage and failures
+milestone: runtime-telemetry-2026-10
+epic: operations
+kind: feature
+priority: P2
+status: completed
+implementation_commit: e0080decc122e9a74b3afc30ce1ffe1b8772b248
+depends_on: []
+languages: [python, markdown]
+goal: >-
+  Given an existing debug-enabled Audit, an operator downloads its retained
+  Phoenix traces and gets readable tool-call/error/duration and model-usage
+  analytics without changing the Audit or calling a model.
+demonstration: >-
+  Run the script against the existing local Phoenix and one labelled Audit,
+  save selected spans as JSONL, and inspect report.md, summary.json and CSV
+  tables. Replay the JSONL offline and reproduce the same analytics.
+context:
+  specification: docs/spec/platform/observability.md#OBS-R127
+  authority: >-
+    User request 2026-11-20 asks for a script exporting an existing debug Audit's
+    traces and analysing tool errors, call counts and related statistics. The
+    user confirms Phoenix at localhost:6006. Proposal: use Phoenix's existing
+    read-only REST span API and local JSONL/Markdown/JSON/CSV outputs.
+  evidence: tasks/evidence/v472-001-audit-trace-report-20261120.json
+  ownership: >-
+    Phoenix owns retained trace interpretation and query authorization; the
+    standalone script owns read-only export and deterministic aggregation.
+    Discover trace IDs using contractor.run.label.audit.id, then fetch whole
+    traces: Worker tools/model spans do not carry that label. No Server,
+    Runtime, database or public API change. Filtering every span by the Audit
+    label is simpler but loses calls, as demonstrated by the actual exporter.
+    Reopen if collector/correlation vocabulary changes.
+scope:
+  in:
+    - Standard-library Python CLI, paginated Phoenix export and offline JSONL replay.
+    - Tool outcomes, error groups, per-tool and per-trace durations, slow calls and observed model usage.
+    - Explicit coverage limitations, missing/truncated outputs and lifecycle counter comparisons.
+    - Deterministic HTTP/process tests and a read-only local Phoenix demonstration.
+  out:
+    - Langfuse, a collector abstraction, live-model calls, UI and API changes.
+    - Claiming complete Audit coverage from a best-effort external trace sink.
+requirements:
+  - id: R1
+    text: Discover exact Audit-labelled traces, follow every cursor, fetch whole traces and deduplicate by trace/span ID.
+  - id: R2
+    text: Count Worker tool spans once; never count model declarations or sum lifecycle counters into observed calls. Separate failed, cancelled and unknown outcomes, returned error codes and exception types.
+  - id: R3
+    text: Export captured content locally, keep prompts/arguments/full results out of stdout and aggregate tables, and reproduce analytics offline. Private error groups and CSV include bounded captured error messages; no extra secret-discovery guarantee is invented.
+  - id: R4
+    text: Report observed usage only; lifecycle counters, missing output, truncation and missing traces never become a complete Audit total or successful zero-call result.
+failure_outcomes:
+  - operation: Phoenix paginated GET
+    permanent: HTTP failures, malformed pages, foreign trace IDs and invalid spans fail with safe diagnostics, without response bodies or authorization values.
+    retryable: Operator reruns into a fresh output directory; no automatic retries or polls.
+    ambiguous: GET has no remote mutation; failure retains an incomplete manifest and partial JSONL without a successful report.
+    cancelled: Synchronous calls close responses; interruption retains the incomplete archive.
+    timeout: Per-request timeout and overall deadline bound reads and pagination.
+  - operation: Local output creation
+    permanent: Existing destinations and failed writes fail; previous reports are never overwritten.
+    retryable: Rerun into another directory after correcting disk or path access.
+    ambiguous: Manifest remains incomplete until every output has been written.
+    cancelled: Incomplete local exports remain inspectable and never claim completion.
+    timeout: Overall deadline also bounds offline traversal.
+cardinality:
+  - collection: Audit trace discovery and selected span archive
+    expected: Hundreds to tens of thousands of spans across tens of traces.
+    maximum: Configurable default ceilings of 100000 spans, 10000 traces and 1 GiB archive bytes.
+    bound: Default 10 spans/page, 16 MiB response/JSONL-line ceiling, streaming content to disk and compact aggregation records only; repeated cursors fail.
+lifecycle:
+  - entity: Local export directory
+    delete: Operator deletes it; no remote deletion.
+    cascade: JSONL, manifest, report, summary and CSV tables are colocated.
+    retention: Persists until operator deletion independently of Phoenix retention; private directory/file permissions.
+acceptance_criteria:
+  - id: A1
+    given: Paginated Audit roots and unlabelled tools/models, including duplicates and foreign traces.
+    when: The CLI exports and replays its JSONL offline.
+    then: Only selected traces are included; duplicates count once; calls/errors/durations/known tokens agree; captured content stays out of stdout.
+  - id: A2
+    given: Missing traces, counter gaps, malformed/truncated content, repeated cursors, HTTP failure, cancellation or exhausted budgets.
+    when: Export or analysis runs.
+    then: Missing facts are explicit; incomplete exports fail without overwriting earlier output; work stays bounded.
+  - id: A3
+    given: Local Phoenix with retained Audit traces.
+    when: The script reads one existing Audit without mutations.
+    then: It exports content and produces a report; script regressions and repository lint checks pass.
+tests:
+  - command: python3 -m unittest discover -s scripts -p 'test_audit_trace_report.py' -v
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2, A3]
+
+verification_results:
+  - All 11 focused CLI/HTTP/offline tests passed, including pagination, a 5000-call Audit, duplicate suppression, bounds, malformed HTTP/data, interruptions and private output handling.
+  - make lint passed, including all 228 script tests with four existing declared skips; skips are not passing coverage. No PostgreSQL or live-model test was needed for this standalone read-only script.
+  - Explicit Ruff check and formatting check passed for both new Python files; task/spec checks and git diff --check passed.
+  - Read-only local Phoenix demonstration exported 256 spans in two traces, with 127 tool calls and 124 model calls; lifecycle counts matched.
+  - A second retained Audit yielded 910 spans, 453 tool calls and 174 errors. Its absent final Worker counter comparison remains explicit; complete Audit coverage is not claimed.
+  - Both initial live exports reproduced summary.json byte-for-byte on offline replay. Final bounded error-message grouping was also verified on the retained real archive.
+  - Changes are committed on codex/audit-trace-report and are not merged into main. No remote writes, deployment, database changes or model calls were performed.

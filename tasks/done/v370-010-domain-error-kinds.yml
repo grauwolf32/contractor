@@ -1,0 +1,123 @@
+schema_version: "1.0"
+id: V370-010
+title: "Classify domain errors through one error kind and a code registry"
+milestone: hub-audit-structure-2026-10
+epic: api-contracts
+kind: chore
+priority: P2
+status: completed
+implementation_commit: 8003e01f5d209a0befe24481885aa74632c64193
+depends_on: [V368-005]
+languages: [go]
+goal: "Every code the Server can return is in the registry with the same retryable flag."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), public API C2, D 3.1, F4; theme: wrong retryability; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    handleError (errors.go:27-172) switches over sentinels of 15 packages;
+    local mappers in git_import, archive and eval handlers; one sentinel
+    means 400 or 404 by handler; 50 of 67 codes are absent from errors.md,
+    the declared registry; the UI compares code literals.
+  siblings: >-
+    Re-verified after V370-009 and V369-004: handleError
+    (internal/httpapi/public/errors.go) switched over the sentinels of 15
+    packages; gitImportError, handleArchiveError, evalError and gitKeyError
+    mapped their own codes; getRuntimeAgentPrincipal, putRuntimeAgentLabels,
+    deleteRuntimeAgentPrincipal, getRuntimeConfig and getRuntimeLabel
+    answered runtimeconfig.ErrNotFound with 404 before handleError, which
+    answered the same sentinel with 400 runtime_label_unknown; the login,
+    authorization, CORS, event handshake, Scheduler settings and Eval render
+    paths wrote literal codes, and the WebSocket error frames took code
+    strings. Retryability disagreed: internal_error was retryable except for
+    the Eval render failure, and a finding collection clientKey bound to
+    another selection answered the retryable conflict although FAIL-FND-3
+    calls it permanent (now idempotency_conflict, FND-R114). errors.md had 48
+    rows for public codes that named no code (the 401, 403, 404 and
+    failed-login 429 placeholders, the unnamed catalog cursor, configuration
+    identity, transfer-capacity and content-missing rows, the Scheduler
+    settings and performance history failures) or a wrong one
+    (audit_invalid; the Server answers audit_document_invalid); they are now
+    rows of the generated table, and CAT-R59, CAT-R68, DEL-R43 and FAIL-DEL-5
+    name their codes, which closes two entries of open-questions.md. Run
+    pinning (runtimeconfig.PinRunSnapshot, used by Run, Audit and Eval
+    creation) returned the plain ErrNotFound for a selected label without a
+    binding; it now returns ErrUnknownLabel, as principal label replacement
+    already did, so a selected label stays 400 runtime_label_unknown while a
+    missing addressed RuntimeConfig resource is 404 everywhere. The Git
+    importer classifies its own deadline and cancellation (ErrTimedOut,
+    ErrInterrupted) instead of its handler. The private Artifact and Control
+    Plane APIs keep their own vocabularies
+    (internal/httpapi/privateartifacts/errors.go,
+    internal/controlplane/http.go): they are the Runtime wire contract, not
+    public codes, and the codes they share with the public API agree with the
+    registry today. Found and left out of this task: the Server never sends
+    the unauthorized error frame that the event schema and the browser client
+    accept (api/events/contractor-events-v1.schema.json:531); a credential
+    operation on a Server without the master key is the retryable
+    internal_error (internal/credentials/crypto.go:57, 119, 173), which no
+    retry can fix; findingintake.ErrAuditClosed is an internal_error
+    (internal/findingintake/postgres.go:572, 725); a standby Server answers
+    /v1 with the plain-text 404 of net/http, not the error envelope
+    (internal/app/single_active.go:221, internal/app/app.go:313); the Eval
+    UI fixture answers eval_unavailable, which no Server sends
+    (ui/src/test/evals-fixture.ts:318).
+  decision: >-
+    Guarantee: internal/apierror (foundation layer) defines every public
+    error code once, as a Kind: code, HTTP status (none for a frame-only
+    code), retryable flag, default safe message, meaning and owner links;
+    defining a code twice panics. A domain error reports its Kind through
+    ErrorKind (apierror.Classified), so the code, status and flag are never
+    copied into a domain package: sentinels are apierror.New values, a
+    narrower case of a sentinel is apierror.Narrow (errors.Is still matches
+    the parent, the answer uses the narrow Kind), and WithMessage or
+    PublicMessage gives a safe message where one code serves several cases.
+    handleError answers the first classified error of the chain, then 503
+    storage_transaction_conflict for a definite transaction conflict, then
+    the retryable 500 internal_error; error details take their kind from the
+    error's code. writeErrorDetails and newErrorFrame are the only builders
+    of the error envelope and the error frame, and both take a Kind
+    (TestErrorEnvelopesComeFromTheRegistry), so no handler can answer an
+    unregistered code or another flag. The Public API codes table of
+    errors.md is generated from the registry (make docs-error-registry);
+    TestRegistryTableIsCurrent fails while it is stale or while a code has a
+    second registry row. Duplicates: the 16 repeated rows were the 10 codes
+    that the ERR-R1 and ERR-R3 requirement tables define and the registry
+    indexes, and the 6 runtime codes that the owners table also listed; the
+    registry is one row per code across its two tables, the requirement
+    tables stay as the codes' definitions that the registry rows link, and
+    the owners table now names rules, not registered codes. The registry is
+    checked against the OpenAPI Eval code enum, error details kinds, error
+    statuses (each registered status is documented and each documented error
+    status has a code) and the codes response descriptions name, the event
+    schema's ErrorFrame enum, and the codes the browser client compares
+    (TestOpenAPIDocumentsTheRegisteredCodes,
+    TestEventSchemaErrorFrameCodesAreTheFrameCodes,
+    TestBrowserClientComparesOnlyRegisteredCodes); make verify-public-api
+    runs them. Alternatives rejected: an interface returning code, status
+    and flag from each domain error (copies them into every package, the
+    drift this task found); a generated switch in the edge (keeps the edge
+    importing every domain package and lets one sentinel mean two codes);
+    Markdown as the registry's source (the Server could not compile against
+    it). Evidence: runtimeconfig.ErrNotFound answered 400 or 404 by handler,
+    internal_error had two retryable flags, and the finding collection key
+    conflict was retryable. Reversal: a code that needs another status or
+    flag in some context becomes a new registered code; the private APIs
+    join the registry only once their wire codes are public codes. Verified:
+    go test ./internal/apierror (including make docs-error-registry), the
+    whole internal/httpapi/public package with and without
+    CONTRACTOR_TEST_DATABASE_URL (with -tags=integration on PostgreSQL),
+    make verify-public-api, the PostgreSQL tests of every touched domain
+    package with -tags=integration, go vet -tags=integration,e2e ./...,
+    staticcheck U1000, scripts/check_spec.py and make lint.
+scope:
+  in:
+    - "An error Kind interface (code, status, retryable) implemented by domain errors; one registry generated into errors.md and checked against OpenAPI and the UI."
+  out:
+    - "Codes already documented."
+acceptance_criteria:
+  - id: A1
+    text: "Every code the Server can return is in the registry with the same retryable flag."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/httpapi/..."
+    covers: [A1]

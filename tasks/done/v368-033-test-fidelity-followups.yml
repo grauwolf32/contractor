@@ -1,0 +1,84 @@
+schema_version: "1.0"
+id: V368-033
+title: "Close test gaps the fix batch left"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+introduced_by: V367-005
+priority: P3
+status: completed
+implementation_commit: 7f21c9bb58c693ef5608f76f598d72305f06d8f5
+depends_on: []
+languages: [go, typescript]
+goal: "Each new test fails when its rule is broken."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), V367-003, V367-005, V367-012 follow-ups; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    UI copies of the Run state sets (ui/src/api/runs.ts, queue.ts,
+    workflows.ts) are not tested for completeness; the findingintake Audit-
+    origin and StageExecution lookup branches have no real-store failure
+    test; the fake Runtime Agent principal manager does not remember
+    idempotency keys.
+  siblings: >-
+    Re-verified on 4146eea: RUN_STATES and TERMINAL_RUN_STATES (runs.ts) and
+    QUEUE_STATES (queue.ts) were already compared with the OpenAPI
+    WorkflowRunState and NonTerminalWorkflowRunState enums by
+    openapi-conformance.test.ts; the untested copy was the inline list in
+    safeCreateRunResponse (workflows.ts), which now uses RUN_STATES. Every
+    other Run state set under ui/src (projects.ts, run-history.tsx,
+    queue.tsx, runs.ts validation) uses those constants, and the per-state
+    label tables are Record<WorkflowRunState, ...>, exhaustive by type. The
+    findingintake test now breaks each of the three provenance reads of
+    verifyTrustedExecution (Run, StageExecution, Audit execution); the
+    allocation check before them already keeps its cause unconditionally.
+    The other principal-manager methods (List, Get) take no key.
+  decision: >-
+    UI: one definition, RUN_STATES, instead of a fourth copy; the new
+    conformance test drives createRun with every WorkflowRunState read from
+    the OpenAPI document plus unknown states and requires exactly the enum
+    to be accepted, so an incomplete validation list fails it (checked by
+    dropping "waiting"). Finding intake: each case renames the one table or
+    column only its read touches (workflow_runs; stage_executions.
+    stage_spec_snapshot, which the allocation check does not select;
+    audit_executions, read only for an Audit-managed Run, built through
+    auditstore and CreateAuditRun as the Run Service does) and requires the
+    SQLSTATE, no receipt, then a successful submission with the expected
+    Audit origin after recovery; mapping either failure to the confirmed
+    outcome (ErrAccessDenied, ErrToolNotSelected) fails the matching case.
+    Fake principal manager: it remembers each committed key with its
+    request and result like runtimeconfig.PrincipalService
+    (runtime_management_operations): replay before any other check, a
+    permanent contracts.ErrIdempotencyConflict for another request or
+    operation, refusals not remembered, and a labels replay of a deleted
+    principal not found because controlplane.PrincipalOperations re-reads
+    the principal. TestFakeRuntimeAgentPrincipalKeysMatchPostgres runs one
+    keyed table against the fake and the real manager on PostgreSQL; it
+    fails against the old fake. Alternative rejected: exporting the
+    runtimeconfig request digest for the fake (an export without a
+    production caller). introduced_by names V367-005, whose commit 41c584c3
+    added the classified StageExecution and Audit branches with a
+    real-store test for the Run branch only; the inline UI list and the
+    key-less fake predate the shallow history (boundary 6349621).
+    Commands run: "go test -tags integration ./internal/findingintake -run
+    TestPostgresFindingSubmissionKeepsProvenanceLookupFailure" and "go test
+    ./internal/httpapi/public -run" over the new parity test and every test
+    using the principal fake, both on PostgreSQL; "vitest run src/api"
+    (416 passed), eslint, prettier and typecheck; the lint subset (gofmt,
+    vet, staticcheck U1000, archtest, persistence, check_spec,
+    check_tasks). The whole findingintake package and make lint run in the
+    coordinator's full suites.
+scope:
+  in:
+    - "A UI test against the OpenAPI enums; PostgreSQL tests for both findingintake branches; the fake remembers keys like the real manager."
+  out:
+    - "Behaviour not named in the finding."
+acceptance_criteria:
+  - id: A1
+    text: "Each new test fails when its rule is broken."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/findingintake"
+    covers: [A1]
+  - command: "corepack pnpm --dir ui exec vitest run src/api"
+    covers: [A1]

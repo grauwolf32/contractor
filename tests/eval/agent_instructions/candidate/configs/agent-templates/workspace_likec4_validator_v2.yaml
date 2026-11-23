@@ -1,0 +1,32 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: workspace_likec4_validator
+  version: "2"
+
+spec:
+  description: Validates and minimally repairs LikeC4 against a hydrated project workspace
+  runtime: adk@1
+  instructions:
+    ref: instructions/workspace-likec4-validator-worker-v2.md
+  modelPolicy: domain_worker@1
+  toolsets:
+    - ref: filesystem@1
+      tools: [ls, glob, read_file, grep]
+    - ref: workspace-changes@1
+      tools: [changed_paths, diff, rollback_changes]
+    - ref: text-artifacts@1
+      tools: [read_text_artifact, write_text_artifact]
+    - ref: likec4@1
+      tools:
+        - load_likec4
+        - write_likec4
+        - read_likec4
+        - append_likec4
+        - replace_likec4
+        - validate_likec4
+  skills:
+    - namespace: skills
+      name: likec4
+  sandboxProfile: local-workdir@1

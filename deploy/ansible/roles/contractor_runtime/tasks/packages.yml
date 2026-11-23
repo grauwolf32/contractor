@@ -1,0 +1,14 @@
+---
+- name: Refresh the apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_os_family == 'Debian'
+
+- name: Install system packages
+  ansible.builtin.package:
+    name: >-
+      {{ __contractor_runtime_packages.base
+         + (__contractor_runtime_packages.podman if __contractor_runtime_host.podman else [])
+         + (__contractor_runtime_packages.podman_network if __contractor_runtime_host.podman_network else []) }}
+    state: present

@@ -1,0 +1,430 @@
+package public
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/runservice"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/stageresult"
+	"github.com/grauwolf32/contractor/internal/telemetry"
+)
+
+type createRunRequest struct {
+	Workflow      string                           `json:"workflow"`
+	RuntimeLabels runRuntimeLabels                 `json:"runtimeLabels,omitempty"`
+	Labels        runMetadataLabels                `json:"labels,omitempty"`
+	Parameters    map[string]string                `json:"parameters"`
+	Artifacts     map[string]contracts.ArtifactRef `json:"artifacts"`
+}
+
+type runRuntimeLabels []string
+
+func (l *runRuntimeLabels) UnmarshalJSON(data []byte) error {
+	if isJSONNull(data) {
+		return errors.New("runtimeLabels must be an array")
+	}
+	var value []string
+	if err := json.Unmarshal(data, &value); err != nil || value == nil {
+		return errors.New("runtimeLabels must be an array")
+	}
+	*l = value
+	return nil
+}
+
+type runMetadataLabels map[string]string
+
+func (l *runMetadataLabels) UnmarshalJSON(data []byte) error {
+	var value map[string]string
+	if err := strictjson.DecodeNonNull(data, &value); err != nil {
+		return err
+	}
+	normalized, err := runstore.NormalizeRunMetadataLabels(value)
+	if err != nil {
+		return err
+	}
+	*l = runMetadataLabels(normalized)
+	return nil
+}
+
+type createRunResponse struct {
+	RequiredPlacementLabels []string                             `json:"requiredPlacementLabels"`
+	RunID                   string                               `json:"runId"`
+	ProjectID               *string                              `json:"projectId,omitempty"`
+	State                   runstore.WorkflowRunState            `json:"state"`
+	RuntimeLabels           []string                             `json:"runtimeLabels"`
+	Labels                  runstore.RunMetadataLabels           `json:"labels"`
+	RuntimeConfiguration    runRuntimeConfigResponse             `json:"runtimeConfiguration"`
+	ProjectHTTPTarget       *runtimesettings.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`
+}
+
+type createProjectRequest struct {
+	Kind         projectstore.Kind            `json:"kind"`
+	Name         string                       `json:"name"`
+	Description  string                       `json:"description,omitempty"`
+	ActiveChecks contracts.ActiveChecksPolicy `json:"activeChecks,omitempty"`
+}
+
+func (r *createProjectRequest) UnmarshalJSON(data []byte) error {
+	type wire createProjectRequest
+	var decoded wire
+	fields, err := decodeStrictWithPresence(data, &decoded)
+	if err != nil {
+		return err
+	}
+	for _, required := range []string{"kind", "name"} {
+		if fields.missingOrNull(required) {
+			return fmt.Errorf("%s is required", required)
+		}
+	}
+	if fields.null("description") {
+		return errors.New("description cannot be null")
+	}
+	if fields.null("activeChecks") {
+		return errors.New("activeChecks cannot be null")
+	}
+	if _, present := fields["activeChecks"]; !present {
+		decoded.ActiveChecks = contracts.ActiveChecksAutomatic
+	}
+	if !decoded.ActiveChecks.Valid() {
+		return errors.New("activeChecks is invalid")
+	}
+	*r = createProjectRequest(decoded)
+	return nil
+}
+
+type updateProjectRequest struct {
+	Name         *string                       `json:"name,omitempty"`
+	Description  *string                       `json:"description,omitempty"`
+	HTTPTarget   *projectHTTPTargetRequest     `json:"httpTarget,omitempty"`
+	ActiveChecks *contracts.ActiveChecksPolicy `json:"activeChecks,omitempty"`
+	targetSet    bool
+}
+
+type projectHTTPTargetRequest struct {
+	URL        string                                `json:"url"`
+	Credential *runtimesettings.RuntimeCredentialRef `json:"credential,omitempty"`
+}
+
+func (r *updateProjectRequest) UnmarshalJSON(data []byte) error {
+	type wire updateProjectRequest
+	var decoded wire
+	fields, err := decodeStrictWithPresence(data, &decoded)
+	if err != nil {
+		return err
+	}
+	if len(fields) == 0 {
+		return errors.New("at least one Project field is required")
+	}
+	for name, value := range fields {
+		if name != "httpTarget" && isJSONNull(value) {
+			return fmt.Errorf("%s cannot be null", name)
+		}
+	}
+	if decoded.ActiveChecks != nil && !decoded.ActiveChecks.Valid() {
+		return errors.New("activeChecks is invalid")
+	}
+	if raw, present := fields["httpTarget"]; present {
+		decoded.targetSet = true
+		if !isJSONNull(raw) {
+			var target projectHTTPTargetRequest
+			targetFields, err := decodeStrictWithPresence(raw, &target)
+			if err != nil {
+				return err
+			}
+			if targetFields.missingOrNull("url") {
+				return errors.New("httpTarget.url is required")
+			}
+			candidate := runtimesettings.HTTPOriginTargetRef{URL: target.URL, Credential: target.Credential}
+			if err := candidate.Validate(); err != nil {
+				return err
+			}
+			decoded.HTTPTarget = &target
+		}
+	}
+	*r = updateProjectRequest(decoded)
+	return nil
+}
+
+type projectResponse struct {
+	ProjectID    string                               `json:"projectId"`
+	Kind         projectstore.Kind                    `json:"kind"`
+	Name         string                               `json:"name"`
+	Description  string                               `json:"description"`
+	ActiveChecks contracts.ActiveChecksPolicy         `json:"activeChecks"`
+	HTTPTarget   *runtimesettings.HTTPOriginTargetRef `json:"httpTarget,omitempty"`
+	Lifecycle    projectstore.Lifecycle               `json:"lifecycle"`
+	Deletion     *projectDeletionResponse             `json:"deletion,omitempty"`
+	Revision     string                               `json:"revision"`
+	CreatedAt    time.Time                            `json:"createdAt"`
+	UpdatedAt    time.Time                            `json:"updatedAt"`
+}
+
+type projectDeletionResponse struct {
+	Phase       projectstore.DeletionPhase `json:"phase"`
+	RequestedAt time.Time                  `json:"requestedAt"`
+}
+
+type projectPageResponse struct {
+	Items []projectResponse `json:"items"`
+	Page  pageInfoResponse  `json:"page"`
+}
+
+type cancelRunRequest struct {
+	Reason *string `json:"reason"`
+}
+
+type cancelRunResponse struct {
+	RunID        string                            `json:"runId"`
+	State        runstore.WorkflowRunState         `json:"state"`
+	Cancellation *runstore.WorkflowRunCancellation `json:"cancellation,omitempty"`
+}
+
+type artifactWriteResponse struct {
+	Artifact  contracts.ArtifactRef `json:"artifact"`
+	MediaType string                `json:"mediaType"`
+	Size      int64                 `json:"size"`
+}
+
+type artifactPageResponse struct {
+	Items []artifactMetadataResponse `json:"items"`
+	Page  pageInfoResponse           `json:"page"`
+}
+
+type artifactLineagePageResponse struct {
+	Items []artifacts.LineageEdge `json:"items"`
+	Page  pageInfoResponse        `json:"page"`
+}
+
+type runStatusResponse struct {
+	RequiredPlacementLabels []string                             `json:"requiredPlacementLabels"`
+	Recovery                *gatewayrecovery.Status              `json:"recovery,omitempty"`
+	RunID                   string                               `json:"runId"`
+	ProjectID               *string                              `json:"projectId,omitempty"`
+	Workflow                string                               `json:"workflow"`
+	State                   runstore.WorkflowRunState            `json:"state"`
+	Deletable               bool                                 `json:"deletable"`
+	ResumeStageExecutionID  *string                              `json:"resumeStageExecutionId,omitempty"`
+	RuntimeLabels           []string                             `json:"runtimeLabels"`
+	Labels                  runstore.RunMetadataLabels           `json:"labels"`
+	RuntimeConfiguration    runRuntimeConfigResponse             `json:"runtimeConfiguration"`
+	ProjectHTTPTarget       *runtimesettings.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`
+	Cancellation            *runstore.WorkflowRunCancellation    `json:"cancellation,omitempty"`
+	Parameters              map[string]string                    `json:"parameters,omitempty"`
+	Inputs                  map[string]contracts.ArtifactRef     `json:"inputs,omitempty"`
+	Attempts                []stageAttemptResponse               `json:"attempts"`
+	Transitions             []stageTransitionResponse            `json:"transitions"`
+	Outputs                 map[string]contracts.ArtifactRef     `json:"outputs"`
+	OutputPublications      []outputPublicationResponse          `json:"outputPublications"`
+	EventCursor             *eventCursorResponse                 `json:"eventCursor,omitempty"`
+	ActiveStageExecutionID  *string                              `json:"activeStageExecutionId,omitempty"`
+	CreatedAt               time.Time                            `json:"createdAt,omitempty"`
+	UpdatedAt               time.Time                            `json:"updatedAt,omitempty"`
+	StartedAt               *time.Time                           `json:"startedAt,omitempty"`
+	FinishedAt              *time.Time                           `json:"finishedAt,omitempty"`
+}
+
+type runRepeatDraftResponse struct {
+	SourceRunID string                 `json:"sourceRunId"`
+	Authority   string                 `json:"authority"`
+	Workflow    resolved.WorkflowRef   `json:"workflow"`
+	ProjectID   *string                `json:"projectId,omitempty"`
+	AuditID     *string                `json:"auditId,omitempty"`
+	Draft       *runRepeatDraft        `json:"draft,omitempty"`
+	Notices     []runRepeatDraftNotice `json:"notices"`
+}
+
+type runRepeatDraft struct {
+	RequiredPlacementLabels []string                           `json:"requiredPlacementLabels"`
+	Parameters              map[string]string                  `json:"parameters"`
+	RuntimeLabels           []string                           `json:"runtimeLabels"`
+	Labels                  runstore.RunMetadataLabels         `json:"labels"`
+	Inputs                  map[string]runRepeatInputSelection `json:"inputs"`
+}
+
+type runRepeatInputSelection struct {
+	Status      string                    `json:"status"`
+	SourceScope artifacts.ScopeKind       `json:"sourceScope,omitempty"`
+	Artifact    *contracts.ArtifactRef    `json:"artifact,omitempty"`
+	Metadata    *artifactMetadataResponse `json:"metadata,omitempty"`
+	Code        string                    `json:"code,omitempty"`
+	Message     string                    `json:"message,omitempty"`
+}
+
+type runRepeatDraftNotice = runservice.RepeatNotice
+
+type outputPublicationResponse struct {
+	Output       string                           `json:"output"`
+	Status       runstore.OutputPublicationStatus `json:"status"`
+	Source       contracts.ArtifactRef            `json:"source"`
+	Target       *contracts.ArtifactRef           `json:"target,omitempty"`
+	ErrorCode    string                           `json:"errorCode,omitempty"`
+	ErrorMessage string                           `json:"errorMessage,omitempty"`
+	CreatedAt    time.Time                        `json:"createdAt"`
+}
+
+type pinnedRuntimeConfigResponse struct {
+	Label           string            `json:"label"`
+	BindingRevision string            `json:"bindingRevision"`
+	Config          runtimeconfig.Ref `json:"config"`
+}
+
+type runRuntimeConfigResponse struct {
+	Default pinnedRuntimeConfigResponse   `json:"default"`
+	Labels  []pinnedRuntimeConfigResponse `json:"labels"`
+}
+
+type stageAttemptResponse struct {
+	StageExecutionID     string                                `json:"stageExecutionId"`
+	Stage                string                                `json:"stage"`
+	Objective            string                                `json:"objective,omitempty"`
+	Attempt              int                                   `json:"attempt"`
+	PreviousExecutionID  *string                               `json:"previousExecutionId,omitempty"`
+	ExecutionConfig      stageExecutionConfigResponse          `json:"executionConfig"`
+	State                runstore.StageExecutionState          `json:"state"`
+	Result               *stageresult.StageContentResult       `json:"result,omitempty"`
+	Termination          *runstore.StageTermination            `json:"termination,omitempty"`
+	Metrics              *telemetry.Summary                    `json:"metrics,omitempty"`
+	Diagnostics          *telemetry.AttemptDiagnostics         `json:"diagnostics,omitempty"`
+	Plan                 *planner.PlannerPlanProjection        `json:"plan,omitempty"`
+	RuntimeConfiguration *stageRuntimeConfigurationResponse    `json:"runtimeConfiguration,omitempty"`
+	Resources            []telemetry.AllocationResourceSummary `json:"resources"`
+	CreatedAt            time.Time                             `json:"createdAt,omitempty"`
+	UpdatedAt            time.Time                             `json:"updatedAt,omitempty"`
+	PlannerStartedAt     *time.Time                            `json:"plannerStartedAt,omitempty"`
+	TerminalAt           *time.Time                            `json:"terminalAt,omitempty"`
+}
+
+type allocationResourcePageResponse struct {
+	Items []telemetry.AllocationResourceSummary `json:"items"`
+	Page  pageInfoResponse                      `json:"page"`
+}
+
+type stageRuntimeConfigurationResponse struct {
+	Allocations []stageRuntimeAllocationResponse `json:"allocations"`
+}
+
+type stageRuntimeAllocationResponse struct {
+	PlacementLabels []string                                   `json:"placementLabels"`
+	LogicalAgent    string                                     `json:"logicalAgent"`
+	AgentLabels     []pinnedRuntimeConfigResponse              `json:"agentLabels"`
+	RuntimeAdapters []runtimesettings.RuntimeAdapterRef        `json:"runtimeAdapters"`
+	Origins         runtimeconfig.ResolvedRuntimeConfigOrigins `json:"origins"`
+	Status          string                                     `json:"status"`
+}
+
+type eventCursorResponse struct {
+	Generation string `json:"generation"`
+	Sequence   string `json:"sequence"`
+}
+
+type runSummaryResponse struct {
+	RunID      string                     `json:"runId"`
+	ProjectID  *string                    `json:"projectId,omitempty"`
+	Workflow   string                     `json:"workflow"`
+	State      runstore.WorkflowRunState  `json:"state"`
+	Deletable  bool                       `json:"deletable"`
+	Labels     runstore.RunMetadataLabels `json:"labels"`
+	CreatedAt  time.Time                  `json:"createdAt"`
+	UpdatedAt  time.Time                  `json:"updatedAt"`
+	FinishedAt *time.Time                 `json:"finishedAt,omitempty"`
+}
+
+type runPageResponse struct {
+	Items []runSummaryResponse `json:"items"`
+	Page  pageInfoResponse     `json:"page"`
+}
+
+type queueProjectResponse struct {
+	ProjectID string            `json:"projectId"`
+	Name      string            `json:"name"`
+	Kind      projectstore.Kind `json:"kind"`
+}
+
+type queueItemResponse struct {
+	RunID       string                     `json:"runId"`
+	Project     *queueProjectResponse      `json:"project,omitempty"`
+	Workflow    string                     `json:"workflow"`
+	State       runstore.WorkflowRunState  `json:"state"`
+	Labels      runstore.RunMetadataLabels `json:"labels"`
+	EventCursor eventCursorResponse        `json:"eventCursor"`
+	CreatedAt   time.Time                  `json:"createdAt"`
+	UpdatedAt   time.Time                  `json:"updatedAt"`
+}
+
+type queuePageResponse struct {
+	Items []queueItemResponse `json:"items"`
+	Page  pageInfoResponse    `json:"page"`
+}
+
+type ownerQueueControlResponse struct {
+	Paused    bool       `json:"paused"`
+	Revision  string     `json:"revision"`
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+}
+
+type updateOwnerQueueControlRequest struct {
+	Paused *bool `json:"paused"`
+}
+
+type stageExecutionConfigResponse struct {
+	Variant           runstore.StageExecutionConfigVariant           `json:"variant"`
+	EscalationOrdinal *int                                           `json:"escalationOrdinal,omitempty"`
+	Planner           *consumerExecutionConfigRefsResponse           `json:"planner,omitempty"`
+	Agents            map[string]consumerExecutionConfigRefsResponse `json:"agents"`
+}
+
+type consumerExecutionConfigRefsResponse struct {
+	Model                 string                          `json:"model,omitempty"`
+	SummarizerModelPolicy *contracts.ModelPolicyRef       `json:"summarizerModelPolicy,omitempty"`
+	SummarizerModel       string                          `json:"summarizerModel,omitempty"`
+	CompactorModelPolicy  *contracts.ModelPolicyRef       `json:"compactorModelPolicy,omitempty"`
+	CompactorModel        string                          `json:"compactorModel,omitempty"`
+	ModelPolicy           contracts.ModelPolicyRef        `json:"modelPolicy,omitzero"`
+	LLMGateway            *llmgateway.LLMGatewayConfigRef `json:"llmGateway,omitempty"`
+	Credential            *llmgateway.LLMCredentialRef    `json:"credential,omitempty"`
+	Origins               resolved.ExecutionConfigOrigins `json:"origins"`
+}
+
+// consumerExecutionConfigRefs projects the execution configuration one
+// Planner or Worker resolved to, for a Workflow and for a StageExecution.
+func consumerExecutionConfigRefs(
+	selection resolved.ResolvedConsumerExecutionConfig,
+) consumerExecutionConfigRefsResponse {
+	result := consumerExecutionConfigRefsResponse{
+		ModelPolicy: selection.ModelPolicy.Ref,
+		Model:       selection.ModelPolicy.Model,
+		Origins:     selection.Origins,
+	}
+	if selection.SummarizerModelPolicy != nil {
+		ref := selection.SummarizerModelPolicy.Ref
+		result.SummarizerModelPolicy = &ref
+		result.SummarizerModel = selection.SummarizerModelPolicy.Model
+	}
+	if selection.CompactorModelPolicy != nil {
+		ref := selection.CompactorModelPolicy.Ref
+		result.CompactorModelPolicy = &ref
+		result.CompactorModel = selection.CompactorModelPolicy.Model
+	}
+	if selection.LLMGateway != nil {
+		gateway := selection.LLMGateway.Ref
+		result.LLMGateway = &gateway
+	}
+	if selection.Credential != nil {
+		credential := *selection.Credential
+		result.Credential = &credential
+	}
+	return result
+}

@@ -1,0 +1,82 @@
+schema_version: "1.0"
+id: V370-019
+title: "Cut steady-state Scheduler, A2A and gateway polling"
+milestone: hub-audit-structure-2026-10
+epic: execution-core
+kind: defect
+priority: P1
+status: completed
+implementation_commit: 9a9c79ff44322c0ec3de7b7876f877e226a74e70
+depends_on: []
+languages: [go]
+goal: "A clock-injected test allows at most 3 renewals per minute per lane; A2A requests per minute drop by 90%."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), dispatch I1-I3; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Claims renew every second (min(ClaimDuration/3, PollInterval),
+    supervisor.go:335-340) with a full GetRun of every JSONB snapshot; the
+    updated columns are in workflow_runs_admission_idx, so no update is HOT:
+    about 64 statements/s at 32 lanes and updatedAt changes every second.
+    A2A polls GetTask every 100 ms for the whole Worker call
+    (a2a/client.go:32, 265). Every model call takes FOR UPDATE on the Run
+    and the shared route row even on a healthy route (requests.go:80-91).
+  siblings: >-
+    Re-verified on 4146eea plus V370-020, which already replaced
+    workflow_runs_admission_idx by claim indexes that do not cover the lease
+    expiry. The renewal is the only periodic lease renewal: the Project
+    lifecycle and Audit controllers take their claims per operation and do
+    not renew them. Both gateway update entry points, a Runtime allocation's
+    Service.Update and a Server-side Planner's Participant.Update, go
+    through the one update function that now has the read-only path; Admit
+    and Retry run once per admission or user action and keep their locks.
+    The A2A GetTask retry backoff inside one poll already grew to 500 ms and
+    now shares the injected wait.
+  decision: >-
+    Guarantee: a lane renews every third of scheduler.claimDuration (40 s by
+    default, at most three renewals in any minute per lane, LIM-SCH-15) and
+    retries a failed renewal every scheduler.pollInterval while the last
+    lease keeps a third of its duration, so failure tolerance is as before
+    while the steady state drops from 60 to 1.5 renewals a minute. The
+    renewal writes only scheduler_claim_expires_at and returns the Run
+    state: it is a heap-only update, updated_at (public updatedAt and claim
+    order) no longer moves, and a renewal conflict reads only the Run state.
+    Accepted cost: a cancellation that the in-process Cancel misses is seen
+    by the next renewal, within 40 s instead of 1 s; all four cancellation
+    writers call Cancel in-process (scope.out). The A2A poll delay starts at
+    a2a.pollInterval and doubles while the Task runs, up to 2 s or the
+    configured interval when longer (PLN-R114, LIM-PLN-7): a one-minute
+    Worker call costs at most 34 GetTask requests instead of 600, and the
+    result is seen at most 2 s after the Task ends. A gateway update that
+    changes nothing (acquire on a route that is not blocked; a terminal
+    update whose participant holds neither the probe nor, for succeeded and
+    finished, a wait while the Run is not waiting) is decided from one read
+    without locks (SCH-R165); it linearizes at the read, as an update
+    committed just before a concurrent failure would. Alternatives: a fixed
+    1 s A2A cadence still makes 60 requests a minute and slows quick Tasks;
+    A2A streaming would remove polling but changes the Runtime protocol;
+    locking only the route row would still serialize an owner's calls.
+    Reopen the A2A bound when short tool Workers chain so that 2 s per call
+    shows in Stage latency (reset the backoff on Task progress instead).
+    Evidence: TestClaimRenewalRenewsEveryThirdOfTheLease fails with the old
+    period (599 renewals in ten virtual minutes),
+    TestPostgresClaimRenewalIsHeapOnlyUpdate fails when the renewal writes
+    updated_at (no heap-only update), TestInvokerBacksOffPollingOfARunningTask
+    fails with a fixed cadence (600 requests) and
+    TestGatewayRecoveryHealthyRouteUpdatesTakeNoLocks fails without the
+    read-only path (it waits for the held locks until its deadline). Tests
+    with real clocks that relied on a renewal every poll interval now set a
+    short claimDuration; TestClaimRenewalRetriesTransientErrorsUntilLeaseMargin
+    counts the attempts of the new cadence.
+scope:
+  in:
+    - "Renew every ClaimDuration/3 with RETURNING state and without touching updated_at; adaptive A2A backoff to 1-2 s; a read-only fast path for healthy routes."
+  out:
+    - "Cancellation latency (Cancel is in-process)."
+acceptance_criteria:
+  - id: A1
+    text: "A clock-injected test allows at most 3 renewals per minute per lane; A2A requests per minute drop by 90%."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/scheduler ./internal/planner/a2a ./internal/gatewayrecovery"
+    covers: [A1]

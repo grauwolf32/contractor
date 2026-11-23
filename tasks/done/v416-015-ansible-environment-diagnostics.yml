@@ -1,0 +1,93 @@
+schema_version: "1.0"
+id: V416-015
+title: "Keep Runtime environment values out of Ansible diagnostics"
+milestone: main-review-2026-10-25
+epic: operations
+kind: defect
+introduced_by: V402-001
+priority: P1
+status: completed
+implementation_commit: 8e36da7da577ecdbefcbda05f7fc358167a55928
+depends_on: []
+languages: [yaml, python]
+goal: >-
+  Runtime deployment reports actionable validation and provisioning failures
+  without emitting environment values or secret-bearing argument payloads.
+context:
+  review: "2026-10-25 second-pass review at main f9fda28f1c9ffa4baaf3052c141e652c8593a080."
+  severity: medium
+  authority: "AGENTS.md section 2: never log secrets or environment values."
+  deployment_contract: deploy/ansible/README.md
+  finding: >-
+    deploy/ansible/roles/contractor_runtime/tasks/resolve.yml:150-171 embeds
+    __contractor_runtime_rejected in fail_msg after collecting raw arguments
+    and environment.values(). It also loops over complete resolved instance
+    dictionaries without no_log. Two independent local Ansible reproductions
+    used synthetic values at normal verbosity: an environment value containing
+    a space appears directly in the validation message; a valid environment
+    sentinel plus an unrelated invalid extra_args value prints the sentinel
+    only in the failed-loop structured payload. loop_control.label and
+    assert.quiet do not hide that payload. No real credential was accessed.
+  provenance: >-
+    V402-001 implementation c12d35f0435c583ae11a2e495b1b6965eff47f9f introduced
+    the role. Its README documents contractor_runtime_extra_environment and
+    per-instance extra_environment as general environment overrides with no
+    enforced non-secret restriction. The failure is present without -v or
+    --diff and is therefore not limited to operator debug verbosity.
+  siblings: >-
+    Other validations iterating full instances, resolution/set_fact results,
+    include-task loop failures, Runtime parser command errors, capability
+    probes using the environment, and service-unit template diffs may expose
+    the same values. Private-key slurp/copy already use no_log and must stay
+    protected. Hybrid common.run suppresses secret-bearing subprocess output;
+    the Ansible wrapper needs equivalent protection at its own boundary.
+scope:
+  in:
+    - "Separate safe diagnostic identity from raw configuration: report instance name, field/key and validation category, never the rejected value."
+    - "Prevent Ansible from serializing complete secret-bearing loop items/results through normal failures or verbose/diff callbacks; use appropriately scoped no_log and sanitized summaries rather than hiding every useful diagnostic."
+    - "Audit and cover the sibling resolver/parser/probe/template paths named above; mark unit rendering or other sensitive file changes non-diffable where needed."
+    - "Add localhost role tests capturing ordinary failure output plus supported verbose/diff output with synthetic sentinels; document safe deployment diagnostics and troubleshooting."
+  out:
+    - "Changing configuration semantics, storing secrets in task records, deleting logs on user hosts, or a broad telemetry/redaction rewrite."
+failure_outcomes:
+  - operation: "Validate or provision a Runtime instance with environment overrides"
+    success: "The intended configuration is applied and safe identity/status diagnostics remain available."
+    permanent: "Invalid syntax or configuration fails with instance/key/category context and no raw argument/environment value."
+    retryable: "Transient command/probe failures remain visible and bounded; suppressed raw output is not replaced by false success."
+    ambiguous: "Preserve existing apply/restart reconciliation; diagnostic redaction cannot change mutation identity or readiness claims."
+    cancelled: "Cancellation stops the invocation through existing owners and does not dump in-flight values."
+    timeout: "Existing subprocess and deployment timeouts remain; timeout diagnostics obey the same redaction rule."
+acceptance_criteria:
+  - id: A1
+    given: "an invalid environment value containing a unique synthetic sentinel"
+    when: "production resolve tasks fail at ordinary Ansible verbosity"
+    then: "the sentinel is absent from stdout/stderr and all emitted result payloads; instance and rejected field/category remain actionable"
+  - id: A2
+    given: "a valid environment sentinel and an unrelated invalid argument or capability"
+    when: "a looped validation fails"
+    then: "the complete instance/environment is not serialized into the failure callback; the test fails on the reviewed implementation"
+  - id: A3
+    given: "synthetic values in host and instance environment overrides"
+    when: "parser/probe failures, supported verbose diagnostics and unit-template diff mode are exercised"
+    then: "no value leaks through a sibling result, loop item, command output or rendered diff; successful values still reach the intended process configuration"
+  - id: A4
+    given: "the full role and hybrid test suites"
+    when: "all tests run with disposable local fixtures"
+    then: "validation remains strict, diagnostic categories are useful, existing secret-key protections stay intact and no test uses a real credential or cloud host"
+tests:
+  - command: make test-ansible test-hybrid
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+implementation_notes:
+  - "Raw resolver calculations and results are private; public diagnostics use validated identity or entry index, field/key/argument index and fixed categories. Input shape checks precede Jinja operations that could otherwise echo bad values."
+  - "Configure/start include loops carry names instead of complete instances. Parser, probe, scope and journal payloads are private. Unit rendering suppresses both old/new diffs while preserving changed/restart state."
+  - "Runtime probe and UV overrides travel through command stdin to a standard-library exec launcher. This removes the task.environment shell prefix that pinned Ansible prints at -vvv despite no_log."
+  - "Registration diagnostics preserve last-probe-outcome semantics per expected ref; an available event followed by invalid_result cannot claim readiness. Raw outcomes and journal lines are never published."
+validation_notes:
+  - "Fix-finding skill: independent pre-patch investigator traced the boundaries and confirmed the no_log/task.environment verbose transport leak. One fresh bypass reviewer identified the latest-outcome regression; it was independently confirmed, repaired and covered in both event orders."
+  - "Fail-before: two new real-role tests against immutable 6887ec187acbbc81a0cfb8332c3b94ba8a231cb6 fail in three subcases because invalid environment and unrelated argument/capability failures expose synthetic host/instance sentinels."
+  - "Pass-after coverage: 17 real localhost callback tests, with normal output and -vvv/--diff, cover malformed entries/types, literal values, parser/probe/UV/scope failures, journal timeout and malformed/unknown events, old/new unit diffs, outer include loops, actual child environment delivery, unit changed/restart truth and registration verdicts."
+  - "Only synthetic values and disposable localhost fixtures are used. No live SSH/cloud deployment or real credential was accessed. ANSIBLE_DEBUG and user-added debug tasks explicitly exposing private host variables are outside the supported diagnostic boundary."
+  - "Final verification after the review repair: make test-ansible test-hybrid lint PASS, including 17 diagnostic regressions, 17 pruning regressions, four real-parser scope tests and 23 hybrid tests. Targeted Ruff check/format and git diff --check PASS. GOFLAGS=-p=2 bounded Go check concurrency."
+  - "The added real-role event-order regression fails against the reviewed pre-repair filter exactly for available followed by invalid_result, and passes both event orders after the repair."

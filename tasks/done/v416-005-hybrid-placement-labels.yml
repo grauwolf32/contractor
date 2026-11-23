@@ -1,0 +1,132 @@
+schema_version: "1.0"
+id: V416-005
+title: "Declare Runtime placement labels in hybrid deployment inventory"
+milestone: main-review-2026-10-25
+epic: operations
+kind: defect
+introduced_by: V405-001
+priority: P2
+status: completed
+depends_on: []
+languages: [python, yaml]
+goal: >-
+  Hybrid-deployed cloud Runtime processes advertise an explicit, validated
+  location declaration and can serve matching cloud-constrained checks.
+context:
+  severity: medium
+  specification:
+    - docs/spec/execution/control-plane.md#CTL-R156
+    - docs/spec/execution/control-plane.md#CTL-R157
+    - docs/spec/execution/control-plane.md#CTL-R158
+    - docs/spec/execution/control-plane.md#CTL-R159
+    - docs/spec/execution/runtime-agent.md#RTA-R114
+    - docs/spec/execution/runs.md#RUN-R107
+  finding: >-
+    At reviewed main f9fda28f1c9ffa4baaf3052c141e652c8593a080,
+    deploy/hybrid/runtime.py:51-80 generates instances with only name/port and
+    sets contractor_runtime_labels to cloud-llm. It has no placement argument
+    at lines 143-146. The Ansible role defaults placement labels to an empty
+    array at deploy/ansible/roles/contractor_runtime/defaults/main.yml:76 and
+    emits --placement-label only for explicit declarations in
+    templates/instance.json.j2:44-45. Generate the hybrid inventory and deploy:
+    cloud-llm selects RuntimeConfig, but the ready cloud Runtime declares no
+    cloud location. An Audit/Run labelled cloud therefore waits for matching
+    capacity even with these idle Runtimes. Editing generated inventory is not
+    durable because the next wrapper invocation overwrites it.
+  provenance: >-
+    The wrapper was added by baeb04eddf918141d342438eb66da5b2d573fcfa on
+    2026-10-23 14:00, before placement existed. V405-001 implementation
+    62ee2dc8b3922a5607fcfafb9b0f42362adc611a at 18:03 added startup-owned
+    declarations and explicitly owned Ansible startup integration but omitted
+    this existing wrapper. V405-002 implementation
+    efeba9113b1c472eee330dae3a51b69de9049055 at 20:36 introduced the consumer
+    matching that makes the omission observable. introduced_by attributes the
+    incomplete deployment integration to V405-001, not to the earlier wrapper.
+  evidence: >-
+    Calling the real inventory() with disposable PKI/binary fixtures and the
+    source-revision check mocked produced runtime_labels=[cloud-llm], no
+    placement_labels, and instances with name/port only. The existing placement
+    contract deliberately rejects undeclared capacity for nonempty requirements.
+  siblings: >-
+    Cover wrapper inventory-only, syntax-check and normal deployment, minimal
+    and full capabilities, all generated hosts/slots, reruns and deferred
+    restarts. Direct Ansible host/instance placement overrides already exist;
+    keep them authoritative. Runtime --initial-label and bootstrap assign are
+    infrastructure configuration and must not become location declarations.
+scope:
+  in:
+    - "Expose an explicit persistent operator input for the hybrid fleet's location declaration and pass it through generated inventory to the role's existing placement_labels mechanism."
+    - "Make the documented cloud deployment select cloud explicitly; permit narrower provider/site declarations without inferring a provider from DNS or an SSH alias."
+    - "Reuse or validate against the existing shared placement grammar and bounds; reject invalid input before remote changes or generated-state replacement."
+    - "Document separate RuntimeConfig and placement labels, repeated deployment behavior and the restart/new-incarnation requirement when declarations change."
+    - "Add wrapper-to-rendered-argv regressions and exercise matching using the existing real registration/placement test harness."
+  out:
+    - "Placement matcher changes, cloud-provider detection, new RuntimeConfig bindings, fleet auto-discovery, live deployment or model changes."
+failure_outcomes:
+  - operation: "Validate placement selection, render hybrid inventory and reconcile Runtime units"
+    success: "Every generated process receives its selected declaration; startup/Operations reports the actual same declaration after ordinary registration."
+    permanent: "Malformed, duplicate, over-limit or incompatible declarations fail before deployment; cloud-llm never substitutes for cloud placement."
+    retryable: "Ansible, SSH or readiness failure fails the bounded invocation; rerunning preserves the explicit declaration and uses existing deployment reconciliation."
+    ambiguous: "A partly applied deployment is reconciled from desired inventory and actual readiness/registration; no undeclared process is reported as having the new location."
+    cancelled: "Existing subprocess/deployment ownership applies; cancellation does not invent background reconciliation or mutate Server labels."
+    timeout: "Keep existing SSH, Ansible and readiness timeout owners; no infinite capacity wait is added to the deploy wrapper."
+cardinality:
+  - collection: "Generated Runtime declarations"
+    expected: "One declared location path per cloud Runtime."
+    maximum: "Existing mesh host/slot limits and 32 placement labels of at most 63 ASCII bytes forming one ancestor chain."
+    bound: "One declaration per generated instance; reuse bounded inventory generation without per-label remote discovery."
+lifecycle:
+  - entity: "Runtime process placement declaration"
+    delete: "Retirement follows the existing Runtime incarnation lifecycle."
+    cascade: "No additional durable entity or receipt."
+    retention: "Desired operator declaration survives wrapper reruns; an active incarnation remains immutable until an ordinary restart."
+acceptance_criteria:
+  - id: A1
+    given: "The documented hybrid cloud deployment with one or several hosts and slots"
+    when: "Inventory-only, syntax-check or normal deployment renders the role configuration"
+    then: "Every Runtime gets the explicit cloud placement declaration in --placement-label, independently of --initial-label cloud-llm, in minimal and full capability modes."
+  - id: A2
+    given: "An explicit narrower provider/site declaration and a repeat deployment"
+    when: "Inventory is regenerated and the role resolves defaults/overrides"
+    then: "The intended normalized location survives without editing generated files, no provider is inferred, and existing direct Ansible host/instance override semantics remain correct."
+  - id: A3
+    given: "Malformed, duplicate, mixed-root, disjoint-branch or over-limit declarations"
+    when: "The wrapper validates its input"
+    then: "It fails before remote mutation and does not replace a valid generated state; shared fixture cases agree with Runtime validation."
+  - id: A4
+    given: "A generated cloud/aws Runtime declaration and real Control Plane registration/placement fixtures"
+    when: "Runs require cloud, cloud/aws, local or a different provider"
+    then: "Matching cloud Runs can use the Runtime and incompatible requirements cannot; Operations reflects actual immutable registration labels, including deferred-restart behavior."
+  - id: A5
+    given: "The regression tests and documented deployment examples"
+    when: "They run on the original wrapper and the corrected implementation"
+    then: "The missing generated startup argument fails on the original, all hybrid/Ansible suites pass on the fix, and real-store placement tests run rather than skip."
+tests:
+  - command: "make test-hybrid test-ansible"
+    covers: [A1, A2, A3, A5]
+  - command: >-
+      CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" go test -count=1 ./internal/controlplane
+    covers: [A4, A5]
+  - command: "make test-wire-cross-language"
+    covers: [A3, A4, A5]
+  - command: "make lint"
+    covers: [A1, A2, A3, A4, A5]
+validation:
+  environment: "Dedicated codex/v416-ui-ops-fixes worktree, locked Python 3.13 environment, and separate UTF-8 PostgreSQL v416_ui database."
+  decisions:
+    - "deployment.json hosts[].placement_labels is the durable operator input. mesh init explicitly chooses cloud; providers/sites are never inferred from SSH names. Missing or malformed declarations fail before generated-state replacement or remote work."
+    - "The wrapper imports the Runtime's placement validator and passes the canonical declaration through the existing Ansible role. cloud-llm remains a separate RuntimeConfig label. Deferred restarts retain the running incarnation's actual old declaration."
+  evidence:
+    - "The generated-inventory regression fails in all four minimal/full and deferred/immediate modes against original 3dedaf8bc0d00b90ff7555eb78bde51e7714340a because contractor_runtime_placement_labels is absent."
+    - "make test-hybrid test-ansible passed: 28 hybrid tests, Ruff, shell syntax, actual generated inventory through the Ansible role in minimal/full modes, and full role syntax/lint/resolution suites."
+    - "CONTRACTOR_TEST_DATABASE_URL set to the disposable database: go test -count=1 ./internal/controlplane passed, including real registration and immutable placement matching."
+    - "Runtime tests/test_shared_placement_labels.py and tests/test_settings.py passed all 38 tests."
+    - "make test-wire-cross-language passed: 313 wire tests, 1213 selected shared Runtime tests, and coverage of 270 fixtures through 319 Go and 211 Python shared tests."
+  integration: Full make lint passed on the integrated implementation.
+
+implementation_commit: 4c8a09bc797919bfc0e3ca8774f79bcffcab8a39
+integration_verification:
+  date: "2026-10-25"
+  revision: c2b8774febc4750146ab9af6e03da054c18a46e5
+  command: make lint
+  result: passed

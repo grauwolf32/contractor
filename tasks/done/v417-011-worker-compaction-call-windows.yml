@@ -1,0 +1,191 @@
+schema_version: '1.0'
+id: V417-011
+title: Renew Worker model and tool call windows after committed compaction
+milestone: worker-context-compaction-2026-10
+epic: planner-worker
+kind: feature
+priority: P1
+status: completed
+implementation_commit: 160280289308a5ca8511794c5cc2e92b966f3f86
+depends_on:
+- V417-003
+- V417-005
+- V417-007
+languages: [python, go, typescript, json]
+goal: >-
+  An ordinary or Audit Worker using compact@1 receives a complete new model/tool call window
+  after a committed checkpoint and can finish the same check, while cumulative token costs,
+  the original deadline, compaction bounds and trusted completion remain authoritative.
+demonstration: >-
+  A real Server/Runtime/PostgreSQL scenario with small deterministic call limits commits two
+  checkpoints, exceeds the configured per-window model and tool counts in cumulative totals,
+  then publishes one ordinary result. A separate incomplete Audit check retains accepted
+  conclusions across the same boundaries and completes through audit-results@2 (A1, A2).
+context:
+  authority: >-
+    User decision 2026-11-16: after successful compaction both modelCalls and toolCalls limits
+    must renew. The user accepted the proposed semantics: reaching either window requests
+    compaction; the compactor has its own one-call policy; cumulative tokens, deadline,
+    maxCompactions and statistics remain bounded and do not reset; failed compaction grants
+    no capacity. The subsequent request authorizes creating and merging this task only.
+    User assignment 2026-11-16 authorizes implementation of V417-011 from current main
+    e93a5c9270211bbb5087880417d22f1958301c3f in an isolated worktree.
+  classification: >-
+    This is an explicit change to the previous contract, not a claim that cumulative model
+    admission violated WRK-R185/R186. It supersedes the cumulative model-call restriction
+    retained by V417-003, V417-005 and V464-001 for compact@1 Workers only. Historical completed
+    tasks and their acceptance evidence remain intact.
+  specification:
+  - docs/spec/execution/worker.md#WRK-R185
+  - docs/spec/execution/worker.md#WRK-R186
+  - docs/spec/execution/worker.md#WRK-R190
+  - docs/spec/configuration/agent-templates.md#TPL-R118
+  - docs/spec/configuration/workflows.md#WFL-R92
+  - docs/spec/audits/worker-completion.md#AWC-R130
+  - docs/spec/platform/observability.md
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/failure-model.md
+  evidence: tasks/evidence/v417-011-call-windows-20261116.json
+  acceptance_evidence: tasks/evidence/v417-011-acceptance-20261116.json
+  verification: >-
+    A1-A7 and all required commands passed on the implementation commit. Full Runtime has
+    6284 passes and 135 declared skips; optional heavy I/O is excluded coverage. Compaction
+    and Audit gates, shared wire fixtures, public PostgreSQL API, full UI verification,
+    lint and whole affected Go packages passed. The complete make test-e2e selection has
+    52 passing process roots, no skips and six passing report verifiers. UI verification
+    uses VITEST_MAX_WORKERS=2 with unchanged test timeouts. The owned test database is
+    removed. This branch is not merged into main; no full release or live-model claim.
+  current_paths:
+  - runtime/src/contractor_runtime/worker/budget.py:49
+  - runtime/src/contractor_runtime/worker/instrumentation.py:273
+  - runtime/src/contractor_runtime/worker/instrumentation.py:430
+  - runtime/src/contractor_runtime/worker/runtime.py:930
+  boundary_decision: >-
+    Keep admission and checkpoint offsets in the existing invocation budget owner. Distinguish
+    renewable call capacity from cumulative usage; never clear telemetry to reopen admission.
+    Only the existing confirmed marker commit, including its exact reconciliation path, advances
+    both windows once. Simply raising a global model cap is the simpler alternative, but makes
+    checkpoint count and remaining work capacity unrelated and does not implement the user decision.
+  diagnostics_decision: >-
+    Existing State/report budgets retain cumulative model/tool observations, and existing
+    confirmed compaction generation and phase costs explain renewals. Public/UI readers do
+    not expose a remaining-call estimate or derive exhaustion from totals; no new wire field
+    is needed. Finalization retains one-shot and current-window admission; only compaction
+    bypasses call capacity, while both obey cumulative tokens and the original deadline.
+  implementation_boundary: >-
+    Update the owning numbered specifications and every affected producer/reader together.
+    Reuse existing progress/phase observations and shared fixtures; if a public or wire budget
+    shape needs window observations, update its schema, Go/Python consumers, generated clients
+    and UI together. Do not add a second budget owner or speculative configuration fields.
+scope:
+  in:
+  - Isolated ordinary and Audit compact@1 Worker admission, checkpoint commit/reconciliation and accounting.
+  - Main/compaction phase charging, truthful live/final diagnostics and deterministic real-process regressions.
+  - Review affected open compaction plans for the new decision without resuming reserved or paused work.
+  out:
+  - Changing Planner compaction budgets, terminal summarization or noncompact Worker admission semantics.
+  - Shared-session admission, a new retry engine, policy model changes, higher cumulative token budgets or renewed deadlines.
+  - Changing findings/evidence/completion authority, frozen Eval records or resuming paused V417-010.
+  - Demo deployment, live model runs and automatic changes to existing published catalog identities.
+requirements:
+- id: R1
+  text: >-
+    For compact@1, maxModelCalls bounds main-model admissions since invocation start or the last
+    committed checkpoint, just as maxToolCalls bounds its tool window. Reaching either window
+    requests compaction before another main call is sent or charged. Preserve existing token
+    pressure handling and completion priority; a ready Audit check finishes without needless compaction.
+- id: R2
+  text: >-
+    A verified checkpoint commit renews both windows exactly once, even if the checkpoint was
+    requested by only one call window or by context pressure. Failed, cancelled, skipped,
+    ineffective, stale or unverified checkpoints never renew either window. Reset and generation
+    publication follow the existing single commit owner; callbacks and SDK turns cannot renew capacity.
+- id: R3
+  text: >-
+    An exhausted main-model window must still admit its one-shot compactor through the pinned
+    compactorModelPolicy, including maxModelCalls: 1 and its finite token limits. That call does
+    not consume the new main-model window and is never blocked solely by the exhausted old one.
+    It still contributes exactly once to cumulative modelCalls, phase costs and total tokens,
+    and obeys cancellation, deadline and cumulative token admission. Review auxiliary finalization
+    charging explicitly; preserve its existing own limits and trusted result boundary without
+    accidentally applying the main-window exception to other model phases.
+- id: R4
+  text: >-
+    Cumulative total tokens, unavailable-usage observations, elapsed time, the original deadline,
+    maxCompactions and allocation/history bounds never reset. Preserve current classified
+    failures at these limits. Native model-call retries keep the existing bounded transport
+    semantics and cannot manufacture a checkpoint or a fresh logical call window.
+- id: R5
+  text: >-
+    Telemetry, Runtime State, ExecutionReport and public/UI diagnostics keep cumulative model,
+    tool and phase usage monotonic, including compactor calls. Reuse the confirmed generation
+    and expose current-window consumption through existing observations only where needed to
+    explain remaining capacity; totals exceeding a per-window cap must not imply exhaustion.
+    No unbounded checkpoint history or content is added to diagnostics.
+- id: R6
+  text: >-
+    Apply one admission/reset rule to ordinary and Audit compact Workers, all existing context
+    pressure and tool-limit triggers, invocation reuse and cleanup paths. None/terminal Workers
+    and Planner budgets retain their current behavior. Keep Audit collectors, exact evidence,
+    accepted partial conclusions and publication receipts across checkpoints without replaying tools.
+failure_outcomes:
+- operation: Compactor call and existing checkpoint marker append/reconciliation
+  permanent: Invalid history, summary or marker keeps existing classified failure and grants no new capacity.
+  retryable: Use existing bounded Gateway transport retries and original deadline; no new semantic retry loop.
+  ambiguous: Re-read the existing exact marker once; an equal committed marker renews both windows once, never twice.
+  cancelled: Join in-flight model/tool work through the existing invocation owner; no reset or late admission after the fence.
+  timeout: The original invocation deadline and existing request timeout remain authoritative; no renewal at checkpoint.
+cardinality:
+- collection: Invocation budget state and checkpoint observations
+  expected: Two window baselines plus existing monotonic totals and one confirmed generation per active invocation.
+  maximum: Existing maxCompactions and allocation/history limits; no per-call or per-checkpoint collection is introduced.
+  bound: O(1) window checks and commit updates; reuse bounded history selection, state and report publication.
+lifecycle:
+- entity: Renewable call windows within one Worker invocation
+  delete: Release with the owning invocation after joined work; no persisted budget object or new deletion API.
+  cascade: Checkpoints affect only the same logical invocation; another allocation or reused Worker starts with fresh local windows.
+  retention: Existing reports retain cumulative usage and confirmed progress under normal retention; no new archive.
+acceptance_criteria:
+- id: A1
+  given: A scripted Gateway and real Server/Runtime/PostgreSQL with small main-model and tool-window limits
+  when: An ordinary compact Worker exceeds both limits cumulatively across two committed checkpoints
+  then: It completes one Run, receives a full new window after each commit and publishes one ordinary result.
+- id: A2
+  given: An incomplete isolated Audit check with accepted partial conclusions
+  when: It continues across model-triggered and tool-triggered checkpoints and submits the remaining result
+  then: Accepted work and evidence survive; trusted completeness authorizes exactly one result collection and publication.
+- id: A3
+  given: A full model window with unused tools, a full tool window with unused model calls, and a context-pressure checkpoint
+  when: Each reaches the settled boundary, including the exact model cap before the compactor starts
+  then: One compactor is admitted under its own policy, both windows renew after commit and overflow tools are not executed or replayed.
+- id: A4
+  given: Failed or ineffective compaction, cancel/deadline loss, or a lost marker acknowledgement
+  when: The existing failure or exact reconciliation path settles and callbacks repeat
+  then: No uncommitted checkpoint grants capacity; an equal committed marker grants one reset only and cancellation prevents late work.
+- id: A5
+  given: Low cumulative token/deadline/cycle limits and a fully ready Audit check at a call boundary
+  when: Execution reaches them across multiple windows
+  then: Existing hard limits still terminate bounded work; a ready check completes before unnecessary compaction and totals remain monotonic.
+- id: A6
+  given: Live and retained diagnostics before and after two checkpoints, plus noncompact and terminal controls
+  when: Runtime reports and the public/UI consumers show usage and remaining capacity
+  then: Window renewal is distinct from cumulative costs, compactor usage appears once, ordinary controls and Planner semantics stay unchanged.
+- id: A7
+  given: The pre-change code and the new deterministic scenarios
+  when: The process regressions run without a live model or wall-clock assertions
+  then: The model-window continuation scenario fails before this change and passes afterward; all required tests execute nonzero cases.
+tests:
+- command: make test-runtime
+  covers: [A1, A2, A3, A4, A5, A6, A7]
+- command: make test-worker-compaction-e2e
+  covers: [A1, A3, A4, A5, A6, A7]
+- command: make test-audit-completion-e2e
+  covers: [A2, A4, A5, A7]
+- command: make test-wire-cross-language
+  covers: [A6]
+- command: make verify-public-api-postgres
+  covers: [A2, A6]
+- command: make ui-verify
+  covers: [A6]
+- command: make lint
+  covers: [A1, A2, A3, A4, A5, A6, A7]

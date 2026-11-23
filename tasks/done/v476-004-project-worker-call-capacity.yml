@@ -1,0 +1,155 @@
+schema_version: '1.0'
+id: V476-004
+title: Show the Worker truthful call capacity across context checkpoints
+milestone: model-runtime-guidance-2026-11
+epic: planner-worker
+kind: feature
+priority: P1
+status: completed
+depends_on:
+- V476-001
+- V476-003
+languages:
+- python
+- markdown
+goal: The Worker sees its available model/tool calls and current context mode without inferring them from conversation
+  length, including after a refused repeat or a committed compaction checkpoint.
+demonstration: A real Worker on a scripted Gateway receives one fresh capacity block without compaction, after
+  a guarded repeat and after a committed checkpoint. Counts match the budget owner; the block distinguishes
+  renewed windows from cumulative usage and leaves the existing result-finalizer capacity rules intact.
+context:
+  authority: 'User request 2026-11-22: plan runtime guidance and tool-owned repeat rules enforced by a separate
+    ADK plugin. Planning only; implementation, live experiments and deployment are not assigned. User testing
+    constraint: run only checks for changed components, not full Runtime, Go, lint or release suites. User
+    assignment 2026-11-22: implement all V476 in one continuous pass; V476-001 and V476-003 are accepted prerequisites.'
+  baseline: Local main 4807373ec907584ac7b44432faf4ff860eafb1bf; Python ADK 2.15.0 and Go ADK 2.8.0 are merged.
+    Recheck the affected owners if main advances.
+  specification:
+  - docs/spec/execution/worker.md#WRK-R5
+  - docs/spec/execution/worker.md#WRK-R7
+  - docs/spec/execution/worker.md#WRK-R22
+  - docs/spec/execution/worker.md#WRK-R24
+  - docs/spec/execution/worker.md#WRK-R49
+  - docs/spec/execution/worker.md#WRK-R185
+  - docs/spec/execution/worker.md#WRK-R192
+  sources:
+  - runtime/src/contractor_runtime/worker/runtime.py
+  - runtime/src/contractor_runtime/worker/budget.py
+  - runtime/src/contractor_runtime/worker/instrumentation.py
+  design_decision: 'Agent proposal: extend the existing compacted-request preparation into the common main-request
+    preparation path, installed also without compaction/vision. Read facts from _InvocationBudget after admission
+    and project after context/image reconciliation. Keep the plugin from V476-003 responsible only for repeat
+    control. The simpler alternative is postponing Worker guidance; it leaves this gap but avoids window/finalizer
+    semantics. This is the second implementation pass, after Planner and HTTP.'
+  initial_scope: 'Limit this slice to exact model/tool call capacity, context-management mode and committed
+    generation. Token/time countdowns remain outside this task: missing usage prevents exact remaining tokens,
+    token budget is not context capacity, and WRK-R7 excludes the private deadline from model prompts. Those
+    need a separate evidence-backed proposal before expansion; no token estimator is introduced here.'
+  implementation_boundary: Update the owning numbered specifications with implementation; these tasks describe
+    planned behavior, not shipped behavior. Reuse state, budget, validation and receipt owners. No hint registry,
+    status tool, new persistence, generic policy DSL or new public/wire fields.
+scope:
+  in:
+  - One request-only factual capacity block for ordinary and Audit main Workers.
+  - Correct current-call accounting and distinctions between none, terminal@1 and compact@1.
+  - Integration with repeat refusals, image reconciliation, document recovery and existing finalization boundaries.
+  out:
+  - Token/time countdowns, private deadline/allocation data, automatic reserve budgets and changes to stop
+    rules.
+  - Guidance injected into compactor/finalizer/summarizer inputs, new status tools and enabling unsupported
+    shared compaction.
+requirements:
+- id: R1
+  text: Build one immutable snapshot from the owning budget after the current model call was admitted. State
+    additional model-call capacity after this call and tool-call capacity under the active policy; label compact@1
+    counts as the current window. Display only the committed context generation.
+- id: R2
+  text: Checkpoint commit renews the existing model/tool windows exactly once; failed/pending compaction never
+    promises fresh capacity. Cumulative tokens and the deadline remain unchanged. A repeat refusal consumes
+    tool capacity; ordinary transport retries do not appear as separate semantic calls.
+- id: R3
+  text: Describe exhausted main-call capacity without promising free completion. The ordinary finalizer shares
+    its existing capacity, while terminal summarization/compaction retain their own existing admission semantics.
+    Explain these distinctions with short fixed text, without adding a reservation or exhortation to stop early.
+    Missing token usage must not become an exact remaining-token/context-window claim.
+- id: R4
+  text: Prepare the block after compaction projection and image reconciliation, also when both are disabled.
+    Replace only the request-owned block on repeated preparation; do not persist it as an event, append it
+    to future histories, rebuild descriptions per turn, mutate the authored instruction or drop errors.
+- id: R5
+  text: Use the 2 KiB request-guidance ceiling introduced by V476-001 and validate both consumers against its
+    shared fixture. Clarify WRK-R5 with this narrow Runtime-authored factual projection while preserving WRK-R7
+    and all hidden lifecycle/result-envelope boundaries. No raw SDK State reaches the model.
+failure_outcomes:
+- operation: Prepare a factual main-Worker request
+  permanent: Invalid internal budget/context state remains an infrastructure error, not a fabricated hint or
+    model tool error.
+  retryable: Existing model recovery and transport retries retain their classification and bounds; projection
+    adds no retry loop.
+  ambiguous: No external mutation is added; reuse committed generation only, never a pending checkpoint as
+    success.
+  cancelled: The existing invocation owner cancels/joins preparation and model work; no separate guidance task
+    is created.
+  timeout: Existing absolute semantic-work deadline applies and is not exposed in the prompt.
+cardinality:
+- collection: Main-request capacity projection
+  expected: One block with scalar counters and short fixed policy labels.
+  maximum: One added block of at most 2 KiB per main request under the shared ceiling.
+  bound: O(1) owner snapshot; no history/token estimation scans or extra Server reads.
+lifecycle:
+- entity: Current request's capacity block
+  delete: Discard with the request; rebuild for the next main request from its current logical invocation.
+  cascade: Existing session/compaction/image lifecycle is unchanged.
+  retention: No independent persistent counters or copied transcript.
+acceptance_criteria:
+- id: A1
+  given: Workers with none, terminal@1 and compact@1 policies, with and without image support
+  when: Real Runner callbacks prepare initial and subsequent main requests
+  then: Exactly one truthful block reaches the Gateway after admission/projection, including when compaction
+    and vision are disabled.
+- id: A2
+  given: Successful/failed checkpoint transitions, a repeat refusal and missing provider usage
+  when: The next main request is prepared
+  then: Counts and generation match budget ownership; only committed windows reset and no false token/context
+    capacity appears.
+- id: A3
+  given: Boundary call budgets for ordinary/Audit completion, document recovery and terminal paths
+  when: The Worker finishes or reaches a hard limit
+  then: Existing finalizer/summarizer/compactor admission and result semantics are unchanged and guidance promises
+    no extra capacity.
+- id: A4
+  given: Repeated request preparation, native images, shared sessions where currently supported and cancellation
+  when: Model requests and persisted events are inspected
+  then: The 2 KiB block never accumulates in events, stale invocation counts do not leak, images/errors survive
+    and cleanup remains bounded.
+tests:
+- command: cd runtime && uv run pytest tests/test_worker_guidance.py tests/test_adk_runtime_call_limits.py
+    tests/test_instrumentation.py tests/test_worker_compaction.py tests/test_worker_summarizer.py tests/test_worker_completion.py
+    tests/test_audit_compaction.py tests/test_artifact_images.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: cd runtime && uv run ruff check src/contractor_runtime/worker tests/test_worker_guidance.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: python3 scripts/check_spec.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+verification_policy: Add test_worker_guidance.py with actual Runner request capture and the shared fixture
+  reader. Reuse passing V476-003 evidence only where source and dependency inputs remain unchanged; rerun affected
+  Worker tests after callback integration. Full Runtime and unrelated suites are not required.
+implementation_commit: ff9a268596e99894a8543c1eb2cdeec82b3cb71f
+verification:
+  date: '2026-11-22'
+  result: 426 affected Worker cases passed in 59.22s, including ordinary/Audit compaction, native image rereading,
+    finalizer, summarizer, strict arguments and repeat control. The final guidance-only file adds terminal@1
+    coverage (5 passed); all production inputs are unchanged. Ruff, four import contracts and specs passed.
+    No full suite.

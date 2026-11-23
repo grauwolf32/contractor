@@ -1,0 +1,569 @@
+package controlplane
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"math"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+)
+
+func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	registerReady(t, registry, "agent-operations")
+	template := testTemplate(t)
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-operations", StageExecutionID: "stage-operations",
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", template)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	allocationID := reservations[0].Grant.AllocationID
+
+	reserved := registry.SnapshotOperations()
+	if len(reserved.RuntimeAgents) != 1 || len(reserved.Allocations) != 1 ||
+		reserved.RuntimeAgents[0].SlotState != SlotReserved ||
+		reserved.RuntimeAgents[0].ObservedState != control.AgentIdle ||
+		reserved.RuntimeAgents[0].AuthoritativeAllocationID == nil ||
+		*reserved.RuntimeAgents[0].AuthoritativeAllocationID != allocationID ||
+		reserved.RuntimeAgents[0].CurrentAllocationID != nil ||
+		reserved.Allocations[0].AuthoritativePhase != AllocationPreparing ||
+		reserved.Allocations[0].ObservedPhase != AllocationObservedAbsent ||
+		reserved.Allocations[0].Metrics.ReportsComplete {
+		t.Fatalf("reserved Operations snapshot = %+v", reserved)
+	}
+	if reserved.RuntimeAgents[0].SoftwareVersion != "0.1.0" ||
+		reserved.RuntimeAgents[0].ConfirmedLeaseUntil == nil {
+		t.Fatalf("Runtime observation lacks reported version/lease: %+v", reserved.RuntimeAgents[0])
+	}
+
+	if err := registry.SetAllocationPhase(allocationID, AllocationActive, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := registry.Heartbeat(control.AgentHeartbeat{
+		APIVersion: contracts.APIVersion, InstanceID: "agent-operations",
+		HeartbeatSeq: 3, EchoedAckSeq: 2, ObservedState: control.AgentAllocated,
+		AllocationID: &allocationID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	active := registry.SnapshotOperations()
+	if active.RuntimeAgents[0].SlotState != SlotBusy ||
+		active.Allocations[0].AuthoritativePhase != AllocationActive ||
+		active.Allocations[0].ObservedPhase != AllocationObservedPrepared {
+		t.Fatalf("active Operations snapshot = %+v", active)
+	}
+
+	if err := registry.SetWriteFence(allocationID); err != nil {
+		t.Fatal(err)
+	}
+	reason := SafeReason{Code: "planner_cancelled", Retryable: true}
+	if err := registry.SetAllocationPhase(allocationID, AllocationAborting, &reason); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := registry.Heartbeat(control.AgentHeartbeat{
+		APIVersion: contracts.APIVersion, InstanceID: "agent-operations",
+		HeartbeatSeq: 4, EchoedAckSeq: 3, ObservedState: control.AgentFenced,
+		AllocationID: &allocationID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	fenced := registry.SnapshotOperations()
+	agent := fenced.RuntimeAgents[0]
+	allocation := fenced.Allocations[0]
+	if agent.ObservedState != control.AgentFenced || agent.SlotState != SlotFenced ||
+		agent.CurrentAllocationID == nil || *agent.CurrentAllocationID != allocationID ||
+		agent.AuthoritativeAllocationID == nil || *agent.AuthoritativeAllocationID != allocationID ||
+		agent.ReconciliationReason == nil ||
+		allocation.AuthoritativePhase != AllocationAborting ||
+		allocation.ObservedPhase != AllocationObservedFenced || allocation.Reason == nil ||
+		allocation.Reason.Code != "planner_cancelled" {
+		t.Fatalf("fenced Operations snapshot collapsed authorities: %+v", fenced)
+	}
+	if fenced.Cursor.Generation != reserved.Cursor.Generation ||
+		fenced.Cursor.Revision <= reserved.Cursor.Revision {
+		t.Fatalf("snapshot cursor did not advance monotonically: reserved=%+v fenced=%+v", reserved.Cursor, fenced.Cursor)
+	}
+}
+
+func TestOperationsSnapshotReflectsCompleteHeterogeneousAssignment(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	specialist := testRegistration("agent-a-specialist-operations")
+	specialist.SupportedToolsets = append(specialist.SupportedToolsets, control.ToolsetCapability{
+		Ref: "likec4@1", Tools: []string{"validate_likec4"},
+	})
+	registerReadyWith(t, registry, specialist)
+	registerReady(t, registry, "agent-b-generalist-operations")
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-heterogeneous-operations", StageExecutionID: "stage-heterogeneous-operations",
+		Bindings: []BindingRequirement{
+			testBinding(t, "a-generic", "generic", testTemplate(t)),
+			testBinding(t, "b-validator", "validator", likeC4ValidationTemplate(t)),
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	snapshot := registry.SnapshotOperations()
+	if len(snapshot.RuntimeAgents) != 2 || len(snapshot.Allocations) != 2 {
+		t.Fatalf("heterogeneous Operations cardinality = %+v", snapshot)
+	}
+	assigned := make(map[string]string, len(reservations))
+	for _, reservation := range reservations {
+		assigned[reservation.Grant.LogicalAgentName] = reservation.Grant.RuntimeInstanceID
+	}
+	for _, observation := range snapshot.RuntimeAgents {
+		if observation.SlotState != SlotReserved || observation.AuthoritativeAllocationID == nil {
+			t.Fatalf("heterogeneous reserved agent observation = %+v", observation)
+		}
+	}
+	if assigned["a-generic"] != "agent-b-generalist-operations" ||
+		assigned["b-validator"] != "agent-a-specialist-operations" {
+		t.Fatalf("heterogeneous Operations assignment = %+v", assigned)
+	}
+}
+
+func TestOperationsSnapshotStoresOnlyFinalReportAggregates(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	registerReady(t, registry, "agent-report")
+	template := testTemplate(t)
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-report", StageExecutionID: "stage-report",
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", template)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	allocationID := reservations[0].Grant.AllocationID
+	modelCalls, toolCalls, toolFailures := int64(2), int64(3), int64(1)
+	exhausted := "tool_calls"
+	now := time.Now().UTC()
+	report := reporting.AllocationFinalReport{
+		ReportID: "allocation-final-report", AllocationID: allocationID,
+		StartedAt: now.Add(-time.Second), FinishedAt: now,
+		Worker: reporting.ExecutionReport{
+			ReportID: "worker-report", Complete: true,
+			Metrics: reporting.ExecutionMetrics{
+				ModelCalls: &modelCalls,
+				Tools: map[string]reporting.ToolMetrics{
+					"write_artifact": {Calls: &toolCalls, Failed: &toolFailures},
+				},
+				WorkerBudget: &reporting.WorkerBudgetMetrics{
+					MaxModelCalls: 4, MaxToolCalls: 3, MaxTotalTokens: 100,
+					ObservedModelCalls: 2, ObservedToolCalls: 3, ObservedTotalTokens: 50,
+					Exhausted: &exhausted,
+				},
+			},
+			ToolCalls: []reporting.ToolCallRecord{},
+			Errors: []reporting.ExecutionError{{
+				Code: "provider_error", Message: "must-not-appear-provider-body",
+			}},
+		},
+		Runtime: reporting.RuntimeReport{Complete: true},
+	}
+	if err := registry.RecordAllocationReport(allocationID, report); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := registry.SnapshotOperations()
+	metrics := snapshot.Allocations[0].Metrics
+	if !metrics.ReportsComplete || metrics.ModelCalls != 2 || metrics.ToolCalls != 3 ||
+		metrics.ToolFailures != 1 || metrics.ErrorCount != 1 ||
+		snapshot.Allocations[0].ExhaustedDimension == nil ||
+		*snapshot.Allocations[0].ExhaustedDimension != exhausted {
+		t.Fatalf("safe allocation aggregate = %+v", snapshot.Allocations[0])
+	}
+	encoded, err := json.Marshal(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "must-not-appear-provider-body") ||
+		strings.Contains(string(encoded), "provider_error") {
+		t.Fatalf("Operations snapshot leaked report detail: %s", encoded)
+	}
+	beforeOverflow := snapshot.Cursor
+	maximum := int64(math.MaxInt64)
+	overflow := report
+	overflow.ReportID = "allocation-final-overflow"
+	overflow.Worker.ReportID = "worker-overflow"
+	overflow.Worker.Metrics = reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{
+		"first": {Calls: &maximum}, "second": {Calls: &maximum},
+	}}
+	if err := registry.RecordAllocationReport(allocationID, overflow); !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("counter above the report bound error = %v", err)
+	}
+	afterOverflow := registry.SnapshotOperations()
+	if afterOverflow.Cursor != beforeOverflow || afterOverflow.Allocations[0].Metrics != metrics {
+		t.Fatalf("rejected report mutated snapshot: %+v", afterOverflow)
+	}
+	// Valid counters whose sum passes math.MaxInt64 saturate, as the Stage
+	// summary does, instead of rejecting the report (OBS-R112): 1,025 tools at
+	// 2^53-1 sum to more than 2^63-1.
+	bound := int64(contracts.MaxExactInteger)
+	saturating := report
+	saturating.ReportID = "allocation-final-saturating"
+	saturating.Worker.ReportID = "worker-saturating"
+	saturating.Worker.Metrics = reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}}
+	for index := range 1025 {
+		saturating.Worker.Metrics.Tools[fmt.Sprintf("tool_%04d", index)] = reporting.ToolMetrics{Calls: &bound, Failed: &bound}
+	}
+	if err := registry.RecordAllocationReport(allocationID, saturating); err != nil {
+		t.Fatalf("saturating aggregate error = %v", err)
+	}
+	saturated := registry.SnapshotOperations().Allocations[0].Metrics
+	if saturated.ToolCalls != maximum || saturated.ToolFailures != maximum || saturated.ModelCalls != 0 {
+		t.Fatalf("saturating aggregate = %+v", saturated)
+	}
+}
+
+func TestOperationsSnapshotRetiresSupersededAgentAfterAllocationRelease(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	principal := testPrincipal("a")
+	oldRegistration := testRegistration("agent-old-operations")
+	registerReadyAs(t, registry, principal, oldRegistration)
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-old-operations", StageExecutionID: "stage-old-operations",
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clock.Advance(61 * time.Second)
+	restarted := testRegistration("agent-new-operations")
+	restarted.ControlURL = oldRegistration.ControlURL
+	restarted.A2AURL = oldRegistration.A2AURL
+	registerReadyAs(t, registry, principal, restarted)
+	whileOwned := registry.SnapshotOperations()
+	if len(whileOwned.RuntimeAgents) != 2 {
+		t.Fatalf("superseded allocation owner disappeared before release: %+v", whileOwned.RuntimeAgents)
+	}
+	if _, retained := registry.agents[oldRegistration.InstanceID]; !retained {
+		t.Fatal("superseded allocation owner was removed from reconciliation state")
+	}
+	if err := registry.Release(reservations[0].Grant.AllocationID); err != nil {
+		t.Fatal(err)
+	}
+	released := registry.SnapshotOperations()
+	if len(released.RuntimeAgents) != 1 || released.RuntimeAgents[0].InstanceID != restarted.InstanceID {
+		t.Fatalf("released superseded agent remained current: %+v", released.RuntimeAgents)
+	}
+	if _, retained := registry.agents[oldRegistration.InstanceID]; retained {
+		t.Fatal("released superseded process remained in Registry memory")
+	}
+}
+
+func TestOperationsSnapshotIsStableOrderedAndMutationFree(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	capable := testRegistration("agent-z")
+	capable.SupportedRuntimes = []string{"python@1", "adk@1"}
+	capable.SupportedSandboxProfiles = []string{"remote@1", "local-workdir@1"}
+	capable.SupportedToolsets[0].Tools = []string{"write_artifact", "read_artifact"}
+	registerReadyWith(t, registry, capable)
+	minimal := testRegistration("agent-a")
+	minimal.SupportedToolsets = []control.ToolsetCapability{}
+	registerReadyWith(t, registry, minimal)
+	first := registry.SnapshotOperations()
+	second := registry.SnapshotOperations()
+	if first.Cursor.Generation == "" || first.Cursor != second.Cursor ||
+		len(first.RuntimeAgents) != 2 || first.RuntimeAgents[0].InstanceID != "agent-a" ||
+		first.RuntimeAgents[1].InstanceID != "agent-z" ||
+		len(first.RuntimeAgents[0].SupportedToolsets) != 0 ||
+		first.RuntimeAgents[1].SupportedRuntimes[0] != "adk@1" ||
+		first.RuntimeAgents[1].SupportedSandboxProfiles[0] != "local-workdir@1" ||
+		first.RuntimeAgents[1].SupportedToolsets[0].Tools[0] != "read_artifact" {
+		t.Fatalf("stable ordered snapshot = first %+v second %+v", first, second)
+	}
+	first.RuntimeAgents[0].SoftwareVersion = "mutated"
+	first.RuntimeAgents[1].SupportedRuntimes[0] = "mutated@1"
+	first.RuntimeAgents[1].SupportedToolsets[0].Tools[0] = "mutated_tool"
+	third := registry.SnapshotOperations()
+	if third.RuntimeAgents[0].SoftwareVersion != "0.1.0" ||
+		third.RuntimeAgents[1].SupportedRuntimes[0] != "adk@1" ||
+		third.RuntimeAgents[1].SupportedToolsets[0].Tools[0] != "read_artifact" ||
+		third.Cursor != second.Cursor || third.Validate() != nil {
+		t.Fatalf("caller mutated authoritative snapshot: %+v", third)
+	}
+}
+
+func TestRuntimeAgentCapabilityValidationFailsClosed(t *testing.T) {
+	valid := func() RuntimeAgentObservation {
+		return RuntimeAgentObservation{
+			InstanceID: "agent-capabilities", SoftwareVersion: "0.1.0",
+			SupportedRuntimes: []string{"adk@1"},
+			SupportedToolsets: []RuntimeToolsetCapability{{
+				Ref: "run-artifacts@1", Tools: []string{"read_artifact"},
+			}},
+			SupportedSandboxProfiles: []string{"local-workdir@1"},
+			WorkspaceCapabilities: &contracts.WorkspaceCapabilities{
+				Storage: contracts.WorkspaceStorageLocal,
+				Modes:   []contracts.WorkspaceMode{contracts.WorkspaceModeDirect},
+				Limits: contracts.WorkspaceLimits{
+					MaxFiles: 100, MaxExpandedBytes: 1024,
+					MaxManagedTextBytes: 1024, MaxFileBytes: 1024,
+				},
+			},
+			ObservedState: control.AgentIdle, SlotState: SlotIdle,
+		}
+	}
+	tests := []struct {
+		name   string
+		mutate func(*RuntimeAgentObservation)
+	}{
+		{"missing-runtime", func(agent *RuntimeAgentObservation) {
+			agent.SupportedRuntimes = nil
+		}},
+		{"duplicate-runtime", func(agent *RuntimeAgentObservation) {
+			agent.SupportedRuntimes = []string{"adk@1", "adk@1"}
+		}},
+		{"malformed-toolset", func(agent *RuntimeAgentObservation) {
+			agent.SupportedToolsets[0].Ref = "probe-secret/path"
+		}},
+		{"empty-tool-list", func(agent *RuntimeAgentObservation) {
+			agent.SupportedToolsets[0].Tools = nil
+		}},
+		{"duplicate-tool", func(agent *RuntimeAgentObservation) {
+			agent.SupportedToolsets[0].Tools = []string{"read_artifact", "read_artifact"}
+		}},
+		{"oversized-tool-list", func(agent *RuntimeAgentObservation) {
+			agent.SupportedToolsets[0].Tools = make([]string, control.MaxToolsetCapabilityTools+1)
+			for index := range agent.SupportedToolsets[0].Tools {
+				agent.SupportedToolsets[0].Tools[index] = fmt.Sprintf("tool_%d", index)
+			}
+		}},
+		{"invalid-workspace-mode", func(agent *RuntimeAgentObservation) {
+			agent.WorkspaceCapabilities.Modes = []contracts.WorkspaceMode{"unsupported"}
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			agent := valid()
+			test.mutate(&agent)
+			err := agent.Validate()
+			if err == nil || strings.Contains(err.Error(), "probe-secret") {
+				t.Fatalf("invalid capability validation error = %v", err)
+			}
+		})
+	}
+}
+
+func TestOperationsExposeDetachedFrozenWorkspaceCapabilities(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	registration := testRegistration("workspace-operations")
+	registration.WorkspaceCapabilities = &contracts.WorkspaceCapabilities{
+		Storage: contracts.WorkspaceStorageMemory,
+		Modes: []contracts.WorkspaceMode{
+			contracts.WorkspaceModeDirect, contracts.WorkspaceModeOverlay,
+		},
+		Limits: contracts.WorkspaceLimits{
+			MaxFiles: 100, MaxExpandedBytes: 4096,
+			MaxManagedTextBytes: 2048, MaxFileBytes: 1024,
+		},
+	}
+	principal := inProcessPrincipal(registration.InstanceID)
+	if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := registry.HeartbeatAuthenticated(
+		principal.RuntimeAgentID, heartbeat(registration.InstanceID, 1, 0),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := registry.HeartbeatAuthenticated(
+		principal.RuntimeAgentID, heartbeat(registration.InstanceID, 2, 1),
+	); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := registry.SnapshotOperations()
+	if len(snapshot.RuntimeAgents) != 1 || snapshot.RuntimeAgents[0].WorkspaceCapabilities == nil ||
+		snapshot.RuntimeAgents[0].WorkspaceCapabilities.Storage != contracts.WorkspaceStorageMemory ||
+		len(snapshot.RuntimeAgents[0].WorkspaceCapabilities.Modes) != 2 {
+		t.Fatalf("workspace Operations projection = %+v", snapshot)
+	}
+	snapshot.RuntimeAgents[0].WorkspaceCapabilities.Modes[0] = contracts.WorkspaceModeOverlay
+	again := registry.SnapshotOperations()
+	if again.RuntimeAgents[0].WorkspaceCapabilities.Modes[0] != contracts.WorkspaceModeDirect {
+		t.Fatal("Operations workspace capability aliases Registry state")
+	}
+}
+
+func TestOperationsReplayIsOrderedBoundedAndNotifiesWithoutBlocking(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	initial, updates, cancel := registry.SubscribeOperations()
+	defer cancel()
+	if err := registry.InvalidateOperations(OperationsConfiguration, "config-v1"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-updates:
+	case <-time.After(time.Second):
+		t.Fatal("Operations watcher was not notified")
+	}
+	changes, current, err := registry.ReplayOperations(initial)
+	if err != nil || len(changes) != 1 || changes[0].Cursor.Revision != initial.Revision+1 ||
+		changes[0].Resource != OperationsConfiguration || changes[0].ResourceID != "config-v1" ||
+		changes[0].OccurredAt.IsZero() || current != changes[0].Cursor {
+		t.Fatalf("Operations replay = (%+v, %+v, %v)", changes, current, err)
+	}
+	if changes, _, err := registry.ReplayOperations(current); err != nil || len(changes) != 0 {
+		t.Fatalf("current Operations replay = (%+v, %v)", changes, err)
+	}
+	wrongGeneration := current
+	wrongGeneration.Generation = "operations-another-process"
+	if _, _, err := registry.ReplayOperations(wrongGeneration); !errors.Is(err, ErrOperationsGeneration) {
+		t.Fatalf("generation mismatch error = %v", err)
+	}
+	future := current
+	future.Revision++
+	if _, _, err := registry.ReplayOperations(future); !errors.Is(err, ErrOperationsCursor) {
+		t.Fatalf("future cursor error = %v", err)
+	}
+
+	old := current
+	for range operationsHistoryLimit + 1 {
+		if err := registry.InvalidateOperations(OperationsCredential, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, _, err := registry.ReplayOperations(old); !errors.Is(err, ErrOperationsCursor) {
+		t.Fatalf("expired Operations cursor error = %v", err)
+	}
+	beforeInvalid := registry.SnapshotOperations().Cursor
+	if err := registry.InvalidateOperations(OperationsSchedulerSettings, ""); err != nil {
+		t.Fatalf("Scheduler settings Operations invalidation: %v", err)
+	}
+	schedulerChanges, schedulerCurrent, err := registry.ReplayOperations(beforeInvalid)
+	if err != nil || len(schedulerChanges) != 1 ||
+		schedulerChanges[0].Resource != OperationsSchedulerSettings ||
+		schedulerChanges[0].ResourceID != "" || schedulerChanges[0].Cursor != schedulerCurrent {
+		t.Fatalf("Scheduler settings Operations replay = (%+v, %+v, %v)", schedulerChanges, schedulerCurrent, err)
+	}
+	beforeInvalid = schedulerCurrent
+	if err := registry.InvalidateOperations(OperationsSchedulerSettings, "settings"); !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("Scheduler settings invalidation with resource ID error = %v", err)
+	}
+	if err := registry.InvalidateOperations(OperationsResource("raw"), "secret/value"); !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("invalid Operations resource error = %v", err)
+	}
+	if afterInvalid := registry.SnapshotOperations().Cursor; afterInvalid != beforeInvalid {
+		t.Fatalf("invalid Operations change advanced cursor: before=%+v after=%+v", beforeInvalid, afterInvalid)
+	}
+
+	corrupt := newTestRegistry(t, newTestClock())
+	corruptStart := corrupt.SnapshotOperations().Cursor
+	for range 3 {
+		if err := corrupt.InvalidateOperations(OperationsCredential, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	corrupt.mu.Lock()
+	retained := []OperationsChange{corrupt.operationsHistory.at(0), corrupt.operationsHistory.at(2)}
+	corrupt.operationsHistory = operationsChanges{}
+	for _, change := range retained {
+		corrupt.operationsHistory.append(change)
+	}
+	corrupt.mu.Unlock()
+	if _, _, err := corrupt.ReplayOperations(corruptStart); !errors.Is(err, ErrOperationsGap) {
+		t.Fatalf("Operations sequence gap error = %v", err)
+	}
+}
+
+func TestOperationsHistoryKeepsTheLatestChangesInOrderWithoutCopying(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	initial, updates, cancel := registry.SubscribeOperations()
+	defer cancel()
+	// The reference keeps every change; the registry must keep its last 255.
+	var reference []OperationsChange
+	record := func(resourceID string) {
+		t.Helper()
+		if err := registry.InvalidateOperations(OperationsConfiguration, resourceID); err != nil {
+			t.Fatal(err)
+		}
+		changes, current, err := registry.ReplayOperations(OperationsCursor{
+			Generation: initial.Generation, Revision: 0,
+		})
+		if len(reference) < operationsHistoryLimit {
+			if err != nil || len(changes) != len(reference)+1 {
+				t.Fatalf("replay from the start = (%d changes, %v)", len(changes), err)
+			}
+			reference = append(reference, changes[len(changes)-1])
+			return
+		}
+		if !errors.Is(err, ErrOperationsCursor) {
+			t.Fatalf("replay before the retained changes = %v", err)
+		}
+		oldest := OperationsCursor{Generation: current.Generation, Revision: current.Revision - operationsHistoryLimit}
+		changes, _, err = registry.ReplayOperations(oldest)
+		if err != nil || len(changes) != operationsHistoryLimit {
+			t.Fatalf("replay of the retained changes = (%d changes, %v)", len(changes), err)
+		}
+		reference = append(reference, changes[len(changes)-1])
+	}
+	for index := range 3*operationsHistoryLimit + 7 {
+		record(fmt.Sprintf("config-%d", index))
+	}
+	select {
+	case <-updates:
+	default:
+		t.Fatal("watcher was not notified after the history wrapped")
+	}
+
+	current := registry.SnapshotOperations().Cursor
+	for _, back := range []uint64{1, 2, 100, operationsHistoryLimit} {
+		changes, replayCurrent, err := registry.ReplayOperations(
+			OperationsCursor{Generation: current.Generation, Revision: current.Revision - back})
+		if err != nil || replayCurrent != current || uint64(len(changes)) != back {
+			t.Fatalf("replay of the last %d = (%d, %+v, %v)", back, len(changes), replayCurrent, err)
+		}
+		want := reference[len(reference)-int(back):]
+		for index, change := range changes {
+			if change != want[index] || change.Cursor.Revision != current.Revision-back+uint64(index)+1 ||
+				change.ResourceID != fmt.Sprintf("config-%d", len(reference)-int(back)+index) {
+				t.Fatalf("change %d of the last %d = %+v, want %+v", index, back, change, want[index])
+			}
+		}
+	}
+	if _, _, err := registry.ReplayOperations(OperationsCursor{
+		Generation: current.Generation, Revision: current.Revision - operationsHistoryLimit - 1,
+	}); !errors.Is(err, ErrOperationsCursor) {
+		t.Fatalf("cursor one change older than the history = %v", err)
+	}
+
+	// A replay is a copy: changing it changes no later replay.
+	before := OperationsCursor{Generation: current.Generation, Revision: current.Revision - 2}
+	first, _, _ := registry.ReplayOperations(before)
+	first[0].ResourceID = "mutated"
+	first[1].Cursor.Revision = 0
+	second, _, err := registry.ReplayOperations(before)
+	if err != nil || second[0] != reference[len(reference)-2] || second[1] != reference[len(reference)-1] {
+		t.Fatalf("replay after mutating an earlier replay = (%+v, %v)", second, err)
+	}
+
+	// At capacity an append overwrites the oldest change in place.
+	allocations := testing.AllocsPerRun(100, func() {
+		registry.mu.Lock()
+		registry.recordOperationsChangeLocked(OperationsCredential, "")
+		registry.mu.Unlock()
+	})
+	if allocations != 0 {
+		t.Fatalf("append at history capacity allocated %.1f times", allocations)
+	}
+
+	// A cancelled watcher is gone; later appends neither block nor reach it.
+	cancel()
+	registry.mu.Lock()
+	watchers := len(registry.operationsWatchers)
+	registry.recordOperationsChangeLocked(OperationsCredential, "")
+	registry.mu.Unlock()
+	if watchers != 0 {
+		t.Fatalf("%d watchers remain after cancel", watchers)
+	}
+}

@@ -1,0 +1,47 @@
+schema_version: '1.0'
+id: V468-003
+title: Verify diagnostic observer exclusion without comparing changing global snapshots
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: defect
+introduced_by: V32-003
+priority: P1
+status: completed
+implementation_commit: 41788c01c97b42c4678695bbbbb6a9bf5615efde
+depends_on: []
+languages:
+- go
+goal: Verify diagnostic observer exclusion without comparing changing global snapshots.
+context:
+  evidence: tasks/evidence/v468-release-review-20261116.json
+  authority: 'User decision 2026-11-16: fix the first-release review findings in one pass without regressions.
+    DNS fail-open behavior is explicitly excluded for now.'
+  finding: 'The full Go suite fails with own backend counted: got=20 all=23 because two pg_stat_activity
+    samples observe concurrent package connection churn. internal/performance/database_integration_test.go:175.'
+  siblings: Diagnostic observer exclusion and visibility assertions; production aggregate semantics stay
+    unchanged.
+scope:
+  in:
+  - Diagnostic observer exclusion and visibility assertions; production aggregate semantics stay unchanged.
+  - Regression coverage on the real affected execution or PostgreSQL path.
+  out:
+  - DNS target policy changes, live models, deployment and unrelated backlog defects.
+acceptance_criteria:
+- id: A1
+  text: The reviewed failure is reproduced by a regression that fails on the unchanged main and passes
+    with the fix.
+- id: A2
+  text: Sibling paths preserve their existing failure, recovery, ownership and bounded-work contracts.
+- id: A3
+  text: Full touched-package suites and make lint pass; declared platform/live/heavy-I/O skips are reported.
+tests:
+- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/performance
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3

@@ -1,0 +1,50 @@
+schema_version: "1.0"
+id: V470-001
+title: Keep a Run waiting while another participant still needs a blocked Gateway route
+milestone: run-admission-gateway-recovery
+epic: execution-core
+kind: defect
+introduced_by: V451-002
+priority: P1
+status: completed
+depends_on: []
+languages: [go]
+goal: A running Stage with two blocked participants shows the remaining wait reason when one route recovers.
+context:
+  specification: docs/spec/execution/scheduler.md#SCH-R107
+  severity: high
+  finding: >-
+    internal/gatewayrecovery/waiting.go:62 picks the lowest route key before inspecting its state.
+    In a two-allocation Run, a second Run can recover that first route and hold the probe on the other.
+    ReadStatus still reports an outage and acquire on the second route is denied, but Waiting returns
+    an empty reason. internal/scheduler/model_wait_postgres.go:27 then clears the durable wait.
+    A healthy acquire at internal/gatewayrecovery/requests.go:153 also leaves the old waiter registered.
+  siblings: >-
+    Planner and allocation participants use the same in-memory gate. ReadStatus describes all attached
+    routes. The Scheduler projects only this Stage's waiting participants. Admission has its own pending-Run path.
+scope:
+  in:
+    - Choose a deterministic reason from blocked routes with current waiting participants.
+    - Clear a participant's obsolete wait when it acquires a healthy route and keep waiter counts and notifications consistent.
+    - Exercise the shared gate and the claimed Scheduler projection against disposable PostgreSQL.
+  out:
+    - Changing route identity, probe ownership, retry windows or the persistent schema.
+acceptance_criteria:
+  - id: A1
+    text: With two routes, recovery of either one by a different Run leaves the Stage waiting for the other. Cover both ID orders and a healthy reacquire before the recovered participant finishes.
+  - id: A2
+    text: After the last actual wait clears, reconciliation returns the Run to running. A healthy grant leaves no stale wait if the route later blocks for someone else.
+  - id: A3
+    text: Verify the durable Run state and reason through RunStore as well as the in-memory decisions. Pending admission, Stage fencing and cleanup retain their existing behavior.
+tests:
+  - command: 'go test -race -count=1 ./internal/gatewayrecovery'
+    covers: [A1, A2]
+  - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -count=1 ./internal/scheduler'
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: 4fb3cacbb3537191fab4c9fedf990d34eb9207ec
+verification_results:
+  - >-
+    Gateway recovery and Scheduler suites passed with -race. The real PostgreSQL projection stayed waiting for the second route after a different Run recovered the first, then returned to running. A local exercise verified both route orders and wait removal on a healthy grant.
+  - make lint passed.

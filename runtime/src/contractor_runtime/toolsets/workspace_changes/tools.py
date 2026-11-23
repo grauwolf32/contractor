@@ -1,0 +1,296 @@
+"""Model-visible invocation checkpoint inspection for overlay workspaces."""
+
+from __future__ import annotations
+
+import secrets
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from types import MappingProxyType
+from typing import Any
+
+from contractor_runtime.adapters import AdapterHandles
+from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
+from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics
+from contractor_runtime.digests import jcs_digest
+from contractor_runtime.observations import (
+    WorkspaceToolObservation,
+    workspace_changes_observation,
+)
+from contractor_runtime.projectfs.paths import ProjectPathError
+from contractor_runtime.projectfs.storage import (
+    WorkspaceChange,
+    WorkspaceChanges,
+    WorkspaceStorageError,
+)
+from contractor_runtime.toolsets.common.cursors import (
+    decode_cursor,
+    encode_cursor,
+    query_digest,
+    require_limit,
+)
+from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.filesystem_errors import FilesystemToolError
+from contractor_runtime.toolsets.common.resources import ToolResources
+from contractor_runtime.workspace import AllocationWorkspace
+
+MAX_PAGE_ITEMS = 100
+MAX_DIFF_BYTES = 1 << 20
+
+
+class WorkspaceChangesToolsetFactory:
+    ref = "workspace-changes@1"
+    exported_tools = frozenset({"changed_paths", "diff", "rollback_changes"})
+    # Tools whose successful calls record a workspace observation (their
+    # contractor_observation); the Server reads the same set (TLS-R38).
+    workspace_observation_tools = frozenset({"changed_paths"})
+    infrastructure_channels = MappingProxyType({})
+    requires_workspace = True
+    workspace_access = "changes"
+
+    async def probe(self) -> frozenset[str]:
+        return self.exported_tools
+
+    async def create_selected(
+        self,
+        *,
+        selected: Sequence[str],
+        allocation_id: str,
+        run_id: str,
+        namespace: str,
+        runtime_settings: RuntimeSettings,
+        workspace: AllocationWorkspace,
+        resources: ToolResources,
+        adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
+        project_workspace: WorkspaceChanges | None = None,
+    ) -> Mapping[str, Any]:
+        del allocation_id, run_id, namespace, runtime_settings, workspace, adapter_handles
+        require_selected_tools(selected, self.exported_tools)
+        if project_workspace is None:
+            raise FilesystemToolError("workspace_required")
+        for method in ("change_entries", "diff", "rollback_changes"):
+            if not callable(getattr(project_workspace, method, None)):
+                raise FilesystemToolError("workspace_mode_unsupported")
+        metrics = require_metrics(resources, "workspace-changes@1")
+        session = _ChangesSession(project_workspace)
+        builders: dict[str, Callable[[], Any]] = {
+            "changed_paths": lambda: ChangedPathsTool(session, metrics),
+            "diff": lambda: WorkspaceDiffTool(session, metrics),
+            "rollback_changes": lambda: RollbackChangesTool(session, metrics),
+        }
+        return {name: builders[name]() for name in selected}
+
+
+_CURSOR_FIELDS = {"query": str, "fingerprint": str, "offset": int}
+
+
+class _ChangesSession:
+    def __init__(self, changes: WorkspaceChanges) -> None:
+        self._changes = changes
+        self._key = bytearray(secrets.token_bytes(32))
+        self._closed = False
+
+    async def close(self) -> None:
+        self._closed = True
+        self._key[:] = b"\x00" * len(self._key)
+
+    async def changed_paths(self, cursor: str, limit: int) -> dict[str, Any]:
+        self._require_open()
+        limit = _limit(limit)
+        try:
+            entries = await self._changes.change_entries()
+        except (ProjectPathError, WorkspaceStorageError) as error:
+            raise _mapped(error) from None
+        fingerprint = _change_fingerprint(entries)
+        offset = self._decode_cursor(cursor, "changed_paths", fingerprint) if cursor else 0
+        if offset > len(entries):
+            raise FilesystemToolError("workspace_cursor_invalid")
+        page = entries[offset : offset + limit]
+        next_offset = offset + len(page)
+        next_cursor = (
+            self._encode_cursor("changed_paths", fingerprint, next_offset)
+            if next_offset < len(entries)
+            else None
+        )
+        return {
+            "changes": [{"path": entry.path, "change": entry.change} for entry in page],
+            "nextCursor": next_cursor,
+            "truncated": next_cursor is not None,
+        }
+
+    async def diff(self, path: str, cursor: str, max_bytes: int) -> dict[str, Any]:
+        self._require_open()
+        if (
+            not isinstance(max_bytes, int)
+            or isinstance(max_bytes, bool)
+            or max_bytes <= 0
+            or max_bytes > MAX_DIFF_BYTES
+        ):
+            raise FilesystemToolError("workspace_limit_exceeded")
+        try:
+            entries = await self._changes.change_entries(path)
+            fingerprint = _change_fingerprint(entries)
+            query = query_digest({"tool": "diff", "path": path})
+            offset = self._decode_cursor(cursor, query, fingerprint) if cursor else 0
+            result = await self._changes.diff(path, max_bytes=max_bytes, offset_bytes=offset)
+        except (ProjectPathError, WorkspaceStorageError) as error:
+            raise _mapped(error) from None
+        next_cursor = (
+            self._encode_cursor(query, fingerprint, result.next_offset)
+            if result.truncated and result.next_offset is not None
+            else None
+        )
+        return {
+            "text": result.text,
+            "returnedBytes": result.returned_bytes,
+            "nextCursor": next_cursor,
+            "truncated": result.truncated,
+            "authoritative": False,
+        }
+
+    async def rollback(self, path: str) -> dict[str, bool]:
+        self._require_open()
+        try:
+            await self._changes.rollback_changes(path)
+        except (ProjectPathError, WorkspaceStorageError) as error:
+            raise _mapped(error) from None
+        return {"changed": True}
+
+    def _encode_cursor(self, query: str, fingerprint: str, offset: int) -> str:
+        return encode_cursor(
+            self._key, {"query": query, "fingerprint": fingerprint, "offset": offset}
+        )
+
+    def _decode_cursor(self, value: str, query: str, fingerprint: str) -> int:
+        try:
+            document = decode_cursor(self._key, value, _CURSOR_FIELDS)
+        except ValueError:
+            raise FilesystemToolError("workspace_cursor_invalid") from None
+        if document["query"] != query or document["fingerprint"] != fingerprint:
+            raise FilesystemToolError("workspace_cursor_invalid")
+        return document["offset"]
+
+    def _require_open(self) -> None:
+        if self._closed:
+            raise FilesystemToolError("workspace_not_found")
+
+
+class _BaseChangesTool:
+    name: str
+    description: str
+
+    def __init__(self, session: _ChangesSession, metrics: ToolMetrics) -> None:
+        self._session = session
+        self._metrics = metrics
+        self.__name__ = self.name
+        self.__doc__ = self.description
+
+    async def close(self) -> None:
+        await self._session.close()
+
+    async def _invoke(self, operation: Callable[[], Awaitable[dict[str, Any]]]) -> dict[str, Any]:
+        with RecordedToolCall(self._metrics, self.name, {}) as call:
+            result = await operation()
+            call.succeed(
+                {
+                    "count": len(result.get("changes", [])),
+                    "truncated": bool(result.get("truncated", False)),
+                }
+            )
+            return result
+
+
+class ChangedPathsTool(_BaseChangesTool):
+    name = "changed_paths"
+    description = """List workspace changes since the current checkpoint.
+
+    Args:
+        cursor: Opaque nextCursor from this listing; empty starts a new page set.
+            Restart the listing after further workspace changes.
+        limit: Maximum entries per page, from 1 to 100; defaults to 100.
+
+    Returns:
+        Sorted created, modified, deleted and type-changed paths with pagination
+        and truncation metadata.
+    """
+
+    def contractor_observation(
+        self,
+        tool_args: Mapping[str, Any],
+        result: Any,
+    ) -> WorkspaceToolObservation:
+        return workspace_changes_observation(tool_args, result)
+
+    async def __call__(self, cursor: str = "", limit: int = MAX_PAGE_ITEMS) -> dict[str, Any]:
+        return await self._invoke(lambda: self._session.changed_paths(cursor, limit))
+
+
+class WorkspaceDiffTool(_BaseChangesTool):
+    name = "diff"
+    description = """Read a bounded unified diff of workspace changes since the checkpoint.
+
+    The diff is a review preview; use read_file for exact current content.
+
+    Args:
+        path: Project-relative file or subtree; empty selects the whole workspace.
+        cursor: Opaque nextCursor from the same query; empty starts a new diff.
+            Restart after further workspace changes.
+        max_bytes: Maximum UTF-8 diff bytes, from 1 to 1048576; defaults to 65536.
+
+    Returns:
+        A unified diff preview with pagination and truncation metadata.
+    """
+
+    async def __call__(
+        self,
+        path: str = "",
+        cursor: str = "",
+        max_bytes: int = 65536,
+    ) -> dict[str, Any]:
+        return await self._invoke(lambda: self._session.diff(path, cursor, max_bytes))
+
+
+class RollbackChangesTool(_BaseChangesTool):
+    name = "rollback_changes"
+    description = """Restore workspace content to the current checkpoint.
+
+    Discards changes under the selected path, including newly created content.
+
+    Args:
+        path: Project-relative file or subtree; empty restores the whole workspace.
+
+    Returns:
+        {"changed": true} after restoration succeeds.
+    """
+
+    async def __call__(self, path: str = "") -> dict[str, Any]:
+        return await self._invoke(lambda: self._session.rollback(path))
+
+
+def _change_fingerprint(entries: Sequence[WorkspaceChange]) -> str:
+    document = [
+        {"path": entry.path, "change": entry.change, "token": entry.token} for entry in entries
+    ]
+    return jcs_digest(document)
+
+
+def _limit(value: int) -> int:
+    return require_limit(value, MAX_PAGE_ITEMS, _limit_exceeded)
+
+
+def _limit_exceeded() -> FilesystemToolError:
+    return FilesystemToolError("workspace_limit_exceeded")
+
+
+def _mapped(error: Exception) -> FilesystemToolError:
+    if isinstance(error, ProjectPathError):
+        return FilesystemToolError("workspace_path_invalid")
+    code = error.args[0] if error.args else "workspace_unavailable"
+    if code not in {
+        "workspace_cursor_invalid",
+        "workspace_limit_exceeded",
+        "workspace_not_found",
+        "workspace_path_invalid",
+        "workspace_type_conflict",
+    }:
+        code = "workspace_unavailable"
+    return FilesystemToolError(code)

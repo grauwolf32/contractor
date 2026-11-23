@@ -1,0 +1,49 @@
+schema_version: "1.0"
+id: V437-001
+title: "Reconcile concurrent Artifact fork and projection replays"
+milestone: artifact-release-cleanup-2026-11
+epic: projects-artifacts
+kind: defect
+introduced_by: V370-016
+priority: P1
+status: completed
+depends_on: []
+languages: [go]
+goal: "Identical concurrent exact Artifact handoffs converge on one binding and one lineage edge."
+context:
+  authority: >-
+    User decision 2026-11-02: implement the internal/artifacts review fixes,
+    move bulk deduplication verification out of publication transactions and
+    split registry and payload backends as proposed, keeping the artifacts name.
+  specification:
+    - docs/spec/artifacts/artifact-store.md
+    - docs/spec/artifacts/blob-storage.md
+    - docs/spec/platform/persistence.md
+  finding: >-
+    postgres_fork_sql.go:43 reads a pre-wait target snapshot; context_projection.go:59 unconditionally inserts lineage after CreateFrozen reconciles a concurrent winner. Review probes reproduced false CAS conflict and SQLSTATE 23505.
+  siblings: >-
+    Fork replay originated in V370-016 (02bf7f340); context projection in V410-002 (e9465c6cf). Cover equal and different exact sources, ordinary create-only conflict, transaction rollback and source membership.
+  boundary: >-
+    ArtifactStore owns normalized identity, revisions, history, lineage and
+    persistence. Payload backends own physical byte operations. Domain callers
+    retain authorization, deadlines and transaction boundaries. No wire or schema
+    changes, compatibility aliases, new receipts or plugin framework.
+scope:
+  in:
+    - "Fresh-snapshot fork replay resolution and atomic exact context-projection lineage reconciliation, with deterministic real-store races."
+  out:
+    - "Renaming the public Artifact concept, database tables or wire fields."
+acceptance_criteria:
+  - id: A1
+    text: "Concurrent equal forks and context projections return the same exact target without duplicate revisions or lineage."
+  - id: A2
+    text: "A different source remains a classified conflict and caller rollback leaves no partial publication; regression probes fail on the original implementation."
+tests:
+  - command: "go test -count=1 -tags integration ./internal/artifacts/..."
+    covers: [A1, A2]
+  - command: "CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -count=1 -tags integration ./internal/artifacts/..."
+    covers: [A1, A2]
+implementation_commit: ef65a449e3346e07a361c700e16842e63e50eda9
+verification: >-
+  Full Artifact integration suites passed with PostgreSQL and filesystem payloads.
+  Controlled equal-key waits now converge; different source identities remain conflicts.

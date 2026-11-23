@@ -1,0 +1,205 @@
+{
+  "description": "LIM-OBS-17 bounds every integer of an execution report's metrics, with its tools, workerBudget and summarizer members, at 2^53-1 (OBS-R111). Each case sets the members its JSON Pointers name in valid/allocation-final-response-metric-integer-bound.json, whose every such integer is at the bound, to the given values. The allocation schema, the Server's private decoder and the Runtime model all accept exactly the valid cases; a rejected report takes the outcome of a missing report (FAIL-OBS-1).",
+  "fixture": "allocation-final-response-metric-integer-bound.json",
+  "cases": [
+    {
+      "name": "durationMs at the bound",
+      "set": {
+        "/report/worker/metrics/durationMs": 9007199254740991
+      },
+      "valid": true
+    },
+    {
+      "name": "durationMs above the bound",
+      "set": {
+        "/report/worker/metrics/durationMs": 9007199254740992
+      },
+      "valid": false
+    },
+    {
+      "name": "modelCalls above the bound",
+      "set": {
+        "/report/worker/metrics/modelCalls": 9007199254740992
+      },
+      "valid": false
+    },
+    {
+      "name": "inputTokens above the bound",
+      "set": {
+        "/report/worker/metrics/inputTokens": 9007199254740992
+      },
+      "valid": false
+    },
+    {
+      "name": "outputTokens above the bound",
+      "set": {
+        "/report/worker/metrics/outputTokens": 9007199254740992
+      },
+      "valid": false
+    },
+    {
+      "name": "totalTokens zero",
+      "set": {
+        "/report/worker/metrics/totalTokens": 0
+      },
+      "valid": true
+    },
+    {
+      "name": "totalTokens at the bound",
+      "set": {
+        "/report/worker/metrics/totalTokens": 9007199254740991
+      },
+      "valid": true
+    },
+    {
+      "name": "totalTokens above the bound",
+      "set": {
+        "/report/worker/metrics/totalTokens": 9007199254740992
+      },
+      "valid": false
+    },
+    {
+      "name": "totalTokens at the int64 maximum",
+      "set": {
+        "/report/worker/metrics/totalTokens": 9223372036854775807
+      },
+      "valid": false
+    },
+    {
+      "name": "totalTokens above the int64 range",
+      "set": {
+        "/report/worker/metrics/totalTokens": 9223372036854775808
+      },
+      "valid": false
+    },
+    {
+      "name": "totalTokens at the uint64 maximum",
+      "set": {
+        "/report/worker/metrics/totalTokens": 18446744073709551615
+      },
+      "valid": false
+    },
+    {
+      "name": "tool calls above the bound",
+      "set": {
+        "/report/worker/metrics/tools/read_file/calls": 9007199254740992
+      },
+      "valid": false
+    },
+    {
+      "name": "tool successes above the bound",
+      "set": {
+        "/report/worker/metrics/tools/read_file/succeeded": 9007199254740992
+      },
+      "valid": false
+    },
+    {
+      "name": "tool failures above the bound",
+      "set": {
+        "/report/worker/metrics/tools/write_file/failed": 9007199254740992
+      },
+      "valid": false
+    },
+    {
+      "name": "Worker budget observed tokens above the bound",
+      "set": {
+        "/report/worker/metrics/workerBudget/observedTotalTokens": 9007199254740992
+      },
+      "valid": false
+    },
+    {
+      "name": "Worker budget missing usage above the bound",
+      "set": {
+        "/report/worker/metrics/workerBudget/tokenUsageUnavailable": 9007199254740992
+      },
+      "valid": false
+    },
+    {
+      "name": "summarizer inputTokens above the bound",
+      "set": {
+        "/report/worker/metrics/summarizer/inputTokens": 9007199254740992
+      },
+      "valid": false
+    },
+    {
+      "name": "summarizer outputTokens above the bound",
+      "set": {
+        "/report/worker/metrics/summarizer/outputTokens": 9007199254740992
+      },
+      "valid": false
+    },
+    {
+      "name": "summarizer totalTokens above the bound",
+      "set": {
+        "/report/worker/metrics/summarizer/totalTokens": 9007199254740992
+      },
+      "valid": false
+    },
+    {
+      "name": "summarizer totalTokens above the uint64 range",
+      "set": {
+        "/report/worker/metrics/summarizer/totalTokens": 18446744073709551616
+      },
+      "valid": false
+    },
+    {
+      "name": "summarizer successful attempts above the bound",
+      "set": {
+        "/report/worker/metrics/summarizer/attempts": 9007199254740992,
+        "/report/worker/metrics/summarizer/succeeded": 9007199254740992,
+        "/report/worker/metrics/summarizer/modelCalls": 9007199254740992
+      },
+      "valid": false
+    },
+    {
+      "name": "summarizer missing usage above the bound",
+      "set": {
+        "/report/worker/metrics/summarizer/attempts": 9007199254740992,
+        "/report/worker/metrics/summarizer/succeeded": 9007199254740992,
+        "/report/worker/metrics/summarizer/modelCalls": 9007199254740992,
+        "/report/worker/metrics/summarizer/tokenUsageUnavailable": 9007199254740992
+      },
+      "valid": false
+    },
+    {
+      "name": "summarizer failed attempts at the bound",
+      "set": {
+        "/report/worker/metrics/summarizer/succeeded": 0,
+        "/report/worker/metrics/summarizer/failed": 9007199254740991,
+        "/report/worker/metrics/summarizer/failureCodes/summarizer_failed": 9007199254740991
+      },
+      "valid": true
+    },
+    {
+      "name": "summarizer failed attempts above the bound",
+      "set": {
+        "/report/worker/metrics/summarizer/attempts": 9007199254740992,
+        "/report/worker/metrics/summarizer/succeeded": 0,
+        "/report/worker/metrics/summarizer/failed": 9007199254740992,
+        "/report/worker/metrics/summarizer/failureCodes/summarizer_failed": 9007199254740992
+      },
+      "valid": false
+    },
+    {
+      "name": "Worker cumulative tool calls exceed one context window",
+      "set": {
+        "/report/worker/metrics/workerBudget/observedToolCalls": 20000
+      },
+      "valid": true
+    },
+    {
+      "name": "Worker cumulative tool calls at exact integer bound",
+      "set": {
+        "/report/worker/metrics/workerBudget/observedToolCalls": 9007199254740991
+      },
+      "valid": true
+    },
+    {
+      "name": "Worker cumulative tool calls above exact integer bound",
+      "set": {
+        "/report/worker/metrics/workerBudget/observedToolCalls": 9007199254740992
+      },
+      "valid": false
+    }
+  ]
+}

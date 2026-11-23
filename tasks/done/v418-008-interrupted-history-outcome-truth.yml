@@ -1,0 +1,100 @@
+schema_version: '1.0'
+id: V418-008
+title: Preserve uncertainty when repairing interrupted tool history
+milestone: adk-213-upgrade-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V83-001
+priority: P1
+status: completed
+depends_on: []
+languages:
+- python
+- markdown
+goal: Never describe an unanswered possibly executed tool call as proven not executed in model history.
+context:
+  review: tasks/evidence/v418-adk-213-review.json
+  finding: runtime/src/contractor_runtime/llm/openai.py:182 synthesizes tool_call_not_executed for every
+    missing response. A cancelled tool may already have made external changes; missing response alone
+    proves no execution outcome. git blame identifies V83-001/937456cac24375792d32c3076849910a86b38aba.
+  specification:
+  - docs/spec/execution/worker.md#WRK-R9
+  - docs/spec/platform/observability.md#OBS-R24
+  siblings: Both pending-call flushes in _complete_tool_call_messages; shared Runtime cancellation and
+    single/parallel budget exits; isolated history and real completed siblings. ADK2.13 pre-projection
+    sealing remains owned by V418-002.
+scope:
+  in:
+  - Conservative bounded unknown-outcome repair when no execution evidence is available, exact existing
+    completed responses, real-Runner cancellation and Gateway payload regressions.
+  out:
+  - Retrying or replaying effects, new receipt storage, SDK upgrade, logical/SDK ID remapping or generic
+    durable transcripts.
+acceptance_criteria:
+- id: A1
+  text: An unmatched call has a bounded unknown-outcome response, while an actual completed sibling response
+    is retained exactly.
+- id: A2
+  text: A real started then cancelled tool has one observed effect and truthful unknown/cancelled history
+    on the next shared invocation; IDs stay paired and no extra effect occurs.
+- id: A3
+  text: Budget exits and isolated sessions retain their existing bounds and histories, and the regression
+    fails on the old adapter.
+tests:
+- command: cd runtime && uv run --locked pytest -W error tests/test_openai_gateway_llm.py tests/test_adk_runtime.py
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+requirements:
+- id: R1
+  text: An adapter with no admission/outcome proof uses tool_call_outcome_unknown, never tool_call_not_executed.
+    This is a model-facing repair result, not a new public failure/telemetry code. Actual recorded responses
+    remain exact and ordered.
+- id: R2
+  text: A started tool that performs an observable action then is cancelled must be represented conservatively
+    in the next shared request; no inference of rollback and no blind redispatch. A later owning execution
+    ledger may produce a proven not-executed or actual cancelled result.
+- id: R3
+  text: Keep single/parallel/shared/isolated call pairing and unchanged tool budget/effect counts; modify
+    old assertions only to correct the false nonexecution claim and retain exact-ID/completed-sibling
+    coverage.
+failure_outcomes:
+- operation: Outbound history repair
+  permanent: Invalid history fails safely; synthetic unknown result grants no execution/retry authority.
+  retryable: No replay or repair-specific retry.
+  ambiguous: Keep the outcome unknown and reconcile through the existing subsystem receipt before any
+    repeat.
+  cancelled: Join the original tool before later invocation; no rollback claim.
+  timeout: Existing invocation and cleanup deadlines remain distinct.
+cardinality:
+- collection: Tool calls in already bounded request history
+  expected: One or a small parallel batch.
+  maximum: Existing model/tool call and Gateway request byte ceilings.
+  bound: One pass over messages and bounded placeholders, with no additional network or persistent storage.
+lifecycle:
+- entity: Model-facing synthetic tool response
+  delete: Released with invocation/session under existing ownership.
+  cascade: No external effect or new entity.
+  retention: No new retention; shared RAM conversation only.
+implementation_commit: 3b7a56d1a30a70291393c17f1906d47e9d35eb3d
+verification:
+  focused: 209passed in complete ADK/Gateway/new-characterization modules on baseline2.8, warnings as
+    errors.
+  full_runtime: Native Linux full make test-runtime plus required report verifier exited0:4797passed55allowed
+    optional skips; required affected cases executed.
+  lint: Complete make lint passed after integrating V418009 fixture correction.
+  negative_control: Isolated old-repair mutation failed exactly the real started/cancelled tool regression;
+    harness verified the expected error-code mismatch and exited0. No source mutation.
+  source: Primary fix3b7a56d1a30a70291393c17f1906d47e9d35eb3d, integrated native-Linux verification source7b5a1fd14cd7930b8a99d3d272ac4e09ce0b15bd;
+    safe provenance in V418001 characterization record.

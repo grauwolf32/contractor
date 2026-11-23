@@ -1,0 +1,194 @@
+package evalservice
+
+import (
+	"context"
+	"fmt"
+	"regexp"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/evaldomain"
+	"github.com/grauwolf32/contractor/internal/evalstore"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// preparedAtNativeCeiling freezes a workflow plan with MaxNativeMembers members
+// whose cases share one input artifact through the production prepare path,
+// and checks the exact bounded number of member and plan resource INSERT
+// statements of the freeze.
+func (h *serviceHarness) preparedAtNativeCeiling(t *testing.T, capacity int) evalstore.Experiment {
+	t.Helper()
+	draft, data, _ := planInputs(t)
+	source, _ := artifacts.NewService(artifactpgtest.NewStorage().Repository(h.pool)).User(h.scope.OwnerID)
+	payload := []byte("fixture ZIP is not executed")
+	write, err := source.Write(t.Context(), contracts.ArtifactRef{Namespace: "fixtures", Name: "shared-task"}, artifacts.Payload{MediaType: "application/zip", Data: payload}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta, err := source.Metadata(t.Context(), write.Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := data.Cases[0]
+	template.Task.Parameters = map[string]string{}
+	template.Requires = []string{}
+	template.Outputs = map[string]evaldomain.Output{}
+	template.Inputs = map[string]evaldomain.Artifact{"task": {Scope: "user", ScopeID: h.scope.OwnerID, Namespace: write.Ref.Namespace, Name: write.Ref.Name, Revision: *write.Ref.Revision, SHA256: evaldomain.Digest(payload), MediaType: "application/zip", SizeBytes: meta.Size}}
+	draft.CaseIDs = make([]string, evaldomain.MaxNativeMembers/2)
+	data.Cases = make([]evaldomain.Case, len(draft.CaseIDs))
+	for i := range draft.CaseIDs {
+		draft.CaseIDs[i] = fmt.Sprintf("case-%03d", i)
+		data.Cases[i] = template
+		data.Cases[i].ID = draft.CaseIDs[i]
+	}
+	for i := range draft.Variants {
+		draft.Variants[i].Kind, draft.Variants[i].Selector = "workflow", "audit-check@1"
+	}
+	draft.Repetitions = 1
+	draft.Budgets.MaxMembers, draft.Budgets.MaxInFlight = evaldomain.MaxNativeMembers, capacity
+	dataset := frozen(t, "DatasetInput", data)
+	if err := h.service.tx(t.Context(), func(s *evalstore.Store) error {
+		_, err := s.PutDataset(t.Context(), h.scope, "r1", dataset, identity(t, "dataset", 0, dataset))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	doc := frozen(t, "CreateExperiment", evaldomain.CreateExperiment{Name: "Native ceiling", ControlMode: "server", Draft: &draft})
+	receipt, err := h.service.Create(t.Context(), h.scope, doc, identity(t, "create", 0, doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, err := receipt.Experiment()
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := h.get(t, ref.ExperimentID)
+	// A projection queue row that exists before the freeze advances once per
+	// member INSERT statement, here once; the per-member loop advanced it once
+	// per member.
+	if _, err = h.pool.Exec(t.Context(), `INSERT INTO eval_projection_queue(experiment_id) VALUES ($1)`, e.ID); err != nil {
+		t.Fatal(err)
+	}
+	before, _, _ := projectionQueue(t, h.pool, e.ID)
+	statements := h.freezeInserts(t, func() {
+		h.command(t, e, "prepare")
+		tick(t, h.coordinator(t, "prepare"))
+	})
+	e = h.get(t, e.ID)
+	if e.State != evaldomain.StateReady || e.Expected != evaldomain.MaxNativeMembers {
+		t.Fatalf("prepare: state=%s members=%d diagnostic=%s", e.State, e.Expected, e.Diagnostic)
+	}
+	// 1,000 small recipes fit one member batch; 1,005 case, input, suite,
+	// binding and private resources take two (1,000 + 5 rows).
+	assertFreezeStatements(t, h.pool, e.ID, statements, 1, 2)
+	if after, _, _ := projectionQueue(t, h.pool, e.ID); after != before+1 {
+		t.Errorf("projection queue revision %d -> %d, want one advance for the one member statement", before, after)
+	}
+	assertMemberProjections(t, h.pool, e.ID, evaldomain.MaxNativeMembers)
+	byID := make(map[string]evaldomain.Case, len(data.Cases))
+	for _, c := range data.Cases {
+		byID[c.ID] = c
+	}
+	assertFrozenMembers(t, h.pool, e, byID)
+	return e
+}
+
+func projectedMembers(t *testing.T, h *serviceHarness, id string) int {
+	t.Helper()
+	var n int
+	if err := h.pool.QueryRow(t.Context(), `SELECT count(*) FROM eval_member_projections WHERE experiment_id=$1 AND revision=projected_revision`, id).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// Admission and collection read the frozen plan once per admitted and per
+// collected member. The stored row was validated before its insert and cannot
+// change, so a tick must not walk the 442 KB schema again for each read.
+func TestSharedPostgresNativeTickTrustsStoredPlanAtMemberCeiling(t *testing.T) {
+	h := newHarness(t)
+	const capacity = membersPerTick
+	e := h.preparedAtNativeCeiling(t, capacity)
+	h.command(t, e, "start")
+	collected := projectedMembers(t, h, e.ID)
+	// The probe field breaks the closed plan schema while every field the tick
+	// decodes stays intact, so any revalidation of the stored plan fails the
+	// tick. Only DDL can bypass eval_plans_immutable.
+	for _, statement := range []string{
+		`ALTER TABLE eval_experiments DISABLE TRIGGER eval_plans_immutable; ALTER TABLE eval_experiments DISABLE TRIGGER eval_experiments_protect`,
+		`UPDATE eval_experiments SET plan_document=convert_to('{"probe":true,'||substr(convert_from(plan_document,'UTF8'),2),'UTF8') WHERE experiment_id='` + e.ID + `'`,
+		`ALTER TABLE eval_experiments ENABLE TRIGGER eval_plans_immutable; ALTER TABLE eval_experiments ENABLE TRIGGER eval_experiments_protect`,
+	} {
+		if _, err := h.pool.Exec(t.Context(), statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := evaldomain.Freeze(portablePlanSchema, h.planBytes(t, e)); !evaldomain.IsCode(err, "eval_invalid") {
+		t.Fatalf("probe kept the stored plan schema-valid: %v", err)
+	}
+	trace := &planTransferTracer{}
+	config := h.pool.Config()
+	config.ConnConfig.Tracer = trace
+	traced, err := pgxpool.NewWithConfig(t.Context(), config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer traced.Close()
+	h.service.pool = traced
+	tick(t, h.coordinator(t, "ceiling"))
+	e = h.get(t, e.ID)
+	if e.State != evaldomain.StateRunning || e.Outstanding != capacity || count(t, h.pool, "eval_submissions") != capacity {
+		t.Fatalf("tick admitted %d members in state %s, want %d", e.Outstanding, e.State, capacity)
+	}
+	if got := projectedMembers(t, h, e.ID) - collected; got < evaldomain.CollectionBatchSize-capacity {
+		t.Fatalf("tick collected %d dirty members", got)
+	}
+	trace.mu.Lock()
+	defer trace.mu.Unlock()
+	if trace.full > 1 || trace.metadata < capacity {
+		t.Fatalf("native tick transferred %d full plan documents and %d metadata projections", trace.full, trace.metadata)
+	}
+
+}
+
+func (h *serviceHarness) planBytes(t *testing.T, e evalstore.Experiment) []byte {
+	t.Helper()
+	plan, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).FrozenPlan(t.Context(), e.OwnerID, e.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return plan.Document.Bytes()
+}
+
+// Observe actual PostgreSQL projections at the 1,000-member ceiling. Publishing
+// a comparison may read the plan once; individual members must use metadata.
+// A full read selects the document column, aliased or not; document_kind and
+// document_sha256 are metadata.
+type planTransferTracer struct {
+	mu             sync.Mutex
+	full, metadata int
+}
+
+var fullPlanProjection = regexp.MustCompile(`\bplan_document\b`)
+
+func (p *planTransferTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	query := strings.ToLower(data.SQL)
+	if strings.Contains(query, "eval_experiments") && strings.HasPrefix(strings.TrimSpace(query), "select") &&
+		strings.Contains(strings.SplitN(query, "from", 2)[0], "plan_") {
+		p.mu.Lock()
+		if fullPlanProjection.MatchString(strings.SplitN(query, "from", 2)[0]) {
+			p.full++
+		} else {
+			p.metadata++
+		}
+		p.mu.Unlock()
+	}
+	return ctx
+}
+func (*planTransferTracer) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}

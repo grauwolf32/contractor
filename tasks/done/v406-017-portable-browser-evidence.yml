@@ -1,0 +1,68 @@
+schema_version: '1.0'
+id: V406-017
+title: Write browser screenshots into the owning Playwright output directory
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: quality
+kind: defect
+introduced_by: V406-005
+priority: P2
+status: completed
+depends_on: [V406-005, V406-006]
+languages: [typescript]
+goal: Retain browser evidence portably on Linux and macOS without shared absolute temporary paths.
+context:
+  specification:
+  - docs/testing/README.md
+  finding: >-
+    ui/e2e/web-scans.spec.ts:115,242 writes screenshots to /private/tmp.
+    On the complete Ubuntu release run all six themed scan/sweep scenarios fail
+    with ENOENT before their remaining assertions because that macOS directory
+    does not exist. The scan path came from V406-005 (7c565a4b19eed6548afd048140fbdfd4d20249bf);
+    V406-006 added the sibling sweep screenshot.
+  siblings: >-
+    ui/e2e/operations-forms.spec.ts:346 also writes screenshots to a shared
+    absolute /tmp file. Route all these browser screenshots through Playwright's
+    test-owned output paths. Existing framework screenshot/trace attachments
+    and process-stack evidence directories already use owned paths.
+scope:
+  in:
+  - Use test.info().outputPath for scan, sweep and Interactsh screenshots.
+  - Preserve all theme, narrow-screen, launch, pagination and purge assertions and keep screenshots in browser evidence.
+  - Run the complete mocked-browser gate on Linux without creating /private/tmp.
+  out:
+  - Product UI behavior or version changes, Studio features, relaxed assertions or new screenshot snapshot baselines.
+failure_outcomes:
+- operation: Save a browser screenshot
+  permanent: Failure to write the test-owned output directory still fails the scenario.
+  retryable: No screenshot retries.
+  ambiguous: No product mutation; framework retains the owning scenario's trace and diagnostics.
+  cancelled: Existing browser gate joins child processes and cleans only its private build.
+  timeout: Existing browser deadlines remain unchanged.
+cardinality:
+- collection: Browser evidence files
+  expected: One screenshot per existing themed scenario
+  maximum: Existing browser scenario inventory
+  bound: Use the existing per-test output directory; never write shared global temporary filenames.
+acceptance_criteria:
+- id: A1
+  text: The same six failing Linux web scan/sweep scenarios pass in the complete mocked-browser gate without a /private/tmp directory.
+- id: A2
+  text: The Interactsh sibling uses the same owned evidence path and the complete browser inventory passes with no skips or flaky cases.
+- id: A3
+  text: UI generation, lint, typecheck, tests and build plus make lint pass; product code and browser assertions are unchanged.
+tests:
+- command: make ui-browser-mocked
+  covers: [A1, A2]
+- command: make ui-verify
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+implementation_commit: 054962596ed2537346c6a7073af1aa7b6363d4ed
+verification:
+  date: '2026-10-24'
+  baseline: The complete Ubuntu mocked-browser gate had six web scan/sweep failures with ENOENT for /private/tmp and 85 passing scenarios. Traces and screenshots were retained before the correction.
+  passed:
+  - make ui-browser-mocked on Ubuntu 24.04; all 91 browser scenarios across 23 specs passed, including all themes for scans, sweeps and Interactsh. No /private/tmp directory was created.
+  - make ui-verify; generation, lint, typecheck, 196 test files with 2385 passing tests plus one expected failure, Node tests and production build passed.
+  - make lint; complete task, spec, release-graph and layer checks passed.
+  scope: Only evidence destinations changed; every browser assertion, configured deadline and product UI file is unchanged.

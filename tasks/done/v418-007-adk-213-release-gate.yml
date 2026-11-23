@@ -1,0 +1,192 @@
+schema_version: '1.0'
+id: V418-007
+title: Accept ADK 2.13 with historical broad and final targeted verification
+milestone: adk-213-upgrade-2026-10
+epic: quality
+kind: chore
+priority: P1
+status: completed
+depends_on:
+- V418-005
+- V418-006
+- V418-012
+languages:
+- python
+- markdown
+goal: Close the ADK2.13 migration after the prior broad evidence and user-authorized targeted checks on
+  the patched final dependency closure are honestly reconciled; do not claim a repeated full release after
+  the last dependency update.
+context:
+  authority: User authorized Runtime upgrade before Server upgrade, then explicitly prohibited a full
+    rerun after the final certifi/OTel update. The final acceptance scope is the targeted profile below.
+  review: tasks/evidence/v418-adk-213-review.json
+  specification:
+  - docs/testing/README.md
+  - docs/spec/execution/worker.md
+  - docs/spec/execution/runtime-agent.md
+  - docs/spec/tools/toolsets.md
+  - docs/spec/platform/observability.md
+  finding: The initial 326-case exploration was intentionally partial, used temporary dependency overlays
+    and skipped a process case. A supported upgrade needs a fresh locked installation, full Runtime, real-process
+    coverage and an integrated release record. Compaction V417-002 must use this accepted version instead
+    of proving behavior on the old 2.8 baseline.
+  implementation_boundary: Preserve the owning Contractor contracts; update numbered specs, limits/error/failure/lifecycle
+    registries and affected implementations together when an explicit clarification is necessary. No ADK-version
+    branches, legacy readers, dual production runtimes, model replacement, silent retries, new receipt
+    store or speculative public API. Read current code and re-establish the dated evidence before implementation.
+  verification_acceleration: 'Superseded by the later explicit user instruction: «Только полный прогон
+    не делай после этого обновления». Stop the remaining full release stages and globalE2E/Runtime reruns
+    after certifi/OTel remediation. Retain all earlier broad source/lock provenance and the first advisory
+    failure. Complete only focused checks of the patched closure and report the unexecuted full stages
+    explicitly.'
+  user_scope_change: User expressly waived a full rerun after the final certifi/OTel update on2026-10-25;
+    this overrides the earlier full-release plan without falsifying completed tests.
+  evidence: tasks/evidence/v418-final-migration-acceptance.json
+scope:
+  in:
+  - Integrated release verification, dependency advisory evidence, ownership/disposition reconciliation
+    and final supported-version documentation.
+  - Unblock V417-002 through task completion; preserve the independence of V417-001 and keep Consult a
+    proposal.
+  out:
+  - Deployment or migration of a demo database, claiming compaction or consultation implemented, and live-model
+    quality claims.
+  - Waiving unrelated required release failures, counting zero/skipped cases, requiring V417 completion
+    as a prerequisite or rewriting historical evidence as if it used 2.13.
+acceptance_criteria:
+- id: A1
+  given: The integrated revision and a fresh locked environment
+  when: A fresh locked smoke and targeted Runtime compatibility profile run
+  then: The patched final2.13 closure works without optional providers or regressions in the tested paths;
+    no full-suite claim is made for this lock.
+- id: A2
+  given: All migration case inventories and predecessor evidence
+  when: Prior broad records and the final targeted profile are reconciled under the explicit no-full-rerun
+    instruction
+  then: Required migration critical paths and real Artifact API evidence are accounted at their exact
+    source/lock; unexecuted final full stages and lack of a complete final-release run are explicit.
+- id: A3
+  given: Current dependency advisory data and source availability
+  when: The separate advisory gate runs
+  then: Results are recorded honestly and actionable blockers resolved; unavailability is not represented
+    as a pass.
+- id: A4
+  given: Documentation, specs and task dependencies
+  when: The milestone is closed
+  then: All current-version statements agree, the branch/commit status is recorded, compaction waits on
+    this exit and terminal reasoning/Consult remain independent.
+tests:
+- command: cd runtime && uv sync --locked
+  covers:
+  - A1
+- command: cd runtime && uv run --locked pytest -W error tests/test_dependency_smoke.py tests/test_adk_runtime.py
+    tests/test_instrumentation.py tests/test_openai_gateway_llm.py tests/test_telemetry_content.py tests/test_shared_genai_telemetry.py
+    tests/test_adk_gateway_conformance.py tests/test_sensitive_output_tools.py tests/test_result_finalizer.py
+    tests/test_worker_summarizer.py
+  covers:
+  - A1
+  - A2
+- command: make test-control-integration
+  covers:
+  - A2
+- command: go test -count=1 ./internal/telemetry/...
+  covers:
+  - A2
+- command: make test-runtime-dependencies-audit
+  covers:
+  - A3
+- command: runtime/.venv/bin/python scripts/check_tasks.py
+  covers:
+  - A4
+requirements:
+- id: R1
+  text: Record a fresh ordinary locked environment for the patched final revision and exact versions/override/source/lock
+    hashes. No hidden SDK overlays. Keep every earlier broad source/lock identity unchanged.
+- id: R2
+  text: 'Every finding from the case manifest has a disposition and owning passing regression: reminder
+    identity, interrupted history, unknown names, deadline admission, cancellation classification, raw
+    coercion, empty output, resource cleanup, Skills and Gateway/telemetry contracts. New findings become
+    resolved tasks, never silent scope omissions.'
+- id: R3
+  text: 'Follow the later explicit user instruction: after the certifi/OTel update, do not rerun the full
+    Runtime, release graph or globalE2E. Execute the focused profile listed under tests once on final
+    inputs, reusing the same actual passing012 command records rather than repeating them. State which
+    broad stages never ran and which earlier results concern the old lock. A targeted acceptance is never
+    represented as a complete full release.'
+- id: R4
+  text: Run the separate Runtime dependency advisory gate and record result/date/source availability.
+    A service outage is unavailable, never clean; an actionable finding requires a resolved owning decision
+    before this task completes. This external audit does not become a dependency of the deterministic
+    release graph.
+- id: R5
+  text: Reconcile normative current-pin references, install/deployment/testing instructions, exact smoke
+    tests and safe changelog notes. Maintain Contractor public telemetry and API semantics unless explicitly
+    changed end to end in the migration; historical reviews retain their original versions.
+- id: R6
+  text: No dependency on V417 or proposal 0047 is introduced. V417-002 starts only after this exit is
+    completed and uses this exact accepted closure. V417-001 terminal reasoning remains independently
+    deliverable; if already implemented when this gate runs, cover it as existing behavior without making
+    it a prerequisite.
+- id: R7
+  text: Record whether the branch is merged and the final implementation commit under normal task policy.
+    Completion requires every listed acceptance gate, not merely a successful pin or most Runtime tests;
+    no deployment is implied.
+- id: R8
+  text: Historical reuse is attribution only after the dependency lock changes. No old full Runtime/process
+    result is promoted as a full run on the patched closure. Pure UI results may retain their unchanged
+    Node/UI inputs, but do not imply Python/process acceptance. User-imposed verification scope is recorded
+    explicitly in the final report.
+test_prerequisites:
+- Commands below are future implementation acceptance gates, not checks already passed by this planning
+  change. A required command, selected case or dependency setup must not be skipped or match zero tests.
+- The later explicit no-full-rerun instruction limits the final closure to the listed targeted profile.
+  All earlier full-suite/process evidence retains its original source/lock; no final full-release claim
+  is made. Actual process/store claims retain their real fixture boundary.
+- Use injected clocks, synchronization barriers, work/row/byte counters and bounded fixture sizes. Timing
+  samples are informational, never flaky wall-clock pass thresholds. Keep configured live models unchanged;
+  no live Gateway is part of these deterministic tasks.
+- Use the repository lock for acceptance, except the explicitly isolated candidate characterization in
+  V418-001. Preserve unrelated user changes. Record the tested revision, lock digest, command, executed
+  case count, skips and outcome. The 326-case exploratory run is not a substitute for make test-runtime
+  or a release gate.
+failure_outcomes:
+- operation: Verification setup and evidence collection
+  permanent: Strict invalid input or unsupported SDK behavior fails with the owning classified outcome;
+    no permissive fallback or endless retry. A required verification failure blocks completion.
+  retryable: Reuse the existing bounded transport/recovery or cleanup policy only; no SDK upgrade-specific
+    retry loop or rerun-until-green.
+  ambiguous: Reconcile existing receipts, trusted observations and the same operation identity. Test evidence
+    preserves the original uncertain outcome; never repeat an external append or side effect blindly.
+  cancelled: The existing invocation/allocation or fixture owner cancels and joins all work before cleanup;
+    no later dispatch or unowned callback may outlive release.
+  timeout: Execution deadline, per-request timeout, cleanup timeout and harness timeout remain distinct;
+    injected expiration cannot start a new admitted attempt.
+cardinality:
+- collection: Calls, event history, retained State/metrics and fixture cases
+  expected: Several sequential logical invocations, parallel tool batches and multiple internal Runner
+    turns; scale task adds long histories.
+  maximum: Existing owning model/tool/subtask/State/Skill byte and item ceilings; V418-006 must inventory
+    the containing limits before choosing maximum fixtures.
+  bound: Work follows admitted finite inputs and retained history; no unbounded full-catalog scan, private-history
+    copy or unrestricted per-callback rescan. Verify bytes/items/work counters, not only input length.
+lifecycle:
+- entity: Existing allocation-local sessions, clients, tools, callbacks and test evidence
+  delete: Existing invocation/allocation owner or isolated test harness owns teardown; never touch another
+    allocation or user database.
+  cascade: Join generators, tools, clients and serializers before deleting session/workspace state. Preserve
+    required publication receipts through their existing owner.
+  retention: No new durable runtime entity. Keep only bounded safe test evidence and ordinary published
+    results under existing retention policies.
+verification:
+  final: Reuse the actual012checks on exact patched lockfeb5a55a:323RuntimePASS0skip/fail;11nativeleavesPASS;49Go
+    telemetry top-level/121recordsPASS+1optionalCollector skip; live advisory positive canary then0production
+    advisories. No repeated command run.
+  historical: Old lock5b8a1177fullRuntime5031pass55allowedskip and globalprocess26parents/68records0skip/fail
+    retained as historical only. UI actualPASS on871oldinputs. Eight fullrelease stages never started
+    and none rerun after patch.
+  disposition: Every identified migration finding is mapped to its completed owning task and regression
+    evidence; supported-version documentation and exact OTel exception agree. No compaction, Consult,
+    live-model or deployment claim.
+  delivery: Runtime implementation remains on local codex/adk-runtime-213, not merged to main. Proceed
+    to the separately owned Go Server upgrade.
+implementation_commit: 2ff37d3042bcefcfc799dd252d53f8f3db748f91

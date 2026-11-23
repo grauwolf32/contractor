@@ -1,0 +1,117 @@
+schema_version: "1.0"
+id: V61-006
+title: Expose exact prepared MCP tools through ADK with normal Worker accounting
+milestone: toolset-runtime-configuration
+epic: runtime-config
+kind: feature
+priority: P1
+status: deferred
+deferral:
+  date: "2026-10-11"
+  previous_status: pending
+  reason: >-
+    Implemented and verified on 2026-09-20 on branch
+    feat/v61-toolset-runtime-configuration but never merged; main has since
+    moved about 1,700 commits (contract package split, credential table
+    folds, V3B UI, layer checks). V62 and V64 do not depend on it, so the
+    port is postponed instead of resolving 35 conflicts now.
+  reactivate_when: >-
+    Explicit user decision that external MCP tools are needed (for example
+    for autonomous pentest Audits, proposal 0033); then port the branch onto main
+    rather than reimplementing, renumber its migration and rerun the V61-009
+    release gate.
+  branch_commit: "c36af6108bcf76a803c08d77ecb64913574b3a28"
+implementation_commit: null
+depends_on: [V61-005]
+languages: [python, go, json, yaml]
+goal: >-
+  Enable mcp@1 for ADK Workers with only template-selected remote tools,
+  frozen schemas, bounded results and existing budgets/observations.
+context:
+  authority: User requests arbitrary configured MCP tools while fixing each agent's toolset selection in AgentTemplate.
+  design: docs/plans/2026-09-19-toolset-runtime-configuration.md
+  specification:
+    - docs/spec/configuration/agent-templates.md
+    - docs/spec/execution/control-plane.md
+    - docs/spec/execution/worker.md
+    - docs/spec/tools/scanners.md
+  reuse: Existing ToolsetFactory output checks, ADK BaseTool/FunctionTool, raw JSON Schema gateway conversion, Worker callbacks and tool-free finalizer/summarizer.
+  revalidated: >-
+    2026-10-24 on b523ae77: still deferred, not superseded; main has no MCP or generic
+    worker.toolsets code or specification. The work remains on the unmerged branch
+    origin/feat/v61-toolset-runtime-configuration (head f6dfd6ed16240574ed3565bc6460f737fd072b49,
+    merge base c41a5989, 18 commits). Main is now 2,850 commits past that merge base and git
+    merge-tree reports 75 conflicting paths (35 at deferral), including modify/delete conflicts on
+    files main removed: docs/spec/01-agent-template.md, 02-runtime-and-a2a.md,
+    06-server-ui-and-operations.md, 07-runtime-labels-and-infrastructure-config.md, 19-audits.md,
+    29-tool-workers.md and ui-user-stories.md (retired for the domain documents by af85cc54),
+    internal/config/descriptors.go (now internal/config/resolved/descriptors.go, c8cbf2e1),
+    internal/contracts/agent.go (now internal/contracts/control/agent.go, ToolsetCapability at line
+    26, 6d277c5c), internal/runtimeconfig/principal.go (Agent principal labels now in
+    internal/agentprincipal, 3ecd3f2f) and
+    api/descriptor-parity/toolset-infrastructure-channels.yaml (replaced by
+    api/testdata/toolset-descriptors.json under TLS-R38, 35f59294). The example in reactivate_when
+    no longer applies: proposal 0033 section 14 says V61 MCP configuration is not a prerequisite of
+    the V411 HTTP/API pentest delivery, its section 4.3 keeps MCP tools out of the controlled-proof
+    path without their own gate, and V411-001 explicitly excludes V61 reactivation, so reactivation
+    needs a user decision that names a concrete MCP consumer. Task-specific: worker/runtime.py
+    conflicts. V414-013 (pending) shows that google-adk's module-level LRU caches keep tool
+    instances alive after release, which a prepared BaseTool adapter would also hit. V398-001
+    capability derivation and the Worker completion contract (docs/spec/audits/worker-completion.md,
+    AWC) apply to MCP-equipped Workers, and model-visible descriptions follow TLS-R29 to TLS-R36.
+scope:
+  in:
+    - Implement MCPToolsetFactory and named ToolInstance wrappers over the V61-005 owner, with exact template allowlist and ownership-before-network preparation.
+    - Freeze selected tools/descriptions/input schemas once per allocation and reject missing, duplicate, reserved, incompatible or colliding names/schemas.
+    - Add a narrow prepared-BaseTool adaptation path while retaining FunctionTool for native callables and all Worker callbacks.
+    - Convert bounded arguments and MCP structuredContent/content/isError to the V61-001 contract with truthful unsupported/overflow outcomes.
+    - Preserve model/tool budgets, cancellation, tool failure accounting, Worker observations/completion and main-worker-only tool visibility.
+    - Prevent list-change or reconnect from expanding tools or silently replacing frozen selected schemas; expose safe schema digest/diagnostics.
+    - Enable production registration only when the SDK, factory, session lifecycle and ADK adapter are all locally usable.
+    - Verify common typed configuration with a test-native factory and retain explicit generic MCP/tool@1 incompatibility.
+  out:
+    - Model-visible endpoint/auth parameters, automatic tool aliases, wildcard discovery, remote instructions promoted to system authority or native effect inference by name.
+    - MCP sampling/prompts/resource fetching, multimodal expansion beyond the fixed result contract or a deterministic MCP tool@1 report adapter.
+deliverables:
+  - path: runtime/src/contractor_runtime/toolsets/mcp/factory.py
+    description: Exact selected-tool factory, dynamic discovery probe and owner-backed preparation.
+  - path: runtime/src/contractor_runtime/toolsets/mcp/tools.py
+    description: Prepared ADK BaseTool adapter and bounded MCP result/error conversion.
+  - path: runtime/src/contractor_runtime/factories.py
+    description: Complete MCP factory registration and native-compatible preparation/adaptation contracts.
+  - path: runtime/src/contractor_runtime/worker
+    description: Narrow BaseTool adaptation integrated with existing accounting and completion.
+  - path: runtime/tests/test_mcp_toolset.py
+    description: New allowlist/schema/result/native-configuration tests through real factory and preparation paths.
+  - path: runtime/tests/test_mcp_adk.py
+    description: New real ADK Runner tests with scripted model responses, budgets and completion.
+requirements:
+  - id: R1
+    text: A server exporting search/fetch/delete_document exposes only search/fetch when selected; missing fetch prevents Worker creation rather than silently reducing the template contract.
+  - id: R2
+    text: Discovery includes all bounded pages, validates selected schemas, does not fetch external refs and does not refresh the visible list on each model turn.
+  - id: R3
+    text: Business isError, invalid arguments, transport failure and ambiguous timeout remain distinguishable; no path silently retries an operation or reports failure as success.
+  - id: R4
+    text: Preparation does not spend a model call. MCP tools use existing tool/model budgets and remain absent from finalizer/summarizer and unrelated allocations.
+acceptance_criteria:
+  - id: A1
+    text: Prepared visible names equal template selection exactly; all negative inventory/name/schema fixtures fail before Worker activation with owned resources cleaned up.
+  - id: A2
+    text: A real ADK Runner emits correct JSON Schema tool definitions, invokes selected tools and completes through existing callbacks/accounting without changing native tool behavior.
+  - id: A3
+    text: structuredContent, supported blocks, isError, bad arguments, overflow and unknown outcomes match the fixed contract and do not leak secrets or unbounded bytes.
+  - id: A4
+    text: List-change/reconnect cannot add a tool or silently change selected schema; local dependency failure suppresses MCP capability while native and model-free regressions pass.
+  - id: A5
+    text: Independent allocations use isolated session state, tools within one allocation share a session, and finalizer/summarizer remain tool-free under cancellation and budget exhaustion.
+tests:
+  - command: cd runtime && uv run --frozen pytest -W error tests/test_mcp_toolset.py tests/test_mcp_adk.py tests/test_mcp_lifecycle.py tests/test_mcp_redaction.py
+    covers: [A1, A2, A3, A4, A5]
+  - command: cd runtime && uv run --frozen pytest -W error tests/test_adk_runtime.py tests/test_instrumentation.py tests/test_metrics.py tests/test_capabilities.py tests/test_tool_worker.py tests/test_result_finalizer.py tests/test_worker_summarizer.py
+    covers: [A2, A4, A5]
+  - command: go test ./internal/config ./internal/contracts ./internal/controlplane ./internal/auditservice
+    covers: [A1, A4]
+verification_requirements:
+  - Use the pinned real ADK Runner and existing gateway conversion with a scripted model; direct invocation of a mocked wrapper alone does not prove A2/A5.
+  - Record exact SDK version, selected schema digest behavior and executed unsupported-content fixtures before enabling production capability.

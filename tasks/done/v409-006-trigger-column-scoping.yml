@@ -1,0 +1,230 @@
+schema_version: "1.0"
+id: V409-006
+title: "Scope unnecessary trigger work while preserving admission and projection effects"
+milestone: sql-review-2026-10
+epic: persistence
+kind: chore
+introduced_by: V39-002
+priority: P2
+status: completed
+depends_on: [V407-025]
+languages: [sql, go]
+goal: >-
+  Updates unrelated to a guard avoid its work, while relevant updates keep
+  the same identity, completion, Project admission, run binding and Eval
+  projection guarantees.
+context:
+  review: "docs/research/2026-10-23-sql-review.md, A6, A7 and section B, trigger scoping"
+  specification:
+    - docs/spec/platform/persistence.md#PER-R22
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R40
+  finding: >-
+    In the reviewed baseline, stage_allocations guards at
+    internal/persistence/migrations/000001_baseline.sql:2084-2088 fire on
+    every UPDATE, including release bookkeeping in
+    internal/runstore/allocation_store.go:314-337. The completion function
+    at baseline:1390-1411 performs a parent lookup and also protects an
+    immutable completion contract. The audits preparation guard at
+    baseline:850-884,3386 can perform EXISTS before comparing guarded
+    columns. Broad artifact_bindings and audit_executions trigger definitions
+    at baseline:2403-2407,3150-3156 are further candidates for event-specific
+    conditions. These are avoidable-work candidates, not measured latency
+    failures or evidence that their side effects are dispensable.
+  siblings: >-
+    Review the five tables stage_allocations, audits, artifact_bindings,
+    audit_executions and workflow_runs; on workflow_runs include the Eval
+    retention trigger from migration 000013. Keep the already scoped Run
+    guards from migration 000012. StageExecution trigger implementation is
+    owned by V407-025 and is outside this task; preserve its regression
+    coverage and avoid a second implementation of the same change.
+  validation: >-
+    Review of main 1d533b2db885e0162ebabb01d36470f139546009 confirmed the
+    broad triggers. A controlled real Service.Write test demonstrated that
+    changing Project binding admission to INSERT-only allows a revision
+    write after BeginDeletion, whereas the existing trigger returns
+    ErrScopeDeleting. ensureScope is intentionally a separate statement
+    (internal/artifacts/postgres.go:80-93; postgres_write.go:69-83), so it
+    cannot replace admission at the actual binding write. Eval output and
+    Audit child projections at baseline:448-474,200-214 legitimately react
+    to binding revision and collection changes. PostgreSQL rejects a DELETE
+    trigger WHEN expression that references NEW, including a mixed-event
+    COALESCE(NEW, OLD) condition.
+  provenance: >-
+    The allocation completion trigger predates V404-002: git history traces
+    it to V39-002, ad8d4e6eab5e2901cd10599a61fe9ac8be4b3df2.
+    Other guards have separate origins, including V8-007 allocation identity,
+    V24-005/V25-008 Project admission and V62-002 preparation protection.
+    V404-002 added report bookkeeping that exercises existing broad guards;
+    it did not introduce those guard definitions.
+plan:
+  - >-
+    Build a scoped inventory of each candidate trigger's event, guarded
+    columns, external-row dependencies and required side effects. Use UPDATE
+    OF for immutable column guards only after checking BEFORE-trigger
+    assignments; use event-specific WHEN conditions for after/deferred
+    checks. Retain a broad trigger with a recorded reason when an external
+    dependency makes narrowing unsafe. Compare preparation columns before
+    performing its unnecessary EXISTS probe.
+  - >-
+    Preserve the completion-contract UPDATE immutability guard if its parent
+    lookup is limited to INSERT. Preserve the actual Project binding write's
+    row lock and current-state admission check on INSERT and UPDATE, including
+    the existing narrowly authorized Audit cancellation writes. Do not make
+    Project admission INSERT-only. Preserve run-matching checks and required
+    Eval dirtying on relevant binding, collection and lifecycle changes.
+  - >-
+    Split INSERT, UPDATE and DELETE trigger definitions when their conditions
+    require different OLD/NEW availability. Add real-PG tests of trigger
+    effects and deterministic invocation/probe counts for selected irrelevant
+    updates. Keep semantic tests in addition to any catalog-shape checks;
+    a regex of function text alone does not prove external dependencies.
+scope:
+  in:
+    - "A new migration for justified trigger scoping and early comparisons on the listed tables."
+    - "Real-PG admission, immutability, projection and irrelevant-update regression tests."
+  out:
+    - "Changing accepted writes, deletion exceptions, lifecycle rules, lock order or projection freshness."
+    - "StageExecution trigger changes owned by V407-025."
+    - "A universal requirement that every UPDATE trigger have a column list regardless of its external dependencies."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Given an allocation release-only update or Audit event-sequence update,
+      when it changes no dependency of a selected immutable/preparation guard,
+      then that guard's unnecessary function or parent-probe work is absent.
+      Real-PG tests assert deterministic counts and fail before the scoping
+      change; they do not impose elapsed-time thresholds or suppress unrelated
+      required triggers.
+  - id: A2
+    text: >-
+      Given changes to identity, performance policy, completion contract or
+      preparation baseline, or an invalid Run association, when the mutation
+      is attempted, then the same invalid writes are rejected after scoping.
+      Required INSERT checks and immutable completion UPDATE checks remain.
+  - id: A3
+    text: >-
+      Given an existing Project artifact binding, when BeginDeletion commits
+      between ensureScope and the actual revision write, then the write still
+      returns ErrScopeDeleting and publishes no revision. The test uses
+      explicit synchronization, and existing authorized Audit cancellation
+      writes and ordinary active-Project writes retain their outcomes.
+  - id: A4
+    text: >-
+      Given Eval-backed outputs or Audit children, when an output revision,
+      collection receipt or relevant terminal state changes, then the required
+      projection becomes dirty and refreshes correctly. Irrelevant changes
+      do not add unnecessary projection work; insert/delete cases compile
+      and keep their existing effects.
+  - id: A5
+    text: >-
+      Given the implemented trigger inventory, when its migrated catalog and
+      behavioral tests are checked, then each changed trigger has the stated
+      event/column conditions and any retained broad trigger has an explicit
+      external-dependency reason. Repository lint accepts the migration,
+      tests and metadata.
+tests:
+  - command: >-
+      CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL before running this task}"
+      go test -tags=integration -count=1 ./internal/persistence/... ./internal/runstore/... ./internal/artifacts/... ./internal/auditstore/... ./internal/evalstore/... ./internal/projectstore/...
+    covers: [A1, A2, A3, A4, A5]
+  - command: make lint
+    covers: [A5]
+verification:
+  date: '2026-10-23'
+  environment: >-
+    macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), the locked Runtime venv and UI
+    dependencies; local PostgreSQL 17.11 database contractor_test_f with
+    per-test schemas and all migrations through 000037 (000035 and 000036
+    are reserved for unmerged V407-029 and V409-004).
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://…/contractor_test_f go test
+      -tags=integration -count=1 ./internal/persistence/... ./internal/runstore/...
+      ./internal/artifacts/... ./internal/auditstore/... ./internal/evalstore/...
+      ./internal/projectstore/... — persistence/explaintest, persistence/postgres,
+      persistence/statesettest, runstore, artifacts, auditstore/internal/pgstore,
+      evalstore and projectstore passed; internal/persistence failed only
+      TestSQLAccessFollowsTableOwnership (internal/cli/scan_sweep_remote.go:196)
+      and TestKeyedMutationsUseTheSharedHelpers
+      (internal/app/single_active_budget_test.go), both failing identically on
+      the unmodified base f36507d9 in a temporary worktree, so pre-existing and
+      unrelated.
+    - >-
+      go test -tags=integration -count=1 of the packages whose writes the
+      scoped triggers see: runservice, rundeletion, scheduler,
+      projectlifecycle, auditservice, auditcontroller, evalservice,
+      auditimport, findingintake and archtest — all passed.
+    - >-
+      The new tests with -count=3 passed, and the artifacts ones again with
+      CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem.
+    - >-
+      Can-fail checks: without migration 000037 the trigger-count tests fail
+      at every scoped step (release attempt, release and report mark call the
+      identity, policy and completion triggers; an event append calls the
+      preparation guard and scans audit_executions 4 times; every Run-scope
+      binding write calls Project admission and the output projection; an
+      update-time-only change, a repeated freeze and a standalone Run delete
+      mark Eval dirty or call the retention trigger), the inventory test
+      reports each old definition and the guard test finds the unscoped
+      guards. With one column dropped from each list or WHEN condition
+      (allocation namespace, Audit project_id, binding frozen in the guard and
+      the projection, collected_at, run_deleted_at, collection_receipt_id, and
+      the retention WHEN made false) both the static guard check and a
+      behavioral test fail for every drop. The semantic tests (completion
+      INSERT and UPDATE checks, preparation guards per column, deletion
+      between scope and binding, Audit cancellation import) pass on base and
+      after, as intended.
+    - make docs-erd (schema 000037) and make docs-dependencies regenerated.
+    - make lint passed.
+  evidence:
+    - >-
+      A1: TestPostgresStageAllocationUpdatesFireOnlyTheTriggersTheyConcern —
+      release attempt, release and report-received mark call no
+      stage_allocations trigger (3 each before); recording an allocation
+      calls only the completion check. TestPostgresAuditUpdatesSkipThePreparationProbe
+      — an event append calls no audits trigger, an unchanged phase calls the
+      guard with 0 audit_executions scans, a changed input selection scans
+      once.
+    - >-
+      A2: each identity, policy, placement and completion column changed
+      alone is rejected by its guard; an allocation with another completion
+      or without authority is rejected on INSERT and a completion rewrite on
+      UPDATE (runstore, runservice); each Audit baseline column and the
+      not-started phase are rejected while preparing and past inventory
+      through the probe; each preparation execution identity column, the
+      receipt assignment and the outputs (artifacts); a moved Run, a deletion
+      mark while the Run exists and each collection receipt column (pgstore).
+    - >-
+      A3: TestStorageReviewProjectDeletionBetweenScopeAndBinding commits
+      BeginDeletion from a query tracer right after the write's scope
+      statement; create and update both return ErrScopeDeleting and store no
+      revision. TestSharedPostgresProjectDeletionKeepsAuditCancellationWrites
+      rejects an Audit import before its cancellation is requested, accepts it
+      after, and rejects other Project writes; active Project writes still
+      call admission once each.
+    - >-
+      A4: TestSharedPostgresEvalProjectionFollowsOnlyRunOutputChanges — output
+      insert, revision change, freeze and purge mark the member dirty; an
+      intermediate write, an update-time-only change and a repeated freeze do
+      not. The Audit child projection still fires on intent, binding,
+      terminal observation and collection (pgstore counts); the projection
+      collector itself is unchanged.
+    - >-
+      A5: TestRowTriggerInventory pins every trigger of the five tables with
+      its event and column conditions and the reason for each of the six that
+      fire on every change; TestRowTriggerGuardsFireOnTheColumnsTheyCompare
+      holds the 8 column-scoped guards to their functions with declared
+      qualifiers.
+  declined:
+    - >-
+      The preparation execution check could skip check executions with a
+      per-event WHEN on role; its function returns at its first statement for
+      them, so the split was not worth a second trigger.
+    - >-
+      audits_eval_tombstone, eval_audits_projection and eval_runs_projection
+      (DELETE) and eval_audit_children_projection stay broad, with the reasons
+      recorded in the inventory test and the migration header.
+  database_tests_configured: true
+implementation_commit: ed08c26dbc3ca571d3696fa0acf7d94c0b6e29fd
+notes:
+- Migration numbers in this record were renumbered (+1) on 2026-10-24 when main's 000033_audit_snapshot_labels was merged into the integration branch.

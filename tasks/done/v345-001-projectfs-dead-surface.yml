@@ -1,0 +1,42 @@
+schema_version: '1.0'
+id: V345-001
+title: Remove fsspec and test-only overlay APIs from projectfs
+milestone: review-followups-2026-10-04
+epic: workspaces
+kind: chore
+introduced_by: V224-001
+priority: P2
+status: completed
+depends_on: [V320-001, V321-001]
+languages: [python]
+goal: Shrink projectfs to the paths production uses.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: After V224 the memory provider (projectfs/provider.py:169-219,338-340) never writes through fsspec, and local hydration and _materialize_state could use the descriptor-relative local_io primitives; commit_checkpoint, export_state and session changed_paths (overlay.py:254-265,337-348) are test-only; managed-tree helpers are duplicated between storage.py and overlay.py.
+scope:
+  in:
+    - Drop fsspec and the content_root argument for memory and overlay sessions.
+    - Remove test-only APIs.
+    - Merge duplicated helpers.
+  out:
+    - Behaviour changes.
+acceptance_criteria:
+  - {id: A1, text: "fsspec is no longer a dependency and no test-only API remains."}
+tests:
+  - {command: "cd runtime && uv run pytest && uv run ruff check .", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: fsspec remains a direct dependency and the three test-only overlay methods remain.
+
+implementation_commit: 4824b62f5f1629c132c9649e81a5cc7335e75ac6
+verification:
+  date: "2026-10-09"
+  checks:
+    - Full Runtime pytest suite passed, 3621 tests with 39 optional skips.
+    - Full Ruff checks and format checks passed.
+    - The dependency lock no longer includes fsspec; hydration uses descriptor-relative local I/O.
+    - Workspace tests use prepare_export, commit_export and change_entries instead of the removed test-only APIs.

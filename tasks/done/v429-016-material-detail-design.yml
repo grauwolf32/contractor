@@ -1,0 +1,115 @@
+schema_version: "1.0"
+id: V429-016
+title: Explore a content-first material and evidence viewer with OpenDesign
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: completed
+depends_on: [V429-015]
+languages: [html, css, javascript]
+goal: Produce a reviewed, isolated material-detail candidate whose main surface is readable saved content, with a compact identity/actions header, accessible revision/context and consistent Project/Run/Issues typography.
+demonstration: Compare code, selected HTTP exchange, JSON and a rendered document at desktop and phone widths in all themes, switch saved revisions and content modes, and inspect unavailable content without any live mutation or fabricated evidence.
+context:
+  authority: >-
+    User decision 2026-11-01: after accepting and merging the Issue workspace,
+    approved the recommendation to design material/evidence detail through
+    OpenDesign first, covering code, HTTP exchange and documents, with compact
+    identity/revision/copy/download, secondary history/metadata, return context
+    and a 390px layout. Preserve all prior OpenDesign-created data, keep shared
+    fonts/themes and use only the existing Contractor gateway/configured model.
+    This task delivers the design preview; production transfer follows review.
+  specification: docs/spec/ui/ui.md
+  design: docs/design/ui/README.md
+  decision: >-
+    The exploration owns presentation and local synthetic preview interactions.
+    Existing Artifact scope/revision, preview limits, history, upload eligibility
+    and Server state remain authoritative for a future implementation. No new
+    Artifact store, protocol, renderer dependency or global typography is proposed.
+scope:
+  in:
+    - Fresh OpenDesign project/conversation with the existing isolated single-model gateway.
+    - Preserved original output, source provenance, fixtures, local interactive candidate and comparison/reference captures.
+    - Content-first code/HTTP/JSON/document presentations, compact common header/actions, secondary history and technical context.
+    - Truthful historical/frozen/missing/unsupported states and responsive light/dark/black layouts.
+    - Reproducible isolated server, browser verification, snapshots and verified preservation backups.
+  out:
+    - Production UI/API/schema changes, new model selection, live business-data mutations or deployment/merge.
+    - External scripts/fonts/assets, network access from the preview or replacing earlier projects/conversations/files.
+requirements:
+  - id: R1
+    text: Keep content readable ahead of metadata; retain exact saved revision/scope and return context, clear current/historical/locked states and existing action eligibility.
+  - id: R2
+    text: Use only synthetic local content. Code is saved source, an HTTP response exists only in a selected-exchange fixture, and unknown/unsupported bytes do not imply a successful preview or verification.
+  - id: R3
+    text: Use the shared system sans/mono stacks and theme tokens; compact phone chrome, wrapped actions and independently scrollable code fit 390/320px without horizontal document overflow.
+failure_outcomes:
+  - operation: OpenDesign generation through the existing bounded relay
+    permanent: Preserve inputs and partial output with the exact failure; do not claim completion or change the configured model.
+    retryable: Retry only the bounded failed design operation through the existing gateway and preserve each attempt.
+    ambiguous: Reconcile the submitted run/client request identity before another generation.
+    cancelled: Stop the owned run and ephemeral relay, leaving prior files and all design history intact.
+    timeout: Reuse the independent gateway timeout and increase it if necessary instead of changing model choice.
+  - operation: Local prototype content/actions
+    permanent: Show explicit unavailable/error states; do not fabricate a download or uploaded revision.
+    retryable: Local Retry restores only the seeded synthetic case, with no external request.
+    ambiguous: No external writes or persistence; actions cannot commit a business mutation.
+    cancelled: Switching case/revision resets only local view state and masks sensitive header values again.
+    timeout: No background controller, polling or live API calls exist in the prototype.
+cardinality:
+  - collection: Local synthetic viewer examples and revisions
+    expected: Four primary formats plus unavailable content
+    maximum: Eight cases and three revisions per case
+    bound: Only the selected local case renders; preview text fits the existing 1 MiB budget, HTTP bodies/header pages retain their existing display bounds, and oversized/binary states have no invented inline bytes.
+  - collection: External model calls
+    expected: One bounded design generation with focused corrections if needed
+    maximum: Thirty-six single-model requests per ephemeral design trial
+    bound: One active request, bounded body/response, expiring relay token and only the configured gateway destination.
+lifecycle:
+  - entity: OpenDesign project, conversation and generated versions
+    delete: None; retain all prior and newly created design data.
+    cascade: No business entity or application persistence is added.
+    retention: Verified pre/post state backups plus host and Git artifact provenance; stop temporary relay and remove its upstream credential after generation.
+acceptance_criteria:
+  - id: A1
+    given: Synthetic code, HTTP exchange, JSON and Markdown evidence
+    when: Opened in the local candidate
+    then: Main content, exact identity/actions and secondary history are readable, mode/revision controls work and supported versus unavailable content remains truthful.
+  - id: A2
+    given: Light/dark/black and 1440/1100/390/320px layouts
+    when: The user reads content or switches a revision/mode
+    then: Shared fonts/themes, accessible controls, phone flow and overflow checks pass without a live request or mutation.
+  - id: A3
+    given: The existing OpenDesign workspace and the new trial
+    when: The candidate is delivered
+    then: Actual generated output/provenance and all prior versions survive, backups are recoverable, the temporary relay is stopped and a reviewable preview is shown.
+tests:
+  - command: node docs/design/ui/experiments/material-detail-opendesign-2026-11-01/verify.mjs
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2, A3]
+  - command: git diff --check
+    covers: [A3]
+
+verification:
+  - >-
+    The standalone browser verifier passed 63 format/state/layout cases across
+    light/dark/black and 1440/1100/390/320px, exact text/binary downloads,
+    revision/mode/header reveal behavior, copy success/denial, truthful failure
+    states, local-only actions and no external requests or browser errors.
+    The selected exchange and no-response variant passed the production parser.
+  - >-
+    Task/specification/diff checks passed. Actual desktop and 390px IAB preview
+    was inspected and left open at port 17564. Candidate, inert actual-React
+    references, original output, working seed, prompts, captures and provenance
+    are preserved. No production UI release, business-data mutation or merge.
+  - >-
+    OpenDesign run 0d4cf93c-86f5-4098-9eb5-ee25060e1b15 delivered the CSS pass
+    and assembled HTML after two unsuccessful preserved attempts. The existing
+    configured Contractor model remained unchanged. Relay stopped and upstream
+    credential removed. Final backup 20261101T113245Z recovered SQLite with
+    integrity ok: five projects, nine conversations, fifty messages and 131
+    project files. All 111 pre-existing project files remain byte-identical.
+implementation_commit: e8a8892c972c40ed3293d2aa99586cc5b152ef1c

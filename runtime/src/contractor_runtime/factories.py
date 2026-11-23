@@ -1,0 +1,424 @@
+"""Descriptor-backed factories for allocation-local Runtime Agent resources."""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal, Protocol
+
+from contractor_runtime.adapters import (
+    AdapterHandles,
+    RuntimeAdapterFactory,
+)
+from contractor_runtime.adapters.caido_graphql import CaidoGraphQLAdapterFactory
+from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
+from contractor_runtime.adapters.http_proxy import HTTPProxyAdapterFactory
+from contractor_runtime.adapters.http_transport import HTTPTransportFactory
+from contractor_runtime.adapters.interactsh import InteractshHTTPAdapterFactory
+from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory
+from contractor_runtime.artifacts import ArtifactClient
+from contractor_runtime.contracts import (
+    AgentStateSnapshot,
+    AllocationWorkspaceExport,
+    CompactWorkerContextManagement,
+    ResolvedModelPolicy,
+    ResolvedSkill,
+    RuntimeSettings,
+    WorkerCompletionContract,
+    WorkerSessionMode,
+    WorkerSummarizerConfig,
+)
+from contractor_runtime.contracts.settings import AgentTemplateRef
+from contractor_runtime.contracts.tool_execution import ToolExecutionConfig
+from contractor_runtime.core.target_policy import TargetPolicyConfig
+from contractor_runtime.llm.factory import ModelFactory
+from contractor_runtime.projectfs import WorkspaceProvider, build_workspace_provider
+from contractor_runtime.projectfs.config import WorkspaceSettings
+from contractor_runtime.sandbox.contracts import PODMAN_NETWORK_PROFILE
+from contractor_runtime.sandbox.lifecycle import ExecutionLifecycle
+from contractor_runtime.toolsets.audit_results.proposals import AuditProposalsToolsetFactory
+from contractor_runtime.toolsets.audit_results.v2 import AuditResultsToolsetFactory
+from contractor_runtime.toolsets.caido.tools import CaidoToolsetFactory
+from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisToolsetFactory
+from contractor_runtime.toolsets.code_execution.tools import CodeExecutionToolsetFactory
+from contractor_runtime.toolsets.common.resources import ToolResources
+from contractor_runtime.toolsets.edit_files.tools import EditFilesToolsetFactory
+from contractor_runtime.toolsets.filesystem.tools import FilesystemToolsetFactory
+from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
+from contractor_runtime.toolsets.interactsh.tools import InteractshToolsetFactory
+from contractor_runtime.toolsets.likec4.tools import LikeC4ToolsetFactory
+from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
+from contractor_runtime.toolsets.openapi.tools import OpenAPIToolsetFactory
+from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
+from contractor_runtime.toolsets.scan.tools import ScanToolsetFactory
+from contractor_runtime.toolsets.security_findings.facades import (
+    CodeFindingsToolsetFactory,
+    GeneralFindingsToolsetFactory,
+    HTTPFindingsToolsetFactory,
+)
+from contractor_runtime.toolsets.security_findings.trace import TraceFindingsToolsetFactory
+from contractor_runtime.toolsets.sitemap.tools import SitemapToolsetFactory, import_sitemap_report
+from contractor_runtime.toolsets.source_analysis.tools import SourceAnalysisToolsetFactory
+from contractor_runtime.toolsets.taint_annotations.tools import TaintAnnotationsToolsetFactory
+from contractor_runtime.toolsets.text_artifacts.tools import TextArtifactsToolsetFactory
+from contractor_runtime.toolsets.workspace_changes.tools import WorkspaceChangesToolsetFactory
+from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
+from contractor_runtime.worker.tool_runtime import ToolWorkerRuntimeFactory
+from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactory
+
+if TYPE_CHECKING:
+    from contractor_runtime.agent_skills.runtime import PreparedAgentSkills
+    from contractor_runtime.llm.recovery import GatewayRecoveryClient
+    from contractor_runtime.projectfs import DirectWorkspaceSession
+    from contractor_runtime.projectfs.storage import (
+        WorkspaceChanges,
+        WorkspaceReader,
+        WorkspaceSourceReader,
+        WorkspaceWriter,
+    )
+    from contractor_runtime.worker.state import WorkerStateStore
+
+
+class WorkerRuntime(Protocol):
+    @property
+    def agent_card(self) -> Mapping[str, Any]: ...
+
+    async def agent_state_snapshot(self) -> AgentStateSnapshot: ...
+
+    async def finalize(self, deadline: datetime) -> None: ...
+
+    async def abort(self, deadline: datetime) -> None: ...
+
+
+class ToolInstance(Protocol):
+    @property
+    def name(self) -> str: ...
+
+    async def close(self) -> None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class WorkerBuildContext:
+    allocation_id: str
+    run_id: str
+    stage_execution_id: str
+    logical_agent_name: str
+    namespace: str
+    worker_session_mode: WorkerSessionMode
+    description: str
+    instruction: str
+    card_version: str
+    model_policy: ResolvedModelPolicy | None
+    workspace: AllocationWorkspace
+    tools: Mapping[str, ToolInstance]
+    state: WorkerStateStore
+    resources: ToolResources
+    a2a_base_url: str
+    runtime_settings: RuntimeSettings = field(repr=False)
+    gateway_recovery: GatewayRecoveryClient | None = field(default=None, repr=False)
+    execution: ToolExecutionConfig | None = None
+    template_ref: AgentTemplateRef | None = None
+    summarizer: WorkerSummarizerConfig | None = None
+    # The compact@1 branch (WRK-R184); it excludes ``summarizer``.
+    compaction: CompactWorkerContextManagement | None = None
+    compactor_model_policy: ResolvedModelPolicy | None = None
+    response_recovery: str | None = None
+    completion_contract: WorkerCompletionContract | None = None
+    adapter_handles: AdapterHandles = field(
+        default=EMPTY_ADAPTER_HANDLES,
+        repr=False,
+    )
+    resolved_skills: tuple[ResolvedSkill, ...] = ()
+    agent_skills: PreparedAgentSkills | None = field(default=None, repr=False)
+    project_workspace: DirectWorkspaceSession | None = field(default=None, repr=False)
+    workspace_export: AllocationWorkspaceExport | None = None
+
+    def __post_init__(self) -> None:
+        if self.resources.metrics is not self.state.metrics:
+            raise TypeError("Worker State and tool resources must share allocation metrics")
+        if self.summarizer is not None and self.compaction is not None:
+            raise TypeError("a Worker has at most one context-management branch")
+        if (self.compaction is None) != (self.compactor_model_policy is None):
+            raise TypeError("compact@1 requires exactly one compactor model policy")
+
+
+class WorkerRuntimeFactory(Protocol):
+    ref: str
+    supports_agent_skills: bool
+    # Implements the Runtime's Worker completion contracts (audit-check-results@1).
+    supports_worker_completion: bool
+
+    async def probe(self) -> bool: ...
+
+    async def create(self, context: WorkerBuildContext) -> WorkerRuntime: ...
+
+
+class ToolsetFactory(Protocol):
+    ref: str
+    exported_tools: frozenset[str]
+    infrastructure_channels: Mapping[str, frozenset[InfrastructureChannel]]
+    # Exported tools whose successful calls report a workspace observation
+    # through their contractor_observation. Optional: a factory that does not
+    # set it declares none. The Server reads the same set (TLS-R38), and
+    # allocation preparation holds every created tool to it.
+    workspace_observation_tools: frozenset[str] = frozenset()
+
+    async def probe(self) -> frozenset[str]: ...
+
+    async def create_selected(
+        self,
+        *,
+        selected: Sequence[str],
+        allocation_id: str,
+        run_id: str,
+        namespace: str,
+        runtime_settings: RuntimeSettings,
+        workspace: AllocationWorkspace,
+        resources: ToolResources,
+        adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
+        project_workspace: WorkspaceReader
+        | WorkspaceWriter
+        | WorkspaceChanges
+        | WorkspaceSourceReader
+        | None = None,
+    ) -> Mapping[str, ToolInstance]: ...
+
+
+class SandboxFactory(Protocol):
+    ref: str
+
+    async def probe(self) -> bool: ...
+
+    async def prepare(self) -> AllocationWorkspace: ...
+
+    async def cleanup(self, workspace: AllocationWorkspace) -> None: ...
+
+
+InfrastructureChannel = Literal[
+    "caido-graphql-client",
+    "interactsh-client",
+    "runtime-http-client",
+    "runtime-subprocess-launcher",
+    "sandbox-execution",
+]
+INFRASTRUCTURE_CHANNELS = frozenset(
+    {
+        "caido-graphql-client",
+        "interactsh-client",
+        "runtime-http-client",
+        "runtime-subprocess-launcher",
+        "sandbox-execution",
+    }
+)
+
+
+@dataclass(frozen=True, slots=True)
+class FactoryRegistry:
+    worker_runtimes: Mapping[str, WorkerRuntimeFactory]
+    toolsets: Mapping[str, ToolsetFactory]
+    sandbox_profiles: Mapping[str, SandboxFactory]
+    runtime_adapters: Mapping[str, RuntimeAdapterFactory] = field(default_factory=dict)
+    workspace_provider: WorkspaceProvider | None = field(default=None, repr=False)
+    artifact_client_factory: Callable[[str, RuntimeSettings], ArtifactClient] | None = field(
+        default=None, repr=False
+    )
+    execution_lifecycle: ExecutionLifecycle | None = field(default=None, repr=False)
+    http_transport_factory: HTTPTransportFactory | None = field(default=None, repr=False)
+
+    def __post_init__(self) -> None:
+        _validate_registry("WorkerRuntime", self.worker_runtimes)
+        _validate_registry("Toolset", self.toolsets)
+        for ref, factory in self.toolsets.items():
+            _validate_toolset_channels(ref, factory)
+        _validate_registry("SandboxProfile", self.sandbox_profiles)
+        _validate_registry("RuntimeAdapter", self.runtime_adapters, allow_empty=True)
+
+
+def built_in_factories(
+    work_root: Path,
+    artifact_client_factory: Callable[[str, RuntimeSettings], ArtifactClient] | None = None,
+    model_factory: ModelFactory | None = None,
+    enabled_runtime_adapters: Sequence[str] | None = None,
+    workspace_settings: WorkspaceSettings | None = None,
+    execution_lifecycle: ExecutionLifecycle | None = None,
+    target_policy: TargetPolicyConfig | None = None,
+) -> FactoryRegistry:
+    runtime = AdkWorkerRuntimeFactory(model_factory, artifact_client_factory)
+    filesystem_toolset = FilesystemToolsetFactory()
+    http_toolset = HTTPToolsetFactory(
+        target_policy=target_policy, artifact_client_factory=artifact_client_factory
+    )
+    caido_toolset = CaidoToolsetFactory(artifact_client_factory, target_policy=target_policy)
+    interactsh_toolset = InteractshToolsetFactory(artifact_client_factory)
+    code_analysis_toolset = CodeAnalysisToolsetFactory(
+        workspace_storage=workspace_settings.storage if workspace_settings is not None else None,
+        graph_probe_root=work_root if workspace_settings is not None else None,
+    )
+    edit_files_toolset = EditFilesToolsetFactory()
+    workspace_changes_toolset = WorkspaceChangesToolsetFactory()
+    artifact_toolset = RunArtifactsToolsetFactory(artifact_client_factory)
+    sitemap_toolset = SitemapToolsetFactory(artifact_client_factory, import_sitemap_report)
+    audit_results_toolset = AuditResultsToolsetFactory(artifact_client_factory)
+    likec4_toolset = LikeC4ToolsetFactory(artifact_client_factory)
+    memory_toolset = MemoryToolsetFactory(artifact_client_factory)
+    openapi_toolset = OpenAPIToolsetFactory(artifact_client_factory)
+    source_toolset = SourceAnalysisToolsetFactory(artifact_client_factory)
+    scan_toolset = ScanToolsetFactory(artifact_client_factory, target_policy=target_policy)
+    taint_annotations_toolset = TaintAnnotationsToolsetFactory()
+    text_toolset = TextArtifactsToolsetFactory(artifact_client_factory)
+    sandbox = LocalWorkdirFactory(work_root)
+    before_initialize = None
+    if execution_lifecycle is not None and workspace_settings is not None:
+        project_root = workspace_settings.work_root
+        if project_root is not None:
+
+            async def before_initialize():
+                await execution_lifecycle.prepare_root(project_root)
+
+    telemetry = OTLPHTTPAdapterFactory()
+    proxy = HTTPProxyAdapterFactory()
+    caido = CaidoGraphQLAdapterFactory()
+    interactsh = InteractshHTTPAdapterFactory()
+    runtime_adapters = {
+        caido.ref: caido,
+        interactsh.ref: interactsh,
+        proxy.ref: proxy,
+        telemetry.ref: telemetry,
+    }
+    if enabled_runtime_adapters is not None:
+        enabled = frozenset(enabled_runtime_adapters)
+        unknown = enabled - runtime_adapters.keys()
+        if unknown:
+            raise ValueError("enabled Runtime adapter is not built in")
+        runtime_adapters = {
+            ref: factory for ref, factory in runtime_adapters.items() if ref in enabled
+        }
+    return FactoryRegistry(
+        worker_runtimes={
+            runtime.ref: runtime,
+            "tool@1": ToolWorkerRuntimeFactory(artifact_client_factory),
+        },
+        toolsets={
+            **(
+                {
+                    "code-execution@1": CodeExecutionToolsetFactory(
+                        available=lambda: execution_lifecycle.probe_available,
+                        settings=lambda: execution_lifecycle.settings,
+                    )
+                }
+                if execution_lifecycle
+                else {}
+            ),
+            artifact_toolset.ref: artifact_toolset,
+            sitemap_toolset.ref: sitemap_toolset,
+            audit_results_toolset.ref: audit_results_toolset,
+            AuditProposalsToolsetFactory.ref: AuditProposalsToolsetFactory(artifact_client_factory),
+            GeneralFindingsToolsetFactory.ref: GeneralFindingsToolsetFactory(
+                artifact_client_factory
+            ),
+            CodeFindingsToolsetFactory.ref: CodeFindingsToolsetFactory(artifact_client_factory),
+            TraceFindingsToolsetFactory.ref: TraceFindingsToolsetFactory(artifact_client_factory),
+            HTTPFindingsToolsetFactory.ref: HTTPFindingsToolsetFactory(artifact_client_factory),
+            caido_toolset.ref: caido_toolset,
+            interactsh_toolset.ref: interactsh_toolset,
+            code_analysis_toolset.ref: code_analysis_toolset,
+            edit_files_toolset.ref: edit_files_toolset,
+            filesystem_toolset.ref: filesystem_toolset,
+            http_toolset.ref: http_toolset,
+            likec4_toolset.ref: likec4_toolset,
+            memory_toolset.ref: memory_toolset,
+            openapi_toolset.ref: openapi_toolset,
+            source_toolset.ref: source_toolset,
+            scan_toolset.ref: scan_toolset,
+            taint_annotations_toolset.ref: taint_annotations_toolset,
+            text_toolset.ref: text_toolset,
+            workspace_changes_toolset.ref: workspace_changes_toolset,
+        },
+        sandbox_profiles={
+            sandbox.ref: sandbox,
+            **(
+                {
+                    **(
+                        {
+                            PODMAN_NETWORK_PROFILE: PodmanWorkdirFactory(
+                                work_root,
+                                available=lambda: execution_lifecycle.network_probe_available,
+                                ref=PODMAN_NETWORK_PROFILE,
+                            )
+                        }
+                        if execution_lifecycle.settings.network_enabled
+                        else {}
+                    ),
+                    "podman@1": PodmanWorkdirFactory(
+                        work_root, available=lambda: execution_lifecycle.probe_available
+                    ),
+                }
+                if execution_lifecycle
+                else {}
+            ),
+        },
+        runtime_adapters=runtime_adapters,
+        workspace_provider=build_workspace_provider(
+            workspace_settings, before_initialize=before_initialize
+        ),
+        artifact_client_factory=artifact_client_factory,
+        execution_lifecycle=execution_lifecycle,
+        http_transport_factory=(
+            HTTPTransportFactory(
+                protected_urls=target_policy.protected_urls if target_policy else (),
+                resolver=target_policy.resolver if target_policy else None,
+            )
+            if artifact_client_factory is not None
+            else None
+        ),
+    )
+
+
+class PodmanWorkdirFactory(LocalWorkdirFactory):
+    """Scratch only. Execution starts after project hydration in AllocationService."""
+
+    ref = "podman@1"
+
+    def __init__(self, root: Path, *, available=lambda: False, ref: str = "podman@1"):
+        super().__init__(root)
+        self.ref = ref
+        self._available = available
+
+    async def probe(self) -> bool:
+        return self._available()
+
+
+def _validate_registry(kind: str, entries: Mapping[str, Any], *, allow_empty: bool = False) -> None:
+    if not entries and not allow_empty:
+        raise ValueError(f"{kind} registry must not be empty")
+    for ref, factory in entries.items():
+        if ref != factory.ref:
+            raise ValueError(f"{kind} registry key {ref!r} does not match descriptor ref")
+
+
+def _validate_toolset_channels(ref: str, factory: ToolsetFactory) -> None:
+    channels = getattr(factory, "infrastructure_channels", None)
+    if not isinstance(channels, Mapping):
+        raise ValueError(f"Toolset {ref!r} has no infrastructure-channel descriptor")
+    if ref == "code-execution@1" and (
+        factory.exported_tools != frozenset({"exec_command"})
+        or dict(channels) != {"exec_command": frozenset({"sandbox-execution"})}
+    ):
+        raise ValueError("sandbox execution requires its exact isolated Toolset channel")
+    if not set(channels) <= factory.exported_tools:
+        raise ValueError(f"Toolset {ref!r} describes a channel for an unknown tool")
+    for tool, selected in channels.items():
+        if (
+            not isinstance(selected, frozenset)
+            or not selected
+            or not selected <= INFRASTRUCTURE_CHANNELS
+        ):
+            raise ValueError(f"Toolset {ref!r} has invalid channels for {tool!r}")
+        if "sandbox-execution" in selected and (
+            ref != "code-execution@1"
+            or tool != "exec_command"
+            or selected != frozenset({"sandbox-execution"})
+        ):
+            raise ValueError("sandbox execution requires its exact isolated Toolset channel")

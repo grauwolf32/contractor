@@ -1,0 +1,118 @@
+schema_version: "1.0"
+id: V388-002
+title: Export vendor-neutral OpenTelemetry GenAI content and usage
+milestone: server-ui-and-operations
+epic: operations
+kind: feature
+priority: P1
+status: completed
+implementation_commit: aff045e92e0e844d1b82d8dff0052ef96f9b8314
+depends_on: []
+languages: [go, python]
+goal: >-
+  Make Server and Runtime telemetry independent of Langfuse and Phoenix while
+  rendering model instructions, conversation messages, responses and token
+  counts in Phoenix through standard OpenTelemetry GenAI semantic conventions.
+context:
+  specification: docs/spec/platform/observability.md#OBS-R59
+  design: docs/spec/configuration/runtime-config.md#RCF-R98
+scope:
+  in:
+    - Standard gen_ai operation, model, message, instruction, tool-definition and token attributes in both exporters.
+    - Actual Planner token usage from model callbacks, including charged failures.
+    - Neutral Contractor content attributes on non-model orchestration spans.
+    - Remove Langfuse-specific ingestion-job response acceptance.
+    - Shared Go/Python fixtures and real-exporter Phoenix ingestion/projection tests.
+  out:
+    - Collector SDK dependencies, backend switches, legacy attribute aliases and vendor-specific production attributes.
+    - Public API changes, model selection, durable billing changes, telemetry consent changes or live Run reconfiguration.
+requirements:
+  - id: R1
+    text: Production exporters emit OTel GenAI conventions pinned to semantic-conventions v1.41.1; they emit no langfuse.* or openinference.* attributes and accept only standard OTLP acknowledgements.
+  - id: R2
+    text: Model capture uses valid bounded GenAI message/instruction/tool-definition JSON; SDK roles, text, reasoning, function calls and tool responses keep their meaning.
+  - id: R3
+    text: Reported per-call input, output and cached-input counts use integer GenAI usage attributes; absent usage remains absent and totals are not invented or double-counted.
+  - id: R4
+    text: Disabled capture never evaluates content; sensitive-tool allocations remain metadata-only; malformed and oversized optional content cannot change execution outcomes.
+failure_outcomes:
+  - operation: Normalize and queue telemetry
+    permanent: Invalid optional content is omitted or bounded to a valid preview; execution continues and credentials never enter metadata.
+    retryable: None; existing queue and exporter failure accounting remains authoritative.
+    ambiguous: Existing span IDs and bounded queue ownership remain unchanged.
+    cancelled: Existing lifecycle owners join exporters before allocation cleanup.
+    timeout: Existing encoding, batch, request and flush budgets remain unchanged.
+  - operation: Deliver OTLP protobuf
+    permanent: Malformed or vendor-specific acknowledgement is rejected; existing failure metrics and bounded retry policy apply.
+    retryable: Existing transport and HTTP status policy, attempts and deadlines are retained.
+    ambiguous: Existing payload and span IDs are reused on an eligible retry; no new receipt mechanism.
+    cancelled: No retry after cancellation; existing flush task joining is retained.
+    timeout: Existing delivery and flush deadlines apply.
+cardinality:
+  - collection: Captured model request and response
+    expected: One bounded request and response per model span.
+    maximum: Four standard content attributes plus fixed metadata and usage fields.
+    bound: Each content attribute remains at most 256 KiB UTF-8; normalization reads only bounded serialized content; existing 2048-span and 64 MiB queue caps apply.
+lifecycle:
+  - entity: Exported telemetry
+    delete: The configured collector owns deletion of delivered traces.
+    cascade: No new durable Contractor entity; local Phoenix stop preserves its SQLite.
+    retention: Existing in-memory exporter queues and collector-owned trace retention.
+acceptance_criteria:
+  - id: A1
+    given: The shared content and usage corpus
+    when: Both production exporters serialize model spans
+    then: Their decoded GenAI attributes agree, remain bounded and contain no vendor attribute aliases.
+  - id: A2
+    given: Disabled capture, sensitive tools, invalid content, oversized messages and known or absent usage
+    when: Planner, Worker, result-finalizer and summarizer paths execute
+    then: Consent and failure isolation hold and token counts reflect only available usage.
+  - id: A3
+    given: Standard and vendor-specific acknowledgement fixtures
+    when: Both exporters deliver spans
+    then: Only standard OTLP responses are accepted under the documented outcome policies.
+  - id: A4
+    given: A real pinned Phoenix instance
+    when: Actual Go and Python exporters send synthetic model calls
+    then: Phoenix identifies LLM spans and projects instructions, messages, responses and token counts into its native views.
+tests:
+  - command: go test -count=1 ./internal/telemetry ./internal/planner/...
+    covers: [A1, A2, A3]
+  - command: make test-runtime
+    covers: [A1, A2, A3]
+  - command: make test-wire-cross-language
+    covers: [A1, A3]
+  - command: sh deploy/phoenix/test-smoke.sh
+    covers: [A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+decisions:
+  - guarantee: The wire format uses OTel GenAI conventions and ordinary OTLP acknowledgements; collector projection code owns backend-specific UI mappings.
+    alternatives: Langfuse attributes and Phoenix/OpenInference aliases would require production backend awareness and duplicate content.
+    evidence: Phoenix's GenAI converter directly recognizes standard GenAI message, operation and usage attributes.
+    reversal: Revisit the pinned convention version only through a shared fixture update and real collector verification.
+verification:
+  date: "2026-10-21"
+  passed:
+    - "go test -count=1 ./internal/telemetry ./internal/planner/...: every package passed; CONTRACTOR_TEST_DATABASE_URL was unset for this standard run, so PostgreSQL-specific tests were skipped."
+    - "make test-runtime in an ordinary-user Linux/Python 3.13 container: 3873 passed, 56 skipped; optional live Gateway, real engine and scanner cases remain conditional."
+    - "Affected Runtime suites: 215 passed; final telemetry-content regression run: 14 passed, including output-limited summarizer usage."
+    - "make test-wire-cross-language with a disposable PostgreSQL database: 232 fixtures; 210 Go and 164 Python shared tests; 1076 Python shared tests passed."
+    - "sh deploy/phoenix/test-smoke.sh with the existing rootful Podman connection: real Go and Runtime exporters projected into native LLM system/user/assistant messages and prompt/completion/cache/total token fields; projections survived container replacement."
+    - "make lint: full Go/staticcheck/test-only exports, UI gates, scripts, specifications, shared-fixture sources, Ruff and import-linter passed."
+    - "sh deploy/phoenix/test-run.sh and git diff --check passed."
+  additional_findings:
+    - >-
+      An additional PostgreSQL-enabled full Planner run fails existing
+      TestPostgresGatewayRecovery* cases in this macOS/remote-Podman test
+      topology. The same failures were reproduced against clean baseline
+      3453d7dd in a separate temporary checkout. They are not counted as a pass
+      and were not changed in this telemetry task.
+    - >-
+      A macOS full Runtime run encountered unrelated sandbox/process/filesystem
+      assumptions. The successful full run used Linux, non-root UID 1000 and a
+      Python executable on the sandbox's deliberately fixed /usr/bin:/bin PATH.
+  operations: >-
+    Production model settings and RuntimeConfig bindings were not changed. Real
+    collector checks used only synthetic content. Temporary test containers,
+    databases and local smoke data are removed after verification.

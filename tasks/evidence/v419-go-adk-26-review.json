@@ -1,0 +1,140 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-25",
+  "status": "Exploratory source/build evidence, not release acceptance",
+  "source_revision": "c4cf6e457cdb8dc8eb371432d1568f359691d472",
+  "baseline_adk": "google.golang.org/adk v1.6.0",
+  "candidate_adk": "google.golang.org/adk/v2 v2.6.0",
+  "go_toolchain": "go1.26.9 darwin/arm64",
+  "method": "Temporary modfile/sum and Go source overlay: replace module/import path and raise go directive to1.26.6; then replace removed contexts with agent.Context and pass t.Context() to two NewEvent calls. Production checkout was not modified.",
+  "runs": [
+    {
+      "command": "go test -mod=mod -modfile=<candidate.mod> -overlay=<overlay.json> ./internal/planner/streamline ./internal/planner/session ./internal/planner/router",
+      "phase": "Imports-only candidate",
+      "exit_code": 1,
+      "outcome": "Compile failed on removed ToolContext/CallbackContext family and two missing NewEvent context arguments; compiler output reported ToolContext first and truncated later errors."
+    },
+    {
+      "command": "go test -count=1 -mod=mod -modfile=<candidate.mod> -overlay=<adapted-overlay.json> ./internal/planner/streamline ./internal/planner/session ./internal/planner/router",
+      "phase": "Mechanical API adaptation, CONTRACTOR_TEST_DATABASE_URL unset",
+      "exit_code": 0,
+      "passed_packages": [
+        "internal/planner/streamline",
+        "internal/planner/session",
+        "internal/planner/router"
+      ],
+      "test_case_count": null,
+      "limitations": "Package outcomes recorded; individual case/skip counts were not captured. PostgreSQL cases were not exercised."
+    },
+    {
+      "command": "go build -mod=mod -modfile=<candidate.mod> -overlay=<adapted-overlay.json> ./cmd/... ./internal/...",
+      "phase": "Full production Go package build under candidate dependency graph",
+      "exit_code": 0
+    }
+  ],
+  "not_verified": [
+    "PostgreSQL conformance",
+    "race detector",
+    "real Server/Runtime process scenarios",
+    "enabled compaction",
+    "complete release gate",
+    "live model quality"
+  ],
+  "environment_attempts": "Initial dependency download failed under sandbox DNS; initial HTTP tests failed sandbox port binding. Successful reruns allowed public dependency fetch/local httptest listeners. These setup failures are not ADK incompatibilities.",
+  "confirmed_api_changes": [
+    {
+      "id": "GOADK-API-1",
+      "change": "Module/import path gains /v2",
+      "observed_go_files": 24
+    },
+    {
+      "id": "GOADK-API-2",
+      "change": "ToolContext and CallbackContext become agent.Context; custom hidden Run/ProcessRequest interfaces must be migrated too"
+    },
+    {
+      "id": "GOADK-API-3",
+      "change": "NewEvent requires context.Context",
+      "observed_calls": [
+        "internal/planner/session/service_test.go:163",
+        "internal/planner/session/postgres_integration_test.go:73"
+      ]
+    }
+  ],
+  "compatible_api": [
+    "model.LLM method shape",
+    "session.Service five methods",
+    "ReadonlyContext instruction provider",
+    "existing Runner.Run arguments"
+  ],
+  "candidate_dependency_floors": {
+    "go": "1.26.6",
+    "existing_toolchain": "1.26.9",
+    "google.golang.org/genai": "v1.74.0",
+    "github.com/google/jsonschema-go": "v0.4.3",
+    "github.com/a2aproject/a2a-go/v2": "v2.6.0",
+    "go.opentelemetry.io/otel": "v1.47.0",
+    "google.golang.org/grpc": "v1.84.0",
+    "google.golang.org/protobuf": "v1.36.12"
+  },
+  "semantic_review": [
+    {
+      "id": "GOADK-SEM-1",
+      "finding": "Orphan function responses/unanswered calls are filtered from model projection; raw session events are retained. Normal complete single-tool cycles showed no demonstrated break."
+    },
+    {
+      "id": "GOADK-SEM-2",
+      "finding": "Functiontool result/schema JSON normalization changed; current Planner suites passed after mechanical adaptation. Extra raw-type/history matrices remain required."
+    },
+    {
+      "id": "GOADK-SEM-3",
+      "finding": "Root workflow wrapper changes goroutine/persistence handshake and cancellation lifecycle; current root keeps chat behavior and nil retry config. Extra automatic retries/durable control events were not established."
+    },
+    {
+      "id": "GOADK-SEM-4",
+      "finding": "LLMResponse JSON tags change, but Contractor writes its own allowlisted reduced facts rather than raw ADK responses."
+    }
+  ],
+  "compaction_conflicts": [
+    {
+      "id": "PLNC-1",
+      "finding": "LLMSummarizer calls model.GenerateContent directly, outside current Planner callback accounting and custom telemetry."
+    },
+    {
+      "id": "PLNC-2",
+      "finding": "Native tail retention suppresses AppendEvent failure and continues, conflicting with PLN-R106. Failure must fence next calls and candidate completion, including post-finish paths."
+    },
+    {
+      "id": "PLNC-3",
+      "finding": "Native compaction retains raw history; sliding summaries do not bound prompt growth. Explicit aggregate memory/work and rolling-context bounds are required."
+    },
+    {
+      "id": "PLNC-4",
+      "finding": "Typed plan lacks historical validated Worker results; State tools expose only newest completion. Exact refs and completed effects need a separate bounded authoritative retrieval path."
+    },
+    {
+      "id": "PLNC-5",
+      "finding": "Terminal summarizer currently belongs to Worker, not Planner. Mutual exclusion is local to a context owner; Planner compact cannot globally prohibit an independent Worker terminal policy."
+    },
+    {
+      "id": "PLNC-6",
+      "finding": "Current custom Gateway rejects length but drops other raw finish reasons; compactor success admission needs explicit metadata and real HTTP tests. Its selected model context window may be smaller than the main model window."
+    }
+  ],
+  "upstream": {
+    "README-v2.md": "https://github.com/google/adk-go/blob/v2.6.0/README-v2.md",
+    "go.mod": "https://github.com/google/adk-go/blob/v2.6.0/go.mod",
+    "agent/context.go": "https://github.com/google/adk-go/blob/v2.6.0/agent/context.go",
+    "agent/llmagent/llmagent.go": "https://github.com/google/adk-go/blob/v2.6.0/agent/llmagent/llmagent.go",
+    "model/llm.go": "https://github.com/google/adk-go/blob/v2.6.0/model/llm.go",
+    "session/service.go": "https://github.com/google/adk-go/blob/v2.6.0/session/service.go",
+    "tool/functiontool/function.go": "https://github.com/google/adk-go/blob/v2.6.0/tool/functiontool/function.go",
+    "internal/toolinternal/tool.go": "https://github.com/google/adk-go/blob/v2.6.0/internal/toolinternal/tool.go",
+    "internal/llminternal/contents_processor.go": "https://github.com/google/adk-go/blob/v2.6.0/internal/llminternal/contents_processor.go",
+    "runner/run_node.go": "https://github.com/google/adk-go/blob/v2.6.0/runner/run_node.go",
+    "runner/agent_node.go": "https://github.com/google/adk-go/blob/v2.6.0/runner/agent_node.go",
+    "session/compaction/compaction.go": "https://github.com/google/adk-go/blob/v2.6.0/session/compaction/compaction.go",
+    "session/compaction/llm_summarizer.go": "https://github.com/google/adk-go/blob/v2.6.0/session/compaction/llm_summarizer.go",
+    "internal/llminternal/compaction_processor.go": "https://github.com/google/adk-go/blob/v2.6.0/internal/llminternal/compaction_processor.go"
+  },
+  "reproduction": "Re-establish exact tagged/module checksums and current consumers in V419-001. Temporary paths and this chat are not required inputs. Final acceptance uses committed modules without overlays."
+}

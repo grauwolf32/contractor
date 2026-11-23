@@ -1,0 +1,85 @@
+{
+  "baseline_catalog_sha256": "1273179847ee1f48093f31e6457461818435f1174d1ed5fae796d6c5e9a6dba2",
+  "cases": {
+    "a1": {
+      "baseline": {
+        "audit_profile": "eval-v40-a1-baseline@1",
+        "source_workflow": "audit-source-check@1",
+        "workflow": "eval-v40-a1-baseline@1"
+      },
+      "candidate": {
+        "audit_profile": "eval-v40-a1-candidate@1",
+        "source_workflow": "audit-source-check@2",
+        "workflow": "eval-v40-a1-candidate@1"
+      }
+    },
+    "d1": {
+      "baseline": {
+        "source_workflow": "openapi-from-workspace@5",
+        "workflow": "eval-v40-d1-baseline@1"
+      },
+      "candidate": {
+        "source_workflow": "openapi-from-workspace@6",
+        "workflow": "eval-v40-d1-candidate@1"
+      }
+    },
+    "l1": {
+      "baseline": {
+        "source_workflow": "likec4-from-workspace@5",
+        "workflow": "eval-v40-l1-baseline@1"
+      },
+      "candidate": {
+        "source_workflow": "likec4-from-workspace@6",
+        "workflow": "eval-v40-l1-candidate@1"
+      }
+    },
+    "o1": {
+      "baseline": {
+        "source_workflow": "openapi-from-workspace@5",
+        "workflow": "eval-v40-o1-baseline@1"
+      },
+      "candidate": {
+        "source_workflow": "openapi-from-workspace@6",
+        "workflow": "eval-v40-o1-candidate@1"
+      }
+    },
+    "t1": {
+      "baseline": {
+        "source_workflow": "taint-trace-from-workspace@2",
+        "workflow": "eval-v40-t1-baseline@1"
+      },
+      "candidate": {
+        "source_workflow": "taint-trace-from-workspace@3",
+        "workflow": "eval-v40-t1-candidate@1"
+      }
+    },
+    "t2": {
+      "baseline": {
+        "source_workflow": "taint-trace-from-workspace@2",
+        "workflow": "eval-v40-t2-baseline@1"
+      },
+      "candidate": {
+        "source_workflow": "taint-trace-from-workspace@3",
+        "workflow": "eval-v40-t2-candidate@1"
+      }
+    }
+  },
+  "files": {
+    "configs/audit-profiles/eval-v40-a1-baseline.yaml": "072eddf573d46394095fc60464dc0b536cebdbbfb71c996cee7a707df8aff3a3",
+    "configs/audit-profiles/eval-v40-a1-candidate.yaml": "5e054ee53a6ac8958684c6e1831719bd057ee144ab911b15cad57dea55ea0e7c",
+    "configs/workflows/eval-v40-a1-baseline.yaml": "83323fcb69d0782b8dc0c702e05140cfd50b23f66e51e2431cac920bbd232a97",
+    "configs/workflows/eval-v40-a1-candidate.yaml": "7d8a66cadfebf300bf2869c9cabb6d9f70c0c8cf498d5ad02adf22a4cbfe2bc3",
+    "configs/workflows/eval-v40-d1-baseline.yaml": "c522bd43594b8d1fab9d4e6588c3d2635c51c5b99bf109f651db457a812169f5",
+    "configs/workflows/eval-v40-d1-candidate.yaml": "a556b58fbc41a81892e26d5847eb0de652569928dc10c8b57d77ef6da1997b22",
+    "configs/workflows/eval-v40-l1-baseline.yaml": "335d26353769f49455f01d2d20b4e6b9249c7205ab8478b0eb8f46b41692b4c3",
+    "configs/workflows/eval-v40-l1-candidate.yaml": "734a947e6be3aeedf8764c7a04f352256f72976ac1848271951768f7bb5cf504",
+    "configs/workflows/eval-v40-o1-baseline.yaml": "7e2324d6a40c98ec142ce0278831dc3e1bac87160cac39f7a9ca700785470668",
+    "configs/workflows/eval-v40-o1-candidate.yaml": "91a54ccc617061a4d36a875c129919a3dd4c9cf2d597d871ad3ea3f05e88dbd6",
+    "configs/workflows/eval-v40-t1-baseline.yaml": "ce4d1a910949bb47cb294e82d1a1fe760232979825509ab96534de1464d41947",
+    "configs/workflows/eval-v40-t1-candidate.yaml": "f32c9c1fcfe24fe09597c186e277622311eb133bf728ee66227444c83ab7ca44",
+    "configs/workflows/eval-v40-t2-baseline.yaml": "e03268e64cc2480f4d4cf5db2161aecc95984f1e8e60ae01451783ecb9ec09de",
+    "configs/workflows/eval-v40-t2-candidate.yaml": "db1eca27347276495b036c783a310e097fc6b4858c1dce1c3e035be3e7b63836"
+  },
+  "status": "unpublished-preparation-not-live-ready",
+  "variants_sha256": "f272652caae01053470a1def72cde47eba6cac38420627ef4fd97a60c50d22f9"
+}

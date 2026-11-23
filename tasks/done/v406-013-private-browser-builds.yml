@@ -1,0 +1,66 @@
+schema_version: '1.0'
+id: V406-013
+title: Isolate production UI builds owned by process browser gates
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: ui
+kind: defect
+introduced_by: V4-011
+priority: P2
+status: completed
+depends_on: [V4-011, V55-006]
+languages: [go]
+goal: Keep each process browser server's index and hashed assets together for its entire lifetime, independently of sibling UI builds.
+context:
+  specification:
+  - docs/testing/README.md
+  - docs/testing/evals-release-gate.md
+  - docs/spec/ui/ui.md#UI-R8
+  finding: tests/ui-stack/stack_test.go:242,300 builds and serves shared ui/dist (introduced in 9a7751bfe9c1bd3b07979893309cd5ab1c55f0e2, V4-011). The Node static server caches index.html but reads assets from disk, so a subsequent changed build can remove the cached index's scripts. The native Eval browser then times out at evals-stack.spec.ts:308 with an empty page after successful executions.
+  siblings: tests/e2e/scan_browser_test.go:40,56 uses the same shared directory, including explicit prebuilt mode (V55-006). API-mocked browser gates already build to a private temporary directory. Ordinary make ui-build may retain its developer output.
+scope:
+  in:
+  - Build and serve the ordinary, native/external Eval and scan/sweep-widget stacks from private test-owned directories.
+  - Give scanner browser fixtures their own build or a private copy of an explicitly requested prebuilt snapshot.
+  - Add a fast real Vite/Node regression that rebuilds a separate staged UI and proves an already running server retains its original hashed script.
+  - Keep the regression mandatory in the existing browser release selection; retain strict nonempty evidence.
+  out:
+  - Production static-server caching changes, relaxed errors or increased Eval timeouts, model selection and Studio features.
+failure_outcomes:
+- operation: Build and serve test-owned UI assets
+  permanent: Missing build inputs or an unreadable prebuilt snapshot fail setup; missing assets fail the gate. No fallback to a shared live directory.
+  retryable: Existing bounded process readiness only.
+  ambiguous: No durable application mutation; retain ordinary failure diagnostics and evidence.
+  cancelled: Join the Node/browser processes before removing their test-owned directory.
+  timeout: Existing process and browser deadlines remain independent.
+cardinality:
+- collection: UI build directories and assets
+  expected: One build snapshot per process-stack invocation
+  maximum: Existing production build output; no per-Eval-member copy
+  bound: Build or copy once before serving and clean with the owning test.
+acceptance_criteria:
+- id: A1
+  text: A real Vite/Node regression fails against the shared-output implementation and passes with a private build after a distinct sibling rebuild.
+- id: A2
+  text: Native and external managed Evals, ordinary Operations and scan/sweep widgets pass through the real process stack without empty pages or skipped cases.
+- id: A3
+  text: Scanner browser fixtures use private assets in normal and explicit prebuilt mode; existing real scanner and UI checks remain green.
+tests:
+- command: make test-ui-stack
+  covers: [A1, A2]
+- command: CONTRACTOR_SCAN_BROWSER=1 make test-scan-e2e
+  covers: [A3]
+- command: CONTRACTOR_SCAN_BROWSER=1 CONTRACTOR_SCAN_UI_PREBUILT=1 make test-scan-e2e
+  covers: [A3]
+- command: make lint
+  covers: [A1, A2, A3]
+implementation_commit: 624b3a47a648819be12969aad9966b23b16ab5a9
+verification:
+  date: '2026-10-24'
+  baseline: The real Vite/Node regression failed before isolation with HTTP 404 for the original index's hashed script after a distinct sibling rebuild. A clean native Eval baseline passed separately in 510.02 seconds.
+  passed:
+  - make test-ui-stack; complete package passed in 1174.506 seconds. Operations 90, scan/sweep widgets 2, native Evals 1 and external Evals 1 browser scenarios; zero skipped/unexpected/flaky. The private-build regression passed too.
+  - CONTRACTOR_SCAN_BROWSER=1 make test-scan-e2e; real scanner/browser fixtures passed in 203.679 seconds, with trace and upload/report evidence.
+  - CONTRACTOR_SCAN_BROWSER=1 CONTRACTOR_SCAN_UI_PREBUILT=1 make test-scan-e2e; passed in 204.167 seconds with independent browser evidence.
+  - make lint on the branch integrated with main's SQL-ownership guard correction.
+  - go test -count=1 ./tests/e2e
+  scope: Test-owned immutable UI snapshots; production static serving, configured models and execution deadlines are unchanged.

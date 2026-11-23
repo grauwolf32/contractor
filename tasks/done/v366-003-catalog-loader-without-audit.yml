@@ -1,0 +1,36 @@
+schema_version: '1.0'
+id: V366-003
+title: Load the configuration catalog without audit or toolset knowledge in internal/config
+milestone: architecture-layers-2026-10
+epic: quality
+kind: chore
+priority: P2
+status: completed
+implementation_commit: b8497b4cdc8f681a00a84ea4f7d0ed0aab7fe8f2
+depends_on: []
+languages: [go]
+goal: internal/config imports no Audit package and holds no toolset-specific rule, while every catalog load rejects exactly what it rejected before.
+context:
+  review: "Architecture layer review of main @ 5a0c6b37, 2026-10-09 (https://claude.ai/artifact/EontMJPJvpGyrCXwe9d9Uv)"
+  finding: >-
+    internal/config/findings.go imported auditdomain for
+    FindingCollectionMediaType and hard-coded the security-findings@1
+    list_findings input rule; internal/config/loader.go called
+    agentskills.DiscoverBundled and auditstandards.DiscoverBundled. After the
+    merge with main, 8bdf07c5 moved the V62 Audit preparation test to
+    configload because the new boundary test rejected its config.Load call.
+scope:
+  in:
+    - "FindingCollectionMediaType moved to internal/contracts."
+    - "ToolsetDescriptor.RequiredWorkflowInputs declares the findings reader input; ValidateWorkflowGraph checks declared requirements generically."
+    - "internal/configload runs the bundled Skill and Audit standard checks for every operator-root load, guarded by a boundary test."
+  out:
+    - "Operator-facing error messages and the set of rejected catalogs."
+acceptance_criteria:
+  - {id: A1, text: "internal/config imports none of auditdomain, auditstandards and agentskills."}
+  - {id: A2, text: "Server startup and config validate reject an invalid bundled Skill, an invalid bundled Audit standard and a findings reader without its collection input."}
+  - {id: A3, text: "TestCatalogLoadersAreReachedOnlyThroughConfigload fails on a catalog load outside config and configload."}
+tests:
+  - {command: "go test ./internal/config/... ./internal/configload/... ./internal/app", covers: [A1, A2, A3]}
+  - {command: "go test -count=1 ./internal/archtest", covers: [A1]}
+  - {command: make test-config, covers: [A2]}

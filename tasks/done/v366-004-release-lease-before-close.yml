@@ -1,0 +1,32 @@
+schema_version: '1.0'
+id: V366-004
+title: Release the Control Plane lease before closing its session
+milestone: architecture-layers-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V107-001
+priority: P2
+status: completed
+implementation_commit: 41ef9aeb3c15000fef8e64795cebf128a72fed7f
+depends_on: []
+languages: [go]
+goal: A standby acquires the Control Plane lease as soon as the active Server exits normally.
+context:
+  review: "Integration verification of V366-001..003, 2026-10-10"
+  severity: low
+  finding: >-
+    controlPlaneLease.Close (internal/app/single_active.go) closed the
+    connection without pg_advisory_unlock, so PostgreSQL released the lock
+    only when the backend exited, asynchronously after the client
+    disconnect. TestPostgresControlPlaneLeaseReleasesOnNormalExit failed in 7
+    of 250 runs with the CPU saturated.
+scope:
+  in:
+    - "Unlock explicitly when this session holds the lock, then close."
+  out:
+    - "A lost session still falls back to the backend exit; the lease key is unchanged."
+acceptance_criteria:
+  - {id: A1, text: "TestPostgresControlPlaneLeaseReleasesOnNormalExit passed 250 of 250 runs under the same CPU load."}
+  - {id: A2, text: "The other Control Plane lease tests pass."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/app -run ControlPlaneLease", covers: [A1, A2]}

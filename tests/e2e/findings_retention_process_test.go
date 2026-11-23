@@ -1,0 +1,111 @@
+//go:build e2e
+
+package e2e
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/findingintake"
+)
+
+func TestFindingsCollectionsRetainOrdinaryAndAuditReceipts(t *testing.T) {
+	ordinaryStage := ordinaryFindingsProducerStage("ordinary-source")
+
+	h := startFindingsHarness(t, []domainGatewayStage{findingsProducerStage("operation-a"),
+		findingsProducerStage("operation-b"), ordinaryStage, findingsReaderStage(3, 1)})
+	project := createProjectResource(t, h.client, h.baseURL)
+	sourcePayload := auditProgramZip(t, map[string][]byte{"app.py": []byte(strings.Replace(findingsSource,
+		"@app.get(\"/items/{item_id}\")", "@app.get(\"/items/{item_id}\")\n@app.post(\"/items/{item_id}\")", 1))})
+	source := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "sources", "shared-function", "application/zip", sourcePayload)
+	getStart := strings.Index(findingsOpenAPI, "    get:")
+	schema := findingsOpenAPI + strings.ReplaceAll(findingsOpenAPI[getStart:], "get:", "post:")
+	schema = strings.Replace(schema, "    post:\n      operationId: getItem", "    post:\n      operationId: postItem", 1)
+	openAPI := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "openapi", "shared-function", "application/yaml", []byte(schema))
+	auditID, tasks := runCommonFindingAudit(t, h, project.ProjectID, map[string]artifactRef{"source": source, "openapi": openAPI}, 2)
+	var auditReceipts []findingintake.Receipt
+	for _, task := range tasks[1:] {
+		auditReceipts = append(auditReceipts, findingsReceipts(t, h, commonFindingTaskRun(t, h, auditID, task))...)
+	}
+	t.Run("shared-function-preserves-operations", func(t *testing.T) {
+		if len(tasks) != 3 || len(auditReceipts) != 2 || auditReceipts[0].ReceiptID == auditReceipts[1].ReceiptID ||
+			!reflect.DeepEqual(auditReceipts[0].Document.Locations, auditReceipts[1].Document.Locations) || auditReceipts[0].Evidence[0].Digest != auditReceipts[1].Evidence[0].Digest {
+			t.Fatalf("shared function lost operation receipts: %+v", auditReceipts)
+		}
+	})
+	ordinaryRun := runOrdinaryFindingProducer(t, h, project.ProjectID, source, sourcePayload, openAPI, []byte(schema))
+	ordinary := findingsReceipts(t, h, ordinaryRun)
+	t.Run("ordinary-source-receipt", func(t *testing.T) {
+		if len(ordinary) != 1 || ordinary[0].Origin.Audit != nil || len(ordinary[0].Document.Locations) == 0 {
+			t.Fatalf("ordinary receipt = %+v", ordinary)
+		}
+		report, _ := download(t, h.client, h.baseURL+"/v1/runs/"+ordinaryRun+"/outputs/result")
+		if !bytes.Contains(report, []byte(ordinary[0].ReceiptID)) {
+			t.Fatal("ordinary report lost its finding receipt")
+		}
+	})
+	sources := []findingintake.CollectionSelection{
+		{Kind: "run", ID: ordinaryRun, ReceiptIDs: []string{ordinary[0].ReceiptID}, Findings: []findingintake.CollectionFindingSelection{}},
+		{Kind: "audit", ID: auditID, ReceiptIDs: []string{auditReceipts[0].ReceiptID, auditReceipts[1].ReceiptID}, Findings: []findingintake.CollectionFindingSelection{}},
+	}
+	publication := publishFindingsCollection(t, h, "retained-selection", sources, false)
+	t.Run("snapshot-survives-source-deletion", func(t *testing.T) {
+		deleteASVSBacktraceRun(t, h.ctx, h.client, h.baseURL, ordinaryRun)
+		for _, receipt := range auditReceipts {
+			deleteASVSBacktraceRun(t, h.ctx, h.client, h.baseURL, receipt.Origin.RunID)
+		}
+		replay := publishFindingsCollection(t, h, "retained-selection", sources, true)
+		if !reflect.DeepEqual(replay.Artifact, publication.Artifact) || replay.SnapshotAt != publication.SnapshotAt || replay.EntryCount != 3 {
+			t.Fatalf("replay drift: %+v %+v", publication, replay)
+		}
+		// Retained Audit refs support a new snapshot even after child Run deletion.
+		retained := publishFindingsCollection(t, h, "retained-audit-only", sources[1:], false)
+		if retained.EntryCount != 2 {
+			t.Fatalf("Audit holds lost receipts: %+v", retained)
+		}
+	})
+	t.Run("changed-selection-conflicts", func(t *testing.T) {
+		body, _ := json.Marshal(findingintake.PublishCollectionRequest{ClientKey: "retained-selection", Sources: sources[1:]})
+		request, _ := http.NewRequest(http.MethodPost, h.baseURL+"/v1/finding-collections", bytes.NewReader(body))
+		request.Header.Set("Authorization", "Bearer "+publicToken)
+		request.Header.Set("Content-Type", "application/json")
+		response := do(t, h.client, request, http.StatusConflict)
+		response.Body.Close()
+	})
+	t.Run("pagination-and-exact-evidence", func(t *testing.T) {
+		readerRun := runFindingsReader(t, h, "retained-reader", publication.Artifact.Ref)
+		report, _ := download(t, h.client, h.baseURL+"/v1/runs/"+readerRun+"/outputs/report")
+		for _, receipt := range append(auditReceipts, ordinary...) {
+			if !strings.Contains(string(report), receipt.ReceiptID) {
+				t.Fatalf("report lost %s", receipt.ReceiptID)
+			}
+		}
+		if len(findingsReceipts(t, h, readerRun)) != 0 {
+			t.Fatal("reader acquired proposal emission")
+		}
+	})
+	if h.gateway.CompletedStages() != 4 || len(h.gateway.Failures()) != 0 {
+		t.Fatalf("gateway stages = %d: %v", h.gateway.CompletedStages(), h.gateway.Failures())
+	}
+}
+
+func runOrdinaryFindingProducer(t *testing.T, h *findingsHarness, projectID string, source artifactRef, sourcePayload []byte, openAPI artifactRef, openAPIPayload []byte) string {
+	t.Helper()
+	body := ordinaryFindingProducerBody(t, h, projectID, source, sourcePayload, openAPI, openAPIPayload)
+	runID := postProjectRun(t, h.client, h.baseURL, projectID, "ordinary-findings", body, false)
+	waitForFindingsRun(t, h, runID, "succeeded")
+	return runID
+}
+
+func ordinaryFindingProducerBody(t *testing.T, h *findingsHarness, projectID string, source artifactRef, sourcePayload []byte, openAPI artifactRef, openAPIPayload []byte) []byte {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{"workflow": "fixture-ordinary-findings@1", "artifacts": map[string]artifactRef{"source": source}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return body
+}

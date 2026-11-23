@@ -1,0 +1,368 @@
+package scheduler
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
+	"github.com/grauwolf32/contractor/internal/helpers/sourcezip"
+	"github.com/grauwolf32/contractor/internal/operations"
+	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
+	"github.com/grauwolf32/contractor/internal/stageresult"
+	"github.com/grauwolf32/contractor/internal/telemetry"
+)
+
+var (
+	ErrDeferred                 = errors.New("WorkflowRun execution is deferred")
+	ErrClaimLost                = errors.New("WorkflowRun scheduler claim was lost")
+	ErrRunCancellationRequested = errors.New("WorkflowRun cancellation was requested")
+	ErrAllocationLeaseLost      = errors.New("Runtime Agent allocation lease was lost")
+	ErrUnsupportedWorkflow      = errors.New("Workflow is outside the executable MVP shape")
+)
+
+// errInvalidRunState marks durable state the Scheduler cannot progress
+// (SCH-R102). A check that reads only the Run's durable state, such as its
+// pinned Workflow snapshot, its persisted Stage history with the escalation
+// ordinals, a durable candidate or immutable artifact versions, failed, so
+// every replay fails alike: the Scheduler ends the Run through FAIL-SCH-13
+// (failInvalidRunState) instead of repeating the progression on every pass. A
+// store error that a later pass may outlast, a transient database failure,
+// runstore.ErrConflict or runstore.ErrQueuePaused, never carries it.
+var errInvalidRunState = errors.New("durable state the Scheduler cannot progress")
+
+type AllocationLeaseLossError struct {
+	Loss controlplane.AllocationLoss
+}
+
+func (e *AllocationLeaseLossError) Error() string {
+	return "allocation " + e.Loss.AllocationID + " was lost: " + string(e.Loss.Reason)
+}
+
+func (*AllocationLeaseLossError) Unwrap() error { return ErrAllocationLeaseLost }
+
+// Store is the non-transactional durable state boundary used while no remote
+// operation is in flight. Scheduler bounds each call by OperationTimeout.
+// AtomicPersistence owns the short multi-resource
+// transactions used at lifecycle commit points; the Scheduler's WorkflowRun
+// transitions are among them, so Store moves no Run.
+type Store interface {
+	// ClaimRunnableRun claims a Run of the given lane class (SCH-R175).
+	ClaimRunnableRun(context.Context, string, time.Duration, []string, resolved.LaneClass) (runstore.WorkflowRun, error)
+	RenewRunClaim(context.Context, string, string, time.Duration) (runstore.WorkflowRunState, error)
+	ReleaseRunClaim(context.Context, string, string) error
+	DeferRunClaim(context.Context, string, string) error
+	GetRun(context.Context, string) (runstore.WorkflowRun, error)
+	// GetRunState reads only the Run's lifecycle state; decisions on the
+	// state alone use it instead of GetRun.
+	GetRunState(context.Context, string) (runstore.WorkflowRunState, error)
+	GetOwnerQueueControl(context.Context, string) (runstore.OwnerQueueControl, error)
+	// GetActiveStageExecution reads the Run's one active StageExecution:
+	// runstore.ErrNotFound when it has none, runstore.ErrMultipleActiveStages
+	// when it has more (SCH-R114). A progression attempt reads only this
+	// Stage, not the Run's Stage history.
+	GetActiveStageExecution(context.Context, string) (runstore.StageExecution, error)
+	// HasStageExecutions probes whether the Run has any StageExecution
+	// without reading its Stage history (SCH-R164).
+	HasStageExecutions(context.Context, string) (bool, error)
+	// ListStageLineage reads the lineage columns of one Stage's attempts in
+	// the Run, without their snapshots, for the escalation count (SCH-R164).
+	ListStageLineage(context.Context, string, string) ([]runstore.StageLineage, error)
+	// ListStageExecutionsWithUnreleasedAllocations reads the Run's
+	// StageExecutions that still have an allocation whose release has not
+	// completed, not the rest of its Stage history (SCH-R179).
+	ListStageExecutionsWithUnreleasedAllocations(context.Context, string) ([]runstore.StageExecution, error)
+	HasSummaryEscalation(context.Context, string, string) (bool, error)
+	ListTerminalStageExecutionsWithAllocations(context.Context, []string) ([]runstore.StageExecution, error)
+	GetStageExecution(context.Context, string) (runstore.StageExecution, error)
+	ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error)
+	// ListStageAllocationsBatch reads the allocations of several existing
+	// StageExecutions in one statement, keyed by StageExecution; an execution
+	// without allocations has no entry.
+	ListStageAllocationsBatch(context.Context, []string) (map[string][]runstore.StageAllocation, error)
+	// MarkStageAllocationReleaseAttempt and MarkStageAllocationReleased mark
+	// the named allocations together in bounded statements (SCH-R182,
+	// LIM-SCH-22); a missing allocation is ErrNotFound for that allocation
+	// alone.
+	MarkStageAllocationReleaseAttempt(context.Context, ...string) error
+	MarkStageAllocationReleased(context.Context, ...string) error
+	// RecordStageOutputPublicationFailure counts a terminal commit of the
+	// finalizing StageExecution (runID, stageExecutionID) that a transient
+	// Project output publication failure aborted (PRJ-R58).
+	RecordStageOutputPublicationFailure(context.Context, string, string) error
+}
+
+// ReportStore keeps the bounded execution reports of a StageExecution and
+// rebuilds its StageMetrics from them; telemetry.Repository implements it.
+type ReportStore interface {
+	RecordAllocationReport(context.Context, telemetry.AllocationReportEnvelope) error
+	RecordPlannerReport(context.Context, telemetry.PlannerReportEnvelope) error
+	RebuildStageMetrics(context.Context, string, string) (telemetry.StageMetricsRecord, error)
+}
+
+type ContextPin = runstore.StageContextPin
+
+// sessionRecovery is called only for a running Stage. Begin then reads its
+// existing durable session; it cannot start another invocation.
+type sessionRecovery interface {
+	Begin(context.Context, string) (planner.SessionStart, error)
+}
+
+type NextStageCreation struct {
+	Params      runstore.CreateStageExecutionParams
+	ContextPins []ContextPin
+}
+
+// StageProgression is the complete post-Stage policy decision. NextStage is
+// present exactly for next/retry/escalate; TerminalRunState is present exactly
+// for succeed/fail. Persistence commits the decision together with the target
+// StageExecution or terminal WorkflowRun transition.
+type StageProgression struct {
+	Decision         runstore.RecordStageTransitionDecisionParams
+	NextStage        *NextStageCreation
+	TerminalRunState runstore.WorkflowRunState
+	RunReason        runstore.Reason
+}
+
+type ResultProgression struct {
+	RunID            string
+	StageExecutionID string
+	Result           stageresult.StageContentResult
+	WorkflowOutputs  map[string]string
+	OutputContracts  map[string]resolved.ArtifactSlot
+	Progression      StageProgression
+}
+
+type TerminationProgression struct {
+	RunID            string
+	StageExecutionID string
+	Progression      StageProgression
+}
+
+// ServerOperationExecutor is invoked directly by Scheduler, outside Planner.
+type ServerOperationExecutor interface {
+	Run(context.Context, string, operations.Call) (stageresult.StageContentResult, error)
+}
+
+type operationPersistence interface {
+	StartStageOperation(context.Context, string, string, string) (runstore.StageExecution, error)
+}
+
+// AtomicPersistence is deliberately high-level: implementations either commit
+// every listed RunStore and ArtifactStore mutation or expose none of them.
+// Each lifecycle call requires the exact WithRunClaim scope, checked under
+// the Run lock before writing. Each commit that makes a Run succeeded, failed
+// or cancelled also freezes the
+// Run's output bindings in the same transaction (ART-R92, ART-R94).
+type AtomicPersistence interface {
+	// ReconcileModelWait projects the current process wait into this exact Stage.
+	ReconcileModelWait(context.Context, string, string, string) error
+
+	AdmitStage(context.Context, string, string) (runstore.StageExecution, error)
+	// DiscardUnadmittedPlacement deletes the durable allocation rows of a
+	// pending Run's never admitted Stage and runs discard under its locks.
+	// A discard error rolls the deletion back; a failed COMMIT after discard
+	// can retain rows without grants, reconciled on the next claim (SCH-R152).
+	DiscardUnadmittedPlacement(ctx context.Context, runID, stageID string, discard func() error) error
+	CreateStageWithContext(
+		context.Context,
+		runstore.CreateStageExecutionParams,
+		[]ContextPin,
+	) (runstore.StageExecution, error)
+	EnterFinalizingWithResult(context.Context, runstore.EnterFinalizingParams) error
+	EnterAbortingWithTermination(
+		context.Context,
+		string,
+		runstore.EnterAbortingParams,
+	) error
+	// CommitResultProgression accepts a finalizing candidate, applies its
+	// Workflow output mapping and commits the progression. Workflow outputs
+	// that the Run's durable state rules out, such as a mapping onto an
+	// output already bound at another revision or from a source revision the
+	// RunScope no longer holds, fail with errInvalidRunState and commit
+	// nothing.
+	CommitResultProgression(context.Context, ResultProgression) error
+	AcceptResultDuringCancellation(
+		context.Context,
+		string,
+		string,
+		stageresult.StageContentResult,
+	) error
+	CommitTerminationProgression(context.Context, TerminationProgression) error
+	CommitTerminationAndFinishRun(
+		context.Context,
+		string,
+		string,
+		runstore.WorkflowRunState,
+		runstore.WorkflowRunState,
+		runstore.Reason,
+	) error
+	FailRunWithActiveStages(
+		context.Context,
+		string,
+		runstore.WorkflowRunState,
+		runstore.WorkflowRunState,
+		runstore.Reason,
+		runstore.StageTermination,
+		string,
+	) error
+	// FinishCancelledRun moves a cancelling Run without an active
+	// StageExecution to cancelled.
+	FinishCancelledRun(context.Context, string) error
+}
+
+type ResolvedArtifact struct {
+	Ref       contracts.ArtifactRef
+	MediaType string
+}
+
+type ArtifactResolver interface {
+	Resolve(context.Context, string, contracts.ArtifactRef) (ResolvedArtifact, error)
+	SaveSummary(ctx context.Context, runID, namespace, sourceStageID, summary string) (contracts.ArtifactRef, error)
+}
+
+type Allocator interface {
+	ReserveAllContext(context.Context, controlplane.ReservationRequest) ([]controlplane.Reservation, error)
+	GetGrant(string) (controlplane.AllocationGrant, error)
+	GetReservation(string) (controlplane.Reservation, error)
+	SetWriteFence(string) error
+	// DiscardUnprepared drops a Stage's committed reservation that was never
+	// prepared, leaving no released tombstone, so the Stage can be placed again.
+	DiscardUnprepared(string) error
+	PollAllocationLosses() []controlplane.AllocationLoss
+}
+
+// WorkerController owns the Runtime batch budgets: PrepareAll bounds one
+// prepare batch and ReleaseAll one release batch by their own deadlines, while
+// FinalizeAll and AbortAll honour the stored terminal deadline. Callers pass
+// cancellation only and never wrap a batch in the store-operation budget.
+type WorkerController interface {
+	PrepareAll(
+		context.Context,
+		[]controlplane.Reservation,
+		map[string]runtimesettings.WorkerExecutionSettings,
+	) (map[string]contracts.WorkerHandle, error)
+	FinalizeAll(
+		context.Context,
+		[]controlplane.Reservation,
+		string,
+		time.Time,
+	) (map[string]reporting.AllocationFinalReport, error)
+	AbortAll(
+		context.Context,
+		[]controlplane.Reservation,
+		string,
+		contracts.TerminationError,
+		time.Time,
+	) (map[string]reporting.AllocationFinalReport, error)
+	ReleaseAll(context.Context, []controlplane.Reservation) error
+}
+
+type CredentialResolver interface {
+	ResolveLLMCredential(
+		context.Context,
+		llmgateway.LLMCredentialRef,
+		llmgateway.LLMGatewayConfigRef,
+	) (contracts.SecretString, error)
+}
+
+type RuntimeCredentialResolver interface {
+	UsePlaintext(
+		context.Context,
+		string,
+		[]runtimesettings.RuntimeCredentialKind,
+		func(runtimesettings.RuntimeCredentialKind, []byte) error,
+	) error
+}
+
+type PlannerRegistry interface {
+	Create(string, planner.Invocation) (planner.Planner, error)
+}
+
+type PlannerTelemetryRegistry interface {
+	Create(string, telemetry.PlannerAdapterSettings) (telemetry.PlannerTelemetry, error)
+}
+
+type RunSkillInitializer interface {
+	InitializeRunSkills(context.Context, string) (runstore.WorkflowRun, error)
+}
+
+// SchedulerSettingsReader is the PostgreSQL-authoritative desired lane limit.
+// Implementations must be safe for periodic reads while Operations mutates the
+// same resource.
+type SchedulerSettingsReader interface {
+	GetSchedulerSettings(context.Context) (settingsstore.SchedulerSettings, error)
+}
+
+// Clock implementations may be injected without their own synchronization;
+// Scheduler serializes method calls shared by lanes and maintenance loops.
+type Clock interface {
+	Now() time.Time
+	After(time.Duration) <-chan time.Time
+}
+
+type realClock struct{}
+
+func (realClock) Now() time.Time                                { return time.Now() }
+func (realClock) After(duration time.Duration) <-chan time.Time { return time.After(duration) }
+
+// Options carries the resolved ServerConfig budgets; each duration below
+// names its ServerConfig path and is required (OPS-R15).
+type Options struct {
+	ServerOperations ServerOperationExecutor
+	GatewayRecovery  *gatewayrecovery.Service
+	PlannerSessions  sessionRecovery
+	// PollInterval is scheduler.pollInterval: the lane refill and terminal
+	// release recovery period, and the retry period after a failed claim
+	// renewal.
+	PollInterval time.Duration
+	// ClaimDuration is scheduler.claimDuration, the Run claim lease, renewed
+	// every third of it.
+	ClaimDuration time.Duration
+	// OperationTimeout is scheduler.operationTimeout: one store operation
+	// (claim, renewal, read, transition or commit). Runtime batches carry
+	// their own budgets in the WorkerController.
+	OperationTimeout time.Duration
+	// PlannerTimeout is plannerTimeout: the Stage deadline from admission.
+	PlannerTimeout      time.Duration
+	FinalizationTimeout time.Duration
+	AbortTimeout        time.Duration
+	// LeaseScanInterval is scheduler.leaseScanInterval, the period of the
+	// allocation-loss scan.
+	LeaseScanInterval  time.Duration
+	RuntimeTransport   RuntimeTransportSettings
+	Credentials        CredentialResolver
+	RuntimeCredentials RuntimeCredentialResolver
+	PlannerTelemetry   PlannerTelemetryRegistry
+	Reports            ReportStore
+	RunSkills          RunSkillInitializer
+	Settings           SchedulerSettingsReader
+	TelemetrySecrets   []string
+	Clock              Clock
+	NewID              func(string) (string, error)
+	Logger             *slog.Logger
+}
+
+// Format redacts the options as a whole for every verb (SEC-R88): TelemetrySecrets holds secret values in plain text.
+func (Options) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "scheduler.Options([REDACTED])")
+}
+
+// RuntimeTransportSettings holds the static endpoints needed when materializing
+// per-allocation Runtime settings; credentials are resolved from pinned config.
+type RuntimeTransportSettings struct {
+	SourceArchiveLimits   *sourcezip.Limits
+	ArtifactAPIURL        string
+	RequestTimeoutSeconds int
+}

@@ -1,0 +1,139 @@
+schema_version: '1.0'
+id: V407-030
+title: Make Eval usage aggregation deterministic when counters overflow
+milestone: server-runtime-review-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-004
+priority: P3
+status: completed
+depends_on: []
+languages:
+- go
+goal: The same authoritative metric observations produce the same usage values, completeness and source
+  references regardless of contributor/map order.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/evals/managed-evals.md
+  severity: low
+  finding: internal/evaldomain/usage.go:129-147 and internal/evalservice/usage_collection.go:56,66-76
+    accumulate nonnegative int64 counters in map order, skipping whichever contributor overflows the running
+    sum. A probe with MaxInt64-100 and 200 produced two different total values for identical observations.
+    Source references/completeness can also depend on the skipped contributor; native_records.go:24 compares
+    full observations for deduplication. These magnitudes are theoretical for real token usage, so this
+    is a low-priority determinism defect rather than an observed normal-volume growth incident.
+  siblings: Other map-ordered aggregations in internal/evaldomain (grep 'range' over map types in summary
+    code).
+  validation: 'Preparing cancellation is excluded: CommandCancel currently requires a plan, but Duplicate
+    is available for an authored draft (lifecycle.go:77-79). EVM-R90 intentionally retains and retries
+    an unknown infrastructure failure in preparing with eval_preparation_unavailable and recovery=wait.
+    Adding cancel or a retry-attempt fallback would be a separate lifecycle feature, not correction of
+    an undocumented endless loop.'
+plan:
+- 'Specify an order-independent overflow outcome for each counter: mark that counter unavailable with
+  a bounded overflow reason instead of publishing a contributor-order-dependent subtotal. Keep nonoverflow
+  counters, attribution and safe source references deterministic.'
+- Apply the same rule in attemptMetrics and NormalizeUsage; sort or canonicalize contributor/source identities
+  as needed without relying on random Go map iteration for correctness.
+- Use deterministic permutations of overflow/boundary/missing-counter inputs and a real PostgreSQL collection/replay
+  test to prove unchanged observations do not append new native records. Preserve normal-value and incomplete-report
+  behavior.
+scope:
+  in:
+  - Counter overflow semantics, deterministic sources/completeness and idempotent usage collection.
+  out:
+  - Changing preparing-state commands, EVM-R90 retry policy, Retry-After behavior, or introducing a new
+    preparation-attempt bound.
+acceptance_criteria:
+- id: A1
+  text: All deterministic contributor permutations at MaxInt64 boundaries produce identical usage, source
+    references and completeness; overflow counters are unavailable rather than order-dependent partial
+    totals.
+- id: A2
+  text: Normal totals, zero, missing counters and incomplete reports retain their documented results,
+    and both aggregation layers use the specified overflow policy.
+- id: A3
+  text: Repeated collection of identical overflow observations against real PostgreSQL appends no additional
+    native record after the accepted observation.
+- id: A4
+  text: A deterministic expected-outcome regression fails on the original skip-on-overflow implementation;
+    no probabilistic map iteration or elapsed-time assertion is required.
+tests:
+- command: go test -count=1 ./internal/evaldomain/...
+  covers:
+  - A1
+  - A2
+  - A4
+- command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/evalservice/...
+    ./internal/evalstore/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+decisions:
+- >-
+  Finding re-verified on ac982d28: evaldomain/usage.go skipped the attempt whose value overflowed the
+  running sum while ranging over a map of attempts, and evalservice/usage_collection.go kept an
+  order-dependent partial sum (marked incomplete) while ranging over the Workers and tools maps. Both
+  layers now share evaldomain.CounterSum: partial sums of nonnegative values only grow, so the overflow
+  flag equals "exact sum exceeds int64" in every order. A snapshot reports its own overflowed counters in
+  AttemptObservation.OverflowMetrics (without a Metrics entry; NormalizeUsage rejects both as
+  eval_invalid). The member measure is unavailable with the gap "counter overflow" and keeps the sorted
+  digests of every snapshot that reported the counter; other counters are unaffected (EVM-R240). Both
+  layers also fold in sorted identity order (Workers and tools by name, attempts by Run and
+  StageExecution), so no result relies on Go map iteration.
+- >-
+  The output normalizer is versioned for this rule: contractor-output@1 became contractor-output@2 with a
+  new implementation digest (policy_versions.go, EVF-R53/EVF-R58), because the rule intentionally changes
+  results, including some that were already deterministic. Example: a Planner reporting totalTokens
+  MaxInt64 plus one Worker reporting 1 gave a partial MaxInt64 total on ac982d28 every time and is now
+  unavailable with "counter overflow". The V2 digest is the SHA-256 of output_collection.go,
+  usage_collection.go and evaldomain/usage.go as of the change; TestPolicyPinsPreserveExistingExperiments
+  pins the new digest and version and keeps the review and native-check pins. Accepted consequence: an
+  existing experiment's frozen binding still names version 1, and its next recollection appends one
+  superseding result revision under version 2 (history preserved, EVM-R82), after which identical
+  observations append nothing. Nothing rejects collection under a newer normalizer than the binding
+  pins; reopen as a pin-enforcement task if results must match the binding's normalizer.
+- >-
+  Siblings ruled out. evaldomain BuildComparison sums float tokens over pairs in frozen ordinal order;
+  distribution() sorts values before summing; conclude, MeasurementCohort and chart/summary validators
+  range over arm maps with per-arm independent work; chart bin totals add small integer counts, which
+  float addition sums exactly. NormalizeUsage's own map ranges (owned Runs, execution refs) are sorted
+  before use. The token-budget lower bound (evalstore KnownTokens, EVM-R118) sums summary totalTokens in
+  SQL numeric, which is exact and order-independent; a sum above the bigint range would surface as a
+  scan error rather than an order-dependent value, and its saturation semantics belong to budget
+  enforcement, outside this task's usage-collection scope. Reopen it as a separate budget task if token
+  limits must tolerate overflowing summaries.
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with pnpm 11.24.0, the locked
+    Runtime venv; isolated PostgreSQL 17.11 database contractor_test_c with per-test schemas and all 32
+    migrations.
+  commands:
+  - go test -count=1 ./internal/evaldomain/... passed, including every permutation of overflow, exact-range,
+    missing-counter, zero, normal and incomplete-report inputs.
+  - test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/evalservice/...
+    ./internal/evalstore/... passed (78 top-level tests, none skipped), including
+    TestSharedPostgresEvalOverflowingUsageRecollectsWithoutNewRecords, which recollects identical
+    overflowing StageMetrics four times and saves no new record.
+  - go test -tags=integration -count=1 ./internal/gatewayrecovery/... ./internal/runstore/... passed (callers
+    of the extended runstoretest stage helper).
+  - go test -tags=integration -count=1 ./internal/scheduler/... failed only
+    TestPostgresSummaryContinuationReconcilesAndRetainsArtifactsAndMemory/filesystem/* with "invalid
+    artifact blob directory"; the same failure reproduces on the unmodified base ac982d28, so it is
+    environmental and unrelated.
+  - 'A4: the new TestNormalizeUsageCounterOverflowIsOrderIndependent and the PostgreSQL recollection test,
+    run against the original ac982d28 implementation in a temporary worktree, failed deterministically:
+    the original published partial totals (MaxInt64-100 or the subtotal that fitted) where unavailable
+    was expected.'
+  - After the normalizer version change, go test -count=1 ./internal/evaldomain/... and the integration
+    command above passed again (78 top-level tests, none skipped), including the updated pin test.
+  - make lint passed, including Go vet/staticcheck/unused exports, the spec checker and the task checks.
+  database_tests_configured: true
+implementation_commit: a3baa1a4d58fe7ffe4b766fe9a86cc02592ce3b2

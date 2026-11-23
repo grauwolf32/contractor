@@ -1,0 +1,223 @@
+schema_version: '1.0'
+id: V411-008
+title: Serialize stateful target checks and retain unresolved cleanup effects
+milestone: autonomous-http-pentest-2026-10
+epic: audits
+kind: feature
+priority: P1
+status: archived
+depends_on:
+- V411-003
+- V411-004
+- V411-006
+- V411-007
+languages:
+- go
+- python
+- sql
+- json
+goal: Keep verification and replay from corrupting shared target data by binding disposable resources,
+  serializing overlapping mutations across Audits and preserving unknown effects until explicit safe
+  resolution.
+context:
+  authority: User request on 2026-10-24 to decompose the updated proposals into implementation tasks.
+    This record authorizes no implementation during planning and does not reactivate deferred work.
+  proposal:
+  - docs/proposals/0033-autonomous-pentest-audits.md#62-stateful-checks
+  - docs/proposals/0033-autonomous-pentest-audits.md#5-budgets-and-durable-accounting
+  - docs/proposals/0045-audit-hypothesis-search.md#92-proposed-first-release-bounds
+  - docs/proposals/0033-autonomous-pentest-audits.md#11-action-journal-cancellation-and-recovery
+  specification:
+  - docs/spec/platform/persistence.md#PER-R24
+  - docs/spec/platform/persistence.md#PER-R25
+  - docs/spec/audits/execution.md#AUX-R82
+  - docs/spec/audits/audits.md#AUD-R162
+  - docs/spec/audits/review-and-reports.md
+  - docs/spec/execution/scheduler.md
+  replanned: >-
+    2026-10-24: align resource accounting with proposal 0045 without changing this task's
+    status or dependencies. Resources and cleanup reservations belong to admitted target
+    actions; storing a research candidate creates neither. V64-018 owns optional
+    research-to-pentest integration; this action lifecycle remains independently usable.
+  code:
+  - internal/auditstore
+  - internal/auditservice
+  - internal/auditcontroller
+  - internal/scheduler
+  - internal/httpapi/public
+  - internal/httpapi/privateartifacts
+  - runtime/src/contractor_runtime/toolsets/common
+  - internal/publicclient
+  - cmd
+scope:
+  in:
+  - Wire stateful action admission in the existing journal/native HTTP tool path to trusted testData/resource
+    keys, setup/cleanup reservations and owner-wide overlap exclusion.
+  - Use existing keyed mutation/advisory infrastructure and action-owned durable state, avoiding an
+    independent claim/receipt service. Derive resource keys from normalized bindings rather than model
+    labels.
+  - Add a narrow authenticated owner resolution service with API/CLI caller for unknown target effects,
+    exact revision/CAS and retained rationale/evidence; Workers cannot release their own unknown mutation
+    lock.
+  - 'Specify and implement deletion preconditions that preserve unresolved owner-wide exclusion: reject
+    Audit/Project purge while such an effect remains unresolved, with a bounded reference to the resolution
+    operation.'
+  out:
+  - No whole-target reset, generic business-logic/race-testing program, owner-crossing global lock
+    manager or automatic replay of uncertain scripts/mutations.
+  - Recipe language/driver is V411-009; cross-round proof orchestration is V411-012; sandbox request
+    interception remains explicitly deferred.
+requirements:
+- id: R1
+  text: Before mutating target data require testData authorization, deterministic resource naming
+    from action ID and bounded setup/cleanup intent. Reject destructive/unbound mutations even if
+    a caller labels them read.
+- id: R2
+  text: For nonisolatable objects use a trusted normalized resource key and an owner/target-wide conflict
+    domain that overlaps across Audit IDs; isolated namespaces require explicit evidence. Hold through
+    observation/replay preparation/cleanup as required.
+- id: R3
+  text: Reserve cleanup requests and active time before the mutation. HTTP 500/timeout/unknown outcome
+    retains effects and exclusion; read-only reconciliation itself requires ordinary permits and cannot
+    rewrite history.
+- id: R4
+  text: Register permanent pentest_test_data_invalid 400, pentest_resource_conflict 409 and pentest_unresolved_effect
+    409; conflict waiting, if selected, is bounded by original lifecycle allowance and never holds
+    a transaction across target I/O.
+- id: R5
+  text: Operator resolution requires authenticated ownership, exact pending action/revision, a recorded
+    observed state or explicit accepted-residue decision and safe recovery notes. It cannot fabricate
+    a successful check or erase unknown history. Unresolved lock state must not disappear through
+    Audit/Project cascade deletion. A confirmed cleanup residue with no unresolved mutation/executor
+    exclusion does not block ordinary Audit/Project purge; retain/report it under the existing lifecycle,
+    and require resolution only for a live unknown-effect exclusion.
+- id: R6
+  text: Native stateful tools, recovery/controller paths and the owner API/CLI resolution are the
+    same-change production consumers; all new exports and domain rows have named readers.
+failure_outcomes:
+- operation: Admit, acquire or release a stateful action/resource exclusion
+  permanent: Unauthorized descriptor is 400 pentest_test_data_invalid or blocked_by_policy; conflicting
+    owner resource is 409 pentest_resource_conflict; deterministic store rejection is permanent.
+  retryable: Only classified 503 storage conflicts retry automatically; optional resource wait is
+    bounded and rechecks original authorization without sending.
+  ambiguous: Replay original action/resource key; retained unknown outcome prevents duplicate mutation
+    or conflicting replacement.
+  cancelled: Cancel stops dispatch and joins target work; unknown state keeps exclusion until reconciliation/resolution.
+  timeout: Original active deadline bounds mutation and cleanup; expiration cannot silently release
+    a resource exclusion.
+- operation: Reconcile cleanup or record owner resolution/purge
+  permanent: Foreign resources use safe 404; stale revision conflicts; unresolved deletion returns
+    409 pentest_unresolved_effect. Worker-authored resolution is rejected.
+  retryable: Storage conflicts alone retry with bounded backoff/deadline; target reconciliation obeys
+    conservative read-only policy.
+  ambiguous: Reconcile original keyed resolution/cleanup receipt; do not duplicate cleanup or discard
+    prior effects after reply loss.
+  cancelled: Controller joins reconciliation; cancellation retains residual resources and resolution
+    records.
+  timeout: Reconciliation and operator API/storage timeouts are separately bounded; post-cap bookkeeping
+    permits no target cleanup request.
+cardinality:
+- collection: Test resources and mutation actions across an owner
+  expected: Test resources for admitted mutation actions under the base allowance of 100 receipt-backed
+    pentest candidates; a stored candidate alone creates no target object.
+  maximum: Base candidate allowance 1000, at most 100000 target intents and the existing item/Run limits
+    per Audit; owner Audit history is unbounded but paginated. Research pool limits are separate and
+    cannot increase action or cleanup allowances.
+  bound: Indexed conflict lookup touches only the normalized target/resource domain; at most 100 unresolved-effect
+    rows/256 KiB per page, never all owner Audits.
+- collection: Setup/control/cleanup descriptions
+  expected: 16 total recipe steps
+  maximum: 64 steps, eight identities, 16 origins; existing document/evidence ceilings
+  bound: Reserve finite requests/time up front; bounded residual descriptors contain resource identifiers
+    and safe instructions without credentials.
+lifecycle:
+- entity: Resource exclusion and residual-effect resolution
+  delete: Owner resolution releases exclusion after its explicit documented disposition; a live unresolved
+    mutation/executor exclusion blocks owning Audit/Project purge with a stable conflict. Confirmed
+    residue without such an exclusion follows ordinary purge policy.
+  cascade: A child Run/allocation deletion cannot remove owner-wide exclusion; normal Audit purge
+    removes resolved records only after existing drain/retention conditions.
+  retention: Keep original unknown action and subsequent resolution/cleanup evidence in retained Audit
+    report; no secret or executable recovery command is trusted automatically.
+acceptance_criteria:
+- id: A1
+  given: Two Audits under one owner target the same nonisolated resource with different labels
+  when: Both request mutation admission
+  then: Trusted normalization identifies overlap and serializes it; changing Audit ID or model label
+    does not evade exclusion.
+- id: A2
+  given: Explicit disjoint test namespaces
+  when: Independent mutations execute
+  then: They can progress without a global owner lock while each still obeys target/action/budget
+    restrictions.
+- id: A3
+  given: Mutation response is lost or returns HTTP 500
+  when: Run fails and Scheduler considers retry/replacement
+  then: Action remains unknown, charged and excluded; only bounded read-only reconciliation or authenticated
+    resolution can progress.
+- id: A4
+  given: Cleanup cannot finish before cap/cancel
+  when: Controller finalizes and owner later resolves the residue
+  then: Report names residual resources and unknown effects; resolution is CAS/idempotent and never
+    upgrades proof.
+- id: A5
+  given: Audit/Project deletion races unresolved effects and resolution
+  when: Real PostgreSQL purge and resolution requests execute
+  then: Unknown exclusion is not cascaded away; deletion is blocked until resolution, then bounded
+    purge removes owned resolved state without harming another Audit. A known reported residue with
+    no unresolved exclusion does not impose an extra purge barrier.
+tests:
+- command: go test -tags=integration -race -count=1 ./internal/auditstore/... ./internal/auditservice
+    ./internal/auditcontroller ./internal/scheduler ./internal/httpapi/public ./internal/httpapi/privateartifacts
+    ./internal/publicclient/... ./cmd/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-runtime test-wire-cross-language test-pentest-http-process test-pentest-action-process
+    verify-public-api
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+test_prerequisites:
+- Disposable PostgreSQL able to create/drop isolated schemas; never print its connection secret.
+- Repository-pinned Go and locked Runtime dependencies; run commands from the repository root unless
+  the command explicitly changes directory.
+verification_requirements:
+- Use testdata fixtures, never the live configs tree outside the documented e2e/eval exceptions. Keep
+  model choice unchanged; deterministic targets need no real Gateway.
+- Run every touched package in full, including any new package introduced by this task. Database tests
+  require disposable PostgreSQL through CONTRACTOR_TEST_DATABASE_URL; an unreachable configured database
+  fails and skipped mandatory cases do not pass.
+- New shared fixtures must be registered with their Go/Python/schema readers in the existing shared-fixture
+  gate. New process selections must fail when zero tests match and be reachable from release-verify.
+- Update the owning normative specification, shared limits/errors/lifecycle registries and public/private
+  contracts in the same change. Preserve existing contract ownership; do not add backward-compatibility
+  readers or edit generated clients manually.
+
+archive:
+  date: '2026-10-30'
+  previous_status: pending
+  authority: User requested rewriting stalled pentest work and archiving tasks requiring removed functionality;
+    planning only, on a separate branch.
+  reason: The action journal, testData/action classes, durable unknown-effect state and special transport-stop
+    proof were removed by V422-002. There is no production Workflow creating and cleaning disposable target
+    objects to justify this subsystem.
+  superseded_by:
+  - V422-002
+  reactivation_condition: Explicit user direction and a new reviewed scope with a concrete production
+    caller. Completion of historical dependencies does not reactivate this task.
+  evidence: Original scope, acceptance criteria and test commands below/above are historical design, not
+    implementation evidence or requirements for active work.

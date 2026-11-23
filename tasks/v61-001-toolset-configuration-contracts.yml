@@ -1,0 +1,132 @@
+schema_version: "1.0"
+id: V61-001
+title: Specify Run-scoped toolset configuration and allocation discovery contracts
+milestone: toolset-runtime-configuration
+epic: runtime-config
+kind: feature
+priority: P1
+status: deferred
+deferral:
+  date: "2026-10-11"
+  previous_status: pending
+  reason: >-
+    Implemented and verified on 2026-09-20 on branch
+    feat/v61-toolset-runtime-configuration but never merged; main has since
+    moved about 1,700 commits (contract package split, credential table
+    folds, V3B UI, layer checks). V62 and V64 do not depend on it, so the
+    port is postponed instead of resolving 35 conflicts now.
+  reactivate_when: >-
+    Explicit user decision that external MCP tools are needed (for example
+    for autonomous pentest Audits, proposal 0033); then port the branch onto main
+    rather than reimplementing, renumber its migration and rerun the V61-009
+    release gate.
+  branch_commit: "323b54eb2768dbbe1486e907ee50fe8fdafc05a8"
+implementation_commit: null
+depends_on: [V8-016, V50-001, V55-003]
+languages: [go, python, typescript, json, yaml, markdown]
+goal: >-
+  Define one strict cross-language extension for generic toolset settings and
+  MCP Streamable HTTP before enabling a remotely discovered toolset.
+context:
+  authority: >-
+    User requested implementation task specifications, accepted one shared
+    configuration per toolset per Run, and requires Streamable HTTP only with
+    reuse of AgentTemplate, RuntimeConfig, bindings and runtimeLabels.
+  design: docs/plans/2026-09-19-toolset-runtime-configuration.md
+  specification:
+    - docs/spec/configuration/agent-templates.md
+    - docs/spec/execution/control-plane.md
+    - docs/spec/configuration/runtime-config.md
+    - docs/spec/audits/audits.md
+    - docs/spec/tools/scanners.md
+  compatibility: >-
+    Preserve the unified contractor/v1alpha1 wire, old canonical bytes/digests,
+    static capabilities, current native tools and model-free Worker contracts.
+  revalidated: >-
+    2026-10-24 on b523ae77: still deferred, not superseded; main has no MCP or generic
+    worker.toolsets code or specification. The work remains on the unmerged branch
+    origin/feat/v61-toolset-runtime-configuration (head f6dfd6ed16240574ed3565bc6460f737fd072b49,
+    merge base c41a5989, 18 commits). Main is now 2,850 commits past that merge base and git
+    merge-tree reports 75 conflicting paths (35 at deferral), including modify/delete conflicts on
+    files main removed: docs/spec/01-agent-template.md, 02-runtime-and-a2a.md,
+    06-server-ui-and-operations.md, 07-runtime-labels-and-infrastructure-config.md, 19-audits.md,
+    29-tool-workers.md and ui-user-stories.md (retired for the domain documents by af85cc54),
+    internal/config/descriptors.go (now internal/config/resolved/descriptors.go, c8cbf2e1),
+    internal/contracts/agent.go (now internal/contracts/control/agent.go, ToolsetCapability at line
+    26, 6d277c5c), internal/runtimeconfig/principal.go (Agent principal labels now in
+    internal/agentprincipal, 3ecd3f2f) and
+    api/descriptor-parity/toolset-infrastructure-channels.yaml (replaced by
+    api/testdata/toolset-descriptors.json under TLS-R38, 35f59294). The example in reactivate_when
+    no longer applies: proposal 0033 section 14 says V61 MCP configuration is not a prerequisite of
+    the V411 HTTP/API pentest delivery, its section 4.3 keeps MCP tools out of the controlled-proof
+    path without their own gate, and V411-001 explicitly excludes V61 reactivation, so reactivation
+    needs a user decision that names a concrete MCP consumer. Task-specific: the normative owners to
+    update are docs/spec/tools/toolsets.md (TLS-R13 to TLS-R18 descriptor and factory registries and
+    positive capability, TLS-R38 shared descriptor fixture),
+    docs/spec/configuration/runtime-config.md (runtime credentials RCF-R110 to RCF-R116, labels and
+    merge RCF-R117 to RCF-R145) and the limits/errors registries in docs/spec/platform; a discovered
+    mcp@1 has no fixed exported-tool list, so TLS-R15, TLS-R38 and LIM-TLS-1 need an explicit
+    dynamic-mode amendment. RuntimeSettings wire types moved to internal/contracts/runtimesettings.
+    UI responses are now checked by generated validators (ui/src/api/generated/public-schemas.json
+    and response-schemas.ts, V385-001) instead of hand-written strict parsers. Overlaps: V382-001
+    (1bf48a1e) added interactsh-token@1 and the atomic worker.interactsh block (RCF-R183) as another
+    per-adapter section, and V411-001 (pending) adds target-basic@1, target-bearer@1 and
+    target-login@1 to the same credential store.
+scope:
+  in:
+    - Define worker.toolsets keyed by exact toolset ref and typed schema registration with required/optional configuration metadata.
+    - Specify atomic per-ref default/Run-label merge, identical-value deduplication, clear semantics and rejection of toolset patches in physical Agent labels.
+    - Define MCP endpoint, mcp-headers@1 reference, CA, connect/RPC defaults and bounds, and omission-compatible private materialized settings/origins.
+    - Add closed Go/Python models and schemas for allocation-discovered ToolsetCapability, retaining omitted static mode and strict non-empty native tools.
+    - Specify optional preparation after resource ownership, exact selected schema lifetime, errors, retries, cancellation and cleanup invariants.
+    - Fix finite discovery/message/schema/result limits and the supported JSON Schema/content subset, including isError and structuredContent behavior.
+    - Specify public requirements/label-coverage shapes, Run pinning/Repeat semantics, credential holds and conservative unknown-effect Audit admission.
+    - Add common positive/negative wire fixtures and regenerate the affected public client/strict parsers without enabling a production MCP factory.
+  out:
+    - Implement network clients, publish production MCP configurations, change Workflow/Stage binding YAML or advertise an incomplete factory.
+    - Add configBinding, configurationInputs, per-agent toolset configurations, generic settings resources or executionConfig toolset overrides.
+deliverables:
+  - path: docs/spec/configuration/runtime-config.md
+    description: Owning normative configuration, merge, credential, source and snapshot rules with valid and invalid examples.
+  - path: docs/spec/configuration/agent-templates.md
+    description: Descriptor/discovery metadata, exact selection and runtime compatibility while preserving the current authoring shape.
+  - path: docs/spec/execution/control-plane.md
+    description: Capability, private settings, preparation ownership and MCP transport/result boundaries.
+  - path: docs/spec/audits/audits.md
+    description: Unknown external effects and reuse of baseline pinning without weakening existing action admission.
+  - path: api/v1alpha1
+    description: Updated closed private schemas and synchronized Go/Python models.
+  - path: api/testdata/toolset-runtime-configuration
+    description: Shared canonical and invalid fixtures verifying Go/Python/schema agreement on default normalization, accepted boundaries and out-of-range rejection.
+  - path: api/openapi/contractor-public-v1.yaml
+    description: Public configuration/credential and planned read-projection contracts with regenerated client and strict parsers.
+requirements:
+  - id: R1
+    text: One exact ref has one configuration on Run; each allocation has independent session state. mcp@1 initially supports adk@1 and one endpoint, with only explicitly selected tools exposed.
+  - id: R2
+    text: New optional fields are omitted from old encodings; no built-in RuntimeConfig digest or existing AgentTemplate digest changes.
+  - id: R3
+    text: Freeze connect 10s/default and 1-60s range, RPC 60s/default and 1-600s range, inherited earlier deadlines, per-ref clear semantics and deterministic conflict paths.
+  - id: R4
+    text: Specify named implementation constants for new defaults/bounds and reuse existing URL/PEM/document/header limits. Fix supported schema/content constructs before dependent runtime implementation; unsupported content, remote refs and ambiguous calls have explicit outcomes.
+acceptance_criteria:
+  - id: A1
+    text: Normative examples unambiguously cover native configurable toolsets, MCP, binding selection, mixed profiles, inheritance, clear, conflict and physical-Agent label rejection.
+  - id: A2
+    text: Go, Python and schemas agree on positive/negative settings, credential metadata, origins and discovery fixtures; old golden bytes/digests remain identical.
+  - id: A3
+    text: Exact schema/content limits, preparation/cleanup ownership, transport/result errors, replay boundaries and Audit admission are written as testable rules with no unresolved first-release behavior.
+  - id: A4
+    text: Public schema/client/strict parser changes pass contract checks; current catalogs and native static registrations remain valid and MCP is not advertised prematurely.
+tests:
+  - command: make test-wire-cross-language verify-public-api ui-generate-check
+    covers: [A2, A4]
+  - command: go test ./internal/config ./internal/contracts ./internal/runtimeconfig
+    covers: [A1, A2, A4]
+  - command: cd runtime && uv run --frozen pytest -W error tests/test_contracts.py tests/test_allocation_contracts.py tests/test_capabilities.py
+    covers: [A2, A4]
+  - command: git diff --check
+    covers: [A1, A3]
+verification_requirements:
+  - Review every normative example, ownership transition and failure row against A1/A3; record the exact fixed numeric limits and supported content/schema subset.
+  - Shared fixtures are new deliverables; contract commands must select them rather than passing only historical cases.

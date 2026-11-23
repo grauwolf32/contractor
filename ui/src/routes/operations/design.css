@@ -1,0 +1,1030 @@
+/* Approved OpenDesign Operations presentation; domain facts and actions stay in the routes. */
+.ops-page {
+  --ops-pad: var(--space-6);
+  max-width: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--text-sm);
+}
+.ops-page-head {
+  padding: 0 0 var(--space-5);
+  border-bottom: 1px solid var(--line);
+}
+.ops-page .ops-page-title {
+  font-weight: 600;
+}
+.ops-page-lede {
+  font-size: var(--text-sm);
+}
+.ops-workspace {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+  padding-top: var(--space-6);
+}
+.ops-workspace > .ops-page-tabs {
+  position: sticky;
+  top: var(--space-4);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+.ops-tabs {
+  display: grid;
+  gap: var(--space-1);
+}
+.ops-tabs a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--muted-strong);
+  font-size: var(--text-xs);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.ops-tabs a:hover {
+  background: var(--row-hover);
+  color: var(--text);
+}
+.ops-tabs a.active {
+  background: var(--sel);
+  color: var(--text);
+  box-shadow: inset 2px 0 var(--sel-bar);
+}
+.ops-tabs-group {
+  margin: var(--space-4) var(--space-2) var(--space-1);
+  padding: var(--space-3) 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  font-weight: 500;
+}
+.ops-workspace > .ops-page-body {
+  padding: 0;
+  gap: var(--space-5);
+}
+.ops-stack {
+  gap: var(--space-5);
+}
+.ops-stack > .ops-section + .ops-section {
+  border-top: 0;
+  padding-top: 0;
+}
+.ops-page .ops-section-title {
+  font-size: var(--text-base);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.ops-page h3.ops-section-title {
+  font-size: var(--text-md);
+}
+.ops-section-heading {
+  flex-basis: 16rem;
+}
+.ops-section-description,
+.ops-section-aside {
+  font-size: var(--text-xs);
+}
+.ops-section-actions > a {
+  font-size: var(--text-xs);
+}
+.ops-page .ui-caption {
+  font-size: var(--text-xs);
+  line-height: 1.6;
+}
+.ops-page .ops-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.ops-page .ops-tiles > li {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+.ops-tile {
+  height: 100%;
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  gap: var(--space-2);
+}
+.ops-tile[data-warning] {
+  background: var(--warning-bg);
+  border-color: var(--warning-line);
+}
+.ops-tile-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ops-tile-value strong {
+  font: 500 var(--text-xl)/1.4 var(--font-mono);
+}
+.ops-tile-value {
+  font-size: var(--text-xs);
+}
+.ops-readiness-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: stretch;
+}
+.ops-readiness-panel,
+.ops-inspection-panel {
+  padding: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+.ops-slot-track {
+  display: flex;
+  gap: var(--space-0-5);
+  height: var(--space-4);
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--sunken);
+  margin-block: var(--space-3);
+}
+.ops-slot-track span {
+  flex-basis: 0;
+  min-width: var(--space-1);
+  background: var(--accent);
+}
+.ops-slot-track [data-state="idle"] {
+  background: var(--success);
+}
+.ops-slot-track [data-state="reserved"] {
+  background: var(--info);
+}
+.ops-slot-track [data-state="draining"] {
+  background: var(--warning);
+}
+.ops-slot-track [data-state="fenced"] {
+  background: var(--danger);
+}
+.ops-page .ops-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: var(--space-1) var(--space-2);
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+.ops-legend li {
+  display: inline-flex;
+  gap: var(--space-1);
+  flex: 0 0 auto;
+  align-items: center;
+  font-size: var(--text-2xs);
+}
+.ops-slot-pill {
+  display: inline-flex;
+  padding: var(--space-0-5) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  color: var(--muted-strong);
+}
+.ops-slot-pill[data-state="busy"],
+.ops-slot-pill[data-state="reserved"] {
+  color: var(--info);
+  background: var(--info-bg);
+  border-color: var(--info-line);
+}
+.ops-slot-pill[data-state="draining"] {
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-color: var(--warning-line);
+}
+.ops-slot-pill[data-state="fenced"] {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-color: var(--danger-line);
+}
+.ops-capacity-note {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3) 0 0;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.ops-inspection-item {
+  display: flex;
+  gap: var(--space-2);
+  align-items: start;
+  padding-block: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+.ops-inspection-item > .ui-glyph {
+  margin-top: var(--space-1);
+}
+.ops-inspection-item a {
+  font: var(--text-xs)/1.5 var(--font-mono);
+}
+.ops-inspection-item p {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+.ops-details-link {
+  display: inline-block;
+  padding-top: var(--space-3);
+  font-size: var(--text-xs);
+}
+.ops-process-list {
+  display: grid;
+  gap: var(--space-2);
+}
+.ops-process-row {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  min-width: 0;
+}
+.ops-process-row > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  list-style: none;
+}
+.ops-process-row > summary::-webkit-details-marker {
+  display: none;
+}
+.ops-process-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ops-process-name strong {
+  overflow-wrap: anywhere;
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.ops-process-name > .app-icon {
+  color: var(--muted);
+  flex: none;
+}
+.ops-process-context {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.ops-process-details {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.ops-process-row[open] > summary > .ui-tech-chevron {
+  transform: rotate(90deg);
+}
+.ops-overview .ops-section-head {
+  align-items: center;
+}
+.ops-overview > .ops-section > .ops-section-head {
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+.ops-page .ops-shortcuts {
+  display: flex;
+  gap: var(--space-3) var(--space-5);
+  flex-wrap: wrap;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.ops-shortcuts li {
+  list-style: none;
+}
+.ops-shortcuts a {
+  font-size: var(--text-xs);
+}
+.ops-agent-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+.ops-agent-card {
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.ops-agent-disclosure > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: var(--space-3) var(--space-4);
+}
+.ops-agent-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.ops-page .ops-agent-warning {
+  font-size: var(--text-xs);
+}
+.ops-allocation-list {
+  gap: var(--space-2);
+}
+.ops-allocation {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.ops-allocation > summary {
+  padding: var(--space-3) var(--space-4);
+}
+.ops-allocation-body {
+  padding: var(--space-4);
+}
+.ops-allocation-body h3 {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.ops-page .ops-table {
+  font-size: var(--text-xs);
+}
+.ops-page .ops-table-wrap {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.ops-page .ops-table thead {
+  background: var(--surface-subtle);
+}
+.ops-page .ops-table th {
+  font-size: var(--text-2xs);
+  font-weight: 500;
+}
+.ops-page .ops-table td {
+  padding: var(--space-4);
+}
+.ops-page .ops-ref > a {
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+.ops-page .ops-disclosure,
+.ops-page .ops-offline {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.ops-page .ops-offline > summary {
+  padding: var(--space-3) var(--space-4);
+}
+.ops-page .ops-offline-list {
+  padding: 0 var(--space-4) var(--space-4);
+}
+.ops-page .performance-metric-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+.ops-page .performance-metric-card h3 {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.ops-page .performance-metric-card .ui-facts dd {
+  font-weight: 500;
+  font-family: var(--font-mono);
+}
+.ops-page .ops-metric-grid {
+  gap: var(--space-3);
+}
+.ops-page .ops-diagnostics {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.ops-page .ops-diagnostics > summary {
+  font-size: var(--text-xs);
+}
+@media (max-width: 1100px) {
+  .ops-workspace {
+    grid-template-columns: 180px minmax(0, 1fr);
+    gap: var(--space-5);
+  }
+  .ops-readiness-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 820px) {
+  .ops-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+    padding-top: var(--space-4);
+  }
+  .ops-workspace > .ops-page-tabs {
+    position: static;
+    padding: var(--space-3);
+  }
+  .ops-tabs {
+    display: none;
+  }
+  .ops-page-head {
+    padding-bottom: var(--space-4);
+  }
+  .ops-page-lede {
+    max-width: 48ch;
+  }
+  .ops-workspace > .ops-page-body {
+    padding: 0;
+  }
+  .ops-process-row > summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .ops-process-row > summary > .ui-status-chip {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+  }
+  .ops-process-context {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .ops-process-row > summary > .ui-tech-chevron {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+@media (max-width: 480px) {
+  .ops-page .ops-tiles {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+  .ops-tile {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: var(--space-3);
+    gap: var(--space-1) var(--space-3);
+  }
+  .ops-tile-value {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+  .ops-tile .ui-caption {
+    grid-column: 1;
+  }
+  .ops-readiness-panel,
+  .ops-inspection-panel {
+    padding: var(--space-4);
+  }
+}
+
+.ops-resource-list {
+  display: grid;
+  gap: var(--space-2);
+}
+.ops-resource-row {
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  min-width: 0;
+}
+.ops-resource-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ops-resource-heading > div:first-of-type {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+.ops-resource-heading strong,
+.ops-resource-heading a {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.ops-resource-heading code,
+.ops-resource-heading small {
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  overflow-wrap: anywhere;
+}
+.ops-resource-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  color: var(--muted);
+}
+.ops-resource-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding-top: var(--space-3);
+  color: var(--muted);
+  font-size: var(--text-2xs);
+}
+.ops-resource-row > .ops-details-link {
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  display: block;
+}
+.ops-resource-row > .ui-tech {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+@media (max-width: 640px) {
+  .ops-resource-heading {
+    flex-wrap: wrap;
+  }
+  .ops-resource-heading > div:first-of-type {
+    flex-basis: calc(100% - var(--control-sm) - var(--space-3));
+  }
+  .ops-resource-heading > .ui-btn {
+    margin-left: auto;
+  }
+}
+
+/* Replace the old joined-tile sheet chrome while retaining shared tokens. */
+.ops-page .ops-tiles {
+  overflow: visible;
+  background: transparent;
+  border-radius: 0;
+}
+.ops-page .ops-tiles > li {
+  margin: 0;
+}
+.ops-page .ops-tile {
+  box-shadow: none;
+  background-clip: border-box;
+}
+.ops-page .ops-tile-value {
+  color: var(--text);
+}
+.ops-page .ops-capacity-note {
+  display: block;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  line-height: 1.6;
+}
+.ops-page .ops-allocation-list {
+  display: grid;
+  gap: var(--space-2);
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+.ops-page .ops-allocation-list > li {
+  border: 0;
+}
+.ops-page .ops-shortcuts a {
+  font-weight: 400;
+}
+
+.ops-primary-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.ops-secondary-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.ops-primary-metrics .ops-glance,
+.ops-secondary-metrics .ops-glance {
+  grid-template-columns: minmax(0, 1fr);
+  border: 0;
+  background: transparent;
+}
+.ops-primary-metrics .ops-glance > div,
+.ops-secondary-metrics .ops-glance > div {
+  padding: var(--space-2) 0;
+  margin: 0;
+  box-shadow: none;
+}
+.ops-primary-metrics .ops-glance dd {
+  font-size: var(--text-lg);
+  font-weight: 500;
+}
+@media (max-width: 1100px) {
+  .ops-primary-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .ops-secondary-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Inventory and metrics fidelity: the reviewed two-line rows and inline bars. */
+.ops-page {
+  max-width: 1216px;
+  width: 100%;
+  margin-inline: auto;
+}
+.ops-page .ops-section-head {
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.ops-page .ops-section-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+.ops-page h3.ops-section-title {
+  font-size: var(--text-md);
+}
+.ops-navigation-title {
+  padding-bottom: var(--space-4);
+  font-size: var(--text-sm);
+}
+.ops-navigation-title small {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.ops-page .ui-filter-chips {
+  display: flex;
+  gap: 0;
+  width: fit-content;
+  padding: var(--space-0-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--sunken);
+}
+.ops-page .ui-filter-chips > button {
+  border-radius: var(--radius-xs);
+  border-color: transparent;
+  background: transparent;
+  padding: var(--space-1) var(--space-3);
+  font-weight: 500;
+}
+.ops-page .ui-filter-chips > button[aria-pressed="true"] {
+  border-color: var(--sel-line);
+  background: var(--surface);
+}
+.ops-agent-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.ops-inventory-note {
+  margin: var(--space-2) 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: var(--sunken);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+.ops-resource-row,
+.ops-agent-card {
+  border-radius: var(--radius-md);
+  padding: 0;
+}
+.ops-resource-heading,
+.ops-agent-disclosure > summary,
+.ops-allocation > summary,
+.ops-entry-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 62px;
+  margin: 0;
+  padding: var(--space-4);
+  list-style: none;
+  text-align: start;
+  cursor: pointer;
+}
+.ops-resource-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.ops-entry-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ops-resource-heading > .ops-entry-identity {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-3);
+}
+.ops-entry-identity > div {
+  min-width: 0;
+}
+.ops-entry-identity strong,
+.ops-entry-identity h3 {
+  margin: 0;
+  font: 600 var(--text-sm)/1.5 var(--font-sans);
+  overflow-wrap: anywhere;
+}
+.ops-entry-identity small {
+  display: block;
+  margin: 0;
+  color: var(--muted);
+  font: 400 var(--text-xs)/1.5 var(--font-sans);
+  overflow-wrap: anywhere;
+}
+.ops-entry-states {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-width: 0;
+  margin-left: auto;
+}
+.ops-entry-states > svg {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.ops-resource-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  background: var(--sunken);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+.ops-agent-disclosure > summary .ops-resource-icon,
+.ops-offline-row .ops-resource-icon {
+  border-radius: var(--radius-full);
+  color: var(--link);
+  background: var(--sel);
+}
+.ops-entry-states .ui-status-chip {
+  border: 1px solid currentColor;
+  font-weight: 500;
+  font-size: var(--text-2xs);
+  padding: var(--space-0-5) var(--space-2);
+}
+.ops-resource-body {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.ops-resource-body .ops-resource-meta {
+  margin: 0;
+}
+.ops-agent-card .ops-agent-facts.ui-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.ops-agent-card .ops-agent-facts.ui-facts > div {
+  display: block;
+  grid-column: auto;
+  padding: 0;
+  border: 0;
+}
+.ops-agent-card .ops-agent-facts.ui-facts dt {
+  margin-bottom: var(--space-1);
+}
+.ops-agent-card .ops-agent-facts.ui-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ops-agent-facts .ops-toolsets {
+  display: grid;
+  gap: var(--space-3);
+}
+.ops-agent-facts .ops-toolsets li {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.ops-page .ops-offline {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+}
+.ops-offline-list {
+  padding: 0;
+  margin: 0;
+  gap: var(--space-2);
+}
+.ops-offline-row {
+  display: block;
+  padding: 0;
+  border: 0;
+}
+.ops-page .ops-subtabs {
+  display: flex;
+  width: 100%;
+  padding: 0;
+  gap: var(--space-4);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+.ops-page .ops-subtabs > a {
+  padding: var(--space-2) var(--space-1);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  font-weight: 500;
+}
+.ops-page .ops-subtabs > a[aria-current="page"] {
+  border-bottom-color: var(--link);
+  background: transparent;
+  box-shadow: none;
+}
+.ops-page .ops-filter-field {
+  flex: 1;
+  width: auto;
+  max-width: none;
+}
+.ops-page .ops-entry-button {
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: var(--text);
+  font-weight: 400;
+  white-space: normal;
+}
+.ops-performance-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.ops-primary-metrics {
+  align-items: stretch;
+}
+.ops-page .ops-summary-metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+.ops-page .ops-summary-metric p {
+  margin: 0;
+}
+.ops-metric-value {
+  font: 500 var(--text-xl)/1.5 var(--font-mono);
+}
+.ops-metric-value small {
+  font: 400 var(--text-xs)/1.5 var(--font-sans);
+  color: var(--muted);
+}
+.ops-bars {
+  margin-top: auto;
+}
+.ops-bar-chart {
+  position: relative;
+  height: 90px;
+  background: var(--sunken);
+  border-bottom: 1px solid var(--line);
+}
+.ops-bar-chart > span {
+  position: absolute;
+  bottom: 0;
+  border-right: 2px solid var(--sunken);
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+  background: var(--info);
+  opacity: 0.65;
+}
+.ops-bar-times {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-2);
+  color: var(--muted);
+  font: var(--text-2xs)/1.5 var(--font-mono);
+}
+.ops-bars .ui-tech {
+  margin-top: var(--space-2);
+}
+.ops-bar-empty {
+  margin: var(--space-4) 0;
+  padding: var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  border: 1px dashed var(--line);
+}
+.ops-page .ops-summary-metric .ui-facts,
+.ops-page .ops-database-metric .ui-facts {
+  container-type: normal;
+}
+.ops-page .ops-summary-metric .ui-facts > div,
+.ops-page .ops-database-metric .ui-facts > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-4);
+  padding-block: var(--space-3);
+}
+.ops-page .ops-summary-metric .ui-facts dd,
+.ops-page .ops-database-metric .ui-facts dd {
+  margin: 0;
+  font: 500 var(--text-xs)/1.5 var(--font-mono);
+  text-align: end;
+}
+.ops-page .ops-summary-metric .ui-facts dt,
+.ops-page .ops-database-metric .ui-facts dt {
+  font: 400 var(--text-xs)/1.5 var(--font-sans);
+}
+@media (max-width: 820px) {
+  .ops-navigation-title {
+    display: none;
+  }
+}
+@media (max-width: 640px) {
+  .ops-agent-card .ops-agent-facts.ui-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ops-resource-heading,
+  .ops-agent-disclosure > summary,
+  .ops-allocation > summary,
+  .ops-entry-button {
+    flex-wrap: wrap;
+  }
+  .ops-entry-states {
+    margin-left: 0;
+  }
+  .ops-entry-states > svg {
+    margin-left: auto;
+  }
+}
+
+.ops-agent-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.ops-agent-card .ops-agent-facts.ui-facts > [data-wide] {
+  grid-column: 1 / -1;
+}
+.ops-agent-card .ops-agent-facts.ui-facts dd .ops-chips {
+  flex-wrap: wrap;
+}
+
+.ops-mobile-navigation {
+  display: none;
+}
+.ops-mobile-navigation > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  list-style: none;
+  cursor: pointer;
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+}
+.ops-mobile-navigation small {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  margin-top: var(--space-0-5);
+}
+.ops-mobile-navigation > .ops-tabs {
+  padding: 0 var(--space-2) var(--space-2);
+}
+@media (max-width: 820px) {
+  .ops-mobile-navigation {
+    display: block;
+  }
+  .ops-page-tabs > .ops-tabs {
+    display: none;
+  }
+  .ops-workspace > .ops-page-tabs {
+    padding: 0;
+  }
+}
+
+@media (max-width: 820px) {
+  .ops-mobile-navigation > .ops-tabs {
+    display: grid;
+  }
+}

@@ -1,0 +1,171 @@
+{
+  "date": "2026-11-16",
+  "reviewedMain": "e90f987d28f788892ad539f76ab446aad1e4b4b8",
+  "demoUI": "0.11.35",
+  "archive": "/Users/ruslan/Documents/ChatGPT/AppSec/archives/contractor-ui-experiments-2026-11-06/iterations/2026-11-16-library",
+  "preview": "http://127.0.0.1:17567/?version=new&theme=dark&width=1440",
+  "native": {
+    "date": "2026-11-16",
+    "project": "contractor-library-design-20261116",
+    "conversation": "a7604704-2362-4cca-917e-502ec6260e2d",
+    "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+    "modelUnchanged": true,
+    "firstGeneration": "No deliverable; production model response reached reasoning length limit",
+    "nativeContinuation": "4ef83ee6-6680-4f18-b627-5e8456bfee39",
+    "nativeContinuationStatus": "succeeded; child exited; strategy terminal",
+    "nativeContribution": [
+      "opendesign.css",
+      "rationale.md"
+    ],
+    "hostContribution": [
+      "prototype structure and synthetic data",
+      "base responsive layout",
+      "interactions and accessibility",
+      "token normalization and mobile setup placement"
+    ],
+    "relay": {
+      "stopped": true,
+      "upstreamCredentialRemoved": true,
+      "requestsUsed": 16
+    },
+    "productionChanged": false,
+    "nativeHashes": {
+      "opendesign.css": "a3f5b821a8987826065d58f51a113dac9521fef2548499e1caac95a7a2bfb3ce",
+      "rationale.md": "d7e6f54746e279f69722f7532785fdb8783e10d961616be2a5b9998622e2f679"
+    }
+  },
+  "verification": {
+    "layouts": [
+      {
+        "theme": "light",
+        "width": 1440,
+        "listMetrics": {
+          "overflow": false,
+          "rows": 6
+        },
+        "detailMetrics": {
+          "heading": "API operation trace",
+          "overflow": false,
+          "theme": "light"
+        }
+      },
+      {
+        "theme": "light",
+        "width": 390,
+        "listMetrics": {
+          "overflow": false,
+          "rows": 6
+        },
+        "detailMetrics": {
+          "heading": "API operation trace",
+          "overflow": false,
+          "theme": "light"
+        }
+      },
+      {
+        "theme": "dark",
+        "width": 1440,
+        "listMetrics": {
+          "overflow": false,
+          "rows": 6
+        },
+        "detailMetrics": {
+          "heading": "API operation trace",
+          "overflow": false,
+          "theme": "dark"
+        }
+      },
+      {
+        "theme": "dark",
+        "width": 390,
+        "listMetrics": {
+          "overflow": false,
+          "rows": 6
+        },
+        "detailMetrics": {
+          "heading": "API operation trace",
+          "overflow": false,
+          "theme": "dark"
+        }
+      },
+      {
+        "theme": "black",
+        "width": 1440,
+        "listMetrics": {
+          "overflow": false,
+          "rows": 6
+        },
+        "detailMetrics": {
+          "heading": "API operation trace",
+          "overflow": false,
+          "theme": "black"
+        }
+      },
+      {
+        "theme": "black",
+        "width": 390,
+        "listMetrics": {
+          "overflow": false,
+          "rows": 6
+        },
+        "detailMetrics": {
+          "heading": "API operation trace",
+          "overflow": false,
+          "theme": "black"
+        }
+      }
+    ],
+    "interactions": {
+      "dialogVisible": true,
+      "httpCount": 3,
+      "filteredCount": 1,
+      "chosen": "Request checks",
+      "technicalOverflow": false,
+      "empty": true,
+      "restored": 6
+    },
+    "wrapperBeforeAfterThemeWidthControls": "passed",
+    "browserErrors": [],
+    "productionWrites": false,
+    "priorStatePreservation": {
+      "oldProjectFilesUnchanged": 253,
+      "changedPreviousProjectFiles": [],
+      "previousRows": [
+        {
+          "database": "app.sqlite",
+          "table": "projects",
+          "previousRowsUnchanged": 14
+        },
+        {
+          "database": "app.sqlite",
+          "table": "conversations",
+          "previousRowsUnchanged": 19
+        },
+        {
+          "database": "app.sqlite",
+          "table": "messages",
+          "previousRowsUnchanged": 79
+        },
+        {
+          "database": "sandbox/config/data/opencode/opencode.db",
+          "table": "message",
+          "previousRowsUnchanged": 330
+        },
+        {
+          "database": "sandbox/config/data/opencode/opencode.db",
+          "table": "part",
+          "previousRowsUnchanged": 1183
+        },
+        {
+          "database": "sandbox/config/data/opencode/opencode.db",
+          "table": "session",
+          "previousRowsUnchanged": 42
+        }
+      ],
+      "originalArchiveSha256": "194aa56c01511cb53b93b4d181951579a0975e1bd553ccf98e7d21d4149d94e2",
+      "preBackup": "/Users/ruslan/src/third-party/open-design-backups/20261116T215056Z-library",
+      "postBackup": "/Users/ruslan/src/third-party/open-design-backups/20261116T220238Z-library-post"
+    }
+  },
+  "manifestSha256": "615a41278fb1da65920abb1b9ae8593a63676150326bbed414d698c1ddf4e92c"
+}

@@ -1,0 +1,495 @@
+"""Bounded exact-artifact ZIP hydration for project workspaces."""
+
+from __future__ import annotations
+
+import asyncio
+import codecs
+import io
+import lzma
+import os
+import stat
+import time
+import zipfile
+import zlib
+from contextlib import ExitStack
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Protocol
+
+from contractor_runtime.archive_cache import ArchiveValue, read_archive
+from contractor_runtime.artifacts import ArtifactClientError, ArtifactValue
+from contractor_runtime.contracts import AllocationWorkspaceSpec, ArtifactRef
+from contractor_runtime.projectfs.local_io import RootedLocalFilesystem
+from contractor_runtime.projectfs.overlay import (
+    WORKSPACE_OVERLAY_MEDIA_TYPE,
+    OverlayWorkspaceSession,
+    WorkspaceStateError,
+    canonical_overlay_operations,
+    decode_workspace_state,
+)
+from contractor_runtime.projectfs.paths import (
+    ProjectPathError,
+    join_project_path,
+    normalize_project_path,
+    parent_paths,
+)
+from contractor_runtime.projectfs.provider import WorkspaceProvider
+from contractor_runtime.projectfs.storage import (
+    DirectWorkspaceSession,
+    ManagedWorkspaceTree,
+    WorkspaceStorageError,
+)
+from contractor_runtime.threads import to_thread_until_done
+
+WORKSPACE_SOURCE_MEDIA_TYPE = "application/zip"
+_CHUNK_BYTES = 64 * 1024
+_MAX_COMPRESSION_RATIO = 1000
+_RATIO_FLOOR_BYTES = 1 << 20
+# Decompressing a corrupt member: zlib/lzma raise their own errors, bz2 an
+# OSError, zipfile BadZipFile (CRC) or EOFError (truncated stream).
+_CORRUPT_MEMBER_ERRORS = (
+    zlib.error,
+    lzma.LZMAError,
+    OSError,
+    EOFError,
+    zipfile.BadZipFile,
+    NotImplementedError,
+)
+
+
+class ArtifactReader(Protocol):
+    async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue: ...
+
+
+class WorkspacePreparationError(RuntimeError):
+    def __init__(
+        self,
+        code: str,
+        *,
+        retryable: bool,
+        status_code: int,
+        cleanup_confirmed: bool = True,
+    ) -> None:
+        super().__init__(code)
+        self.code = code
+        self.retryable = retryable
+        self.status_code = status_code
+        self.cleanup_confirmed = cleanup_confirmed
+
+
+@dataclass(slots=True)
+class _TreeAccumulator:
+    local: RootedLocalFilesystem | None = field(repr=False)
+    deadline: float
+    max_files: int
+    max_expanded_bytes: int
+    max_managed_text_bytes: int
+    max_file_bytes: int
+    directories: set[str] = field(default_factory=set)
+    text_files: dict[str, str] = field(default_factory=dict, repr=False)
+    binary_paths: set[str] = field(default_factory=set)
+    path_types: dict[str, str] = field(default_factory=dict)
+    files: int = 0
+    entries: int = 0
+    expanded_bytes: int = 0
+    managed_text_bytes: int = 0
+
+
+async def hydrate_workspace(
+    *,
+    provider: WorkspaceProvider,
+    spec: AllocationWorkspaceSpec,
+    artifact_reader: ArtifactReader,
+    allocation_id: str,
+    timeout_seconds: float,
+) -> DirectWorkspaceSession:
+    if timeout_seconds <= 0:
+        raise WorkspacePreparationError(
+            "workspace_capacity_exceeded", retryable=True, status_code=503
+        )
+    try:
+        storage = await provider.create(allocation_id)
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        raise WorkspacePreparationError(
+            "workspace_capacity_exceeded", retryable=True, status_code=503
+        ) from None
+
+    content_root = Path(storage.root) / "run_workdir"
+    materialize = spec.mode == "direct" and storage.storage == "local"
+    limits = provider.capability.limits
+    accumulator = _TreeAccumulator(
+        local=None,
+        deadline=time.monotonic() + timeout_seconds,
+        max_files=limits.max_files,
+        max_expanded_bytes=limits.max_expanded_bytes,
+        max_managed_text_bytes=limits.max_managed_text_bytes,
+        max_file_bytes=limits.max_file_bytes,
+    )
+    deadline = accumulator.deadline
+    session: DirectWorkspaceSession | None = None
+    try:
+        if materialize:
+
+            def initialize_local() -> RootedLocalFilesystem:
+                content_root.mkdir(mode=0o700)
+                return RootedLocalFilesystem(content_root, limits)
+
+            accumulator.local = await to_thread_until_done(
+                initialize_local, name="workspace-zip-hydration"
+            )
+        source_origins: dict[str, tuple[ArtifactRef, str]] = {}
+        for source in spec.sources:
+            if time.monotonic() >= deadline:
+                raise _capacity()
+            value = await _read_artifact(artifact_reader, source.artifact, deadline, archive=True)
+            if value.artifact != source.artifact or value.media_type != WORKSPACE_SOURCE_MEDIA_TYPE:
+                raise _invalid_source()
+            previous_paths = set(accumulator.text_files)
+            await to_thread_until_done(
+                lambda value=value, target=source.target: _extract_archive(
+                    value.data, target, accumulator, deadline
+                ),
+                name="workspace-zip-hydration",
+            )
+            prefix = source.target.rstrip("/")
+            for path in accumulator.text_files.keys() - previous_paths:
+                relative = path[len(prefix) + 1 :] if prefix else path
+                source_origins[path] = (source.artifact, relative)
+        arguments = dict(
+            storage=storage,
+            limits=limits,
+            directories=accumulator.directories,
+            text_files=accumulator.text_files,
+            binary_paths=accumulator.binary_paths,
+        )
+        if spec.mode == "overlay":
+            overlay = OverlayWorkspaceSession(**arguments, source_origins=source_origins)
+            if spec.state is not None:
+                value = await _read_artifact(artifact_reader, spec.state.artifact, deadline)
+                if (
+                    value.artifact != spec.state.artifact
+                    or value.media_type != WORKSPACE_OVERLAY_MEDIA_TYPE
+                ):
+                    raise _invalid_state()
+                try:
+                    await overlay.import_state(value.data)
+                except (WorkspaceStateError, WorkspaceStorageError):
+                    raise _invalid_state() from None
+            return overlay
+
+        session = DirectWorkspaceSession(mode="direct", **arguments)
+        if spec.state is not None:
+            value = await _read_artifact(artifact_reader, spec.state.artifact, deadline)
+            if (
+                value.artifact != spec.state.artifact
+                or value.media_type != WORKSPACE_OVERLAY_MEDIA_TYPE
+            ):
+                raise _invalid_state()
+            source_tree = ManagedWorkspaceTree(
+                directories=set(accumulator.directories),
+                text_files=dict(accumulator.text_files),
+                binary_paths=set(accumulator.binary_paths),
+            )
+            try:
+                result_tree = await to_thread_until_done(
+                    decode_workspace_state,
+                    value.data,
+                    source_tree,
+                    limits,
+                    name="workspace-state-import",
+                )
+                if accumulator.local is not None:
+                    try:
+                        await to_thread_until_done(
+                            lambda: _materialize_state(
+                                accumulator.local, source_tree, result_tree, deadline
+                            ),
+                            name="workspace-zip-hydration",
+                        )
+                    except OSError:
+                        raise _capacity() from None
+            except (WorkspaceStateError, WorkspaceStorageError):
+                raise _invalid_state() from None
+            if storage.storage != "local":
+                session._tree = result_tree
+        if storage.storage == "local":
+            # Validate/pin the physical initialized tree before exposing the
+            # session; neither hydration texts nor imported state survive here.
+            try:
+                if not (session._local is not None):
+                    raise RuntimeError("Expected session._local is not None")
+                await session._local.initialize(deadline=deadline)
+            except WorkspaceStorageError:
+                raise _capacity() from None
+        return session
+    except BaseException:
+        try:
+            if session is not None:
+                await session.close()
+            await provider.cleanup(storage)
+        except Exception:
+            raise WorkspacePreparationError(
+                "workspace_cleanup_unconfirmed",
+                retryable=False,
+                status_code=503,
+                cleanup_confirmed=False,
+            ) from None
+        raise
+
+
+async def _read_artifact(
+    reader: ArtifactReader, ref: ArtifactRef, deadline: float, *, archive: bool = False
+) -> ArtifactValue | ArchiveValue:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise _capacity()
+    try:
+        async with asyncio.timeout(remaining):
+            value = await read_archive(reader, ref) if archive else await reader.read_artifact(ref)
+    except asyncio.CancelledError:
+        raise
+    except TimeoutError:
+        raise _capacity() from None
+    except ArtifactClientError as error:
+        raise WorkspacePreparationError(
+            "workspace_source_unavailable",
+            retryable=bool(getattr(error, "retryable", True)),
+            status_code=503,
+        ) from None
+    except Exception:
+        raise WorkspacePreparationError(
+            "workspace_source_unavailable", retryable=True, status_code=503
+        ) from None
+    return value
+
+
+def _extract_archive(
+    payload: bytes,
+    target: str,
+    tree: _TreeAccumulator,
+    deadline: float,
+) -> None:
+    try:
+        normalized_target = normalize_project_path(target, allow_root=True)
+        with zipfile.ZipFile(io.BytesIO(payload), mode="r") as archive:
+            infos = archive.infolist()
+            if tree.entries + len(infos) > tree.max_files:
+                raise _capacity()
+            planned = _preflight_archive(infos, normalized_target, tree, deadline)
+            _declare_target(normalized_target, tree)
+            for info, relative, kind in planned:
+                _check_deadline(deadline)
+                if kind == "directory":
+                    _make_directory(relative, tree)
+                else:
+                    _extract_file(archive, info, relative, tree, deadline)
+    except WorkspacePreparationError:
+        raise
+    except (ProjectPathError, zipfile.BadZipFile, NotImplementedError, EOFError, UnicodeError):
+        raise _invalid_source() from None
+    except OSError:
+        raise _capacity() from None
+
+
+def _preflight_archive(
+    infos: list[zipfile.ZipInfo],
+    target: str,
+    tree: _TreeAccumulator,
+    deadline: float,
+) -> list[tuple[zipfile.ZipInfo, str, str]]:
+    result: list[tuple[zipfile.ZipInfo, str, str]] = []
+    seen_members: set[str] = set()
+    declared_expanded = tree.expanded_bytes
+    declared_files = tree.files
+    for info in infos:
+        _check_deadline(deadline)
+        if info.flag_bits & 0x1 or not info.filename:
+            raise _invalid_source()
+        directory = info.is_dir()
+        raw = info.filename[:-1] if directory and info.filename.endswith("/") else info.filename
+        member = normalize_project_path(raw, allow_root=False)
+        if member in seen_members:
+            raise _invalid_source()
+        seen_members.add(member)
+        relative = join_project_path(target, member) if target else member
+        kind = _zip_kind(info, directory)
+        if kind == "file":
+            declared_files += 1
+            declared_expanded += info.file_size
+            if (
+                declared_files > tree.max_files
+                or info.file_size > tree.max_file_bytes
+                or declared_expanded > tree.max_expanded_bytes
+                or info.file_size
+                > max(_RATIO_FLOOR_BYTES, max(1, info.compress_size) * _MAX_COMPRESSION_RATIO)
+            ):
+                raise _capacity()
+        _preflight_path(relative, kind, tree)
+        result.append((info, relative, kind))
+    tree.entries += len(infos)
+    tree.files = declared_files
+    tree.expanded_bytes = declared_expanded
+    return result
+
+
+def _zip_kind(info: zipfile.ZipInfo, directory: bool) -> str:
+    mode = info.external_attr >> 16
+    file_type = stat.S_IFMT(mode)
+    if directory:
+        if file_type not in {0, stat.S_IFDIR}:
+            raise _invalid_source()
+        return "directory"
+    if file_type not in {0, stat.S_IFREG}:
+        raise _invalid_source()
+    return "file"
+
+
+def _preflight_path(path: str, kind: str, tree: _TreeAccumulator) -> None:
+    for parent in parent_paths(path):
+        existing = tree.path_types.get(parent)
+        if existing == "file":
+            raise _invalid_source()
+        tree.path_types[parent] = "directory"
+    existing = tree.path_types.get(path)
+    if existing is not None and existing != kind:
+        raise _invalid_source()
+    if existing == "file" and kind == "file":
+        raise _invalid_source()
+    tree.path_types[path] = kind
+    # maxFiles bounds the complete managed tree, including implicit parent
+    # directories. Counting only ZIP members permits a deeply nested archive to
+    # hydrate a tree much larger than the capability advertised at registration.
+    if len(tree.path_types) > tree.max_files:
+        raise _capacity()
+
+
+def _declare_target(target: str, tree: _TreeAccumulator) -> None:
+    if not target:
+        return
+    for directory in (*parent_paths(target), target):
+        _make_directory(directory, tree)
+
+
+def _make_directory(path: str, tree: _TreeAccumulator) -> None:
+    tree.directories.add(path)
+    tree.path_types[path] = "directory"
+    if len(tree.path_types) > tree.max_files:
+        raise _capacity()
+    if tree.local is not None:
+        tree.local.mkdir(path, deadline=tree.deadline, parents=True)
+
+
+def _extract_file(
+    archive: zipfile.ZipFile,
+    info: zipfile.ZipInfo,
+    path: str,
+    tree: _TreeAccumulator,
+    deadline: float,
+) -> None:
+    for parent in parent_paths(path):
+        _make_directory(parent, tree)
+    outputs = ExitStack()
+    local_output = (
+        outputs.enter_context(tree.local.create_output(path, deadline=deadline))
+        if tree.local is not None
+        else None
+    )
+    decoder = codecs.getincrementaldecoder("utf-8")("strict")
+    text_parts: list[str] = []
+    text_candidate = True
+    observed = 0
+    try:
+        with archive.open(info, mode="r") as source:
+            while True:
+                _check_deadline(deadline)
+                try:
+                    chunk = source.read(_CHUNK_BYTES)
+                except _CORRUPT_MEMBER_ERRORS:
+                    # The payload is in memory: a read failure is corrupt input
+                    # (bz2 reports it as OSError), never local capacity.
+                    raise _invalid_source() from None
+                if not chunk:
+                    break
+                observed += len(chunk)
+                if observed > info.file_size or observed > tree.max_file_bytes:
+                    raise _invalid_source()
+                if local_output is not None:
+                    local_output.write(chunk)
+                if text_candidate:
+                    if b"\x00" in chunk:
+                        text_candidate = False
+                        text_parts.clear()
+                    else:
+                        try:
+                            text_parts.append(decoder.decode(chunk, final=False))
+                        except UnicodeDecodeError:
+                            text_candidate = False
+                            text_parts.clear()
+        if observed != info.file_size:
+            raise _invalid_source()
+        if local_output is not None:
+            _apply_execute_bits(local_output.fileno(), info)
+        if text_candidate:
+            try:
+                text_parts.append(decoder.decode(b"", final=True))
+            except UnicodeDecodeError:
+                text_candidate = False
+                text_parts.clear()
+        if text_candidate:
+            text = "".join(text_parts)
+            tree.managed_text_bytes += observed
+            if tree.managed_text_bytes > tree.max_managed_text_bytes:
+                raise _capacity()
+            tree.text_files[path] = text
+        else:
+            tree.binary_paths.add(path)
+    finally:
+        outputs.close()
+
+
+def _apply_execute_bits(descriptor: int, info: zipfile.ZipInfo) -> None:
+    """Keep ``./gradlew``-style scripts runnable in a local direct workspace.
+
+    Only the archive's execute bits are honoured, and only for classes that can
+    already read the file; setuid/setgid/sticky and write bits never are.
+    """
+    executable = (info.external_attr >> 16) & 0o111
+    if executable:
+        current = stat.S_IMODE(os.fstat(descriptor).st_mode)
+        os.fchmod(descriptor, current | (executable & ((current & 0o444) >> 2)))
+
+
+def _materialize_state(
+    filesystem: RootedLocalFilesystem,
+    source: ManagedWorkspaceTree,
+    result: ManagedWorkspaceTree,
+    deadline: float,
+) -> None:
+    for operation in canonical_overlay_operations(source, result):
+        if operation.op == "delete_path":
+            filesystem.remove(operation.path, recursive=True, deadline=deadline)
+        elif operation.op == "create_directory":
+            filesystem.mkdir(operation.path, deadline=deadline)
+        else:
+            if operation.text is None:
+                raise RuntimeError("Expected workspace state text")
+            filesystem.write(operation.path, operation.text.encode("utf-8"), deadline=deadline)
+
+
+def _check_deadline(deadline: float) -> None:
+    if time.monotonic() >= deadline:
+        raise _capacity()
+
+
+def _invalid_source() -> WorkspacePreparationError:
+    return WorkspacePreparationError("workspace_source_invalid", retryable=False, status_code=422)
+
+
+def _capacity() -> WorkspacePreparationError:
+    return WorkspacePreparationError("workspace_capacity_exceeded", retryable=True, status_code=503)
+
+
+def _invalid_state() -> WorkspacePreparationError:
+    return WorkspacePreparationError("workspace_state_invalid", retryable=False, status_code=422)

@@ -1,0 +1,67 @@
+schema_version: '1.0'
+id: V478-006
+title: Keep Audit process gate selections aligned with the shipped catalog
+milestone: audit-evidence-results-2026-11
+epic: audits
+kind: defect
+introduced_by: V479-002
+priority: P1
+status: completed
+implementation_commit: 868b1c2f79f70d504d03d6f724dfa68bebc62df5
+depends_on:
+- V479-007
+languages:
+- go
+goal: Required Audit process gates reach real Worker execution using the currently shipped exact catalog
+  identities.
+context:
+  authority: 'User assignment 2026-11-22: implement the reviewed V478 package in one continuous pass.
+    This concrete test prerequisite was discovered by the first required process gate; it repairs catalog
+    consumers without changing product behavior.'
+  severity: medium
+  finding: tests/e2e/audit_common_observation_process_test.go:16-18 requests retired profiles @2/@3 and
+    gets 404 before dispatch; audit_common_prepared_process_test.go:206 selects retired audit-openapi-operation-observe@2
+    and Server refuses startup. V479-002 versioned their shipped successors without updating these gate
+    consumers.
+  finding_process_pin: The complete Findings gate also uses runCommonFindingAudit with the same retired operation-trace profile; align this sibling fixture with the current exact profile.
+  further_evidence: V478-001 acceptance passed all 12 basic Audit cases, then the code-analysis prerequisite found retired http_explorer@4 and openapi-from-workspace@8 consumers. Update those HTTP/source sibling pins as part of this same gate repair.
+  siblings: Audit configuration/library matrices and profile-removal selectors, HTTP/source process fixture
+    closures and ordinary root-catalog Finding workflow selectors. Check all relevant Go/YAML/UI consumers
+    and update exact fixture pins; no legacy catalog reader.
+  specification:
+  - docs/spec/configuration/catalog.md#CAT-R74
+scope:
+  in:
+  - Align the exact selectors and fixture template references consumed by required Audit process gates
+    with the effective shipped catalog.
+  - Exercise ordinary real Server/Runtime/PostgreSQL scenarios and keep configuration/library matrix validation
+    effective.
+  out:
+  - Legacy catalog aliases, relaxed version matching, demo deployment, production behavior changes.
+acceptance_criteria:
+- id: A1
+  text: Observation and prepared-work process cases resolve the shipped exact profile/Workflow and execute
+    through the real Server/Runtime.
+- id: A2
+  text: Configuration/library matrices and sibling process consumers agree with current identities; retired
+    identities remain absent.
+- id: A3
+  text: The original required process log records 404 and unavailable-Workflow rejection before the fix;
+    repaired cases execute and pass.
+tests:
+- command: make test-audit-basic-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: go test -tags=e2e -count=1 -run '^(TestAuditProgramsE2EConfigurationLoads|TestAuditProgramCatalogRemovalConfigurationClosure|TestAuditProgramLibraryMatrixIsComplete|TestAuditProgramsResolveAsRunnableMVPProfiles)$'
+    ./tests/e2e
+  covers:
+  - A2
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+
+verification_results: "make test-audit-basic-e2e passes 12 selected cases without skips. The listed four catalog/library regression cases pass. The full Findings process gate also passes after the shared profile correction; make lint passes."

@@ -1,0 +1,264 @@
+import { Button, Field } from "../../ui";
+import { at, record, textValue, type Path } from "./document";
+import { useDraftEdit, type FormEditor } from "./form-editor";
+import { setSelectionField } from "./advanced-edits";
+import { CatalogField } from "./catalog-picker";
+
+function SelectionForm({
+  editor,
+  path,
+  title,
+  allowClear = false,
+  allowSummary = false,
+}: {
+  editor: FormEditor;
+  path: Path;
+  title: string;
+  allowClear?: boolean;
+  allowSummary?: boolean;
+}) {
+  const { edit, error } = useDraftEdit(editor.draft, editor.onReplace);
+  const value = at(editor.draft.value, path),
+    row = record(value);
+  const credentialMode =
+    row.credential === undefined
+      ? "inherit"
+      : row.credential === null
+        ? "clear"
+        : "reference";
+  return (
+    <div className="studio-group">
+      <strong>{title}</strong>
+      {value !== undefined &&
+      (value === null || typeof value !== "object" || Array.isArray(value)) ? (
+        <p role="alert">
+          This selection must be a mapping. Repair it in block YAML.
+        </p>
+      ) : (
+        <>
+          <p>Unset fields inherit their existing configuration.</p>
+          <p>Compactor policies apply only to consumers using compact@1.</p>
+          {(
+            [
+              "modelPolicy",
+              ...(allowSummary ? ["summarizerModelPolicy"] : []),
+              "compactorModelPolicy",
+              "llmGateway",
+            ] as const
+          ).map((field) => (
+            <CatalogField
+              key={field}
+              label={`${title} ${field === "modelPolicy" ? "model policy" : field === "summarizerModelPolicy" ? "summarizer model policy" : field === "compactorModelPolicy" ? "compactor model policy" : "gateway"}`}
+              kind={field === "llmGateway" ? "llm-gateways" : "model-policies"}
+              value={textValue(row[field])}
+              onChange={(value) =>
+                edit((document) =>
+                  setSelectionField(document, path, field, value),
+                )
+              }
+            />
+          ))}
+          <Field label={`${title} credential mode`} className="studio-field">
+            {(control) => (
+              <select
+                {...control}
+                value={credentialMode}
+                onChange={(event) =>
+                  edit((document) => {
+                    const mode = event.target.value;
+                    if (mode === "reference")
+                      document.setIn([...path, "credential"], "");
+                    else
+                      setSelectionField(
+                        document,
+                        path,
+                        "credential",
+                        mode === "clear" ? null : undefined,
+                      );
+                  })
+                }
+              >
+                <option value="inherit">Inherit</option>
+                <option value="reference">Credential ID</option>
+                {allowClear || credentialMode === "clear" ? (
+                  <option value="clear" disabled={!allowClear}>
+                    Clear credential{!allowClear ? " (escalation only)" : ""}
+                  </option>
+                ) : null}
+              </select>
+            )}
+          </Field>
+          {credentialMode === "reference" ? (
+            <Field label={`${title} credential ID`} className="studio-field">
+              {(control) => (
+                <input
+                  {...control}
+                  key={textValue(row.credential)}
+                  defaultValue={textValue(row.credential)}
+                  onBlur={(event) => {
+                    if (event.target.value !== row.credential)
+                      edit((document) =>
+                        setSelectionField(
+                          document,
+                          path,
+                          "credential",
+                          event.target.value,
+                        ),
+                      );
+                  }}
+                />
+              )}
+            </Field>
+          ) : null}
+          {value !== undefined ? (
+            <Button
+              onClick={() =>
+                editor.onRemove(path, `${title.toLowerCase()} selection`)
+              }
+            >
+              Remove {title.toLowerCase()} selection
+            </Button>
+          ) : null}
+        </>
+      )}
+      {error ? <p role="alert">{error}</p> : null}
+    </div>
+  );
+}
+
+export function ExecutionDefaultsForm({ editor }: { editor: FormEditor }) {
+  const value = at(editor.draft.value, ["spec", "executionConfig"]);
+  if (
+    value !== undefined &&
+    (value === null || typeof value !== "object" || Array.isArray(value))
+  )
+    return (
+      <p role="alert">
+        Execution configuration must be a mapping. Repair it in block YAML.
+      </p>
+    );
+  return (
+    <>
+      <p>
+        Defaults apply across this Workflow. Stage selections can override
+        individual fields. Planner selections apply to modeled planners.
+      </p>
+      <SelectionForm
+        editor={editor}
+        path={["spec", "executionConfig", "planner"]}
+        title="Default planner"
+      />
+      <SelectionForm
+        editor={editor}
+        path={["spec", "executionConfig", "workers"]}
+        title="Default workers"
+        allowSummary
+      />
+      {at(editor.draft.value, ["spec", "executionConfig"]) !== undefined ? (
+        <Button
+          onClick={() =>
+            editor.onRemove(
+              ["spec", "executionConfig"],
+              "all execution selections",
+            )
+          }
+        >
+          Remove all execution selections
+        </Button>
+      ) : null}
+    </>
+  );
+}
+
+function StageSelections({
+  editor,
+  path,
+  agents,
+  allowClear = false,
+  title,
+}: {
+  editor: FormEditor;
+  path: Path;
+  agents: string[];
+  allowClear?: boolean;
+  title: string;
+}) {
+  const configured = Object.keys(
+    record(at(editor.draft.value, [...path, "agents"])),
+  );
+  return (
+    <>
+      <SelectionForm
+        editor={editor}
+        path={[...path, "planner"]}
+        title={`${title} planner`}
+        allowClear={allowClear}
+      />
+      {[...new Set([...agents, ...configured])].map((name) => (
+        <SelectionForm
+          key={name}
+          editor={editor}
+          path={[...path, "agents", name]}
+          title={`${title} agent ${name}`}
+          allowSummary
+          allowClear={allowClear}
+        />
+      ))}
+    </>
+  );
+}
+export function StageExecutionForm({
+  editor,
+  name,
+}: {
+  editor: FormEditor;
+  name: string;
+}) {
+  const path = ["spec", "executionConfig", "stages", name];
+  const agents = Object.keys(
+    record(at(editor.draft.value, ["spec", "stages", name, "agents"])),
+  );
+  return (
+    <details className="studio-settings">
+      <summary>Stage execution overrides</summary>
+      <StageSelections
+        editor={editor}
+        path={path}
+        agents={agents}
+        title="Stage"
+      />
+      {at(editor.draft.value, path) !== undefined ? (
+        <Button
+          onClick={() => editor.onRemove(path, "stage execution overrides")}
+        >
+          Remove stage execution overrides
+        </Button>
+      ) : null}
+    </details>
+  );
+}
+
+export function EscalationForm({
+  editor,
+  path,
+  agents,
+  outcome,
+}: {
+  editor: FormEditor;
+  path: Path;
+  agents: string[];
+  outcome: string;
+}) {
+  return (
+    <details className="studio-settings">
+      <summary>{outcome} escalation configuration</summary>
+      <StageSelections
+        editor={editor}
+        path={path}
+        agents={agents}
+        allowClear
+        title={`${outcome} escalation`}
+      />
+    </details>
+  );
+}

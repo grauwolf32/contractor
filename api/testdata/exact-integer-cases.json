@@ -1,0 +1,61 @@
+{
+  "description": "The fixed binary64 contiguous exact-integer boundary shared by Go and Python; decimal magnitude is checked before float rounding. This value is not configuration.",
+  "maximum": 9007199254740991,
+  "cases": [
+    {
+      "text": "0",
+      "integer": true,
+      "float": true
+    },
+    {
+      "text": "9007199254740991",
+      "integer": true,
+      "float": true
+    },
+    {
+      "text": "-9007199254740991",
+      "integer": true,
+      "float": true
+    },
+    {
+      "text": "9007199254740992",
+      "integer": false,
+      "float": false
+    },
+    {
+      "text": "-9007199254740992",
+      "integer": false,
+      "float": false
+    },
+    {
+      "text": "9007199254740991.0",
+      "integer": false,
+      "float": true
+    },
+    {
+      "text": "9007199254740991.1",
+      "integer": false,
+      "float": false
+    },
+    {
+      "text": "-9007199254740991.1",
+      "integer": false,
+      "float": false
+    },
+    {
+      "text": "9007199254740990.9",
+      "integer": false,
+      "float": true
+    },
+    {
+      "text": "90071992547409910e-1",
+      "integer": false,
+      "float": true
+    },
+    {
+      "text": "90071992547409911e-1",
+      "integer": false,
+      "float": false
+    }
+  ]
+}

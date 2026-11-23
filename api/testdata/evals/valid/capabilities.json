@@ -1,0 +1,21 @@
+{
+  "controlModes": [
+    "server",
+    "external"
+  ],
+  "executionKinds": [
+    "workflow",
+    "audit"
+  ],
+  "checks": [
+    {
+      "evaluator": "human-review@1",
+      "implementationSha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+      "available": true,
+      "reason": null
+    }
+  ],
+  "importVersions": [
+    "dataset@1"
+  ]
+}

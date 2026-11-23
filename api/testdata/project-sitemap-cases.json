@@ -1,0 +1,210 @@
+{
+  "version": "project-sitemap@1",
+  "empty": {
+    "version": "project-sitemap@1",
+    "projection": "sitemap-safe-projection@1",
+    "groups": [],
+    "sources": [],
+    "rules": [],
+    "markers": [],
+    "gaps": []
+  },
+  "invalid": [
+    "{}",
+    "null",
+    "{\"Version\": \"project-sitemap@1\", \"projection\": \"sitemap-safe-projection@1\", \"groups\": [], \"sources\": [], \"rules\": [], \"markers\": [], \"gaps\": []}",
+    "{\"version\": \"project-sitemap@1\", \"projection\": \"sitemap-safe-projection@1\", \"groups\": null, \"sources\": [], \"rules\": [], \"markers\": [], \"gaps\": []}",
+    "{\"version\": \"project-sitemap@1\", \"projection\": \"sitemap-safe-projection@1\", \"groups\": [], \"groups\": [], \"sources\": [], \"rules\": [], \"markers\": [], \"gaps\": []}",
+    "{\"version\":\"project-sitemap@1\",\"projection\":\"sitemap-safe-projection@1\",\"groups\":[],\"sources\":[{\"provenance\":{\"sourceId\":\"owner\",\"kind\":\"manual\",\"mode\":\"blackbox\"},\"generation\":1,\"policyDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"rules\":[],\"markers\":[],\"gaps\":[]}",
+    "{\"version\":\"project-sitemap@1\",\"projection\":\"sitemap-safe-projection@1\",\"groups\":[{\"id\":\"d67e61c19dbf50432400b503db3dc6ade4992c833e56190cc869a68465b77d2c\",\"origin\":\"https://example.test\",\"method\":\"GET\",\"route\":\"/users/123\",\"structural\":[],\"members\":[{\"id\":\"0f416eb03606ec8e69c183220e99c38dbbca78f47e24960572c331d713d80399\",\"path\":\"/users/123\",\"summaries\":[{\"provenance\":{\"sourceId\":\"http-source\",\"kind\":\"http\",\"deployment\":\"test\"},\"outcome\":\"response\",\"status\":200,\"parameters\":[\"expand\"],\"first\":\"2026-10-26T00:00:00Z\",\"last\":\"2026-10-29T00:00:00Z\"}],\"examples\":[\"GET https://example.test/users/123\"],\"evidence\":[],\"annotations\":[],\"omitted\":0}],\"declarations\":[],\"omitted\":0}],\"sources\":[{\"provenance\":{\"sourceId\":\"http-source\",\"kind\":\"http\",\"deployment\":\"test\",\"runId\":\"producer-run\"},\"generation\":1,\"policyDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"rules\":[],\"markers\":[],\"gaps\":[]}",
+    "{\"version\":\"project-sitemap@1\",\"projection\":\"sitemap-safe-projection@1\",\"groups\":[{\"id\":\"d67e61c19dbf50432400b503db3dc6ade4992c833e56190cc869a68465b77d2c\",\"origin\":\"https://example.test\",\"method\":\"GET\",\"route\":\"/users/123\",\"structural\":[],\"members\":[{\"id\":\"0f416eb03606ec8e69c183220e99c38dbbca78f47e24960572c331d713d80399\",\"path\":\"/users/123\",\"summaries\":[{\"provenance\":{\"sourceId\":\"http-source\",\"kind\":\"http\",\"deployment\":\"test\",\"runId\":\"producer-run\"},\"outcome\":\"response\",\"status\":200,\"parameters\":[\"expand\"],\"first\":\"2026-10-26T00:00:00Z\",\"last\":\"2026-10-29T00:00:00Z\"}],\"examples\":[\"GET https://example.test/users/123\"],\"evidence\":[],\"annotations\":[],\"omitted\":0}],\"declarations\":[],\"omitted\":0}],\"sources\":[{\"provenance\":{\"sourceId\":\"http-source\",\"kind\":\"http\",\"deployment\":\"test\"},\"generation\":1,\"policyDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"rules\":[],\"markers\":[],\"gaps\":[]}",
+    "{\"version\":\"project-sitemap@1\",\"projection\":\"sitemap-safe-projection@1\",\"groups\":[{\"id\":\"d67e61c19dbf50432400b503db3dc6ade4992c833e56190cc869a68465b77d2c\",\"origin\":\"https://example.test\",\"method\":\"GET\",\"route\":\"/users/123\",\"structural\":[],\"members\":[{\"id\":\"0f416eb03606ec8e69c183220e99c38dbbca78f47e24960572c331d713d80399\",\"path\":\"/users/123\",\"summaries\":[{\"provenance\":{\"sourceId\":\"http-source\",\"kind\":\"http\",\"deployment\":\"test\"},\"outcome\":\"response\",\"status\":200,\"parameters\":[\"expand\"],\"first\":\"2026-10-26T00:00:00Z\",\"last\":\"2026-10-29T00:00:00Z\"}],\"examples\":[\"GET https://example.test/users/123\"],\"evidence\":[],\"annotations\":[],\"omitted\":0}],\"declarations\":[],\"omitted\":0}],\"sources\":[{\"provenance\":{\"sourceId\":\"http-source\",\"kind\":\"http\",\"deployment\":\"test\",\"credentialRevision\":\"credentials-one\"},\"generation\":1,\"policyDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"rules\":[],\"markers\":[],\"gaps\":[]}",
+    "{\"version\":\"project-sitemap@1\",\"projection\":\"sitemap-safe-projection@1\",\"groups\":[{\"id\":\"d67e61c19dbf50432400b503db3dc6ade4992c833e56190cc869a68465b77d2c\",\"origin\":\"https://example.test\",\"method\":\"GET\",\"route\":\"/users/123\",\"structural\":[],\"members\":[{\"id\":\"0f416eb03606ec8e69c183220e99c38dbbca78f47e24960572c331d713d80399\",\"path\":\"/users/123\",\"summaries\":[{\"provenance\":{\"sourceId\":\"http-source\",\"kind\":\"http\",\"deployment\":\"test\",\"credentialRevision\":\"credentials-one\"},\"outcome\":\"response\",\"status\":200,\"parameters\":[\"expand\"],\"first\":\"2026-10-26T00:00:00Z\",\"last\":\"2026-10-29T00:00:00Z\"}],\"examples\":[\"GET https://example.test/users/123\"],\"evidence\":[],\"annotations\":[],\"omitted\":0}],\"declarations\":[],\"omitted\":0}],\"sources\":[{\"provenance\":{\"sourceId\":\"http-source\",\"kind\":\"http\",\"deployment\":\"test\"},\"generation\":1,\"policyDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"rules\":[],\"markers\":[],\"gaps\":[]}",
+    "{\"version\":\"project-sitemap@1\",\"projection\":\"sitemap-safe-projection@1\",\"groups\":[{\"id\":\"d67e61c19dbf50432400b503db3dc6ade4992c833e56190cc869a68465b77d2c\",\"origin\":\"https://example.test\",\"method\":\"GET\",\"route\":\"/users/123\",\"structural\":[],\"members\":[{\"id\":\"0f416eb03606ec8e69c183220e99c38dbbca78f47e24960572c331d713d80399\",\"path\":\"/users/123\",\"summaries\":[{\"provenance\":{\"sourceId\":\"http-source\",\"kind\":\"http\",\"deployment\":\"test\"},\"outcome\":\"response\",\"status\":200,\"parameters\":[\"expand\"],\"first\":\"2026-10-26T00:00:00Z\",\"last\":\"2026-10-29T00:00:00Z\"}],\"examples\":[\"GET https://example.test/users/123\"],\"evidence\":[],\"annotations\":[],\"omitted\":0}],\"declarations\":[],\"omitted\":0}],\"sources\":[{\"provenance\":{\"sourceId\":\"http-source\",\"kind\":\"http\",\"deployment\":\"test\",\"sessionGeneration\":\"session-one\"},\"generation\":1,\"policyDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"rules\":[],\"markers\":[],\"gaps\":[]}",
+    "{\"version\":\"project-sitemap@1\",\"projection\":\"sitemap-safe-projection@1\",\"groups\":[{\"id\":\"d67e61c19dbf50432400b503db3dc6ade4992c833e56190cc869a68465b77d2c\",\"origin\":\"https://example.test\",\"method\":\"GET\",\"route\":\"/users/123\",\"structural\":[],\"members\":[{\"id\":\"0f416eb03606ec8e69c183220e99c38dbbca78f47e24960572c331d713d80399\",\"path\":\"/users/123\",\"summaries\":[{\"provenance\":{\"sourceId\":\"http-source\",\"kind\":\"http\",\"deployment\":\"test\",\"sessionGeneration\":\"session-one\"},\"outcome\":\"response\",\"status\":200,\"parameters\":[\"expand\"],\"first\":\"2026-10-26T00:00:00Z\",\"last\":\"2026-10-29T00:00:00Z\"}],\"examples\":[\"GET https://example.test/users/123\"],\"evidence\":[],\"annotations\":[],\"omitted\":0}],\"declarations\":[],\"omitted\":0}],\"sources\":[{\"provenance\":{\"sourceId\":\"http-source\",\"kind\":\"http\",\"deployment\":\"test\"},\"generation\":1,\"policyDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"rules\":[],\"markers\":[],\"gaps\":[]}",
+    "{\"version\":\"project-sitemap@1\",\"projection\":\"sitemap-safe-projection@1\",\"groups\":[{\"id\":\"d67e61c19dbf50432400b503db3dc6ade4992c833e56190cc869a68465b77d2c\",\"origin\":\"https://example.test\",\"method\":\"GET\",\"route\":\"/users/123\",\"structural\":[],\"members\":[{\"id\":\"0f416eb03606ec8e69c183220e99c38dbbca78f47e24960572c331d713d80399\",\"path\":\"/users/123\",\"summaries\":[{\"provenance\":{\"sourceId\":\"http-source\",\"kind\":\"http\",\"deployment\":\"test\"},\"outcome\":\"response\",\"status\":200,\"parameters\":[\"expand\"],\"first\":\"2026-10-26T00:00:00Z\",\"last\":\"2026-10-29T00:00:00Z\",\"context\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}],\"examples\":[\"GET https://example.test/users/123\"],\"evidence\":[],\"annotations\":[],\"omitted\":0}],\"declarations\":[],\"omitted\":0}],\"sources\":[{\"provenance\":{\"sourceId\":\"http-source\",\"kind\":\"http\",\"deployment\":\"test\"},\"generation\":1,\"policyDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"rules\":[],\"markers\":[],\"gaps\":[]}",
+    "{\"version\":\"project-sitemap@1\",\"projection\":\"sitemap-safe-projection@1\",\"groups\":[{\"id\":\"d67e61c19dbf50432400b503db3dc6ade4992c833e56190cc869a68465b77d2c\",\"origin\":\"https://example.test\",\"method\":\"GET\",\"route\":\"/users/123\",\"structural\":[],\"members\":[{\"id\":\"0f416eb03606ec8e69c183220e99c38dbbca78f47e24960572c331d713d80399\",\"path\":\"/users/123\",\"summaries\":[{\"provenance\":{\"sourceId\":\"http-source\",\"kind\":\"http\",\"deployment\":\"test\"},\"outcome\":\"response\",\"status\":200,\"parameters\":[\"expand\"],\"first\":\"2026-10-26T00:00:00Z\",\"last\":\"2026-10-29T00:00:00Z\"}],\"examples\":[\"GET https://example.test/users/123\"],\"evidence\":[],\"annotations\":[],\"omitted\":0}],\"declarations\":[],\"omitted\":0}],\"sources\":[{\"provenance\":{\"sourceId\":\"http-source\",\"kind\":\"http\",\"deployment\":\"test\"},\"generation\":1,\"policyDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"rules\":[],\"markers\":[],\"gaps\":[{\"sourceId\":\"http-source\",\"reason\":\"contexts\",\"count\":1}]}"
+  ],
+  "projection": [
+    {
+      "url": "https://user:short-password@Example.test:443/Users/%2F/?page=query-canary#fragment",
+      "path": "/Users/%2F/",
+      "omitted": false,
+      "parameters": [
+        "page"
+      ]
+    },
+    {
+      "url": "https://example.test/session/short-password",
+      "path": "/session/short-password",
+      "omitted": false,
+      "parameters": []
+    },
+    {
+      "url": "https://example.test/users/short%2Dpassword",
+      "path": "/users/short%2Dpassword",
+      "omitted": false,
+      "parameters": []
+    },
+    {
+      "url": "https://example.test/opaque/ABCDEFGHIJKLMNOPQRSTUVWXYZ123456",
+      "path": "/opaque/ABCDEFGHIJKLMNOPQRSTUVWXYZ123456",
+      "omitted": false,
+      "parameters": []
+    },
+    {
+      "url": "https://example.test/a/?token=header-canary&q=query-canary&password=query-canary",
+      "path": "/a/",
+      "omitted": false,
+      "parameters": [
+        "password",
+        "q",
+        "token"
+      ]
+    },
+    {
+      "url": "https://example.test/users/short%252Dpassword",
+      "path": "/users/short%252Dpassword",
+      "omitted": false,
+      "parameters": []
+    },
+    {
+      "url": "https://abcdefghijklmnopqrstuvwxyz123456.example.test/session/short-password?authorization=query-canary",
+      "path": "/session/short-password",
+      "omitted": false,
+      "parameters": [
+        "authorization"
+      ]
+    }
+  ],
+  "observed": {
+    "version": "project-sitemap@1",
+    "projection": "sitemap-safe-projection@1",
+    "groups": [
+      {
+        "id": "d67e61c19dbf50432400b503db3dc6ade4992c833e56190cc869a68465b77d2c",
+        "origin": "https://example.test",
+        "method": "GET",
+        "route": "/users/123",
+        "structural": [],
+        "members": [
+          {
+            "id": "0f416eb03606ec8e69c183220e99c38dbbca78f47e24960572c331d713d80399",
+            "path": "/users/123",
+            "summaries": [
+              {
+                "provenance": {
+                  "sourceId": "http-source",
+                  "kind": "http",
+                  "deployment": "test"
+                },
+                "outcome": "response",
+                "status": 200,
+                "parameters": [
+                  "expand"
+                ],
+                "first": "2026-10-26T00:00:00Z",
+                "last": "2026-10-29T00:00:00Z"
+              }
+            ],
+            "examples": [
+              "GET https://example.test/users/123"
+            ],
+            "evidence": [],
+            "annotations": [],
+            "omitted": 0
+          }
+        ],
+        "declarations": [],
+        "omitted": 0
+      }
+    ],
+    "sources": [
+      {
+        "provenance": {
+          "sourceId": "http-source",
+          "kind": "http",
+          "deployment": "test"
+        },
+        "generation": 1,
+        "policyDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ],
+    "rules": [],
+    "markers": [],
+    "gaps": []
+  },
+  "reported": {
+    "version": "project-sitemap@1",
+    "projection": "sitemap-safe-projection@1",
+    "groups": [
+      {
+        "id": "d67e61c19dbf50432400b503db3dc6ade4992c833e56190cc869a68465b77d2c",
+        "origin": "https://example.test",
+        "method": "GET",
+        "route": "/users/123",
+        "structural": [],
+        "members": [
+          {
+            "id": "0f416eb03606ec8e69c183220e99c38dbbca78f47e24960572c331d713d80399",
+            "path": "/users/123",
+            "summaries": [
+              {
+                "provenance": {
+                  "sourceId": "http-source",
+                  "kind": "custom-scanner.v2",
+                  "deployment": "test"
+                },
+                "outcome": "response",
+                "status": 200,
+                "parameters": [
+                  "expand"
+                ],
+                "first": "2026-10-26T00:00:00Z",
+                "last": "2026-10-29T00:00:00Z"
+              }
+            ],
+            "examples": [
+              "GET https://example.test/users/123"
+            ],
+            "evidence": [],
+            "annotations": [],
+            "omitted": 0
+          }
+        ],
+        "declarations": [],
+        "omitted": 0
+      }
+    ],
+    "sources": [
+      {
+        "provenance": {
+          "sourceId": "http-source",
+          "kind": "custom-scanner.v2",
+          "deployment": "test"
+        },
+        "generation": 1,
+        "policyDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ],
+    "rules": [],
+    "markers": [],
+    "gaps": [
+      {
+        "sourceId": "http-source",
+        "reason": "evidence",
+        "count": 1
+      },
+      {
+        "sourceId": "http-source",
+        "reason": "report-truncated",
+        "count": 1
+      },
+      {
+        "sourceId": "http-source",
+        "reason": "request-errors",
+        "count": 1
+      }
+    ]
+  }
+}

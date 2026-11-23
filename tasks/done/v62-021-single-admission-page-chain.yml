@@ -1,0 +1,216 @@
+schema_version: '1.0'
+id: V62-021
+title: Use one immutable admission page chain and root
+milestone: audit-iterative-simplification-2026-10
+epic: audits
+kind: chore
+introduced_by: V62-007
+priority: P2
+status: completed
+depends_on:
+- V62-020
+languages:
+- go
+- sql
+- json
+- markdown
+goal: Reuse one exact page chain through selection and private staging, retaining independent preparation
+  completion and atomic acceptance.
+context:
+  authority: The user explicitly requested creation, sequential implementation, verification, task closure
+    and merge of the five reviewed simplifications on 2026-10-27.
+  finding: internal/auditservice/typed_prepared_round.go:24 copies selected pages while changing only
+    schema and previous digest; admission_commit.go compares their identical Items.
+  review: Read-only review of main 4d50b1cfc4961adad9dfa1fef160ef338cbd86ba and the accepted five-step
+    simplification plan.
+  specification:
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/scans.md
+  - docs/spec/audits/execution.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/platform/limits.md
+  - docs/spec/execution/scheduler.md
+  format_transition: Forward migration000053 rejects live Audits with old admission checkpoints or typed
+    prepared membership metadata using parent-only reads. Stop the previous Server before applying. Terminal
+    historical evidence is preserved byte-for-byte; no legacy reader or deployment.
+  implementation_boundary: One PreparedRoundPage chain and PreparedRoundRoot; selected/published and staged
+    counts remain distinct. The last bounded trusted-page staging phase atomically installs the existing
+    SQL membership seal; root publication alone never grants membership. No new table, phase flag or recovery
+    mechanism.
+  verification_lanes: Full owner packages run in separate worktrees with separate disposable databases,
+    at most two heavy lanes. Only scheduling is split; no package or test selection is removed. Required
+    process, wire, public API and lint gates run on the combined clean branch.
+scope:
+  in:
+  - Use one strict canonical page/root format, remove second artifact publication/root reference/digest
+    chain, and stage trusted stored pages by cursor.
+  - Keep selected/staged counters, private proposed membership, separate database membership seal, constant-size
+    acceptance, original source cutoff/deadline and claim/CAS fencing.
+  - Update forward migration/contract transition, exact budgets, purge, specs and real restart/scale tests;
+    retain indexed bounded dispatch.
+  out:
+  - No new model authority, arbitrary Workflow routing, receipt/lease store or permissive legacy reader.
+  - No deployment, live model changes or modification of historical frozen evidence.
+acceptance_criteria:
+- id: A1
+  text: Only one page chain and root are published and charged; selected and staged progress remain distinct
+    and partial membership grants no read/review/dispatch authority.
+- id: A2
+  text: Lost acknowledgements after page publication, root sealing and staging resume the same generation
+    with one debit, no duplicate rows and one child execution.
+- id: A3
+  text: Claim takeover, original deadline, rollback, pause/cancel and populated purge retain their guarantees;
+    sealed membership rejects typed and ordinary-looking inserts.
+- id: A4
+  text: More-than-128-item staging and maximum containing populations respect existing row/byte limits;
+    accepted dispatch reads only compact root and selected entries.
+- id: A5
+  text: The preceding four simplification tasks are complete; this task meets its criteria and all specs/contracts
+    and real-process gates pass on the integrated branch, ready for the user-authorized no-ff merge into
+    main.
+tests:
+- command: go test -tags=integration -count=1 ./internal/persistence/postgres
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditstore/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: go test -tags=integration -count=1 ./internal/auditservice ./internal/auditcontroller
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-audit-iterative-postgres test-audit-iterative-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-audit-composition-e2e test-audit-completion-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-wire-cross-language verify-public-api
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+failure_outcomes:
+  permanent: Invalid source, route, schema or exact bytes fail before target execution; no fallback.
+  retryable: Reuse existing bounded retries and original deadlines.
+  ambiguous: Reconcile existing receipt, generation, cursor and child intent; never append/recharge blindly.
+  cancelled: Join owned work and preserve immutable accepted evidence; partial staged work stays private.
+cardinality:
+  bound: Preserve existing per-slice rows/bytes, page/closure ceilings and canonical report bounds; no
+    whole-history hydration.
+lifecycle:
+  bound: Existing approval, pause, cancel, producer deletion and Audit purge remain authoritative.
+delivery: After task closure and a clean main recheck, merge the completed branch into main with --no-ff
+  and record the resulting commit in the user report.
+implementation_commit: dbb85fe2832ffda5d541574b9167b8404d72335c
+verification:
+  date: '2026-10-27'
+  source_revision: 43cfaa4e967979bdfd77721c0ec57cb75422edcf
+  results:
+  - Full PostgreSQL persistence package passed (45.400s), including 18 live-state/stage refusal cases
+    and exact preservation of populated native holds, frozen historical payloads, literal checkpoints
+    and migration ledger. Source c8f36031e7ce0ad7e127365bd243518c2d8c7858; result recorded in the agent
+    tool transcript, no redirected log file.
+  - Full auditdomain and auditstore/... passed (12.861s and pgstore 144.938s) after migration53 integration
+    at 5bcca90db0476b55cff744252020aec26457d809. Focused admission regressions passed separately.
+  - Full auditservice and auditcontroller passed (122.487s and 56.299s) with all combined production changes
+    and final replay/namespace tests at 11ccd5227e31b19ed7b93c047f5749040374c7f0.
+  - The real 130-item continuation loses replies after page publication, root publication and final staging;
+    resumes the same generation/cutoff/deadline; retains exactly one chain/root and one debit; keeps partial
+    membership hidden; creates one first child after acceptance. Source withdrawal and final SQL seal
+    rejection roll back without duplicate rows.
+  - 'make test-wire-cross-language verify-public-api passed: 286 shared fixtures, 345 Go and 239 Python
+    shared tests; selected Runtime run 1363 passed. Public operation and API contract checks passed.'
+  - 'make test-audit-iterative-postgres test-audit-iterative-e2e passed: 53/5 mandatory cases, 100/6 actual
+    passed, zero skips, on the clean combined source.'
+  - 'make test-audit-composition-e2e test-audit-completion-e2e passed: 58 required store cases, 11 required
+    process cases and the real browser journey; completion 250 Go and 491 Runtime cases, no selected skips.'
+  - make lint passed on the combined clean implementation. Generated ERD covers 53 migrations; dependency
+    documentation is regenerated. Independent final authority/lifecycle/accounting review found no outstanding
+    issue.
+  reports:
+    postgres:
+      path: .local/audit-iterative-gate/postgres-843plgrd/result.json
+      source:
+        revision: 43cfaa4e967979bdfd77721c0ec57cb75422edcf
+        dirty: false
+      counts:
+        required: 53
+        passed: 100
+        skipped: 0
+      matrix:
+        path: tests/e2e/audit_iterative_matrix.yml
+        digest: sha256:ed8a6c51bc7a69fe36ec854f5c642cc5912491929392cdc91a3df001b23100e3
+      report_digest: sha256:9479144f860b66ee63b0e0777c0f312e70da3d76c62ec0ef1a4fe45444eba9ba
+    process:
+      path: .local/audit-iterative-gate/process-5n2etxuq/result.json
+      source:
+        revision: 43cfaa4e967979bdfd77721c0ec57cb75422edcf
+        dirty: false
+      counts:
+        required: 5
+        passed: 6
+        skipped: 0
+      matrix:
+        path: tests/e2e/audit_iterative_matrix.yml
+        digest: sha256:ed8a6c51bc7a69fe36ec854f5c642cc5912491929392cdc91a3df001b23100e3
+      report_digest: sha256:a0bec90642e3e0c474eec42193eebccee8e26e19c498ccd91a3a743beb83dc08
+    completion:
+      path: .local/audit-completion-gate/run-zn5auop8/executed.json
+      source:
+        revision: 43cfaa4e967979bdfd77721c0ec57cb75422edcf
+        dirty: false
+      counts:
+        go: 250
+        runtime: 491
+      reports:
+        go.jsonl: sha256:d0a885dd61b1064a3100e79dad28f0c873b95af71b5a652fecd403cdee92e543
+        runtime.xml: sha256:390934151670313a8d45abe1c43d5cb9bcc3999951b060562729d741a0f8063a
+    domain_store: /private/tmp/v62-021-domain-store-owners.log
+    service_controller: /private/tmp/v62-021-service-controller.log
+    contracts: /private/tmp/v62-021-contracts.log
+    iterative: /private/tmp/v62-021-iterative.log
+    regressions: /private/tmp/v62-021-regressions.log
+    lint: /private/tmp/v62-021-lint.log
+  observed_baseline_failure:
+    command: go test -tags=integration -count=1 ./internal/persistence/...
+    result: 'The optional broader foundation package check failed TestSQLAccessFollowsTableOwnership on
+      three pre-existing Project sitemap read declarations: workflow_runs, artifact_lineage and projects.
+      The required PostgreSQL package passed; this broader command is not reported as a pass. No test
+      or ownership allowance was weakened.'
+    provenance: The reads originate in V410-001/V410-002 commits 7318b1185 and e9465c6cf, before this
+      simplification; internal/projectsitemap/allocation.go:39, allocation_sql.go:7 and service.go:43.
+      The existing ownership test remains their detector; the owning epic is projects-artifacts.
+    resolution: V410-011 declares the three justified reads without changing SQL or weakening the scanner.
+      Its verification reruns the unchanged ownership test and full persistence/... plus projectsitemap
+      with real PostgreSQL successfully; the original failure above remains historical evidence.
+  limits:
+  - No deployment, live-model quality evaluation or full release-verify run claimed.

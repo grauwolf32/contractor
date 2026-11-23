@@ -1,0 +1,191 @@
+{
+  "$defs": {
+    "RuntimeAdapterMetrics": {
+      "additionalProperties": false,
+      "properties": {
+        "operations": {
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "title": "Operations",
+          "type": "integer"
+        },
+        "failedOperations": {
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "title": "Failedoperations",
+          "type": "integer"
+        },
+        "flushAttempted": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flushattempted"
+        },
+        "flushSucceeded": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flushsucceeded"
+        },
+        "lastErrorCode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lasterrorcode"
+        },
+        "droppedSpans": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DroppedSpanCounts"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "operations",
+        "failedOperations"
+      ],
+      "title": "RuntimeAdapterMetrics",
+      "type": "object"
+    },
+    "RuntimeResources": {
+      "$ref": "performance.schema.json#/$defs/runtimeResources"
+    },
+    "DroppedSpanCounts": {
+      "additionalProperties": false,
+      "description": "Locally discarded spans by reason; delivery may be ambiguous on I/O failure.",
+      "properties": {
+        "queueOverflow": {
+          "default": 0,
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "title": "Queueoverflow",
+          "type": "integer"
+        },
+        "encodingFailed": {
+          "default": 0,
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "title": "Encodingfailed",
+          "type": "integer"
+        },
+        "nonRetryable": {
+          "default": 0,
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "title": "Nonretryable",
+          "type": "integer"
+        },
+        "retryExhausted": {
+          "default": 0,
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "title": "Retryexhausted",
+          "type": "integer"
+        },
+        "collectorRejected": {
+          "default": 0,
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "title": "Collectorrejected",
+          "type": "integer"
+        },
+        "deadlineExceeded": {
+          "default": 0,
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "title": "Deadlineexceeded",
+          "type": "integer"
+        },
+        "cancelled": {
+          "default": 0,
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "title": "Cancelled",
+          "type": "integer"
+        },
+        "shutdown": {
+          "default": 0,
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "title": "Shutdown",
+          "type": "integer"
+        }
+      },
+      "title": "DroppedSpanCounts",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "complete": {
+      "title": "Complete",
+      "type": "boolean"
+    },
+    "durationMs": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Durationms"
+    },
+    "stopReason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Stopreason"
+    },
+    "resources": {
+      "$ref": "#/$defs/RuntimeResources"
+    },
+    "adapters": {
+      "additionalProperties": {
+        "$ref": "#/$defs/RuntimeAdapterMetrics"
+      },
+      "title": "Adapters",
+      "type": "object"
+    }
+  },
+  "required": [
+    "complete",
+    "adapters"
+  ],
+  "title": "RuntimeReport",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/runtime-report.schema.json"
+}

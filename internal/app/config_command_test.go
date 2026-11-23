@@ -1,0 +1,356 @@
+package app
+
+import (
+	"encoding/json"
+	"errors"
+	"github.com/grauwolf32/contractor/internal/configtest"
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestConfigValidateMatchesServerForFilesystemAndUnionFailures(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(t *testing.T, operator, managed string)
+		want   string
+	}{
+		{"symlinked root", func(t *testing.T, operator, _ string) {
+			real := operator + "-real"
+			if err := os.Rename(operator, real); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(real, operator); err != nil {
+				t.Fatal(err)
+			}
+		}, "operator configuration root: root must be a real directory"},
+		{"symlinked subtree", func(t *testing.T, operator, _ string) {
+			original := filepath.Join(operator, "model-policies")
+			if err := os.Rename(original, original+"-real"); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink("model-policies-real", original); err != nil {
+				t.Fatal(err)
+			}
+		}, "configuration subtree model-policies must be a real directory"},
+		{"symlinked manifest", func(t *testing.T, operator, _ string) {
+			if err := os.Symlink("worker.yaml", filepath.Join(operator, "model-policies", "linked.yaml")); err != nil {
+				t.Fatal(err)
+			}
+		}, "configuration path"},
+		{"symlinked instruction", func(t *testing.T, operator, _ string) {
+			if err := os.Symlink("artifact-builder.md", filepath.Join(operator, "instructions", "linked.md")); err != nil {
+				t.Fatal(err)
+			}
+		}, "instruction path"},
+		{"duplicate managed identity", func(t *testing.T, operator, managed string) {
+			if err := os.MkdirAll(filepath.Join(managed, "model-policies"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			payload, err := os.ReadFile(filepath.Join(operator, "model-policies", "worker.yaml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(managed, "model-policies", "duplicate.yaml"), payload, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}, "duplicate ModelPolicy identity"},
+		{"invalid bundled skill", func(t *testing.T, operator, _ string) {
+			writeOperatorFile(t, filepath.Join(operator, "skills", "trace", "SKILL.md"), "not a skill manifest")
+		}, "bundled skills: skill_manifest_invalid"},
+		{"invalid bundled Audit standard", func(t *testing.T, operator, _ string) {
+			writeOperatorFile(t, filepath.Join(operator, "audit-standards", "owasp-asvs-5.0.0", "standard.json"), "{}")
+		}, "bundled Audit standards: "},
+		{"findings reader without collection input", func(t *testing.T, operator, _ string) {
+			addFindingsReader(t, operator, func(workflow string) string {
+				return strings.Replace(workflow, "mediaTypes: [application/vnd.contractor.findings-collection+zip]", "mediaTypes: [application/zip]", 1)
+			})
+		}, `Stage "read" Agent "reader" security-findings@1 list_findings requires the required Workflow input findings with media type application/vnd.contractor.findings-collection+zip`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			operator := copyConfigValidationTree(t)
+			managed := filepath.Join(filepath.Dir(operator), "managed-configs")
+			test.mutate(t, operator, managed)
+			validationErr := validateConfigForTest(operator, managed)
+			if validationErr == nil || !strings.Contains(validationErr.Error(), test.want) {
+				t.Fatalf("config validate error = %v, want %q", validationErr, test.want)
+			}
+			_, _, serverErr := loadServerConfiguration(operator, managed, slog.New(slog.NewTextHandler(io.Discard, nil)))
+			if serverErr == nil || !strings.Contains(serverErr.Error(), test.want) {
+				t.Fatalf("Server load error = %v, want %q", serverErr, test.want)
+			}
+		})
+	}
+}
+
+// The positive control for the findings reader case above: the same Workflow
+// with its declared collection input passes both loads.
+func TestConfigValidateAndServerAcceptFindingsReaderWithCollectionInput(t *testing.T) {
+	operator := copyConfigValidationTree(t)
+	managed := filepath.Join(filepath.Dir(operator), "managed-configs")
+	addFindingsReader(t, operator, func(workflow string) string { return workflow })
+	if err := validateConfigForTest(operator, managed); err != nil {
+		t.Fatalf("config validate rejected the findings reader: %v", err)
+	}
+	manager, _, err := loadServerConfiguration(operator, managed, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatalf("Server rejected the findings reader: %v", err)
+	}
+	if _, err := manager.Workflow("findings-reader@1"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeOperatorFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// addFindingsReader adds a Workflow whose agent selects
+// security-findings@1 list_findings, after edit rewrites the Workflow.
+func addFindingsReader(t *testing.T, operator string, edit func(string) string) {
+	t.Helper()
+	if err := os.CopyFS(operator, os.DirFS("testdata/findings-reader")); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(operator, "workflows", "findings_reader.yaml")
+	original, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeOperatorFile(t, path, edit(string(original)))
+}
+
+func TestConfigValidateNeverCreatesManagedRootOrSubtrees(t *testing.T) {
+	operator := copyConfigValidationTree(t)
+	managed := filepath.Join(filepath.Dir(operator), "managed-configs")
+	if err := validateConfigForTest(operator, managed); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(managed); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("validation created managed root: %v", err)
+	}
+	if err := os.Mkdir(managed, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(managed, "model-policies"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateConfigForTest(operator, managed); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(managed, "workflows")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("validation created managed subtree: %v", err)
+	}
+	if _, _, err := loadServerConfiguration(operator, managed, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
+		t.Fatalf("Server rejected configuration accepted by config validate: %v", err)
+	}
+}
+
+func TestConfigValidateDefaultsToSiblingManagedRoot(t *testing.T) {
+	operator := copyConfigValidationTree(t)
+	managed := filepath.Join(filepath.Dir(operator), "managed-configs")
+	if err := os.MkdirAll(filepath.Join(managed, "model-policies"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	payload, err := os.ReadFile(filepath.Join(operator, "model-policies", "worker.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(managed, "model-policies", "duplicate.yaml"), payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	err = runConfigCLI([]string{"validate", "--root", operator}, logger)
+	if err == nil || !strings.Contains(err.Error(), "duplicate ModelPolicy identity") {
+		t.Fatalf("default managed root was not included: %v", err)
+	}
+}
+
+func TestConfigValidateDotRootUsesSiblingManagedRoot(t *testing.T) {
+	operator := copyConfigValidationTree(t)
+	t.Chdir(operator)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if err := runConfigCLI([]string{"validate", "--root", "."}, logger); err != nil {
+		t.Fatalf("validate dot root: %v", err)
+	}
+	for root, want := range map[string]string{
+		".":  filepath.Join("..", "managed-configs"),
+		"..": filepath.Join("..", "..", "managed-configs"),
+	} {
+		if got := defaultManagedConfigRoot(root); got != want {
+			t.Errorf("managed root for %s = %s, want %s", root, got, want)
+		}
+	}
+	if _, err := os.Stat("managed-configs"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("dot root created an overlapping managed directory: %v", err)
+	}
+}
+
+func TestConfigValidateTreatsUncleanRootLikeCleanPath(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	for _, suffix := range []string{"/", "//", "/."} {
+		t.Run(suffix, func(t *testing.T) {
+			operator := copyConfigValidationTree(t)
+			root := operator + suffix
+			if err := runConfigCLI([]string{"validate", "--root", root}, logger); err != nil {
+				t.Fatalf("config validate --root %s: %v", root, err)
+			}
+			if _, err := os.Stat(filepath.Join(operator, "managed-configs")); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("validation derived a managed root inside the operator root: %v", err)
+			}
+			// A duplicate in the sibling root proves validation reads it.
+			managed := filepath.Join(filepath.Dir(operator), "managed-configs", "model-policies")
+			if err := os.MkdirAll(managed, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			payload, err := os.ReadFile(filepath.Join(operator, "model-policies", "worker.yaml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(managed, "duplicate.yaml"), payload, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			err = runConfigCLI([]string{"validate", "--root", root}, logger)
+			if err == nil || !strings.Contains(err.Error(), "duplicate ModelPolicy identity") {
+				t.Fatalf("sibling managed root was not used for %s: %v", root, err)
+			}
+		})
+	}
+}
+
+func TestConfigValidateRejectsMissingManagedRootUnderOperatorSymlink(t *testing.T) {
+	operator := copyConfigValidationTree(t)
+	alias := filepath.Join(filepath.Dir(operator), "operator-alias")
+	if err := os.Symlink(operator, alias); err != nil {
+		t.Fatal(err)
+	}
+	managed := filepath.Join(alias, "managed-configs")
+	err := validateConfigForTest(operator, managed)
+	if err == nil || !strings.Contains(err.Error(), "roots must not overlap") {
+		t.Fatalf("validation accepted overlapping managed root through symlink: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(operator, "managed-configs")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("validation created overlapping managed root: %v", err)
+	}
+}
+
+// copyConfigValidationTree builds a mutable operator root from the shared
+// Server test catalog and this package's bundled ASVS pilot standard.
+func copyConfigValidationTree(t *testing.T) string {
+	t.Helper()
+	root := filepath.Join(t.TempDir(), "configs")
+	for _, fixture := range []string{"../../testdata/configs", "testdata/config-validation"} {
+		if err := os.CopyFS(root, os.DirFS(fixture)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root
+}
+
+func validateConfigForTest(operator, managed string) error {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	return runConfigCLI([]string{"validate", "--root", operator, "--managed-root", managed}, logger)
+}
+
+func TestConfigLockAndRequiredValidationUseProductionLoaders(t *testing.T) {
+	root := copyConfigValidationTree(t)
+	managed := filepath.Join(t.TempDir(), "managed")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	validate := []string{"validate", "--root", root, "--managed-root", managed, "--require-catalog-lock"}
+	if err := runConfigCLI(validate, logger); err == nil {
+		t.Fatal("release validation accepted missing catalog lock")
+	}
+	if err := runConfigCLI([]string{"lock", "--root", root, "--managed-root", managed}, logger); err != nil {
+		t.Fatal(err)
+	}
+	if err := runConfigCLI(validate, logger); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(managed); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("offline lock created the managed root: %v", err)
+	}
+	path := filepath.Join(root, "instructions", "artifact-builder.md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, append(data, []byte("\nChanged locked instruction.\n")...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := runConfigCLI(validate, logger); err == nil {
+		t.Fatal("validation accepted changed locked content")
+	}
+	if err := runConfigCLI([]string{"lock", "--root", root, "--managed-root", managed}, logger); err == nil {
+		t.Fatal("lock command rebound content")
+	}
+}
+
+func TestConfigValidateCommonStandardAssertionSelections(t *testing.T) {
+	for _, test := range []struct {
+		name, version, entry string
+		valid                bool
+	}{
+		{"valid", "5.0.0", "1.2.1", true},
+		{"unknown version", "missing", "1.2.1", false},
+		{"unknown requirement", "5.0.0", "missing", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			operator := configtest.CopyWithPolicies(t, copyConfigValidationTree(t))
+			if err := os.CopyFS(operator, os.DirFS("../config/testdata/audit-common-catalog")); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(operator, "audit-profiles", "common_tasks.yaml")
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var document map[string]any
+			if err := json.Unmarshal(data, &document); err != nil {
+				t.Fatal(err)
+			}
+			spec := document["spec"].(map[string]any)
+			spec["workflows"].(map[string]any)["inspect"] = map[string]any{"ref": "audit-contract-check@1", "inputs": map[string]any{"source": map[string]any{"source": "audit-input", "name": "source"}, "context": map[string]any{"source": "task-context"}}, "parameters": map[string]any{}, "outputs": map[string]any{"result": "result"}}
+			spec["seed_source"] = map[string]any{"workflow": "inspect", "standard": map[string]any{"scheme": "owasp-asvs", "version": test.version}, "entry_ids": []string{test.entry}}
+			// Use the packaged original requirement ID; this test does not alter it.
+			if test.valid {
+				files, err := filepath.Glob(filepath.Join(operator, "audit-standards", "*", "standard.json"))
+				if err != nil || len(files) != 1 {
+					t.Fatal(err)
+				}
+				data, err := os.ReadFile(files[0])
+				if err != nil {
+					t.Fatal(err)
+				}
+				var standard struct {
+					Entries []struct {
+						ID string `json:"id"`
+					} `json:"entries"`
+				}
+				if json.Unmarshal(data, &standard) != nil || len(standard.Entries) == 0 {
+					t.Fatal("missing standard fixture")
+				}
+				spec["seed_source"].(map[string]any)["entry_ids"] = []string{standard.Entries[0].ID}
+			}
+			data, err = json.Marshal(document)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, data, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			err = validateConfigForTest(operator, filepath.Join(t.TempDir(), "managed"))
+			if (err == nil) != test.valid {
+				t.Fatalf("valid=%v error=%v", test.valid, err)
+			}
+		})
+	}
+}

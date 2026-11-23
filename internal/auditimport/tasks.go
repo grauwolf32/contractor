@@ -1,0 +1,609 @@
+package auditimport
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"maps"
+	"slices"
+	"strings"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+
+	"github.com/grauwolf32/contractor/internal/apierror"
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+	"github.com/grauwolf32/contractor/internal/runstore"
+)
+
+type taskOutput struct {
+	logical, slot    string
+	source, retained auditstore.ExactArtifact
+}
+
+// collectTasks retains ordinary declared outputs and a natural collection
+// receipt. A successful supporting Run creates no semantic verdict. Logical
+// result outputs alone pass through the common trusted-context normalizer.
+func (i *Importer) collectTasks(ctx context.Context, claim auditstore.ControllerClaim, snapshot auditstore.ReconcileSnapshot, execution auditstore.Execution) (changed bool, err error) {
+	if execution.AuditID != claim.AuditID || execution.AuditID != snapshot.Audit.AuditID || execution.State != auditstore.ExecutionCollecting || execution.TerminalOutcome == nil {
+		return false, fmt.Errorf("%w: invalid Task collection observation", ErrPermanent)
+	}
+	digest, err := contentdigest.CanonicalJSON(map[string]any{"schema": "contractor.audit.task-collection.v1", "audit_id": execution.AuditID, "execution_id": execution.ExecutionID, "run_id": execution.RunID, "outcome": execution.TerminalOutcome, "generation": execution.TerminalRunGeneration, "sequence": execution.TerminalRunSequence})
+	if err != nil {
+		return false, err
+	}
+	if receipt, err := i.reads.CollectionReceipt(ctx, execution.AuditID, execution.ExecutionID); err == nil {
+		if receipt.RequestDigest != digest {
+			return false, auditstore.ErrConflict
+		}
+		return false, nil
+	} else if !errors.Is(err, auditstore.ErrNotFound) {
+		return false, err
+	}
+	tasks, err := i.reads.ListExecutionTasks(ctx, execution.AuditID, execution.ExecutionID)
+	if err != nil {
+		return false, err
+	}
+	partials, partialErr := i.readPartialResults(ctx, snapshot, execution, tasks)
+	if partialErr != nil && !permanentTaskCollectionError(partialErr) && !errors.Is(partialErr, ErrPermanent) {
+		return false, partialErr
+	}
+	collection := taskCollectionState{
+		params: auditstore.CollectParams{
+			Claim:         claim,
+			ExecutionID:   execution.ExecutionID,
+			ReceiptID:     auditdomain.DeterministicID("receipt", execution.ExecutionID),
+			RequestDigest: digest,
+			Disposition:   auditstore.CollectionAccepted,
+			Retained:      []auditstore.ArtifactLink{},
+		},
+		tasks:          tasks,
+		partials:       partials,
+		execution:      execution,
+		findingResults: map[string]*auditstore.CanonicalFindingResult{},
+	}
+	if partialErr != nil {
+		// Use the ordinary invalid-collection receipt in active, paused and
+		// cancelling Audits alike. Unreadable history cannot justify a model
+		// result or a system claim that no judgment was accepted.
+		collection.partials = partialTaskResults{}
+		collection.params.Disposition = auditstore.CollectionContractInvalid
+		return collection.commit(ctx, i.store, "collection-contract-invalid", false, nil)
+	}
+	changed, err = i.collectTaskOutputs(ctx, snapshot, &collection)
+	// Classify definite failures explicitly; transport ambiguity is returned
+	// unchanged so the next pass reconciles the existing natural receipt.
+	if errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
+		collection.params.Disposition = auditstore.CollectionContractInvalid
+		collection.params.SourceOutput, collection.params.Retained = nil, nil
+		changed, err = collection.commit(ctx, i.store, "evidence-budget-exhausted", false, nil)
+	}
+	if permanentTaskCollectionError(err) {
+		collection.params.Disposition = auditstore.CollectionContractInvalid
+		collection.params.SourceOutput, collection.params.Retained = nil, nil
+		changed, err = collection.commit(ctx, i.store, "collection-contract-invalid", false, nil)
+	}
+	return changed, err
+}
+
+func (i *Importer) collectTaskOutputs(ctx context.Context, snapshot auditstore.ReconcileSnapshot, collection *taskCollectionState) (bool, error) {
+	claim, execution := collection.params.Claim, collection.execution
+	params, tasks, partials := &collection.params, collection.tasks, collection.partials
+	findingResults := collection.findingResults
+	commit := func(code string, retryable bool, result *auditcontract.Material) (bool, error) {
+		return collection.commit(ctx, i.store, code, retryable, result)
+	}
+	var changed bool
+	var err error
+	if more, err := i.retainTaskFindings(ctx, snapshot, execution); more || err != nil {
+		if errors.Is(err, ErrPermanent) {
+			params.Disposition = auditstore.CollectionContractInvalid
+			return commit("finding-origin-invalid", false, nil)
+		}
+		return more, err
+	}
+	gapCode := ""
+	retryable := false
+	switch *execution.TerminalOutcome {
+	case auditstore.TerminalSubmissionFailed:
+		// Retryable creation failures retain the original intent. An intent
+		// is observed as failed only after definite rejection or dispatch
+		// closure; neither outcome authorizes another Run attempt.
+		params.Disposition = auditstore.CollectionExecutionFailed
+		return commit("submission-failed", false, nil)
+	case auditstore.TerminalFailed:
+		params.Disposition = auditstore.CollectionExecutionFailed
+		gapCode, retryable = "execution-failed", true
+		if execution.RunID == nil {
+			params.Disposition = auditstore.CollectionContractInvalid
+			return commit("collection-contract-invalid", false, nil)
+		}
+		if partials.run == nil {
+			return false, fmt.Errorf("%w: missing terminal Run", ErrPermanent)
+		}
+		run := *partials.run
+		if run.RunID != *execution.RunID || run.OwnerID != snapshot.Audit.OwnerID || run.ProjectID == nil || *run.ProjectID != snapshot.Audit.ProjectID || run.PublicationMode != runstore.PublicationAuditManaged || run.AuditExecutionID == nil || *run.AuditExecutionID != execution.ExecutionID || run.AuditSubmissionKey == nil || *run.AuditSubmissionKey != execution.SubmissionKey || run.State != runstore.RunFailed {
+			params.Disposition = auditstore.CollectionContractInvalid
+			return commit("collection-contract-invalid", false, nil)
+		}
+		if run.StateReason.Code == runstore.AuditInputInitializationFailedReason {
+			params.Disposition = auditstore.CollectionContractInvalid
+			return commit(runstore.AuditInputInitializationFailedReason, false, nil)
+		}
+	case auditstore.TerminalCancelled:
+		params.Disposition = auditstore.CollectionExecutionCancelled
+		gapCode = "execution-cancelled"
+	case auditstore.TerminalSucceeded:
+	default:
+		return false, fmt.Errorf("%w: unknown Task terminal outcome", ErrPermanent)
+	}
+	pinned, err := auditprofile.DecodePinnedProgram(snapshot.Audit.ProfileSnapshot)
+	if err != nil || execution.RunID == nil {
+		params.Disposition = auditstore.CollectionContractInvalid
+		return commit("collection-contract-invalid", false, nil)
+	}
+	binding, exists := pinned.Program.Workflows[execution.WorkflowRole]
+	if !exists {
+		params.Disposition = auditstore.CollectionContractInvalid
+		return commit("collection-contract-invalid", false, nil)
+	}
+	// Explicit publication Workflows collect domain references only. This also
+	// reconciles committed positives after failed/cancelled publication stages.
+	if canonicalScannerWorkflow(pinned.Workflows[execution.WorkflowRole]) {
+		if i.findings == nil {
+			return false, fmt.Errorf("Finding collector unavailable")
+		}
+		references, err := i.findings.AuditExecutionReceiptReferences(ctx, snapshot.Audit.OwnerID, execution.AuditID, execution.ExecutionID, *execution.RunID)
+		if err != nil {
+			return false, err
+		}
+		for _, task := range tasks {
+			refs := references[task.Document.TaskID]
+			ids := refs.FindingIDs
+			if ids == nil {
+				ids = []string{}
+			}
+			findingResults[task.Document.TaskID] = &auditstore.CanonicalFindingResult{IDs: ids, Truncated: refs.FindingsTruncated}
+		}
+		return commit(gapCode, false, nil)
+	}
+	recovered, nonrepeatable, err := i.recoverTaskScan(ctx, snapshot, execution, pinned)
+	if errors.Is(err, ErrPermanent) {
+		params.Disposition = auditstore.CollectionContractInvalid
+		return commit("scan-history-invalid", false, nil)
+	}
+	if err != nil {
+		return false, err
+	}
+	if nonrepeatable {
+		retryable = false
+	}
+	outputs := make([]taskOutput, 0, len(binding.Outputs))
+	remaining := snapshot.Audit.Limits.MaxEvidenceBytes - snapshot.Audit.RetainedEvidenceBytes
+	seen := map[string]bool{}
+	var sourceOutput *auditstore.ExactArtifact
+	for _, logical := range slices.Sorted(maps.Keys(binding.Outputs)) {
+		slot := binding.Outputs[logical]
+		if recovered != nil && recovered.logical == logical {
+			outputs = append(outputs, *recovered)
+			remaining -= recovered.retained.SizeBytes
+			if *execution.TerminalOutcome == auditstore.TerminalSucceeded {
+				params.Disposition = auditstore.CollectionMissingOutput
+				gapCode = "scan-report-recovered"
+			}
+			continue
+		}
+		source, frozen, err := i.artifacts.DescribeRunBinding(ctx, *execution.RunID, contracts.ArtifactRef{Namespace: "outputs", Name: slot})
+		if errors.Is(err, artifacts.ErrArtifactNotFound) {
+			if gapCode == "" {
+				params.Disposition = auditstore.CollectionMissingOutput
+				gapCode = "missing-output"
+			}
+			continue
+		}
+		if err != nil {
+			return false, err
+		}
+		if !frozen || !contracts.AcceptsMediaType(pinned.Workflows[execution.WorkflowRole].Outputs[slot].MediaTypes, source.MediaType) {
+			if *execution.TerminalOutcome == auditstore.TerminalSucceeded {
+				params.Disposition = auditstore.CollectionContractInvalid
+				gapCode = "collection-contract-invalid"
+			}
+			continue
+		}
+		key, err := contentdigest.CanonicalJSON(source)
+		if err != nil {
+			return false, err
+		}
+		if !seen[key] {
+			remaining -= source.SizeBytes
+			seen[key] = true
+		}
+		if sourceOutput == nil || logical == "result" {
+			copy := source
+			sourceOutput = &copy
+		}
+		if remaining < 0 {
+			if *execution.TerminalOutcome == auditstore.TerminalSucceeded {
+				params.Disposition = auditstore.CollectionInvalidResult
+				params.SourceOutput = sourceOutput
+			}
+			return commit("evidence-budget-exhausted", false, nil)
+		}
+		outputs = append(outputs, taskOutput{logical: logical, slot: slot, source: source})
+	}
+	if params.Disposition == auditstore.CollectionAccepted {
+		params.SourceOutput = sourceOutput
+	}
+	retentions := make([]RunRetention, 0, len(outputs))
+	for _, output := range outputs {
+		if output.retained.Ref.Revision != nil {
+			continue
+		}
+		material := auditcontract.Material{ScopeKind: "run", ScopeID: *execution.RunID, Ref: output.source.Ref, Digest: output.source.Digest, MediaType: output.source.MediaType, SizeBytes: output.source.SizeBytes}
+		name, err := auditdomain.MaterialArtifactName(material)
+		if err != nil {
+			return false, err
+		}
+		retentions = append(retentions, RunRetention{Source: output.source, Target: contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(execution.AuditID), Name: name}})
+	}
+	retained, err := i.artifacts.RetainRunExact(ctx, *execution.RunID, snapshot.Audit.ProjectID, retentions)
+	if err != nil {
+		return false, err
+	}
+	if len(retained) != len(retentions) {
+		return false, fmt.Errorf("retain Task outputs: incomplete exact result")
+	}
+	var selected *auditcontract.Material
+	retainedIndex := 0
+	for index := range outputs {
+		output := &outputs[index]
+		if output.retained.Ref.Revision == nil {
+			output.retained = retained[retainedIndex]
+			retainedIndex++
+		}
+		origin := map[string]any{"schema": "contractor.audit.output-provenance.v1", "audit_id": execution.AuditID, "execution_id": execution.ExecutionID, "run_id": *execution.RunID, "workflow_output": output.slot}
+		if output.source.Ref.Revision == nil {
+			origin["recovery"] = "retained-scan-journal"
+			origin["retained"] = output.retained
+		} else {
+			origin["source"] = output.source
+		}
+		provenance, _ := strictjson.Canonical(origin)
+		params.Retained = append(params.Retained, auditstore.ArtifactLink{Scope: artifacts.ScopeAudit, LogicalKey: "execution/" + execution.ExecutionID + "/output/" + output.logical, Artifact: output.retained, SourceProvenance: provenance})
+		material := auditcontract.Material{ScopeKind: "audit", ScopeID: execution.AuditID, Ref: output.retained.Ref, Digest: output.retained.Digest, MediaType: output.retained.MediaType, SizeBytes: output.retained.SizeBytes}
+		if selected == nil {
+			copy := material
+			selected = &copy
+		}
+		if output.logical != "result" || *execution.TerminalOutcome != auditstore.TerminalSucceeded {
+			continue
+		}
+		data, err := i.normalizeTaskResult(ctx, snapshot.Audit, execution, pinned, tasks, *output, partials)
+		if errors.Is(err, ErrPermanent) {
+			params.Disposition = auditstore.CollectionInvalidResult
+			params.SourceOutput = sourceOutput
+			return commit("invalid-result", false, nil)
+		}
+		if err != nil {
+			return false, err
+		}
+		name := "result-" + strings.TrimPrefix(contentdigest.Bytes(data), "sha256:")
+		result, err := i.artifacts.PutImmutableAudit(ctx, snapshot.Audit.ProjectID, contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(execution.AuditID), Name: name}, artifacts.Payload{MediaType: "application/json", Data: data})
+		if err != nil {
+			return false, err
+		}
+		params.Retained = append(params.Retained, auditstore.ArtifactLink{Scope: artifacts.ScopeAudit, LogicalKey: "execution/" + execution.ExecutionID + "/result", Artifact: result, SourceProvenance: provenance})
+		evidence, err := taskResultEvidenceLinks(data)
+		if err != nil {
+			return false, err
+		}
+		params.Retained = append(params.Retained, evidence...)
+		material = auditcontract.Material{ScopeKind: "audit", ScopeID: execution.AuditID, Ref: result.Ref, Digest: result.Digest, MediaType: result.MediaType, SizeBytes: result.SizeBytes}
+		selected = &material
+	}
+	if selected == nil {
+		if gapCode == "" {
+			params.Disposition = auditstore.CollectionMissingOutput
+			gapCode = "missing-output"
+		}
+		return commit(gapCode, retryable, nil)
+	}
+	if *execution.TerminalOutcome == auditstore.TerminalSucceeded {
+		for _, output := range outputs {
+			if output.logical != "work" && output.logical != "proposals" {
+				continue
+			}
+			if i.intake == nil || output.source.MediaType != "application/json" || output.source.SizeBytes > auditcontract.MaxPreparedWorkBytes {
+				params.Disposition = auditstore.CollectionInvalidResult
+				params.SourceOutput = &output.source
+				return commit("prepared-work-invalid", false, nil)
+			}
+			_, data, err := i.artifacts.ReadRunExact(ctx, *execution.RunID, output.source.Ref)
+			if err != nil {
+				return false, err
+			}
+			source := auditcontract.Material{ScopeKind: "run", ScopeID: *execution.RunID, Ref: output.source.Ref, Digest: output.source.Digest, MediaType: output.source.MediaType, SizeBytes: output.source.SizeBytes}
+			accept := i.intake.AcceptPreparedWork
+			if output.logical == "proposals" {
+				accept = i.intake.AcceptProposals
+			}
+			intake, err := accept(ctx, claim, snapshot, execution, source, data)
+			if err != nil {
+				invalid := permanentTaskCollectionError(err) || errors.Is(err, auditstore.ErrConflict)
+				if !invalid {
+					return false, err
+				}
+				params.Disposition = auditstore.CollectionInvalidResult
+				params.SourceOutput = &output.source
+				return commit("prepared-work-invalid", false, nil)
+			}
+			if !intake.Complete {
+				return intake.Changed, nil
+			}
+			if intake.GapCode != "" {
+				gapCode = intake.GapCode
+			}
+		}
+	}
+	changed, err = commit(gapCode, retryable, selected)
+	if errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
+		params.Retained = nil
+		if *execution.TerminalOutcome == auditstore.TerminalSucceeded {
+			params.Disposition = auditstore.CollectionInvalidResult
+			params.SourceOutput = sourceOutput
+		}
+		return commit("evidence-budget-exhausted", false, nil)
+	}
+	return changed, err
+}
+
+// Cited inputs already belong to Audit scope. Link their exact revisions
+// through the existing collection owner so evidence accounting charges them
+// once, including when several batch members cite the same selected bytes.
+func taskResultEvidenceLinks(data []byte) ([]auditstore.ArtifactLink, error) {
+	var result map[string]any
+	if strictjson.Decode(data, &result) != nil {
+		return nil, auditstore.ErrInvalid
+	}
+	links := []auditstore.ArtifactLink{}
+	seen := map[string]bool{}
+	for _, raw := range result["items"].([]any) {
+		for _, selected := range raw.(map[string]any)["evidence"].([]any) {
+			encoded, err := strictjson.Canonical(selected)
+			if err != nil {
+				return nil, err
+			}
+			key := contentdigest.Bytes(encoded)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			var material auditcontract.Material
+			if strictjson.Decode(encoded, &material) != nil || material.ScopeKind != "audit" {
+				return nil, auditstore.ErrInvalid
+			}
+			links = append(links, auditstore.ArtifactLink{Scope: artifacts.ScopeAudit, LogicalKey: "evidence/" + strings.TrimPrefix(key, "sha256:"), Artifact: contracts.ExactArtifact{Ref: material.Ref, Digest: material.Digest, MediaType: material.MediaType, SizeBytes: material.SizeBytes}, SourceProvenance: encoded})
+		}
+	}
+	return links, nil
+}
+
+func permanentTaskCollectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var classified apierror.Classified
+	return errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, blob.ErrIntegrity) || errors.Is(err, blob.ErrMissing) || artifacts.IsExactReferenceRejection(err) || artifactpostgres.IsExactRevisionMissing(err) || errors.As(err, &classified) && (classified.ErrorKind() == apierror.InvalidRequest || classified.ErrorKind() == apierror.AuditDocumentInvalid)
+}
+
+func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Audit, execution auditstore.Execution, pinned auditprofile.PinnedProgram, tasks []auditstore.Task, output taskOutput, partials partialTaskResults) ([]byte, error) {
+	invalid := func() ([]byte, error) { return nil, fmt.Errorf("%w: invalid common Task result", ErrPermanent) }
+	if output.source.MediaType != "application/json" || output.source.SizeBytes > auditcontract.MaximumDocumentBytes {
+		return invalid()
+	}
+	binding := pinned.Program.Workflows[execution.WorkflowRole]
+	contextSlot := ""
+	for slot, mapping := range binding.Inputs {
+		if mapping.Source == "task-context" {
+			contextSlot = slot
+			break
+		}
+	}
+	if contextSlot == "" {
+		return invalid()
+	}
+	exact, frozen, err := i.artifacts.DescribeRunBinding(ctx, *execution.RunID, contracts.ArtifactRef{Namespace: "inputs", Name: contextSlot})
+	if err != nil {
+		return nil, err
+	}
+	if !frozen || exact.SizeBytes > auditcontract.MaximumDocumentBytes || exact.MediaType != "application/json" {
+		return invalid()
+	}
+	_, trusted, err := i.artifacts.ReadRunExact(ctx, *execution.RunID, exact.Ref)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := auditcontract.Decode(trusted, nil); err != nil {
+		return invalid()
+	}
+	_, raw, err := i.artifacts.ReadRunExact(ctx, *execution.RunID, output.source.Ref)
+	if err != nil {
+		return nil, err
+	}
+	if err := partials.verifyAcceptedFinal(tasks, raw); err != nil {
+		return nil, err
+	}
+	trusted, raw, err = i.taskFindingContext(ctx, audit.OwnerID, execution, trusted, raw)
+	if err != nil {
+		return nil, err
+	}
+	trusted, httpTranslations, err := i.taskHTTPContext(ctx, audit, execution, trusted, raw)
+	if err != nil {
+		return nil, err
+	}
+	assignment := trusted
+	trusted, selectedTranslations, err := partials.taskSelectedContext(trusted, raw)
+	if err != nil {
+		return nil, err
+	}
+	result, err := auditcontract.Decode(raw, trusted)
+	if err != nil {
+		return invalid()
+	}
+	var contextValue, assignmentValue, resultValue map[string]any
+	if strictjson.Decode(trusted, &contextValue) != nil || strictjson.Decode(assignment, &assignmentValue) != nil || strictjson.Decode(result, &resultValue) != nil {
+		return invalid()
+	}
+	workflowDigest, err := contentdigest.CanonicalJSON(pinned.Workflows[execution.WorkflowRole])
+	if err != nil {
+		return nil, err
+	}
+	if contextValue["audit_id"] != execution.AuditID || contextValue["run_id"] != *execution.RunID || contextValue["workflow_ref"] != binding.Ref || contextValue["workflow_digest"] != workflowDigest {
+		return invalid()
+	}
+	members := contextValue["items"].([]any)
+	if len(members) != len(tasks) {
+		return invalid()
+	}
+	translations := httpTranslations
+	for key, material := range selectedTranslations {
+		translations[key] = material
+	}
+	inputMaterials := map[string]auditcontract.Material{}
+	assignedMembers := assignmentValue["items"].([]any)
+	for _, member := range assignedMembers {
+		for _, raw := range member.(map[string]any)["evidence"].([]any) {
+			data, err := strictjson.Canonical(raw)
+			if err != nil {
+				return nil, err
+			}
+			var m auditcontract.Material
+			if strictjson.Decode(data, &m) == nil && m.ScopeKind == "audit" {
+				if _, ok := selectedTranslations[string(data)]; ok {
+					continue
+				}
+				return invalid()
+			}
+			if strictjson.Decode(data, &m) == nil && m.ScopeKind == "run" && m.ScopeID == *execution.RunID && m.Ref.Namespace == artifactpolicy.HTTPExchangeNamespace {
+				continue
+			}
+			if strictjson.Decode(data, &m) != nil || m.ScopeKind != "run" || m.ScopeID != *execution.RunID || m.Ref.Namespace != "inputs" {
+				return invalid()
+			}
+			if prior, exists := inputMaterials[m.Ref.Name]; exists && contracts.MaterialKey(prior) != contracts.MaterialKey(m) {
+				return invalid()
+			}
+			inputMaterials[m.Ref.Name] = m
+		}
+	}
+	definitions := make([]artifacts.MaterialInput, 0, len(inputMaterials))
+	for name, material := range inputMaterials {
+		exact := material.Exact()
+		slot := pinned.Workflows[execution.WorkflowRole].Inputs[name]
+		definitions = append(definitions, artifacts.MaterialInput{Name: name, Ref: material.Ref, Expected: &exact, MediaTypes: slot.MediaTypes, Set: slot.MaterialSet, Required: slot.Required})
+	}
+	inputDescriptions, err := i.artifacts.DescribeRunInputs(ctx, *execution.RunID, artifacts.MaterialAuthority{OwnerID: audit.OwnerID, ProjectID: audit.ProjectID, AuditID: audit.AuditID}, definitions)
+	if err != nil {
+		return nil, err
+	}
+	for index, member := range assignedMembers {
+		item := member.(map[string]any)
+		task := tasks[index].Document
+		if item["item_key"] != auditcontract.ExecutionItemKey(index) || item["task_id"] != task.TaskID || item["objective"] != task.Objective {
+			return invalid()
+		}
+		for _, raw := range item["evidence"].([]any) {
+			data, err := strictjson.Canonical(raw)
+			if err != nil {
+				return nil, err
+			}
+			var material auditcontract.Material
+			if strictjson.Decode(data, &material) == nil && material.ScopeKind == "audit" {
+				if _, ok := selectedTranslations[string(data)]; ok {
+					continue
+				}
+				return invalid()
+			}
+			if strictjson.Decode(data, &material) == nil && material.ScopeKind == "run" && material.ScopeID == *execution.RunID && material.Ref.Namespace == artifactpolicy.HTTPExchangeNamespace {
+				continue
+			}
+			if strictjson.Decode(data, &material) != nil || material.ScopeKind != "run" || material.ScopeID != *execution.RunID || material.Ref.Namespace != "inputs" {
+				return invalid()
+			}
+			original, exists := task.Inputs[material.Ref.Name]
+			description, found := inputDescriptions[material.Ref.Name]
+			if !exists || !found || contracts.MaterialKey(original) != contracts.MaterialKey(description.Source) {
+				return invalid()
+			}
+
+			translations[string(data)] = original
+		}
+	}
+	translate := func(items []any) bool {
+		for _, raw := range items {
+			item := raw.(map[string]any)
+			evidence := []any{}
+			seen := map[string]bool{}
+			for _, raw := range item["evidence"].([]any) {
+				data, err := strictjson.Canonical(raw)
+				if err != nil {
+					return false
+				}
+				material, exists := translations[string(data)]
+				if !exists {
+					return false
+				}
+				converted, err := strictjson.Canonical(material)
+				if err != nil {
+					return false
+				}
+				if !seen[string(converted)] {
+					seen[string(converted)] = true
+					evidence = append(evidence, material)
+				}
+			}
+			item["evidence"] = evidence
+		}
+		return true
+	}
+	if !translate(members) || !translate(resultValue["items"].([]any)) {
+		return invalid()
+	}
+	contextData, err := strictjson.Canonical(contextValue)
+	if err != nil {
+		return nil, err
+	}
+	resultData, err := strictjson.Canonical(resultValue)
+	if err != nil {
+		return nil, err
+	}
+	normalized, err := auditcontract.Decode(resultData, contextData)
+	if err != nil {
+		return invalid()
+	}
+	return normalized, nil
+}
+
+// Contract comes from the immutable resolved Workflow, never scanner labels or
+// an empty-output heuristic. Canonical scanner results cannot export reports.
+func canonicalScannerWorkflow(workflow resolved.ResolvedWorkflow) bool {
+	if len(workflow.Outputs) != 0 {
+		return false
+	}
+	for _, stage := range workflow.Stages {
+		if stage.Operation != nil && stage.Operation.Ref == contracts.PublishFindingsOperation {
+			return true
+		}
+	}
+	return false
+}

@@ -1,0 +1,12 @@
+/* Git provenance next to a selected Run input (GitSourceDetails). */
+.git-source-details {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  margin-block: var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.git-source-details code {
+  white-space: normal;
+}

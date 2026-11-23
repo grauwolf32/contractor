@@ -1,0 +1,211 @@
+package public
+
+import (
+	"bytes"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/configtest"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/runservice"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+)
+
+func TestRunRepeatDraftUsesOriginalInputSources(t *testing.T) {
+	fixture := newHandlerFixtureWithConfig(t, configtest.CopyWithPolicies(t, "../../../testdata/configs"))
+	user, _ := fixture.artifacts.User("user-1")
+	source, err := user.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "sources", Name: "service"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := []byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"eval","eval.id":"sample-1"},"parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"sources","name":"service"}}}`)
+	request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+	created := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(created, request)
+	if created.Code != http.StatusAccepted {
+		t.Fatalf("create Run = %d %s", created.Code, created.Body.String())
+	}
+	run := fixture.runs.runs["run_fixed"]
+	run.State = runstore.RunSucceeded
+	run.FinishedAt = timePointer(run.CreatedAt.Add(time.Minute))
+	fixture.runs.runs[run.RunID] = run
+
+	response := serveQuery(t, fixture.handler, "/v1/runs/run_fixed/repeat-draft")
+	var repeat runRepeatDraftResponse
+	decodeQueryResponse(t, response, &repeat)
+	if response.Code != http.StatusOK || repeat.Authority != repeatAuthorityOrdinary || repeat.Draft == nil {
+		t.Fatalf("repeat draft = status %d, %+v", response.Code, repeat)
+	}
+	assertRepeatDraftNotCached(t, response)
+	input := repeat.Draft.Inputs["source"]
+	if input.Status != repeatStatusAvailable || input.Artifact == nil || input.Metadata == nil ||
+		!input.Artifact.Equal(source.Ref) || !input.Metadata.Ref.Equal(source.Ref) || !input.Metadata.CanUploadNewVersion {
+		t.Fatalf("repeat input = %+v, source = %+v", input, source.Ref)
+	}
+	if !hasRepeatNotice(repeat.Notices, "evaluation_labels_require_review") {
+		t.Fatalf("repeat notices = %+v", repeat.Notices)
+	}
+
+}
+
+func TestRunRepeatDraftBlocksRetiredDefaultWorkflow(t *testing.T) {
+	fixture := newHandlerFixtureWithConfig(t, publicCatalogFixture)
+	run := queryRun("run-retired", "user-1", runstore.RunSucceeded, time.Now().UTC())
+	run.WorkflowName, run.WorkflowVersion = "artifact-copy", "1"
+	fixture.runs.runs[run.RunID] = run
+
+	response := serveQuery(t, fixture.handler, "/v1/runs/run-retired/repeat-draft")
+	var repeat runRepeatDraftResponse
+	decodeQueryResponse(t, response, &repeat)
+	if response.Code != http.StatusOK || repeat.Workflow.Name != "artifact-copy" || repeat.Workflow.Version != "1" {
+		t.Fatalf("retired identity was replaced: status %d, %+v", response.Code, repeat)
+	}
+	blocked := false
+	for _, notice := range repeat.Notices {
+		if notice.Code == "workflow_unavailable" && notice.Severity == "blocking" {
+			blocked = true
+		}
+	}
+	if !blocked {
+		t.Fatalf("Repeat did not block a retired Workflow: %+v", repeat)
+	}
+}
+
+func TestRunRepeatDraftPreservesAuditAuthorityAndTerminalBoundary(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	audit := queryRun("run-audit", "user-1", runstore.RunFailed, time.Now().UTC())
+	audit.PublicationMode = runstore.PublicationAuditManaged
+	audit.MetadataLabels = runstore.RunMetadataLabels{"audit.id": "audit-1", "audit.role": "check"}
+	projectID := "project-1"
+	audit.ProjectID = &projectID
+	fixture.runs.runs[audit.RunID] = audit
+
+	response := serveQuery(t, fixture.handler, "/v1/runs/run-audit/repeat-draft")
+	var repeat runRepeatDraftResponse
+	decodeQueryResponse(t, response, &repeat)
+	if response.Code != http.StatusOK || repeat.Authority != repeatAuthorityAudit || repeat.Draft != nil ||
+		repeat.AuditID == nil || *repeat.AuditID != "audit-1" || !hasRepeatNotice(repeat.Notices, "audit_managed_run") {
+		t.Fatalf("Audit repeat context = status %d, %+v", response.Code, repeat)
+	}
+	assertRepeatDraftNotCached(t, response)
+
+	active := queryRun("run-active", "user-1", runstore.RunRunning, time.Now().UTC())
+	fixture.runs.runs[active.RunID] = active
+	activeResponse := serveQuery(t, fixture.handler, "/v1/runs/run-active/repeat-draft")
+	if activeResponse.Code != http.StatusConflict {
+		t.Fatalf("active repeat draft = %d %s", activeResponse.Code, activeResponse.Body.String())
+	}
+	foreign := queryRun("run-foreign-repeat", "user-2", runstore.RunFailed, time.Now().UTC())
+	fixture.runs.runs[foreign.RunID] = foreign
+	foreignResponse := serveQuery(t, fixture.handler, "/v1/runs/run-foreign-repeat/repeat-draft")
+	if foreignResponse.Code != http.StatusNotFound {
+		t.Fatalf("foreign repeat draft = %d %s", foreignResponse.Code, foreignResponse.Body.String())
+	}
+}
+
+func TestRunRepeatDraftReportsChangedRuntimeBinding(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	run := queryRun("run-changed-binding", "user-1", runstore.RunCancelled, time.Now().UTC())
+	run.WorkflowSnapshot = repeatTestSnapshot(t, fixture)
+	owner, _ := fixture.artifacts.User(run.OwnerID)
+	source, err := owner.Write(t.Context(), contracts.ArtifactRef{Namespace: "sources", Name: "original"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifactstest.ForkInput(t.Context(), fixture.artifacts, run.OwnerID, source.Ref, run.RunID, "source"); err != nil {
+		t.Fatal(err)
+	}
+
+	run.PublicationMode = runstore.PublicationOrdinary
+	run.RuntimeConfig = runtimeconfigtest.BuiltInRunSnapshot()
+	fixture.runs.runs[run.RunID] = run
+	fixture.runtimeConfigs.mu.Lock()
+	binding := fixture.runtimeConfigs.bindings[runtimeconfig.DefaultLabel]
+	binding.Revision++
+	fixture.runtimeConfigs.bindings[runtimeconfig.DefaultLabel] = binding
+	fixture.runtimeConfigs.mu.Unlock()
+
+	response := serveQuery(t, fixture.handler, "/v1/runs/run-changed-binding/repeat-draft")
+	var repeat runRepeatDraftResponse
+	decodeQueryResponse(t, response, &repeat)
+	if response.Code != http.StatusOK || !hasRepeatNotice(repeat.Notices, "runtime_binding_changed") {
+		t.Fatalf("changed binding repeat draft = status %d, %+v", response.Code, repeat)
+	}
+}
+
+func TestRunRepeatDraftReportsUnavailableProjectContext(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	project, _, err := fixture.projects.Create(t.Context(), projectstore.CreateParams{
+		ProjectID: "project-repeat", OwnerID: "user-1", Kind: projectstore.KindProject,
+		Name: "Repeat", IdempotencyKey: "project-repeat", RequestDigest: "digest-repeat",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := queryRun("run-project-repeat", "user-1", runstore.RunFailed, time.Now().UTC())
+	run.PublicationMode = runstore.PublicationOrdinary
+	run.RuntimeConfig = runtimeconfigtest.BuiltInRunSnapshot()
+	run.ProjectID = &project.ProjectID
+	fixture.runs.runs[run.RunID] = run
+	if _, _, err := fixture.projects.BeginDeletion(t.Context(), projectstore.BeginDeletionParams{
+		ProjectID: project.ProjectID, OwnerID: run.OwnerID, ExpectedRevision: project.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	response := serveQuery(t, fixture.handler, "/v1/runs/"+run.RunID+"/repeat-draft")
+	var repeat runRepeatDraftResponse
+	decodeQueryResponse(t, response, &repeat)
+	if response.Code != http.StatusOK || !hasRepeatNotice(repeat.Notices, "project_deleting") {
+		t.Fatalf("deleting Project repeat draft = status %d, %+v", response.Code, repeat)
+	}
+
+	fixture.projects.mu.Lock()
+	delete(fixture.projects.projects, project.ProjectID)
+	fixture.projects.mu.Unlock()
+	response = serveQuery(t, fixture.handler, "/v1/runs/"+run.RunID+"/repeat-draft")
+	decodeQueryResponse(t, response, &repeat)
+	if response.Code != http.StatusOK || !hasRepeatNotice(repeat.Notices, "project_unavailable") {
+		t.Fatalf("missing Project repeat draft = status %d, %+v", response.Code, repeat)
+	}
+}
+
+func hasRepeatNotice(notices []runRepeatDraftNotice, code string) bool {
+	for _, notice := range notices {
+		if notice.Code == code {
+			return true
+		}
+	}
+	return false
+}
+
+// OpenAPI requires Cache-Control: no-store on every repeat-draft 200.
+func assertRepeatDraftNotCached(t *testing.T, response *httptest.ResponseRecorder) {
+	t.Helper()
+	if got := response.Header().Values("Cache-Control"); len(got) != 1 || got[0] != "no-store" {
+		t.Fatalf("repeat draft Cache-Control = %q, want no-store", got)
+	}
+}
+
+func timePointer(value time.Time) *time.Time { return &value }
+
+const (
+	repeatAuthorityOrdinary = runservice.RepeatAuthorityOrdinary
+	repeatAuthorityAudit    = runservice.RepeatAuthorityAudit
+	repeatStatusAvailable   = runservice.RepeatStatusAvailable
+	repeatStatusUnavailable = runservice.RepeatStatusUnavailable
+)
+
+func sameOptionalString(left, right *string) bool {
+	return left == nil && right == nil || left != nil && right != nil && *left == *right
+}

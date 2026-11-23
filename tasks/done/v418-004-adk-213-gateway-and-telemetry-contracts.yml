@@ -1,0 +1,200 @@
+schema_version: '1.0'
+id: V418-004
+title: Preserve Gateway and telemetry contracts across ADK 2.13
+milestone: adk-213-upgrade-2026-10
+epic: operations
+kind: chore
+priority: P1
+status: completed
+depends_on:
+- V418-002
+languages:
+- python
+- markdown
+goal: Keep model requests, accounting, error secrecy and Contractor telemetry stable despite changes in
+  ADK providers, callbacks and native OpenTelemetry conventions.
+context:
+  authority: 'User request on 2026-10-25: plan the ADK 2.13 upgrade with every identified compatibility
+    change, adjust the existing compaction series, and keep model consultation as a proposal. These pending
+    tasks do not start implementation or change the current delivery focus.'
+  review: tasks/evidence/v418-adk-213-review.json
+  verification_evidence: tasks/evidence/v418-adk-213-gateway-telemetry.json
+  specification:
+  - docs/spec/execution/worker.md#WRK-R159
+  - docs/spec/execution/worker.md#WRK-R166
+  - docs/spec/platform/observability.md#OBS-R23
+  - docs/spec/platform/observability.md#OBS-R24
+  - docs/spec/platform/observability.md#OBS-R53
+  - docs/spec/platform/security.md#SEC-R32
+  - docs/spec/tools/toolsets.md#TLS-R34
+  finding: ADK 2.13 defaults its native telemetry to GenAI v2/1.44 and removes call_llm. Contractor uses
+    a separate exporter and shared GenAI 1.41.1 contract, so an automatic public telemetry migration is
+    not justified. The native OpenAI adapter tolerates malformed tool JSON differently and does not replace
+    Contractor recovery/strict parsing. New callback ordering directly affects ContextVar correlation
+    and exactly-once metrics.
+  implementation_boundary: Preserve the owning Contractor contracts; update numbered specs, limits/error/failure/lifecycle
+    registries and affected implementations together when an explicit clarification is necessary. No ADK-version
+    branches, legacy readers, dual production runtimes, model replacement, silent retries, new receipt
+    store or speculative public API. Read current code and re-establish the dated evidence before implementation.
+  provenance: V42-001/530b0072a3d358d997755ad9330f19a126ea23f8 introduced the custom Gateway surface;
+    V8-011/9b684356774c679cce8762f7bef757744a4d79d0 owns OTLP/proto integration; V17-002 owns tool correlation.
+    Upstream native telemetry changes do not demonstrate an existing Contractor exporter failure.
+scope:
+  in:
+  - Locked custom BaseLlm/Gateway integration, function declarations, usage/reasoning semantics, telemetry
+    content isolation and dependency graph verification.
+  - Correct concrete regressions found by these contract tests without enabling optional upstream integrations.
+  out:
+  - Replacing OpenAICompatibleGatewayLlm with LiteLlm/OpenAILlm, enabling Model Armor or native ADK exporters,
+    adding model fallback or Consult.
+  - Changing Contractor public GenAI schema merely to match upstream defaults, or claiming native ADK
+    call_llm removal breaks dashboards without an actual consumer.
+acceptance_criteria:
+- id: A1
+  given: Exact locked dependency graph and actual custom Gateway adapter
+  when: Mock-Gateway construction and calls execute
+  then: Used BaseLlm capabilities, literal instructions and schemas work; optional provider SDKs remain
+    absent.
+- id: A2
+  given: Malformed, output-limited, reasoning-bearing and rejected responses
+  when: All model roles consume them
+  then: Strict failures and usage accounting match the spec, with no coerced tool execution or repeated
+    reasoning history.
+- id: A3
+  given: Retryable/permanent failures, recovery waits and cancellation
+  when: Gateway attempts terminate
+  then: Bounded retries and classified failures preserve ownership and erase request/credential references.
+- id: A4
+  given: Metadata-only and capture-enabled allocations, including sensitive tools
+  when: Actual OTLP serialization and new callback paths run
+  then: Serialized shared schema/whitelist is unchanged; metadata-only and sensitive allocations export
+    no model/tool/Skill/reasoning canaries, ordinary explicit capture exports permitted content, and every
+    mode excludes credentials/headers/private configuration.
+- id: A5
+  given: Parallel calls and all callback outcomes
+  when: Metrics and State are reconciled
+  then: Every attempt has one stable correlation and record; no cumulative usage double counting or arbitrary
+    tool-name key occurs.
+tests:
+- command: cd runtime && uv run --locked pytest -W error tests/test_dependency_smoke.py tests/test_openai_gateway_llm.py
+    tests/test_telemetry_content.py tests/test_shared_genai_telemetry.py tests/test_instrumentation.py
+    tests/test_metrics.py tests/test_sensitive_output_tools.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: go test -count=1 ./internal/telemetry/...
+  covers:
+  - A4
+  - A5
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A4
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+requirements:
+- id: R1
+  text: Keep the production custom BaseLlm object, explicit capabilities, literal instruction providers
+    and exact model selection. Main Worker remains tools without output_schema; the separate finalizer
+    remains tool-free. Real mock-Gateway payloads verify each role, required/nullable/default schemas,
+    allowed tool_choice and absence of injected context parameters.
+- id: R2
+  text: 'Test malformed/truncated JSON arguments, missing usage/choices, MAX_TOKENS, empty visible output,
+    reasoning and rejected responses through the actual adapter. Preserve the existing distinction: Contractor-owned
+    wire/result schemas are closed and strict, while the OpenAI-compatible provider envelope may contain
+    tolerated extension fields. Document current duplicate-key/tool-argument behavior rather than claiming
+    it already rejects duplicates; any newly desired duplicate-key rejection is a separately justified
+    contract change, not incidental migration. Never replace malformed-JSON recovery/error semantics with
+    native JSON-to-empty-dict repair.'
+- id: R3
+  text: Every spent response, including rejected ones, and every retry is accounted once under existing
+    rules. Preserve distinction between overlapping OpenAI reasoning/output token buckets and genuinely
+    disjoint provider buckets; missing counts stay unavailable. Previous reasoning is not silently replayed.
+- id: R4
+  text: Gateway request timeout, retry-after bounds, recovery/probe ownership, permanent/retryable classification
+    and cancellation remain unchanged. Exception chains/logs/State retain no credential, request body
+    or raw provider error. Test delayed/ambiguous response and cancellation with the existing recovery
+    client.
+- id: R5
+  text: Contractor exporter continues its existing shared GenAI 1.41.1 schema and whitelist; update neither
+    fixtures nor Go/Python readers without an explicit owning contract change. Test serialized OTLP messages,
+    not only in-memory span stubs; native ADK telemetry is not a second unreviewed export route.
+- id: R6
+  text: captureContent=false emits metadata only, and sensitive-output tools force allocation-wide metadata-only
+    even when true. Ordinary explicit captureContent=true intentionally exports permitted unredacted model/tool/Skill
+    content under OBS-R54; verify that positive path separately. Exercise new callbacks and exception
+    logging with canary credentials/configuration and content; prohibit credentials/headers/configuration
+    on every mode, prohibit model/tool/reasoning content on metadata-only surfaces, and admit only policy-authorized
+    content in the enabled path. No unreviewed exporter bypasses these boundaries.
+- id: R7
+  text: Concurrent tools retain correct ContextVar correlation and exactly-once call/error/token/observation
+    metrics for success, before rejection, cancellation, unknown tools and completed siblings. Keep domain
+    tool errors distinct from infrastructure exceptions.
+- id: R8
+  text: Fresh install and a real mock-Gateway invocation import no optional openai/litellm/anthropic SDKs.
+    Record dependency graph changes including google-genai/authlib, protobuf/OTel/Starlette compatibility.
+    Advisory audit has its own external prerequisites and is not silently substituted for deterministic
+    checks.
+test_prerequisites:
+- Commands below are future implementation acceptance gates, not checks already passed by this planning
+  change. A required command, selected case or dependency setup must not be skipped or match zero tests.
+- Run full suites of every touched package/module, in addition to focused regressions. Use real ADK dispatch
+  and controlled Gateway responses; persistence/process claims require disposable real PostgreSQL and
+  real Server/Runtime processes. Never read live configs from unit tests; use testdata and pseudo-Skills.
+- Use injected clocks, synchronization barriers, work/row/byte counters and bounded fixture sizes. Timing
+  samples are informational, never flaky wall-clock pass thresholds. Keep configured live models unchanged;
+  no live Gateway is part of these deterministic tasks.
+- Use the repository lock for acceptance, except the explicitly isolated candidate characterization in
+  V418-001. Preserve unrelated user changes. Record the tested revision, lock digest, command, executed
+  case count, skips and outcome. The 326-case exploratory run is not a substitute for make test-runtime
+  or a release gate.
+failure_outcomes:
+- operation: Runtime operation at the changed boundary
+  permanent: Strict invalid input or unsupported SDK behavior fails with the owning classified outcome;
+    no permissive fallback or endless retry. A required verification failure blocks completion.
+  retryable: Reuse the existing bounded transport/recovery or cleanup policy only; no SDK upgrade-specific
+    retry loop or rerun-until-green.
+  ambiguous: Reconcile existing receipts, trusted observations and the same operation identity. Test evidence
+    preserves the original uncertain outcome; never repeat an external append or side effect blindly.
+  cancelled: The existing invocation/allocation or fixture owner cancels and joins all work before cleanup;
+    no later dispatch or unowned callback may outlive release.
+  timeout: Execution deadline, per-request timeout, cleanup timeout and harness timeout remain distinct;
+    injected expiration cannot start a new admitted attempt.
+cardinality:
+- collection: Calls, event history, retained State/metrics and fixture cases
+  expected: Several sequential logical invocations, parallel tool batches and multiple internal Runner
+    turns; scale task adds long histories.
+  maximum: Existing owning model/tool/subtask/State/Skill byte and item ceilings; V418-006 must inventory
+    the containing limits before choosing maximum fixtures.
+  bound: Work follows admitted finite inputs and retained history; no unbounded full-catalog scan, private-history
+    copy or unrestricted per-callback rescan. Verify bytes/items/work counters, not only input length.
+lifecycle:
+- entity: Existing allocation-local sessions, clients, tools, callbacks and test evidence
+  delete: Existing invocation/allocation owner or isolated test harness owns teardown; never touch another
+    allocation or user database.
+  cascade: Join generators, tools, clients and serializers before deleting session/workspace state. Preserve
+    required publication receipts through their existing owner.
+  retention: No new durable runtime entity. Keep only bounded safe test evidence and ordinary published
+    results under existing retention policies.
+verification:
+  focused: Required and adjacent Runtime modules201plus312pass;20newrealHTTP/serializedOTLPcases pass.
+    Go telemetry49top-level pass,1explicitoptionalCollector skip; wire271fixtures326Go224Pythonshared functions pass.
+  aggregate: Common native Linux make test-runtime and report verifier pass4984,55unchanged allowed skips,
+    zero failures; all20newGatewaycases executed. Full make lint passes; exact hashes and a scoped existing
+    nullable-property limitation are recorded in linked evidence. No native exporter or optional provider enabled.
+implementation_commit: 6ae73cb26dd391d9cd1645f97a1121c905106f66

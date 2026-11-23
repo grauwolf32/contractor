@@ -1,0 +1,40 @@
+package auditservice
+
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+)
+
+// The same wire cases are checked against the OpenAPI request union in public.
+func TestSharedFindingDecisionPublicContractCases(t *testing.T) {
+	data := contractstest.ReadFile(t, "api", "testdata", "public", "finding-decision-cases.json")
+	var cases []struct {
+		Name    string `json:"name"`
+		Valid   bool   `json:"valid"`
+		Request struct {
+			Verdict           auditstore.AnalystVerdict   `json:"verdict"`
+			Severity          *auditstore.FindingSeverity `json:"severity"`
+			Rationale         string                      `json:"rationale"`
+			DuplicateTargetID *string                     `json:"duplicateTargetId"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal(data, &cases); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			err := validateProjectFindingEdit(ProjectFindingEditParams{ProjectFindingEdit: auditstore.ProjectFindingEdit{
+				OwnerID: "user-1", ProjectID: "project-1", FindingID: "finding-1", ExpectedRevision: 1,
+				Verdict: tc.Request.Verdict, Severity: tc.Request.Severity,
+				Rationale: tc.Request.Rationale, DuplicateTargetID: tc.Request.DuplicateTargetID}, IdempotencyKey: "decision-test", RequestDigest: "sha256:" + strings.Repeat("a", 64),
+			})
+			if (err == nil) != tc.Valid {
+				t.Fatalf("decision validity = %v, want %v: %v", err == nil, tc.Valid, err)
+			}
+		})
+	}
+}

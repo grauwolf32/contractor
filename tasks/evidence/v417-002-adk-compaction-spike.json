@@ -1,0 +1,131 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-26",
+  "source_revision": "8f875adcac145f2d71ac3015de9a05d345a42cb6",
+  "production_changes": false,
+  "scope": "Deterministic test-local SDK/session/Gateway proof; no live model, production compact@1, process A2A or final release claim.",
+  "task": "V417-002",
+  "decision": "tasks/evidence/v417-002-adk-compaction-spike.md",
+  "adapter": "Public BeforeModel request projection with exact source IDs/ordinals; native automatic/token/post-invocation compaction and resumability disabled.",
+  "versions": {
+    "python_darwin": "3.13.16",
+    "python_linux": "3.13.5",
+    "google-adk": "2.13.0"
+  },
+  "source_sha256": {
+    "runtime/tests/test_compaction_spike.py": "920d93feef7e61dbf2e3ba23de2196914b29c23f0810c0c4bf454bafda4251da",
+    "runtime/uv.lock": "feb5a55a9097fc6224384a99b7c506467196ab87435ba3a83ac0a230023bb027",
+    "runtime/pyproject.toml": "940c33c1cadddcacde6e33568106964357c04fd18ec9999692cfaea30e5f2e7f"
+  },
+  "locked_dependency_acceptance": "tasks/evidence/v418-final-migration-acceptance.json",
+  "commands": [
+    {
+      "command": "make test-runtime",
+      "platform": "linux/arm64",
+      "exit_code": 0,
+      "total": 5170,
+      "passed": 5115,
+      "failed": 0,
+      "skipped": 55,
+      "skip_reasons": {
+        "launched by make test-audit-completion-e2e with a real Go Artifact API": 1,
+        "run make test-interactsh-protocol for the pinned upstream server": 1,
+        "live LLM Gateway environment is not configured": 3,
+        "Vacuum executable is unavailable": 2,
+        "explicit real-rootless startup capability gate": 2,
+        "explicit real-rootless deployment/workflow gate": 1,
+        "explicit real-rootless command execution gate": 12,
+        "explicit real-rootless owner-process gate": 3,
+        "explicit real Podman release gate": 5,
+        "explicit real gate: make test-podman-supervisor": 11,
+        "optional ffuf binary is absent": 3,
+        "optional Katana binary is absent": 5,
+        "optional sqlmap binary is absent": 3,
+        "optional nuclei binary is absent": 3
+      },
+      "sha256": "7643a628ede5d61f0ee9dbfda2ee70a2caff6f310ddcdb984036c13e0f76053e",
+      "new_spike_cases": 32,
+      "new_spike_failures": 0,
+      "new_spike_skips": 0,
+      "skip_policy": "All 55 skips are existing explicit opt-in process/live/native gates; release_test_reports.py verify-runtime also returned 0.",
+      "log_sha256": "14923cc2cd8cc23efdb4c6ad3fa314b9554ac535ffcef448fe478c5010a05b49"
+    },
+    {
+      "command": "runtime/.venv/bin/python -m pytest -q runtime/tests/test_compaction_spike.py",
+      "platform": "darwin/arm64",
+      "exit_code": 0,
+      "passed": 32,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "log_sha256": "2e49ff3e0075930f08888dd2c56c27125b2145d328db1dc2b0460256dd590915"
+    }
+  ],
+  "first_full_host_attempt": {
+    "command": "make test-runtime",
+    "platform": "darwin/arm64",
+    "exit_code": 2,
+    "total": 5170,
+    "passed": 5026,
+    "failed": 105,
+    "skipped": 39,
+    "skip_reasons": {
+      "launched by make test-audit-completion-e2e with a real Go Artifact API": 1,
+      "run make test-interactsh-protocol for the pinned upstream server": 1,
+      "live LLM Gateway environment is not configured": 3,
+      "explicit real-rootless startup capability gate": 2,
+      "explicit real-rootless deployment/workflow gate": 1,
+      "explicit real-rootless command execution gate": 12,
+      "explicit real-rootless owner-process gate": 3,
+      "explicit real Podman release gate": 5,
+      "explicit real gate: make test-podman-supervisor": 11
+    },
+    "sha256": "97709942fcde37c0bd21b43d8132a1eca9e3f6b83164224687fe6cdeb24bc34a",
+    "disposition": "Native SOCK_SEQPACKET, Linux projectfs and address-space prerequisite differences. Reproduced SOCK_SEQPACKET Errno43 in an isolated existing Podman fixture; used a fresh owned source directory/locked venv on Linux. This failed host run is not counted as acceptance."
+  },
+  "source_capture": {
+    "manifest_sha256": "b7de2085b5bae8147e741b51f14e6235c80278bec5af6e9c1189e48ceeecf540",
+    "archive_sha256": "0defa403966b14cfe3da3a5af9b294e0b4abf25f8a2b7cfcfb167b4e43a872a8",
+    "source_files": 6080,
+    "new_test_sha256_matches_current": true,
+    "isolation": "Fresh directory and venv in the existing Linux test container; existing /work sources and environments unchanged."
+  },
+  "properties": {
+    "logical_invocations": 1,
+    "sdk_turns": 3,
+    "accepted_checkpoints": 2,
+    "main_calls": 5,
+    "compactor_calls": 2,
+    "tool_effects": 8,
+    "charged_tokens": 126,
+    "state_begin": 1,
+    "state_complete": 1,
+    "maximum_recent_group_fixture": 16
+  },
+  "case_groups": {
+    "actual_gateway_and_owners": 1,
+    "native_inclusive_range_failures": 5,
+    "unsafe_groups_and_max_tail": 10,
+    "precommit_output_append_rejections": 11,
+    "postcommit_ineffective_response": 1,
+    "joined_cancellation_transitions": 3,
+    "id_alone_not_idempotent": 1
+  },
+  "reversal_condition": "SDK/lock, callback timing, grouping, session-copy/append semantics or unsupported scope changes require rerunning the public adapter proof.",
+  "frozen_source_lint": {
+    "command": "make lint",
+    "exit_code": 0,
+    "log_sha256": "2e49ff3e0075930f08888dd2c56c27125b2145d328db1dc2b0460256dd590915",
+    "note": "Full mandatory gate after all test-code changes; no production/dependency changes."
+  },
+  "delivery": {
+    "branch": "codex/compaction-spikes",
+    "merged_to_main": false,
+    "pushed": false,
+    "deployment": false,
+    "main_claim_commit": "9d46711d56e41a30043f86e1f7b76a0c943cfc36"
+  }
+}

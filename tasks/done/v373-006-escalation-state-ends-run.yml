@@ -1,0 +1,115 @@
+schema_version: "1.0"
+id: V373-006
+title: "End a Run whose escalation history is invalid instead of retrying it forever"
+milestone: hub-audit-defects-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V3-008
+priority: P2
+status: completed
+implementation_commit: "d0a719b059d1bafa3c38f119c1bfef2eaefcbe67"
+depends_on: []
+languages: [go, markdown]
+goal: "A Stage progression that meets durable state the Scheduler cannot progress, such as an invalid escalation history or an unbounded Transition policy, ends the Run once through FAIL-SCH-13 instead of failing the same commit on every Scheduler pass; transient store errors stay retryable."
+context:
+  review: "Out-of-scope finding of V372-017 (merged in 120c353), verified on aabaa49"
+  specification: "docs/spec/execution/scheduler.md#SCH-R102"
+  severity: medium
+  finding: >-
+    escalationAttempts (internal/scheduler/stage_finalization.go:381)
+    validates the persisted escalation history and returns plain errors for
+    an invalid ordinal, invalid manual-continuation lineage, a duplicate
+    ordinal and a non-contiguous ordinal (around :400-:430). buildProgression
+    (:241) returns them, and so do its other durable-state checks ("retry
+    Transition has no bounded policy", "escalate Transition has no bounded
+    policy or outcome identity", selectStage errors). Its callers
+    finalizeResult (stage_finalization.go:198) and the termination
+    progression (stage_termination.go:194) return the error, the Run keeps
+    its finalizing or aborting Stage, and every Scheduler pass repeats the
+    same failing progression: the endless-retry class of V280 that V372-017
+    fixed for output mappings.
+  siblings: >-
+    Every deterministic durable-state error that buildProgression and the
+    resume paths return must go to FAIL-SCH-13 or be ruled out with
+    evidence; store errors (transient database failures, ErrConflict,
+    ErrQueuePaused) keep their current handling. Reuse or generalise the
+    errOutputStateInvalid sentinel that V372-017 added rather than adding a
+    parallel mechanism.
+  implementation: >-
+    Re-verified on da97b32, where buildProgression is at
+    internal/scheduler/stage_finalization.go:254 and resumeFinalizing is the
+    finalizing caller (finalizeResult does not exist). V3-008 (5cc0246b,
+    feat(scheduler): execute bounded escalation) added escalationAttempts
+    and the escalate policy check with plain errors although
+    failInvalidRunState already existed, hence introduced_by. A PostgreSQL
+    probe on the unfixed code ran three passes over each Stage: every pass
+    returned "persisted escalation attempts have a non-contiguous ordinal",
+    read the Stage history again (1, 2, 3 reads) and left the Run running
+    with its finalizing or aborting Stage. The sentinel errOutputStateInvalid
+    is generalised and renamed to errInvalidRunState
+    (internal/scheduler/types.go), "durable state the Scheduler cannot
+    progress" (SCH-R102); V372-017's output checks keep it unchanged, and
+    any code that still names errOutputStateInvalid must use the new name.
+    buildProgression and escalationAttempts wrap every check of durable
+    state with it; resumeFinalizing already ended the Run on the sentinel,
+    and resumeAborting (stage_termination.go) now does the same, so
+    FailRunWithActiveStages accepts the finalizing candidate or commits the
+    aborting Stage's stored termination without a transition decision. Store
+    errors stay ordinary errors. FAIL-SCH-10 in
+    docs/spec/platform/failure-model.md now states the permanent and
+    retryable outcomes of the progression; SCH-R102 and FAIL-SCH-13
+    enumerate no causes and are unchanged. Tests:
+    TestPostgresInvalidEscalationHistoryEndsRunOnce (finalizing and
+    aborting) stores an escalation numbered 2 without a first one through a
+    corrupt escalate decision; before the fix its first pass returned the
+    non-contiguous error and the Run stayed running, after it the first pass
+    ends the Run failed as scheduler_state_invalid, the second pass claims
+    nothing and the history was read once.
+    TestPostgresTransientEscalationHistoryReadIsRetried (finalizing and
+    aborting) fails the history read once with a deadlock SQLSTATE: the Run
+    keeps its Stage and the next pass escalates it with ordinal 1. It is a
+    pure guard: it passed before the fix, and failed when escalationAttempts
+    was temporarily made to classify its read error (the Run ended on the
+    first pass), a mutation that was reverted.
+    TestEscalationHistoryOnlyCountsValidatedAutomaticRoots now requires the
+    sentinel for every corrupt history, and the new
+    TestBuildProgressionClassifiesUnprogressableTransitions pins each
+    Transition check and a store failure that stays unclassified; both
+    failed before the fix except for that store-failure guard, which the
+    same mutation made fail.
+  classified:
+    - "buildProgression (stage_finalization.go:261): a retry Transition without a policy (:276); an escalate Transition without a policy or with a variant other than failed or interrupted escalation (:287); an escalate selection without a next ordinal, which only an escalate then action could reach (:330); an unknown Transition action (:386); and the Stage lookups of the retry, escalate and next targets in the pinned snapshot (:313, :334, :356). Each reads only the pinned Workflow snapshot or the persisted Stage name. A decoded snapshot passes ValidateWorkflowGraph (CAT-R78), so the catalog cannot produce one of them; the classification keeps a snapshot that slips past it from looping."
+    - "escalationAttempts (stage_finalization.go:396): an invalid ordinal (:417), a manual continuation whose lineage does not repeat its source (:429), a duplicate ordinal (:439) and ordinals that are not contiguous (:449). PostgreSQL refuses the first three on write (CHECK stage_execution_config_variant_shape, the trigger contractor_validate_manual_stage_execution with CHECK stage_execution_resume_previous, the unique index stage_execution_escalation_ordinal_unique); a gap is accepted by the store, which is how the PostgreSQL test stores it."
+    - "resumeAborting (stage_termination.go:210) ends the Run on errInvalidRunState as resumeFinalizing (stage_finalization.go:211) does."
+  ruled_out:
+    - "The Stage history read of escalationAttempts (stage_finalization.go:402) is a store read: a transient database failure or a cancelled context keeps its handling, pinned by TestPostgresTransientEscalationHistoryReadIsRetried and the unreadable-history case of the unit test. Its scan of a stored row cannot fail deterministically: it applies the checks that the store applied when it wrote the same immutable fields (runstore/stage_scan.go)."
+    - "buildStageCreation (stage_preparation.go): the ID generator failure (:47) says nothing about the Run. The StageContext resolve (:68) is an ArtifactStore read whose transient failures are retryable; its deterministic refusals cannot occur, because catalog load validates every context artifact namespace and name (internal/config/workflow.go:328-331), the Run's Workflow snapshot is immutable (trigger on workflow_runs) and the Run ID was validated at creation. The another-binding check (:71) compares the store's answer with its request, which ArtifactServiceResolver.Resolve reads by exactly that ref. The configuration checks (:87, :92, :96) are invariants of the two callers, which pass the base configuration without escalation data or the escalation variant with its next ordinal and pinned effective configuration. stageSnapshot (workflow.go:153) re-encodes a Stage decoded from the snapshot."
+    - "The validation before the progression transaction (postgres.go:373-483): the Run and Stage IDs come from stored rows; the candidate re-validation repeats the Validate that store.EnterFinalizing applied before the candidate became durable, and the candidate is immutable (trigger contractor_protect_stage_execution_immutable); validateProgression and validateNextStagePins check the shape that buildProgression builds by construction. The Workflow output checks there are V372-017's and carry the sentinel."
+    - "Errors inside the progression transaction: ErrConflict (a Run or Stage that changed state or a replayed decision; both resume paths re-read cancellation), ErrQueuePaused (deferral), errTransientOutputPublication (counted, PRJ-R58) and transient database failures keep their handling. ErrNotFound needs a deleted Run or Stage, which rundeletion refuses for a Run that is not terminal (run_not_terminal), and the FAIL-SCH-13 transaction could not end such a Run either. runstore.ErrInvalid from CompleteStageResult, CreateStageExecution, RecordStageTransitionDecision and TransitionRun repeats checks that the pre-transaction validation or the construction already passed; the only transition the lifecycle table refuses there, pending to succeeded, cannot occur because a finalizing Stage's Run was admitted (AdmitStage moves it to running) and EnterFinalizingWithResult requires running or waiting. The stored-state check of LockRunState (runstore/lock_store.go:33) and the publication-mode check (postgres.go:593) are guarded by CHECK constraints and the immutability trigger, and the frozen-output check (:619) follows freezeOutputs in the same transaction."
+    - "The cancellation commits AcceptResultDuringCancellation and CommitTerminationAndFinishRun apply no progression (SCH-R76); their candidate re-validation (postgres.go:258-261) is ruled out as above and their store errors keep their handling."
+    - "The resume paths' own checks, an incomplete finalizing or aborting StageExecution, already end the Run through FAIL-SCH-13; their GetRunState reads are store reads."
+failure_outcomes:
+  - operation: "Deciding and committing the progression of a finalizing or aborting Stage (buildProgression, CommitResultProgression, CommitTerminationProgression)"
+    permanent: "A check of durable state fails, such as an escalation history whose ordinals are missing, duplicated or not contiguous, a manual continuation that does not repeat its source, or a Transition the pinned Workflow does not declare completely: errInvalidRunState ends the Run once through FAIL-SCH-13 with scheduler_state_invalid; the finalizing Stage accepts its candidate and the aborting Stage commits its stored termination, both without a transition decision, and the next pass has nothing to claim."
+    retryable: "A transient database failure, including one while reading the escalation history, commits nothing: the Run keeps its finalizing or aborting Stage and the next pass decides the progression again."
+    ambiguous: "Unchanged: the progression is one transaction (FAIL-SCH-10), so recovery observes the old active source or the committed progression; the FAIL-SCH-13 ending is one transaction as well."
+    cancelled: "A cancellation committed before the FAIL-SCH-13 transaction makes it end the Run cancelled (SCH-R102); one committed before the progression takes the cancellation path, which evaluates no Transition (SCH-R76)."
+    timeout: "Unchanged: the Scheduler's terminal operation budget owns the history read and the commit, and its expiry is a retryable error."
+scope:
+  in:
+    - "Classify the durable-state errors of buildProgression, including escalationAttempts, so finalization and termination end the Run through failInvalidRunState."
+    - "PostgreSQL regression tests: a finalizing and an aborting Stage whose escalation history is invalid end the Run once with scheduler_state_invalid and a second Scheduler pass does not retry; a transient store error during the same read stays retryable; each test fails on the unfixed code where it guards behaviour."
+  out:
+    - "The escalation budget rules themselves."
+acceptance_criteria:
+  - id: A1
+    text: "Given a finalizing or aborting Stage whose persisted escalation history is invalid, when the Scheduler progresses it, then the Run ends once through FAIL-SCH-13 and is not retried."
+  - id: A2
+    text: "Transient store errors on the same path remain retryable."
+  - id: A3
+    text: "The regression tests fail on the unfixed code."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/scheduler/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

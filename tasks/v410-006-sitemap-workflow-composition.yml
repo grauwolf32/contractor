@@ -1,0 +1,264 @@
+schema_version: '1.0'
+id: V410-006
+title: Ship standalone sitemap discovery and reconciliation Workflows
+milestone: project-sitemap-2026-10
+epic: workflows
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V410-003
+- V410-004
+- V410-005
+- V55-003
+- V62-004
+languages:
+- go
+- python
+- yaml
+- markdown
+goal: A Project owner can run discovery and exact OpenAPI reconciliation as ordinary standalone Workflow
+  Runs, inspect the shared sitemap and pass a selected exact snapshot to another Run without creating
+  an Audit or waiting for its redesign.
+context:
+  authority: User decisions on 2026-10-24 and 2026-10-28 establish independent HTTP/OpenAPI sitemap delivery,
+    shared metadata for every permitted reader and snapshot-only original-file retention. On 2026-10-31
+    the user requested sitemap work in parallel with the Audit redesign and explicitly asked to rewrite
+    the tasks. Standalone Workflows and their release gate are V410-006/007; V410-025 owns the Audit-dependent
+    integration. On 2026-11-03 the user chose shared scan tools for ffuf/Katana/Nuclei without a new
+    discovery toolset, requested a transport-versus-report sitemap experiment before removing sources,
+    and explicitly declined a required single/shared allocation guarantee. This update changes planning,
+    not implementation.
+  proposal: docs/proposals/0042-live-project-sitemap.md
+  proposal_sections: 'Sections 1-2, 5-6 and 12: independent HTTP/OpenAPI Workflows and exact artifacts.'
+  specification:
+  - docs/spec/artifacts/project-sitemap.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/artifacts/projects.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/configuration/workflows.md
+  - docs/spec/configuration/agent-templates.md
+  - docs/spec/configuration/catalog.md
+  boundary: SMT owns map identity, grouping, imports, snapshots and deterministic OpenAPI reconciliation.
+    ArtifactStore owns exact input/output publication and retention; ordinary Workflow/Run execution owns
+    sequencing. The live Project map is research context, not coverage or proof. All prerequisites here
+    are completed foundations; no pending Audit task is a prerequisite.
+  source_comparison_direction: >-
+    User decisions on 2026-11-03: combine ffuf, Katana and Nuclei through existing scan@1 tools without
+    a separate discovery toolset; HTTP limit values belong to engagement, but delivery need not guarantee
+    one particular/shared allocation or add aggregate accounting. Proposal 0052 and optional V410-026
+    compare transport observations with scanner-report filtering, including wildcard 200/soft-404,
+    before any source is removed. That experiment and missing scanner transport adapters are not new
+    prerequisites of this standalone catalog slice; keep current supported paths and truthful capability
+    closure. No existing Nuclei sitemap report importer is assumed.
+  code:
+  - configs/workflows
+  - configs/agent-templates
+  - internal/config
+  - internal/projectsitemap
+  - tests/e2e
+  - docs/guides
+  parallel_delivery: The Audit design-review gate does not apply to this standalone slice. Select this
+    pending task under ordinary execution policy after its completed prerequisites, on a separate branch/worktree.
+    V410-025 owns later Audit bindings. This planning update starts no code, migrations, live Runs or
+    deployment.
+scope:
+  in:
+  - Ship ordinary standalone discovery and explicit OpenAPI source-import/reconciliation Workflows using
+    existing tools, passthrough/tool Workers and exact declared inputs/outputs.
+  - Provide Project Run examples for HTTP-only discovery and exact OpenAPI/report import, including a
+    useful flow without any selected schema.
+  - Demonstrate exact snapshot handoff between ordinary Runs through existing Artifact input/publication
+    operations, preserving source revision and required original-input retention.
+  - Keep HTTP ingestion on the current grouping policy; reconciliation is explicitly selected, not launched
+    as a Workflow for each HTTP observation.
+  - Validate the shipped catalog separately from testdata fixtures and document source-format limitations
+    and technical publication failures without a collection-status surface.
+  out:
+  - Audit task dependencies, Audit workspace/Project publication changes, profiles and prepare/same-round
+    composition; V410-025 owns those bindings.
+  - Hypothesis/finding redesign, pentest program release, browser or incremental Caido history requirements,
+    generated OpenAPI prerequisites and full HTTP capture.
+  - Heuristic grouping, automatic target execution during import, new semantic stage kinds, Scheduler/completion
+    policy changes or generic ArtifactStore scope/retention refactoring.
+requirements:
+- id: R1
+  text: Each Workflow has exact declared inputs/outputs, capability closure and a real standalone caller.
+    Reconciliation reuses the existing SMT-owned deterministic Server operation through the actual supported
+    Workflow path, without an LLM, duplicate parser or full-map completion envelope. A concrete missing
+    common execution capability gets a separately tracked prerequisite; do not grow an execution subsystem
+    here.
+- id: R2
+  text: HTTP-only discovery runs without an Audit, OpenAPI, browser or incremental Caido history. Optional
+    capabilities are explicitly selected and create no generic completeness flags. Keep the Project-configured
+    model for any model-backed discovery.
+- id: R3
+  text: Exact selected inputs/outputs use existing Run creation/publication operations and obtain real
+    holds atomically against eviction or fail unavailable. Live reads use bounded allocation-owned immutable
+    views; replacing/releasing a view expires its cursors. Never substitute latest for a selected revision.
+    Owner-selected ordinary inputs and permitted dedicated readers expose the shared map; snapshotInputs
+    retains only required permitted original files inside its transaction. Cached pages recheck current
+    operation permission without resolving source files.
+- id: R4
+  text: Catalog identity follows the current pre-production rules; validate actual shipped configurations
+    explicitly, while ordinary tests use testdata and never read live configs.
+- id: R5
+  text: Automatic HTTP/scanner sitemap publication is best effort and cannot fail the Run. A deliberately
+    requested snapshot/import/reconciliation artifact uses ordinary required-input/output validation and
+    reports its own operation failure; no extra collection completion check is introduced.
+- id: R6
+  text: 'Preserve snapshotInputs failure semantics: a referenced file without a matching permitted original
+    input creates the existing gap or fails requireReferencedInputs. Missing/corrupt resolved bytes or
+    storage I/O rolls back the snapshot regardless of that flag. Provenance alone grants neither byte
+    access nor an implicit hold.'
+failure_outcomes:
+- operation: Workflow input selection, model-free execution and output publication
+  permanent: Unknown/missing required input, capability or tool/output contract fails at existing validation/prepare/result
+    boundaries; unsupported source policy is not guessed. Evicted exact inputs remain unavailable; protected-history
+    capacity conflicts and generic Artifact admission rejection do not automatically retry.
+  retryable: Use existing bounded Run/operation policies with exact held inputs. HTTP retry is owned by
+    HTP-R139; publication recovery only retries the original publication and never redispatches discovery
+    or resends possibly sent traffic.
+  ambiguous: Reconcile existing output/Artifact receipts and source-generation intent; never repeat discovery
+    target calls to recover a lost output acknowledgement. Receipt replay after eviction confirms the
+    old commit without republishing; it does not make evicted exact bytes available.
+  cancelled: Existing Scheduler cancellation joins allocations and sitemap publishers before release.
+  timeout: Ordinary Run/operation deadlines own execution, separately from collector drain and exact-output
+    publication allowances.
+- operation: Select a snapshot and pass its exact revision to a later ordinary Run
+  permanent: Unauthorized selection, missing/corrupt resolved original input, invalid source precondition
+    or lost eviction race returns the existing owning error. Snapshot and required forks commit atomically
+    or roll back; no latest substitution.
+  retryable: Use existing bounded Artifact/SMT conflict and eviction-backpressure retries with the original
+    key and exact source revision.
+  ambiguous: Recover the accepted snapshot/publication through existing receipts and Artifact refs; never
+    issue target requests or republish evicted content to reconstruct an acknowledgement.
+  cancelled: Ordinary allocation fencing joins materialization/publication and prevents late writes before
+    cleanup.
+  timeout: Existing snapshot/publication operation deadlines apply; no controller clock or lease is added.
+cardinality:
+- collection: Ordinary Run inputs, selected map context and declared outputs
+  expected: One exact map snapshot plus optional exact schema/report inputs and declared results
+  maximum: Existing Workflow/Run input-output and Artifact byte bounds plus SMT map/member/view limits;
+    snapshotInputs remains at most eight names
+  bound: Use paged readers and bounded selected projections with containing-Run-independent original-input
+    resolution; never hydrate all Project artifacts or fan out a Workflow per observation.
+- collection: Discovery requests/import work and reconciliations
+  expected: Bounded discovery Run and one reconciliation per selected boundary
+  maximum: Explicit Workflow request/time/depth, bounded collection operations and generic Artifact admission/retention
+    limits
+  bound: Discovery/import bounds and the shared publisher limit work. No per-request Workflow, custom
+    Run publication quota or collection lifecycle is added.
+lifecycle:
+- entity: Ordinary Run context snapshots, selected inputs/outputs and shared Project map
+  delete: Existing Run/Project deletion and Artifact owners retain authority; introduce no entity or scope.
+  cascade: Producer Run deletion leaves committed Project metadata and context protected by accepted consumer
+    holds intact.
+  retention: Exact accepted inputs/outputs use existing real holds. Live views, metadata references and
+    receipts alone do not pin history. Later map changes never rewrite already selected inputs.
+acceptance_criteria:
+- id: A1
+  given: A Project and local HTTP target without an Audit, OpenAPI, browser or Caido history
+  when: The shipped first-slice discovery Workflow runs
+  then: With healthy storage it contributes useful bounded shared metadata. With failed automatic publication,
+    HTTP/scanner results and ordinary Run outcomes remain valid; no collection state or generic completeness
+    flag appears.
+- id: A2
+  given: An exact OpenAPI/map pair and the shipped reconciliation Workflow
+  when: The actual supported ordinary Workflow execution path invokes deterministic reconciliation without
+    requiring an LLM
+  then: The existing SMT operation materializes only declared outputs and any explicit guarded publication
+    records its actual revision; no Audit or duplicate domain algorithm is involved.
+- id: A3
+  given: An exact snapshot selected after the first ordinary Run, with concurrent live-map changes and
+    eviction
+  when: A second ordinary Run consumes the selected context
+  then: The exact revision and required holds remain valid or selection fails unavailable, never substituting
+    latest. Permitted readers share metadata, snapshotInputs enforces original-file authority, unavailable
+    references create the defined gap and corrupt/missing resolved bytes or storage I/O rolls back regardless
+    of requireReferencedInputs.
+- id: A4
+  given: Invalid input, quota/source conflict, cancellation and lost output/publication replies
+  when: The production composition hits each boundary
+  then: Existing accepted map/data survive, stable outcomes are retained and retries never resend target
+    work to recover publication.
+- id: A5
+  given: Shipped catalog and separate testdata fixtures
+  when: Configuration and composition gates run
+  then: All closures resolve, tests do not read live configs and the standalone path passes without Audit
+    profiles, pending Audit dependencies or paid/live model calls.
+deliverables:
+- path: configs/workflows
+  description: Standalone discovery and deterministic sitemap/OpenAPI reconciliation Workflows, templates
+    and exact input/output contracts.
+- path: docs/guides
+  description: Project Run examples for discovery, exact snapshot handoff and standalone reconciliation,
+    with explicit failure/retention behavior.
+- path: tests/e2e
+  description: Local standalone process fixtures/cases registered in the existing sitemap tools gate,
+    independently runnable from Audit composition.
+tests:
+- command: make test-config
+  covers:
+  - A1
+  - A2
+  - A5
+- command: make test-project-sitemap-tools-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-project-sitemap-postgres
+  covers:
+  - A3
+  - A4
+- command: go test -count=1 ./internal/config/... ./internal/projectsitemap/...
+  covers:
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+test_prerequisites:
+- Use actual Server/Runtime/disposable PostgreSQL and local target/provider fixtures. Missing infrastructure,
+  mandatory skips and zero selected cases fail. Scripted model responses may drive discovery; no paid/live
+  model is required.
+- Extend the existing sitemap tools process gate for the declared standalone catalog fixtures. This adds
+  no second case registry and claims no evidence before implementation.
+- Run full touched-package suites and validate the shipped catalog separately. New/migrated Audit fixtures
+  and selectors belong to V410-025.
+execution:
+  released_on: '2026-10-26'
+  previous_branch: codex/v410-sitemap
+  note: Returned to pending at the user's request to finish V410-002 and pause. Implementation of this
+    task has not started; the prior batch reservation is released.
+implementation_decisions:
+- date: 2026-10-26
+  decision: 'Superseded by the 2026-10-27 review: Required sitemap persistence is checked by deterministic
+    completion code at the declared boundary, outside the model-visible HTTP result. Run owners receive
+    collection status; a failed final required report is an execution failure and never relabels target
+    transport or repeats target traffic.'
+- date: '2026-10-27'
+  decision: Keep composition in catalog/tool selection and existing exact input/output mappings. Automatic
+    publication is not a required output and never adds Run states or completion checks. Explicitly requested
+    snapshot/reconciliation outputs retain ordinary Workflow artifact failure semantics. Change Scheduler/Audit
+    execution code only if an independently demonstrated existing mapping defect requires a tracked fix.
+- date: '2026-10-31'
+  decision: Supersede the pending Audit dependency and prepare/same-round scope of this task. Deliver
+    standalone Runs and existing exact Artifact handoff here; V410-025 owns the lean-Audit integration.
+    Preserve existing SMT/Artifact contracts so sitemap can proceed independently.
+demonstration: Against a local controlled HTTP target, run discovery in an ordinary Project Run without
+  OpenAPI. Select an exact sitemap snapshot and supply it with an exact OpenAPI input to the model-free
+  reconciliation Workflow. Read its declared result through ordinary Artifact APIs. Actual Server/Runtime/PostgreSQL
+  prove the path; no Audit is created (A1-A3).

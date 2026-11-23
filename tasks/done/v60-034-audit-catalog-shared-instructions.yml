@@ -1,0 +1,53 @@
+schema_version: "1.0"
+id: V60-034
+title: Preserve shared instructions in the Audit catalog replacement fixture
+milestone: project-review-v60
+epic: quality
+kind: chore
+introduced_by: V48-004
+priority: P2
+status: completed
+depends_on: [V60-008]
+languages: [go, markdown]
+goal: Keep the disposable replacement catalog valid while proving retained Audit history survives loss of its original authoring entries.
+context:
+  authority: User requested completion of the remaining V60 reviews; read-only release-fixture inspection reproduced this blocker.
+  design: docs/plans/2026-09-20-project-review.md
+  specification: docs/spec/audits/audits.md
+  reproduction: >-
+    The exact filesystem removals in replaceAuditProgramCatalog leave version-3
+    Memory workflows referencing two deleted worker instruction files.
+    contractor-server config validate passes on the original isolated copy and
+    fails after replacement with unknown instruction ref before Server restart.
+    After the instruction-only correction, the actual process restart fails
+    because the remaining version-2 profiles require removed standard packages.
+scope:
+  in:
+    - Preserve shared workflow instructions while removing all profiles depending on the removed current standards, original workflows/templates, and current standard bindings.
+    - Verify the replacement fixture through config.Load and an actual Server restart with standardsstore pins, checking intended removals and unchanged retained copies.
+    - Verify the affected production-process gate with retained-history and unavailable-catalog assertions intact.
+  out:
+    - Change production configuration loading, durable pins, retention behavior or weaken the original restart assertions.
+acceptance_criteria:
+  - id: A1
+    text: Replacement preserves loadable remaining authoring entries and actual Server startup, removes both profile versions/current standards, and retains exact Project standard pins.
+  - id: A2
+    text: The full Audit process gate still proves original profile/standard unavailability and unchanged pinned history after restart.
+tests:
+  - command: go test -tags=e2e -count=1 ./tests/e2e -run '^TestAuditProgramCatalogReplacement(PreservesSharedInstructions|RestartsServer)$'
+    covers: [A1]
+  - command: make test-audits-process
+    covers: [A1, A2]
+verification_requirements:
+  - Record the original successful validation and reproduced post-replacement failure before editing the fixture.
+  - Use only disposable configuration/database state; preserve the production-process assertions.
+  - Keep task-start, implementation and completion metadata commits separate.
+
+implementation_followup_commits:
+  - 747839c255fc3eef800281d837b1c57ab87f892d
+
+implementation_commit: 020156fab8043a2dfe5c43188cd96dca547020ae
+verification:
+  evidence: tasks/evidence/v60-034.json
+  report: docs/research/2026-09-20-v60-034-audit-catalog-fixture-review.md
+  result: Required checks passed; executed cases and evidence boundaries are recorded in the linked report.

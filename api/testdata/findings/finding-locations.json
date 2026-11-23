@@ -1,0 +1,252 @@
+[
+  {
+    "name": "file-only",
+    "valid": true,
+    "location": {
+      "file": "src/Auth.py"
+    }
+  },
+  {
+    "name": "single-line",
+    "valid": true,
+    "location": {
+      "file": "src/auth.py",
+      "line": 42
+    }
+  },
+  {
+    "name": "range",
+    "valid": true,
+    "location": {
+      "file": "src/auth.py",
+      "range": {
+        "start_line": 42,
+        "end_line": 48
+      }
+    }
+  },
+  {
+    "name": "url-only",
+    "valid": true,
+    "location": {
+      "url": "http://127.0.0.1:8888/orders?x=%2f&x=A#tab"
+    }
+  },
+  {
+    "name": "url-method",
+    "valid": true,
+    "location": {
+      "url": "https://example.test/orders",
+      "method": "POST"
+    }
+  },
+  {
+    "name": "empty",
+    "valid": false,
+    "location": {}
+  },
+  {
+    "name": "both",
+    "valid": false,
+    "location": {
+      "file": "a.py",
+      "url": "https://example.test"
+    }
+  },
+  {
+    "name": "line-zero",
+    "valid": false,
+    "location": {
+      "file": "a.py",
+      "line": 0
+    }
+  },
+  {
+    "name": "line-bool",
+    "valid": false,
+    "location": {
+      "file": "a.py",
+      "line": true
+    }
+  },
+  {
+    "name": "line-float",
+    "valid": false,
+    "location": {
+      "file": "a.py",
+      "line": 1.5
+    }
+  },
+  {
+    "name": "line-string",
+    "valid": false,
+    "location": {
+      "file": "a.py",
+      "line": "1"
+    }
+  },
+  {
+    "name": "line-unsafe-integer",
+    "valid": false,
+    "location": {
+      "file": "a.py",
+      "line": 9007199254740992
+    }
+  },
+  {
+    "name": "line-null",
+    "valid": false,
+    "location": {
+      "file": "a.py",
+      "line": null
+    }
+  },
+  {
+    "name": "range-null",
+    "valid": false,
+    "location": {
+      "file": "a.py",
+      "range": null
+    }
+  },
+  {
+    "name": "reversed",
+    "valid": false,
+    "location": {
+      "file": "a.py",
+      "range": {
+        "start_line": 4,
+        "end_line": 2
+      }
+    }
+  },
+  {
+    "name": "line-and-range",
+    "valid": false,
+    "location": {
+      "file": "a.py",
+      "line": 2,
+      "range": {
+        "start_line": 2,
+        "end_line": 4
+      }
+    }
+  },
+  {
+    "name": "traversal",
+    "valid": false,
+    "location": {
+      "file": "src/../a.py"
+    }
+  },
+  {
+    "name": "absolute",
+    "valid": false,
+    "location": {
+      "file": "/a.py"
+    }
+  },
+  {
+    "name": "windows",
+    "valid": false,
+    "location": {
+      "file": "C:\\src\\a.py"
+    }
+  },
+  {
+    "name": "empty-component",
+    "valid": false,
+    "location": {
+      "file": "src//a.py"
+    }
+  },
+  {
+    "name": "wrong-case",
+    "valid": false,
+    "location": {
+      "File": "a.py"
+    }
+  },
+  {
+    "name": "method-on-file",
+    "valid": false,
+    "location": {
+      "file": "a.py",
+      "method": "GET"
+    }
+  },
+  {
+    "name": "line-on-url",
+    "valid": false,
+    "location": {
+      "url": "https://example.test",
+      "line": 2
+    }
+  },
+  {
+    "name": "bad-percent",
+    "valid": false,
+    "location": {
+      "url": "https://example.test/?q=%GG"
+    }
+  },
+  {
+    "name": "userinfo",
+    "valid": false,
+    "location": {
+      "url": "https://user:pass@example.test"
+    }
+  },
+  {
+    "name": "bad-port",
+    "valid": false,
+    "location": {
+      "url": "https://example.test:99999"
+    }
+  },
+  {
+    "name": "empty-port",
+    "valid": false,
+    "location": {
+      "url": "https://example.test:"
+    }
+  },
+  {
+    "name": "url-space",
+    "valid": false,
+    "location": {
+      "url": "https://example.test/a b"
+    }
+  },
+  {
+    "name": "non-http",
+    "valid": false,
+    "location": {
+      "url": "file:///a.py"
+    }
+  },
+  {
+    "name": "method-null",
+    "valid": false,
+    "location": {
+      "url": "https://example.test",
+      "method": null
+    }
+  },
+  {
+    "name": "method-space",
+    "valid": false,
+    "location": {
+      "url": "https://example.test",
+      "method": "GET X"
+    }
+  },
+  {
+    "name": "unknown-field",
+    "valid": false,
+    "location": {
+      "file": "a.py",
+      "column": 2
+    }
+  }
+]

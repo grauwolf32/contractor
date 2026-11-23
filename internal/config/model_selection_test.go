@@ -1,0 +1,420 @@
+package config
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"maps"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
+)
+
+type memoryModelSettings struct {
+	mu    sync.Mutex
+	value settingsstore.ModelSelectionSettings
+}
+
+func (s *memoryModelSettings) InitializeModelSelection(ctx context.Context, value settingsstore.ModelSelectionValue) (settingsstore.ModelSelectionSettings, error) {
+	if err := value.Validate(); err != nil {
+		return settingsstore.ModelSelectionSettings{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.value.Revision == 0 {
+		s.value = settingsstore.ModelSelectionSettings{Value: value.Clone(), Revision: 1, UpdatedAt: time.Date(2026, 10, 21, 0, 0, 0, 0, time.UTC)}
+	}
+	return s.copy(), nil
+}
+func (s *memoryModelSettings) copy() settingsstore.ModelSelectionSettings {
+	value := s.value
+	value.Value = s.value.Value.Clone()
+	return value
+}
+func (s *memoryModelSettings) GetModelSelection(context.Context) (settingsstore.ModelSelectionSettings, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.copy(), nil
+}
+func (s *memoryModelSettings) UpdateModelSelection(_ context.Context, value settingsstore.ModelSelectionValue, revision uint64) (settingsstore.ModelSelectionSettings, error) {
+	if err := value.Validate(); err != nil {
+		return settingsstore.ModelSelectionSettings{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if revision != s.value.Revision {
+		return settingsstore.ModelSelectionSettings{}, settingsstore.ErrPrecondition
+	}
+	if value.DefaultModel != s.value.Value.DefaultModel || !maps.Equal(value.Roles, s.value.Value.Roles) {
+		s.value.Value = value.Clone()
+		s.value.Revision++
+		s.value.UpdatedAt = s.value.UpdatedAt.Add(time.Microsecond)
+	}
+	return s.copy(), nil
+}
+
+func modelSelectionFixture(t *testing.T) (string, []ModelChoice) {
+	t.Helper()
+	root := copyCoreFixture(t)
+	installWorkerSummarizer(t, root)
+	replaceFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), "test-worker@1", "worker@1")
+	replaceFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), "terminal_summarizer@1", "summarizer@1")
+	replaceFile(t, summaryPolicyPath(root), "name: terminal_summarizer", "name: summarizer")
+	replaceFile(t, filepath.Join(root, "model-policies/worker.yaml"), "  model: worker-model\n", "  model: worker-model\n  contextWindowTokens: 131072\n")
+	models := []ModelChoice{}
+	for index, id := range []string{"fixture-a", "fixture-b"} {
+		digest := strings.Repeat(string(rune('a'+index)), 64)
+		window := 131072 / (index + 1)
+		model := ModelChoice{ID: id, Digest: "sha256:" + digest, UpstreamModel: "fixture/" + id, ContextWindowTokens: window, MaxOutputTokens: 8192, Policies: map[string]string{}}
+		for _, role := range modelRoles {
+			name := role + "_" + strings.ReplaceAll(id, "-", "_")
+			spec := map[string]any{"model": model.UpstreamModel + "@" + digest[:16] + "/" + role, "contextWindowTokens": window, "maxOutputTokens": 4096, "maxModelCalls": 8, "temperature": 0.1}
+			switch role {
+			case "planner":
+				spec["maxOutputTokens"] = 2048
+				spec["maxWorkerCalls"] = 8
+				spec["maxTotalTokens"] = 32768
+			case "summarizer":
+				spec["maxOutputTokens"] = 2048
+				spec["maxModelCalls"] = 1
+			default:
+				spec["maxToolCalls"] = 16
+				spec["maxTotalTokens"] = 32768
+			}
+			document := map[string]any{"apiVersion": "contractor/v1alpha1", "kind": "ModelPolicy", "metadata": map[string]string{"name": name, "version": "1"}, "spec": spec}
+			data, err := json.Marshal(document)
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeFile(t, filepath.Join(root, "model-policies", name+".yaml"), data)
+			model.Policies[role] = name + "@1"
+			if index == 0 && role == "planner" {
+				document["metadata"] = map[string]string{"name": "planner", "version": "1"}
+				data, _ = json.Marshal(document)
+				writeFile(t, filepath.Join(root, "model-policies/planner.yaml"), data)
+			}
+		}
+		models = append(models, model)
+	}
+	appendFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), strings.ReplaceAll(summaryTransitionYAML, "test-planner@1", "planner@1"))
+	base := string(readFile(t, filepath.Join(root, "workflows/artifact_copy.yaml")))
+	modeled := strings.ReplaceAll(strings.TrimSuffix(base, strings.ReplaceAll(summaryTransitionYAML, "test-planner@1", "planner@1")), "name: artifact-copy", "name: artifact-modeled")
+	modeled = strings.ReplaceAll(modeled, "planner: passthrough@1", "planner: streamline@1")
+	modeled = strings.Replace(modeled, "  executionConfig:\n", "  executionConfig:\n    planner:\n      modelPolicy: planner@1\n      llmGateway: local-litellm@1\n", 1)
+	writeFile(t, filepath.Join(root, "workflows/artifact_modeled.yaml"), []byte(modeled))
+	catalog := modelChoiceCatalog{SchemaVersion: "1", InitialSelection: settingsstore.ModelSelectionValue{DefaultModel: "fixture-a", Roles: map[string]string{}}, Models: models}
+	data, err := json.Marshal(catalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, "model-selection.json"), data)
+	return root, models
+}
+
+func configuredModelManager(t *testing.T, root string, store *memoryModelSettings) *Manager {
+	t.Helper()
+	manager, err := NewManager(ManagerOptions{OperatorRoot: root, ManagedRoot: filepath.Join(t.TempDir(), "managed")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.ConfigureModelSelection(t.Context(), store); err != nil {
+		t.Fatal(err)
+	}
+	return manager
+}
+
+func TestDeploymentModelSelectionPinsMainSummaryPlannerAndExplicitVariants(t *testing.T) {
+	root, models := modelSelectionFixture(t)
+	store := &memoryModelSettings{}
+	manager := configuredModelManager(t, root, store)
+	credentials := developmentCredentialLookup(t, manager.Snapshot())
+	resolve := func() resolved.ResolvedWorkflow {
+		t.Helper()
+		workflow, err := manager.ResolveRunWorkflow(t.Context(), "artifact-modeled@1", credentials)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return workflow
+	}
+	// The deployed passthrough workflow starts a modeled Planner only after
+	// a terminal summary; it must receive the same captured Planner choice.
+	before := resolve()
+	original, _ := json.Marshal(before)
+	stage := before.Stages["copy"]
+	if stage.ExecutionConfig.Planner.ModelPolicy.Model != "fixture/fixture-a@"+strings.Repeat("a", 16)+"/planner" {
+		t.Fatal("Planner did not use the selected model")
+	}
+	main := stage.ExecutionConfig.Agents["builder"]
+	if main.ModelPolicy.ContextWindowTokens != 131072 || main.SummarizerModelPolicy == nil || main.SummarizerModelPolicy.Model != "fixture/fixture-a@"+strings.Repeat("a", 16)+"/summarizer" {
+		t.Fatalf("initial selection: %+v", main)
+	}
+	info, err := manager.GetModelSelection(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed, err := manager.ReplaceModelSelection(t.Context(), settingsstore.ModelSelectionValue{DefaultModel: "fixture-b", Roles: map[string]string{"summarizer": "fixture-a"}}, 1, info.CatalogDigest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	continuation, err := manager.ResolveRunWorkflow(t.Context(), "artifact-copy@1", credentials)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if continuation.Stages["copy"].On.Summarized.Escalate.ExecutionConfig.Effective.Planner.ModelPolicy.ContextWindowTokens != 65536 {
+		t.Fatal("summary continuation ignored the selected Planner model")
+	}
+	after := resolve()
+	selected := after.Stages["copy"].ExecutionConfig.Agents["builder"]
+	if changed.Revision != "2" || selected.ModelPolicy.ContextWindowTokens != 65536 || selected.ModelPolicy.MaxTotalTokens != 32768 || selected.SummarizerModelPolicy.Model != main.SummarizerModelPolicy.Model {
+		t.Fatal("model change changed spend or lost summary override")
+	}
+	if !reflect.DeepEqual(stage.Agents["builder"].Template, after.Stages["copy"].Agents["builder"].Template) {
+		t.Fatal("selection mutated immutable template")
+	}
+	if fresh, _ := json.Marshal(before); string(fresh) != string(original) {
+		t.Fatal("selection mutated earlier Run snapshot")
+	}
+	pinned, err := manager.ResolvePinnedRunWorkflow(t.Context(), before, credentials)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := json.Marshal(pinned); string(data) != string(original) {
+		t.Fatal("prepared Eval was reinterpreted through current defaults")
+	}
+	writeWorkflowExecutionConfig(t, root, "artifact_modeled.yaml", `{"planner":{"modelPolicy":"planner@1","llmGateway":"local-litellm@1"},"workers":{"modelPolicy":"`+models[0].Policies["worker"]+`","summarizerModelPolicy":"`+models[1].Policies["summarizer"]+`","llmGateway":"local-litellm@1","credential":"development-worker"}}`)
+	explicitManager := configuredModelManager(t, root, store)
+	explicitWorkflow, err := explicitManager.ResolveRunWorkflow(t.Context(), "artifact-modeled@1", credentials)
+	if err != nil {
+		t.Fatal(err)
+	}
+	explicit := explicitWorkflow.Stages["copy"].ExecutionConfig.Agents["builder"]
+	if explicit.ModelPolicy.Ref.PolicyID != strings.TrimSuffix(models[0].Policies["worker"], "@1") || explicit.SummarizerModelPolicy.ContextWindowTokens != 65536 {
+		t.Fatal("explicit Workflow choices did not win")
+	}
+	restarted := configuredModelManager(t, root, store)
+	saved, err := restarted.GetModelSelection(t.Context())
+	if err != nil || saved.Selection.DefaultModel != "fixture-b" || saved.Selection.Roles["summarizer"] != "fixture-a" {
+		t.Fatal("restart replaced durable selection")
+	}
+	tampered := before.Clone()
+	bad := tampered.Stages["copy"]
+	value := bad.ExecutionConfig.Agents["builder"]
+	value.ModelPolicy.Model = "unconfigured/replacement"
+	bad.ExecutionConfig.Agents["builder"] = value
+	tampered.Stages["copy"] = bad
+	if _, err := manager.ResolvePinnedRunWorkflow(t.Context(), tampered, credentials); !errors.Is(err, contentdigest.ErrPinnedSelectionChanged) {
+		t.Fatalf("tampered historical model accepted: %v", err)
+	}
+}
+
+func TestDeploymentModelSelectionRejectsStaleUnknownAndIncompatibleChoices(t *testing.T) {
+	root, models := modelSelectionFixture(t)
+	store := &memoryModelSettings{}
+	manager := configuredModelManager(t, root, store)
+	info, _ := manager.GetModelSelection(t.Context())
+	for _, test := range []struct {
+		value    settingsstore.ModelSelectionValue
+		revision uint64
+		digest   string
+		want     error
+	}{
+		{settingsstore.ModelSelectionValue{DefaultModel: "missing", Roles: map[string]string{}}, 1, info.CatalogDigest, settingsstore.ErrModelSelectionInvalid},
+		{*info.Selection, 2, info.CatalogDigest, settingsstore.ErrPrecondition},
+		{*info.Selection, 1, "sha256:" + strings.Repeat("0", 64), settingsstore.ErrPrecondition},
+	} {
+		if _, err := manager.ReplaceModelSelection(t.Context(), test.value, test.revision, test.digest); !errors.Is(err, test.want) {
+			t.Fatalf("invalid replacement: %v", err)
+		}
+	}
+	current, _ := manager.GetModelSelection(t.Context())
+	if !reflect.DeepEqual(current, info) {
+		t.Fatal("rejected replacement changed selection")
+	}
+	// A profile may support only smaller-output roles. It is offered for those
+	// roles but cannot silently shrink the Worker budget to become a default.
+	delete(models[1].Policies, "worker")
+	delete(models[1].Policies, "audit_completion_worker")
+	models[1].MaxOutputTokens = 2048
+	data, _ := json.Marshal(modelChoiceCatalog{SchemaVersion: "1", InitialSelection: *info.Selection, Models: models})
+	writeFile(t, filepath.Join(root, "model-selection.json"), data)
+	partial := configuredModelManager(t, root, &memoryModelSettings{})
+	partialInfo, _ := partial.GetModelSelection(t.Context())
+	if _, err := partial.ReplaceModelSelection(t.Context(), settingsstore.ModelSelectionValue{DefaultModel: "fixture-a", Roles: map[string]string{"summarizer": "fixture-b"}}, 1, partialInfo.CatalogDigest); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := partial.ReplaceModelSelection(t.Context(), settingsstore.ModelSelectionValue{DefaultModel: "fixture-b", Roles: map[string]string{}}, 2, partialInfo.CatalogDigest); !errors.Is(err, settingsstore.ErrModelSelectionInvalid) {
+		t.Fatalf("unsupported Worker default accepted: %v", err)
+	}
+}
+
+func modelAuditProfileFixture(t *testing.T, root string) {
+	t.Helper()
+	var value map[string]any
+	if err := json.Unmarshal([]byte(validAuditProfileYAML(t, "model-checklist")), &value); err != nil {
+		t.Fatal(err)
+	}
+	spec := value["spec"].(map[string]any)
+	spec["inputs"].(map[string]any)["checklist"] = map[string]any{"required": true, "media_types": []string{"application/json", "application/yaml"}}
+	binding := spec["workflows"].(map[string]any)["inspect"]
+	spec["workflows"] = map[string]any{"check": binding}
+	spec["initial_work"].([]any)[0].(map[string]any)["workflow"] = "check"
+	data, _ := json.Marshal(value)
+	writeAuditProfile(t, root, "model-checklist", string(data))
+}
+
+func TestDeploymentModelSelectionPinsAuditProfileDigest(t *testing.T) {
+	root, _ := modelSelectionFixture(t)
+	modelAuditProfileFixture(t, root)
+	manager := configuredModelManager(t, root, &memoryModelSettings{})
+	catalog, err := manager.Snapshot().AuditProfile("model-checklist@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := manager.ResolveAuditProfile(t.Context(), "model-checklist@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := auditprofile.DecodePinnedProgram(encoded)
+	if err != nil || !reflect.DeepEqual(decoded, before) || before.Ref.Digest == catalog.Ref.Digest {
+		t.Fatalf("effective profile does not retain its own digest: %v", err)
+	}
+	info, err := manager.GetModelSelection(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.ReplaceModelSelection(t.Context(), settingsstore.ModelSelectionValue{
+		DefaultModel: "fixture-b", Roles: map[string]string{},
+	}, 1, info.CatalogDigest); err != nil {
+		t.Fatal(err)
+	}
+	after, err := manager.ResolveAuditProfile(t.Context(), "model-checklist@1")
+	if err != nil || after.Ref.Digest == before.Ref.Digest {
+		t.Fatalf("new selection did not change the effective digest: %v", err)
+	}
+	retained, err := manager.ResolvePinnedAuditProfile(t.Context(), decoded)
+	if err != nil || !reflect.DeepEqual(retained, before) {
+		t.Fatalf("retained Eval profile changed after model selection: %v", err)
+	}
+	unchanged, err := manager.Snapshot().AuditProfile("model-checklist@1")
+	if err != nil || !reflect.DeepEqual(unchanged, catalog) {
+		t.Fatalf("effective selection mutated the catalog: %v", err)
+	}
+	for _, test := range []struct {
+		name string
+		edit func(*auditprofile.PinnedProgram)
+	}{
+		{"digest", func(p *auditprofile.PinnedProgram) { p.Ref.Digest = catalog.Ref.Digest }},
+		{"missing role", func(p *auditprofile.PinnedProgram) { delete(p.Workflows, "check") }},
+		{"profile limits", func(p *auditprofile.PinnedProgram) { p.Program.Limits.MaxTasks++ }},
+		{"allowed Workflow", func(p *auditprofile.PinnedProgram) {
+			binding := p.Workflows["check"]
+			binding.Ref.Name = "forged-workflow"
+			p.Workflows["check"] = binding
+		}},
+		{"workflow objective", func(p *auditprofile.PinnedProgram) {
+			workflow := p.Workflows["check"]
+			stage := workflow.Stages["copy"]
+			stage.Objective = "a different task"
+			workflow.Stages["copy"] = stage
+		}},
+		{"model policy", func(p *auditprofile.PinnedProgram) {
+			stage := p.Workflows["check"].Stages["copy"]
+			policy := stage.ModelDefaults["worker"]
+			policy.Model = "unconfigured/replacement"
+			stage.ModelDefaults["worker"] = policy
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			changed := before.Clone()
+			test.edit(&changed)
+			if test.name != "digest" {
+				changed.Ref.Digest, err = changed.Digest()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := manager.ResolvePinnedAuditProfile(t.Context(), changed); !errors.Is(err, contentdigest.ErrPinnedSelectionChanged) {
+				t.Fatalf("changed retained profile accepted: %v", err)
+			}
+		})
+	}
+	// Exact selected policy drift invalidates the retained closure even though
+	// a later deployment default is otherwise irrelevant to it.
+	replaceFile(t, filepath.Join(root, "model-policies/worker_fixture_a.yaml"), `"temperature":0.1`, `"temperature":0.2`)
+	restarted := configuredModelManager(t, root, &memoryModelSettings{})
+	if _, err := restarted.ResolvePinnedAuditProfile(t.Context(), before); !errors.Is(err, contentdigest.ErrPinnedSelectionChanged) {
+		t.Fatalf("changed catalog dependency accepted: %v", err)
+	}
+}
+
+func TestWorkflowConsumersReuseTemplateWithIndependentMainAndSummaryPolicies(t *testing.T) {
+	root, models := modelSelectionFixture(t)
+	original := string(readFile(t, filepath.Join(root, "workflows/artifact_copy.yaml")))
+	for i, name := range []string{"small", "strong"} {
+		body := strings.Replace(original, "name: artifact-copy", "name: artifact-"+name, 1)
+		filename := "artifact_" + name + ".yaml"
+		writeFile(t, filepath.Join(root, "workflows", filename), []byte(body))
+		writeWorkflowExecutionConfig(t, root, filename, `{"workers":{"modelPolicy":"`+models[i].Policies["worker"]+`","summarizerModelPolicy":"`+models[1-i].Policies["summarizer"]+`"}}`)
+	}
+	snapshot := mustLoad(t, root)
+	small, err := snapshot.Workflow("artifact-small@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	strong, err := snapshot.Workflow("artifact-strong@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	left, right := small.Stages["copy"], strong.Stages["copy"]
+	if !reflect.DeepEqual(left.Agents["builder"].Template, right.Agents["builder"].Template) {
+		t.Fatal("model selection changed the reusable template")
+	}
+	a, b := left.ExecutionConfig.Agents["builder"], right.ExecutionConfig.Agents["builder"]
+	if a.ModelPolicy.Ref == b.ModelPolicy.Ref || a.SummarizerModelPolicy.Ref == b.SummarizerModelPolicy.Ref || a.ModelPolicy.ContextWindowTokens != 131072 || b.ModelPolicy.ContextWindowTokens != 65536 {
+		t.Fatalf("independent selections: %+v / %+v", a, b)
+	}
+	encoded, err := resolved.EncodeResolvedWorkflowSnapshot(small)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replaceFile(t, filepath.Join(root, "model-policies/"+strings.TrimSuffix(models[0].Policies["worker"], "@1")+".yaml"), `"maxModelCalls":8`, `"maxModelCalls":9`)
+	pinned, err := resolved.DecodeResolvedWorkflowSnapshot(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(pinned.Stages["copy"].ExecutionConfig, left.ExecutionConfig) {
+		t.Fatal("stored snapshot did not keep exact Workflow policies")
+	}
+}
+
+func TestWorkflowModelPoliciesAreRequiredAndTemplateModelFieldsAreRejected(t *testing.T) {
+	for _, tc := range []struct{ name, old, replacement, file string }{
+		{"missing main", "      modelPolicy: test-worker@1\n", "", "workflows/artifact_copy.yaml"},
+		{"missing summary", "      summarizerModelPolicy: terminal_summarizer@1\n", "", "workflows/artifact_copy.yaml"},
+		{"template policy", "  runtime: adk@1", "  runtime: adk@1\n  modelPolicy: worker@1", "agent-templates/artifact_builder.yaml"},
+		{"null template policy", "  runtime: adk@1", "  runtime: adk@1\n  modelPolicy: null", "agent-templates/artifact_builder.yaml"},
+		{"template summary policy", "  summarizer:\n", "  summarizer:\n    modelPolicy: summarizer@1\n", "agent-templates/artifact_builder.yaml"},
+		{"null template summary policy", "  summarizer:\n", "  summarizer:\n    modelPolicy: null\n", "agent-templates/artifact_builder.yaml"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := copyCoreFixture(t)
+			installWorkerSummarizer(t, root)
+			replaceFile(t, filepath.Join(root, tc.file), tc.old, tc.replacement)
+			if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil {
+				t.Fatal("invalid model selection accepted")
+			}
+		})
+	}
+}

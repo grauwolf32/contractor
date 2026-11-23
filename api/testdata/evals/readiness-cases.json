@@ -1,0 +1,1186 @@
+{
+  "description": "Readiness of frozen native plans (EVM-R242): plan is a playground.plan/v1 document, comparison its setup comparison, readiness the Readiness the plan freeze stores and the experiment view returns. evaldomain.NativeReadiness, the freeze write path and the readiness backfill migration must all produce exactly this readiness. A case with errorCode instead holds a plan that evaldomain.Freeze rejects with that code; its backfillReadiness is what the backfill migration derives for the same plan stored before the rule that rejects it.",
+  "cases": [
+    {
+      "name": "unpinned-eligible-plan",
+      "description": "The conformance plan as is: no pins, so no readiness pins, and every member of both arms eligible.",
+      "plan": {
+        "schema_version": "playground.plan/v1",
+        "experiment_id": "trace-1",
+        "created_at": "2026-09-19T10:00:00Z",
+        "experiment_ref": {
+          "resource": "experiment.json",
+          "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+        },
+        "suites": [
+          {
+            "id": "trace-small",
+            "ref": {
+              "resource": "suite.json",
+              "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+            }
+          }
+        ],
+        "variants": [
+          {
+            "id": "a",
+            "binding": {
+              "resource": "bindings/a.json",
+              "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+            }
+          },
+          {
+            "id": "b",
+            "binding": {
+              "resource": "bindings/b.json",
+              "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+            }
+          }
+        ],
+        "pins": {},
+        "members": [
+          {
+            "member_id": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+            "suite_id": "trace-small",
+            "case_id": "unsafe-query",
+            "variant_id": "a",
+            "sample": 1,
+            "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+            "suite_id": "trace-small",
+            "case_id": "unsafe-query",
+            "variant_id": "b",
+            "sample": 1,
+            "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "85a43c9e1d2c3d7f2f9abc4c535989a02dd01fd2a641e6655a0c189bae28d0d0",
+            "suite_id": "trace-small",
+            "case_id": "unsafe-query",
+            "variant_id": "a",
+            "sample": 2,
+            "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "bcc7756da7e873c73ae8d2611d024880679804a2b44bb032cbe71729ca021c1b",
+            "suite_id": "trace-small",
+            "case_id": "unsafe-query",
+            "variant_id": "b",
+            "sample": 2,
+            "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "73b5a51a627474279f0cc01a5b735e09bb12fea5f69c04d94c31d5ca26ee9019",
+            "suite_id": "trace-small",
+            "case_id": "safe-query",
+            "variant_id": "a",
+            "sample": 1,
+            "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "339c4ff5715f252a80e27844db273183a92bed8b76428cef1317e1df4295f691",
+            "suite_id": "trace-small",
+            "case_id": "safe-query",
+            "variant_id": "b",
+            "sample": 1,
+            "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "61eacc0165daca08de79e0db6e8c01fde5c0ea0fde5c6243ef890513b731f2e3",
+            "suite_id": "trace-small",
+            "case_id": "safe-query",
+            "variant_id": "a",
+            "sample": 2,
+            "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "e9978e0586220d487006381c37d5e5c0d1664abb3397ed38c6131463524a5d55",
+            "suite_id": "trace-small",
+            "case_id": "safe-query",
+            "variant_id": "b",
+            "sample": 2,
+            "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          }
+        ],
+        "execution_order": [
+          "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+          "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+          "85a43c9e1d2c3d7f2f9abc4c535989a02dd01fd2a641e6655a0c189bae28d0d0",
+          "bcc7756da7e873c73ae8d2611d024880679804a2b44bb032cbe71729ca021c1b",
+          "73b5a51a627474279f0cc01a5b735e09bb12fea5f69c04d94c31d5ca26ee9019",
+          "339c4ff5715f252a80e27844db273183a92bed8b76428cef1317e1df4295f691",
+          "61eacc0165daca08de79e0db6e8c01fde5c0ea0fde5c6243ef890513b731f2e3",
+          "e9978e0586220d487006381c37d5e5c0d1664abb3397ed38c6131463524a5d55"
+        ],
+        "budgets": {
+          "max_members": 8,
+          "max_in_flight": 1,
+          "wall_ms": 5400000,
+          "max_observed_total_tokens": null
+        },
+        "comparison": {
+          "baseline": "a",
+          "candidate": "b",
+          "required_equal": [
+            "source",
+            "tasks",
+            "scorers"
+          ],
+          "allowed_differences": [
+            "instructions"
+          ]
+        },
+        "publication": {
+          "provider": "contractor@1",
+          "connection": "server",
+          "enabled": false
+        },
+        "extensions": {
+          "contractor:private-fixture": {
+            "credential": "SECRET_CREDENTIAL_SENTINEL",
+            "oracle": "PRIVATE_TRUTH_SENTINEL"
+          }
+        }
+      },
+      "comparison": {
+        "baseline": "a",
+        "candidate": "b",
+        "gates": {
+          "minCandidateEndToEndPass": 1,
+          "maxQualityDrop": 0
+        },
+        "requiredEqual": [
+          "source",
+          "tasks",
+          "scorers"
+        ],
+        "allowedDifferences": [
+          "instructions"
+        ]
+      },
+      "readiness": {
+        "pins": [],
+        "arms": [
+          {
+            "variantId": "a",
+            "expected": 4,
+            "eligible": 4,
+            "unsupported": 0,
+            "blocked": 0
+          },
+          {
+            "variantId": "b",
+            "expected": 4,
+            "eligible": 4,
+            "unsupported": 0,
+            "blocked": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "mixed-pins-and-eligibility",
+      "description": "Dimensions sort in byte order (a-b, a.b, a0, a_b, ab differ from a linguistic collation). Equal or different needs a non-null observed value in both arms; an operator_supplied or unavailable origin, a missing pin or a null value is unavailable. A dimension one arm pins is listed; a required dimension no arm pins (scorers) is not. Arms count every member of the baseline, then the candidate.",
+      "plan": {
+        "schema_version": "playground.plan/v1",
+        "experiment_id": "trace-1",
+        "created_at": "2026-09-19T10:00:00Z",
+        "experiment_ref": {
+          "resource": "experiment.json",
+          "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+        },
+        "suites": [
+          {
+            "id": "trace-small",
+            "ref": {
+              "resource": "suite.json",
+              "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+            }
+          }
+        ],
+        "variants": [
+          {
+            "id": "a",
+            "binding": {
+              "resource": "bindings/a.json",
+              "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+            }
+          },
+          {
+            "id": "b",
+            "binding": {
+              "resource": "bindings/b.json",
+              "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+            }
+          }
+        ],
+        "pins": {
+          "a": {
+            "source": {
+              "value": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "origin": "observed"
+            },
+            "tasks": {
+              "value": "tasks-a",
+              "origin": "observed"
+            },
+            "instructions": {
+              "value": "instructions-a",
+              "origin": "observed"
+            },
+            "model": {
+              "value": "model-a",
+              "origin": "observed"
+            },
+            "skills": {
+              "value": null,
+              "origin": "observed"
+            },
+            "empty": {
+              "value": "",
+              "origin": "observed"
+            },
+            "a-b": {
+              "value": "x",
+              "origin": "observed"
+            },
+            "a_b": {
+              "value": "y",
+              "origin": "unavailable"
+            },
+            "a.b": {
+              "value": "z",
+              "origin": "observed"
+            },
+            "ab": {
+              "value": "1",
+              "origin": "operator_supplied"
+            }
+          },
+          "b": {
+            "source": {
+              "value": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "origin": "observed"
+            },
+            "tasks": {
+              "value": "tasks-b",
+              "origin": "observed"
+            },
+            "instructions": {
+              "value": "instructions-b",
+              "origin": "operator_supplied"
+            },
+            "skills": {
+              "value": null,
+              "origin": "observed"
+            },
+            "empty": {
+              "value": "",
+              "origin": "observed"
+            },
+            "a-b": {
+              "value": "x",
+              "origin": "observed"
+            },
+            "a.b": {
+              "value": "z",
+              "origin": "observed"
+            },
+            "a0": {
+              "value": "q",
+              "origin": "observed"
+            },
+            "ab": {
+              "value": "1",
+              "origin": "operator_supplied"
+            },
+            "zeta": {
+              "value": "zeta-b",
+              "origin": "observed"
+            }
+          }
+        },
+        "members": [
+          {
+            "member_id": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+            "suite_id": "trace-small",
+            "case_id": "unsafe-query",
+            "variant_id": "a",
+            "sample": 1,
+            "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+            "suite_id": "trace-small",
+            "case_id": "unsafe-query",
+            "variant_id": "b",
+            "sample": 1,
+            "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "85a43c9e1d2c3d7f2f9abc4c535989a02dd01fd2a641e6655a0c189bae28d0d0",
+            "suite_id": "trace-small",
+            "case_id": "unsafe-query",
+            "variant_id": "a",
+            "sample": 2,
+            "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "unsupported",
+            "reason": "Missing supported input"
+          },
+          {
+            "member_id": "bcc7756da7e873c73ae8d2611d024880679804a2b44bb032cbe71729ca021c1b",
+            "suite_id": "trace-small",
+            "case_id": "unsafe-query",
+            "variant_id": "b",
+            "sample": 2,
+            "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "73b5a51a627474279f0cc01a5b735e09bb12fea5f69c04d94c31d5ca26ee9019",
+            "suite_id": "trace-small",
+            "case_id": "safe-query",
+            "variant_id": "a",
+            "sample": 1,
+            "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "blocked",
+            "reason": "Required pin is unavailable"
+          },
+          {
+            "member_id": "339c4ff5715f252a80e27844db273183a92bed8b76428cef1317e1df4295f691",
+            "suite_id": "trace-small",
+            "case_id": "safe-query",
+            "variant_id": "b",
+            "sample": 1,
+            "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "61eacc0165daca08de79e0db6e8c01fde5c0ea0fde5c6243ef890513b731f2e3",
+            "suite_id": "trace-small",
+            "case_id": "safe-query",
+            "variant_id": "a",
+            "sample": 2,
+            "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "e9978e0586220d487006381c37d5e5c0d1664abb3397ed38c6131463524a5d55",
+            "suite_id": "trace-small",
+            "case_id": "safe-query",
+            "variant_id": "b",
+            "sample": 2,
+            "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "unsupported",
+            "reason": "Missing supported output"
+          }
+        ],
+        "execution_order": [
+          "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+          "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+          "85a43c9e1d2c3d7f2f9abc4c535989a02dd01fd2a641e6655a0c189bae28d0d0",
+          "bcc7756da7e873c73ae8d2611d024880679804a2b44bb032cbe71729ca021c1b",
+          "73b5a51a627474279f0cc01a5b735e09bb12fea5f69c04d94c31d5ca26ee9019",
+          "339c4ff5715f252a80e27844db273183a92bed8b76428cef1317e1df4295f691",
+          "61eacc0165daca08de79e0db6e8c01fde5c0ea0fde5c6243ef890513b731f2e3",
+          "e9978e0586220d487006381c37d5e5c0d1664abb3397ed38c6131463524a5d55"
+        ],
+        "budgets": {
+          "max_members": 8,
+          "max_in_flight": 1,
+          "wall_ms": 5400000,
+          "max_observed_total_tokens": null
+        },
+        "comparison": {
+          "baseline": "a",
+          "candidate": "b",
+          "required_equal": [
+            "source",
+            "tasks",
+            "scorers"
+          ],
+          "allowed_differences": [
+            "instructions"
+          ]
+        },
+        "publication": {
+          "provider": "contractor@1",
+          "connection": "server",
+          "enabled": false
+        },
+        "extensions": {
+          "contractor:private-fixture": {
+            "credential": "SECRET_CREDENTIAL_SENTINEL",
+            "oracle": "PRIVATE_TRUTH_SENTINEL"
+          }
+        }
+      },
+      "comparison": {
+        "baseline": "a",
+        "candidate": "b",
+        "gates": {
+          "minCandidateEndToEndPass": 1,
+          "maxQualityDrop": 0
+        },
+        "requiredEqual": [
+          "source",
+          "tasks",
+          "scorers"
+        ],
+        "allowedDifferences": [
+          "instructions"
+        ]
+      },
+      "readiness": {
+        "pins": [
+          {
+            "dimension": "a-b",
+            "requiredEqual": false,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "observed",
+            "status": "equal"
+          },
+          {
+            "dimension": "a.b",
+            "requiredEqual": false,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "observed",
+            "status": "equal"
+          },
+          {
+            "dimension": "a0",
+            "requiredEqual": false,
+            "baselineOrigin": "unavailable",
+            "candidateOrigin": "observed",
+            "status": "unavailable"
+          },
+          {
+            "dimension": "a_b",
+            "requiredEqual": false,
+            "baselineOrigin": "unavailable",
+            "candidateOrigin": "unavailable",
+            "status": "unavailable"
+          },
+          {
+            "dimension": "ab",
+            "requiredEqual": false,
+            "baselineOrigin": "unavailable",
+            "candidateOrigin": "unavailable",
+            "status": "unavailable"
+          },
+          {
+            "dimension": "empty",
+            "requiredEqual": false,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "observed",
+            "status": "equal"
+          },
+          {
+            "dimension": "instructions",
+            "requiredEqual": false,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "unavailable",
+            "status": "unavailable"
+          },
+          {
+            "dimension": "model",
+            "requiredEqual": false,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "unavailable",
+            "status": "unavailable"
+          },
+          {
+            "dimension": "skills",
+            "requiredEqual": false,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "observed",
+            "status": "unavailable"
+          },
+          {
+            "dimension": "source",
+            "requiredEqual": true,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "observed",
+            "status": "equal"
+          },
+          {
+            "dimension": "tasks",
+            "requiredEqual": true,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "observed",
+            "status": "different"
+          },
+          {
+            "dimension": "zeta",
+            "requiredEqual": false,
+            "baselineOrigin": "unavailable",
+            "candidateOrigin": "observed",
+            "status": "unavailable"
+          }
+        ],
+        "arms": [
+          {
+            "variantId": "a",
+            "expected": 4,
+            "eligible": 2,
+            "unsupported": 1,
+            "blocked": 1
+          },
+          {
+            "variantId": "b",
+            "expected": 4,
+            "eligible": 3,
+            "unsupported": 1,
+            "blocked": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "escaped-pin-values",
+      "description": "Pin values compare as decoded strings: a backslash, the six characters of a NUL escape written as text, a non-ASCII letter, a surrogate pair and a quote equal their other JSON spellings, and a doubled backslash and the escape text differ from a single backslash and from the text's absence. The plan also holds the escape text outside the pins.",
+      "plan": {
+        "schema_version": "playground.plan/v1",
+        "experiment_id": "trace-1",
+        "created_at": "2026-09-19T10:00:00Z",
+        "experiment_ref": {
+          "resource": "experiment.json",
+          "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+        },
+        "suites": [
+          {
+            "id": "trace-small",
+            "ref": {
+              "resource": "suite.json",
+              "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+            }
+          }
+        ],
+        "variants": [
+          {
+            "id": "a",
+            "binding": {
+              "resource": "bindings/a.json",
+              "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+            }
+          },
+          {
+            "id": "b",
+            "binding": {
+              "resource": "bindings/b.json",
+              "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+            }
+          }
+        ],
+        "pins": {
+          "a": {
+            "backslash-forms": {
+              "value": "\\",
+              "origin": "observed"
+            },
+            "doubled-backslash": {
+              "value": "\\\\",
+              "origin": "observed"
+            },
+            "escape-text": {
+              "value": "a\\u0000b",
+              "origin": "observed"
+            },
+            "escape-text-absent": {
+              "value": "a\\u0000b",
+              "origin": "observed"
+            },
+            "e-acute": {
+              "value": "é",
+              "origin": "observed"
+            },
+            "emoji": {
+              "value": "😀",
+              "origin": "observed"
+            },
+            "quote": {
+              "value": "\"q\"",
+              "origin": "observed"
+            }
+          },
+          "b": {
+            "backslash-forms": {
+              "value": "\u005c",
+              "origin": "observed"
+            },
+            "doubled-backslash": {
+              "value": "\\",
+              "origin": "observed"
+            },
+            "escape-text": {
+              "value": "a\u005cu0000b",
+              "origin": "observed"
+            },
+            "escape-text-absent": {
+              "value": "ab",
+              "origin": "observed"
+            },
+            "e-acute": {
+              "value": "\u00e9",
+              "origin": "observed"
+            },
+            "emoji": {
+              "value": "\ud83d\ude00",
+              "origin": "observed"
+            },
+            "quote": {
+              "value": "\u0022q\u0022",
+              "origin": "observed"
+            }
+          }
+        },
+        "members": [
+          {
+            "member_id": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+            "suite_id": "trace-small",
+            "case_id": "unsafe-query",
+            "variant_id": "a",
+            "sample": 1,
+            "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+            "suite_id": "trace-small",
+            "case_id": "unsafe-query",
+            "variant_id": "b",
+            "sample": 1,
+            "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "85a43c9e1d2c3d7f2f9abc4c535989a02dd01fd2a641e6655a0c189bae28d0d0",
+            "suite_id": "trace-small",
+            "case_id": "unsafe-query",
+            "variant_id": "a",
+            "sample": 2,
+            "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "bcc7756da7e873c73ae8d2611d024880679804a2b44bb032cbe71729ca021c1b",
+            "suite_id": "trace-small",
+            "case_id": "unsafe-query",
+            "variant_id": "b",
+            "sample": 2,
+            "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "73b5a51a627474279f0cc01a5b735e09bb12fea5f69c04d94c31d5ca26ee9019",
+            "suite_id": "trace-small",
+            "case_id": "safe-query",
+            "variant_id": "a",
+            "sample": 1,
+            "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "339c4ff5715f252a80e27844db273183a92bed8b76428cef1317e1df4295f691",
+            "suite_id": "trace-small",
+            "case_id": "safe-query",
+            "variant_id": "b",
+            "sample": 1,
+            "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "61eacc0165daca08de79e0db6e8c01fde5c0ea0fde5c6243ef890513b731f2e3",
+            "suite_id": "trace-small",
+            "case_id": "safe-query",
+            "variant_id": "a",
+            "sample": 2,
+            "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "e9978e0586220d487006381c37d5e5c0d1664abb3397ed38c6131463524a5d55",
+            "suite_id": "trace-small",
+            "case_id": "safe-query",
+            "variant_id": "b",
+            "sample": 2,
+            "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          }
+        ],
+        "execution_order": [
+          "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+          "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+          "85a43c9e1d2c3d7f2f9abc4c535989a02dd01fd2a641e6655a0c189bae28d0d0",
+          "bcc7756da7e873c73ae8d2611d024880679804a2b44bb032cbe71729ca021c1b",
+          "73b5a51a627474279f0cc01a5b735e09bb12fea5f69c04d94c31d5ca26ee9019",
+          "339c4ff5715f252a80e27844db273183a92bed8b76428cef1317e1df4295f691",
+          "61eacc0165daca08de79e0db6e8c01fde5c0ea0fde5c6243ef890513b731f2e3",
+          "e9978e0586220d487006381c37d5e5c0d1664abb3397ed38c6131463524a5d55"
+        ],
+        "budgets": {
+          "max_members": 8,
+          "max_in_flight": 1,
+          "wall_ms": 5400000,
+          "max_observed_total_tokens": null
+        },
+        "comparison": {
+          "baseline": "a",
+          "candidate": "b",
+          "required_equal": [
+            "source",
+            "tasks",
+            "scorers"
+          ],
+          "allowed_differences": [
+            "instructions"
+          ]
+        },
+        "publication": {
+          "provider": "contractor@1",
+          "connection": "server",
+          "enabled": false
+        },
+        "extensions": {
+          "contractor:private-fixture": {
+            "credential": "SECRET_CREDENTIAL_SENTINEL",
+            "oracle": "PRIVATE_TRUTH_SENTINEL"
+          },
+          "contractor:escaped-note": {
+            "text": "outside the pins \\u0000 as text"
+          }
+        }
+      },
+      "comparison": {
+        "baseline": "a",
+        "candidate": "b",
+        "gates": {
+          "minCandidateEndToEndPass": 1,
+          "maxQualityDrop": 0
+        },
+        "requiredEqual": [
+          "source",
+          "tasks",
+          "scorers"
+        ],
+        "allowedDifferences": [
+          "instructions"
+        ]
+      },
+      "readiness": {
+        "pins": [
+          {
+            "dimension": "backslash-forms",
+            "requiredEqual": false,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "observed",
+            "status": "equal"
+          },
+          {
+            "dimension": "doubled-backslash",
+            "requiredEqual": false,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "observed",
+            "status": "different"
+          },
+          {
+            "dimension": "e-acute",
+            "requiredEqual": false,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "observed",
+            "status": "equal"
+          },
+          {
+            "dimension": "emoji",
+            "requiredEqual": false,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "observed",
+            "status": "equal"
+          },
+          {
+            "dimension": "escape-text",
+            "requiredEqual": false,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "observed",
+            "status": "equal"
+          },
+          {
+            "dimension": "escape-text-absent",
+            "requiredEqual": false,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "observed",
+            "status": "different"
+          },
+          {
+            "dimension": "quote",
+            "requiredEqual": false,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "observed",
+            "status": "equal"
+          }
+        ],
+        "arms": [
+          {
+            "variantId": "a",
+            "expected": 4,
+            "eligible": 4,
+            "unsupported": 0,
+            "blocked": 0
+          },
+          {
+            "variantId": "b",
+            "expected": 4,
+            "eligible": 4,
+            "unsupported": 0,
+            "blocked": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "nul-escape-in-plan",
+      "description": "A NUL escape anywhere in a plan, in pin values and outside the pins, makes it invalid (EVF-R236): Freeze rejects it with errorCode, so no freeze stores it. backfillReadiness is what the readiness backfill derives for such a plan that a Server stored before the rule: a NUL differs from the six characters of its escape, from a doubled backslash and from its absence, and a backslash before a NUL equals its other spelling.",
+      "plan": {
+        "schema_version": "playground.plan/v1",
+        "experiment_id": "trace-1",
+        "created_at": "2026-09-19T10:00:00Z",
+        "experiment_ref": {
+          "resource": "experiment.json",
+          "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+        },
+        "suites": [
+          {
+            "id": "trace-small",
+            "ref": {
+              "resource": "suite.json",
+              "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+            }
+          }
+        ],
+        "variants": [
+          {
+            "id": "a",
+            "binding": {
+              "resource": "bindings/a.json",
+              "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+            }
+          },
+          {
+            "id": "b",
+            "binding": {
+              "resource": "bindings/b.json",
+              "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+            }
+          }
+        ],
+        "pins": {
+          "a": {
+            "nul-equal": {
+              "value": "a\u0000b",
+              "origin": "observed"
+            },
+            "nul-literal": {
+              "value": "a\u0000b",
+              "origin": "observed"
+            },
+            "nul-backslash": {
+              "value": "\\\u0000",
+              "origin": "observed"
+            },
+            "nul-trailing": {
+              "value": "a\u0000",
+              "origin": "observed"
+            },
+            "backslash-nul-forms": {
+              "value": "\\\u0000",
+              "origin": "observed"
+            }
+          },
+          "b": {
+            "nul-equal": {
+              "value": "a\u0000b",
+              "origin": "observed"
+            },
+            "nul-literal": {
+              "value": "a\\u0000b",
+              "origin": "observed"
+            },
+            "nul-backslash": {
+              "value": "\\\\0",
+              "origin": "observed"
+            },
+            "nul-trailing": {
+              "value": "a",
+              "origin": "observed"
+            },
+            "backslash-nul-forms": {
+              "value": "\u005C\u0000",
+              "origin": "observed"
+            }
+          }
+        },
+        "members": [
+          {
+            "member_id": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+            "suite_id": "trace-small",
+            "case_id": "unsafe-query",
+            "variant_id": "a",
+            "sample": 1,
+            "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+            "suite_id": "trace-small",
+            "case_id": "unsafe-query",
+            "variant_id": "b",
+            "sample": 1,
+            "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "85a43c9e1d2c3d7f2f9abc4c535989a02dd01fd2a641e6655a0c189bae28d0d0",
+            "suite_id": "trace-small",
+            "case_id": "unsafe-query",
+            "variant_id": "a",
+            "sample": 2,
+            "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "bcc7756da7e873c73ae8d2611d024880679804a2b44bb032cbe71729ca021c1b",
+            "suite_id": "trace-small",
+            "case_id": "unsafe-query",
+            "variant_id": "b",
+            "sample": 2,
+            "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "73b5a51a627474279f0cc01a5b735e09bb12fea5f69c04d94c31d5ca26ee9019",
+            "suite_id": "trace-small",
+            "case_id": "safe-query",
+            "variant_id": "a",
+            "sample": 1,
+            "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "339c4ff5715f252a80e27844db273183a92bed8b76428cef1317e1df4295f691",
+            "suite_id": "trace-small",
+            "case_id": "safe-query",
+            "variant_id": "b",
+            "sample": 1,
+            "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "61eacc0165daca08de79e0db6e8c01fde5c0ea0fde5c6243ef890513b731f2e3",
+            "suite_id": "trace-small",
+            "case_id": "safe-query",
+            "variant_id": "a",
+            "sample": 2,
+            "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          },
+          {
+            "member_id": "e9978e0586220d487006381c37d5e5c0d1664abb3397ed38c6131463524a5d55",
+            "suite_id": "trace-small",
+            "case_id": "safe-query",
+            "variant_id": "b",
+            "sample": 2,
+            "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+            "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "eligibility": "eligible",
+            "reason": null
+          }
+        ],
+        "execution_order": [
+          "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+          "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+          "85a43c9e1d2c3d7f2f9abc4c535989a02dd01fd2a641e6655a0c189bae28d0d0",
+          "bcc7756da7e873c73ae8d2611d024880679804a2b44bb032cbe71729ca021c1b",
+          "73b5a51a627474279f0cc01a5b735e09bb12fea5f69c04d94c31d5ca26ee9019",
+          "339c4ff5715f252a80e27844db273183a92bed8b76428cef1317e1df4295f691",
+          "61eacc0165daca08de79e0db6e8c01fde5c0ea0fde5c6243ef890513b731f2e3",
+          "e9978e0586220d487006381c37d5e5c0d1664abb3397ed38c6131463524a5d55"
+        ],
+        "budgets": {
+          "max_members": 8,
+          "max_in_flight": 1,
+          "wall_ms": 5400000,
+          "max_observed_total_tokens": null
+        },
+        "comparison": {
+          "baseline": "a",
+          "candidate": "b",
+          "required_equal": [
+            "source",
+            "tasks",
+            "scorers"
+          ],
+          "allowed_differences": [
+            "instructions"
+          ]
+        },
+        "publication": {
+          "provider": "contractor@1",
+          "connection": "server",
+          "enabled": false
+        },
+        "extensions": {
+          "contractor:private-fixture": {
+            "credential": "SECRET_CREDENTIAL_SENTINEL",
+            "oracle": "PRIVATE_TRUTH_SENTINEL"
+          },
+          "contractor:escaped-note": {
+            "text": "outside the pins\u0000too"
+          }
+        }
+      },
+      "comparison": {
+        "baseline": "a",
+        "candidate": "b",
+        "gates": {
+          "minCandidateEndToEndPass": 1,
+          "maxQualityDrop": 0
+        },
+        "requiredEqual": [
+          "source",
+          "tasks",
+          "scorers"
+        ],
+        "allowedDifferences": [
+          "instructions"
+        ]
+      },
+      "errorCode": "eval_invalid",
+      "backfillReadiness": {
+        "pins": [
+          {
+            "dimension": "backslash-nul-forms",
+            "requiredEqual": false,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "observed",
+            "status": "equal"
+          },
+          {
+            "dimension": "nul-backslash",
+            "requiredEqual": false,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "observed",
+            "status": "different"
+          },
+          {
+            "dimension": "nul-equal",
+            "requiredEqual": false,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "observed",
+            "status": "equal"
+          },
+          {
+            "dimension": "nul-literal",
+            "requiredEqual": false,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "observed",
+            "status": "different"
+          },
+          {
+            "dimension": "nul-trailing",
+            "requiredEqual": false,
+            "baselineOrigin": "observed",
+            "candidateOrigin": "observed",
+            "status": "different"
+          }
+        ],
+        "arms": [
+          {
+            "variantId": "a",
+            "expected": 4,
+            "eligible": 4,
+            "unsupported": 0,
+            "blocked": 0
+          },
+          {
+            "variantId": "b",
+            "expected": 4,
+            "eligible": 4,
+            "unsupported": 0,
+            "blocked": 0
+          }
+        ]
+      }
+    }
+  ]
+}

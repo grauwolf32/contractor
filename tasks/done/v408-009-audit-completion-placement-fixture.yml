@@ -1,0 +1,39 @@
+schema_version: "1.0"
+id: V408-009
+title: "Keep the Audit completion fixture valid after placement pinning"
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+introduced_by: V405-003
+priority: P2
+status: completed
+implementation_commit: 241d3d0c33f43c5a30134f2a4160010e3c453da7
+depends_on: [V405-003]
+languages: [go]
+goal: "The real-store Audit completion importer fixture carries the explicit empty labels and placement selection required by the current baseline contract."
+context:
+  finding: "internal/auditimport/completion_integration_test.go:244 builds a baseline without labels or requiredPlacementLabels. V405-003 now rejects this invalid persisted snapshot during trusted child Run creation, so seven integration cases fail before testing the importer."
+  siblings: "All completion importer modes and interactive/report-acceptance variants share this constructor; there are no other BaselineSnapshot literals in the auditimport tests."
+scope:
+  in:
+    - "Add the explicit empty labels object and requiredPlacementLabels array to the test-only baseline."
+    - "Run all integration-tagged auditimport tests and the canonical integration gate against real PostgreSQL."
+  out:
+    - "Changing production validation or introducing legacy fallback behavior."
+acceptance_criteria:
+  - id: A1
+    text: "Every Audit completion importer case reaches its intended assertions with a valid placement snapshot."
+  - id: A2
+    text: "The complete auditimport package, consolidated integration pass and lint pass."
+tests:
+  - command: "go test -tags=integration -count=1 ./internal/auditimport"
+    covers: [A1, A2]
+  - command: make test-release-integration
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+
+verification:
+  - "Full go test -tags=integration -count=1 ./internal/auditimport passed on isolated PostgreSQL (31.520 s)."
+  - "make test-release-integration passed at -race -p 2 with the canonical Audit required-case report verifier."
+  - "make lint passed, including 131 script regressions and compiled release coverage checks. No production validation was changed."

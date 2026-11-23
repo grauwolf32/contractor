@@ -1,0 +1,159 @@
+{
+  "task": "V55-010",
+  "status": "verified",
+  "implementationRevision": "69b25836febfe37039417cb89dd60223214e59f1",
+  "verifiedAt": "2026-09-20T10:54:28.665354+00:00",
+  "acceptance": {
+    "A1": "verified",
+    "A2": "verified"
+  },
+  "workflow": "katana-discovery@1",
+  "outputs": {
+    "report": "application/json",
+    "targets": "text/vnd.contractor.target-list"
+  },
+  "runtimeTests": {
+    "passed": 411,
+    "additionalPrimaryErrorRegressionPassed": 1
+  },
+  "liveKatanaTests": {
+    "passed": 5,
+    "version": "v1.7.0",
+    "binarySha256": "2dd9024907d656235409dea7aac18d3cdd88f8a8da332494113a69bff4c295d6",
+    "archiveChecksumVerified": true
+  },
+  "processTest": {
+    "name": "TestKatanaDiscoveryAcrossProductionProcesses",
+    "elapsedSeconds": 47.19,
+    "discoveryComplete": false,
+    "followupRuns": 0,
+    "modelCalls": 0,
+    "outOfScopeRequests": 0,
+    "outputs": {
+      "report": {
+        "namespace": "outputs",
+        "name": "report",
+        "revision": "rev_9a47bac78653f52094c9680783a9760c"
+      },
+      "targets": {
+        "namespace": "outputs",
+        "name": "targets",
+        "revision": "rev_b81174109334be2cfd1883b31eebd092"
+      }
+    },
+    "planCandidates": 5,
+    "planJobs": 4,
+    "requests": [
+      "/",
+      "/alpha?x=2",
+      "/beta",
+      "/redirect"
+    ],
+    "runId": "run_5af4882b9c389036b6f6f99f5b558aaa",
+    "sourceTargets": {
+      "namespace": "scanner",
+      "name": "targets",
+      "revision": "rev_4768d13ff93e5e81301c9402b9fa42bb"
+    },
+    "status": "passed",
+    "targetsDigest": "sha256:b246d6b67f25a71a6c56d65126d33a4bc810dc6dda70a8071c15ff8c2b839e26"
+  },
+  "goChecks": [
+    "go test ./internal/config ./internal/scanplan/... ./internal/planner/... ./internal/contracts/... ./tests/e2e",
+    "go vet ./internal/config ./internal/scanplan/... ./internal/planner/... ./internal/contracts/... ./tests/e2e"
+  ],
+  "staticChecks": [
+    "Ruff check and format",
+    "gofmt",
+    "task/config YAML validation",
+    "git diff --check"
+  ],
+  "limits": {
+    "scope": "same HTTP origin",
+    "maxDepth": [
+      1,
+      5
+    ],
+    "maxPages": [
+      1,
+      1000
+    ],
+    "rateLimit": [
+      1,
+      1000
+    ],
+    "timeoutSeconds": [
+      1,
+      3600
+    ],
+    "maxTargets": 100,
+    "maxTargetBytes": 131072,
+    "discoveryComplete": false
+  },
+  "notes": [
+    "TargetList export only; RequestSet export and browser crawling are outside this slice.",
+    "Targets are observed same-origin GET response URLs; raw headers, bodies and error strings are omitted.",
+    "Declared additional output refs are exact and survive durable Worker replay without recrawling.",
+    "All active verification used controlled loopback targets; no model calls or follow-up scans.",
+    "Disposable test processes and PostgreSQL were removed. Demo deployment remains the previous release."
+  ],
+  "evidence": [
+    {
+      "path": ".local/evidence/v55-010/final/runtime-tests.log",
+      "sha256": "87ea93076f833d8551649369b87302be0c5e7870af1b1625c6168c866b58135f"
+    },
+    {
+      "path": ".local/evidence/v55-010/final/error-preservation-test.log",
+      "sha256": "a2fd0870421b574e87fbdf2cc65c5306b08ff554df3420bed135bc8dc2314c24"
+    },
+    {
+      "path": ".local/evidence/v55-010/katana-process.log",
+      "sha256": "325212c0000064c0c26c816bbc95443d637b8723cef85a32e28b208117b4b1ba"
+    },
+    {
+      "path": ".local/evidence/v55-010/process/evidence.json",
+      "sha256": "67b060fe3cb4506c2b90ce049f97abf92328514be6b96709a803adf7699c5190"
+    },
+    {
+      "path": ".local/evidence/v55-010/process/report.json",
+      "sha256": "2217461994a1d377455bcc0d0e55a9e11b5d502d7cc05b9b05a572f1fb497f7b"
+    },
+    {
+      "path": ".local/evidence/v55-010/process/targets.txt",
+      "sha256": "b246d6b67f25a71a6c56d65126d33a4bc810dc6dda70a8071c15ff8c2b839e26"
+    },
+    {
+      "path": ".local/evidence/v55-010/process/plan.json",
+      "sha256": "90d428cb585e189d27244262d8cbef3d7b7c9f584a2be5f55f8281965edef49b"
+    },
+    {
+      "path": ".local/evidence/v55-010/katana-upstream/manifest.json",
+      "sha256": "fe2215b1dca9c90248c821fa65f12692c8836f91b28bfa40b8d13d856bad22b6"
+    },
+    {
+      "path": ".local/evidence/v55-010/katana-upstream/adapter-live-tests.log",
+      "sha256": "4d2df7a96ce4a667da3ccf295f2d16c728a65ed0e861a3baa919f7bb469b02b5"
+    },
+    {
+      "path": ".local/evidence/v55-010/katana-upstream/probe.json",
+      "sha256": "3b1add6435fcb9cd2c990b2e22dd4acf5c755750a2295c37451fa82879fb1288"
+    },
+    {
+      "path": ".local/evidence/v55-010/katana-upstream/seedfile-probe.json",
+      "sha256": "5c57cb86632f0ed1176d7922bf0d2bbbc9defe6be4c66da818bd03e8027efae1"
+    },
+    {
+      "path": ".local/evidence/v55-010/merge-main.json",
+      "sha256": "1883874bc7b2428cf6e54f43cde0a833af701b7db38ac2e7fcd878c8a83be5ae"
+    }
+  ],
+  "integration": {
+    "previousMain": "e1ea6209713d1c8d637d1106ce92a4960a4a2c58",
+    "integratedRevision": "2c0beee3cc701ff29f210f001e6d146cd7324548",
+    "preservedDirtyFiles": 98,
+    "method": "fast-forward with conflict-free preservation of one unstaged patch",
+    "threeWayMergedPaths": [
+      "tests/e2e/scan_tools_test.go"
+    ]
+  }
+}

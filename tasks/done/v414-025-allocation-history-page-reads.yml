@@ -1,0 +1,191 @@
+schema_version: "1.0"
+id: V414-025
+title: "Bound allocation-history pages by page size at any cursor depth and Run filter"
+milestone: review-v407-v409-followups-2026-10
+epic: operations
+kind: defect
+introduced_by: V32-005
+priority: P2
+status: completed
+implementation_commit: 47e5ccaba82458f54f951932140be61c6879349a
+depends_on: []
+languages: [go, sql]
+goal: >-
+  GET /v1/operations/allocation-history reads a number of Stages proportional
+  to the page size, not to the cursor depth or to the owner's whole history,
+  in both custom and generic plans, with the same order, membership and
+  cursor semantics.
+context:
+  review: >-
+    tasks/done/v409-007-dead-and-redundant-indexes.yml (merged from
+    claude/review-v407-v409), finding "Allocation resource history" and its declined note:
+    the two costs need statement changes, not index changes, and were
+    reported for a follow-up.
+  specification:
+    - docs/spec/operations/operations.md#OPS-R168
+    - docs/spec/platform/limits.md (LIM-OPS-28, page size default 50, maximum 100)
+    - docs/spec/platform/persistence.md#PER-R21
+  severity: medium
+  finding: >-
+    internal/telemetry/allocation_resources_sql.go:12-54
+    (allocationResourceHistorySQL, called by
+    Repository.ListAllocationResourceHistory in allocation_resources.go:53-78)
+    is the same at 19f7477f and after merging V409-007 (its merge adds only
+    an Eval test file under the two packages). V409-007 measured it on a
+    fixture of 6,000 Runs of 6 owners, 18,000 terminal Stages with one
+    allocation each (three Stages per terminal_at) and 12,000 reports: the
+    first owner page of 51 read 318 Stages, 108 Runs and 54 allocations, but
+    (1) a cursor page 1,500 rows deep read 9,306 Stages, because the exclusive
+    cursor is the cross-table row comparison
+    (execution.terminal_at, allocation.allocation_id) < ($7, $8) behind
+    NOT $9::boolean OR, which cannot bound the
+    stage_executions_terminal_history_idx scan, so the scan starts at the
+    newest Stage and discards every row above the cursor; and (2) the generic
+    plan of a one-Run history ignores the optional filter
+    (NOT $3::boolean OR run.run_id = $2) and read 17,944 Stages. The Server
+    uses pgx's default statement cache (no QueryExecMode or plan_cache_mode
+    override outside explaintest), so after five executions PostgreSQL may
+    choose the generic plan. Runs and Stages per owner have no limit, so both
+    costs grow with history size. The inclusive upper bound ($4, $5 behind
+    $6) has the same shape as the cursor.
+  siblings: >-
+    stageAllocationResourcesSQL (allocation_resources_sql.go:60-91) selects
+    by stage_execution_id = ANY($2) for one Run detail and has no optional
+    filter or cursor: ruled out. Other Server statements use the same
+    optional-filter shape (finding_reads_sql.go, artifacts
+    postgres_query_sql.go, auditstore read_sql.go and store_sql.go, runstore
+    store_sql.go and queue_store_sql.go, projectstore store_sql.go,
+    evalstore public_read_sql.go and comparison_pages_sql.go); the Eval
+    summary page is the other measured instance and has its own task
+    (V414-026). The rest have no measurement showing reads beyond their
+    bounded parent; this task does not change them, and the exit task
+    V414-027 records their disposition.
+  provenance: >-
+    git log -S on the optional Run filter attributes the statement to
+    34d612237c3e896ee919eec62d0c4073e4005eff ("feat(performance): integrate
+    metrics API and allocation history", body "Integrate V32-005 with current
+    main"); V365-002 (246cc7ae) only moved it into the *_sql.go file.
+scope:
+  in:
+    - >-
+      Give the cursor and upper-bound predicates a sargable terminal_at bound
+      derived from the cursor (execution.terminal_at <= $7 for the cursor,
+      <= $4 for the upper bound) next to the exact row comparison, so the
+      terminal-history index scan starts at the cursor's terminal_at group.
+    - >-
+      Remove the optional-filter generic-plan class from this statement:
+      either split the Run-filtered and unfiltered (and cursor or no-cursor)
+      shapes into separate statements chosen in Go, or execute the statement
+      with pgx.QueryExecModeExec so every execution gets a custom plan.
+      Record the chosen option, the alternative and the reversal condition
+      in context or in the persistence spec if it becomes a rule.
+    - >-
+      Real PostgreSQL plan regressions with explaintest.ExplainPrepared in
+      both Custom and Generic modes and Analysis.Reads budgets derived from
+      the page size (not from Node.Examined).
+  out:
+    - "Index changes: V409-007 showed the existing indexes are the right ones."
+    - "API order, cursor encoding, page size limits and report selection."
+    - "Other optional-filter statements listed under siblings."
+failure_outcomes:
+  - operation: "allocation-history page read"
+    permanent: "unchanged: invalid parameters stay 400 before the store is reached"
+    retryable: "unchanged: storage_transaction_conflict and unavailable stay the documented 503"
+    ambiguous: "not applicable: read-only statement"
+    cancelled: "request context cancels the query; nothing to clean up"
+    timeout: "the existing statement timeout owns it; the fix must not depend on raising it"
+acceptance_criteria:
+  - id: A1
+    given: >-
+      a committed fixture with at least 6,000 Runs, 18,000 terminal Stages
+      with allocations, shared terminal_at groups and reports (the V409-007
+      shape)
+    when: "a page of 51 is read at the first page and at a cursor 1,500 rows deep, in Custom and Generic plans"
+    then: >-
+      Analysis.Reads of stage_executions, stage_allocations and workflow_runs
+      stay within a budget derived from the page size and the largest
+      terminal_at group, independent of cursor depth.
+  - id: A2
+    given: "the same fixture"
+    when: "a one-Run history page is read in the Generic plan"
+    then: "Stage reads are bounded by that Run's Stages, not by the owner's history."
+  - id: A3
+    given: "pages walked to the end with and without the Run filter and with an upper bound"
+    when: "results are compared with the unfixed statement"
+    then: "order, membership, ties at equal terminal_at and cursor traversal are identical."
+  - id: A4
+    given: "the unfixed statement"
+    when: "the A1 and A2 budget tests run"
+    then: "they fail (9,306 and 17,944 Stage reads in V409-007's measurement)."
+tests:
+  - command: >-
+      CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a
+      disposable PostgreSQL URL}" go test -count=1 ./internal/telemetry/...
+      ./internal/httpapi/public/...
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A3]
+
+implementation_decision:
+  chosen: >-
+    Select eight stable SQL shapes by the presence of the exact Run, upper
+    boundary and cursor. All values stay parameters, and each enabled boundary
+    has a terminal_at <= predicate beside the unchanged exact tuple comparison.
+    Keep the normal pgx prepared-statement cache; both Custom and Generic plans
+    use the existing indexes. Effective-report lookup still follows the page LIMIT.
+  alternative: >-
+    QueryExecModeExec would force replanning on every call and remove the generic
+    shape risk, but it adds planning work and leaves the SQL dependent on that
+    execution mode. Separate shapes are bounded to eight cached statements and
+    make each filter directly visible to either planner mode.
+  reopen_when: >-
+    A new history filter changes the finite shape set, or representative data or
+    a PostgreSQL upgrade breaks the real-store row budgets. Re-evaluate query
+    shape and data distribution before adding indexes or forcing custom plans.
+  scope_accounting: >-
+    Owner history is unbounded. The committed fixture has six interleaved owners,
+    6,000 Runs, 18,000 terminal Stages and allocations, three allocations per
+    terminal timestamp, and 12,000 reports. The page is 51; the Stage budget is
+    (page + two tie groups) * six owners + eight boundary/planning probes = 350;
+    allocation reads are at most page + two tie groups + eight = 65. An exact
+    Run has three Stages and a budget of three + eight = 11. These fixture-derived
+    budgets do not claim a universal bound on arbitrary owner sparsity or tie size.
+  sibling_disposition: >-
+    ListStageAllocationResources remains unchanged: its bounded Stage ID input
+    has no optional Run or cursor branch. Other optional-filter statements stay
+    outside this measured defect as recorded under context.siblings. No public
+    fields, cursor encoding, limits, indexes, mutations or lifecycle rules change.
+verification_progress:
+  date: '2026-10-25'
+  red_before: >-
+    The new real-Repository regression on the unfixed production statement failed
+    the page-derived budgets: the 1,500-row-deep Custom page read 9,311 Stages;
+    the one-Run Generic page read 18,004. The original statement remains in the
+    test as a negative budget control and a full-result pagination oracle.
+  focused_after: >-
+    TestPostgresAllocationHistoryPagesKeepBoundedReadsAndExactCursors passed with
+    both forced plan modes: first page 311 Stage / 105 Run / 54 allocation reads;
+    deep cursor, deep upper and pinned cursor pages 329 / 111 / 57; exact Run
+    pages 5 Stage reads. Full walks with two-row pages split timestamp ties and
+    match the original order, membership and resource projections, with and
+    without an upper boundary and with owned or foreign exact Runs.
+  owner_suite: >-
+    With CONTRACTOR_TEST_DATABASE_URL set to the dedicated disposable PostgreSQL
+    database, go test -count=1 ./internal/telemetry/... passed (22.617s), including
+    the scale regression, report projection, retention, identity and cursor tests.
+    scripts/check_tasks.py, scripts/check_spec.py and git diff --check passed.
+  remaining: []
+
+completion_verification:
+  date: "2026-10-25"
+  result: passed
+  base_revision: a7b1c76db989c1586fb3be2d9d068562cea04ddc
+  environment: Go 1.26.9, PostgreSQL 17 disposable databases, locked CPython 3.13 Runtime, canonical TMPDIR; bounded Go parallelism.
+  commands:
+    - "go test -count=1 ./internal/telemetry/... ./internal/httpapi/public/..."
+    - "make lint"
+  evidence: >-
+    All listed commands completed successfully. Real-store regression-before
+    failures and focused after-fix evidence are recorded above. Integrated
+    lint, shared fixtures and full telemetry/public API checks passed after
+    assembling the four fixes; task metadata was validated again after closure.

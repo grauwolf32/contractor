@@ -1,0 +1,6 @@
+{
+  "server": "http://192.168.56.10:8080/api",
+  "operations": "[\"#/paths/~1pets~1{id}/post\"]",
+  "test_parameters": "[\"name\",\"search\"]",
+  "credential_id": "fixture-credential"
+}

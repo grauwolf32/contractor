@@ -1,0 +1,89 @@
+{
+  "valid": [
+    {
+      "scope": "project",
+      "operation": "list_sitemap_entries"
+    },
+    {
+      "scope": "project",
+      "operation": "read_sitemap_entry"
+    },
+    {
+      "scope": "project",
+      "operation": "snapshot_sitemap_context"
+    },
+    {
+      "scope": "project",
+      "operation": "read_archive"
+    },
+    {
+      "scope": "project",
+      "operation": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    }
+  ],
+  "invalid": [
+    {
+      "scope": "",
+      "operation": "read_artifact"
+    },
+    {
+      "scope": "run",
+      "operation": "read_artifact"
+    },
+    {
+      "scope": "user",
+      "operation": "read_artifact"
+    },
+    {
+      "scope": "Project",
+      "operation": "read_artifact"
+    },
+    {
+      "scope": "project:foreign",
+      "operation": "read_artifact"
+    },
+    {
+      "scope": "project",
+      "operation": ""
+    },
+    {
+      "scope": "project",
+      "operation": " "
+    },
+    {
+      "scope": "project",
+      "operation": " read_artifact"
+    },
+    {
+      "scope": "project",
+      "operation": "read_artifact "
+    },
+    {
+      "scope": "project",
+      "operation": "read/artifact"
+    },
+    {
+      "scope": "project",
+      "operation": "read:artifact"
+    },
+    {
+      "scope": "project",
+      "operation": "чтение"
+    },
+    {
+      "scope": "project",
+      "operation": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    {
+      "scope": "project"
+    },
+    {
+      "operation": "read_artifact"
+    },
+    {
+      "scope": "project",
+      "operation": "read_artifact",
+      "projectId": "foreign"
+    }
+  ]
+}

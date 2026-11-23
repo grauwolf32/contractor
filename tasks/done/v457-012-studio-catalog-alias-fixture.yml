@@ -1,0 +1,68 @@
+schema_version: "1.0"
+id: V457-012
+title: Expand trusted catalog aliases in Studio conformance fixtures
+milestone: release-gate-2026-10
+epic: quality
+kind: chore
+introduced_by: V420-006
+priority: P1
+status: completed
+depends_on: []
+languages: [typescript]
+goal: The shipped-catalog conformance test follows Studio's explicit alias-expansion contract without weakening editor isolation or import bounds.
+context:
+  authority: >-
+    User request 2026-11-07 authorizes reported release fixes and narrow full-gate
+    prerequisites on a separate branch. This task repairs the conformance fixture
+    only and does not assign pending Planner compaction feature acceptance.
+  specification:
+    - docs/design/ui/editor-studio.md
+  finding: >-
+    ui/e2e/studio-catalog.spec.ts:29 passes every raw shipped YAML document to
+    readDraft. V420-006 introduced catalog anchors and aliases in
+    59482c8be9d03f25d57459e5c61354204026d150; eleven catalog cases now meet the
+    editor's deliberate alias rejection. The conformance fixture was introduced
+    by V368-015 in 5eb0a679f7ae191010c5ff2b13822de0c549d908. Studio's design
+    requires expansion before import so editing a block cannot mutate an anchor.
+  siblings: >-
+    Production readDraft and its malformed/aliased/oversized document tests stay
+    unchanged. Every Workflow, AuditProfile and AgentTemplate catalog case keeps
+    semantic equivalence, import-source equality, validation and graph checks.
+  verification: >-
+    Direct execution of the fixture-owned studio-catalog.spec.ts with the existing
+    Playwright configuration reproduced 63 passes and 11 alias rejections before
+    the repair, then passed all 74 original cases. No page/browser/service fixture
+    was requested. The existing Studio document suite passed all 14 tests;
+    the e2e TypeScript configuration, ESLint and Prettier checks passed.
+    Source parsing is bounded to the existing 1 MiB input ceiling, 20,000 syntax
+    entries and a finite 100-alias expansion count; expanded input still passes
+    the unchanged production import bounds. Final integrated verification passed as recorded in context.integration_verification.
+  integration_verification: >-
+    Acceptance verified on 2026-11-08. All 74 original catalog cases pass in the
+    successful complete UI-stack invocation; the existing fourteen Studio document
+    regressions also pass in full ui-verify. Raw aliases retain the required rejection
+    and trusted expansion retains semantic identity and unchanged editor bounds. Final
+    release-verify-lint passed.
+scope:
+  in:
+    - Assert deliberate raw-source rejection when a trusted shipped fixture contains aliases.
+    - Expand bounded fixture YAML without duplicate-object aliases and prove exact parsed semantic equivalence.
+    - Keep the conformance spec owned by tests/ui-stack and run its pure catalog cases directly without browser or service fixtures.
+  out:
+    - Production alias support, weaker import limits or changed visual-edit isolation.
+    - Production catalog, models, Runtime behavior or pending V420 feature work.
+acceptance_criteria:
+  - id: A1
+    text: Every original shipped-catalog case remains and validates an equivalent explicitly expanded source when aliases are present.
+  - id: A2
+    text: Aliased raw input still fails with the documented Studio message; unaliased input retains exact original source.
+  - id: A3
+    text: The catalog conformance spec and existing Studio document regressions pass without changing production behavior or bounds.
+tests:
+  - command: cd ui && corepack pnpm exec playwright test e2e/studio-catalog.spec.ts
+    covers: [A1, A2]
+  - command: cd ui && corepack pnpm test --run src/routes/studio/document.test.ts
+    covers: [A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: c8953d65fa37163771703dcfcefbebb7c88ba239

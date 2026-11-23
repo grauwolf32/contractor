@@ -1,0 +1,24 @@
+{
+  "valid": [
+    "a",
+    "0",
+    "glm-5.3-flash",
+    "fixture.a-2",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "invalid": [
+    "",
+    "A",
+    "a_b",
+    "-a",
+    ".a",
+    "a/b",
+    "a@1",
+    "a b",
+    "a\n",
+    "a\r\n",
+    "a\t",
+    "модель",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ]
+}

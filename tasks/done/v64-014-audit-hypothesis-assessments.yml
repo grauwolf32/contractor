@@ -1,0 +1,352 @@
+schema_version: '1.0'
+id: V64-014
+title: Move the single Finding model to Project scope
+milestone: audit-check-prioritization
+epic: audits
+kind: feature
+priority: P1
+status: completed
+depends_on:
+- V64-001
+languages:
+- go
+- python
+- sql
+- json
+- typescript
+- yaml
+- markdown
+goal: >-
+  A problem has one Project-owned Finding and one current analyst assessment. Audits reference that
+  same entity: changing its current status, verdict, severity or duplicate relation is visible everywhere
+  without copying or synchronizing another Finding. Independent discoveries and check results retain
+  their own immutable provenance, conditions and exact evidence.
+demonstration: >-
+  Two ordinary Runs in different Audits of one Project independently publish the same qualified problem.
+  Project and both Audit views show one Finding ID with two independent sources. From either Audit,
+  a user changes that Finding through the same ordinary Project command; Project and all Audit views
+  read the same canonical state and revision. Independent evidence and check results remain intact.
+  A later negative recheck adds a linked ordinary result without overwriting that state. Purging either
+  source Run/Audit leaves the Finding, source history and exact materials readable. No hypothesis is required.
+context:
+  acceptance_update: >-
+    User decision 2026-11-02: the two filesystem fixtures tracked by
+    V425-001/V425-002 are Linux-only and must not execute or block acceptance
+    on macOS. V433-007 implements automatic platform skips; a standard
+    make test-runtime run needs no --deselect for them. Historical failures
+    below remain evidence of the old policy, not current acceptance blockers.
+    The standard macOS gate on V433-007 passed: 5866 passed, 135 skipped,
+    no manual deselection; Runtime JUnit verification passed as well.
+    Completion reconciliation requested on 2026-11-03 is recorded below; no Linux execution is claimed.
+  authority: >-
+    User decisions 2026-10-31 and 2026-11-01: keep Project finding deduplication, automatic trusted
+    Audit/Run and optional hypothesis provenance, evidence-backed problems distinct from ordinary
+    supported/refuted/inconclusive results, and controlled complexity. On 2026-11-01 the user explicitly
+    rejected the parallel Project problem header plus mutable Audit findings implementation, requested
+    abandoning codex/project-problem-findings and describing this task in more detail. Finding scope
+    must become Project scope, rather than requiring changes/closure to be synchronized between copies.
+    Earlier source assessments and annotations remain historical facts, not independently mutable Findings.
+    This supersedes the earlier split that left direct Finding edits to V411-010.
+    On 2026-11-01 the user accepted the four Project Finding flow diagrams and requested saving them
+    in the design and linking the task directly to that section.
+    Further user clarification 2026-11-01: a source is historical data, never an old Audit Finding renamed;
+    it has no current problem state or separate mutation commands. Migration is a one-time transformation
+    preserving facts and frozen snapshots, with no retained old readers/writers, runtime fallback or
+    synchronization between models. The principal end-to-end criterion is editing one Project Finding
+    from any Audit while every view reads that same state and independent evidence/check results survive.
+    Migration decision 2026-11-01: existing FindingProposal records have no explicit publication intent.
+    Preserve all as historical Project materials with exact evidence, origin, receipts and original ratings;
+    automatically create no Project Findings from them, even with qualified keys, supported or confirmed.
+    An empty Project Findings list after migration is correct. The new contract expresses problem
+    publication explicitly; old materials may later supply ordinary inputs to that same publication path,
+    without a promotion queue, old runtime model or fallback reader.
+    User decision 2026-11-01: the project is pre-release; remove legacy execution compatibility.
+    Existing Audits become ordinary immutable Project history, with their snapshots and results preserved;
+    no resume or working-code decoding of old AuditProfile. Continue research in a new Audit.
+    Completely remove findingConfirmation from active configurations, types, digest and behavior.
+    Finish and collect current Runs before switching. No old digest-chain rewrite or legacy readers.
+    Subsequent user clarification 2026-11-01: old Findings can be discarded; start the operational
+    Finding/intake model empty. Preserve old Audit snapshots/results as opaque immutable Project
+    artifacts, with no active old Finding/source records or readers and no promotion/mapping requirement.
+    This supersedes R6's earlier requirement to migrate old proposals into live source records.
+    Archive the existing Audit facts/materials and remove their executable rows in the one-time migration;
+    ordinary Artifact access supplies their history without a second Audit runtime model.
+    User request 2026-11-03: reconcile the existing verification and move this task to done.
+  implementation_progress: >-
+    Canonical Project ownership, direct manual assessment/CAS/replay, explicit evidenced publication,
+    independent retained sources/results/history, opaque drained Audit cutover and active confirmation
+    removal were implemented in e4b6df107d664192de4c3056b4af1c56a682932f and merged into main
+    through 2ccbf2cdd4790e23d8c8463921865b20500fb44e. No Finding review lifecycle, index backfill
+    command, migration-pending reader or second mutable Finding model remains. New indexes are
+    immutable and non-NULL. Existing evidence includes PostgreSQL scale/cleanup, canonical edits
+    shared by two Audits, 14 real-process cases and 33 related browser scenarios.
+    Acceptance is now reconciled against the merged common coordinator. The complete required
+    PostgreSQL owner command passes again, as do all 14 Findings process cases and 206 Runtime
+    Findings contract cases. Recent full Runtime (5737 passed, 135 expected environment/platform
+    skips), UI (2459 passed, one expected failure), API/wire/config and architecture results are
+    retained without unnecessary reruns of unchanged code. make lint passes.
+    V64-030 repairs the remaining frozen Eval archive-pin defect by restoring two exact historical
+    YAML files; the complete paired-archive package passes and no active confirmation reader returns.
+    Historical non-required wider Catalog/Studio/UI-stack failures remain dated evidence, not claimed
+    passes or a reason to keep this feature in progress. Integrated release readiness remains V64-011.
+  verification_evidence: tasks/evidence/v64-014-2026-11-03.json
+  historical_verification_evidence: tasks/evidence/v64-014-2026-11-01.json
+  implementation_gate: >-
+    User assigned the replacement implementation on 2026-11-01. V64-001 is completed and V64-004 is
+    not a prerequisite. This authorizes implementation and disposable-database verification, not live
+    Runs or deployment.
+  rejected_implementation:
+    former_branch: codex/project-problem-findings
+    archive_tag: archive/v64-014-project-problem-findings-2026-11-01
+    head: 62c52ee6b77d91c4d2e4ea8656345680b4ecc708
+    disposition: Rejected and not merged; its completed task record does not complete this pending task.
+    reason: >-
+      project_findings was added while audit_findings, their mutable states and Audit review writers
+      remained live. Reclassifying those entities as sources did not remove the second operational model.
+    review_evidence:
+    - >-
+      Migration 000003 rewrote Audit hold refs without rewriting contribution/task consumers: a real
+      PostgreSQL review probe found six contribution refs incompatible with the migrated holds.
+    - >-
+      retainCheckResults chose Project retention only for task.Finding, missing incidental findings
+      emitted by ordinary checks; an importer probe retained their accepted result in the purged Audit namespace.
+    reuse: >-
+      Reuse existing mainline intake, qualified-key algorithms, receipts, ArtifactStore forks and fence.
+      The archived patch is evidence, not an implementation base or a source of accepted schema/API decisions.
+  design:
+  - docs/proposals/0050-audit-common-hypothesis-model.md
+  - docs/proposals/0050-audit-common-hypothesis-model.md#project-finding
+  - docs/plans/2026-10-31-audit-redesign.md
+  - docs/proposals/0050-audit-removal-map.yml
+  specification:
+  - docs/spec/findings/findings.md
+  - docs/spec/audits/review-and-reports.md
+  - docs/spec/audits/execution.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/limits.md
+  - docs/spec/audits/common-contract.md#ACT-R6
+  - docs/spec/audits/common-contract.md#ACT-R11
+  specification_baseline: >-
+    Named specs describe current behavior. Update their owning requirements, OpenAPI, generated clients,
+    wire fixtures and actual consumers with the implementation; proposal 0050 defines the accepted target.
+  ownership_boundary: >-
+    The existing Finding owner owns one Project identity, its current analyst fields, authorized writes
+    and revision. The existing intake receipt identifies a producer contribution, not another Finding.
+    Audit owns execution and references; ArtifactStore owns exact bytes, lineage, holds and purge.
+    Per-source conclusions/ratings are ordinary retained results or historical annotations. They have
+    no separate current Finding lifecycle, review inbox or state machine. Physical renames are implementation
+    choices; a second live Finding store/header over unchanged Audit findings is not an option.
+  production_caller: >-
+    Migrate findingintake.Service.Submit and current import/collection callers, the existing Finding
+    detail/list/provenance and analyst mutation paths, and their API/UI/CLI consumers in this task.
+    An existing ordinary or Audit child Run is sufficient. Audit views query Project Findings through
+    source/check associations and use the canonical ID/current state. No compatibility write aliases.
+  adjacent_tasks: >-
+    V64-014 supplies the minimal direct Project Finding edit/duplicate operations required by these
+    existing callers and removes their Finding-specific formal review machinery. V411-010 removes the
+    remaining item/report approvals and Audit control policy. V64-008/009 later extend the complete
+    Audit API/UI; they do not repair broken Finding consumers or add another state owner. V64-002
+    integrates these Project entities with the new coordinator; V64-012 supplies actual hypothesis context.
+  dependency_boundary: >-
+    Existing ArtifactStore can retain exact Run material directly in Project without copying immutable
+    versions/blobs. Migrate existing retained Project refs when the source Run is already gone. Neither
+    real Audit Artifact scope nor a new coordinator is needed; V64-004 owns ordinary material handoff.
+scope:
+  in:
+  - >-
+    Move the existing Finding entity and current mutation authority to Project. Replace Audit-owned
+    Finding identities/readers/writers with canonical Project operations and genuine filtered Audit views.
+  - >-
+    Keep every independent source receipt, original Audit/Run and available task/hypothesis association,
+    conditions, exact proposal/evidence/result and annotation authorship/history. Reading a source does
+    not create another mutable Finding or retain a live execution parent.
+  - >-
+    Reuse qualified producer/structural equality, receipt replay, bounded candidate search, correlation
+    fence and explicit duplicate corrections. Retarget their ownership, not their matching policy.
+  - >-
+    Move existing Finding edits to ordinary Project owner/CAS/idempotency commands and adapt current
+    clients. Remove Finding-specific review requests, waiting/expiry/renewal, confirmation policy and
+    duplicate write paths; leave item/report approval removal to V411-010.
+  - >-
+    Perform a one-way populated-data migration; preserve original snapshots and history while making
+    authoritative refs and ongoing real consumers agree. Delete replaced live tables/columns, indexes,
+    triggers, APIs and exclusive tests as their callers migrate, registering ownership and ERD changes.
+  out:
+  - >-
+    A second Project header over live Audit findings, source Finding state machines, status synchronization,
+    compatibility readers/aliases, a new assessment ledger, collector, receipt/lease system or approval framework.
+  - >-
+    Semantic/LLM/embedding comparison, new fingerprint schemes/provider parsers, automatic status/severity
+    aggregation, a new conflict state or a semantic proof engine.
+  - >-
+    The new coordinator, hypothesis registry, Audit Artifact scope, general material publication,
+    broad Audit UI redesign, demo deployment or changing configured models.
+requirements:
+- id: R1
+  text: >-
+    Explicit problem publication requires a problem claim and selected exact evidence distinct from the
+    proposal itself. Server validates shape, bounds, access, exact metadata and trusted provenance, not
+    semantic truth. Human confirmation is not required. Evidence-free observations/proposals remain ordinary
+    results/intake data without a Finding card, invented hypothesis or promotion queue; receipt replay
+    remains idempotent. A verdict, evidence count or successful Run alone is not publication intent.
+- id: R2
+  text: >-
+    Existing qualified equality admits one Project Finding for concurrent matching discoveries and keeps
+    every independent source. Missing/ambiguous keys or weak candidate hints never imply equality.
+    Replay adds no source or binding. Manual duplicate correction uses the same Project owner and existing
+    validation/receipts, preserves all provenance and rejects foreign targets, active self-links and cycles.
+- id: R3
+  text: >-
+    A check result is an ordinary immutable output with conditions and provenance, separate from Finding
+    state. A negative recheck links to the existing canonical Finding without creating another card or
+    automatically resolving it. Source interpretation, fact and analyst annotation remain distinguishable.
+- id: R4
+  text: >-
+    Retain exact proposals, evidence and associated results/contracts through ordinary Project Artifact
+    ownership, including incidental findings from tasks that had no Finding at submission. Reuse immutable
+    versions/blobs and stable source identities. Source Run/Audit purge cannot destroy referenced materials;
+    failed/unaccepted publication must not leave unowned protected material that no normal owner can clean.
+- id: R5
+  text: >-
+    Current status/verdict/severity/duplicate relation has exactly one Finding owner at Project level.
+    Before an explicit current Project assessment exists it is unset; do not select latest, representative,
+    maximum, majority or an arbitrary migrated source as that assessment. Conflicting source ratings are
+    immutable result/history facts with conditions and actor/time, not mutable Audit Finding statuses.
+    Current edits use one Project revision/CAS and receipt; subsequent source collection cannot overwrite them.
+    Do not add new enum values merely to rename scope or represent disagreement.
+- id: R6
+  text: >-
+    The pre-release cutover starts the operational Finding and intake model empty. Old Audits become
+    opaque immutable Project artifacts preserving snapshots, result bytes and original metadata; no
+    working code decodes an old AuditProfile or resumes an old Audit. Old Finding state, reviews and
+    proposal/source records need no migration into operational entities. Finish and collect current
+    Runs before switching; migration rejects undrained work atomically. Delete replaced tables,
+    fields and runtime readers/writers. No legacy fallback, dual-model operation or synchronization.
+- id: R7
+  text: >-
+    The delivered runtime has one Finding entity and mutation path. An Audit view is a query/reference
+    over Project Findings, not a second identity or lifecycle. Do not preserve old mutable Finding rows
+    as source observations merely because their old review consumers still exist: migrate those consumers
+    here and retain only historical facts. A source has no current problem state or separate commands
+    to change it. Editing from any Audit invokes the same Project Finding command; every view reads
+    that Finding's canonical state and revision. No controller, trigger or event handler propagates
+    current Finding status between Audit and Project copies.
+failure_outcomes:
+- operation: Publish/deduplicate a problem or mutate the canonical Project Finding
+  success: One canonical identity/revision and the independent source or explicit analyst edit are committed.
+  permanent: >-
+    Missing/foreign/malformed evidence, wrong owner, invalid duplicate target and stale revisions use the
+    owning classified API codes. An invalid problem publication preserves any already accepted ordinary
+    proposal/result and does not itself fail the Run. Never retry deterministic ErrInvalid or turn it into refutation.
+  retryable: Existing bounded retries of the same operation for classified storage_transaction_conflict 503.
+  ambiguous: Reconcile existing submission/receipt/owner-command identity before another mutation; no new append key.
+  cancelled: Honor existing allocation/Audit/Project fences and join in-flight work before release or purge.
+  timeout: Keep owning Run, mutation and cleanup deadlines distinct; no semantic re-execution to repair persistence.
+cardinality:
+- collection: Project Findings and their source/result/history pages
+  expected: Two Audits and independent producer Runs plus replay, contradictory results and explicit edits.
+  maximum: >-
+    No new Project lifetime count cap. Use owning endpoint item/byte/work ceilings, indexed keyset pages
+    and existing report/evidence limits; publish any necessary page bound in the owning FND/LIM requirement.
+  bound: >-
+    At most 128 primary records / 1 MiB metadata per mutation slice. One page may not hydrate all sources
+    of a Finding, scan the whole Project history or issue a network/database query for every row.
+  scale_fixture: >-
+    Agent-selected PostgreSQL verification sizes: 10000 Findings, 50000 sources and 10000 sources on one
+    qualified Finding. These are test sizes, not product limits. Verify read work and bytes with counters,
+    not wall-clock assertions, including filtered Audit views and exact continuation through every page.
+lifecycle:
+- entity: Canonical Project Finding, sources and ordinary retained materials
+  delete: >-
+    Audit/Run deletion drains its work and removes execution-local data. Project deletion drains the
+    Project and purges Finding/history/Artifact ownership in bounded dependency order.
+  cascade: >-
+    No current Finding or source data cascades with its historical Audit ID. Remove execution-parent FKs
+    from immutable provenance as needed; no retained live Audit Finding wrapper. Current-state edits do
+    not mutate original source results or frozen reports.
+  retention: >-
+    The Project keeps independent sources and necessary exact materials until its owning retention/purge
+    operation releases them. Reading alone creates no hold. Source deletion and replay create no redundant copies.
+acceptance_criteria:
+- id: A1
+  given: Two Audits of one Project independently publish an evidenced problem with the same qualified key.
+  when: Actual ordinary producers reconcile through Server intake and current detail/list consumers.
+  then: >-
+    There is one canonical Finding ID with two independent sources. Project and filtered Audit views
+    reference that ID; no Audit-specific Finding instance or duplicate current-state row is created.
+- id: A2
+  given: One canonical Finding is visible from both Audits and has contradictory source check results.
+  when: >-
+    A user edits its current assessment/duplicate relation from each Audit through the same Project
+    command, then exercises replay, a stale edit and a negative recheck.
+  then: >-
+    After each edit, Project and both Audit views read the same Finding ID, current state and revision
+    without synchronization writes. CAS/replay rejects stale overwrite and duplicate sources. Independent
+    evidence and check results remain intact. The recheck leaves current state untouched; original ratings,
+    conditions and actor/time/history remain readable and no general verdict is inferred from them.
+- id: A3
+  given: Populated existing Findings, contributions, pending check selections, exact refs and human duplicate history.
+  when: Migration runs, old Runs have been finished/collected, then current readers and source Run/Project purges execute.
+  then: >-
+    Original Audit snapshots, result payloads and hold/task selections remain together as opaque immutable history; unfinished collection blocks switching. Old Finding/intake operational rows are absent. Project source/result reads survive source deletion,
+    including incidental discoveries, and final Project purge leaves no orphan holds or blocked parents.
+    Ongoing readers/writers use only the new model; no old runtime reader/writer, fallback, dual-write
+    path or synchronization mechanism remains after the one-time transformation.
+- id: A4
+  given: Concurrent equal-key publications, missing/ambiguous keys, weak-only candidates and invalid/foreign duplicate targets.
+  when: Real PostgreSQL writers contend and reconcile through original operation identities.
+  then: >-
+    Qualified matches yield one Finding and exactly the independent sources; weak/unavailable keys do
+    not merge. Replay adds no bindings/sources, invalid corrections leave no partial writes, and no new fence/receipt store exists.
+- id: A5
+  given: The large-history PostgreSQL fixture with high-multiplicity Findings and filtered Audit views.
+  when: Stable finding/source/history pages are fully traversed and concurrent changes exercise the owning cursor contract.
+  then: >-
+    Every selected record is reachable once with truthful continuation/revision conflicts. Each page
+    obeys row/byte/work bounds without whole-source fanout, full-history hydration or N+1 reads.
+- id: A6
+  given: Current Finding API/UI/CLI and Audit collection/review consumers have migrated.
+  when: A real user publishes, reads and edits a Project Finding and the old Finding-only lifecycle is inspected.
+  then: >-
+    The user completes that path without a formal Finding review request. Audit-owned Finding writers,
+    per-source current problem states and separate mutation commands, Finding confirmation config and
+    their exclusive triggers/routes/tests are gone. Sources contain historical facts only. Remaining
+    item/report approval work stays with V411-010; architecture/ownership checks show one Finding owner.
+- id: A7
+  given: An evidence-free ordinary proposal, an evidenced explicit problem claim without a hypothesis and a positive-property/refuted-bug check.
+  when: Ordinary publication and collection run, including permanent invalid publication and replay.
+  then: >-
+    Only the admitted problem creates a Finding. Other results/receipts remain readable without invented
+    confirmation, a second candidate lifecycle, mandatory hypothesis/generation, review queue or Run failure caused solely by invalid publication.
+tests:
+- command: make require-database
+- command: >-
+    go test -tags=integration -count=1 ./internal/findingintake/... ./internal/auditdomain/...
+    ./internal/auditstore/... ./internal/auditservice/... ./internal/auditimport/...
+    ./internal/auditcontroller/... ./internal/artifacts/... ./internal/persistence/postgres/...
+  covers: [A1, A2, A3, A4, A5, A6, A7]
+- command: make test-findings-e2e
+  covers: [A1, A2, A3, A6, A7]
+- command: make verify-public-api verify-public-api-postgres
+  covers: [A1, A2, A3, A6, A7]
+- command: make test-wire-cross-language test-runtime
+  covers: [A1, A6, A7]
+- command: make ui-verify test-config
+  covers: [A1, A2, A6, A7]
+- command: make lint verify-architecture
+  covers: [A3, A5, A6]
+test_prerequisites:
+- Required acceptance commands have dated passing evidence in context.verification_evidence.
+- Use disposable PostgreSQL; a configured/unavailable DB or a mandatory skipped/zero-match selection fails. The OPS-R1 Linux-only fixtures are expected macOS skips, not mandatory macOS selections or acceptance blockers.
+- Use testdata catalogs and pseudo-Skills; run whole touched-package suites and required consuming gates.
+verification_requirements:
+- >-
+  Record the single entity/state owner and removed old paths in the spec/removal map. Update OpenAPI,
+  both generated clients, current UI/CLI consumers and shared wire fixtures together; no compatibility aliases.
+- >-
+  Register changed table owners/readers, indexes and ERD; keep layer direction and strict write/read validation.
+  New exports/states/endpoints need actual callers in this task. Broad Audit redesign remains with its existing tasks.
+implementation_commit: e4b6df107d664192de4c3056b4af1c56a682932f

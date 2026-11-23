@@ -1,0 +1,196 @@
+package public
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
+	"github.com/getkin/kin-openapi/routers/gorillamux"
+	"github.com/grauwolf32/contractor/internal/auditservice"
+	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/jackc/pgx/v5"
+)
+
+func TestPublicOwnerAuditLists(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
+	defer cancel()
+	pool := isolatedPublicPool(t, ctx)
+	const owner = "user-1"
+	seed := func(projectID, auditID, ownerID string) {
+		t.Helper()
+		_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: projectID, OwnerID: ownerID, Kind: projectstore.KindProject, Name: projectID, IdempotencyKey: projectID, RequestDigest: auditHandlerDigest(projectID)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		revision := "r1"
+		selection, _ := json.Marshal(auditservice.DraftSelection{Labels: map[string]string{}, RequiredPlacementLabels: []string{}, Schema: auditservice.DraftSelectionSchema, Inputs: map[string]auditstore.ExactArtifact{"source": {Ref: contracts.ArtifactRef{Namespace: "source", Name: "input", Revision: &revision}, Digest: auditHandlerDigest("input"), MediaType: "text/plain", SizeBytes: 1}}, RuntimeLabels: []string{}})
+		_, _, err = auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: auditID, OwnerID: ownerID, ProjectID: projectID, Profile: auditstore.ProfileIdentity{Name: "page-profile", Version: "1", Digest: auditHandlerDigest("profile")}, ProfileSnapshot: json.RawMessage(`{"interaction":{}}`), InputSelection: selection, Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 100, MaxItemsTotal: 100, MaxSubmittedRuns: 100, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: auditID, RequestDigest: auditHandlerDigest(auditID)})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := range 51 {
+		seed(fmt.Sprintf("project-owner-%02d", i), fmt.Sprintf("audit-owner-%02d", i), owner)
+	}
+	for i := range 150 {
+		seed("project-owner-00", fmt.Sprintf("audit-extra-%03d", i), owner)
+	}
+	seed("project-foreign", "audit-foreign", "user-foreign")
+	seed("project-deleting", "audit-deleting", owner)
+	var err error
+	var service *auditservice.Service
+	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid",
+		newTestAuthentication(t), mustTestOrigins(t), false, nil,
+		func(dependencies *testServices) {
+			credentials := newFakeManagedCredentials()
+			service, err = auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(),
+				Pool: pool, Profiles: dependencies.Config.(*config.Manager), CredentialGuard: credentials,
+				TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
+					func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil },
+				),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			dependencies.Audits = service
+		},
+	)
+
+	for i := range 201 {
+		projectID, auditID := fmt.Sprintf("project-owner-%02d", i%2), fmt.Sprintf("audit-owner-%02d", i%2)
+		suffix := fmt.Sprintf("owner-%03d", i)
+		seedPublicPaginationFinding(t, ctx, pool, owner, projectID, auditID, suffix)
+	}
+	for _, pair := range []struct{ project, audit, owner string }{{"project-foreign", "audit-foreign", "user-foreign"}, {"project-deleting", "audit-deleting", owner}} {
+		seedPublicPaginationFinding(t, ctx, pool, pair.owner, pair.project, pair.audit, pair.audit)
+	}
+	if _, _, err := projectstore.NewPostgresStore(pool).BeginDeletion(ctx, projectstore.BeginDeletionParams{OwnerID: owner, ProjectID: "project-deleting", ExpectedRevision: 1}); err != nil {
+		t.Fatal(err)
+	}
+	document := loadPublicOpenAPI(t)
+	router, err := gorillamux.NewRouter(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, list := range []struct {
+		path, id string
+		count    int
+	}{{"/v1/audits", "auditId", 201}, {"/v1/findings?verdict=needs_review", "findingId", 201}} {
+		t.Run(list.path, func(t *testing.T) {
+			query, _ := url.Parse(list.path)
+			values := query.Query()
+			values.Set("limit", "50")
+			seen := map[string]bool{}
+			previousTime, previousID := "", ""
+			var firstCursor string
+			for {
+				query.RawQuery = values.Encode()
+				response := serveAndValidatePublicContract(t, router, fixture.handler, newPublicContractRequest(http.MethodGet, query.String(), nil), true)
+				if response.Code != http.StatusOK {
+					t.Fatalf("page status=%d: %s", response.Code, response.Body.String())
+				}
+				var page struct {
+					Items []map[string]json.RawMessage `json:"items"`
+					Page  pageInfoResponse             `json:"page"`
+				}
+				if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+					t.Fatal(err)
+				}
+				for _, item := range page.Items {
+					var id, auditID, createdAt string
+					_ = json.Unmarshal(item[list.id], &id)
+					_ = json.Unmarshal(item["auditId"], &auditID)
+					_ = json.Unmarshal(item["createdAt"], &createdAt)
+					if auditID == "audit-foreign" || auditID == "audit-deleting" || auditID == "audit-evaluation" || seen[id] {
+						t.Fatalf("unowned/hidden/duplicate item %s in %s", id, list.path)
+					}
+					current, _ := time.Parse(time.RFC3339Nano, createdAt)
+					previous, _ := time.Parse(time.RFC3339Nano, previousTime)
+					if previousTime != "" && (current.After(previous) || (current.Equal(previous) && id >= previousID)) {
+						t.Fatalf("non-descending keyset %s %s", createdAt, id)
+					}
+					seen[id] = true
+					previousTime, previousID = createdAt, id
+				}
+				if !page.Page.HasMore {
+					break
+				}
+				if page.Page.NextCursor == nil {
+					t.Fatal("missing cursor")
+				}
+				if firstCursor == "" {
+					firstCursor = *page.Page.NextCursor
+				}
+				values.Set("cursor", *page.Page.NextCursor)
+			}
+			if len(seen) != list.count {
+				t.Fatalf("listed %d want %d", len(seen), list.count)
+			}
+			for _, other := range []string{"state=invalid", "limit=201", "cursor=bad", "auditRevision=1", "state=pending&state=pending"} {
+				path := query.Path + "?" + other
+				response := httptest.NewRecorder()
+				fixture.handler.ServeHTTP(response, newPublicContractRequest(http.MethodGet, path, nil))
+				if response.Code != http.StatusBadRequest {
+					t.Fatalf("invalid query %s = %d", other, response.Code)
+				}
+			}
+			altered := query.Query()
+			altered.Set("cursor", firstCursor)
+			if query.Path == "/v1/audits" {
+				altered.Set("state", "draft")
+			} else {
+				altered.Set("auditState", "draft")
+			}
+			response := httptest.NewRecorder()
+			fixture.handler.ServeHTTP(response, newPublicContractRequest(http.MethodGet, query.Path+"?"+altered.Encode(), nil))
+			if response.Code != http.StatusBadRequest {
+				t.Fatalf("cursor reused with changed filters=%d", response.Code)
+			}
+		})
+	}
+	for _, path := range []string{"/v1/audits?limit=200", "/v1/findings?limit=200&verdict=needs_review"} {
+		response := serveAndValidatePublicContract(t, router, fixture.handler, newPublicContractRequest(http.MethodGet, path, nil), true)
+		if response.Code != http.StatusOK {
+			t.Fatalf("200-row page=%d: %s", response.Code, response.Body.String())
+		}
+		var page struct {
+			Items []json.RawMessage `json:"items"`
+			Page  pageInfoResponse  `json:"page"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+			t.Fatal(err)
+		}
+		if (len(page.Items) != 200 && !(strings.HasPrefix(path, "/v1/findings") && len(page.Items) == 199)) || !page.Page.HasMore || page.Page.NextCursor == nil {
+			t.Fatalf("missing full-page sentinel: %d %+v", len(page.Items), page.Page)
+		}
+	}
+	foreignFindings, err := service.ListOwnerFindings(ctx, auditstore.OwnerFindingListParams{OwnerID: "user-foreign", Limit: 200})
+	if err != nil || len(foreignFindings.Items) != 1 || foreignFindings.Items[0].ProjectID != "project-foreign" {
+		t.Fatalf("foreign owner's list: %+v %v", foreignFindings, err)
+	}
+
+	// A different owner cannot consume a cursor even with the same signing key.
+	h := pageCursors{}
+	cursor, err := h.encodePageCursor("owner-audits:"+owner+"::", time.Now().UTC().Format(time.RFC3339Nano), "audit-owner-00")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.decodePageCursor(cursor, "owner-audits:user-foreign::", 2); !errors.Is(err, errInvalidRequest) {
+		t.Fatalf("owner-bound cursor=%v", err)
+	}
+}

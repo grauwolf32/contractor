@@ -1,0 +1,803 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schemas/contractor-events-v1.schema.json",
+  "title": "Contractor public event protocol v1",
+  "description": "Closed, bounded logical frames for the read-only contractor.events.v1 WebSocket subprotocol. Byte, queue, subscription, and heartbeat limits are transport rules documented by the HTTP upgrade operation.",
+  "oneOf": [
+    { "$ref": "#/$defs/SubscribeFrame" },
+    { "$ref": "#/$defs/UnsubscribeFrame" },
+    { "$ref": "#/$defs/SubscribedFrame" },
+    { "$ref": "#/$defs/UnsubscribedFrame" },
+    { "$ref": "#/$defs/EventFrame" },
+    { "$ref": "#/$defs/ResyncRequiredFrame" },
+    { "$ref": "#/$defs/ErrorFrame" }
+  ],
+  "$defs": {
+    "ProtocolVersion": {
+      "type": "string",
+      "const": "contractor.events.v1"
+    },
+    "SafeIdentifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+    },
+    "SubscriptionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+    },
+    "RunStream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "type": "string", "const": "run" },
+        "id": { "$ref": "#/$defs/SafeIdentifier" }
+      }
+    },
+    "OperationsStream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "const": "operations" }
+      }
+    },
+    "Stream": {
+      "oneOf": [
+        { "$ref": "#/$defs/RunStream" },
+        { "$ref": "#/$defs/OperationsStream" }
+      ]
+    },
+    "Cursor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["generation", "sequence"],
+      "properties": {
+        "generation": { "$ref": "#/$defs/SafeIdentifier" },
+        "sequence": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20,
+          "pattern": "^(0|[1-9][0-9]*)$"
+        }
+      }
+    },
+    "SubscribeFrame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "type", "subscriptionId", "stream"],
+      "properties": {
+        "version": { "$ref": "#/$defs/ProtocolVersion" },
+        "type": { "type": "string", "const": "subscribe" },
+        "subscriptionId": { "$ref": "#/$defs/SubscriptionId" },
+        "stream": { "$ref": "#/$defs/Stream" },
+        "after": { "$ref": "#/$defs/Cursor" }
+      }
+    },
+    "UnsubscribeFrame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "type", "subscriptionId"],
+      "properties": {
+        "version": { "$ref": "#/$defs/ProtocolVersion" },
+        "type": { "type": "string", "const": "unsubscribe" },
+        "subscriptionId": { "$ref": "#/$defs/SubscriptionId" }
+      }
+    },
+    "SubscribedFrame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "type", "subscriptionId", "stream", "cursor"],
+      "properties": {
+        "version": { "$ref": "#/$defs/ProtocolVersion" },
+        "type": { "type": "string", "const": "subscribed" },
+        "subscriptionId": { "$ref": "#/$defs/SubscriptionId" },
+        "stream": { "$ref": "#/$defs/Stream" },
+        "cursor": { "$ref": "#/$defs/Cursor" }
+      }
+    },
+    "UnsubscribedFrame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "type", "subscriptionId"],
+      "properties": {
+        "version": { "$ref": "#/$defs/ProtocolVersion" },
+        "type": { "type": "string", "const": "unsubscribed" },
+        "subscriptionId": { "$ref": "#/$defs/SubscriptionId" }
+      }
+    },
+    "PlannerSubtask": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "objective", "instructions", "status"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,2})$" },
+        "objective": { "type": "string", "minLength": 1, "maxLength": 8192 },
+        "instructions": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32768
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "running", "succeeded", "failed"]
+        }
+      }
+    },
+    "ActiveDispatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["callId", "subtaskId", "workerName"],
+      "properties": {
+        "callId": {
+          "type": "string",
+          "pattern": "^dispatch-[0-9]{4,}$",
+          "maxLength": 64
+        },
+        "subtaskId": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,2})$" },
+        "workerName": { "$ref": "#/$defs/SafeIdentifier" }
+      }
+    },
+    "PlannerPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "subtasks"],
+      "properties": {
+        "revision": { "type": "integer", "minimum": 1 },
+        "subtasks": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1000,
+          "items": { "$ref": "#/$defs/PlannerSubtask" }
+        },
+        "currentSubtaskId": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,2})$"
+        },
+        "activeDispatch": { "$ref": "#/$defs/ActiveDispatch" }
+      }
+    },
+    "PlannerEventData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stageExecutionId",
+        "sessionId",
+        "invocationId",
+        "eventKind"
+      ],
+      "properties": {
+        "stageExecutionId": { "$ref": "#/$defs/SafeIdentifier" },
+        "sessionId": { "$ref": "#/$defs/SafeIdentifier" },
+        "invocationId": { "$ref": "#/$defs/SafeIdentifier" },
+        "eventKind": {
+          "type": "string",
+          "enum": [
+            "planner.started",
+            "planner.request_recorded",
+            "planner.activity",
+            "planner.plan_changed",
+            "planner.current_changed",
+            "planner.dispatch_selected",
+            "planner.dispatch_started",
+            "planner.dispatch_completed",
+            "planner.finish_requested",
+            "planner.completed",
+            "planner.failed"
+          ]
+        },
+        "plan": { "$ref": "#/$defs/PlannerPlan" },
+        "planRevision": { "type": "integer", "minimum": 0 },
+        "subtaskId": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,2})$" },
+        "callId": {
+          "type": "string",
+          "pattern": "^dispatch-[0-9]{4,}$",
+          "maxLength": 64
+        },
+        "workerName": { "$ref": "#/$defs/SafeIdentifier" },
+        "outcome": {
+          "type": "string",
+          "enum": ["succeeded", "failed", "failure"]
+        },
+        "code": { "$ref": "#/$defs/SafeIdentifier" },
+        "activity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "author", "functionCalls", "functionResults"],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "adk_event",
+                "scan_owner_acquired",
+                "scan_plan_initialized",
+                "scan_job_started",
+                "scan_job_finished"
+              ]
+            },
+            "author": {
+              "type": "string",
+              "enum": [
+                "user",
+                "streamline_planner",
+                "router_planner",
+                "other",
+                "scan_planner"
+              ]
+            },
+            "functionCalls": {
+              "type": "array",
+              "maxItems": 32,
+              "items": { "$ref": "#/$defs/SafeIdentifier" }
+            },
+            "functionResults": {
+              "type": "array",
+              "maxItems": 32,
+              "items": { "$ref": "#/$defs/SafeIdentifier" }
+            },
+            "inputTokens": { "type": "integer", "minimum": 0 },
+            "outputTokens": { "type": "integer", "minimum": 0 },
+            "skipSummarization": { "type": "boolean" },
+            "escalate": { "type": "boolean" },
+            "truncated": { "type": "boolean" }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "kind": { "type": "string", "const": "adk_event" }
+                }
+              },
+              "then": {
+                "properties": {
+                  "author": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "streamline_planner",
+                      "router_planner",
+                      "other"
+                    ]
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "author": { "type": "string", "const": "scan_planner" },
+                  "functionCalls": { "maxItems": 0 },
+                  "functionResults": { "maxItems": 0 },
+                  "inputTokens": { "type": "integer", "const": 0 },
+                  "outputTokens": { "type": "integer", "const": 0 },
+                  "skipSummarization": { "type": "boolean", "const": false },
+                  "escalate": { "type": "boolean", "const": false },
+                  "truncated": { "type": "boolean", "const": false }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "eventKind": {
+                "type": "string",
+                "enum": ["planner.started", "planner.request_recorded"]
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                { "required": ["plan"] },
+                { "required": ["planRevision"] },
+                { "required": ["subtaskId"] },
+                { "required": ["callId"] },
+                { "required": ["workerName"] },
+                { "required": ["outcome"] },
+                { "required": ["code"] },
+                { "required": ["activity"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventKind": { "type": "string", "const": "planner.activity" }
+            }
+          },
+          "then": {
+            "required": ["activity"],
+            "not": {
+              "anyOf": [
+                { "required": ["plan"] },
+                { "required": ["planRevision"] },
+                { "required": ["subtaskId"] },
+                { "required": ["callId"] },
+                { "required": ["workerName"] },
+                { "required": ["outcome"] },
+                { "required": ["code"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventKind": { "type": "string", "const": "planner.plan_changed" }
+            }
+          },
+          "then": {
+            "required": ["plan"],
+            "properties": {
+              "plan": {
+                "allOf": [
+                  { "$ref": "#/$defs/PlannerPlan" },
+                  { "not": { "required": ["activeDispatch"] } }
+                ]
+              }
+            },
+            "not": {
+              "anyOf": [
+                { "required": ["planRevision"] },
+                { "required": ["subtaskId"] },
+                { "required": ["callId"] },
+                { "required": ["workerName"] },
+                { "required": ["outcome"] },
+                { "required": ["code"] },
+                { "required": ["activity"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventKind": {
+                "type": "string",
+                "const": "planner.current_changed"
+              }
+            }
+          },
+          "then": {
+            "required": ["planRevision"],
+            "properties": { "planRevision": { "minimum": 1 } },
+            "not": {
+              "anyOf": [
+                { "required": ["plan"] },
+                { "required": ["callId"] },
+                { "required": ["workerName"] },
+                { "required": ["outcome"] },
+                { "required": ["code"] },
+                { "required": ["activity"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventKind": {
+                "type": "string",
+                "const": "planner.dispatch_selected"
+              }
+            }
+          },
+          "then": {
+            "required": ["planRevision", "subtaskId", "callId", "workerName"],
+            "properties": { "planRevision": { "minimum": 1 } },
+            "not": {
+              "anyOf": [
+                { "required": ["plan"] },
+                { "required": ["outcome"] },
+                { "required": ["code"] },
+                { "required": ["activity"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventKind": {
+                "type": "string",
+                "const": "planner.dispatch_started"
+              }
+            }
+          },
+          "then": {
+            "required": ["plan", "subtaskId", "callId", "workerName"],
+            "properties": {
+              "plan": {
+                "allOf": [
+                  { "$ref": "#/$defs/PlannerPlan" },
+                  { "required": ["activeDispatch"] }
+                ]
+              }
+            },
+            "not": {
+              "anyOf": [
+                { "required": ["planRevision"] },
+                { "required": ["outcome"] },
+                { "required": ["code"] },
+                { "required": ["activity"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventKind": {
+                "type": "string",
+                "const": "planner.dispatch_completed"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "plan",
+              "subtaskId",
+              "callId",
+              "workerName",
+              "outcome"
+            ],
+            "properties": {
+              "outcome": { "type": "string", "enum": ["succeeded", "failed"] },
+              "plan": {
+                "allOf": [
+                  { "$ref": "#/$defs/PlannerPlan" },
+                  { "not": { "required": ["activeDispatch"] } }
+                ]
+              }
+            },
+            "not": {
+              "anyOf": [
+                { "required": ["planRevision"] },
+                { "required": ["code"] },
+                { "required": ["activity"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventKind": {
+                "type": "string",
+                "const": "planner.finish_requested"
+              }
+            }
+          },
+          "then": {
+            "required": ["planRevision", "outcome"],
+            "properties": {
+              "outcome": { "type": "string", "enum": ["succeeded", "failed"] }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "outcome": { "type": "string", "const": "succeeded" }
+                  }
+                },
+                "then": { "properties": { "planRevision": { "minimum": 1 } } }
+              }
+            ],
+            "not": {
+              "anyOf": [
+                { "required": ["plan"] },
+                { "required": ["subtaskId"] },
+                { "required": ["callId"] },
+                { "required": ["workerName"] },
+                { "required": ["code"] },
+                { "required": ["activity"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventKind": { "type": "string", "const": "planner.completed" }
+            }
+          },
+          "then": {
+            "required": ["outcome"],
+            "properties": {
+              "outcome": { "type": "string", "enum": ["succeeded", "failed"] }
+            },
+            "not": {
+              "anyOf": [
+                { "required": ["plan"] },
+                { "required": ["planRevision"] },
+                { "required": ["subtaskId"] },
+                { "required": ["callId"] },
+                { "required": ["workerName"] },
+                { "required": ["code"] },
+                { "required": ["activity"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventKind": { "type": "string", "const": "planner.failed" }
+            }
+          },
+          "then": {
+            "required": ["outcome", "code"],
+            "properties": {
+              "outcome": { "type": "string", "const": "failure" }
+            },
+            "not": {
+              "anyOf": [
+                { "required": ["plan"] },
+                { "required": ["planRevision"] },
+                { "required": ["subtaskId"] },
+                { "required": ["callId"] },
+                { "required": ["workerName"] },
+                { "required": ["activity"] }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "LifecycleEventData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runId", "resource", "state"],
+      "properties": {
+        "runId": { "$ref": "#/$defs/SafeIdentifier" },
+        "resource": { "type": "string", "enum": ["run", "stageExecution"] },
+        "stageExecutionId": { "$ref": "#/$defs/SafeIdentifier" },
+        "state": { "$ref": "#/$defs/SafeIdentifier" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "resource": { "type": "string", "const": "stageExecution" }
+            }
+          },
+          "then": { "required": ["stageExecutionId"] },
+          "else": { "not": { "required": ["stageExecutionId"] } }
+        }
+      ]
+    },
+    "OperationsEventData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resource", "revision"],
+      "properties": {
+        "resource": {
+          "type": "string",
+          "enum": [
+            "runtimeAgent",
+            "allocation",
+            "configuration",
+            "credential",
+            "schedulerSettings",
+            "modelSelection"
+          ]
+        },
+        "resourceId": { "$ref": "#/$defs/SafeIdentifier" },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20,
+          "pattern": "^(0|[1-9][0-9]*)$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "resource": {
+                "type": "string",
+                "enum": ["schedulerSettings", "modelSelection"]
+              }
+            }
+          },
+          "then": { "not": { "required": ["resourceId"] } }
+        }
+      ]
+    },
+    "EventFrame": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "type",
+            "subscriptionId",
+            "stream",
+            "cursor",
+            "kind",
+            "occurredAt",
+            "data"
+          ],
+          "properties": {
+            "version": { "$ref": "#/$defs/ProtocolVersion" },
+            "type": { "type": "string", "const": "event" },
+            "subscriptionId": { "$ref": "#/$defs/SubscriptionId" },
+            "stream": { "$ref": "#/$defs/RunStream" },
+            "cursor": { "$ref": "#/$defs/Cursor" },
+            "kind": { "type": "string", "const": "planner.event" },
+            "occurredAt": { "type": "string", "format": "date-time" },
+            "data": { "$ref": "#/$defs/PlannerEventData" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "type",
+            "subscriptionId",
+            "stream",
+            "cursor",
+            "kind",
+            "occurredAt",
+            "data"
+          ],
+          "properties": {
+            "version": { "$ref": "#/$defs/ProtocolVersion" },
+            "type": { "type": "string", "const": "event" },
+            "subscriptionId": { "$ref": "#/$defs/SubscriptionId" },
+            "stream": { "$ref": "#/$defs/RunStream" },
+            "cursor": { "$ref": "#/$defs/Cursor" },
+            "kind": { "type": "string", "const": "lifecycle.changed" },
+            "occurredAt": { "type": "string", "format": "date-time" },
+            "data": { "$ref": "#/$defs/LifecycleEventData" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "type",
+            "subscriptionId",
+            "stream",
+            "cursor",
+            "kind",
+            "occurredAt",
+            "data"
+          ],
+          "properties": {
+            "version": { "$ref": "#/$defs/ProtocolVersion" },
+            "type": { "type": "string", "const": "event" },
+            "subscriptionId": { "$ref": "#/$defs/SubscriptionId" },
+            "stream": { "$ref": "#/$defs/OperationsStream" },
+            "cursor": { "$ref": "#/$defs/Cursor" },
+            "kind": { "type": "string", "const": "operations.changed" },
+            "occurredAt": { "type": "string", "format": "date-time" },
+            "data": { "$ref": "#/$defs/OperationsEventData" }
+          }
+        }
+      ]
+    },
+    "ResyncRequiredFrame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "type", "subscriptionId", "stream", "reason"],
+      "properties": {
+        "version": { "$ref": "#/$defs/ProtocolVersion" },
+        "type": { "type": "string", "const": "resync_required" },
+        "subscriptionId": { "$ref": "#/$defs/SubscriptionId" },
+        "stream": { "$ref": "#/$defs/Stream" },
+        "reason": {
+          "type": "string",
+          "enum": ["generation_changed", "cursor_unavailable", "sequence_gap"]
+        }
+      }
+    },
+    "ErrorFrame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "type", "code", "message", "retryable"],
+      "properties": {
+        "version": { "$ref": "#/$defs/ProtocolVersion" },
+        "type": { "type": "string", "const": "error" },
+        "subscriptionId": { "$ref": "#/$defs/SubscriptionId" },
+        "code": {
+          "type": "string",
+          "enum": [
+            "invalid_frame",
+            "subscription_limit",
+            "not_found",
+            "overloaded"
+          ]
+        },
+        "message": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "retryable": { "type": "boolean" }
+      }
+    }
+  },
+  "examples": [
+    {
+      "version": "contractor.events.v1",
+      "type": "subscribe",
+      "subscriptionId": "run-detail",
+      "stream": { "kind": "run", "id": "run_example" },
+      "after": { "generation": "run-generation-example", "sequence": "41" }
+    },
+    {
+      "version": "contractor.events.v1",
+      "type": "event",
+      "subscriptionId": "run-detail",
+      "stream": { "kind": "run", "id": "run_example" },
+      "cursor": { "generation": "run-generation-example", "sequence": "42" },
+      "kind": "planner.event",
+      "occurredAt": "2026-08-30T12:00:00Z",
+      "data": {
+        "stageExecutionId": "stage_execution_example",
+        "sessionId": "planner_session_example",
+        "invocationId": "planner_invocation_example",
+        "eventKind": "planner.dispatch_selected",
+        "planRevision": 1,
+        "subtaskId": "0",
+        "callId": "dispatch-0001",
+        "workerName": "reviewer"
+      }
+    },
+    {
+      "version": "contractor.events.v1",
+      "type": "event",
+      "subscriptionId": "run-detail",
+      "stream": { "kind": "run", "id": "run_example" },
+      "cursor": { "generation": "run-generation-example", "sequence": "43" },
+      "kind": "lifecycle.changed",
+      "occurredAt": "2026-08-30T12:00:01Z",
+      "data": {
+        "runId": "run_example",
+        "resource": "stageExecution",
+        "stageExecutionId": "stage_execution_example",
+        "state": "running"
+      }
+    },
+    {
+      "version": "contractor.events.v1",
+      "type": "event",
+      "subscriptionId": "operations",
+      "stream": { "kind": "operations" },
+      "cursor": {
+        "generation": "operations-generation-example",
+        "sequence": "9"
+      },
+      "kind": "operations.changed",
+      "occurredAt": "2026-08-30T12:00:02Z",
+      "data": {
+        "resource": "runtimeAgent",
+        "resourceId": "runtime-agent-example",
+        "revision": "9"
+      }
+    },
+    {
+      "version": "contractor.events.v1",
+      "type": "event",
+      "subscriptionId": "operations",
+      "stream": { "kind": "operations" },
+      "cursor": {
+        "generation": "operations-generation-example",
+        "sequence": "10"
+      },
+      "kind": "operations.changed",
+      "occurredAt": "2026-08-30T12:00:03Z",
+      "data": {
+        "resource": "schedulerSettings",
+        "revision": "10"
+      }
+    }
+  ]
+}

@@ -1,0 +1,436 @@
+{
+  "description": "Public strings that the Server bounds in UTF-8 bytes rather than in characters. Each OpenAPI component schema below, at path (empty for the component itself), declares its bound as x-max-utf8-bytes next to an equal maxLength (in code points, which no longer binds first); rule names the limits.md entry. A reader builds, for each character, the string of exactly maxBytes bytes (the character repeated, padded with a) and that string plus one a: the first is within the bound and the second is not. An owner whose value has structure (a URL, an SSH key, a sitemap rule) embeds the character run in an otherwise valid value of the same byte length. Go checks the declarations and each owning validator; the UI checks src/api/contract.ts stringRule. Every other public request string with a maxLength declares an ASCII-only grammar, under which maxLength counts bytes, or is listed in internal/httpapi/public/utf8_byte_bounds_test.go with the reason its Server bound is not a byte bound. An optional prefix embeds the repeated character run in a structured string; its bytes count toward maxBytes.",
+  "characters": [
+    "a",
+    "é",
+    "€",
+    "🛑"
+  ],
+  "fields": [
+    {
+      "schema": "CancelRunRequest",
+      "path": [
+        "properties",
+        "reason"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-RUN-10"
+    },
+    {
+      "schema": "Cancellation",
+      "path": [
+        "properties",
+        "reason"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-RUN-10"
+    },
+    {
+      "schema": "CreateProjectRequest",
+      "path": [
+        "properties",
+        "name"
+      ],
+      "maxBytes": 160,
+      "rule": "LIM-PRJ-3"
+    },
+    {
+      "schema": "CreateProjectRequest",
+      "path": [
+        "properties",
+        "description"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-PRJ-5"
+    },
+    {
+      "schema": "UpdateProjectRequest",
+      "path": [
+        "properties",
+        "name"
+      ],
+      "maxBytes": 160,
+      "rule": "LIM-PRJ-3"
+    },
+    {
+      "schema": "UpdateProjectRequest",
+      "path": [
+        "properties",
+        "description"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-PRJ-5"
+    },
+    {
+      "schema": "Project",
+      "path": [
+        "properties",
+        "name"
+      ],
+      "maxBytes": 160,
+      "rule": "LIM-PRJ-3"
+    },
+    {
+      "schema": "Project",
+      "path": [
+        "properties",
+        "description"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-PRJ-5"
+    },
+    {
+      "schema": "RunQueueProject",
+      "path": [
+        "properties",
+        "name"
+      ],
+      "maxBytes": 160,
+      "rule": "LIM-PRJ-3"
+    },
+    {
+      "schema": "AuditScope",
+      "path": [
+        "properties",
+        "objective"
+      ],
+      "maxBytes": 65536,
+      "rule": "LIM-AUD-29"
+    },
+    {
+      "schema": "AuditScope",
+      "path": [
+        "properties",
+        "target"
+      ],
+      "maxBytes": 65536,
+      "rule": "LIM-AUD-29"
+    },
+    {
+      "schema": "AuditScope",
+      "path": [
+        "properties",
+        "authorizationScope"
+      ],
+      "maxBytes": 65536,
+      "rule": "LIM-AUD-29"
+    },
+    {
+      "schema": "RunMetadataLabels",
+      "path": [
+        "additionalProperties"
+      ],
+      "maxBytes": 256,
+      "rule": "LIM-RUN-5"
+    },
+    {
+      "schema": "SitemapMutation",
+      "path": [
+        "properties",
+        "note"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-SMT-6"
+    },
+    {
+      "schema": "SitemapMutation",
+      "path": [
+        "properties",
+        "tags",
+        "items"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "SitemapAnnotation",
+      "path": [
+        "properties",
+        "note"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-SMT-6"
+    },
+    {
+      "schema": "SitemapAnnotation",
+      "path": [
+        "properties",
+        "tags",
+        "items"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "SitemapSummary",
+      "path": [
+        "properties",
+        "parameters",
+        "items"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "SitemapDeclaration",
+      "path": [
+        "properties",
+        "parameters",
+        "items"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "SitemapEditorRule",
+      "path": [
+        "properties",
+        "parameters",
+        "items"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "SitemapRule",
+      "path": [
+        "properties",
+        "parameters",
+        "items"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "SitemapStructuralParameter",
+      "path": [
+        "properties",
+        "name"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "SitemapStructuralParameter",
+      "path": [
+        "properties",
+        "allowed",
+        "items"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "SitemapStructuralValue",
+      "path": [
+        "properties",
+        "name"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "SitemapStructuralValue",
+      "path": [
+        "properties",
+        "values",
+        "items"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "GitImportRequest",
+      "path": [
+        "properties",
+        "ref"
+      ],
+      "maxBytes": 1024,
+      "rule": "LIM-GIT-22"
+    },
+    {
+      "schema": "GitImportRequest",
+      "path": [
+        "properties",
+        "repositoryUrl"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-GIT-23"
+    },
+    {
+      "schema": "GitSource",
+      "path": [
+        "properties",
+        "repositoryUrl"
+      ],
+      "maxBytes": 12288,
+      "rule": "LIM-GIT-24"
+    },
+    {
+      "schema": "GitPrivateKey",
+      "path": [],
+      "maxBytes": 32768,
+      "rule": "LIM-GIT-3"
+    },
+    {
+      "schema": "GatewayFailureSignature",
+      "path": [
+        "properties",
+        "messageEquals"
+      ],
+      "maxBytes": 512,
+      "rule": "LIM-RCF-1"
+    },
+    {
+      "schema": "GatewayFailureSignature",
+      "path": [
+        "properties",
+        "litellmWrapped"
+      ],
+      "maxBytes": 512,
+      "rule": "LIM-RCF-1"
+    },
+    {
+      "schema": "BasicCredentialUsername",
+      "path": [],
+      "maxBytes": 256,
+      "rule": "LIM-RCF-23"
+    },
+    {
+      "schema": "BasicCredentialPassword",
+      "path": [],
+      "maxBytes": 8192,
+      "rule": "LIM-RCF-23"
+    },
+    {
+      "schema": "ArchiveFilePath",
+      "path": [],
+      "maxBytes": 1024,
+      "rule": "LIM-API-27"
+    },
+    {
+      "schema": "AuditArtifactKey",
+      "path": [],
+      "maxBytes": 512,
+      "rule": "LIM-AUD-39"
+    },
+    {
+      "schema": "SitemapMutation",
+      "path": [
+        "properties",
+        "url"
+      ],
+      "maxBytes": 8192,
+      "rule": "LIM-SMT-2"
+    },
+    {
+      "schema": "SitemapEditorRule",
+      "path": [
+        "properties",
+        "pointer"
+      ],
+      "maxBytes": 2048,
+      "rule": "LIM-SMT-16"
+    },
+    {
+      "schema": "SitemapRule",
+      "path": [
+        "properties",
+        "pointer"
+      ],
+      "maxBytes": 2048,
+      "rule": "LIM-SMT-16"
+    },
+    {
+      "schema": "SitemapDeclaration",
+      "path": [
+        "properties",
+        "pointer"
+      ],
+      "maxBytes": 2048,
+      "rule": "LIM-SMT-16"
+    },
+    {
+      "schema": "RunMetadataLabelSelector",
+      "path": [],
+      "maxBytes": 320,
+      "rule": "LIM-RUN-11",
+      "prefix": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa="
+    },
+    {
+      "schema": "SitemapEditorRule",
+      "path": [
+        "properties",
+        "origin"
+      ],
+      "maxBytes": 8192,
+      "rule": "LIM-SMT-2"
+    },
+    {
+      "schema": "SitemapEditorRule",
+      "path": [
+        "properties",
+        "path"
+      ],
+      "maxBytes": 8192,
+      "rule": "LIM-SMT-2"
+    },
+    {
+      "schema": "DecisionRationale",
+      "path": [],
+      "maxBytes": 65536,
+      "rule": "LIM-REV-11"
+    },
+    {
+      "schema": "FindingActorIdentity",
+      "path": [],
+      "maxBytes": 256,
+      "rule": "LIM-FND-54"
+    },
+    {
+      "schema": "AuditCommonText",
+      "path": [],
+      "maxBytes": 65536,
+      "rule": "LIM-ACT-3"
+    },
+    {
+      "schema": "AuditTaskDocument",
+      "path": [
+        "properties",
+        "parameters",
+        "additionalProperties"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-ACT-3"
+    },
+    {
+      "schema": "TargetAPIKeysMaterial",
+      "path": [
+        "properties",
+        "fields",
+        "propertyNames"
+      ],
+      "maxBytes": 263,
+      "rule": "LIM-RCF-32",
+      "prefix": "cookie:"
+    },
+    {
+      "schema": "TargetAPIKeysMaterial",
+      "path": [
+        "properties",
+        "fields",
+        "additionalProperties"
+      ],
+      "maxBytes": 8192,
+      "rule": "LIM-RCF-32"
+    },
+    {
+      "schema": "AuditLaunchParameters",
+      "path": [
+        "additionalProperties"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-ACT-3"
+    }
+  ]
+}

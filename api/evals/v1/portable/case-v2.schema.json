@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:playground:portable:case/v2",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "playground.case/v2"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "maxLength": 128
+    },
+    "task": {
+      "$ref": "urn:playground:portable:common#/$defs/Task"
+    },
+    "inputs": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]*$",
+        "maxLength": 128
+      },
+      "additionalProperties": {
+        "$ref": "urn:playground:portable:common#/$defs/BlobRef"
+      },
+      "maxProperties": 128
+    },
+    "requires": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:playground:portable:common#/$defs/VersionedId"
+      },
+      "maxItems": 128,
+      "minItems": 0,
+      "uniqueItems": true
+    },
+    "outputs": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]*$",
+        "maxLength": 128
+      },
+      "additionalProperties": {
+        "$ref": "urn:playground:portable:common#/$defs/Output"
+      },
+      "maxProperties": 128
+    },
+    "evaluation": {
+      "type": "object",
+      "properties": {
+        "ground_truth": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]*$",
+            "maxLength": 128
+          },
+          "additionalProperties": {
+            "$ref": "urn:playground:portable:common#/$defs/BlobRef"
+          },
+          "maxProperties": 128
+        },
+        "assertions": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]*$",
+            "maxLength": 128
+          },
+          "additionalProperties": {
+            "$ref": "urn:playground:portable:common#/$defs/BlobRef"
+          },
+          "maxProperties": 128
+        }
+      },
+      "required": [
+        "ground_truth",
+        "assertions"
+      ],
+      "additionalProperties": false
+    },
+    "provenance": {
+      "$ref": "urn:playground:portable:common#/$defs/Provenance"
+    },
+    "extensions": {
+      "$ref": "urn:playground:portable:common#/$defs/Extensions"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "task",
+    "inputs",
+    "requires",
+    "outputs",
+    "evaluation",
+    "provenance"
+  ],
+  "additionalProperties": false
+}

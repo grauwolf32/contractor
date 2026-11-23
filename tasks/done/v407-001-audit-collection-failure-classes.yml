@@ -1,0 +1,181 @@
+schema_version: '1.0'
+id: V407-001
+title: Preserve transient Audit collection errors and settle invalid pinned data through existing receipts
+milestone: server-runtime-review-2026-10
+epic: audits
+kind: defect
+introduced_by: V45-004
+priority: P1
+status: completed
+depends_on: []
+languages:
+- go
+goal: Storage failures leave collection retryable without consuming an item attempt; deterministic invalid
+  pinned data reaches the existing collection-contract-invalid receipt path.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/audits/execution.md
+  validation: Revalidated against main dc7012e8 on 2026-10-23. Partially confirmed. A focused probe reproduced
+    loss of a transient standard-loader error. Several scan decode errors lack classification; missing
+    scan artifacts already become coverage gaps. Equal batch constants are a future drift risk, not a
+    current size defect.
+  severity: high
+  finding: internal/auditimport/check_results.go:240-244 converts every validateMappedProposalStandards
+    error into invalidCheckResults, including unchanged loader errors from standards.go:60-66,81-84. On
+    a retry with all proposals already retained, importer.go:338-348 can skip the earlier standard read;
+    a storage failure during resolution then becomes an invalid-result receipt via check_results.go:89-95.
+    Separately, scan_recovery.go:79-86 and internal/auditscan/evidence.go:62-64,112-113 return ordinary
+    errors for decoded but invalid immutable content, so auditcontroller/collection.go:18-25 retries it.
+    This requires an invalid stored document or internal contract violation; normal writers producing
+    such content was not demonstrated. Importer.Collect already converts ErrPermanent to a collection-contract-invalid
+    receipt (importer.go:51-64), not an immediate execution/Audit failed transition. Missing scan plans
+    and reports already record unavailable gaps (auditscan/evidence.go:55-57,102-104). The pagelimit and
+    receipt batch constants both equal 200 today.
+  siblings: Review pinned manifest, profile, plan, report and assignment validation in auditimport and
+    auditscan. Existing checks in check_results.go:73-75 and importer.go:314-316 already classify invalid
+    pinned input; preparation.go:23-25 can be protected by that earlier decode. Keep an explicit list
+    of each changed or already protected path. Distinguish I/O errors from deterministic validation errors
+    returned by auditscan.BuildResult.
+plan:
+- Separate loading pinned standards from validating proposal references. Propagate loader errors unchanged;
+  reserve invalidCheckResults for an actual Worker proposal or result contract violation.
+- Give deterministic retained-document and assignment failures a typed classification at their owning
+  layer, and translate that classification to auditimport.ErrPermanent at the collection boundary. Do
+  not blanket-wrap BuildResult errors or transient artifact reads; avoid an upward auditscan import of
+  auditimport.
+- Preserve Collect -> collectContractInvalid settlement, receipt identity, attempt accounting and source
+  Run retention/deletion rules. Preserve missing scan-plan/report coverage gaps and the existing controller
+  handling when a receipt cannot be committed.
+- Add the all-retained retry regression and scan-recovery classification cases using the production collection
+  path with PostgreSQL. Inject a read failure before mutation, then retry; seed invalid immutable content
+  through a test fixture and verify one contract-invalid receipt. Cover replay/ambiguous acknowledgement,
+  cancellation and unavailable-artifact gaps with existing mechanisms.
+- 'Clarify the existing collection failure table in the owning spec: transient reads retry without a receipt,
+  invalid pinned data uses contract-invalid settlement, and invalid Worker output uses invalid-result.
+  Record which earlier validations make listed sibling branches unreachable.'
+scope:
+  in:
+  - The reproduced standard-loader misclassification and reachable deterministic pinned-data classification
+    gaps.
+  - Regression coverage through collection and real PostgreSQL receipts; preservation of retry, gap and
+    lifecycle outcomes.
+  out:
+  - Changing collection-contract-invalid into a new failed execution state or requiring the entire Audit
+    to fail in one tick.
+  - Changing Worker package formats or reclassifying every missing artifact/read error as permanent.
+  - Optional cleanup of the two equal batch-size constants; no present batch-size mismatch is claimed.
+    No new receipt or retry mechanism.
+acceptance_criteria:
+- id: A1
+  text: Given already retained proposals and a transient retained-standard read failure during resolution,
+    Collect returns a retryable error without a collection receipt or consumed attempt; a later successful
+    read allows the same execution to collect.
+- id: A2
+  text: For each reachable invalid pinned-document or assignment case covered by this change, Collect
+    commits the existing collection-contract-invalid receipt when the store accepts it. Reconciliation
+    does not repeatedly attempt the same impossible decode, and replay does not duplicate the receipt.
+- id: A3
+  text: Missing scan plan/report artifacts continue to produce their existing coverage gaps; transient
+    reads and receipt-commit failures remain retryable. Existing invalid Worker-result and cancellation
+    outcomes are unchanged.
+- id: A4
+  text: Production-path regression tests for the reproduced classification failures fail before the fix;
+    every listed sibling is changed or explicitly ruled out by a tested earlier validation.
+tests:
+- command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/auditimport/...
+    ./internal/auditscan/... ./internal/auditcontroller/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+implementation_commit: cc3c821262bbe7e74803817ef1e83acc431a02c3
+verification:
+  date: '2026-10-24'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local); PostgreSQL 17.11 database contractor_test_a
+    with disposable per-test databases and schemas; locked Runtime venv and UI dependencies.
+  commands:
+  - test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/auditimport/...
+    ./internal/auditscan/... ./internal/auditcontroller/... passed with no skipped test (checked with -v).
+  - go test -count=1 ./internal/auditimport/... ./internal/auditscan/... ./internal/auditcontroller/...
+    passed.
+  - go test -tags=integration -count=1 ./internal/planner/scan/... ./internal/planner/session/... passed
+    (planner/scan also calls auditscan.BuildResult).
+  - make lint passed, including staticcheck U1000, testonlyexports, spec and task checks.
+  - 'Review follow-up (2026-10-24, after cc3c8212): the integration command above and make lint passed
+    again; go test -tags=integration -count=1 ./internal/auditimport/ -run
+    TestPostgresInvalidPinnedStandardSettlesCollectionContractInvalid passed, and the owner-hold cases failed
+    with the base standards logic reverse-applied.'
+  database_tests_configured: true
+  evidence:
+  - 'Regression tests fail on base ac982d28 (new tests copied into a temporary base worktree, since removed):
+    TestCollectionKeepsPinnedStandardFailureClassAfterProposalsWereRetained (transient read and both invalid-pin
+    cases committed invalid-result), TestPostgresStandardReadFailureAfterRetentionKeepsExecutionCollecting
+    (attempt 2 committed a receipt), TestPostgresScanRecoveryCollectionKeepsFailureClasses (invalid plan and
+    report returned "retained scan plan/scanner report is invalid" on every reconcile) and
+    the defensive-wiring subtests of TestImporterSettlesFailedPreparationWithInvalidPinnedProfileAsContractInvalid
+    (plain decode error; its production-wiring subtests pass on the base). The auditscan tests use the new
+    ErrInvalid and do not compile on the base.'
+  - 'Review follow-up: TestPostgresInvalidPinnedStandardSettlesCollectionContractInvalid drives Importer.Collect
+    with the real store and finding intake for an invalid baseline pin and a retained package that differs
+    from its pin. Its at-retention cases pass on the base (retention already reads the pins first); its
+    owner-hold cases, where a proposal held before the Run finished skips the retention read, committed
+    invalid-result / finding-proposal-standard-reference-invalid with the base standards.go, check_results.go
+    and standard_refs_test.go reverse-applied, and pass with the fix.'
+  - 'Review follow-up: the AUX-R96 scan history exception is pinned by the "scan history that does not decode
+    stays collecting" case of TestPostgresScanRecoveryCollectionKeepsFailureClasses: a stored journal plan
+    reference without a revision fails as scan history ("scan plan reference or digest is invalid") on every
+    reconcile, reads no retained scan artifact and leaves the execution collecting.'
+  - 'The completion fixture baseline lacked labels and requiredPlacementLabels, so on the base every
+    PostgreSQL test using it failed in Run creation with "stored Audit placement requirements are invalid"
+    (TestAuditCompletionRuntimeZIPImporter, the report-retention tests and
+    TestPostgresContractInvalidCollectionRetainsProposalAfterRunDeletion). The fixture now pins both, empty;
+    those tests run and pass again.'
+  siblings_changed:
+  - check_results.go resolveMemberProposals (finding claim at check_results.go:240-244) now propagates
+    standard-loader errors unchanged; a task/standard mismatch is ErrPermanent; only proposal standard
+    references are invalid-result (validateResolvedProposalStandards).
+  - auditscan evidence.go plan/report decode (finding at evidence.go:62-64,112-113), result.go assignment,
+    journal and package assembly, and an oversize retained artifact now return auditscan.ErrInvalid; reads and
+    cancellation return unchanged.
+  - scan_recovery.go maps auditscan.ErrInvalid, a manifest that does not decode and a scan Run whose Audit
+    execution or Project differs to ErrPermanent (finding at scan_recovery.go:79-86).
+  - scan_retention.go assembled package decode and semantic coverage are ErrPermanent.
+  - preparation.go:23-25 AuditProfile decode is ErrPermanent as a defensive change. The task's claim holds
+    for the production wiring (internal/app/composition_audit.go always passes a finding intake, and
+    retainFindingProposals decodes the profile to ErrPermanent first), so failed and cancelled preparation
+    already settled as collection-contract-invalid on the base. Only an Importer built without a finding
+    intake, which New accepts, reached commitRoleFailure with an undecoded profile.
+    TestImporterSettlesFailedPreparationWithInvalidPinnedProfileAsContractInvalid covers both wirings.
+  siblings_ruled_out:
+  - standards.go loader errors on the retention path already propagate unchanged; check_results.go:73-75
+    (manifest) and importer.go prepareMembers task decode, collectSucceeded and collectSucceededRole profile
+    decodes already return ErrPermanent.
+  - Scan journal plan and report references are exact (planner session validateScanState on every encode and
+    decode), so ErrExactRevisionRequired cannot reach collection; such a stored reference fails as scan
+    history first. Both stay retryable and AUX-R96 now states them as accepted exceptions with their
+    enforcement, detection and reopen condition. The pinned manifest and task are read by digest after Round
+    materialization validated them, so their ErrPermanent branches and the scan Run identity checks are
+    defensive.
+  - artifacts.ErrArtifactIntegrity and every other read error stay retryable, per scope.out.
+  - '"Audit scan attempt is not terminal" (Scheduler-owned Stage state) and decode errors inside
+    planner/session ReadAuditScanHistory (shared with dispatch recovery and validated on write) are left
+    retryable; finding-task proposal resolution (finding-task-proposal-invalid) is unchanged.'
+  declined:
+  - planner/scan finishAudit still maps every BuildResult error, transient reads included, to the
+    non-retryable audit_scan_result_invalid Stage failure; that Planner classification belongs to V407-008,
+    and collection recovers the scan from its journal either way.
+  - Equal batch constants (pagelimit and receipt batch, both 200) are out of scope.
+  observations:
+  - While writing the PostgreSQL A1 test, repeating Collect with the same stale snapshot after an
+    accepted-result commit with a finding association returned auditstore.ErrConflict (request digest
+    differed) instead of replaying. The Controller does not repeat Collect for a collected execution, so no
+    reconcile path reaches it; the cause was not investigated. The contract-invalid replay is tested and
+    replays the one receipt.

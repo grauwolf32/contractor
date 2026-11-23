@@ -1,0 +1,133 @@
+schema_version: '1.0'
+id: V474-003
+title: Publish existing workspace files by local reference
+milestone: artifact-transfer-reliability-2026-10
+epic: projects-artifacts
+kind: feature
+priority: P1
+status: completed
+depends_on: [V474-009]
+languages:
+- python
+- go
+- yaml
+goal: A Worker identifies an existing output file by its local workspace reference. Runtime reads the file
+  and publishes its actual bytes.
+demonstration: >-
+  Run the podman-python-check fixture. After check.py creates report.json, the scripted model supplies
+  report.json as the source path. Verify builder/check_report against the file bytes and the exact
+  revision in the receipt. The ordinary local-workdir process fixture additionally publishes a
+  ZIP-hydrated file with Unicode and trailing whitespace, then proves a missing source publishes
+  nothing. The native Linux Podman allocation fixture covers execution-created files.
+context:
+  authority: >-
+    User decision 2026-11-21 requires a local file reference as the sole source argument from the
+    model when publishing an existing file. Instructions and tools must never require the model to
+    supply exact source content, in plain text, base64 or any other encoding.
+  verification_grouping: >-
+    Agent execution decision 2026-11-22 follows the user's request to minimize passes. This task
+    runs its real-process publication and migrated-caller regressions; V474-010 owns the unchanged
+    mandatory full process gate on the combined implementation. Earlier failed full runs are not passes.
+  specification:
+  - docs/spec/artifacts/artifact-store.md#ART-R37
+  - docs/spec/artifacts/artifact-store.md#ART-R58
+  - docs/spec/tools/workspace.md#WSP-R13
+  - docs/spec/execution/server-operations.md#SOP-R13
+  callers: configs/instructions/podman-python-fixer-memory.md:13 requires the exact UTF-8 bytes of report.json.
+    configs/workflows/artifact_copy_v2_memory.yaml copies a text/plain artifact. run_artifacts/tools.py:239
+    also supports controlled writes to explicit namespaces. A namespace-fixed text writer alone changes
+    that contract.
+  implementation_choice: >-
+    Agent decision 2026-11-21 uses the existing Server operation mechanism and ArtifactStore.Fork
+    for artifact-copy. Inspection confirmed bounded Stage ownership checks and replay of the exact
+    source through existing mechanisms, without a new store or model-visible copy tool. AGENTS.md
+    section 3.11 places artifact transformations with their domain owner and says not to retain an
+    unnecessary mechanism merely because tests cover it. The earlier clarification question is
+    superseded by this boundary evidence; no user approval of an unanswered option is claimed.
+    Worker process fixtures use authored text and retain their original Worker/Scheduler assertions.
+  source_ownership: >-
+    The workspace owner resolves the local file. ArtifactStore owns publication and revisions. For
+    artifact-copy the Workflow already binds an exact source artifact. Copy from that binding in code.
+    Copy executes as an ordinary registered Server operation over the pinned source, without a Worker.
+    Text composed by a model can still be authored through write_text_artifact.
+scope:
+  in:
+  - Migrate selected write_artifact callers, tool declarations, Worker instructions and the scripted
+    Podman Gateway fixture to reference-based publication. Retire the model-facing inline byte upload.
+    Reuse existing workspace access and exact Artifact publication primitives.
+  - Publish changed shipped manifests and instruction paths under fresh identities, repin dependent configurations
+    and Eval fixtures, and validate the catalog lock. Update the owning specs in the same implementation.
+  out:
+  - New upload service, broader filesystem or cross-namespace grants, UI redesign and private transport
+    encoding changes.
+requirements:
+- id: R1
+  text: Resolve the source path relative to the active Worker's workspace through its file access owner.
+    Enforce existing path, file-type and size limits. Keep destination grants and existing create/update preconditions.
+- id: R2
+  text: Reject inline source content, including text or encoded bytes supplied alongside a path. A missing
+    or inaccessible source is an explicit error. No content fallback may execute or publish an output.
+failure_outcomes:
+- operation: Publish or copy an existing payload
+  permanent: Missing source, invalid path, too-large output, denied target or stale revision produces
+    no claimed output.
+  retryable: Reuse ArtifactClient classification and bounded reconciliation.
+  ambiguous: Recover the existing exact-byte result after a lost response using the existing publication
+    mechanism.
+  cancelled: Join all file/transfer work before releasing the workspace.
+  timeout: Existing allocation and artifact operation deadlines.
+cardinality:
+- collection: One source and target artifact or workspace file
+  bound: Reuse configured artifact byte ceiling and workspace limits. No model response contains encoded
+    bytes.
+lifecycle:
+- entity: Published report or copy
+  retention: Ordinary Artifact revision, output publication, Run retention and deletion.
+acceptance_criteria:
+- id: A1
+  text: >-
+    The Podman transcript publishes by path without first reading the file into the model context.
+    Inspect the actual model declaration and call. The only source argument is the path. A fixture
+    containing multibyte text and trailing whitespace publishes byte-for-byte. The artifact-copy
+    fixture copies from its assigned exact binding. Model-authored text still works for existing consumers.
+- id: A2
+  text: Existing authority and CAS behavior are exercised, including lost reply and denied or stale target.
+    A removed model tool has migrated production callers and current pinned template versions.
+- id: A3
+  text: A missing file, a path escaping the workspace, a disallowed symlink and a call with inline content
+    (alone or alongside a valid path) all fail before publication. The target revision stays unchanged.
+tests:
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-config
+  covers:
+  - A2
+- command: go test -tags=e2e -count=1 ./tests/e2e -run '^(TestArtifactFilePublicationAcrossProcesses|TestLocalGoToPythonArtifactCopy|TestProductionMemoryTemplatesAcrossProcesses|TestRoutingAndEscalationProductionBoundaries|TestAgentSkillsMVPProcesses|TestAuditBasicExactHandoffAcrossProductionProcesses|TestAuditWorkspaceAcrossProductionProcesses)$'
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A2
+- command: make verify-public-api
+  covers: [A2]
+- command: make test-wire-cross-language
+  covers: [A2]
+- command: go test -count=1 ./internal/operations/... ./internal/config/... ./internal/contracts/...
+  covers: [A1, A2, A3]
+implementation_commit: 2dd32be7687f7f765466bb20f033216508f90446
+verification:
+  date: '2026-11-22'
+  result: >-
+    Full Runtime passed (6392 tests, 135 declared skips); the native Linux fake-CLI Podman,
+    rooted filesystem and publication suite passed 79 tests. All seven listed real-process roots
+    passed in 578.592 seconds. The new process case verifies exact Unicode/trailing whitespace,
+    missing-file non-publication and a model-free Server copy with no allocations. PostgreSQL
+    operation/config/contract packages, configuration, API, wire and final lint passed. UI checks,
+    typechecking and build passed; all 228 UI test files passed with two workers (2573 tests plus
+    one expected failure), after one default-concurrency timeout. Optional real-Podman deployment
+    was not run. Complete final-tree process acceptance remains V474-010.

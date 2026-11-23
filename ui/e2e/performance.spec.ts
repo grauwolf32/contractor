@@ -1,0 +1,325 @@
+import { expect, test } from "@playwright/test";
+
+import {
+  authSession,
+  fulfillEmptyPageOrNotFound,
+  fulfillError,
+  fulfillJSON,
+  mockAPI,
+} from "./support/mock-api";
+
+function freshness(
+  observedAt: string,
+  intervalSeconds: 15 | 60 | 300 = 15,
+  status: "ok" | "partial" | "unavailable" = "ok",
+) {
+  const endedAt = observedAt;
+  return {
+    status,
+    ...(status === "unavailable" ? { reason: "read_failed" } : {}),
+    ...(status === "unavailable" ? {} : { observedAt }),
+    lastAttemptAt: observedAt,
+    intervalSeconds,
+    coverage: {
+      startedAt: new Date(
+        Date.parse(observedAt) - intervalSeconds * 1_000,
+      ).toISOString(),
+      endedAt,
+      durationSeconds: intervalSeconds,
+      expectedSamples: 1,
+      observedSamples: status === "unavailable" ? 0 : 1,
+    },
+  };
+}
+
+function sample(generation: string, observedAt: string, cpuCores?: number) {
+  return {
+    version: 1,
+    generation,
+    observedAt,
+    process: {
+      freshness: freshness(
+        observedAt,
+        15,
+        cpuCores === undefined ? "unavailable" : "ok",
+      ),
+      ...(cpuCores === undefined ? {} : { cpuCores, rssBytes: 104_857_600 }),
+    },
+  };
+}
+
+function snapshot(
+  enabled: boolean,
+  observedAt: string,
+  current?: ReturnType<typeof sample>,
+) {
+  return {
+    enabled,
+    generation: current?.generation ?? "performance-disabled-generation",
+    observedAt,
+    sampleIntervalSeconds: 15,
+    databaseIntervalSeconds: 60,
+    databaseSizeIntervalSeconds: 300,
+    ...(current === undefined ? {} : { current }),
+    diagnostics: {
+      skippedSamples: 0,
+      rejectedSamples: 0,
+      skippedMinutes: 0,
+      droppedMinutes: 0,
+      pendingMinutes: 0,
+    },
+  };
+}
+
+test("renders disabled stale and discontinuous performance observations truthfully", async ({
+  page,
+}) => {
+  let enabled = false;
+  let registryReads = 0;
+
+  await mockAPI(
+    page,
+    async (route, _request, url) => {
+      if (url.pathname === "/v1/operations/snapshot") {
+        registryReads += 1;
+        await fulfillError(
+          route,
+          500,
+          "internal_error",
+          "Unexpected registry read",
+        );
+        return;
+      }
+      if (url.pathname === "/v1/operations/performance") {
+        const readAt = new Date().toISOString();
+        const staleAt = new Date(Date.now() - 90_000).toISOString();
+        await fulfillJSON(
+          route,
+          enabled
+            ? snapshot(
+                true,
+                readAt,
+                sample("performance-current", staleAt, 1.5),
+              )
+            : snapshot(false, readAt),
+        );
+        return;
+      }
+      if (url.pathname === "/v1/operations/performance/history") {
+        const from = url.searchParams.get("from");
+        const to = url.searchParams.get("to");
+        const step = url.searchParams.get("step");
+        if (from === null || to === null || step === null) {
+          await fulfillError(route, 400, "invalid_query");
+          return;
+        }
+        const end = Date.parse(to);
+        const points = enabled
+          ? [
+              {
+                kind: "sample",
+                ...sample(
+                  "performance-before-restart",
+                  new Date(end - 45_000).toISOString(),
+                  1,
+                ),
+              },
+              {
+                kind: "sample",
+                ...sample(
+                  "performance-before-restart",
+                  new Date(end - 30_000).toISOString(),
+                ),
+              },
+              {
+                kind: "sample",
+                ...sample(
+                  "performance-after-restart",
+                  new Date(end - 15_000).toISOString(),
+                  2,
+                ),
+              },
+            ]
+          : [];
+        await fulfillJSON(route, { from, to, step, points });
+        return;
+      }
+      await fulfillEmptyPageOrNotFound(route);
+    },
+    { session: authSession("operator") },
+  );
+
+  await page.goto("/operations/performance");
+  await expect(
+    page.getByText("Performance collection is disabled."),
+  ).toBeVisible();
+  await expect(page.getByText("No observations in this range.")).toHaveCount(3);
+
+  enabled = true;
+  await page.reload();
+  const serverProcess = page
+    .locator("article.performance-metric-card")
+    .filter({ has: page.getByRole("heading", { name: "Server CPU" }) });
+  await expect(serverProcess.getByText("stale", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(/This range crosses 2 Server generations/),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("img", { name: "CPU usage" }).locator("span"),
+  ).toHaveCount(2);
+  await page.getByText("Detailed history", { exact: true }).click();
+  const cpuChart = page.getByRole("img", { name: "CPU usage · details" });
+  await expect(cpuChart).toBeVisible();
+  await expect(cpuChart.locator(".performance-chart-line")).toHaveCount(2);
+  await expect(page.getByLabel("CPU usage numeric summary")).toContainText(
+    "Observed points2",
+  );
+  expect(registryReads).toBe(0);
+});
+
+test("shows only available GPU metrics on desktop and mobile", async ({
+  page,
+}) => {
+  let gpuAvailable = true;
+  let reverseDevices = false;
+  await mockAPI(
+    page,
+    async (route, _request, url) => {
+      const gpu = (at: string, utilization = 0) => ({
+        freshness: {
+          ...freshness(at),
+          status: "partial",
+          reason: "unsupported_metric",
+        },
+        devices: [
+          {
+            id: "GPU-aa",
+            name: "NVIDIA GeForce RTX 5090",
+            utilizationPercent: utilization,
+            memoryUsedBytes: 24 * 1024 ** 3,
+            memoryTotalBytes: 32 * 1024 ** 3,
+            temperatureCelsius: 44,
+          },
+          {
+            id: "GPU-bb",
+            name: "NVIDIA GeForce RTX 5090",
+            utilizationPercent: 65 - utilization / 2,
+            memoryUsedBytes: 16 * 1024 ** 3,
+            memoryTotalBytes: 32 * 1024 ** 3,
+            temperatureCelsius: 58,
+            powerWatts: 190,
+          },
+        ].sort((a, b) =>
+          reverseDevices ? b.id.localeCompare(a.id) : a.id.localeCompare(b.id),
+        ),
+      });
+      if (url.pathname === "/v1/operations/performance") {
+        const at = new Date().toISOString();
+        return fulfillJSON(
+          route,
+          snapshot(true, at, {
+            ...sample("gpu-generation", at, 1),
+            ...(gpuAvailable ? { gpu: gpu(at) } : {}),
+          }),
+        );
+      }
+      if (url.pathname === "/v1/operations/performance/history") {
+        const to = url.searchParams.get("to")!;
+        return fulfillJSON(route, {
+          from: url.searchParams.get("from"),
+          to,
+          step: url.searchParams.get("step"),
+          points: [10, 30, 20, 40, 35, 10].map((utilization, i) => {
+            const at = new Date(
+              Date.parse(to) - (6 - i) * 15_000,
+            ).toISOString();
+            return {
+              kind: "sample",
+              ...sample("gpu-generation", at, 1),
+              ...(gpuAvailable ? { gpu: gpu(at, utilization) } : {}),
+            };
+          }),
+        });
+      }
+      return fulfillEmptyPageOrNotFound(route);
+    },
+    { session: authSession("operator") },
+  );
+  await page.goto("/operations/performance");
+  const cardName = "GPU NVIDIA GeForce RTX 5090 · aa";
+  const card = page.getByRole("article", { name: cardName });
+  await expect(card).toBeVisible();
+  await expect(card.getByText("0 %", { exact: true })).toBeVisible();
+  const details = page.locator("details").filter({
+    has: page.getByText("Detailed counters and collection diagnostics", {
+      exact: true,
+    }),
+  });
+  await details.locator("summary").click();
+  const detailedCard = details.getByRole("article", { name: cardName });
+  await expect(detailedCard.getByText("44 °C", { exact: true })).toBeVisible();
+  await expect(detailedCard.getByText("Power draw")).toHaveCount(0);
+  await details.locator("summary").click();
+  await page.getByText("Detailed history", { exact: true }).click();
+  const chart = page.getByRole("img", { name: "GPU utilization" });
+  await expect(chart).toBeVisible();
+  await expect(chart.locator(".performance-chart-line")).toHaveCount(2);
+  const lineA = chart.locator('[data-series-id="GPU-aa"] polyline');
+  const lineB = chart.locator('[data-series-id="GPU-bb"] polyline');
+  const colorA = await lineA.evaluate((line) => getComputedStyle(line).stroke);
+  const colorB = await lineB.evaluate((line) => getComputedStyle(line).stroke);
+  expect(colorA).not.toBe(colorB);
+  await expect(card.locator(".performance-series-swatch")).toHaveCSS(
+    "background-color",
+    colorA,
+  );
+  const legend = page.getByLabel("GPU utilization GPU legend");
+  await expect(legend.locator('[data-series-id="GPU-aa"]')).toContainText(
+    "NVIDIA GeForce RTX 5090 · aa",
+  );
+  await expect(
+    legend.locator('[data-series-id="GPU-bb"] .performance-series-swatch'),
+  ).toHaveCSS("background-color", colorB);
+  const powerChart = page.getByRole("img", { name: "Power draw" });
+  await expect(powerChart.locator('[data-series-id="GPU-aa"]')).toHaveCount(0);
+  await expect(
+    powerChart.locator('[data-series-id="GPU-bb"] polyline'),
+  ).toHaveCSS("stroke", colorB);
+  reverseDevices = true;
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+        "/v1/operations/performance/history",
+    ),
+    page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/v1/operations/performance",
+    ),
+    page.getByRole("button", { name: "Refresh" }).click(),
+  ]);
+  await expect(lineA).toHaveCSS("stroke", colorA);
+  await expect(lineB).toHaveCSS("stroke", colorB);
+  await page.screenshot({
+    path: test.info().outputPath("gpu-desktop.png"),
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(card).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: test.info().outputPath("gpu-mobile.png"),
+    fullPage: true,
+  });
+  gpuAvailable = false;
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Server CPU" })).toBeVisible();
+  await expect(card).toHaveCount(0);
+  await expect(
+    page.getByRole("img", { name: /GPU|VRAM|Temperature/ }),
+  ).toHaveCount(0);
+});

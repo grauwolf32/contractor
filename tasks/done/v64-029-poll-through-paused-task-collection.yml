@@ -1,0 +1,71 @@
+schema_version: '1.0'
+id: V64-029
+title: Keep paused Audit reads polling until terminal output collection finishes
+milestone: audit-check-prioritization
+epic: audits
+kind: defect
+introduced_by: V64-002
+priority: P2
+status: completed
+depends_on: [V64-002]
+languages: [go, typescript, yaml, markdown]
+goal: A paused check shows collected results and prepared Tasks automatically after its last Run terminates.
+context:
+  authority: >-
+    User review 2026-11-03 reports this P2 on separate PostgreSQL. User clarification 2026-11-03
+    says a new regression test is unnecessary; use existing suites and a disposable PostgreSQL probe.
+  finding: >-
+    ui/src/api/audits.ts:523 stops paused polling at outstandingRunCount zero, while
+    internal/auditstore/internal/pgstore/execution_sql.go:135 decrements that count at terminal
+    observation before collection commits. The Task is still selected and its result absent.
+  siblings: >-
+    Audit detail/list, workspace, Reports and projection-refresh hooks use auditPollInterval.
+    All authoritative Audit responses, including list and mutation responses, must carry the same
+    derived pending-collection fact, and the final projection refresh must observe its transition.
+  boundary: >-
+    Derive collectionPending from an indexed existence lookup of collecting executions in the
+    Audit read snapshot. Keep the existing active-Run counter unchanged. No stored counter,
+    migration, full-history aggregation, new lifecycle state or per-row API round trip is needed.
+  existing_test_adjustment: >-
+    The longer Audit projection exceeds pg_stat_activity's query-text prefix in the existing
+    start/purge lock test. Keep that test's lock guarantee by detecting the exact purge backend
+    through pg_blocking_pids instead of matching the truncated SQL suffix. This updates an
+    existing test helper and adds no regression test.
+  verification: >-
+    On 0fe143e8e7646335b797cb319444a174faf276d9 the full Audit store, service and public
+    HTTP suites pass against disposable PostgreSQL. verify-public-api and
+    verify-public-api-postgres pass; the public client package suite also passes.
+    Full ui-verify passes 2459 tests with one expected failure, plus lint, typecheck,
+    static-server tests and build. make lint passes with regenerated dependency and ERD checks.
+    A temporary external Go overlay probes actual owner selection, observation of submission
+    failure, pause, list and collection: collectionPending stays true with zero outstanding
+    Runs in both pause and list responses, then clears when the Task settles. Custom and
+    generic PostgreSQL plans use audit_executions_reconcile_idx across 5000 collected rows.
+    An independent one-off Vite SSR import exercises the production auditPollInterval function:
+    paused collecting and draining Audits poll; a fully drained paused Audit stops.
+    No new regression test is committed. The existing final-projection-refresh suite passes.
+    No migration, new state or stored counter was added. This local branch remains unmerged.
+scope:
+  in:
+  - Expose the bounded derived collectionPending fact in Audit reads and both generated clients.
+  - Continue common polling and perform the final projection refresh after collection settles.
+  - Update existing required-field fixtures and owning specification.
+  out:
+  - New regression tests, coordinator sequencing changes, waiting states or background scheduling changes.
+acceptance_criteria:
+- id: A1
+  text: Paused Audits with zero outstanding Runs and collecting executions keep polling until collection commits.
+- id: A2
+  text: Task results and prepared Tasks refresh automatically, and drained paused Audits stop polling with a final projection read.
+- id: A3
+  text: Pending-collection reads use existing indexes and bounded Audit pages without scanning settled execution history.
+tests:
+- command: go test -tags=integration -count=1 ./internal/auditstore/... ./internal/auditservice ./internal/httpapi/public
+  covers: [A1, A3]
+- command: make verify-public-api verify-public-api-postgres
+  covers: [A1, A3]
+- command: VITEST_MAX_WORKERS=1 make ui-verify
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2, A3]
+implementation_commit: 0fe143e8e7646335b797cb319444a174faf276d9

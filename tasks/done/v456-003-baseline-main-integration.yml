@@ -1,0 +1,69 @@
+schema_version: '1.0'
+id: V456-003
+title: Integrate the verified release baseline into current main
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: chore
+priority: P2
+status: completed
+depends_on: [V456-001, V456-002]
+languages: [go, sql, python, markdown]
+goal: >-
+  Main installs the verified single release baseline while retaining the
+  Planner, Runtime and material-preview work merged since its source revision.
+context:
+  authority: >-
+    User request 2026-11-07 explicitly authorizes merging the completed
+    release migration fold into main. Use a no-fast-forward merge and preserve
+    unrelated uncommitted work. No deployment or database cutover is assigned.
+  specification: docs/spec/platform/persistence.md#PER-R30
+  source_head: 06cb679e75fde559d32c2142fccfb5386f9a2948
+  main_before: 9d8bc588ca3c1f8829756d329f7cc5f8b1b09e04
+  decision: >-
+    Prepare the merge on an isolated branch with current main as its first
+    parent. Regenerate the backlog from both parents' tasks. Main has no schema
+    changes after the fold's pinned source, so retain the verified baseline
+    bytes and strict migration protocol; verify its combined persistence,
+    Planner and restore paths, shared contracts and lint before advancing main.
+scope:
+  in:
+    - Merge the exact completed baseline source with current main and reconcile generated task bookkeeping.
+    - Verify the combined schema consumers, backup/restore, wire contracts and lint.
+    - Advance main to the prepared no-fast-forward merge and record source ancestry, checks and test database cleanup.
+  out:
+    - New schema or domain behavior, deployment, demo data changes, remote push and unrelated user edits.
+acceptance_criteria:
+  - id: A1
+    text: Main includes both exact parent revisions through a no-fast-forward merge; only the verified baseline remains and its evidence checksum matches.
+  - id: A2
+    text: Combined real PostgreSQL persistence, Planner and restore suites, wire contracts and lint pass; disabled heavy-I/O cases remain explicit skips.
+  - id: A3
+    text: Unrelated primary files and index retain their original hashes and modes, task delivery is recorded and the owned disposable database is dropped.
+tests:
+  - command: go test -tags=integration -count=1 ./internal/persistence/... ./internal/planner/streamline ./tests/integration/restore
+    covers: [A1, A2]
+  - command: make -o runtime-venv test-wire-cross-language
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A3]
+
+verification:
+  - The parents share changes only in generated tasks/BACKLOG.md; it was regenerated from both task sets. All 103 paths changed only by newer main retain their exact committed content.
+  - The folded baseline is the only SQL migration and retains the SHA-256 in tasks/evidence/v456-001-schema-equivalence.json. Main added no schema changes after the pinned fold source.
+  - The complete listed persistence, Planner streamline and backup/restore package command passed against real PostgreSQL on the combined tree.
+  - The wire gate passed 374 fixtures with 418 Go and 266 Python shared tests and 390 separate Python contract-model cases. One optional disk-heavy case remains a skip, not passing coverage.
+  - make lint passed with the locked Runtime environment and pinned cached tools in offline mode, including generated contracts, layers, release graph, task/spec, schema/ERD and Runtime import checks.
+  - The six primary tracked/untracked file hashes and modes and the staged index match the recoverable snapshot in /private/tmp/contractor-v456-evidence/main-integration/primary-preservation.json.
+  - Full release-verify, live models, optional heavy I/O, deployment and remote push are outside this integration.
+  - Main advanced to the prepared merge with the expected two parents, and all primary content, modes and staged entries remained unchanged afterward.
+  - The owned contractor_v456_merge database had zero sessions after the gates stopped and was explicitly dropped.
+implementation_commit: b66620730735f68c4da878ffc12686125d451be7
+delivery:
+  date: '2026-11-07'
+  merged_into_main: true
+  merge_commit: b66620730735f68c4da878ffc12686125d451be7
+  main_first_parent: 9d8bc588ca3c1f8829756d329f7cc5f8b1b09e04
+  source_head: 06cb679e75fde559d32c2142fccfb5386f9a2948
+  pushed: false

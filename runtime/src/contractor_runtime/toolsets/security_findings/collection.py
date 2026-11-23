@@ -1,0 +1,478 @@
+"""Bounded, self-contained findings ZIP codec shared with auditdomain's v1 contract."""
+
+from __future__ import annotations
+
+import calendar
+import io
+import json
+import re
+import stat
+import zipfile
+import zlib
+from dataclasses import dataclass
+from typing import Any
+
+import jcs
+from jsonschema import ValidationError as SchemaValidationError
+
+from contractor_runtime.contracts import MEDIA_TYPE_PATTERN, ArtifactRef
+from contractor_runtime.contracts.audit_documents import decode_audit_document
+from contractor_runtime.contracts.base import MAX_EXACT_INTEGER, RESOURCE_ID_PATTERN, is_blank
+from contractor_runtime.digests import sha256_digest
+from contractor_runtime.strict_json import unique_json_object
+from contractor_runtime.toolsets.common.finding_locations import normalize_locations
+from contractor_runtime.toolsets.common.http_evidence import HTTPExchange
+
+COLLECTION_MEDIA_TYPE = "application/vnd.contractor.findings-collection+zip"
+MAX_ARCHIVE_BYTES = 16 * 1024 * 1024
+IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,159}")
+
+
+class FindingsError(ValueError):
+    """A bounded error code safe to report without logging collection contents."""
+
+    def __init__(self, code: str, *, retryable: bool = False) -> None:
+        super().__init__(code)
+        self.code = code
+        self.retryable = retryable
+
+
+def require(condition: Any, code: str = "findings_collection_invalid") -> None:
+    if not condition:
+        raise FindingsError(code)
+
+
+def identifier(value: Any) -> bool:
+    return isinstance(value, str) and IDENTIFIER.fullmatch(value) is not None
+
+
+def canonical(value: Any) -> bytes:
+    return jcs.canonicalize(value)
+
+
+def object_fields(value: Any, required: str, optional: str = "") -> None:
+    keys, extra = set(required.split()), set(optional.split())
+    require(isinstance(value, dict) and keys <= value.keys() <= keys | extra)
+
+
+def array(value: Any, maximum: int, minimum: int = 0) -> list[Any]:
+    require(isinstance(value, list))
+    require(minimum <= len(value) <= maximum, "findings_limit_exceeded")
+    return value
+
+
+def strict_json(data: bytes, *, canonical_required: bool = True) -> Any:
+    try:
+        value = json.loads(data.decode("utf-8"), object_pairs_hook=unique_json_object)
+        pending = [(value, 1)]
+        nodes = 0
+        while pending:
+            item, depth = pending.pop()
+            nodes += 1
+            require(depth <= 64 and nodes <= 250000, "findings_limit_exceeded")
+            if isinstance(item, dict):
+                pending.extend((child, depth + 1) for child in item.values())
+                pending.extend((key, depth + 1) for key in item)
+            elif isinstance(item, list):
+                pending.extend((child, depth + 1) for child in item)
+            elif isinstance(item, str):
+                require("\0" not in item)
+                require(len(item.encode("utf-8")) <= 65536, "findings_limit_exceeded")
+        if canonical_required:
+            require(canonical(value) == data)
+        return value
+    except FindingsError:
+        raise
+    except (ValueError, TypeError, OverflowError, RecursionError) as error:
+        raise FindingsError("findings_collection_invalid") from error
+
+
+def document_id(document: dict[str, Any]) -> str:
+    scope, ref = document["scope"], document["ref"]
+    return (
+        "doc-"
+        + sha256_digest(
+            canonical(
+                [
+                    scope["kind"],
+                    scope["id"],
+                    ref["namespace"],
+                    ref["name"],
+                    ref["revision"],
+                    document["digest"],
+                    document["media_type"],
+                    document["size_bytes"],
+                ]
+            )
+        )[7:]
+    )
+
+
+@dataclass(frozen=True)
+class FindingCollection:
+    metadata: dict[str, Any]
+    contents: dict[str, bytes]
+    proposals: dict[str, dict[str, Any]]
+    digest: str
+
+    @property
+    def namespace(self) -> str:
+        return "findings-" + self.digest[7:]
+
+
+def decode_collection(payload: bytes) -> FindingCollection:
+    require(0 < len(payload) <= MAX_ARCHIVE_BYTES, "findings_limit_exceeded")
+    try:
+        raw = _archive(payload)
+        manifest = strict_json(raw["manifest.json"])
+        object_fields(manifest, "schema package_id kind members")
+        require(manifest["schema"] == "contractor.audit.package.v1")
+        require(manifest["kind"] == "finding-collection")
+        members = array(manifest["members"], 1024, 1)
+        require(len(raw) == len(members) + 1)
+        by_id: dict[str, Any] = {}
+        previous = ""
+        for member in members:
+            object_fields(member, "id path media_type size digest")
+            require(identifier(member["id"]) and member["id"] not in by_id)
+            path = member["path"]
+            require(isinstance(path, str) and path > previous and path != "manifest.json")
+            body = raw[path]
+            require(type(member["size"]) is int and member["size"] == len(body))
+            require(member["digest"] == sha256_digest(body), "findings_digest_mismatch")
+            previous = path
+            by_id[member["id"]] = member
+        collection_member = by_id["collection"]
+        require(collection_member["path"] == "collection.json")
+        require(collection_member["media_type"] == "application/json")
+        metadata_bytes = raw["collection.json"]
+        require(len(metadata_bytes) <= 1024 * 1024, "findings_limit_exceeded")
+        metadata = strict_json(metadata_bytes)
+        require(manifest["package_id"] == "collection-" + sha256_digest(metadata_bytes)[7:])
+        _validate_metadata(metadata)
+        require(len(members) == len(metadata["documents"]) + 1)
+        contents: dict[str, bytes] = {}
+        for document in metadata["documents"]:
+            member = by_id[document["id"]]
+            require(
+                member
+                == {
+                    "id": document["id"],
+                    "path": "documents/" + document["id"],
+                    "media_type": document["media_type"],
+                    "size": document["size_bytes"],
+                    "digest": document["digest"],
+                },
+                "findings_digest_mismatch",
+            )
+            contents[document["id"]] = raw[member["path"]]
+        proposals: dict[str, dict[str, Any]] = {}
+        for entry in metadata["entries"]:
+            proposal_id = entry["proposal_document_id"]
+            if proposal_id not in proposals:
+                proposals[proposal_id] = _proposal(contents[proposal_id])
+            require(
+                sorted(proposals[proposal_id]["evidence_ids"])
+                == [link["evidence_id"] for link in entry["evidence"]],
+                "findings_reference_invalid",
+            )
+            origin = entry.get("audit_origin", {})
+            context_id = origin.get("hypothesis_snapshot_document_id")
+            if context_id is not None:
+                try:
+                    hypothesis = decode_audit_document(
+                        contents[context_id], schema="contractor.audit.hypothesis.v1"
+                    )
+                except (ValueError, SchemaValidationError) as error:
+                    raise FindingsError("findings_reference_invalid") from error
+                require(
+                    hypothesis["id"] == origin["hypothesis"]["id"]
+                    and hypothesis["revision"] == origin["hypothesis"]["revision"],
+                    "findings_reference_invalid",
+                )
+        return FindingCollection(metadata, contents, proposals, sha256_digest(payload))
+    except FindingsError:
+        raise
+    except (KeyError, TypeError, ValueError, OverflowError, RecursionError) as error:
+        raise FindingsError("findings_collection_invalid") from error
+
+
+def _archive(payload: bytes) -> dict[str, bytes]:
+    try:
+        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+            infos = archive.infolist()
+            require(0 < len(infos) <= 1025, "findings_limit_exceeded")
+            raw: dict[str, bytes] = {}
+            total = 0
+            for info in infos:
+                # Collection paths are fixed by the contract, so no extraction or
+                # general-purpose filesystem path normalization is necessary.
+                name = info.filename
+                require(name == info.orig_filename and name not in raw)
+                require(
+                    name in {"manifest.json", "collection.json"}
+                    or re.fullmatch(r"documents/doc-[0-9a-f]{64}", name) is not None
+                )
+                mode = info.external_attr >> 16
+                require(not info.is_dir() and not info.external_attr & 0x10)
+                require(stat.S_IFMT(mode) in {0, stat.S_IFREG} and not mode & 0o111)
+                require(
+                    not info.flag_bits & 1
+                    and info.compress_type
+                    in {
+                        zipfile.ZIP_STORED,
+                        zipfile.ZIP_DEFLATED,
+                    }
+                )
+                limit = 512 * 1024 if name == "manifest.json" else MAX_ARCHIVE_BYTES
+                require(info.file_size <= limit, "findings_limit_exceeded")
+                total += info.file_size
+                require(total <= 32 * 1024 * 1024, "findings_limit_exceeded")
+                with archive.open(info) as stream:
+                    body = stream.read(limit + 1)
+                require(len(body) == info.file_size and len(body) <= limit)
+                raw[name] = body
+            return raw
+    except FindingsError:
+        raise
+    except (OSError, ValueError, RuntimeError, zipfile.BadZipFile, EOFError, zlib.error) as error:
+        raise FindingsError("findings_collection_invalid") from error
+
+
+def _timestamp(value: Any) -> None:
+    require(isinstance(value, str))
+    match = re.fullmatch(
+        r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.([0-9]{0,8}[1-9]))?Z",
+        value,
+        flags=re.ASCII,
+    )
+    require(match)
+    year, month, day, hour, minute, second = map(int, match.groups()[:6])
+    require(1 <= month <= 12 and 0 <= hour <= 23 and 0 <= minute <= 59 and 0 <= second <= 59)
+    require(1 <= day <= calendar.monthrange(year, month)[1])
+
+
+def _validate_metadata(value: dict[str, Any]) -> None:
+    object_fields(value, "schema snapshot_at sources documents entries")
+    require(value["schema"] == "contractor.findings.collection.v2")
+    _timestamp(value["snapshot_at"])
+    source_keys = []
+    for source in array(value["sources"], 64, 1):
+        object_fields(source, "kind id")
+        require(source["kind"] in {"run", "audit", "project"} and identifier(source["id"]))
+        source_keys.append((source["kind"], source["id"]))
+    require(source_keys == sorted(set(source_keys)))
+    sources = set(source_keys)
+    documents: dict[str, Any] = {}
+    total = 0
+    previous = ""
+    for document in array(value["documents"], 1023):
+        object_fields(document, "id scope ref digest media_type size_bytes")
+        scope = document["scope"]
+        object_fields(scope, "kind id")
+        require(scope["kind"] in {"run", "project", "user"} and identifier(scope["id"]))
+        object_fields(document["ref"], "namespace name revision")
+        ArtifactRef.model_validate(document["ref"]).require_exact()
+        require(
+            isinstance(document["digest"], str)
+            and re.fullmatch(r"sha256:[0-9a-f]{64}", document["digest"])
+        )
+        media_type = document["media_type"]
+        require(isinstance(media_type, str) and MEDIA_TYPE_PATTERN.fullmatch(media_type))
+        size = document["size_bytes"]
+        require(type(size) is int and 0 <= size <= MAX_ARCHIVE_BYTES)
+        total += size
+        require(total <= MAX_ARCHIVE_BYTES, "findings_limit_exceeded")
+        require(
+            document["id"] == document_id(document) and document["id"] > previous,
+            "findings_reference_invalid",
+        )
+        documents[document["id"]] = document
+        previous = document["id"]
+    used: set[str] = set()
+    proposals: set[str] = set()
+    previous = ""
+    for entry in array(value["entries"], 256):
+        object_fields(
+            entry,
+            "receipt_id proposal_id run_id invocation_id retention "
+            "proposal_document_id evidence selected_sources",
+            "audit_origin audit_holds finding",
+        )
+        require(
+            all(
+                identifier(entry[key])
+                for key in (
+                    "receipt_id",
+                    "proposal_id",
+                    "run_id",
+                    "invocation_id",
+                )
+            )
+        )
+        require(entry["receipt_id"] > previous and entry["proposal_id"] not in proposals)
+        previous = entry["receipt_id"]
+        proposals.add(entry["proposal_id"])
+        require(entry["retention"] in {"source-held", "project-held", "discarded"})
+        selected = array(entry["selected_sources"], 64, 1)
+        selected_keys = []
+        for source in selected:
+            object_fields(source, "kind id")
+            key = (source["kind"], source["id"])
+            require(key in sources, "findings_reference_invalid")
+            selected_keys.append(key)
+        require(selected_keys == sorted(set(selected_keys)))
+        if "audit_origin" in entry:
+            origin = entry["audit_origin"]
+            object_fields(
+                origin,
+                "audit_id execution_id",
+                "task_id hypothesis hypothesis_snapshot_document_id",
+            )
+            require(
+                all(
+                    isinstance(origin[key], str)
+                    and RESOURCE_ID_PATTERN.fullmatch(origin[key]) is not None
+                    for key in ("audit_id", "execution_id")
+                )
+            )
+            if "task_id" in origin:
+                require(
+                    isinstance(origin["task_id"], str)
+                    and RESOURCE_ID_PATTERN.fullmatch(origin["task_id"]) is not None
+                )
+            if "hypothesis" in origin:
+                require("task_id" in origin)
+                hypothesis = origin["hypothesis"]
+                object_fields(hypothesis, "id revision")
+                require(
+                    isinstance(hypothesis["id"], str)
+                    and RESOURCE_ID_PATTERN.fullmatch(hypothesis["id"]) is not None
+                )
+                require(
+                    type(hypothesis["revision"]) is int
+                    and 1 <= hypothesis["revision"] <= MAX_EXACT_INTEGER
+                )
+            if "hypothesis_snapshot_document_id" in origin:
+                selected = documents.get(origin["hypothesis_snapshot_document_id"])
+                require(
+                    "hypothesis" in origin
+                    and selected is not None
+                    and selected["media_type"] == "application/json"
+                    and 0 < selected["size_bytes"] <= 32 * 1024,
+                    "findings_reference_invalid",
+                )
+                used.add(selected["id"])
+        if "audit_holds" in entry:
+            holds = array(entry["audit_holds"], 64, 1)
+            require(all(identifier(hold) for hold in holds) and holds == sorted(set(holds)))
+        proposal = documents[entry["proposal_document_id"]]
+        require(
+            proposal["media_type"] == "application/json"
+            and 0 < proposal["size_bytes"] <= 8 * 1024 * 1024
+        )
+        used.add(proposal["id"])
+        evidence_ids = []
+        for link in array(entry["evidence"], 256):
+            object_fields(link, "evidence_id document_id")
+            require(identifier(link["evidence_id"]) and link["document_id"] in documents)
+            evidence_ids.append(link["evidence_id"])
+            used.add(link["document_id"])
+        require(evidence_ids == sorted(set(evidence_ids)))
+        if "finding" in entry:
+            finding = entry["finding"]
+            object_fields(
+                finding,
+                "project_id finding_id revision state",
+                "verdict severity duplicate_target_id",
+            )
+            require(identifier(finding["project_id"]) and identifier(finding["finding_id"]))
+            require(
+                type(finding["revision"]) is int and 0 < finding["revision"] <= MAX_EXACT_INTEGER
+            )
+            require(
+                finding["state"] is None
+                or finding["state"]
+                in {"proposed", "confirmed", "rejected", "duplicate", "needs-evidence"}
+            )
+            states = {
+                "true_positive": "confirmed",
+                "false_positive": "rejected",
+                "duplicate": "duplicate",
+                "reopen": "proposed",
+                "needs_evidence": "needs-evidence",
+            }
+            verdict = finding.get("verdict", "")
+            severity = finding.get("severity", "")
+            duplicate = finding.get("duplicate_target_id", "")
+            if finding["state"] is None:
+                require(verdict == severity == duplicate == "")
+            else:
+                require(verdict in states and states[verdict] == finding["state"])
+                require((verdict == "true_positive") == (severity != ""))
+                require(severity in {"", "informational", "low", "medium", "high", "critical"})
+                require((verdict == "duplicate") == (duplicate != ""))
+                require(
+                    duplicate == ""
+                    or (identifier(duplicate) and duplicate != finding["finding_id"])
+                )
+    require(used == documents.keys(), "findings_reference_invalid")
+
+
+def _proposal(data: bytes) -> dict[str, Any]:
+    value = strict_json(data, canonical_required=False)
+    object_fields(
+        value,
+        "schema client_key title description subject preconditions evidence_ids limitations "
+        "standard_refs proposed_checks severity_suggestion",
+        "hypothesis locations http_exchange",
+    )
+    require(value["schema"] == "contractor.audit.finding-proposal.v1")
+    require(all(part is not None or field == "subject" for field, part in value.items()))
+    require(identifier(value["client_key"]))
+    for field in ("title", "description"):
+        require(isinstance(value[field], str) and not is_blank(value[field]))
+    if value["subject"] is not None:
+        object_fields(value["subject"], "kind key")
+        require(all(identifier(part) for part in value["subject"].values()))
+    if "locations" in value:
+        try:
+            normalize_locations(value["locations"])
+        except (ValueError, TypeError):
+            raise FindingsError("findings_collection_invalid") from None
+    if "http_exchange" in value:
+        try:
+            exchange = HTTPExchange.model_validate(value["http_exchange"])
+        except (ValueError, TypeError):
+            raise FindingsError("findings_collection_invalid") from None
+        require(identifier(exchange.request_tag))
+        if exchange.response_body_evidence_id is not None:
+            require(exchange.response_body_evidence_id in value["evidence_ids"])
+    require("hypothesis" not in value or isinstance(value["hypothesis"], str))
+    require(
+        value["severity_suggestion"]
+        in {
+            "",
+            "informational",
+            "low",
+            "medium",
+            "high",
+            "critical",
+        }
+    )
+    for field in ("preconditions", "limitations"):
+        require(
+            all(isinstance(part, str) and not is_blank(part) for part in array(value[field], 512))
+        )
+    evidence_ids = array(value["evidence_ids"], 256)
+    require(all(identifier(part) for part in evidence_ids))
+    require(len(evidence_ids) == len(set(evidence_ids)))
+    for reference in array(value["standard_refs"], 512):
+        object_fields(reference, "scheme version requirement_id")
+        require(identifier(reference["scheme"]) and identifier(reference["requirement_id"]))
+        require(isinstance(reference["version"], str) and not is_blank(reference["version"]))
+    for check in array(value["proposed_checks"], 512):
+        object_fields(check, "objective method")
+        require(isinstance(check["objective"], str) and not is_blank(check["objective"]))
+        require(identifier(check["method"]))
+    return value

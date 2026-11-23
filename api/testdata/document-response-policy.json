@@ -1,0 +1,100 @@
+[
+  {
+    "mode": "document@1",
+    "runtime": "adk",
+    "ref": "memory-tools@1",
+    "tools": [
+      "list_memories",
+      "read_memory",
+      "write_memory",
+      "append_memory",
+      "search_memory",
+      "list_memory_tags"
+    ],
+    "valid": true
+  },
+  {
+    "mode": "document@1",
+    "runtime": "adk",
+    "ref": "run-artifacts@1",
+    "tools": [
+      "read_artifact"
+    ],
+    "valid": true
+  },
+  {
+    "mode": "document@1",
+    "runtime": "adk",
+    "ref": "text-artifacts@1",
+    "tools": [
+      "write_text_artifact"
+    ],
+    "valid": true
+  },
+  {
+    "mode": "document@1",
+    "runtime": "adk",
+    "ref": "security-findings@1",
+    "tools": [
+      "list_project_findings",
+      "read_project_finding",
+      "select_project_findings",
+      "read_finding_selection"
+    ],
+    "valid": true
+  },
+  {
+    "mode": "document@1",
+    "runtime": "adk",
+    "ref": "http@1",
+    "tools": [
+      "request"
+    ],
+    "valid": false
+  },
+  {
+    "mode": "document@1",
+    "runtime": "adk",
+    "ref": "security-findings@1",
+    "tools": [
+      "finding"
+    ],
+    "valid": false
+  },
+  {
+    "mode": "document@1",
+    "runtime": "adk",
+    "ref": "run-artifacts@2",
+    "tools": [
+      "read_artifact"
+    ],
+    "valid": false
+  },
+  {
+    "mode": "document@1",
+    "runtime": "adk",
+    "ref": "text-artifacts@1",
+    "tools": [
+      "exec_command"
+    ],
+    "valid": false
+  },
+  {
+    "mode": "unknown",
+    "runtime": "adk",
+    "ref": "run-artifacts@1",
+    "tools": [
+      "read_artifact"
+    ],
+    "valid": false
+  },
+  {
+    "mode": "document@1",
+    "runtime": "tool",
+    "ref": "run-artifacts@1",
+    "tools": [
+      "read_artifact"
+    ],
+    "valid": false
+  }
+]

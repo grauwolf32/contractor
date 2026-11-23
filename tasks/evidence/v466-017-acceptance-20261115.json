@@ -1,0 +1,295 @@
+{
+  "task": "V466-017",
+  "date": "2026-11-15",
+  "accepted_at": "2026-11-15T00:14:38.301027+03:00",
+  "status": "accepted",
+  "implementation_commit": "1b8e8f11c3117e25c203481d2f9544e0b81d39f0",
+  "merged_into_main": true,
+  "installed_verified_head": "b7aafb9d652e9fbb8882038bb6cbf877b396d18f",
+  "boundary": "Test-only fix: keep compactorModelPolicy as a comma-separated member of the existing flow-style workers mapping. Production validation, policies and models are unchanged.",
+  "red_green": {
+    "unfixed_merge": "5ca0aa20cf69d78ae06841d839e4a3968463d194",
+    "failed_roots": [
+      "TestAuditCompactionPreservesTrustedCompletionAcrossProcesses",
+      "TestAuditCompactionLeaseLossAcrossProcesses"
+    ],
+    "observed_error": "Strict YAML parse of workflows/basic_check.yaml fails at Server readiness: did not find expected ',' or '}'.",
+    "unfixed_log": {
+      "path": "/private/tmp/contractor-v417-merge-y14xlgp4/logs/process.log",
+      "sha256": "37f2725e5d42a3f0a0653465a906bb368f11bcaaab4dacf04d6f51a436addd83"
+    },
+    "fixed_roots": {
+      "TestAuditCompactionPreservesTrustedCompletionAcrossProcesses": {
+        "status": "pass",
+        "elapsed": 14.24
+      },
+      "TestAuditCompactionLeaseLossAcrossProcesses": {
+        "status": "pass",
+        "elapsed": 6.28
+      }
+    },
+    "ordinary_worker": {
+      "status": "pass",
+      "elapsed": 85.37
+    }
+  },
+  "gates": [
+    {
+      "command": "make test-e2e",
+      "exit_code": 0,
+      "counts": {
+        "pass_test": 159,
+        "pass_package": 1
+      },
+      "roots_passed": 52,
+      "package_elapsed_seconds": 3458.03,
+      "root_results": {
+        "TestAgentSkillsMVPProcesses": {
+          "status": "pass",
+          "elapsed": 164.56
+        },
+        "TestArtifactHistoryAcrossProductionProcesses": {
+          "status": "pass",
+          "elapsed": 33.04
+        },
+        "TestAuditBasicExactHandoffAcrossProductionProcesses": {
+          "status": "pass",
+          "elapsed": 87.17
+        },
+        "TestAuditProgramCatalogReplacementRestartsServer": {
+          "status": "pass",
+          "elapsed": 0.61
+        },
+        "TestAuditCommonObservationProfilesAcrossProductionProcesses": {
+          "status": "pass",
+          "elapsed": 28.2
+        },
+        "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 18.83
+        },
+        "TestAuditCompactionPreservesTrustedCompletionAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 14.24
+        },
+        "TestAuditCompactionLeaseLossAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 6.28
+        },
+        "TestAuditHypothesisContinuationAcrossProductionProcesses": {
+          "status": "pass",
+          "elapsed": 167.48
+        },
+        "TestAuditFixedHypothesesAcrossProductionProcesses": {
+          "status": "pass",
+          "elapsed": 14.18
+        },
+        "TestAuditWorkspaceAcrossProductionProcesses": {
+          "status": "pass",
+          "elapsed": 34.29
+        },
+        "TestHeterogeneousRuntimeCapabilityPlacement": {
+          "status": "pass",
+          "elapsed": 42.95
+        },
+        "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses": {
+          "status": "pass",
+          "elapsed": 73.93
+        },
+        "TestLocalGoToPythonArtifactCopy": {
+          "status": "pass",
+          "elapsed": 42.05
+        },
+        "TestEngagementHTTPBoundsAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 16.16
+        },
+        "TestEngagementHTTPSelectedEvidenceAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 14.04
+        },
+        "TestEngagementHTTPFindingReusesSelectedEvidenceAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 14.06
+        },
+        "TestEngagementHTTPLifecycleAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 127.24
+        },
+        "TestEngagementHTTPRouteMatrixAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 42.01
+        },
+        "TestEngagementIdentityLifecycleAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 36.42
+        },
+        "TestEngagementIdentitySessionsAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 14.05
+        },
+        "TestEngagementOrdinaryRunAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 14.52
+        },
+        "TestFindingsReaderBoundariesAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 63.03
+        },
+        "TestFindingLocationsAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 33.04
+        },
+        "TestFindingsProducerAndReaderAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 33.07
+        },
+        "TestFindingsCollectionsRetainOrdinaryAndAuditReceipts": {
+          "status": "pass",
+          "elapsed": 73.15
+        },
+        "TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 53.28
+        },
+        "TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 33.18
+        },
+        "TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses": {
+          "status": "pass",
+          "elapsed": 72.98
+        },
+        "TestProjectSitemapHTTPCollectionAcrossProductionProcesses": {
+          "status": "pass",
+          "elapsed": 72.39
+        },
+        "TestWorkflowMaterialSetsAcrossProductionProcesses": {
+          "status": "pass",
+          "elapsed": 33.21
+        },
+        "TestNucleiWebWithDeterministicScannerAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 114.14
+        },
+        "TestOpenAPIPreparedWorkServerOperation": {
+          "status": "pass",
+          "elapsed": 0.95
+        },
+        "TestProductionMemoryTemplatesAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 102.35
+        },
+        "TestProjectFindingsReaderAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 33.42
+        },
+        "TestProjectSitemapReportImportsAcrossProductionProcesses": {
+          "status": "pass",
+          "elapsed": 71.98
+        },
+        "TestProjectSitemapServerOperationsAcrossProductionProcesses": {
+          "status": "pass",
+          "elapsed": 0.9
+        },
+        "TestProjectSitemapToolsAcrossProductionProcesses": {
+          "status": "pass",
+          "elapsed": 91.98
+        },
+        "TestProjectWorkspaceLifecycleAcrossProductionProcesses": {
+          "status": "pass",
+          "elapsed": 162.23
+        },
+        "TestRoutingAndEscalationProductionBoundaries": {
+          "status": "pass",
+          "elapsed": 123.37
+        },
+        "TestRunMetadataLabelsAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 81.89
+        },
+        "TestRuntimeAdapterSelectionAllowsAdditionalCapabilities": {
+          "status": "pass",
+          "elapsed": 0
+        },
+        "TestLabelDrivenRuntimeConfigurationAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 112.16
+        },
+        "TestRuntimePlacementScannerFixture": {
+          "status": "pass",
+          "elapsed": 1.57
+        },
+        "TestRuntimePlacementAcrossProductionProcesses": {
+          "status": "pass",
+          "elapsed": 196.17
+        },
+        "TestSchedulerConcurrencyAcrossProductionProcesses": {
+          "status": "pass",
+          "elapsed": 62.23
+        },
+        "TestMemoryMVPProcesses": {
+          "status": "pass",
+          "elapsed": 93.27
+        },
+        "TestTaintAnnotationsAcrossRealRuntimeProcess": {
+          "status": "pass",
+          "elapsed": 52.37
+        },
+        "TestTraceFindingCoordinatesAcrossProcesses": {
+          "status": "pass",
+          "elapsed": 13.25
+        },
+        "TestWorkerCompactionContinuesIsolatedWorker": {
+          "status": "pass",
+          "elapsed": 85.37
+        },
+        "TestWorkerSessionModesAcrossProductionProcesses": {
+          "status": "pass",
+          "elapsed": 222.3
+        },
+        "TestWorkerSummarizerProductionBoundaries": {
+          "status": "pass",
+          "elapsed": 362.06
+        }
+      },
+      "report": {
+        "path": "/Users/ruslan/.codex/worktrees/v417-main-integration/contractor/reports/go-process.jsonl",
+        "sha256": "9b19a986a3e6490248372e7f8b54fa07b3a44ea237ef02183b9dbf7a8a6d7d3a"
+      },
+      "log": {
+        "path": "/private/tmp/contractor-v417-merge-y14xlgp4/logs/process-full.log",
+        "sha256": "a24f69d40a4b0c67192219cd63afc79311c0bfb5de57c10cd9387dd232ec04c3"
+      },
+      "report_verifiers_passed": 5
+    },
+    {
+      "command": "make lint",
+      "execution": "All lint recipes executed successfully as prerequisites of make verify; that complete invocation exited 0.",
+      "exit_code": 0,
+      "log": {
+        "path": "/private/tmp/contractor-v417-merge-y14xlgp4/logs/verify-final.log",
+        "sha256": "cde6b27b68d0b4eeb1837793b3cda62e1be43e32cb6b50d9309bbbf10e000934"
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "database": "contractor_verify_v417_20261114",
+      "lane": "make verify",
+      "sessions_before_drop": 0,
+      "dropped": true
+    },
+    {
+      "database": "contractor_merge_v417_20261114",
+      "lane": "process gate",
+      "sessions_before_drop": 0,
+      "dropped": true
+    }
+  ],
+  "exclusions": [
+    "Optional heavy I/O stayed disabled; seven Go heavy cases and ten platform/live/opt-in cases are skipped, not passing coverage.",
+    "Runtime has 135 declared skips; lint script tests have four declared skips, not passing coverage.",
+    "No live Gateway quality experiment, deployment or complete release-verify claim."
+  ]
+}

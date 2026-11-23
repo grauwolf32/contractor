@@ -1,0 +1,85 @@
+/*
+ * Decision and finding components (src/routes/decisions). Every class starts
+ * with decisions-; colours come only from theme.css tokens. Sizes follow
+ * docs/design/ui/mockups/v3b/issue.html and home.html. Blocks that sit next
+ * to the DecisionBar use the same --ui-pad-start / --ui-pad-end insets.
+ */
+
+.decisions-markdown {
+  min-width: 0;
+}
+
+.decisions-markdown .markdown-artifact-preview {
+  max-width: 76ch;
+  max-height: none;
+  overflow: visible;
+  padding: 0;
+  font-size: var(--text-md);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.decisions-markdown .markdown-artifact-preview p {
+  margin: 0 0 var(--space-2-5);
+}
+
+.decisions-markdown .markdown-artifact-preview > :last-child {
+  margin-bottom: 0;
+}
+
+.decisions-markdown .markdown-artifact-preview h1,
+.decisions-markdown .markdown-artifact-preview h2,
+.decisions-markdown .markdown-artifact-preview h3,
+.decisions-markdown .markdown-artifact-preview h4 {
+  margin: 1em 0 0.4em;
+  border-bottom: 0;
+  padding-bottom: 0;
+  font-size: var(--text-md);
+}
+
+.decisions-markdown .markdown-artifact-preview :not(pre) > code {
+  padding: 1px var(--space-1-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--sunken);
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+}
+
+.decisions-markdown .markdown-artifact-preview pre {
+  max-width: 100%;
+  border-radius: var(--radius-xl);
+  background: var(--code-bg);
+  font-size: var(--text-sm);
+}
+
+.decisions-markdown .markdown-artifact-preview table {
+  max-width: 100%;
+}
+
+.decisions-finding {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.decisions-finding:focus {
+  outline: none;
+}
+
+.decisions-review-actions,
+.decisions-save-notice {
+  padding: var(--space-3) var(--ui-pad-end, 1rem) var(--space-3)
+    var(--ui-pad-start, 1rem);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.decisions-review-actions {
+  border-top: 1px solid var(--line);
+}
+
+.decisions-save-notice {
+  padding-bottom: 0;
+  color: var(--success);
+}

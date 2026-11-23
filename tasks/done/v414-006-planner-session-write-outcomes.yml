@@ -1,0 +1,229 @@
+schema_version: "1.0"
+id: V414-006
+title: "Report one Planner outcome when the session write after a result fails"
+milestone: review-v407-v409-followups-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V226-001
+priority: P2
+status: completed
+implementation_commit: 39c37b3c3f8bcc811fbe19375ba9134697334148
+depends_on: []
+languages: [go, markdown]
+goal: >-
+  When a Planner has its outcome but cannot record it in the durable session,
+  Passthrough, Streamline and Router return and report the same error with the
+  same retryability rule, a non-retryable failed candidate stays non-retryable,
+  and the invocation-in-progress code is named once in the specification and
+  the registry.
+context:
+  review: >-
+    tasks/done/v407-008-planner-result-verification-classes.yml (verification.review_followup:
+    PLN-R119 was rewritten for Passthrough only; Streamline and the failed-candidate
+    path were not re-examined)
+  specification:
+    - docs/spec/execution/planners.md#PLN-R106
+    - docs/spec/execution/planners.md#PLN-R107
+    - docs/spec/execution/planners.md#PLN-R119
+    - docs/spec/platform/failure-model.md
+    - docs/spec/platform/errors.md
+  severity: low
+  finding: >-
+    (a) Report disagreement. internal/planner/streamline/planner.go:511-523
+    (fail) records the original failure in executionState before the session
+    write; when CompleteSession fails it returns planner.CompletionWriteError
+    (internal/planner/session_lifecycle.go:157-164, code
+    planner_session_unavailable), but setFailureLocked (streamline/state.go:256-262)
+    keeps only the first failure, so the ExecutionReport error stays the original
+    code. Passthrough's finishReport (internal/planner/passthrough.go) records the
+    returned error, planner_session_unavailable, as PLN-R119 requires.
+    Reproduced on 19f7477f with a temporary Streamline test whose completeHook
+    always fails: a Planner failure run returned planner_session_unavailable while
+    report.Errors held only planner_gateway_unavailable. (b) Retryability flip.
+    A Worker failure or summarized result is mapped to a failed candidate
+    (internal/planner/worker_result.go:42-66, e.g. retryable=false or
+    summary_required); a failed finish in Streamline is also a failed candidate.
+    Writing that candidate goes through SessionError("record completion")
+    (passthrough.go:172-174, streamline/planner.go:182-185), which is always
+    retryable (session_lifecycle.go:176-181). Reproduced with a temporary
+    Passthrough test: WorkerFailure{tool_input_invalid, retryable false} plus a
+    failing completion write returned planner_session_unavailable retryable=true,
+    and with a Streamline failed finish (insufficient_evidence, retryable false)
+    the same. A retry then re-invokes a Worker whose failure was final, and a
+    summary_required candidate loses its Scheduler summary continuation (FAIL-SCH-19)
+    to an ordinary Stage retry. V226-001 A3 ("a failed write does not make an
+    originally non-retryable Planner failure retryable") fixed only the fail()
+    path. (c) Vocabulary drift. SessionError (session_lifecycle.go:167-175) emits
+    planner_invocation_in_progress, retryable, but docs/spec/execution/planners.md
+    (error list after PLN-R107: "the invocation-in-progress error, which has no
+    assigned code") and the registry row "(no assigned code) invocation-in-progress
+    error" in docs/spec/platform/errors.md say there is no code. StartSession and
+    RecordSessionRequest (session_lifecycle.go:36, 94) also end the session span
+    with ErrorCode planner_session_unavailable even when the returned code is
+    planner_invocation_in_progress.
+  siblings: >-
+    Passthrough (internal/planner/passthrough.go:172-174 result write, :245-255
+    fail), Streamline (streamline/planner.go:182-185 result write, :511-523 fail,
+    and the ADK session errors at :116 and :127 that pass through fail), Router
+    (internal/planner/router delegates to Streamline, covered by the Streamline
+    fix), and the session span labels in session_lifecycle.go:36 and :94. The
+    scan-plan@1 completion write (scan/audit_result.go:41-43, scan/report.go:284-286)
+    uses its own non-retryable scan_completion_write_failed and is owned by
+    V414-004. Classification of a deterministic store rejection
+    (runstore.ErrInvalid) inside SessionError is owned by V414-008; both tasks
+    change SessionError, so the second to land rebases on the first.
+  provenance: >-
+    The always-retryable record-completion mapping dates from 411d617c (MVP-013,
+    Passthrough) and aacda4b3 (V1-006, Streamline); ba97a6dd (V226-001) added
+    CompletionWriteError to keep a failure's retryability but left the
+    failed-candidate write on SessionError, which is the partial fix this task
+    completes, so introduced_by is V226-001. The Streamline report keeps the
+    first failure since aacda4b3 (V1-006); PLN-R119's report rule was written for
+    Passthrough by V407-008 (ab8ce425). planner_invocation_in_progress dates from
+    411d617c (MVP-013); the "no assigned code" text came with the 2026-10-11 spec
+    rewrite (2b675dda, no task).
+scope:
+  in:
+    - "One rule for an unwritten outcome in all three Planners: the returned error is planner_session_unavailable; it is retryable unless the outcome being recorded is a Planner failure or a failed candidate whose error is non-retryable, in which case it keeps that retryability. PLN-R106 and PLN-R119 state the rule for failed candidates explicitly."
+    - "Streamline's ExecutionReport records the error the Planner returns (planner_session_unavailable) as its report-level error, as Passthrough does; the original failure stays visible as the recorded tool or dispatch outcome only."
+    - "Decide and record what a failed write of a summary_required candidate returns, so it does not silently become an ordinary Stage retry (alternatives: keep non-retryable summary_required semantics, or retryable planner_session_unavailable; record the evidence and the reversal condition in PLN-R106)."
+    - "Name planner_invocation_in_progress in PLN-R107, the planners.md error list and the registry row (replacing the no-code row); session spans carry the code actually returned."
+    - "Regression tests on the real Passthrough and Streamline planners and one PostgreSQL test with the real planner session service whose completion write fails after the outcome."
+  out:
+    - "Scan planner codes and retry rules (V414-004)."
+    - "Classification of runstore.ErrInvalid size rejections (V414-008)."
+    - "Registering the other unregistered Planner codes (planner_cancelled, planner_initialization_failed, worker_task_failed and others); only planner_invocation_in_progress changes here."
+    - "Changing the in-invocation transient retry budget of writeCompletion (V226-001)."
+failure_outcomes:
+  - operation: "Planner session completion write (CompleteSession) after the Planner has a candidate or failure"
+    permanent: "a non-retryable failure or failed candidate keeps retryable=false under planner_session_unavailable"
+    retryable: "a successful candidate's unwritten completion is retryable planner_session_unavailable; transient database failures are first retried inside the existing completion-write budget (writeCompletion)"
+    ambiguous: "a lost commit acknowledgement is reconciled by Session.Complete replaying an identical completion (idempotent), unchanged"
+    cancelled: "the write runs under context.WithoutCancel within its own budget, unchanged"
+    timeout: "DefaultCompletionWriteTimeout or the configured CompletionWriteTimeout owns it, unchanged"
+acceptance_criteria:
+  - id: A1
+    given: "Passthrough and Streamline with a session whose completion write always fails"
+    when: "the Planner ends with a Planner failure (for example a budget stop) and, separately, with a successful candidate"
+    then: "both return planner_session_unavailable with the PLN-R106 retryability and both ExecutionReports carry planner_session_unavailable as the report-level error"
+  - id: A2
+    given: "a WorkerFailure with retryable false (Passthrough) and a failed finish with retryable false (Streamline and Router)"
+    when: "the completion write fails"
+    then: "the returned planner_session_unavailable is non-retryable; a retryable Worker failure stays retryable"
+  - id: A3
+    given: "a summarized Worker result (summary_required) whose completion write fails"
+    when: "the Scheduler handles the returned error"
+    then: "the outcome matches the recorded decision in PLN-R106 and is tested"
+  - id: A4
+    given: "a running session recovered after process loss"
+    when: "StartSession runs"
+    then: "the error and the session span both carry planner_invocation_in_progress, retryable; planners.md and errors.md name that code and make lint passes"
+  - id: A5
+    given: "the real planner session service on PostgreSQL"
+    when: "the completion write fails with a non-transient error after a non-retryable failed candidate"
+    then: "the Planner returns non-retryable planner_session_unavailable and the session stays running"
+  - id: A6
+    given: "the unfixed code at 19f7477f"
+    when: "the A1 Streamline report case and the A2 cases run"
+    then: "they fail (report error is the original code; retryable is true)"
+tests:
+  - command: "go test -count=1 ./internal/planner/... ./internal/scheduler/..."
+    covers: [A1, A2, A3, A4, A6]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=\"${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}\" go test -tags=integration -count=1 ./internal/planner/... ./internal/scheduler/..."
+    covers: [A3, A5]
+  - command: make lint
+    covers: [A4]
+decisions:
+  unwritten_outcome_rule: >-
+    planner.CompletionWriteError(completion, cause) is the one mapping for every
+    completion write in Passthrough (result and fail) and Streamline/Router
+    (finish result and fail): the code comes from SessionError, and retryable is
+    false when the recorded outcome is a non-retryable Planner failure or a failed
+    candidate with a non-retryable error. The original error is no longer joined
+    into the cause chain, so a later SessionError classification (V414-008) sees
+    only the write's cause, not an earlier Planner error.
+  summary_required: >-
+    A summarized Worker result whose completion write fails returns non-retryable
+    planner_session_unavailable (recorded in PLN-R106 with its rationale and
+    reversal condition). Evidence: TestPostgresUnwrittenPlannerOutcomeFollowsItsRetryability
+    and TestSchedulerUnwrittenPlannerOutcomeFollowsItsRetryability show the Stage
+    ends interrupted retryable=false, on.interrupted retry takes its then branch,
+    the Run fails with planner_session_unavailable, no summary artifact or
+    summary_escalation attempt exists and the Worker ran once; at 19f7477f the
+    same test recorded retryable=true, i.e. an ordinary Stage retry. Alternative
+    rejected: retryable planner_session_unavailable (re-dispatches the Worker from
+    scratch and bypasses the one on.summarized escalation). Reopen if recording the
+    completion and accepting the candidate become one durable step.
+  streamline_report: >-
+    Deviation from scope.in wording "the original failure stays visible as the
+    recorded tool or dispatch outcome only": the failures that end a Streamline or
+    Router invocation (budget stops, Gateway failures, deadline, cancellation,
+    initialization, ADK execution) are not tool or dispatch outcomes, so dropping
+    them would remove the only record of why the Planner stopped. PLN-R120 instead
+    lists rejected tool selections, then the unrecorded Planner failure, then the
+    returned error, which is always last; an unrecorded candidate stays visible as
+    its accepted finish call. Rejected tool selections are capped at 98 so both
+    final entries fit the 100-error bound (LIM-OBS-5); before, the terminal failure
+    was dropped once 100 rejections were listed.
+  span_codes: >-
+    planner.EndSessionSpan ends session.begin, session.record_request and
+    session.adk_create spans with the returned code: unavailable for
+    planner_session_unavailable, rejected for planner_invocation_in_progress.
+  siblings: >-
+    Fixed: Passthrough result write and fail, Streamline result write and fail,
+    the ADK session errors that pass through fail (span code), Router (through the
+    Streamline engine, own regression test), StartSession and RecordSessionRequest
+    spans. Ruled out: scan-plan@1 completion (V414-004, own code
+    scan_completion_write_failed); Scheduler.recoverCompletedSummary already
+    matches ErrInvocationInProgress; no UI, OpenAPI, Runtime or client code names
+    either code (grep of ui/src, api, runtime/src, internal/publicclient).
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9; locked Runtime venv and pnpm UI install for make lint;
+    local PostgreSQL 17 database contractor_test_v414_plan with per-test schemas.
+    Tests ran on the branch after merging main 030e195a (no code changes on main
+    since the base ea9d7b3a).
+  spec: >-
+    PLN-R106 (one rule for all three Planners, the summary decision), PLN-R107
+    (names planner_invocation_in_progress and its span), new PLN-R120 (Streamline
+    and Router report), new FAIL-PLN-9 (completion write), FAIL-PLN-8 names the
+    code, planners.md error list, errors.md registry row replacing the no-code row
+    and the planner_session_unavailable row, scheduler.md SCH-R103 and its error
+    list; docs/spec/audit-workflow-dependencies.html regenerated with make
+    docs-dependencies.
+  tests_added: >-
+    internal/planner/session_write_test.go (A1, A2, A3 and A4 on Passthrough and
+    the session spans), internal/planner/streamline/session_write_test.go (A1, A2,
+    report error bound), internal/planner/router/session_write_test.go (A2),
+    internal/planner/session/completion_write_postgres_test.go (A5 and A4 on the
+    real session service: a test trigger raises P0001 on the completed state),
+    internal/scheduler/planner_session_write_postgres_test.go and
+    TestSchedulerUnwrittenPlannerOutcomeFollowsItsRetryability (A3).
+  can_fail: >-
+    A6: the new tests were copied onto a git archive of 19f7477f (the Streamline
+    error-bound test omitted because it calls the new report signature) and run
+    with the database set: TestPassthroughUnwrittenOutcomeKeepsItsRetryability,
+    TestSessionSpansCarryTheReturnedCode, TestStreamlineUnwrittenOutcomeKeepsItsRetryability
+    (budget stop and Gateway rejection report held only the original code;
+    non-retryable failed candidate returned retryable=true),
+    TestRouterUnwrittenFailedCandidateKeepsItsRetryability,
+    TestPostgresUnwrittenFailedCandidateKeepsItsRetryability and
+    TestPostgresUnwrittenPlannerOutcomeFollowsItsRetryability (termination
+    retryable=true) all failed.
+  commands:
+    - >-
+      Revision f5d56d24101fdc986e24d28d41f20431b7db8d1c (39c37b3c with main 030e195a merged).
+      CONTRACTOR_TEST_DATABASE_URL=postgres://localhost/contractor_test_v414_plan
+      go test -count=1 ./internal/planner/... ./internal/scheduler/...
+      ./internal/apierror/... passed (planner 1.9s, a2a, router, scan, session,
+      stageresult, stateview, streamline 5.3s, scheduler 189.5s, apierror 0.6s).
+    - >-
+      The same URL with go test -tags=integration -count=1 -v
+      ./internal/planner/... ./internal/scheduler/... passed (scheduler 109.8s);
+      0 skipped and 0 failed tests, every new test above ran and passed.
+    - >-
+      make lint passed (exit 0) after make docs-dependencies and make
+      tasks-backlog: gofmt, go vet, staticcheck U1000, testonlyexports, UI gates,
+      check_tasks, check_spec, shared fixtures, ERD, ruff and import-linter.
+  skipped: none; no environment-limited test.

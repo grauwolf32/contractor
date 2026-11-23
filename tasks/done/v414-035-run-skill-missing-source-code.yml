@@ -1,0 +1,160 @@
+schema_version: "1.0"
+id: V414-035
+title: "Fail Run initialization with skill_artifact_not_found when a pinned Skill source is gone"
+milestone: review-v407-v409-followups-2026-10
+epic: agent-skills
+kind: defect
+introduced_by: V10-003
+priority: P2
+status: completed
+depends_on: []
+languages: [go]
+implementation_commit: 5038c1b0f9afeb5dc66bd4e24fd6e30b89f0a283
+goal: >-
+  A Run whose pinned Agent Skill source revision no longer exists fails
+  initialization with the permanent skill_artifact_not_found that RUN-R27
+  requires, while a transient read failure keeps the retryable
+  skill_artifact_unavailable.
+context:
+  specification:
+    - docs/spec/execution/runs.md#RUN-R27
+    - docs/spec/tools/skills.md
+  review: >-
+    Found while implementing V410-010 (tasks/done/v410-010-artifact-history-retention.yml,
+    notes). The user asked on 2026-10-24 to file it and fix it next.
+  severity: medium
+  finding: >-
+    internal/agentskills/run.go:173-176 maps every error from
+    store.Read(ctx, artifacts.ArtifactRef(*skill.Source)) to
+    runSkillError(CodeArtifactUnavailable, skill.Name, true), including a
+    committed not-found. RUN-R27 (docs/spec/execution/runs.md:391-394)
+    requires skill_artifact_not_found for a committed missing source, so a
+    Run whose Skill source was removed is retried as unavailable instead of
+    failing with the stable not-found code. Line 171 already returns
+    CodeArtifactNotFound when the pin has no source at all.
+  siblings: >-
+    Every reader of a pinned Skill source revision: Run initialization
+    (this one), Audit Skill sources, Planner or Worker Skill package reads
+    in the Runtime handoff, and any other caller of the agentskills package
+    that reads a source by exact revision. Each distinguishes not found
+    from unavailable or is ruled out with the reason.
+scope:
+  in:
+    - "Map the ArtifactStore's not-found result for the exact Skill source revision to the permanent skill_artifact_not_found; keep other read failures retryable."
+    - "Apply the same classification to every sibling listed above."
+    - "A real-PostgreSQL regression test that removes the pinned revision and observes the Run fail initialization with skill_artifact_not_found and no StageExecution."
+  out:
+    - "Changing when Skill source revisions may be removed; V410-010 holds them while referenced."
+acceptance_criteria:
+  - id: A1
+    text: "A Run whose pinned Skill source revision is missing fails initialization with skill_artifact_not_found, not retryable, and no StageExecution (FAIL-RUN-2)."
+  - id: A2
+    text: "A transient store failure still answers the retryable skill_artifact_unavailable."
+  - id: A3
+    text: "Each sibling reader behaves the same way or is ruled out with the reason."
+  - id: A4
+    text: "The regression test fails on the unfixed code with skill_artifact_unavailable."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 ./internal/agentskills/... ./internal/runservice/... ./internal/app/... ./internal/auditcontroller/..."
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+decisions:
+  - >-
+    One classifier, sourceError in internal/agentskills/run.go, covers every
+    exact owner-source access of the Skill catalog: the Run creation lock
+    (RequireRunSources), the initialization read and the RunScope fork in
+    InitializeRun. artifacts.ErrArtifactNotFound becomes the non-retryable
+    skill_artifact_not_found; any other error keeps its retryable code
+    (skill_artifact_unavailable, or skill_fork_failed for the fork). The
+    ArtifactStore already answers a removed exact revision with
+    ErrArtifactNotFound on every path the catalog uses: Read (no row, or the
+    revision removed while it was read), RequireExact (no row) and Fork
+    (missing source, or IsExactRevisionMissing on the lineage foreign key
+    through storeError). artifacts.IsExactRevisionMissing is a database
+    constraint check for writers outside the ArtifactStore and is not
+    needed here.
+  - >-
+    ErrBlobMissing and ErrArtifactIntegrity stay retryable
+    skill_artifact_unavailable: the revision still exists, and a same-digest
+    upload can repair missing content (BLB-R41, BLB-R48), so they prove
+    nothing permanent about the pinned source. A digest that does not match
+    the pin after a successful read remains the permanent
+    skill_archive_invalid.
+  - >-
+    Sibling, Audit child Run creation (fixed): runservice.CreateAudit calls
+    RequireRunSources on the start-pinned baseline Skill sources. An Audit's
+    baseline Skill hold is lenient, so a selection that lost a race with
+    retention can name a missing revision; RequireRunSources answered the
+    retryable unavailable and the Audit Controller retried the intent on
+    every pass. It now answers skill_artifact_not_found, and
+    auditcontroller.permanentSubmissionError treats a non-retryable
+    RunSkillError like the missing exact input it already treated as
+    permanent, so the execution ends once with the submission-failed
+    outcome. Recorded in FAIL-AUX-1 and the AUX-R76 fault table.
+  - >-
+    Sibling, public Run creation (ruled out): runservice/public.go selects
+    and locks the sources in one REPEATABLE READ transaction, so the lock
+    meets the revision the selection just read or a serialization failure,
+    never a missing row; the shared classifier applies anyway.
+  - >-
+    Sibling, Audit start and Eval preflight (ruled out): auditservice.Start
+    and evalservice preflight call SelectRunSources, which reads only the
+    owner's current binding metadata, and Audit start already fails a
+    missing current Skill with skill_artifact_not_found. No exact revision
+    is read.
+  - >-
+    Sibling, Runtime allocation preparation (ruled out):
+    runtime/src/contractor_runtime/agent_skills/runtime.py reads the RunScope
+    fork, not the owner source, through the private Artifact API, which
+    answers a missing revision with artifact_not_found and retryable false
+    (internal/httpapi/privateartifacts/errors.go); prepare_agent_skills then
+    raises a non-retryable skill_artifact_unavailable (422) as ERR-R9
+    allows. The fork lives as long as its Run (LIFE-SKL-2), so it cannot
+    disappear under an allocation. Scheduler bindingRequirements and the
+    Control Plane only copy the initialized refs and read no artifact.
+  - >-
+    Observed by code reading, out of this task's class and not exercised:
+    apierror.Of finds no Classified in agentskills.RunSkillError and
+    internal/httpapi/public/errors.go has no mapping for it, so POST /v1/runs
+    and Audit start answer a Skill selection failure (skill_limit_exceeded,
+    a missing current Skill at Audit start, a transient
+    skill_artifact_unavailable) with 500 internal_error instead of a
+    classified status. Reported to the coordinator for a separate task.
+verification:
+  date: '2026-10-25'
+  environment: >-
+    macOS arm64, Go 1.26.9, PostgreSQL 17.11 (Homebrew) database
+    contractor_test_v414_cls with per-test schemas and all 44 migrations;
+    branch claude/v414-cls from main 7c4d7589; locked Runtime venv and pnpm
+    UI install for make lint.
+  commands:
+    - >-
+      go test -tags=integration -count=1 ./internal/agentskills/...
+      ./internal/runservice/... ./internal/app/...
+      ./internal/auditcontroller/...: ok (agentskills 1.4s, runservice 7.7s,
+      app 25.9s, auditcontroller 48.5s); with -v, 504 passing tests, no
+      skips, no failures.
+    - >-
+      New tests: TestPostgresRunSkillInitializerFailsRunWhosePinnedSourceIsGone
+      (internal/app; history retention removes the pinned revision, two
+      initialization attempts both return the failed Run with
+      skill_artifact_not_found and skills/review, no StageExecution and no
+      Skill fork; A1), TestCatalogPostgresRunSourceRemovedByRetentionIsNotFound
+      (real store: lock and read of the removed revision are not found,
+      a cancelled request is the retryable unavailable; A1, A2, A3),
+      TestCatalogRunSourceFailuresAreClassified (lock, read and fork, each
+      missing and transient; A2, A3) and
+      TestControllerClassifiesRunSkillSubmissionFailures (A3).
+    - >-
+      A4: with internal/agentskills/run.go restored from main, the app test
+      fails with "(initializing {Code:skill_initialization_pending},
+      skill_artifact_unavailable: skills/review)", and the two agentskills
+      tests fail on every not-found case (skill_artifact_unavailable, or
+      skill_fork_failed for the fork). With
+      internal/auditcontroller/controller.go restored, the controller test
+      fails with "(false, skill_artifact_not_found: skills/review), execution
+      intent". Both files were restored to the fix.
+    - >-
+      make lint: exit 0 after make docs-dependencies (the dependency graph
+      fingerprint covers internal/auditcontroller).

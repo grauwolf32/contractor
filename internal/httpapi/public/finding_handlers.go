@@ -1,0 +1,157 @@
+package public
+
+import (
+	"context"
+	"net/http"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
+	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
+)
+
+type FindingProposalManagement interface {
+	GetProjectReceipt(context.Context, string, string, string) (findingintake.Receipt, error)
+	ListProjectSources(context.Context, string, string, string, findingintake.ProjectSourceQuery) (findingintake.ProjectSourcePage, error)
+	ListProjectSourceHistory(context.Context, string, string, string, string, int, *uint64) (findingintake.ProjectSourceHistoryPage, error)
+	ListRun(context.Context, string, string, findingintake.ListQuery) ([]findingintake.Receipt, error)
+	ListAuditInbox(context.Context, string, string, findingintake.ListQuery) ([]findingintake.Receipt, error)
+	ImportIntoAudit(context.Context, findingintake.ImportRequest) (findingintake.AuditHold, bool, error)
+}
+
+// AuditReader reads one owner's Audit.
+type AuditReader interface {
+	Get(context.Context, string, string) (auditstore.Audit, error)
+}
+
+// FindingDependencies serve the finding proposals of Runs and Audits, their
+// import into an Audit and finding collection publication.
+type FindingDependencies struct {
+	Transfers          artifacttransfer.Admission
+	FindingProposals   FindingProposalManagement
+	FindingCollections FindingCollectionManagement
+	FindingExports     FindingExportManagement
+	Audits             AuditReader
+	Runs               RunGetter
+}
+
+type findingHandlers struct {
+	FindingDependencies
+	cursors pageCursors
+}
+
+type findingProposalPageResponse struct {
+	Items []findingintake.Receipt `json:"items"`
+	Page  pageInfoResponse        `json:"page"`
+}
+
+type importFindingProposalRequest struct {
+	RunID    string                `json:"runId"`
+	Proposal contracts.ArtifactRef `json:"proposal"`
+}
+
+type importFindingProposalResponse struct {
+	Hold     findingintake.AuditHold `json:"hold"`
+	Replayed bool                    `json:"replayed"`
+}
+
+func (h *findingHandlers) listRunFindingProposals(w http.ResponseWriter, r *http.Request) error {
+	w.Header().Set("Cache-Control", "no-store")
+	run, err := ownedRun(r, h.Runs)
+	if err != nil {
+		return err
+	}
+	return h.listFindingProposals(
+		w, r, "run-findings:"+run.RunID,
+		func(query findingintake.ListQuery) ([]findingintake.Receipt, error) {
+			return h.FindingProposals.ListRun(
+				r.Context(), principalUserID(r.Context()), run.RunID, query,
+			)
+		},
+	)
+}
+
+func (h *findingHandlers) listAuditFindingProposals(w http.ResponseWriter, r *http.Request) error {
+	w.Header().Set("Cache-Control", "no-store")
+	auditID := r.PathValue("auditId")
+	if _, err := h.Audits.Get(
+		r.Context(), principalUserID(r.Context()), auditID,
+	); err != nil {
+		return err
+	}
+	return h.listFindingProposals(
+		w, r, "audit-findings:"+auditID,
+		func(query findingintake.ListQuery) ([]findingintake.Receipt, error) {
+			return h.FindingProposals.ListAuditInbox(
+				r.Context(), principalUserID(r.Context()), auditID, query,
+			)
+		},
+	)
+}
+
+func (h *findingHandlers) listFindingProposals(
+	w http.ResponseWriter,
+	r *http.Request,
+	cursorKind string,
+	list func(findingintake.ListQuery) ([]findingintake.Receipt, error),
+) error {
+	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
+	if err != nil {
+		return err
+	}
+	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 2)
+	if err != nil {
+		return err
+	}
+	query := findingintake.ListQuery{Limit: pagelimit.FetchRows(limit)}
+	if len(cursor) != 0 {
+		after, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
+		if parseErr != nil {
+			return errInvalidRequest
+		}
+		query.AfterCreatedAt, query.AfterReceiptID = &after, cursor[1]
+	}
+	items, err := list(query)
+	if err != nil {
+		return err
+	}
+	items, page, err := paginate(h.cursors, items, limit, cursorKind, func(last findingintake.Receipt) []string {
+		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.ReceiptID}
+	})
+	if err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, findingProposalPageResponse{Items: items, Page: page})
+	return nil
+}
+
+func (h *findingHandlers) importAuditFindingProposal(w http.ResponseWriter, r *http.Request) error {
+	w.Header().Set("Cache-Control", "no-store")
+	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		return err
+	}
+	if err := requireJSONMediaType(r); err != nil {
+		return err
+	}
+	var request importFindingProposalRequest
+	if err := decodeJSON(w, r, &request); err != nil {
+		return err
+	}
+	hold, replayed, err := h.FindingProposals.ImportIntoAudit(
+		r.Context(), findingintake.ImportRequest{
+			OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"),
+			RunID: request.RunID, Proposal: request.Proposal,
+		},
+	)
+	if err != nil {
+		return err
+	}
+	status := http.StatusCreated
+	if replayed {
+		status = http.StatusOK
+	}
+	writeJSON(w, status, importFindingProposalResponse{Hold: hold, Replayed: replayed})
+	return nil
+}

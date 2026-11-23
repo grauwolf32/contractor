@@ -1,0 +1,234 @@
+schema_version: "1.0"
+id: V471-003
+title: Extract bounded Project facts in an optional passthrough Worker Stage
+milestone: project-facts-2026-11
+epic: workflows
+kind: feature
+priority: P1
+status: completed
+depends_on: [V471-001, V471-002, V471-004, V471-007, V471-009]
+languages: [go, python, json, yaml, markdown]
+goal: >-
+  A Workflow author can include or omit semantic extraction of a small useful
+  set of facts from selected memories in a separate passthrough@1 Stage,
+  with one Runtime Worker, the existing project model, source-grounded output
+  and common Finding publication.
+demonstration: >-
+  A Workflow snapshots memories containing a technology observation, a repeated
+  statement, a speculative explanation and irrelevant working text. Its optional
+  passthrough@1 Stage dispatches one Runtime Worker that uses record_fact to retain
+  a bounded selection with original memories attached as exact evidence. The Planner makes no model
+  call. A zero-result run settles; a Workflow omitting extraction makes no extra
+  model call or Project write.
+context:
+  execution_group: 2
+  authority: >-
+    User decision 2026-11-21 resumes implementation and delivery into main after
+    the interface discussion. Preserve existing item_key/incidental semantics;
+    introduce no link_hypothesis parameter. Local request_id applies to ordinary
+    finding, HTTP finding and record_fact alike.
+    User decisions 2026-11-20: consider extracting important facts from notes;
+    opt in through Workflow composition like operations; use the same Project
+    Finding under a separate interface; consider deduplication and clear diagrams.
+    User decision 2026-11-20 explicitly selects a separate extraction Stage with
+    passthrough@1 and asks to update tasks/diagrams and merge the planning package
+    into main. One Runtime Worker makes the model calls; the Planner and snapshot
+    operation are model-free. No Server-operation executor extension is selected.
+    User follow-up 2026-11-20 selects severity-based presentation and informational
+    exclusion from needs review. The extractor uses the informational facade from
+    V471-001 over the same Finding record.
+    User decision 2026-11-20 on review item 2 rejects snapshot-only read isolation.
+    Keep ordinary current-Run tool authority and validate exact source citations.
+    User decision 2026-11-20 accepts exact assertion deduplication, grouped material
+    versions and optional Task/hypothesis association. Later decisions narrow
+    V471-004 to basic evidence-only matching below. Reverse navigation
+    and semantic-match infrastructure are deferred. Merge the reviewed plan into main.
+    Latest user decision 2026-11-21 reactivates V471-004 for basic evidence-only
+    deduplication on existing Finding correlation. Equal complete evidence contents
+    share one informational Finding regardless of title, with independent receipts.
+    This supersedes the blanket deferral and title-plus-evidence proposal. Title
+    matching, semantic/provider rules, material groups and possible-duplicate states
+    remain outside the first slice. Optional origins and exact sources stay as agreed.
+    Planning/integration only, with no feature implementation, live calls or model changes.
+    User request 2026-11-21 organizes these six tasks into two groups of three,
+    each executed in one continuous pass. The dependency-based allocation and
+    group entry/exit rules live in the proposal; this task keeps its own acceptance,
+    required checks and implementation commit. Grouping adds no functional scope.
+    User request 2026-11-20 distinguishes valid completion with zero facts from an
+    empty or truncated model reply. V473 owns recovery for unusable replies.
+    Latest user request 2026-11-21 explicitly assigns implementation of group 2
+    (V471-003, V471-005, V471-006) in one continuous pass and merging into main.
+    This supersedes earlier planning-only restrictions for these tasks. Existing
+    Project requirements and evidence-only correlation remain unchanged; live
+    model calls, configured model changes and deployment remain unassigned.
+    Latest user decisions 2026-11-21 supersede mandatory quote/locator checks:
+    keep the model interface simple, let the model describe a fact in its own
+    words and select an existing memory by name, and attach the original memory
+    deterministically. Use the vocabulary memories and memory_name, not a new
+    notes API or note_name. Reuse common record_fact, without an extraction-only
+    creation facade. After pausing group 2 to discuss interfaces, the user explicitly resumes
+    implementation while preserving incidental and postponing the broader redesign.
+    The user also requests local request identifiers for HTTP/Caido and removal
+    of caido_request_id from finding and record_fact. V471-007 owns that separate
+    prerequisite; broader authoring-interface redesign is for later discussion.
+  proposal: docs/proposals/0055-project-facts-through-findings.md
+  specification:
+    - docs/spec/execution/server-operations.md#SOP-R3
+    - docs/spec/execution/planners.md#PLN-R2
+    - docs/spec/execution/worker.md
+    - docs/spec/configuration/workflows.md
+    - docs/spec/configuration/agent-templates.md
+    - docs/spec/configuration/agent-templates.md#TPL-R33
+    - docs/spec/findings/findings.md
+    - docs/spec/tools/memory.md#MEM-R84
+    - docs/spec/artifacts/artifact-store.md#ART-R36
+    - docs/spec/evals/managed-evals.md#EVM-R151
+  eval_boundary_decision: >-
+    Agent implementation decision 2026-11-21: the existing native Audit output
+    role findings reads an optional report/machine Artifact, which this simple
+    Audit does not produce. Do not build a global report publisher under this
+    task. The recipe uses complete ordinary Audit execution with exact source
+    navigation through member -> Audit -> isolated ordinary Project Findings
+    and a required private human-review rubric. Native quality stays incomplete
+    until that review; no empty output is counted as verified fact quality.
+    The Eval adapter owner should reopen portable findings-output collection
+    when a concrete automatic semantic scorer requires it.
+  source_binding_decision: >-
+    Resume decision 2026-11-21: use the incoming exact Worker artifact slot
+    memories, copied from ordinary passthrough Stage context. Runtime shares
+    this readonly binding with selected tools for the invocation and clears it
+    on all outcomes. record_fact resolves memory_name only within that pinned
+    snapshot. It publishes a canonical singleton contractor.memory-snapshot/v1
+    document preserving the original namespace/name/content/description/tags
+    through ordinary Artifact CAS reconciliation and existing Finding evidence.
+    No model-authored snapshot ref, mutable Memory read, quote check or new
+    evidence registry. Reopen this fixed role only for a concrete multi-snapshot
+    caller. Existing item_key/incidental semantics remain unchanged.
+  execution_boundary: >-
+    The chosen call form is a distinct optional Stage with planner passthrough@1
+    and exactly one model-backed Runtime Worker over the ordinary exact snapshot.
+    Workflow executionConfig pins the existing Worker ModelPolicy/Gateway. The
+    Planner makes no LLM calls. Deterministic Memory snapshot and Finding intake
+    retain their owners. No LLM operation.ref, new model consumer/executor,
+    inherited notebook/session or additional publishing Stage is introduced.
+    The snapshot defines the extraction input. Selected Artifact tools retain
+    their ordinary current-Run read authority and existing reserved-name rules.
+scope:
+  in:
+    - Compose an explicitly selected passthrough@1 extraction Stage with one Runtime Worker through existing Workflow execution and model-accounting owners.
+    - Add a versioned extractor instruction/template and an actual optional Workflow caller with immutable catalog pins.
+    - Let the model make bounded selection judgements while Runtime assembles and shared Finding intake accepts records.
+    - Extend common record_fact with memory_name; attach original selected memory content deterministically and preserve reported/inferred limitations.
+    - Add a frozen quality corpus and an opt-in Audit Eval recipe using its existing isolated ordinary execution Project per member.
+  out:
+    - Automatic Run-finalization extraction, independent model services, LLM Server operations or changing the project model.
+    - A model-backed Planner, extra Worker dispatch, cross-Stage conversation inheritance or a new executor/cost participant type.
+    - Mandatory quotations, substring or locator validation, an extraction-specific creation facade, independent verification claims, mandatory fact quotas or a new intake store.
+    - Automatic semantic merging or claiming model quality from a scripted Gateway.
+    - Snapshot-only read grants, an extractor-specific sandbox or a new Artifact authorization policy.
+requirements:
+  - id: R1
+    text: >-
+      Selected model/Gateway policy, tool/model budgets, cumulative cost, deadlines,
+      tracing and cancellation use the existing Runtime Worker execution path.
+      The configured Stage selects passthrough@1, exactly one Worker, ordinary
+      Artifact reads and record_fact. Reads use the existing current-Run grant
+      and tool selection. StageContext pins the extraction input without limiting
+      ordinary reads to that snapshot. No Planner model is resolved.
+      The selected tools have one clear purpose each: read text, record_fact and
+      write the completion report. Do not ask the model to collect receipt IDs or
+      publish another package; successful direct intake already saved the fact.
+      Omitting the Stage creates no hook or background work.
+  - id: R2
+    text: >-
+      The model describes the observation in its own words and supplies memory_name
+      copied from the selected snapshot. Runtime resolves that logical name only
+      against the exact snapshot explicitly bound for this Stage and attaches the
+      complete original memory fields through ordinary Artifact publication and
+      Finding evidence. Preserve name, content, description and tags without asking
+      the model to copy them. Missing/ambiguous snapshot or absent memory fails
+      before Finding admission; never fall back to current mutable Memory.
+      The common record_fact owns this optional source convenience and supplies
+      informational severity. No quote, substring, locator or semantic truth check
+      is required. Show memory-derived observations as reported, retain inference
+      and probe limitations, and apply ordinary rules to additional exact sources.
+      Resolve snapshot-binding plumbing within existing Stage/tool context; do not
+      create another grants system, registry, receipt store or creation facade.
+  - id: R3
+    text: >-
+      Select a bounded set of useful claims.
+      Successful completion with zero admitted facts is valid. A blank, thought-only or
+      output-limited model reply alone cannot establish completion. Explicitly
+      report size/budget rejection and partial
+      accepted counts; do not silently truncate or regenerate until a quota fills.
+      Submit the ordinary title and exact selected evidence through existing
+      intake. V471-004 handles equal complete evidence contents without using
+      titles or adding model matching descriptors/provider parsing. Changed sets
+      remain separate. Do not follow embedded refs implicitly. General
+      memory extraction uses Run-level incidental origin without a required Task or
+      hypothesis. An explicitly selected Task uses the V471-001 association rules.
+  - id: R4
+    text: >-
+      Direct Finding receipts already committed survive later Run failure and
+      retain that provenance. Replay of the same tool call reconciles its receipt.
+      Retry, escalation and manual resume create a new StageExecution/allocation
+      and may make new model calls and receipts. Equal complete evidence contents
+      share one informational Finding through V471-004 even if titles differ.
+      Existing receipts preserve all submissions and their exact evidence without
+      material grouping or durable model conversation across attempts.
+failure_outcomes:
+  - operation: Invoke the configured extractor and record its selected facts
+    permanent: Invalid source/memory selection/configuration, missing Project or exhausted limits yields the owning classified outcome and explicit accepted/rejected counts.
+    retryable: Existing bounded Gateway/storage classes and configured Stage attempt limits apply. A new attempt retains its own model usage and receipt history.
+    ambiguous: Reconcile the same admitted call through its existing receipt before repeating transport. A new Stage attempt preserves earlier records and its own receipts and reuses a Finding on complete evidence-content equality.
+    cancelled: Existing Runtime Worker/allocation owner joins model and publisher work before release; the deterministic snapshot Stage retains its own operation claim.
+    timeout: Separate provider, Stage and Run deadlines remain authoritative; no nested unaccounted invocation survives.
+cardinality:
+  - collection: Selected memory snapshot and extracted fact calls per invocation
+    expected: One snapshot with two to eight memories and zero to five useful facts.
+    maximum: Snapshot 512 KiB; eight facts, each 32 KiB authored payload and at most four selected sources; ordinary context/model/material ceilings may be tighter.
+    bound: Enforce output and work budgets deterministically, offload blocking I/O, keep locks out of model calls and prevent unbounded retries.
+lifecycle:
+  - entity: Existing extractor Run, Project Findings and selected snapshot evidence
+    delete: Existing Run/Project lifecycle and source retention apply; no new extraction job entity.
+    cascade: Accepted Project facts and evidence survive source Run/Audit deletion; unpublished ordinary diagnostics use their owning retention.
+    retention: Keep exact sources and trusted producing model/Workflow origin through ordinary receipts and artifacts.
+acceptance_criteria:
+  - id: A1
+    given: A configured optional passthrough@1 extractor with one real Runtime Worker, a scripted Gateway and the common publication path
+    when: Its Worker selects observations from the frozen corpus
+    then: Source-grounded records reach the common Project Finding owner, preserve reported/inferred limitations and respect the eight-fact maximum; no Planner LLM request or LLM operation executes.
+  - id: A2
+    given: Valid completion with zero facts, omitted extraction, a failure after accepted memory/code/HTTP facts, cancellation and a lost tool response
+    when: The Workflow settles or recovers
+    then: Valid zero completes without an extra model call or Finding. Omission makes no extractor call. Same-call replay adds no receipt. New retry/resume attempts reuse Finding IDs for equal complete evidence contents while retaining their own receipts/usage and all source descriptions, even with different titles. Changed evidence sets stay separate; partial effects settle without leaked work or possible-duplicate states.
+  - id: A3
+    given: The frozen extraction corpus and an Audit Eval recipe with isolated ordinary Projects
+    when: Offline validation and one scripted-Gateway member exercise creation, extraction, publication and collection
+    then: The real record_fact result is reachable through the evaluator member
+      Audit/Project source navigation, without claiming a generated machine report, and the recipe defines unsupported-assertion, duplicate/spam, useful-fact recall and cost measurements. Scripted execution proves integration and makes no live-quality claim.
+  - id: A4
+    given: An exact selected snapshot, another readable ordinary current-Run artifact and an absent memory name
+    when: The Worker reads both artifacts and describes a fact in its own words using memory_name
+    then: Both authorized reads succeed under the existing grant. Runtime attaches the original selected memory without requiring a quotation; unrelated memories and mutable later versions are not substituted. The absent memory fails before Finding admission.
+tests:
+  - command: make test-project-facts-e2e
+    covers: [A1, A2, A3, A4]
+  - command: make test-runtime
+    covers: [A1, A2, A3, A4]
+  - command: make test-config
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+test_prerequisites:
+  - Use testdata catalogs and a scripted Gateway for deterministic gates; live evaluation is a later explicit action, not implied by these tasks.
+  - Inspect the effective resolved Stage/AllocationSpec and Gateway requests; assert one dispatched Worker with the pinned Worker model and zero Planner model calls, rather than inferring the execution path from a Workflow name.
+  - Full suites of touched model/Workflow packages and real PostgreSQL receipt paths must pass; remove owned test resources.
+
+implementation_commit: db1a79186da13d3262db46d61caef5fbd21c4aa0
+verification:
+  - make test-project-facts-e2e passed with 23 required process cases, 294 Runtime Finding cases and the frozen native Eval recipe suite; real process package completed in 565.757 s.
+  - make test-runtime passed with 6363 tests and 135 declared optional/platform skips; all 577 required compaction cases passed. Skips are not passing coverage.
+  - make test-config and make lint passed; shared wire verification passed 401 fixtures with 453 Go and 286 Python shared tests. One explicitly optional disk-heavy skip is not coverage.
+  - The complete internal/memory Go suite passed against PostgreSQL. The process regression proves partial publication, new-attempt correlation, zero output, exact original memories, ordinary current-Run reads and one pinned Worker with no Planner model.
+  - Scripted native Audit Eval uses two isolated Projects and leaves private semantic quality incomplete for human review. No live model experiment was run.

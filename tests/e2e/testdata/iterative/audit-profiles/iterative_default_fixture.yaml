@@ -1,0 +1,37 @@
+apiVersion: contractor/v1alpha1
+kind: AuditProfile
+metadata: {name: iterative-default-fixture, version: "1"}
+spec:
+  mode: custom-checklist
+  standards: []
+  inputs:
+    checklist: {required: true, mediaTypes: [application/json]}
+  inventory:
+    implementation: checklist@1
+    source: {source: audit-input, name: checklist}
+    itemWorkflowRole: check
+  workflows:
+    check:
+      kind: check
+      ref: iterative-default-check-fixture@1
+      workerCompletion: {kind: audit-check-results@1, stage: check, agent: checker}
+      inputs:
+        task: {source: item-package}
+        execution_manifest: {source: execution-manifest}
+      parameters: {}
+      outputs: {result: result}
+  execution:
+    roundMode: fixed-barrier
+    maxRounds: 1
+    batchSize: 1
+    maxItemsPerRound: 8
+    maxItemsTotal: 8
+    maxSubmittedRuns: 8
+    maxItemRunAttempts: 1
+    deadlineSeconds: 3600
+    maxEvidenceBytes: 67108864
+    incompleteRound: assess-with-gaps
+  interaction:
+    activeChecks: prohibited
+    notApplicable: profile-rule
+    reportAcceptance: automatic

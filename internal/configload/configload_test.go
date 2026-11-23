@@ -1,0 +1,182 @@
+package configload
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"reflect"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/agentskills"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
+	"github.com/grauwolf32/contractor/internal/auditstandards"
+	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configtest"
+)
+
+const catalogFixture = "../config/testdata/valid"
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLoadValidatesBundledSkillsWithoutReadingManagedRoot(t *testing.T) {
+	root := configtest.CopyWithPolicies(t, catalogFixture)
+	skill := filepath.Join(root, "skills", "review", "SKILL.md")
+	writeFile(t, skill, "---\nname: review\ndescription: Review guidance.\n---\n# Review\n")
+	if _, _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err != nil {
+		t.Fatalf("valid bundled skill rejected: %v", err)
+	}
+
+	// Bundles are operator-owned: a skills directory in the managed root is
+	// not a bundle and never reaches the validators.
+	managed := filepath.Join(t.TempDir(), "managed")
+	writeFile(t, filepath.Join(managed, "skills", "review", "SKILL.md"), "not a skill")
+	if _, _, err := LoadUnionReadOnly(root, managed); err != nil {
+		t.Fatalf("managed skills directory was validated as a bundle: %v", err)
+	}
+
+	secret := "PRIVATE-SKILL-INSTRUCTION"
+	writeFile(t, skill, secret)
+	for name, load := range map[string]func() error{
+		"missing managed root": func() error { _, _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); return err },
+		"existing managed root": func() error {
+			_, _, err := LoadUnionReadOnly(root, managed)
+			return err
+		},
+	} {
+		err := load()
+		if err == nil || !strings.HasPrefix(err.Error(), "bundled skills: ") ||
+			strings.Contains(err.Error(), root) || strings.Contains(err.Error(), secret) ||
+			!strings.Contains(err.Error(), "skill_manifest_invalid") {
+			t.Fatalf("%s: unsafe bundled skill validation error: %v", name, err)
+		}
+	}
+}
+
+func TestLoadValidatesBundledAuditStandards(t *testing.T) {
+	root := configtest.CopyWithPolicies(t, catalogFixture)
+	writeFile(t, filepath.Join(root, "audit-standards", "broken", "standard.json"), "{}")
+	_, _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+	if err == nil || !strings.HasPrefix(err.Error(), "bundled Audit standards: ") {
+		t.Fatalf("invalid bundled Audit standard error = %v", err)
+	}
+}
+
+// The Server seeds what its startup load validated instead of discovering the
+// operator root a second time; config validate checks the same plan.
+func TestLoadsReturnTheBundlesTheyValidated(t *testing.T) {
+	root := configtest.CopyWithPolicies(t, catalogFixture)
+	writeFile(t, filepath.Join(root, "skills", "review", "SKILL.md"), "---\nname: review\ndescription: Review guidance.\n---\n# Review\n")
+	managed := filepath.Join(t.TempDir(), "managed")
+	_, offline, err := LoadUnionReadOnly(root, managed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, startup, err := NewManager(config.ManagerOptions{
+		OperatorRoot: root, ManagedRoot: managed,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	skills, standards := discoverBundles(t, root)
+	for name, bundles := range map[string]Bundles{"LoadUnionReadOnly": offline, "NewManager": startup} {
+		if !reflect.DeepEqual(bundles.Skills, skills) || !reflect.DeepEqual(bundles.Standards, standards) {
+			t.Fatalf("%s bundles differ from what bundled discovery packages", name)
+		}
+	}
+}
+
+// A long-lived Manager reruns the checks before each publication; once the
+// startup bundles are taken, those reloads keep no package bytes.
+func TestBundleChecksKeepOnlyTheStartupLoad(t *testing.T) {
+	root := configtest.CopyWithPolicies(t, catalogFixture)
+	writeFile(t, filepath.Join(root, "skills", "review", "SKILL.md"), "---\nname: review\ndescription: Review guidance.\n---\n# Review\n")
+	checks := newBundleChecks()
+	run := func() {
+		for _, check := range checks.operatorRootChecks() {
+			if err := check.Check(root); err != nil {
+				t.Fatalf("%s: %v", check.Subject, err)
+			}
+		}
+	}
+	run()
+	skills, standards := discoverBundles(t, root)
+	if startup := checks.take(); !reflect.DeepEqual(startup.Skills, skills) || !reflect.DeepEqual(startup.Standards, standards) {
+		t.Fatalf("startup bundles differ from what bundled discovery packages")
+	}
+	run()
+	if later := checks.take(); later != (Bundles{}) {
+		t.Fatalf("a reload after startup kept bundles: %+v", later)
+	}
+}
+
+func TestManagerRechecksBundlesBeforePublication(t *testing.T) {
+	root := configtest.CopyWithPolicies(t, catalogFixture)
+	managed := filepath.Join(t.TempDir(), "managed")
+	manager, _, err := NewManager(config.ManagerOptions{
+		OperatorRoot: root, ManagedRoot: managed,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, "skills", "review", "SKILL.md"), "not a skill")
+	_, err = manager.Publish(t.Context(), config.PublicationRequest{
+		Kind: config.ConfigurationModelPolicies, Name: "ui-worker", Version: "2",
+		IdempotencyKey: "after-bundle-change", ActorID: "user-1",
+		ModelPolicy: &config.ModelPolicyPublication{Model: "qwen/new-model"},
+	})
+	if err == nil || !strings.HasPrefix(err.Error(), "reload configuration roots before publication: bundled skills: ") {
+		t.Fatalf("publication after a bundle became invalid: %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(managed, "model-policies", "ui-worker@2.yaml")); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("rejected publication wrote a manifest: %v", statErr)
+	}
+	if _, _, err := NewManager(config.ManagerOptions{
+		OperatorRoot: root, ManagedRoot: managed,
+	}); err == nil || !strings.HasPrefix(err.Error(), "bundled skills: ") {
+		t.Fatalf("restart with an invalid bundle: %v", err)
+	}
+}
+
+// discoverBundles packages the bundled skills and Audit standards of root
+// independently of the loads under test, after checking that root bundles
+// exactly the review skill and no Audit standard.
+func discoverBundles(t *testing.T, root string) (*agentskills.SeedPlan, *auditstandards.SeedPlan) {
+	t.Helper()
+	for namespace, want := range map[string][]string{
+		agentskills.SkillNamespace:                   {"review"},
+		artifactpolicy.AuditStandardCatalogNamespace: nil,
+	} {
+		entries, err := os.ReadDir(filepath.Join(root, namespace))
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			t.Fatal(err)
+		}
+		var packaged []string
+		for _, entry := range entries {
+			if entry.IsDir() {
+				packaged = append(packaged, entry.Name())
+			}
+		}
+		if !slices.Equal(packaged, want) {
+			t.Fatalf("%s bundles %v, want %v", namespace, packaged, want)
+		}
+	}
+	skills, err := agentskills.DiscoverBundled(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	standards, err := auditstandards.DiscoverBundled(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return skills, standards
+}

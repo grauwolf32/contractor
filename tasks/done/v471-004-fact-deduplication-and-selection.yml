@@ -1,0 +1,185 @@
+schema_version: "1.0"
+id: V471-004
+title: Deduplicate Project facts by exact evidence through existing Finding correlation
+milestone: project-facts-2026-11
+epic: findings
+kind: feature
+priority: P1
+status: completed
+depends_on: [V471-001]
+languages: [go, python, json, typescript, markdown]
+goal: >-
+  Informational facts with the same selected evidence contents share one Project
+  Finding through existing correlation. Each independent submission keeps its
+  existing receipt and exact provenance. Existing readers select exact grounds.
+demonstration: >-
+  A Worker records a fact with exact note, code or HTTP evidence. Another call
+  selects the same evidence contents, through a fork or an independent byte-
+  identical artifact, and returns the same Finding ID even with a different title.
+  A different complete evidence set creates another Finding. Existing receipts
+  preserve both submissions and an ordinary generator selects one exact source.
+context:
+  execution_group: 1
+  authority: >-
+    User decisions 2026-11-20 keep facts on common Project Findings, optional
+    Task/hypothesis origin and explicit exact grounds. Earlier richer matching
+    rules and then the title-plus-evidence proposal were deferred on 2026-11-21.
+    Latest user decision 2026-11-21 explicitly reactivates this task for basic
+    evidence-only deduplication instead of deferring all of it. Use existing
+    mechanisms and keep the first slice simple. Title comparison, semantic rules,
+    provider-specific qualification and material grouping remain outside scope.
+    Comparing evidence contents as an unordered set of existing Artifact digests
+    is the implementation choice. This is a planning update, not feature execution.
+    User request 2026-11-21 organizes these six tasks into two groups of three,
+    each executed in one continuous pass. The dependency-based allocation and
+    group entry/exit rules live in the proposal; this task keeps its own acceptance,
+    required checks and implementation commit. Grouping adds no functional scope.
+    User decision 2026-11-21 requires an active Project for both finding and
+    record_fact and rejects projectless submissions before any write. The user
+    explicitly assigns execution of group 1 (V471-001, V471-002, V471-004) in one
+    pass. This supersedes earlier planning-only restrictions for these tasks;
+    group 2, live-model calls and deployment remain unassigned.
+  proposal: docs/proposals/0055-project-facts-through-findings.md
+  specification:
+    - docs/spec/findings/findings.md#FND-R236
+    - docs/spec/findings/findings.md#FND-R237
+    - docs/spec/findings/findings.md#FND-R174
+    - docs/spec/findings/findings.md#FND-R175
+    - docs/spec/findings/findings.md#FND-R177
+    - docs/spec/findings/findings.md#FND-R211
+    - docs/spec/findings/findings.md#FND-R226
+    - docs/spec/findings/findings.md#FND-R228
+    - docs/spec/audits/hypotheses.md#HG-R6
+    - docs/spec/artifacts/artifact-store.md#ART-R19
+  implementation_decisions: >-
+    Add contractor/fact-evidence/v1 as a four-field variant of the existing
+    fingerprint projection and primary-key function. Derive it only from
+    authorized exact metadata within intake; skip optional native/anchor parsing
+    for informational submissions. Keep every receipt and the existing Project
+    fence/unique index. Reuse the real PostgreSQL 10000-Finding/50000-source
+    pagination regression (historical Run partitions below per-Run quotas) and
+    exact selection/hypothesis regressions; add concurrent equal-fact, strict
+    database-variant, retained-source and ordinary Project purge coverage.
+  integration: >-
+    Current main 62f6b95c103293bb16a88d2d9d65b18c2a9d652c was integrated
+    through a3a03aefe without changing the evidence rule. Preserve its document
+    response recovery, immutable catalog additions and both recovery process
+    checks alongside the fact/snapshot checks. Regenerate public clients and
+    dependency documentation. Group 2 remains pending.
+  boundary: >-
+    Finding intake/correlation owns the new closed equality algorithm, canonical
+    identity, unique key and Project fence. Server derives the key from
+    authorized exact Artifact metadata already read by intake.
+    Extend existing receipt projection/algorithm variants, strict validators and
+    constraints together. ArtifactStore owns digests, exact refs and retention.
+    Existing source/selection readers own provenance and grounds. No new matcher,
+    table, lock, group reader, provider parser or model parameter is introduced.
+scope:
+  in:
+    - Add one exact evidence-content-set rule to existing Finding correlation for informational submissions from either facade.
+    - Reuse receipts, atomic admission, source history, exact retention and hypothesis material selection.
+    - Update owning specs, Go/Runtime/API/database algorithm validation and shared fixtures wherever affected.
+  out:
+    - Title matching/normalization, semantic matching, possible-duplicate states, embeddings or a universal fact vocabulary.
+    - HTTP-header/code parsing for matching, deployment/context inference, lineage traversal or whole-Project comparison.
+    - Material-version groups, unique-material counters, group-membership indexes, new readers or a separate Fact/receipt store.
+    - Coarse evidence-content matching for non-informational issues or changes to their producer/structural algorithms.
+    - New hypothesis selection APIs, arbitrary edges, reverse navigation.
+requirements:
+  - id: R1
+    text: >-
+      Same admitted-call replay returns its receipt without another source. A new
+      invocation/allocation retains its own existing receipt. On a matching fact
+      key, common admission atomically links that receipt to the existing Finding
+      under the existing Project fence. Create no second Finding card, duplicate
+      candidate or review state. Preserve exact evidence and attempt provenance.
+  - id: R2
+    text: >-
+      Eligibility is producer severity_suggestion=informational from record_fact
+      or ordinary finding. Choose the new fact-equality algorithm as primary for
+      these submissions; non-informational submissions keep existing algorithms.
+      Hash a versioned canonical tuple of sorted unique content digests of all
+      selected exact evidence. The existing group key adds Project scope. Use
+      Server-read metadata, never model hashes. Compare the complete nonempty set,
+      not overlap or order. Forks and independent artifacts with equal bytes compare
+      equally. Changed bytes or a different set stay separate. Title differences
+      do not affect equality. Exclude title, refs, locators, prose, media labels,
+      Run/Task/hypothesis IDs and inferred context from the key. Preserve exact
+      descriptors on receipts. Reuse existing canonical encoding/hash, uniqueness
+      and retry. Analyst severity edits never rekey an existing Finding. Do not
+      bridge algorithms or rescan old receipts.
+  - id: R3
+    text: >-
+      Existing paged source/history readers show each submission and its exact
+      evidence. Equality affects admission only: do not rewrite retained sources,
+      add groups/counters or change first-source claim/current analyst assessment.
+  - id: R4
+    text: >-
+      Reuse existing Finding/receipt selection and hypothesis material handles.
+      Verify this path as a regression, without extending selector/reader contracts.
+      Grounds pin explicitly chosen exact sources; newer evidence/revisions do not
+      replace them or attribute a whole collection to one selected member.
+failure_outcomes:
+  - operation: Compute the fact key and admit through existing Finding intake
+    permanent: Invalid title or empty/foreign/invalid exact evidence fails with the owning classified error before partial admission. A different evidence set is an ordinary separate fact.
+    retryable: Existing bounded transaction retry and storage_transaction_conflict 503 under the original deadline.
+    ambiguous: Same-call replay uses its existing receipt. A new attempt keeps its own receipt and reuses a Finding only on exact evidence-content-set equality.
+    cancelled: Existing execution/deletion fences join work and prohibit later writes.
+    timeout: Existing call and Stage deadlines apply; only selected metadata is read, without provider/model calls or background comparison.
+cardinality:
+  - collection: Selected evidence, Project Findings and existing source history
+    expected: One fact with one or two exact sources and one source page.
+    maximum: V471-001 bounds of four sources and 32 KiB authored payload, tighter shared limits where applicable, and existing 64-row source pages.
+    bound: Sort/hash only selected digests, use indexed Project key lookup and existing source pages. Test 10000 receipts across multiple Runs within per-Run quotas, without history-wide payload scans or unique-material aggregation.
+lifecycle:
+  - entity: Existing canonical Finding, receipts and exact evidence
+    delete: Existing Finding/Project lifecycle and purge gates remain authoritative.
+    cascade: Source Run/Audit deletion preserves Project-retained receipts, evidence and exact hypothesis grounds.
+    retention: No new hold, group entity or TTL. Project purge uses existing owner cleanup.
+accepted_risks:
+  - >-
+    Evidence-only equality is the user-selected basic approximation. The Finding
+    owner enforces it. Different claims/titles over the same broad artifact can
+    collapse, while changed evidence can leave separate cards. Retain every receipt
+    and its title, exact refs and citations for inspection; use focused evidence
+    when available. Reopen only after observed over-merging or duplication justifies
+    an explicit change. Add no automatic semantic repair or title discriminator.
+acceptance_criteria:
+  - id: A1
+    given: Same-call replay and concurrent informational submissions with equal evidence contents and possibly different titles
+    when: Real Server/Runtime intake admits them through PostgreSQL
+    then: Replay adds no receipt; independent submissions keep their receipts and share one Finding ID/card, without a possible-duplicate state.
+  - id: A2
+    given: Reordered evidence, forks, independent equal-byte artifacts, different titles, changed/overlapping sets and another Project
+    when: Both informational facades use the rule
+    then: Only full evidence-content-set equality within one Project merges. Title, order and binding identity do not matter. Different sets or Projects stay separate, and non-informational producer/structural correlation remains unchanged.
+  - id: A3
+    given: Several submissions, an explicitly selected exact source and a newer version
+    when: An ordinary generator uses existing selection to ground a hypothesis
+    then: The chosen source stays exact without new readers, whole-collection attribution or latest substitution.
+  - id: A4
+    given: Ten thousand receipts, concurrent writers, source deletion and Project purge
+    when: Existing readers page history and owners perform cleanup
+    then: Reads remain bounded and complete, source deletion preserves Project materials, and purge releases owned data without grouping-specific state/holds.
+  - id: A5
+    given: Empty evidence, invalid/foreign exact refs and replay after source Run deletion
+    when: Real intake validates or reconciles the submission
+    then: Invalid new submissions fail before partial admission and committed replay returns its saved result without re-reading removed sources. The model supplies no trusted matching fields.
+tests:
+  - command: go test ./internal/findingintake/... ./internal/auditdomain/... ./internal/auditstore/... ./internal/auditservice/... ./internal/artifacts/... ./internal/persistence/...
+    covers: [A1, A2, A3, A4, A5]
+  - command: make test-project-facts-e2e
+    covers: [A1, A2, A3, A4, A5]
+  - command: make test-wire-cross-language
+    covers: [A1, A2, A5]
+  - command: make verify-public-api
+    covers: [A1, A2, A3, A5]
+  - command: make test-runtime
+    covers: [A1, A2, A3, A5]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5]
+test_prerequisites:
+  - Use real PostgreSQL for concurrency, retention and pagination; skipped required cases are not passes.
+  - Shared fixtures cover evidence-set equality, title independence, digest ordering/deduplication, Project isolation, source validation and unchanged non-informational algorithm selection.
+
+implementation_commit: 8034cf717bbe622774228d781d685a78ce3c6690

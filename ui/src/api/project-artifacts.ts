@@ -1,0 +1,236 @@
+import {
+  ARTIFACT_NAME_PATTERN,
+  ARTIFACT_PAGE_SIZE,
+  ARTIFACT_REVISION_PATTERN,
+  downloadExactArtifact,
+  previewExactArtifact,
+  requireArtifactPage,
+  requireRequestedMetadata,
+  writeScopedArtifact,
+  type ArtifactDetailRequest,
+  type ArtifactLineagePage,
+  type ArtifactMetadata,
+  type ArtifactPage,
+  type ArtifactPageRequest,
+  type ArtifactWriteRequest,
+  type ArtifactWriteResponse,
+  type DownloadedArtifact,
+} from "./artifacts";
+import type { PublicAPI } from "./client";
+import { requireData } from "./error";
+import { requireProjectID } from "./projects";
+
+interface ProjectArtifactPageRequest extends ArtifactPageRequest {
+  order?: "material";
+  limit?: number;
+  projectId: string;
+}
+
+interface ProjectArtifactDetailRequest extends ArtifactDetailRequest {
+  projectId: string;
+}
+
+interface ProjectArtifactWriteRequest extends ArtifactWriteRequest {
+  projectId: string;
+}
+
+function requireArtifactIdentity(namespace: string, name: string): void {
+  if (
+    !ARTIFACT_NAME_PATTERN.test(namespace) ||
+    !ARTIFACT_NAME_PATTERN.test(name)
+  ) {
+    throw new TypeError("Project Artifact identity is invalid");
+  }
+}
+
+function requireRevision(revision: string): void {
+  if (!ARTIFACT_REVISION_PATTERN.test(revision)) {
+    throw new TypeError("Project Artifact revision is invalid");
+  }
+}
+
+function projectArtifactPath(
+  projectId: string,
+  namespace: string,
+  name: string,
+): string {
+  requireProjectID(projectId);
+  requireArtifactIdentity(namespace, name);
+  return `/v1/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`;
+}
+
+function exactRevisionQuery(revision: string): string {
+  requireRevision(revision);
+  return `?revision=${encodeURIComponent(revision)}`;
+}
+
+export async function listProjectArtifacts(
+  api: PublicAPI,
+  request: ProjectArtifactPageRequest,
+): Promise<ArtifactPage> {
+  requireProjectID(request.projectId);
+  if (request.order !== undefined && request.order !== "material")
+    throw new TypeError("Project Artifact order is invalid");
+  if (
+    request.limit !== undefined &&
+    (!Number.isInteger(request.limit) ||
+      request.limit < 1 ||
+      request.limit > 100)
+  )
+    throw new TypeError("Artifact page size is invalid");
+  if (
+    request.namespace !== undefined &&
+    !ARTIFACT_NAME_PATTERN.test(request.namespace)
+  ) {
+    throw new TypeError("Project Artifact namespace is invalid");
+  }
+  const result = await api.request((client) =>
+    client.GET("/v1/projects/{projectId}/artifacts", {
+      params: {
+        path: { projectId: request.projectId },
+        query: {
+          limit: request.limit ?? ARTIFACT_PAGE_SIZE,
+          ...(request.order === undefined ? {} : { order: request.order }),
+          ...(request.namespace === undefined
+            ? {}
+            : { namespace: request.namespace }),
+          ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+        },
+      },
+    }),
+  );
+  return requireArtifactPage(requireData(result), result.response.status);
+}
+
+export async function getProjectArtifactMetadata(
+  api: PublicAPI,
+  request: ProjectArtifactDetailRequest,
+): Promise<ArtifactMetadata> {
+  requireProjectID(request.projectId);
+  requireArtifactIdentity(request.namespace, request.name);
+  if (request.revision !== undefined) {
+    requireRevision(request.revision);
+  }
+  const result = await api.request((client) =>
+    client.GET(
+      "/v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata",
+      {
+        ...(request.signal === undefined ? {} : { signal: request.signal }),
+        params: {
+          path: {
+            projectId: request.projectId,
+            namespace: request.namespace,
+            name: request.name,
+          },
+          query:
+            request.revision === undefined
+              ? {}
+              : { revision: request.revision },
+        },
+      },
+    ),
+  );
+  return requireRequestedMetadata(
+    requireData(result),
+    request,
+    result.response.status,
+  );
+}
+
+export async function listProjectArtifactVersions(
+  api: PublicAPI,
+  request: ProjectArtifactDetailRequest & { cursor?: string },
+): Promise<ArtifactPage> {
+  requireProjectID(request.projectId);
+  requireArtifactIdentity(request.namespace, request.name);
+  const result = await api.request((client) =>
+    client.GET(
+      "/v1/projects/{projectId}/artifacts/{namespace}/{name}/versions",
+      {
+        params: {
+          path: {
+            projectId: request.projectId,
+            namespace: request.namespace,
+            name: request.name,
+          },
+          query: {
+            limit: ARTIFACT_PAGE_SIZE,
+            ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+          },
+        },
+      },
+    ),
+  );
+  return requireArtifactPage(requireData(result), result.response.status);
+}
+
+export async function getProjectArtifactLineage(
+  api: PublicAPI,
+  request: ProjectArtifactDetailRequest & { cursor?: string },
+): Promise<ArtifactLineagePage> {
+  requireProjectID(request.projectId);
+  requireArtifactIdentity(request.namespace, request.name);
+  if (request.revision !== undefined) {
+    requireRevision(request.revision);
+  }
+  const result = await api.request((client) =>
+    client.GET(
+      "/v1/projects/{projectId}/artifacts/{namespace}/{name}/lineage",
+      {
+        params: {
+          path: {
+            projectId: request.projectId,
+            namespace: request.namespace,
+            name: request.name,
+          },
+          query: {
+            limit: ARTIFACT_PAGE_SIZE,
+            ...(request.revision === undefined
+              ? {}
+              : { revision: request.revision }),
+            ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+          },
+        },
+      },
+    ),
+  );
+  return requireArtifactPage(requireData(result), result.response.status);
+}
+
+export function writeProjectArtifact(
+  api: PublicAPI,
+  request: ProjectArtifactWriteRequest,
+): Promise<ArtifactWriteResponse> {
+  const path = projectArtifactPath(
+    request.projectId,
+    request.namespace,
+    request.name,
+  );
+  return writeScopedArtifact(
+    api,
+    "PUT /v1/projects/{projectId}/artifacts/{namespace}/{name}",
+    path,
+    request,
+  );
+}
+
+export function downloadProjectArtifact(
+  api: PublicAPI,
+  projectId: string,
+  metadata: ArtifactMetadata,
+  signal?: AbortSignal,
+): Promise<DownloadedArtifact> {
+  const path = `${projectArtifactPath(projectId, metadata.artifact.namespace, metadata.artifact.name)}${exactRevisionQuery(metadata.artifact.revision)}`;
+  return downloadExactArtifact(api, metadata, path, signal);
+}
+
+export function previewProjectArtifact(
+  api: PublicAPI,
+  projectId: string,
+  metadata: ArtifactMetadata,
+  signal?: AbortSignal,
+): Promise<string> {
+  return previewExactArtifact(metadata, () =>
+    downloadProjectArtifact(api, projectId, metadata, signal),
+  );
+}

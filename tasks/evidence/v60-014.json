@@ -1,0 +1,16 @@
+{
+  "task_id": "V60-014",
+  "verified_on": "2026-09-20",
+  "base_commit": "5856beb5c13429f4be54856015ad7e86bd8b573d",
+  "implementation_commit": "bcdfd661c15bf60a7f7e017a828e285021b4bde1",
+  "reproduction": "Mutation and concurrent-clone tests failed before the fix; permanent regressions and original review probe pass afterward.",
+  "commands": [
+    "go test -race -count=1 ./internal/planner/..."
+  ],
+  "results": [
+    "Six planner packages passed with race detector; database-dependent unrelated cases skipped without a DSN.",
+    "Clone marshals into a nil destination map and omits invalid non-JSON cards; nested copies are independent."
+  ],
+  "logs": ".local/review-fixes/",
+  "scope": "Local source and regression checks; no deployment, real models or external security targets."
+}

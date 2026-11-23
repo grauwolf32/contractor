@@ -1,0 +1,603 @@
+{
+  "generatedFrom": "api/openapi/contractor-public-v1.yaml",
+  "schemas": {
+    "ArtifactName": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
+      "type": "string"
+    },
+    "ExactArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "#/components/schemas/ArtifactName"
+        },
+        "namespace": {
+          "$ref": "#/components/schemas/ArtifactName"
+        },
+        "revision": {
+          "$ref": "#/components/schemas/Revision"
+        }
+      },
+      "required": [
+        "namespace",
+        "name",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "MediaType": {
+      "oneOf": [
+        {
+          "const": "*/*",
+          "type": "string"
+        },
+        {
+          "maxLength": 255,
+          "minLength": 3,
+          "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$",
+          "type": "string"
+        }
+      ]
+    },
+    "ResourceId": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+      "type": "string"
+    },
+    "Revision": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+      "type": "string"
+    },
+    "SitemapAnnotation": {
+      "additionalProperties": false,
+      "properties": {
+        "note": {
+          "maxLength": 4096,
+          "type": "string",
+          "x-max-utf8-bytes": 4096
+        },
+        "provenance": {
+          "$ref": "#/components/schemas/SitemapProvenance"
+        },
+        "tags": {
+          "items": {
+            "maxLength": 64,
+            "type": "string",
+            "x-max-utf8-bytes": 64
+          },
+          "maxItems": 16,
+          "type": "array"
+        }
+      },
+      "required": [
+        "provenance",
+        "note",
+        "tags"
+      ],
+      "type": "object"
+    },
+    "SitemapDeclaration": {
+      "additionalProperties": false,
+      "properties": {
+        "parameters": {
+          "items": {
+            "maxLength": 64,
+            "type": "string",
+            "x-max-utf8-bytes": 64
+          },
+          "maxItems": 100,
+          "type": "array"
+        },
+        "pointer": {
+          "maxLength": 2048,
+          "type": "string",
+          "x-max-utf8-bytes": 2048
+        },
+        "provenance": {
+          "$ref": "#/components/schemas/SitemapProvenance"
+        },
+        "rule": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "rule",
+        "provenance",
+        "pointer",
+        "parameters"
+      ],
+      "type": "object"
+    },
+    "SitemapDocument": {
+      "additionalProperties": false,
+      "properties": {
+        "gaps": {
+          "items": {
+            "$ref": "#/components/schemas/SitemapGap"
+          },
+          "maxItems": 2064,
+          "type": "array"
+        },
+        "groups": {
+          "items": {
+            "$ref": "#/components/schemas/SitemapGroup"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "markers": {
+          "items": {
+            "$ref": "#/components/schemas/SitemapMarker"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "projection": {
+          "enum": [
+            "sitemap-safe-projection@1"
+          ],
+          "type": "string"
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/components/schemas/SitemapRule"
+          },
+          "maxItems": 256,
+          "type": "array"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/components/schemas/SitemapSource"
+          },
+          "maxItems": 128,
+          "type": "array"
+        },
+        "version": {
+          "enum": [
+            "project-sitemap@1"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "projection",
+        "groups",
+        "sources",
+        "rules",
+        "markers",
+        "gaps"
+      ],
+      "type": "object"
+    },
+    "SitemapEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "$ref": "#/components/schemas/SitemapExactArtifact"
+        },
+        "runId": {
+          "$ref": "#/components/schemas/ResourceId"
+        }
+      },
+      "required": [
+        "runId",
+        "artifact"
+      ],
+      "type": "object"
+    },
+    "SitemapExactArtifact": {
+      "additionalProperties": false,
+      "properties": {
+        "digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "mediaType": {
+          "$ref": "#/components/schemas/MediaType"
+        },
+        "ref": {
+          "$ref": "#/components/schemas/ExactArtifactRef"
+        },
+        "sizeBytes": {
+          "maximum": 67108864,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ref",
+        "digest"
+      ],
+      "type": "object"
+    },
+    "SitemapGap": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reason": {
+          "enum": [
+            "structural",
+            "members",
+            "groups",
+            "summaries",
+            "examples",
+            "regrouping",
+            "incomplete",
+            "parameters",
+            "source-unavailable",
+            "ambiguous",
+            "projection",
+            "report-truncated",
+            "request-errors",
+            "evidence"
+          ],
+          "type": "string"
+        },
+        "sourceId": {
+          "oneOf": [
+            {
+              "const": "",
+              "type": "string"
+            },
+            {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          ]
+        }
+      },
+      "required": [
+        "sourceId",
+        "reason",
+        "count"
+      ],
+      "type": "object"
+    },
+    "SitemapGroup": {
+      "additionalProperties": false,
+      "properties": {
+        "declarations": {
+          "items": {
+            "$ref": "#/components/schemas/SitemapDeclaration"
+          },
+          "maxItems": 256,
+          "type": "array"
+        },
+        "id": {
+          "maxLength": 8192,
+          "type": "string"
+        },
+        "members": {
+          "items": {
+            "$ref": "#/components/schemas/SitemapMember"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "method": {
+          "maxLength": 16,
+          "pattern": "^[A-Z]{1,16}$",
+          "type": "string"
+        },
+        "omitted": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "origin": {
+          "maxLength": 8192,
+          "type": "string"
+        },
+        "route": {
+          "maxLength": 8192,
+          "type": "string"
+        },
+        "structural": {
+          "items": {
+            "$ref": "#/components/schemas/SitemapStructuralValue"
+          },
+          "maxItems": 16,
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "origin",
+        "method",
+        "route",
+        "structural",
+        "members",
+        "declarations",
+        "omitted"
+      ],
+      "type": "object"
+    },
+    "SitemapMarker": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 8192,
+          "type": "string"
+        },
+        "members": {
+          "items": {
+            "maxLength": 8192,
+            "type": "string"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "provenance": {
+          "$ref": "#/components/schemas/SitemapProvenance"
+        }
+      },
+      "required": [
+        "id",
+        "members",
+        "provenance"
+      ],
+      "type": "object"
+    },
+    "SitemapMember": {
+      "additionalProperties": false,
+      "properties": {
+        "annotations": {
+          "items": {
+            "$ref": "#/components/schemas/SitemapAnnotation"
+          },
+          "maxItems": 128,
+          "type": "array"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/components/schemas/SitemapEvidence"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "examples": {
+          "items": {
+            "maxLength": 8192,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "id": {
+          "maxLength": 8192,
+          "type": "string"
+        },
+        "omitted": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "path": {
+          "maxLength": 8192,
+          "type": "string"
+        },
+        "summaries": {
+          "items": {
+            "$ref": "#/components/schemas/SitemapSummary"
+          },
+          "maxItems": 16,
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "summaries",
+        "examples",
+        "evidence",
+        "annotations",
+        "omitted"
+      ],
+      "type": "object"
+    },
+    "SitemapProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "deployment": {
+          "$ref": "#/components/schemas/ResourceId"
+        },
+        "kind": {
+          "description": "Source label using the shared name grammar. Observed sources are extensible; manual and openapi identify domain editing and declaration provenance.",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
+          "type": "string"
+        },
+        "sourceId": {
+          "$ref": "#/components/schemas/ResourceId"
+        }
+      },
+      "required": [
+        "sourceId",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "SitemapRule": {
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "maxLength": 16,
+          "pattern": "^[A-Z]{1,16}$",
+          "type": "string"
+        },
+        "origin": {
+          "maxLength": 8192,
+          "type": "string"
+        },
+        "parameters": {
+          "items": {
+            "maxLength": 64,
+            "type": "string",
+            "x-max-utf8-bytes": 64
+          },
+          "maxItems": 100,
+          "type": "array"
+        },
+        "path": {
+          "maxLength": 8192,
+          "type": "string"
+        },
+        "pointer": {
+          "maxLength": 2048,
+          "type": "string",
+          "x-max-utf8-bytes": 2048
+        },
+        "sourceId": {
+          "$ref": "#/components/schemas/ResourceId"
+        },
+        "structural": {
+          "items": {
+            "$ref": "#/components/schemas/SitemapStructuralParameter"
+          },
+          "maxItems": 16,
+          "type": "array"
+        }
+      },
+      "required": [
+        "sourceId",
+        "origin",
+        "method",
+        "path",
+        "pointer",
+        "parameters",
+        "structural"
+      ],
+      "type": "object"
+    },
+    "SitemapSource": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "$ref": "#/components/schemas/SitemapExactArtifact"
+        },
+        "generation": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "policyDigest": {
+          "maxLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/components/schemas/SitemapProvenance"
+        }
+      },
+      "required": [
+        "provenance",
+        "generation",
+        "policyDigest"
+      ],
+      "type": "object"
+    },
+    "SitemapStructuralParameter": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed": {
+          "items": {
+            "maxLength": 64,
+            "type": "string",
+            "x-max-utf8-bytes": 64
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "type": "array"
+        },
+        "name": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string",
+          "x-max-utf8-bytes": 64
+        }
+      },
+      "required": [
+        "name",
+        "allowed"
+      ],
+      "type": "object"
+    },
+    "SitemapStructuralValue": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string",
+          "x-max-utf8-bytes": 64
+        },
+        "values": {
+          "items": {
+            "maxLength": 64,
+            "type": "string",
+            "x-max-utf8-bytes": 64
+          },
+          "maxItems": 16,
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "values"
+      ],
+      "type": "object"
+    },
+    "SitemapSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "first": {
+          "maxLength": 8192,
+          "type": "string"
+        },
+        "last": {
+          "maxLength": 8192,
+          "type": "string"
+        },
+        "outcome": {
+          "maxLength": 8192,
+          "type": "string"
+        },
+        "parameters": {
+          "items": {
+            "maxLength": 64,
+            "type": "string",
+            "x-max-utf8-bytes": 64
+          },
+          "maxItems": 100,
+          "type": "array"
+        },
+        "provenance": {
+          "$ref": "#/components/schemas/SitemapProvenance"
+        },
+        "status": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "provenance",
+        "outcome",
+        "status",
+        "parameters",
+        "first",
+        "last"
+      ],
+      "type": "object"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "task_id": "V60-016",
+  "verified_on": "2026-09-20",
+  "implementation_commit": "74d3ede369ecd9b4bde838a8bfc905cefbd1d25c",
+  "reproduction": "Before the fix base resume passed and both advertised escalation variants failed with optimistic state conflict.",
+  "commands": [
+    "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -race -count=1 -p 2 ./internal/runstore ./internal/scheduler ./internal/httpapi/public ./internal/persistence/postgres"
+  ],
+  "results": [
+    "RunStore,Scheduler,public API and PostgreSQL packages passed with race detector and disposable PostgreSQL.",
+    "Base and both escalation variants support repeated resume, response-loss replay, preserved snapshots and immutable receipts; missing-receipt writes roll back.",
+    "Scheduler restart keeps the effective policy and exhausted automatic budget; corrupt ordinal/lineage histories remain rejected.",
+    "Migration59\u219260 preserves historical row contents, backfills manual identity, passes checksum/idempotency and cascade purge; normal Run deletion after two resumes passes."
+  ],
+  "logs": [
+    ".local/review-fixes/v60-016-before.log",
+    ".local/review-fixes/v60-016-after.log"
+  ]
+}

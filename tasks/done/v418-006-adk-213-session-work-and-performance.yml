@@ -1,0 +1,178 @@
+schema_version: '1.0'
+id: V418-006
+title: Bound long-session and repeated-allocation work on ADK 2.13
+milestone: adk-213-upgrade-2026-10
+epic: planner-worker
+kind: chore
+priority: P1
+status: completed
+depends_on:
+- V418-003
+- V418-004
+- V418-011
+languages:
+- python
+- markdown
+goal: Verify practical long-session cost and finite Runtime work on the migrated SDK without claiming
+  string-model benchmarks apply to Contractor or adding flaky timing assertions.
+context:
+  authority: 'User request on 2026-10-25: plan the ADK 2.13 upgrade with every identified compatibility
+    change, adjust the existing compaction series, and keep model consultation as a proposal. These pending
+    tasks do not start implementation or change the current delivery focus.'
+  review: tasks/evidence/v418-adk-213-review.json
+  specification:
+  - docs/spec/execution/worker.md#WRK-R65
+  - docs/spec/execution/worker.md#WRK-R160
+  - docs/spec/execution/worker.md#WRK-R169
+  - docs/spec/execution/runtime-agent.md#RTA-R116
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/observability.md
+  specification_clarification: WRK-R161 is scoped explicitly to first-observation semantic detail; rolling
+    allocation metric records keep the existing OBS-R41 oldest-detail removal and WRK-R169 cached-projection
+    contract. The scale fixture crosses that cap without changing intended behavior.
+  finding: 2.12 reduces Event/Session copying and history-loading overhead. Contractor uses InMemorySessionService
+    and a custom BaseLlm object; the 2.13 advertised 8x string-model construction optimization is not
+    its path. Nested State tracking/copy behavior and callback changes can affect long sessions even when
+    short correctness tests pass.
+  implementation_boundary: Preserve the owning Contractor contracts; update numbered specs, limits/error/failure/lifecycle
+    registries and affected implementations together when an explicit clarification is necessary. No ADK-version
+    branches, legacy readers, dual production runtimes, model replacement, silent retries, new receipt
+    store or speculative public API. Read current code and re-establish the dated evidence before implementation.
+  conformance_evidence: tasks/evidence/v418-adk-213-scale-conformance.json
+  measurement_evidence: tasks/evidence/v418-adk-213-framework-measurements.json
+scope:
+  in:
+  - Representative long shared/isolated histories, repeated allocations and bounded callback/State work
+    counters.
+  - Reproducible informational before/after framework measurements using the actual custom adapter and
+    identical deterministic workloads.
+  out:
+  - A speedup percentage as a release requirement, wall-clock test assertions, production model switches
+    or claims about live audit quality.
+  - Introducing compaction/history archive limits from V417 into a Runtime where compaction is not yet
+    enabled.
+acceptance_criteria:
+- id: A1
+  given: Representative long histories and admitted ceilings
+  when: Real Runner/model/tool callbacks execute
+  then: Work/byte/record counters remain within documented bounds and preserve all meaningful results
+    and identities.
+- id: A2
+  given: More than 1024 consecutive callable allocations
+  when: Each is released before the next
+  then: Old allocation graphs are collectible and work/state retention does not grow with released allocations.
+- id: A3
+  given: Nested State mutation and shared/isolated controls
+  when: Snapshots are read and sessions deleted at scale
+  then: Snapshots remain independent, scoped state is erased and unrelated tasks do not inherit context.
+- id: A4
+  given: Identical deterministic workloads and environments
+  when: Informational before/after samples are collected
+  then: Measured framework overhead is separated from provider latency, with no unsupported speedup claim
+    or timing-based acceptance threshold.
+tests:
+- command: cd runtime && uv run --locked pytest -W error tests/test_adk_runtime.py tests/test_session_lifecycle.py
+    tests/test_worker_state.py tests/test_allocation.py tests/test_adk_runtime_scale.py tests/test_adk_allocation_scale.py
+    tests/test_adk_runtime_ceilings.py tests/test_metrics.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+requirements:
+- id: R1
+  text: Inventory current containing bounds for subtasks, admitted model/tool calls, retained metrics,
+    event history and snapshots. Exercise realistic 50- and 150-turn fixtures plus the supported model/tool/State
+    ceilings; use many sequential subtasks and multiple calls per turn. Record if a requested fixture
+    exceeds an existing cap rather than bypass it.
+- id: R2
+  text: Measure requests, event visits/copies, retained records/bytes, serialized State records and temporary
+    representations per operation. Assert bounds derived from admitted history and current registered
+    limits; no unbounded rescan or duplicate whole-history copy per tool callback. If a missing work bound
+    is discovered, add the owning explicit contract and fix it before completion.
+- id: R3
+  text: Repeated allocation tests cross the 1024-entry callable-cache capacity without retaining per-allocation
+    clients/metrics/secrets. Use ownership/weakref and bounded-memory counters, not machine RSS thresholds.
+    Large parsing/serialization remains joined off the event loop.
+- id: R4
+  text: Collect repeated informational framework-only baseline and new-version samples using identical
+    fixtures, Python/platform, custom BaseLlm and disabled external network. An isolated historical 2.8
+    benchmark environment is permitted only for this comparison, never production acceptance; record its
+    exact revision and dependency digest. Separate import, first-request preparation, copying, callback
+    and provider time. Sample collection and honest provenance are required evidence, but speedup and
+    wall-clock thresholds are never pass/fail criteria; unavailable measurements are explicit.
+- id: R5
+  text: Verify shared/isolated state ownership, app/user scoped-state deletion, repeated callbacks and
+    immutable snapshots at scale. No previous task/reasoning/credential leaks through nested State mutation
+    or session aliases; page/read work respects the existing contract.
+- id: R6
+  text: Record the measured applicability of upstream optimizations and actual workload limits. No 8x
+    claim for string model agents is attributed to our custom adapter; no performance result proves model
+    quality. Retain fixtures in testdata and a finite required-case inventory.
+test_prerequisites:
+- Commands below are future implementation acceptance gates, not checks already passed by this planning
+  change. A required command, selected case or dependency setup must not be skipped or match zero tests.
+- Run full suites of every touched package/module, in addition to focused regressions. Use real ADK dispatch
+  and controlled Gateway responses; persistence/process claims require disposable real PostgreSQL and
+  real Server/Runtime processes. Never read live configs from unit tests; use testdata and pseudo-Skills.
+- Use injected clocks, synchronization barriers, work/row/byte counters and bounded fixture sizes. Timing
+  samples are informational, never flaky wall-clock pass thresholds. Keep configured live models unchanged;
+  no live Gateway is part of these deterministic tasks.
+- Use the accepted 2.13 repository lock for every correctness gate. A separate isolated historical 2.8
+  environment is allowed only for the required informational comparison in R4; it neither changes the
+  supported pin nor passes the current release. Record tested revision, lock/requirements digest, sample
+  workload, count and unavailable fields for both environments.
+failure_outcomes:
+- operation: Verification setup and evidence collection
+  permanent: Strict invalid input or unsupported SDK behavior fails with the owning classified outcome;
+    no permissive fallback or endless retry. A required verification failure blocks completion.
+  retryable: Reuse the existing bounded transport/recovery or cleanup policy only; no SDK upgrade-specific
+    retry loop or rerun-until-green.
+  ambiguous: Reconcile existing receipts, trusted observations and the same operation identity. Test evidence
+    preserves the original uncertain outcome; never repeat an external append or side effect blindly.
+  cancelled: The existing invocation/allocation or fixture owner cancels and joins all work before cleanup;
+    no later dispatch or unowned callback may outlive release.
+  timeout: Execution deadline, per-request timeout, cleanup timeout and harness timeout remain distinct;
+    injected expiration cannot start a new admitted attempt.
+cardinality:
+- collection: Calls, event history, retained State/metrics and fixture cases
+  expected: Several sequential logical invocations, parallel tool batches and multiple internal Runner
+    turns; scale task adds long histories.
+  maximum: Existing owning model/tool/subtask/State/Skill byte and item ceilings; V418-006 must inventory
+    the containing limits before choosing maximum fixtures.
+  bound: Work follows admitted finite inputs and retained history; no unbounded full-catalog scan, private-history
+    copy or unrestricted per-callback rescan. Verify bytes/items/work counters, not only input length.
+lifecycle:
+- entity: Existing allocation-local sessions, clients, tools, callbacks and test evidence
+  delete: Existing invocation/allocation owner or isolated test harness owns teardown; never touch another
+    allocation or user database.
+  cascade: Join generators, tools, clients and serializers before deleting session/workspace state. Preserve
+    required publication receipts through their existing owner.
+  retention: No new durable runtime entity. Keep only bounded safe test evidence and ordinary published
+    results under existing retention policies.
+verification:
+  scale: All13new cases and exact eight owner modules268passed with no skip/failure on immutable native
+    Linux source; registered10ktool/100mtoken/4MiBState/record/error/name bounds and1025realallocations
+    covered at their stated actual boundaries.
+  aggregate: Fresh default locked Linux Runtime5086total:5031passed/55unchanged allowedskips/0fail/error;
+    report verifier and Linux make lint pass. Integrated host make lint, including all142scriptunit tests
+    and7sampler guards, also passes.
+  measurements: 24valid repeated samples,3 perSDK/mode/50-or150turn selection, identical frozen workload/fixture/driver
+    and Python3.13.5, clean historical7b5 and migrateda308source roots, Internet/DNS disabled. Candidate
+    times do not establish an overall speedup or isolate SDK-only causality; exact medians/work/copy/byte
+    counters and unavailable early setup attempts are preserved.
+  review: Independent read-only review finds no blocking defect. Timing residuals include deterministic
+    fixture work/Runtime/adapter; lifecycle/reducer cases are distinguished from full Runner cases. WRK-R161
+    only clarifies the existing OBS-R41 metric retention policy.
+implementation_commit: e230a0b798ae7fa58c231225fa0cfd1a8e4603af

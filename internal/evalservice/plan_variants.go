@@ -1,0 +1,108 @@
+package evalservice
+
+import (
+	"fmt"
+	"sort"
+
+	"github.com/grauwolf32/contractor/internal/evaldomain"
+)
+
+func (b *planBuilder) buildVariants(cases []evaldomain.Case) ([]variantReference, map[string]map[string]Pin, error) {
+	checks, err := hashJSON(struct {
+		Checks  []evaldomain.Check
+		Private []evaldomain.PrivateCheck
+	}{b.draft.Checks, b.dataset.PrivateChecks})
+	if err != nil {
+		return nil, nil, err
+	}
+	refs := make([]variantReference, 0, len(b.draft.Variants))
+	allPins := map[string]map[string]Pin{}
+	for _, variant := range b.draft.Variants {
+		resolved, ok := b.preflight[variant.ID]
+		if !ok {
+			return nil, nil, evaldomain.Failure("eval_not_ready")
+		}
+		pins, err := caseComparisonPins(cases, variant, resolved.Pins)
+		if err != nil {
+			return nil, nil, err
+		}
+		pins["scorers"], pins["expected"] = observedPin(checks), observedPin(checks)
+		dimensions := append(append([]string{}, b.draft.Comparison.RequiredEqual...), b.draft.Comparison.AllowedDifferences...)
+		for _, dimension := range dimensions {
+			if _, ok := pins[dimension]; !ok {
+				pins[dimension] = Pin{Origin: "unavailable"}
+			}
+		}
+		allPins[variant.ID] = pins
+		doc, err := bindingDocument(variant, resolved)
+		if err != nil {
+			return nil, nil, err
+		}
+		path := "bindings/" + variant.ID + ".json"
+		b.bundle.Resources = append(b.bundle.Resources, Resource{Path: path, Kind: doc.Kind(), Document: doc})
+		refs = append(refs, variantReference{ID: variant.ID, Binding: documentRef{Resource: path, SHA256: doc.Digest()}})
+	}
+	for _, dimension := range b.draft.Comparison.RequiredEqual {
+		a, c := allPins[b.draft.Comparison.Baseline][dimension], allPins[b.draft.Comparison.Candidate][dimension]
+		if a.Origin != "observed" || c.Origin != "observed" || a.Value == nil || c.Value == nil || *a.Value != *c.Value {
+			return nil, nil, evaldomain.Failure("eval_pin_mismatch")
+		}
+	}
+	return refs, allPins, nil
+}
+
+func (b *planBuilder) buildMembers(experimentID string, cases []evaldomain.Case, caseRefs []documentRef, variants []variantReference) ([]planMember, []string, error) {
+	size := len(cases) * b.draft.Repetitions * len(variants)
+	members := make([]planMember, 0, size)
+	order := make([]string, 0, size)
+	for i, c := range cases {
+		caseMembers, err := b.buildCaseMembers(experimentID, c, caseRefs[i], variants)
+		if err != nil {
+			return nil, nil, err
+		}
+		members = append(members, caseMembers...)
+		for _, member := range caseMembers {
+			order = append(order, member.MemberID)
+			b.bundle.Cases[member.MemberID] = c
+		}
+	}
+	if b.draft.Order.Kind == "seeded_shuffle" {
+		// Hash each member once; sorting preserves the retained permutation.
+		keys := make(map[string]string, len(order))
+		for _, id := range order {
+			keys[id] = evaldomain.Digest([]byte(fmt.Sprintf("%d:%s", *b.draft.Order.Seed, id)))
+		}
+		sort.Slice(order, func(i, j int) bool { return keys[order[i]] < keys[order[j]] })
+	}
+	return members, order, nil
+}
+
+func (b *planBuilder) buildCaseMembers(experimentID string, c evaldomain.Case, caseRef documentRef, variants []variantReference) ([]planMember, error) {
+	members := make([]planMember, 0, b.draft.Repetitions*len(variants))
+	for sample := 1; sample <= b.draft.Repetitions; sample++ {
+		for _, variant := range variants {
+			id, err := evaldomain.MemberID(experimentID, b.draft.Dataset.ID, c.ID, sample, variant.ID)
+			if err != nil {
+				return nil, err
+			}
+			eligibility, ok := b.preflight[variant.ID].Cases[c.ID]
+			if !ok {
+				return nil, evaldomain.Failure("eval_not_ready")
+			}
+			members = append(members, planMember{
+				PublicMember: evaldomain.PublicMember{
+					MemberID:      id,
+					SuiteID:       b.draft.Dataset.ID,
+					CaseID:        c.ID,
+					Sample:        sample,
+					VariantID:     variant.ID,
+					CaseSHA256:    caseRef.SHA256,
+					BindingSHA256: variant.Binding.SHA256,
+					Eligibility:   eligibility.State,
+				},
+				Reason: eligibility.Reason,
+			})
+		}
+	}
+	return members, nil
+}

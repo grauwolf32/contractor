@@ -1,0 +1,64 @@
+# Local credentials and process state
+.env
+.env.*
+*.env
+*.env.*
+!.env.example
+!.env.*.example
+!*.env.example
+.envrc
+.local/
+.contractor/
+.adk/
+*.db
+*.db-journal
+*.log
+
+# Agent worktrees and local package stores
+/.claude/
+/.pnpm-store/
+
+# Go commands and verification output
+/contractor-server
+/bin/
+/.build/
+/coverage.out
+/reports/
+
+# Python environments, bytecode, build output and tool caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.import_linter_cache/
+.cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# UI and documentation build dependencies/output
+node_modules
+/ui/coverage/
+/ui/playwright-report/
+/ui/test-results/
+/docs/_build/
+
+# Run outputs and research clones; source reports and fixtures stay tracked
+/artifacts/
+/.artifacts
+/.artifacts.*
+/metrics/
+/eval_runs*/
+/tests/eval/fixtures/*/runs/
+/scripts/output/
+/docs/research/repos/
+
+# macOS metadata
+.DS_Store

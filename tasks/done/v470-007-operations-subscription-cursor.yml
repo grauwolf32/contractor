@@ -1,0 +1,48 @@
+schema_version: "1.0"
+id: V470-007
+title: Start Operations event subscriptions without building a full registry snapshot
+milestone: operations-live-2026-10
+epic: operations
+kind: chore
+introduced_by: V4-007
+priority: P2
+status: completed
+depends_on: []
+languages: [go]
+goal: Opening or resuming an Operations event subscription reads its cursor without copying every agent, allocation and capability under the registry lock.
+context:
+  specification:
+    - docs/spec/api/public-api.md#API-R58
+    - docs/spec/operations/operations.md#OPS-R24
+  finding: >-
+    internal/httpapi/public/events/subscriptions.go:102 calls SnapshotOperations even when resuming
+    from an explicit cursor. It only consumes the cursor. internal/controlplane/operations.go:315
+    builds detached observations for both collections and sorts them while holding the registry mutex.
+  siblings: >-
+    Fresh and resumed Operations streams share pumpOperations. ReplayOperations and the watch channel
+    already handle races and coalesced hints. The full REST snapshot has callers that need its data.
+scope:
+  in:
+    - Read only the current generation and revision when needed. Reuse the registry's existing watch and bounded replay to cover changes during subscription setup.
+    - Preserve subscribed acknowledgements, ordered catch-up, cancellation and resynchronization reasons.
+  out:
+    - Changing replay retention, live REST pagination, the Run event stream, or the coherent full REST snapshot.
+acceptance_criteria:
+  - id: A1
+    text: Starting a fresh or resumed Operations stream materializes zero registry observations, including with a populated registry. Verify by observed calls or work counts independent of machine timing.
+  - id: A2
+    text: Force a change between watch registration, cursor selection and catch-up. The acknowledged baseline and delivered revisions have no gap or duplicate. Coalesced notifications still catch up.
+  - id: A3
+    text: Restart, an expired or future event cursor, and a sequence gap retain the existing resync outcomes. The full REST snapshot still returns detached sorted observations and its matching cursor.
+tests:
+  - command: 'go test -race -count=1 ./internal/controlplane ./internal/httpapi/public/events ./internal/httpapi/public'
+    covers: [A1, A2, A3]
+  - command: make verify-public-api
+    covers: [A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: 4add3dc4d7b8aae0a5f69cf3fea3de0ba915beec
+verification_results:
+  - >-
+    Control Plane, public HTTP, events and public API checks passed. A local WebSocket exercise forced coalesced invalidations immediately after watch registration and observed consecutive revisions after the acknowledged cursor.
+  - make lint passed.

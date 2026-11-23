@@ -1,0 +1,204 @@
+schema_version: '1.0'
+id: V64-007
+title: Close the deterministic hypothesis feedback loop across Audit rounds
+milestone: audit-check-prioritization
+epic: audits
+kind: feature
+priority: P2
+status: archived
+depends_on:
+- V64-003
+- V64-006
+- V64-013
+- V64-014
+- V64-015
+languages:
+- go
+- json
+goal: Make accepted experiment results change later research choices while retaining ordinary execution,
+  immutable worklists and explicit stop reasons.
+context:
+  authority: On 2026-10-24 the user explicitly requested pending status for the reviewed proposal 0045
+    plan, including shared V62 prerequisites. The earlier deferral is historical; dependency completion
+    still gates implementation start. On 2026-10-31 the user accepted common hypotheses for all Audit
+    assertion checks, with optional research creating new hypotheses, and authorized removing almost all
+    formal approvals. This supersedes conflicting earlier scope and acceptance; replacement task boundaries
+    remain open. The user also defined findings as hypothesis confirmations/refutations, required deduplication
+    and hypothesis links for later selection, and made reducing or controlling Audit complexity the primary
+    design constraint. Findings retain Audit/Run origin and an exact hypothesis link when present; exploratory
+    tasks can produce findings without a prior hypothesis.
+  decision_needed: The target Finding is a research conclusion with Audit/Run origin and optional exact
+    hypothesis association. Preserve deduplication and all source contributions without a universal security-issue,
+    mandatory hypothesis or human-confirmation gate. Before implementation, reconcile this task scope,
+    dependencies and gates with proposal 0050. Keep this task pending and do not execute its superseded
+    research-only scope. Choose one continuation loop for fixed and expanding work; compare bounded shared
+    iterations with existing Round progression instead of adding a second research loop.
+  proposal: docs/proposals/0045-audit-hypothesis-search.md
+  design:
+  - docs/plans/2026-10-24-audit-hypothesis-search.md
+  - docs/proposals/0050-audit-common-hypothesis-model.md
+  - docs/plans/2026-10-31-audit-redesign.md
+  specification:
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/execution.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/platform/persistence.md
+  deterministic_boundary: All Audit assertion checks use common hypotheses. Fixed checklist/standard seeds
+    remain deterministic without generation, ranking or a separate research phase. Direct Runs and supporting
+    non-assertion work need no hypotheses.
+  implementation_boundary: Each new table, state, export and schema must have its named production writer/reader
+    in this task; include the smallest actual integration caller, not a test-only placeholder waiting
+    for another task.
+  previous_definition:
+    revision: a31579d33e81315818a277b822e3b087ce5c76c1
+    path: tasks/v64-007-audit-priority-controller.yml
+    title: Run prioritization before each Audit pass and advance deferred checklist work
+    depends_on:
+    - V64-005
+    - V64-006
+    - V62-003
+    note: The former fixed-checklist/minimum-ten integration scope is replaced by this task. Its original
+      definition and deferral history remain in Git; completed V64-000 is unchanged.
+scope:
+  in:
+  - Connect initial generation, accepted context, deterministic selection, ordinary check execution, assessment
+    import and bounded later expansion.
+  - Reconsider affected plans only for accepted evidence, changed prerequisites, explicit alternative
+    methods or selected unexplored directions.
+  - Keep accepted Round membership fixed; discoveries create later candidates, while independent deterministic
+    inventories use the existing path.
+  - Integrate pre-Round resume, existing pause/deadline/drain/cancel behavior, budgets and truthful exhaustion/waiting
+    outcomes.
+  out:
+  - V64-005 optional model ranking, attack-tree execution, baseline V411 coupling or changes to ordinary
+    Scheduler ownership.
+  - Implementation during this planning change, changing existing task statuses, or modifying completed/in-progress
+    task records.
+requirements:
+- id: R1
+  text: One active cycle per Audit, no new Scheduler or live mutation of accepted items, and no mandatory
+    model ranker.
+- id: R2
+  text: A successful Run is not a supported hypothesis or confirmed finding; unknown outcomes and failed
+    controls remain scoped gaps.
+- id: R3
+  text: A new method/input/question creates a new experiment; Scheduler retry and Audit item retry retain
+    their established boundaries.
+failure_outcomes:
+- operation: Research cycle progression and experiment feedback admission
+  permanent: Invalid, foreign, unsupported or oversized input is rejected with the owning V64-001/standard
+    contract reason; deterministic ErrInvalid is never endlessly retried and no partial authoritative
+    result is accepted.
+  retryable: Use existing bounded transient storage/provider retries for the owning operation; retry attempt/deadline
+    limits are explicit and do not switch research policies or models.
+  ambiguous: Reconcile the same existing keyed mutation, accepted producer association or exact result;
+    never create another logical effect or repeat target activity to repair acknowledgement loss.
+  cancelled: Existing Audit/Run owner fences and join/drain rules apply; allow authorized terminal collection,
+    block new dispatch and release resources only after in-flight work is joined.
+  timeout: Use the owning operation/Run deadline. Audit admission deadline pauses and drains; non-time
+    budget exhaustion follows bounded finalization with gaps.
+cardinality:
+- collection: Cycles and generated continuations
+  expected: Small selected rounds under the profile budget
+  maximum: Existing maxRounds/maxSubmittedRuns plus lifetime hypothesis and metadata caps
+  bound: At most one active cycle; bounded accepted batches and dirty work; no full-pool regeneration
+    on unchanged state.
+lifecycle:
+- entity: Task-owned research records, exact artifacts and projections
+  delete: Audit/Project ownership and existing deletion gates apply; accepted evidence used by work is
+    retained, not removed by settling or withdrawing a candidate.
+  cascade: Use the owning Audit relations and existing artifact hold lifecycle; register any new holder
+    inventory entry in this change and leave no independent cleanup owner.
+  retention: Preserve exact accepted inputs/results and history through permitted source Run deletion,
+    pause and recovery; release only through the owning lifecycle. Stateless validation/read-only outputs
+    acquire no artificial persistent state.
+acceptance_criteria:
+- id: A1
+  given: Cold hypotheses and a deterministic research policy
+  when: an experiment yields a new accepted observation
+  then: A later cycle makes a materially different justified choice with exact parent/context/evidence
+    links.
+- id: A2
+  given: A continuing stream of new observations during selection
+  when: the frozen cycle is admitted
+  then: Otherwise valid admission progresses; later observations affect the next context generation rather
+    than starving the current cycle.
+- id: A3
+  given: Pause/deadline/cancel or restart before the first Round and between later Rounds
+  when: control and recovery execute
+  then: No duplicate producer/item occurs; accepted progress resumes or drains under current Audit semantics.
+- id: A4
+  given: No eligible action, failed controls or exhausted budgets
+  when: the program closes or waits
+  then: Reasons and gaps are truthful; no unsafe/no-findings conclusion or automatic repeat is inferred.
+tests:
+- command: make require-database
+- command: go test -tags=integration -count=1 ./internal/auditcontroller ./internal/auditservice ./internal/auditstore/...
+    ./internal/auditimport
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-audit-composition-e2e test-audit-completion-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+implementation_commit: null
+reactivation:
+  date: '2026-10-24'
+  previous_status: deferred
+  reason: Explicit user request to queue the reviewed proposal 0045 tasks as pending.
+  execution_rule: Implementation may start after declared dependencies complete; this update starts no
+    implementation.
+previous_deferral:
+  date: '2026-10-21'
+  previous_status: pending
+  previous_priority: P1
+  reason: User deferred the remaining V64 integration to focus on authenticated HTTP continuity and completion
+    of the existing V62 audit journey.
+  reactivate_when: Explicit user authorization to implement this reviewed proposal 0045 scope, after its
+    declared dependencies are completed. Replanning alone does not activate it.
+  previous_reactivate_when: Explicit user decision after cookies and V62 are delivered and representative
+    audit measurements show that model-based prioritization improves useful-result yield or time/cost
+    over fixed ordering.
+deliverables:
+- path: internal/auditcontroller
+  description: Optional end-to-end research reconcile loop with ordinary execution adapters.
+- path: internal/auditservice
+  description: Research start/resume/next-round admission integration.
+- path: tests/e2e
+  description: Deterministic feedback and no-Round lifecycle cases on real processes.
+- path: tests/e2e/audit_composition_matrix.yml
+  description: Register every new mandatory composition process case in the existing explicit selector;
+    prove nonzero execution.
+- path: scripts/audit-completion-matrix.json
+  description: Register new applicable completion/import cases and update the target selector where required;
+    adding an unselected test is not coverage.
+test_prerequisites:
+- Commands are implementation acceptance requirements, not results of this planning change. New named
+  gates must be created, registered and fail on zero matching cases.
+- Persistence/lifecycle acceptance uses disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; an
+  unavailable configured database or mandatory skipped case fails.
+- Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Shipped configuration
+  has its dedicated validation command.
+- Run complete suites for touched packages; use injected clocks and deterministic work counters. Put timing
+  measurements in benchmarks.
+verification_requirements:
+- Update owning numbered specifications, strict public/wire contracts and shared fixtures with implementation;
+  do not cite task IDs from normative specifications.
+- Record actual commands, case counts, required prerequisites and exact evidence after implementation.
+  Planning does not populate implementation_commit or fabricate successful checks.
+- Keep direct deterministic behavior, existing claims/receipts and source-to-consumer exact provenance
+  explicit in real-path assertions.
+archive:
+  date: '2026-10-31'
+  previous_status: pending
+  reason: User-requested Audit replanning replaces this separate execution/selection/cycle boundary with
+    the shared coordinator and ordinary task/Run path. Scope is merged, not implemented.
+  superseded_by:
+  - V64-002
+  - V64-013

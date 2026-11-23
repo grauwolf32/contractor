@@ -1,0 +1,128 @@
+schema_version: '1.0'
+id: V418-009
+title: Publish subprocess fixture readiness markers atomically
+milestone: adk-213-upgrade-2026-10
+epic: quality
+kind: chore
+introduced_by: V55-001
+priority: P1
+status: completed
+depends_on: []
+languages:
+- python
+- markdown
+goal: Remove the baseline process-test race where a visible PID marker can still be empty or partial,
+  so cancellation tests only stop a child after its readiness payload is complete.
+context:
+  authority: The user authorized implementing the Runtime ADK upgrade before the Server upgrade. The complete
+    supported-baseline Linux Runtime gate exposed this test-fixture race while V418-001 was establishing
+    its baseline.
+  finding: runtime/tests/test_scan_toolset.py:545 creates/truncates child-pid before writing its child
+    PID, while the parent at line555 treats existence as readiness and may cancel the writer first. git
+    blame identifies V55-001/81e476278e0ed5e9e1ff97cf187761f43e092aa9. The observed failure was test_cancellation_and_close_reap_process_group[cancel]
+    parsing an empty PID.
+  specification:
+  - docs/testing/README.md
+  - docs/spec/tools/scanners.md#SCN-R15
+  siblings: PID/readiness fixtures in test_tool_process.py, test_scan_toolset.py, test_tool_worker.py
+    and test_tool_operation_ownership.py share this publication issue. FFUF and SQLMap process.json fixtures
+    already write a staging file and replace the marker; keep those correct paths. Trailmark signal/one-shot
+    markers contain no PID payload and are presence-only signals.
+scope:
+  in:
+  - One shared test-only atomic marker source helper; migrate every vulnerable PID/readiness writer in
+    the named sibling tests.
+  - A deterministic partial-write barrier regression proves the destination marker is absent until its
+    entire payload is closed and atomically published.
+  - Keep the cancellation, process-group reap and workspace cleanup assertions meaningful on the supported
+    baseline.
+  out:
+  - Production process supervision, scanner behavior, SDK pin or ADK runtime changes.
+  - Sleep increases, polling malformed marker contents, retry-until-green, weakening process-reap checks
+    or reading live configs.
+acceptance_criteria:
+- id: A1
+  text: Every vulnerable PID/readiness writer in the four named modules publishes through staging write/close
+    and atomic replace; consumers no longer need to wait for nonempty/complete payloads.
+- id: A2
+  text: The deterministic barrier test proves no ready marker exists during a partial write, then observes
+    the exact final PID/pair after publication; substituting direct destination writes fails the regression.
+- id: A3
+  text: The affected full module suites and complete warning-strict Runtime baseline pass on native Linux;
+    Darwin-focused outcomes are recorded honestly and do not replace Linux process-group evidence.
+- id: A4
+  text: make lint and task/backlog checks pass with production files unchanged.
+tests:
+- command: cd runtime && uv run --locked pytest -W error tests/test_process_markers.py tests/test_tool_process.py
+    tests/test_scan_toolset.py tests/test_tool_worker.py tests/test_tool_operation_ownership.py tests/test_scan_ffuf.py
+    tests/test_scan_sqlmap_request.py
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A4
+requirements:
+- id: R1
+  text: A readiness payload is written to a sibling staging file, closed, then published with os.replace.
+    Marker existence is the readiness signal; consumers read a complete integer PID or complete PID pair
+    immediately after observing it.
+- id: R2
+  text: All affected subprocess fixtures use the same test-only publication helper. Preserve their original
+    process ownership, detached-descendant behavior, side-effect counts and cancellation/close/timeout
+    scenarios.
+- id: R3
+  text: A deterministic barrier pauses a writer after a partial staging write, proves the ready marker
+    absent, then permits completion and verifies the exact final payload. The regression must fail if
+    the helper writes directly to the ready path; no timing threshold establishes correctness.
+- id: R4
+  text: Run full affected test modules and the full warning-strict Linux Runtime baseline with required
+    prerequisites, then make lint. Keep this task in_progress until all required verification succeeds;
+    the primary fix commit may be integrated before final verification.
+failure_outcomes:
+- operation: Test fixture readiness publication
+  permanent: A write/replace failure leaves no newly published incomplete marker and makes the fixture
+    fail; no successful readiness claim.
+  retryable: No fixture publication retries or retry-until-green behavior.
+  ambiguous: The existing complete marker or absent marker remains the only readiness outcome; do not
+    parse staging contents as readiness.
+  cancelled: Existing test owner cancels and joins child work, then owns temporary file cleanup.
+  timeout: Harness timeouts remain safety nets; readiness correctness follows the publication barrier
+    rather than elapsed time.
+cardinality:
+- collection: PID/readiness markers and payloads per child fixture
+  expected: One ready marker and one staging path per fixture process.
+  maximum: One complete PID, or one parent/child PID pair, using the existing bounded fixture strings.
+  bound: One staging write and one atomic replace per publication; no new polling, retry loop, persistent
+    state or unbounded collection.
+lifecycle:
+- entity: Test-local readiness marker and sibling staging file
+  delete: pytest tmp_path owner removes files after fixture process ownership settles.
+  cascade: No production entity or retained business data is involved.
+  retention: Fixture lifetime only.
+test_prerequisites:
+- The full Runtime gate uses the supported 2.8 baseline lock and complete parser/process prerequisites;
+  the task does not change the SDK version.
+- The coordinating agent runs the full native Linux baseline and final lint after integrating this primary
+  fix. Do not mark the task complete from a partial Darwin run.
+- Use actual subprocesses and deterministic barriers; retain original process-reap and cleanup assertions.
+verification:
+- 'Darwin/arm64 on the supported ADK 2.8 environment: all seven affected/full test modules passed, 340
+  cases, warnings as errors, zero skips. This does not substitute for native Linux process-group verification.'
+- The two new deterministic partial-write barrier cases fail when an isolated in-memory mutation changes
+  the helper to write the destination directly; the mutation harness required the expected pytest failure
+  and left repository files unchanged.
+- All six changed Python files compile; focused Ruff lint/format and git diff --check pass.
+- 'Native Linux aarch64/nonroot UID1000/Python3.13.5/Go1.26.9, exact baseline ADK2.8 lock: full make test-runtime
+  and required report verifier exited0;4797passed,55allowed optional skips,0failures/errors.'
+- Exact seven-module Linux command passed337cases with3optional external-ffuf skips; every required marker/process-group
+  case executed.
+- Full make lint passed after integration. Tested source HEAD7b5a1fd14cd7930b8a99d3d272ac4e09ce0b15bd
+  plus the characterized001test fixture; manifest/JUnit provenance recorded in tasks/evidence/v418-adk-213-characterization.json.
+implementation_commit: 7b5a1fd14cd7930b8a99d3d272ac4e09ce0b15bd

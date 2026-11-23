@@ -1,0 +1,134 @@
+schema_version: "1.0"
+id: V416-006
+title: "Bind hybrid bootstrap idempotency keys to the complete mutation"
+milestone: main-review-2026-10-25
+epic: operations
+kind: defect
+priority: P1
+status: completed
+depends_on: []
+languages: [python, go]
+goal: >-
+  Rebinding a cloud RuntimeConfig or restoring principal labels succeeds after
+  earlier mutations while exact retries still reconcile the original receipt.
+context:
+  severity: high
+  specification:
+    - docs/spec/api/public-api.md#API-R27
+    - docs/spec/api/public-api.md#API-R69
+    - docs/spec/configuration/runtime-config.md#RCF-R124
+    - docs/spec/configuration/runtime-config.md#RCF-R125
+    - docs/spec/configuration/runtime-config.md#RCF-R139
+    - docs/spec/configuration/runtime-config.md#RCF-R173
+    - docs/spec/configuration/runtime-config.md#RCF-R174
+    - docs/spec/configuration/runtime-config.md#RCF-R178
+  finding: >-
+    At reviewed main f9fda28f1c9ffa4baaf3052c141e652c8593a080,
+    deploy/hybrid/bootstrap.py:38-45 derives Idempotency-Key only from path and
+    body, omitting method and conditional headers and replacing any supplied
+    key. configure at lines 214-230 creates or rebinds cloud-llm using the same
+    body with If-None-Match or a changing If-Match. Create cloud-llm -> config A,
+    rebind it to B, then return to A (for example, configure --config-version 1
+    --rebind-label after versions 1 -> 2):
+    the key for the last PUT equals the initial-create key. Server correctly
+    includes Kind and ExpectedRevision in its request digest at
+    internal/runtimeconfig/management.go:277-287, so the new operation fails
+    permanently with idempotency_conflict. assign at bootstrap.py:266-272 has
+    the same defect after another client removes cloud-llm and bootstrap tries
+    to restore the same principal label set at a later revision.
+  provenance: >-
+    git blame and git log attribute the helper to
+    baeb04eddf918141d342438eb66da5b2d573fcfa, feat(deploy): support a local
+    control plane with cloud runtimes. tasks/done/v415-004-macos-mesh-routes.yml
+    independently records that no task identifies this deployment addition.
+    introduced_by is intentionally absent because the introducing commit is
+    known but no corresponding task ID exists; V415-004 did not introduce it.
+  evidence: >-
+    A deterministic capture of the real API.request helper with the same
+    path/body and preconditions If-None-Match *, If-Match "2" and If-Match "4"
+    produced one distinct key for three distinct logical writes. Server's
+    management receipt decoder classifies a changed request or operation under
+    that key as a permanent conflict. Review did not execute this sequence
+    against a live deployment; the implementation task requires real-store API
+    regression evidence in addition to the request-capture test.
+  siblings: >-
+    Cover initial binding creation, rebinds including A -> B -> A, principal
+    label replacement after external edits, unchanged exact retries, explicit
+    caller keys and bodyless requests. Audit all API.request mutation callers,
+    including RuntimeConfig publication and credential creation, so the fix
+    preserves their existing exact-replay identity and secret handling.
+scope:
+  in:
+    - "Define one bootstrap request identity that includes the HTTP method, resource, canonical body and semantic precondition, retaining the same key for an exact retry and distinguishing each later logical mutation."
+    - "Handle explicit caller Idempotency-Key values deliberately rather than silently overwriting them; retain shared public grammar and length limits."
+    - "Preserve configure and assign CAS behavior, unrelated principal labels, immutable publication identities and existing receipt/reconciliation mechanisms."
+    - "Add real public API/PostgreSQL regressions that invoke the Python bootstrap request path and repeat configure/assign mutations with changing revisions and lost responses."
+    - "Update hybrid operator documentation with permanent conflict, stale revision and retry outcomes without logging credentials or environment values."
+  out:
+    - "New receipt tables or background journals, weaker Server digest comparison, automatic overwrite of stale revisions, credential rotation, live deployment or configured model changes."
+failure_outcomes:
+  - operation: "Publish/configure/assign through the hybrid bootstrap public API client"
+    success: "The intended CAS mutation commits once and reports the safe authoritative result; a later distinct mutation gets its own identity."
+    permanent: "Validation, stale precondition and explicit idempotency mismatch remain visible failures; do not retry a permanent conflict by inventing a new key or discarding the CAS precondition."
+    retryable: "Retry only under existing explicit invocation/error handling; retain the exact logical request identity while its outcome is unresolved."
+    ambiguous: "A timeout or lost response may have committed. Reconcile with the same key/request or the existing resource read before deciding a new mutation; repeated unchanged writes must not increment revision twice."
+    cancelled: "Do not roll back a possibly committed remote mutation or continue background writes after cancellation; existing remote receipts and resources remain available to the next explicit invocation."
+    timeout: "Retain the bounded 30-second API request timeout and one-response byte limit; timeout is not proof that the mutation failed."
+cardinality:
+  - collection: "Bootstrap mutation identity and fleet assignments"
+    expected: "One binding and one label mutation per selected principal when needed."
+    maximum: "Existing deployment host/slot and paged-principal bounds; one Idempotency-Key of at most 128 characters per request."
+    bound: "No mutation-history scan, new key registry or additional unbounded retries."
+lifecycle:
+  - entity: "Bootstrap RuntimeConfig bindings, principal labels and mutation receipts"
+    delete: "Existing public Operations deletion rules and CAS preconditions."
+    cascade: "No new persistence entity or cleanup path."
+    retention: "Existing Server receipts retain exact replay; client reruns preserve identities for unresolved attempts without retaining or exposing secrets."
+acceptance_criteria:
+  - id: A1
+    given: "A real PostgreSQL-backed public API and two valid immutable RuntimeConfig refs A and B"
+    when: "Bootstrap creates cloud-llm -> A, rebinds to B and rebinds back to A with current revisions"
+    then: "All three intended mutations succeed exactly once; keys differ for their semantic preconditions and repeated exact requests replay without advancing revision."
+  - id: A2
+    given: "A principal whose cloud-llm label bootstrap previously assigned and another client later removed"
+    when: "Bootstrap assign restores the same desired complete label set at the new revision"
+    then: "The restore succeeds without reusing the earlier mutation identity, preserves other labels and remains exact-replay safe."
+  - id: A3
+    given: "An API fixture that commits then loses the response, or returns a stale precondition, validation error or permanent idempotency conflict"
+    when: "The same logical operation is retried or the operator reruns configure/assign"
+    then: "Existing receipts/reads reconcile committed outcomes, no second semantic mutation is created from uncertainty, and permanent errors are not hidden by key regeneration."
+  - id: A4
+    given: "All bootstrap request callers, explicit valid caller keys and request-capture cases differing in method, path, body or conditional header"
+    when: "Keys are constructed and requests sent"
+    then: "Exact requests have stable identities, distinct logical mutations cannot collide by construction, explicit keys are respected, bodyless reads need no key, public grammar/bounds hold and secrets remain absent from logs."
+  - id: A5
+    given: "Request-capture, real bootstrap/public API regressions and the full affected package suites"
+    when: "They run against the original and corrected helper"
+    then: "The A -> B -> A and principal-restore cases fail on the original, pass on the fix, and configured real-store tests run rather than skip."
+tests:
+  - command: "make test-hybrid"
+    covers: [A3, A4, A5]
+  - command: >-
+      CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" go test -count=1 ./internal/httpapi/public ./internal/runtimeconfig
+    covers: [A1, A2, A3, A5]
+  - command: "make lint"
+    covers: [A1, A2, A3, A4, A5]
+validation:
+  environment: "Dedicated codex/v416-ui-ops-fixes worktree, locked Python 3.13 tooling, and separate UTF-8 PostgreSQL v416_ui database."
+  decisions:
+    - "The existing API.request boundary derives one stable key from normalized method, resource path, canonical JSON body and both CAS headers. Header names are case insensitive; duplicate aliases fail before transport. Explicit caller keys remain unchanged, and bodyless mutations also receive a key."
+    - "No automatic retry, new receipt mechanism or Server digest change. Exact retries retain the same request; configure/assign reruns first read the existing resource. Timeout and cancellation do not imply rollback. Permanent HTTP failures remain visible without provider body or credential output."
+  evidence:
+    - "The real Python configure/assign regressions fail against original 4c8a09bc797919bfc0e3ca8774f79bcffcab8a39: both A -> B -> A and principal-label restoration reach HTTP 409. They pass with the fix through the actual public HTTP handlers and PostgreSQL mutation receipts. Only unrelated Gateway credential provisioning uses the existing test fake."
+    - "Real-store cases prove exact replay without revision advancement, lost responses after commit, preservation of unrelated principal labels, unchanged reruns doing reads only, stale CAS, invalid targets and explicit idempotency-key conflicts."
+    - "make test-hybrid passed all 34 tests plus Ruff, formatting and shell syntax. Identity cases cover methods, paths, canonical bodies, both preconditions, explicit keys, bodyless reads/mutations, timeout/cancellation and suppressed secret error content."
+    - "With CONTRACTOR_TEST_DATABASE_URL set to the disposable database, go test -count=1 ./internal/httpapi/public ./internal/runtimeconfig passed both full packages; database tests ran rather than skipped."
+    - "Specification consistency, task consistency, Python test-fixture Ruff/format checks and git diff --check passed."
+  integration: Full make lint passed on the integrated implementation.
+
+implementation_commit: 0945d826600434df7ff589b907ccc20784da86bf
+integration_verification:
+  date: "2026-10-25"
+  revision: c2b8774febc4750146ab9af6e03da054c18a46e5
+  command: make lint
+  result: passed

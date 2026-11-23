@@ -1,0 +1,150 @@
+schema_version: '1.0'
+id: V62-019
+title: Derive check routing phase from the method registry
+milestone: audit-iterative-simplification-2026-10
+epic: audits
+kind: chore
+introduced_by: V62-007
+priority: P2
+status: completed
+depends_on:
+- V62-018
+languages:
+- go
+- python
+- typescript
+- yaml
+- json
+- markdown
+goal: Make registered schema and method the only authored semantic key; derive phase in the resolved route
+  and accepted plan.
+context:
+  authority: The user explicitly requested creation, sequential implementation, verification, task closure
+    and merge of the five reviewed simplifications on 2026-10-27.
+  finding: internal/config/auditprofile/check_methods.go:16 and OpenAPI AuditCheckMethodMapping repeat
+    phase already determined by internal/contracts/check_plans.go.
+  review: Read-only review of main 4d50b1cfc4961adad9dfa1fef160ef338cbd86ba and the accepted five-step
+    simplification plan.
+  specification:
+  - docs/spec/audits/audits.md
+  - docs/spec/configuration/catalog.md
+  - docs/spec/api/public-api.md
+scope:
+  in:
+  - Remove authored phase from profile mapping, public API and Studio; retain registry-derived phase in
+    resolved snapshots, projection and accepted plans.
+  - Update all Go/Python/UI readers, strict fixtures and generated clients together; reject removed authored
+    fields rather than accept a legacy form.
+  - Keep explicit Workflow bindings, exact Worker capability requirements and default/standard routing
+    behavior.
+  out:
+  - No new model authority, arbitrary Workflow routing, receipt/lease store or permissive legacy reader.
+  - No deployment, live model changes or modification of historical frozen evidence.
+acceptance_criteria:
+- id: A1
+  text: Every registered method selects its existing phase and route; unknown methods and incompatible
+    exact Worker tools fail.
+- id: A2
+  text: Authored phase is absent end to end; resolved phase remains deterministic and verified. Go/UI/OpenAPI/shared
+    fixtures agree.
+- id: A3
+  text: Renamed roles do not infer method authority; active-check policy and approval requirements are
+    unchanged.
+tests:
+- command: go test -tags=integration -count=1 ./internal/config/... ./internal/contracts ./internal/auditbaseline
+    ./internal/auditdomain ./internal/auditservice ./internal/auditcontroller
+  covers:
+  - A1
+  - A2
+  - A3
+- command: go test -tags=integration -count=1 ./internal/httpapi/public
+  covers:
+  - A1
+  - A2
+  - A3
+- command: go test -tags=integration -count=1 ./internal/auditstore/internal/pgstore && go test -count=1
+    ./tests/e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make verify-public-api verify-public-api-postgres test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make ui-verify
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-audit-iterative-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+failure_outcomes:
+  permanent: Invalid source, route, schema or exact bytes fail before target execution; no fallback.
+  retryable: Reuse existing bounded retries and original deadlines.
+  ambiguous: Reconcile existing receipt, generation, cursor and child intent; never append/recharge blindly.
+  cancelled: Join owned work and preserve immutable accepted evidence; partial staged work stays private.
+cardinality:
+  bound: Preserve existing per-slice rows/bytes, page/closure ceilings and canonical report bounds; no
+    whole-history hydration.
+lifecycle:
+  bound: Existing approval, pause, cancel, producer deletion and Audit purge remain authoritative.
+implementation_commit: 816e00630daa4f2e27a0598dbd14b78344afb2df
+verification:
+  date: '2026-10-27'
+  source_revision: 07d4962a76d65af60b9a69d727612d0bb2f1d6d5
+  results:
+  - Full required config/contracts/auditbaseline/auditdomain/auditservice/auditcontroller command passed
+    on integrated code; auditservice 132.489s and auditcontroller 66.415s.
+  - Full internal/httpapi/public with integration tag and dedicated PostgreSQL passed on equivalent server
+    commit 4e6b4678429c56639ae56c93b7c7cf9252e7b5bf (91.282s). Full internal/publicclient/... also passed;
+    both generated clients verified.
+  - Full pgstore and untagged tests/e2e passed (147.498s and 6.277s); after separate process fixture fixes,
+    full tests/e2e passed again (5.530s).
+  - 'make verify-public-api verify-public-api-postgres test-wire-cross-language passed: 285 fixtures,
+    344 Go and 237 Python shared tests; selected Python shared run 1339 passed.'
+  - 'Integrated make ui-verify passed: 196 files, 2446 tests passed and 1 declared expected failure, plus
+    17 Node server tests; lint, typecheck, generation check and build passed.'
+  - Temporary real-browser probe passed add/edit/validate/export at 390px in light/dark/black, with four-field
+    phase-free output; probe removed.
+  - make test-audit-iterative-e2e passed with all 5 required process cases and no skips after correcting
+    independently tracked V62-017/V62-018 test issues.
+  - make lint passed on final integrated implementation; shared authored matrix has 6 valid and 7 invalid
+    cases, preserving resolved phase/digest and exact Worker validation.
+  reports:
+    process:
+      path: .local/audit-iterative-gate/process-pv3qlwss/result.json
+      source:
+        revision: 07d4962a76d65af60b9a69d727612d0bb2f1d6d5
+        dirty: false
+      counts:
+        required: 5
+        passed: 6
+        skipped: 0
+      matrix:
+        path: tests/e2e/audit_iterative_matrix.yml
+        digest: sha256:ed8a6c51bc7a69fe36ec854f5c642cc5912491929392cdc91a3df001b23100e3
+      report_digest: sha256:5b1b93d7f012f856e1585cceb3bb5710db7ac4aee0dd74c5417b2c6ebb9d8145
+    owners: /private/tmp/v62-019-owners.log
+    fixture_owners: /private/tmp/v62-019-fixture-owners.log
+    contracts: /private/tmp/v62-019-contract-gates.log
+    ui: /private/tmp/v62-019-ui-integrated.log
+    browser: /private/tmp/v62-019-ui-browser.log
+    lint: /private/tmp/v62-019-final-lint.log
+  history:
+  - Initial lint required regenerated dependency documentation after the generated public client shrank;
+    make docs-dependencies fixed the generated artifact.
+  - First process verification exposed the removed-column SQL assertion and later detailed rerun exposed
+    premature findings review during finalization. V62-018 and V62-017 were reopened, repaired and verified
+    before closing this task. No production authorization behavior was changed for those test issues.
+  limits:
+  - No deployment, live-model quality evaluation or full release-verify run claimed.

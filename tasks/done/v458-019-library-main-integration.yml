@@ -1,0 +1,54 @@
+schema_version: "1.0"
+id: V458-019
+title: Integrate the approved production Library into main
+milestone: ui-consolidation-2026-10
+epic: ui
+kind: chore
+priority: P2
+status: completed
+implementation_commit: dafc31163c7cc0f874ca949f90de5bd2dc2da598
+depends_on: [V458-018]
+languages: [typescript, css]
+goal: Main contains the approved Check types, Workflows and Agents UI while preserving current main changes and primary working files.
+context:
+  authority: User 2026-11-17 requests merging the approved production Library.
+  source_head: 40665201807db20d0f5c2178295bed9d51212053
+  previous_main: f8d493993b87e3e6fccac2381bee924a27c2f532
+  boundary: Prepare a two-parent no-fast-forward merge from current main in the isolated UI checkout. Retain exact production UI inputs from V458-018; reconcile only generated task metadata. Preserve primary working bytes, modes and staged delta, including the dirty generated backlog. No deployment, database migration or live run.
+scope:
+  in:
+    - Merge V458-016 through V458-018, regenerate the committed backlog and verify the combined tree.
+    - Advance main to the reviewed merge while preserving all unrelated primary working files and index changes.
+    - Record merge verification and preservation evidence.
+  out:
+    - Product redesign, backend changes, demo deployment, modifying native OpenDesign archives or committing other work.
+acceptance_criteria:
+  - id: A1
+    text: Main contains the accepted Library implementation through a no-fast-forward merge and retains its independent scanner changes.
+  - id: A2
+    text: UI verification, lint, task/specification validation and focused compiled-browser catalog scenarios pass on the combined tree.
+  - id: A3
+    text: Every pre-existing primary working file retains exact bytes and mode and the staged delta remains unchanged after main advances.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2]
+  - command: git diff --check
+    covers: [A1, A2]
+  - command: cd ui && CONTRACTOR_UI_E2E_BASE_URL=http://127.0.0.1:17570 corepack pnpm exec playwright test e2e/catalog.spec.ts e2e/audit-presets.spec.ts --timeout=45000
+    covers: [A1, A2]
+  - command: Verify primary working-file hashes, modes and staged delta against the private pre-merge snapshot
+    covers: [A3]
+verification:
+  artifact: tasks/evidence/v458-019-library-main-integration.json
+  results:
+    - Fresh make ui-verify passed on the combined tree with 225 files, 2535 passing tests, one intentional negative test, 17 server tests and production build.
+    - Fresh make lint passed; both compiled-browser catalog scenarios passed. Task/specification validators and git diff checks passed.
+    - The complete UI tree equals the approved V458-018 source exactly. Backend, Runtime, shipped configs, API and non-UI test trees equal current main exactly; no production conflict required a code change.
+  preservation: Six unrelated primary working files have private byte/mode snapshots and an exact staged-delta hash. The overlapping generated backlog advances only its committed index base while retaining its working bytes. Final hashes are checked before and after advancing main.
+  delivery: Main advanced to the two-parent merge; all six primary working files and the exact staged delta verified unchanged. UI 0.11.36 is integrated; demo deployment was not requested.

@@ -1,0 +1,684 @@
+package scheduler
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"log/slog"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	inline "github.com/grauwolf32/contractor/internal/artifacts/blob/backends/postgres"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
+	"github.com/grauwolf32/contractor/internal/planner"
+	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
+	"github.com/grauwolf32/contractor/internal/stageresult"
+	"github.com/grauwolf32/contractor/internal/telemetry"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func TestPostgresDeferredRunningRunYieldsToPendingOtherOwner(t *testing.T) {
+	for _, scenario := range []string{"queue-paused", "capacity"} {
+		t.Run(scenario, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			defer cancel()
+			h := newDeferredPlacementHarness(t, ctx, nil)
+			settings, err := settingsstore.NewPostgresStore(h.pool).GetSchedulerSettings(ctx)
+			if err != nil || settings.MaxConcurrentRuns != 1 {
+				t.Fatalf("fixture lane limit = (%+v, %v), want 1", settings, err)
+			}
+			if scenario == "queue-paused" {
+				if _, err := h.store.UpdateOwnerQueueControl(ctx, runstore.UpdateOwnerQueueControlParams{
+					OwnerID: "user-1", ExpectedRevision: 0, Paused: true,
+				}); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				h.workers.allocator.reserveError = controlplane.ErrInsufficientCapacity
+			}
+			if worked, err := h.scheduler.RunOnce(ctx); !worked || !errors.Is(err, ErrDeferred) {
+				t.Fatalf("first Run did not defer: worked=%v err=%v", worked, err)
+			}
+			var deferred bool
+			if err := h.pool.QueryRow(ctx, `SELECT scheduler_deferred FROM workflow_runs WHERE run_id='run-1'`).Scan(&deferred); err != nil || !deferred {
+				t.Fatalf("deferred claim marker = (%v, %v)", deferred, err)
+			}
+			if scenario == "capacity" {
+				// The next owner's Run is placeable once capacity is available.
+				h.workers.allocator.reserveError = nil
+			}
+			workflowJSON, err := json.Marshal(h.workflow)
+			if err != nil {
+				t.Fatal(err)
+			}
+			other, err := runstoretest.CreateRun(ctx, h.store, runstore.CreateRunParams{
+				LaneClass: resolved.LaneClassModel,
+				RunID:     "run-other-owner", OwnerID: "user-2", WorkflowName: h.workflow.Ref.Name,
+				WorkflowVersion: h.workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
+				WorkflowSnapshot: workflowJSON, Parameters: map[string]string{"objective": "other owner's work"},
+				RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
+			})
+
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.store.TransitionRun(ctx, other.RunID, runstore.RunInitializing, runstore.RunPending,
+				runstore.Reason{Code: "awaiting_admission"}); err != nil {
+				t.Fatal(err)
+			}
+			claimed, err := h.store.ClaimRunnableRun(ctx, "next-poll", time.Minute, nil, resolved.LaneClassModel)
+			if err != nil || claimed.RunID != other.RunID {
+				t.Fatalf("next lane claim = (%+v, %v), want other owner's pending Run", claimed, err)
+			}
+			if err := h.store.ReleaseRunClaim(ctx, other.RunID, "next-poll"); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+type deferredPlacementHarness struct {
+	pool      *pgxpool.Pool
+	store     *runstore.PostgresStore
+	scheduler *Scheduler
+	workflow  resolved.ResolvedWorkflow
+	invoker   *postgresTestWorkerInvoker
+	workers   *memoryWorkers
+}
+
+func TestPostgresPlannerMetadataInspectionWithTransferSlotsSaturated(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	h := newDeferredPlacementHarness(t, ctx, nil)
+	service := artifacts.NewService(artifactStorage.Repository(h.pool))
+	inspector, err := planner.NewArtifactServiceInspector(service)
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifactRuntime = blob.NewRuntime(inline.Store{}, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	for range 4 {
+		_, release, err := artifactStorage.AcquireTransfer(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(release)
+	}
+	if _, _, err := artifactStorage.AcquireTransfer(ctx); !errors.Is(err, blob.ErrTransferCapacity) {
+		t.Fatalf("transfer gate was not saturated: %v", err)
+	}
+	ref := h.invoker.result.Artifacts["copied"]
+	metadata, err := inspector.Inspect(ctx, "run-1", ref)
+	if err != nil || metadata.MediaType != "text/plain" {
+		t.Fatalf("PostgreSQL metadata lookup = (%+v, %v)", metadata, err)
+	}
+	missing := ref
+	missing.Name = "missing"
+	if _, err := inspector.Inspect(ctx, "run-1", missing); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+		t.Fatalf("missing exact revision = %v", err)
+	}
+}
+
+// newDeferredPlacementHarness pins allocation rows during placement, as
+// production placement does, so a deferral cannot hide lost durable state.
+func newDeferredPlacementHarness(t *testing.T, ctx context.Context, wrap func(AtomicPersistence) AtomicPersistence, configure ...func(*resolved.ResolvedWorkflow)) deferredPlacementHarness {
+	t.Helper()
+	pool := isolatedSchedulerPool(t, ctx)
+	workflow := loadSchedulerWorkflow(t)
+	for _, configureWorkflow := range configure {
+		configureWorkflow(&workflow)
+	}
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
+	runStore := createSchedulerRun(t, ctx, store, artifactService, workflow)
+	workerWrite, err := runStore.Write(ctx, contracts.ArtifactRef{Namespace: "builder", Name: "copied"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("copied\n")}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessions, err := plannersession.New(store, plannersession.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspector, err := planner.NewArtifactServiceInspector(artifactService)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invoker := &postgresTestWorkerInvoker{result: stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "copied",
+		Artifacts: map[string]contracts.ArtifactRef{"copied": workerWrite.Ref},
+	}}
+	passthrough, err := planner.NewPassthroughFactory(sessions, invoker, inspector)
+	if err != nil {
+		t.Fatal(err)
+	}
+	planners, err := planner.NewRegistry(passthrough)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recovery, err := gatewayrecovery.New(gatewayrecovery.DefaultPolicy(), time.Minute, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clock := staticClock{now: time.Now().UTC()}
+	events := &eventRecorder{}
+	allocator := &memoryAllocator{
+		workflow: workflow, clock: clock, events: events, grants: map[string]controlplane.AllocationGrant{},
+		pin: pinStageAllocations(store),
+	}
+	workers := &memoryWorkers{allocator: allocator, workflow: workflow, clock: clock, events: events}
+	resolver, _ := NewArtifactServiceResolver(artifactService)
+	transactions, _ := NewPostgresPersistence(pool, artifactpgtest.NewStorage())
+	var persistence AtomicPersistence = transactions
+	if wrap != nil {
+		persistence = wrap(persistence)
+	}
+	workerSelection := workflow.Stages[workflow.EntryStage].ExecutionConfig.Agents["builder"]
+	credentialProvider, err := credentials.NewStaticProvider([]credentials.StaticEntry{{
+		Metadata: resolved.CredentialMetadata{
+			Ref: *workerSelection.Credential, LLMGateway: workerSelection.LLMGateway.Ref, Unrestricted: true,
+		},
+		Token: contracts.NewSecretString("scheduler-test-token"),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sequence := 0
+	scheduler, err := New(store, persistence, resolver, allocator, workers, planners, Options{
+		PlannerSessions: sessions,
+		PollInterval:    time.Second, LeaseScanInterval: time.Second, ClaimDuration: time.Minute, OperationTimeout: 5 * time.Second,
+		PlannerTimeout: 20 * time.Second, FinalizationTimeout: 5 * time.Second, AbortTimeout: 5 * time.Second,
+		RuntimeTransport: testSchedulerRuntimeTransport(), Credentials: credentialProvider, Clock: clock,
+		Settings: settingsstore.NewPostgresStore(pool), GatewayRecovery: recovery,
+		Reports: telemetry.NewRepository(pool),
+		NewID: func(prefix string) (string, error) {
+			sequence++
+			return prefix + strings.Repeat("x", sequence), nil
+		},
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return deferredPlacementHarness{pool, store, scheduler, workflow, invoker, workers}
+}
+
+type pauseBeforeResultProgression struct {
+	AtomicPersistence
+	store  *runstore.PostgresStore
+	paused bool
+}
+
+func (p *pauseBeforeResultProgression) CommitResultProgression(ctx context.Context, progression ResultProgression) error {
+	if !p.paused {
+		control, err := p.store.GetOwnerQueueControl(ctx, "user-1")
+		if err != nil {
+			return err
+		}
+		if _, err := p.store.UpdateOwnerQueueControl(ctx, runstore.UpdateOwnerQueueControlParams{
+			OwnerID: "user-1", ExpectedRevision: control.Revision, Paused: true,
+		}); err != nil {
+			return err
+		}
+		p.paused = true
+	}
+	return p.AtomicPersistence.CommitResultProgression(ctx, progression)
+}
+
+func TestPostgresPausedFinalizingRunYieldsToPendingOtherOwner(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	h := newDeferredPlacementHarness(t, ctx, nil, func(workflow *resolved.ResolvedWorkflow) {
+		stage := workflow.Stages[workflow.EntryStage]
+		build, review := stage, stage
+		build.WorkflowOutputs = map[string]string{}
+		build.On.Succeeded = resolved.TransitionAction{Kind: resolved.TransitionNext, NextStage: "review"}
+		review.Context.Artifacts = map[string]resolved.ContextArtifact{
+			"draft": {Namespace: "builder", Name: "copied", Required: true},
+		}
+		workflow.EntryStage = "build"
+		workflow.Stages = map[string]resolved.ResolvedStage{"build": build, "review": review}
+	})
+	if err := resolved.ValidateWorkflowGraph(h.workflow); err != nil {
+		t.Fatal(err)
+	}
+	pausing := &pauseBeforeResultProgression{AtomicPersistence: h.scheduler.persistence, store: h.store}
+	h.scheduler.persistence = pausing
+	if worked, err := h.scheduler.RunOnce(ctx); !worked || !errors.Is(err, ErrDeferred) || !pausing.paused {
+		t.Fatalf("finalizing Run did not defer on Queue Pause: worked=%v paused=%v err=%v", worked, pausing.paused, err)
+	}
+	executions, err := h.store.ListStageExecutions(ctx, "run-1")
+	if err != nil || len(executions) != 1 || executions[0].State != runstore.StageFinalizing {
+		t.Fatalf("paused Run did not retain finalizing Stage: %+v, %v", executions, err)
+	}
+	workflowJSON, err := json.Marshal(h.workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := runstoretest.CreateRun(ctx, h.store, runstore.CreateRunParams{
+		LaneClass: resolved.LaneClassModel,
+		RunID:     "run-other-owner", OwnerID: "user-2", WorkflowName: h.workflow.Ref.Name,
+		WorkflowVersion: h.workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
+		WorkflowSnapshot: workflowJSON, Parameters: map[string]string{"objective": "other owner's work"},
+		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.store.TransitionRun(ctx, other.RunID, runstore.RunInitializing, runstore.RunPending,
+		runstore.Reason{Code: "awaiting_admission"}); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := h.store.ClaimRunnableRun(ctx, "next-poll", time.Minute, nil, resolved.LaneClassModel)
+	if err != nil || claimed.RunID != other.RunID {
+		t.Fatalf("next claim = (%+v, %v), want other owner's pending Run", claimed, err)
+	}
+	if err := h.store.ReleaseRunClaim(ctx, other.RunID, "next-poll"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.store.TransitionRun(ctx, other.RunID, runstore.RunPending, runstore.RunFailed,
+		runstore.Reason{Code: "fixture_finished"}); err != nil {
+		t.Fatal(err)
+	}
+	control, err := h.store.GetOwnerQueueControl(ctx, "user-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.store.UpdateOwnerQueueControl(ctx, runstore.UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: control.Revision, Paused: false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if worked, err := h.scheduler.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("resumed finalizing Run = (%v, %v)", worked, err)
+	}
+	var deferred bool
+	if err := h.pool.QueryRow(ctx, `SELECT scheduler_deferred FROM workflow_runs WHERE run_id='run-1'`).Scan(&deferred); err != nil || deferred {
+		t.Fatalf("resumed Run kept deferred claim marker = (%v, %v)", deferred, err)
+	}
+}
+
+func (h deferredPlacementHarness) requireSingleSucceededStage(t *testing.T, ctx context.Context) {
+	t.Helper()
+	run, err := h.store.GetRun(ctx, "run-1")
+	if err != nil || run.State != runstore.RunSucceeded {
+		t.Fatalf("Run = (%s %+v, %v)", run.State, run.StateReason, err)
+	}
+	executions, err := h.store.ListStageExecutions(ctx, "run-1")
+	if err != nil || len(executions) != 1 || executions[0].State != runstore.StageSucceeded {
+		t.Fatalf("StageExecutions after admission = (%+v, %v)", executions, err)
+	}
+	allocations, err := h.store.ListStageAllocations(ctx, executions[0].StageExecutionID)
+	if err != nil || len(allocations) != 1 || allocations[0].ReleaseCompletedAt == nil {
+		t.Fatalf("Stage allocations = (%+v, %v)", allocations, err)
+	}
+}
+
+// A gateway admission denial must not leave pinned rows behind without live
+// grants, or the next claim aborts the Stage with control_plane_state_lost.
+func TestPostgresGatewayDeferralDoesNotLoseControlPlaneState(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	h := newDeferredPlacementHarness(t, ctx, nil)
+	store, scheduler, workflow := h.store, h.scheduler, h.workflow
+	var recoveries []func()
+	for _, reservation := range schedulerTestReservations(t, workflow.Stages[workflow.EntryStage]) {
+		for _, route := range reservationModelRoutes("user-1", reservation) {
+			recoveries = append(recoveries, blockRecoveryRoute(t, scheduler.options.GatewayRecovery, route, false))
+		}
+	}
+	if worked, err := scheduler.RunOnce(ctx); !errors.Is(err, ErrDeferred) || !worked {
+		t.Fatalf("blocked RunOnce = (%v, %v)", worked, err)
+	}
+	executions, err := store.ListStageExecutions(ctx, "run-1")
+	if err != nil || len(executions) != 1 || executions[0].State != runstore.StagePreparing || executions[0].AdmittedAt != nil {
+		t.Fatalf("deferred StageExecutions = (%+v, %v)", executions, err)
+	}
+	if h.invoker.calls != 0 || h.workers.prepareCalls != 0 {
+		t.Fatalf("blocked route reached Workers: invoker=%d prepare=%d", h.invoker.calls, h.workers.prepareCalls)
+	}
+	allocations, err := store.ListStageAllocations(ctx, executions[0].StageExecutionID)
+	if err != nil || len(allocations) != 0 {
+		t.Fatalf("deferred placement left allocations = (%+v, %v)", allocations, err)
+	}
+
+	for _, recover := range recoveries {
+		recover()
+	}
+
+	if worked, err := scheduler.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("unblocked RunOnce = (%v, %v)", worked, err)
+	}
+	h.requireSingleSucceededStage(t, ctx)
+}
+
+// A paused owner's pending Run must not pin a durable placement that
+// AdmitStage then rejects: that would hold Runtime slots for the whole pause.
+// Holding no placement, it is not even claimed until the Queue resumes
+// (SCH-R163).
+func TestPostgresQueuePauseDoesNotPlacePendingStage(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	h := newDeferredPlacementHarness(t, ctx, nil)
+	if _, err := h.pool.Exec(ctx, `
+UPDATE workflow_runs SET state = 'pending', started_at = NULL, state_reason_code = 'awaiting_admission'
+WHERE run_id = 'run-1'`); err != nil {
+		t.Fatal(err)
+	}
+	allocator := h.workers.allocator
+	allocator.reserveError = controlplane.ErrInsufficientCapacity
+	if worked, err := h.scheduler.RunOnce(ctx); !errors.Is(err, ErrDeferred) || !worked {
+		t.Fatalf("capacity-deferred RunOnce = (%v, %v)", worked, err)
+	}
+	setPaused := func(paused bool) {
+		t.Helper()
+		control, err := h.store.GetOwnerQueueControl(ctx, "user-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.store.UpdateOwnerQueueControl(ctx, runstore.UpdateOwnerQueueControlParams{
+			OwnerID: "user-1", ExpectedRevision: control.Revision, Paused: paused,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	setPaused(true)
+	allocator.reserveError = nil
+	reserveCalls := allocator.reserveCalls
+	if worked, err := h.scheduler.RunOnce(ctx); err != nil || worked {
+		t.Fatalf("paused RunOnce = (%v, %v), want no claimable work", worked, err)
+	}
+	executions, err := h.store.ListStageExecutions(ctx, "run-1")
+	if err != nil || len(executions) != 1 || executions[0].State != runstore.StagePreparing ||
+		executions[0].AdmittedAt != nil {
+		t.Fatalf("paused StageExecutions = (%v, %v)", stageExecutionStates(executions), err)
+	}
+	allocations, err := h.store.ListStageAllocations(ctx, executions[0].StageExecutionID)
+	if err != nil || len(allocations) != 0 || allocator.reserveCalls != reserveCalls || len(allocator.grants) != 0 {
+		t.Fatalf("paused placement = allocations:%d reserves:%d grants:%d err:%v",
+			len(allocations), allocator.reserveCalls-reserveCalls, len(allocator.grants), err)
+	}
+
+	setPaused(false)
+	if worked, err := h.scheduler.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("resumed RunOnce = (%v, %v)", worked, err)
+	}
+	h.requireSingleSucceededStage(t, ctx)
+}
+
+// pauseAfterClaimStore runs pause once, right after its next successful
+// claim: a pause that commits after the claim, which SCH-R163 no longer
+// sees, and before the lane's own Queue gates.
+type pauseAfterClaimStore struct {
+	Store
+	pause func()
+}
+
+func (s *pauseAfterClaimStore) ClaimRunnableRun(
+	ctx context.Context, claimID string, duration time.Duration, excluded []string, class resolved.LaneClass,
+) (runstore.WorkflowRun, error) {
+	run, err := s.Store.ClaimRunnableRun(ctx, claimID, duration, excluded, class)
+	if err == nil && s.pause != nil {
+		s.pause()
+		s.pause = nil
+	}
+	return run, err
+}
+
+// A pause that commits after the claim of a pending Run whose Stage is not
+// placed yet is found by the pre-placement Queue probe: the lane defers the
+// Run without reserving a Runtime slot, and after resume the Stage is placed
+// and succeeds.
+func TestPostgresQueuePauseAfterClaimDoesNotPlacePendingStage(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	h := newDeferredPlacementHarness(t, ctx, nil)
+	if _, err := h.pool.Exec(ctx, `
+UPDATE workflow_runs SET state = 'pending', started_at = NULL, state_reason_code = 'awaiting_admission'
+WHERE run_id = 'run-1'`); err != nil {
+		t.Fatal(err)
+	}
+	allocator := h.workers.allocator
+	allocator.reserveError = controlplane.ErrInsufficientCapacity
+	if worked, err := h.scheduler.RunOnce(ctx); !errors.Is(err, ErrDeferred) || !worked {
+		t.Fatalf("capacity-deferred RunOnce = (%v, %v)", worked, err)
+	}
+	allocator.reserveError = nil
+	setPaused := func(paused bool) {
+		t.Helper()
+		control, err := h.store.GetOwnerQueueControl(ctx, "user-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.store.UpdateOwnerQueueControl(ctx, runstore.UpdateOwnerQueueControlParams{
+			OwnerID: "user-1", ExpectedRevision: control.Revision, Paused: paused,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.scheduler.store = &pauseAfterClaimStore{Store: h.store, pause: func() { setPaused(true) }}
+	reserveCalls := allocator.reserveCalls
+	if worked, err := h.scheduler.RunOnce(ctx); !errors.Is(err, ErrDeferred) || !worked {
+		t.Fatalf("RunOnce paused after its claim = (%v, %v), want deferred", worked, err)
+	}
+	executions, err := h.store.ListStageExecutions(ctx, "run-1")
+	if err != nil || len(executions) != 1 || executions[0].State != runstore.StagePreparing ||
+		executions[0].AdmittedAt != nil {
+		t.Fatalf("paused StageExecutions = (%v, %v)", stageExecutionStates(executions), err)
+	}
+	allocations, err := h.store.ListStageAllocations(ctx, executions[0].StageExecutionID)
+	if err != nil || len(allocations) != 0 || allocator.reserveCalls != reserveCalls || len(allocator.grants) != 0 {
+		t.Fatalf("paused placement = allocations:%d reserves:%d grants:%d err:%v",
+			len(allocations), allocator.reserveCalls-reserveCalls, len(allocator.grants), err)
+	}
+	requireRunState(t, ctx, h, runstore.RunPending)
+
+	setPaused(false)
+	if worked, err := h.scheduler.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("resumed RunOnce = (%v, %v)", worked, err)
+	}
+	h.requireSingleSucceededStage(t, ctx)
+}
+
+type failOnceAdmitPersistence struct {
+	AtomicPersistence
+	failed bool
+}
+
+func (p *failOnceAdmitPersistence) AdmitStage(ctx context.Context, runID, stageID string) (runstore.StageExecution, error) {
+	if !p.failed {
+		p.failed = true
+		return runstore.StageExecution{}, errors.New("transient admission failure")
+	}
+	return p.AtomicPersistence.AdmitStage(ctx, runID, stageID)
+}
+
+// A deferral after durable placement keeps the committed reservation live, so
+// the next claim reuses it instead of aborting with control_plane_state_lost.
+func TestPostgresAdmitStageFailureReusesDurablePlacement(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	failing := &failOnceAdmitPersistence{}
+	h := newDeferredPlacementHarness(t, ctx, func(persistence AtomicPersistence) AtomicPersistence {
+		failing.AtomicPersistence = persistence
+		return failing
+	})
+	if worked, err := h.scheduler.RunOnce(ctx); err == nil || !worked || !failing.failed {
+		t.Fatalf("failed admission RunOnce = (%v, %v)", worked, err)
+	}
+	executions, err := h.store.ListStageExecutions(ctx, "run-1")
+	if err != nil || len(executions) != 1 || executions[0].State != runstore.StagePreparing {
+		t.Fatalf("StageExecutions after failed admission = (%+v, %v)", executions, err)
+	}
+	if worked, err := h.scheduler.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("retried RunOnce = (%v, %v)", worked, err)
+	}
+	h.requireSingleSucceededStage(t, ctx)
+	// Completed invocation bindings are removed, including on reused placement.
+	if _, err := h.scheduler.options.GatewayRecovery.Update(ctx, "ended-allocation",
+		gatewayrecovery.Request{Model: "model", RequestID: "late", Action: "acquire"}); !gatewayrecovery.IsUnavailable(err) {
+		t.Fatalf("ended allocation: %v", err)
+	}
+
+}
+
+// Failing a Run the Scheduler cannot progress must also end its active Stage,
+// so terminal allocation recovery releases the allocation it still holds.
+func TestPostgresFailActiveRunTerminatesStageAndReleasesAllocations(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		cancel     bool
+		runState   runstore.WorkflowRunState
+		stageState runstore.StageExecutionState
+	}{
+		{"failed", false, runstore.RunFailed, runstore.StageInterrupted},
+		{"cancelling", true, runstore.RunCancelled, runstore.StageCancelled},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			defer cancel()
+			failing := &failOnceAdmitPersistence{}
+			h := newDeferredPlacementHarness(t, ctx, func(persistence AtomicPersistence) AtomicPersistence {
+				failing.AtomicPersistence = persistence
+				return failing
+			})
+			if worked, err := h.scheduler.RunOnce(ctx); err == nil || !worked {
+				t.Fatalf("placement RunOnce = (%v, %v)", worked, err)
+			}
+			if test.cancel {
+				if _, err := h.store.RequestRunCancellation(ctx, "run-1", runstore.WorkflowRunCancellation{
+					Code: runstore.CancellationUserRequested, RequestedAt: time.Now(),
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := h.scheduler.failInvalidRunState(fixtureClaim(t, ctx, h.pool, "run-1"), "run-1", errors.New("invalid state")); err != nil {
+				t.Fatal(err)
+			}
+			run, err := h.store.GetRun(ctx, "run-1")
+			if err != nil || run.State != test.runState {
+				t.Fatalf("Run = (%s %+v, %v)", run.State, run.StateReason, err)
+			}
+			executions, err := h.store.ListStageExecutions(ctx, "run-1")
+			if err != nil || len(executions) != 1 || executions[0].State != test.stageState ||
+				executions[0].Termination == nil || executions[0].Termination.Phase != runstore.TerminationPreparing {
+				t.Fatalf("StageExecutions = (%+v, %v)", executions, err)
+			}
+			if _, err := h.scheduler.RunOnce(ctx); err != nil {
+				t.Fatal(err)
+			}
+			allocations, err := h.store.ListStageAllocations(ctx, executions[0].StageExecutionID)
+			if err != nil || len(allocations) != 1 || allocations[0].ReleaseCompletedAt == nil {
+				t.Fatalf("Stage allocations after recovery = (%+v, %v)", allocations, err)
+			}
+			if _, err := h.workers.allocator.GetGrant(allocations[0].AllocationID); !errors.Is(err, controlplane.ErrAllocationNotFound) {
+				t.Fatalf("allocation grant after recovery = %v", err)
+			}
+		})
+	}
+}
+
+func stageExecutionStates(executions []runstore.StageExecution) []runstore.StageExecutionState {
+	states := make([]runstore.StageExecutionState, 0, len(executions))
+	for _, execution := range executions {
+		states = append(states, execution.State)
+	}
+	return states
+}
+
+type failOnceResultCommitPersistence struct {
+	AtomicPersistence
+	failed bool
+}
+
+func (p *failOnceResultCommitPersistence) CommitResultProgression(ctx context.Context, value ResultProgression) error {
+	if !p.failed {
+		p.failed = true
+		return errors.New("transient result commit failure")
+	}
+	return p.AtomicPersistence.CommitResultProgression(ctx, value)
+}
+
+// A finalizing Stage already won its result race, so failing the Run accepts
+// that immutable candidate instead of leaving a non-terminal Stage whose
+// allocations terminal recovery would never release.
+func TestPostgresFailActiveRunAcceptsFinalizingCandidateAndReleasesAllocations(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		cancel   bool
+		runState runstore.WorkflowRunState
+	}{
+		{"failed", false, runstore.RunFailed},
+		{"cancelling", true, runstore.RunCancelled},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			defer cancel()
+			failing := &failOnceResultCommitPersistence{}
+			h := newDeferredPlacementHarness(t, ctx, func(persistence AtomicPersistence) AtomicPersistence {
+				failing.AtomicPersistence = persistence
+				return failing
+			})
+			if worked, err := h.scheduler.RunOnce(ctx); err == nil || !worked || !failing.failed {
+				t.Fatalf("interrupted result commit RunOnce = (%v, %v)", worked, err)
+			}
+			executions, err := h.store.ListStageExecutions(ctx, "run-1")
+			if err != nil || len(executions) != 1 || executions[0].State != runstore.StageFinalizing {
+				t.Fatalf("StageExecutions before Run failure = (%v, %v)", stageExecutionStates(executions), err)
+			}
+			if test.cancel {
+				if _, err := h.store.RequestRunCancellation(ctx, "run-1", runstore.WorkflowRunCancellation{
+					Code: runstore.CancellationUserRequested, RequestedAt: time.Now(),
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := h.scheduler.failInvalidRunState(fixtureClaim(t, ctx, h.pool, "run-1"), "run-1", errors.New("invalid state")); err != nil {
+				t.Fatal(err)
+			}
+			run, err := h.store.GetRun(ctx, "run-1")
+			if err != nil || run.State != test.runState {
+				t.Fatalf("Run = (%s %+v, %v)", run.State, run.StateReason, err)
+			}
+			executions, err = h.store.ListStageExecutions(ctx, "run-1")
+			if err != nil || len(executions) != 1 || executions[0].State != runstore.StageSucceeded ||
+				executions[0].AcceptedResult == nil || executions[0].Termination != nil {
+				t.Fatalf("StageExecutions after Run failure = (%v, %v)", stageExecutionStates(executions), err)
+			}
+			if _, err := h.scheduler.RunOnce(ctx); err != nil {
+				t.Fatal(err)
+			}
+			allocations, err := h.store.ListStageAllocations(ctx, executions[0].StageExecutionID)
+			if err != nil || len(allocations) != 1 || allocations[0].ReleaseCompletedAt == nil {
+				t.Fatalf("Stage allocations after recovery = (%+v, %v)", allocations, err)
+			}
+			if _, err := h.workers.allocator.GetGrant(allocations[0].AllocationID); !errors.Is(err, controlplane.ErrAllocationNotFound) {
+				t.Fatalf("allocation grant after recovery = %v", err)
+			}
+			if err := rundeletion.New(h.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, "user-1", "run-1"); err != nil {
+				t.Fatalf("delete released terminal Run: %v", err)
+			}
+		})
+	}
+}

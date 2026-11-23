@@ -1,0 +1,13 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: engagement_run_fixture_worker, version: "1"}
+spec:
+  description: Exercises explicit HTTP requests in an ordinary Run
+  runtime: adk@1
+  instructions: {ref: instructions/engagement-run-fixture.md}
+  toolsets:
+    - ref: text-artifacts@1
+      tools: [write_text_artifact]
+    - ref: http-tools@1
+      tools: [http_request, http_credentials]
+  sandboxProfile: local-workdir@1

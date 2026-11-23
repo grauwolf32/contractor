@@ -1,0 +1,238 @@
+import {
+  CONFIG_ID,
+  CONFIG_VERSION,
+  CONFIGURATION_NAME,
+  RESOURCE_ID,
+  stringRule,
+} from "./contract";
+import type { PublicAPI } from "./client";
+import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
+import type { components } from "./generated/public";
+import {
+  canonicalOrder,
+  canonicalRunRuntimeConfiguration,
+} from "./runtime-configuration";
+
+const WORKFLOW_PAGE_SIZE = 50;
+const REFERENCE_PAGE_SIZE = 50;
+// The public ConfigId, ConfigurationName and ConfigVersion rules.
+export const CONFIG_ID_PATTERN = CONFIG_ID;
+export const CONFIG_NAME_PATTERN = CONFIGURATION_NAME;
+export const CONFIG_VERSION_PATTERN = CONFIG_VERSION;
+const SELECTOR = stringRule("Selector");
+
+/** An exact `<name>@<version>` configuration selector (public Selector). */
+export function isConfigSelector(value: string): boolean {
+  return SELECTOR.test(value);
+}
+
+type WorkflowPage = components["schemas"]["WorkflowPage"];
+export type WorkflowResource = components["schemas"]["WorkflowResource"];
+export type WorkflowSummary = components["schemas"]["WorkflowSummary"];
+type ConfigurationKind = components["schemas"]["ConfigurationKind"];
+type ConfigurationPage = components["schemas"]["ConfigurationPage"];
+export type ConfigurationResource =
+  components["schemas"]["ConfigurationResource"];
+type CredentialPage = components["schemas"]["CredentialPage"];
+export type CreateRunRequest = components["schemas"]["CreateRunRequest"];
+type CreateRunResponse = components["schemas"]["CreateRunResponse"];
+
+interface PageRequest {
+  cursor?: string;
+}
+
+interface CatalogPageRequest extends PageRequest {
+  q?: string;
+  name?: string;
+  signal?: AbortSignal;
+}
+
+function requireWorkflowIdentity(name: string, version: string): void {
+  if (
+    !CONFIG_NAME_PATTERN.test(name) ||
+    !CONFIG_VERSION_PATTERN.test(version)
+  ) {
+    throw new TypeError("Workflow identity is invalid");
+  }
+}
+
+export async function listWorkflows(
+  api: PublicAPI,
+  request: CatalogPageRequest = {},
+): Promise<WorkflowPage> {
+  requireCatalogRequest(request);
+  const result = await api.request((client) =>
+    client.GET("/v1/workflows", {
+      params: {
+        query: {
+          limit: WORKFLOW_PAGE_SIZE,
+          ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+          ...(request.q === undefined ? {} : { q: request.q }),
+          ...(request.name === undefined ? {} : { name: request.name }),
+        },
+      },
+      ...(request.signal === undefined ? {} : { signal: request.signal }),
+    }),
+  );
+  return requireData(result);
+}
+
+export async function getWorkflow(
+  api: PublicAPI,
+  name: string,
+  version: string,
+  signal?: AbortSignal,
+): Promise<WorkflowResource> {
+  requireWorkflowIdentity(name, version);
+  const result = await api.request((client) =>
+    client.GET("/v1/workflows/{name}/versions/{version}", {
+      params: { path: { name, version } },
+      ...(signal === undefined ? {} : { signal }),
+    }),
+  );
+  return requireData(result);
+}
+
+export async function listConfigurations(
+  api: PublicAPI,
+  kind: ConfigurationKind,
+  request: CatalogPageRequest = {},
+): Promise<ConfigurationPage> {
+  requireCatalogRequest(request);
+  const result = await api.request((client) =>
+    client.GET("/v1/configurations/{kind}", {
+      params: {
+        path: { kind },
+        query: {
+          limit: REFERENCE_PAGE_SIZE,
+          ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+          ...(request.q === undefined ? {} : { q: request.q }),
+          ...(request.name === undefined ? {} : { name: request.name }),
+        },
+      },
+      ...(request.signal === undefined ? {} : { signal: request.signal }),
+    }),
+  );
+  const page = requireData(result);
+  page.items.forEach((item) =>
+    requireCanonicalConfiguration(item, result.response.status),
+  );
+  return page;
+}
+
+/**
+ * An Agent template lists its Skills in the Server's canonical order (by
+ * name), which the schema cannot express.
+ */
+export function requireCanonicalConfiguration(
+  resource: ConfigurationResource,
+  status: number,
+): ConfigurationResource {
+  const skills = "skills" in resource.body ? resource.body.skills : undefined;
+  if (!canonicalOrder((skills ?? []).map((skill) => skill.name))) {
+    throw invalidAPIResponse(
+      status,
+      "Server returned an invalid configuration resource",
+    );
+  }
+  return resource;
+}
+
+function requireCatalogRequest(request: CatalogPageRequest): void {
+  if (request.q !== undefined && Array.from(request.q).length > 200) {
+    throw new TypeError("Catalog search exceeds 200 Unicode characters");
+  }
+  if (request.name !== undefined && !CONFIG_NAME_PATTERN.test(request.name)) {
+    throw new TypeError("Catalog exact name is invalid");
+  }
+}
+
+export async function listCredentials(
+  api: PublicAPI,
+  request: PageRequest = {},
+): Promise<CredentialPage> {
+  const result = await api.request((client) =>
+    client.GET("/v1/operations/credentials", {
+      params: {
+        query: {
+          limit: REFERENCE_PAGE_SIZE,
+          ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+        },
+      },
+    }),
+  );
+  return requireData(result);
+}
+
+function invalidRunResponse(status: number): PublicAPIError {
+  return invalidAPIResponse(
+    status,
+    "Server returned an invalid Run creation response",
+  );
+}
+
+export async function createRun(
+  api: PublicAPI,
+  request: CreateRunRequest,
+  idempotencyKey: string,
+): Promise<CreateRunResponse> {
+  const mutationHeaders = api.mutationHeaders({ idempotencyKey });
+  const validatedKey = mutationHeaders.get("Idempotency-Key");
+  if (validatedKey === null) {
+    throw new TypeError("Run creation requires an idempotency key");
+  }
+  const result = await api.request((client) =>
+    client.POST("/v1/runs", {
+      params: { header: { "Idempotency-Key": validatedKey } },
+      body: request,
+    }),
+  );
+  return requireCreateRunResponse(result, undefined);
+}
+
+export async function createProjectRun(
+  api: PublicAPI,
+  projectId: string,
+  request: CreateRunRequest,
+  idempotencyKey: string,
+): Promise<CreateRunResponse> {
+  if (!RESOURCE_ID.test(projectId)) {
+    throw new TypeError("Project ID is invalid");
+  }
+  const mutationHeaders = api.mutationHeaders({ idempotencyKey });
+  const validatedKey = mutationHeaders.get("Idempotency-Key");
+  if (validatedKey === null) {
+    throw new TypeError("Project Run creation requires an idempotency key");
+  }
+  const result = await api.request((client) =>
+    client.POST("/v1/projects/{projectId}/runs", {
+      params: {
+        path: { projectId },
+        header: { "Idempotency-Key": validatedKey },
+      },
+      body: request,
+    }),
+  );
+  return requireCreateRunResponse(result, projectId);
+}
+
+function requireCreateRunResponse(
+  result: {
+    data?: CreateRunResponse;
+    error?: unknown;
+    response: Response;
+  },
+  expectedProjectId: string | undefined,
+): CreateRunResponse {
+  const response = requireData(result);
+  if (
+    // A Project Run answers for that Project; an owner Run has none.
+    response.projectId !== expectedProjectId ||
+    // Runtime labels and pins are in the Server's canonical order.
+    !canonicalOrder(response.runtimeLabels) ||
+    !canonicalRunRuntimeConfiguration(response.runtimeConfiguration)
+  ) {
+    throw invalidRunResponse(result.response.status);
+  }
+  return response;
+}

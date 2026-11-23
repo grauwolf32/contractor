@@ -1,0 +1,249 @@
+schema_version: '1.0'
+id: V469-002
+title: Run OpenCode in one retained Audit environment through existing A2A
+milestone: opencode-audit-environments-2026-11
+epic: execution-core
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V469-001
+languages:
+- go
+- python
+- yaml
+- markdown
+goal: An Audit can prepare an application with OpenCode and use the same files, packages and service in
+  a later ordinary Run.
+demonstration: Through the public Audit/Run path and real PostgreSQL/Runtime/Podman, two sequential supporting
+  tasks execute in the same exact container. The first starts the application on a declared port; the
+  second modifies a file and verifies the application, with exact output artifacts retained by ordinary
+  collection.
+context:
+  authority: 'User request 2026-11-16: break proposal 0048 into tasks with minimal changes and explain
+    the design with diagrams. User decisions 2026-11-16: one retained container per Audit; application
+    ports are declared at container creation; dynamic publish_service and forwarder containers are outside
+    the first slice. Pause and terminal Audit stop the container, retaining files and installed packages
+    until explicit Audit deletion; continuation starts the same container. This request authorizes task
+    planning, not implementation, live-model calls or deployment. The supporting-task scope, fresh allocation
+    sessions, Linux-first placement and reuse of existing ownership are agent proposals for minimizing
+    changes, recorded in proposal 0048; they are not additional user decisions.'
+  proposal: docs/proposals/0048-opencode-audit-environments.md
+  specification:
+  - docs/spec/execution/runtime-agent.md#RTA-R1
+  - docs/spec/execution/worker.md#WRK-R65
+  - docs/spec/configuration/agent-templates.md#TPL-R3
+  - docs/spec/tools/code-execution.md#EXE-R123
+  - docs/spec/audits/common-contract.md#ACT-R2
+  - docs/spec/artifacts/artifact-store.md#ART-R1
+  - docs/spec/execution/control-plane.md#CTL-R1
+  - docs/spec/execution/scheduler.md#SCH-R1
+  - docs/spec/configuration/runtime-config.md#RCF-R1
+  - docs/spec/platform/persistence.md#PER-R24
+  - docs/spec/platform/security.md#SEC-R1
+  - docs/spec/artifacts/retention-and-deletion.md#DEL-R17
+  boundary: Keep the existing Audit -> ordinary Run -> Planner -> allocation A2A path. The Runtime adapter
+    owns OpenCode protocol parsing and WorkerCompletion; ArtifactStore owns immutable outputs. Audit owns
+    durable environment identity and desired lifecycle; the existing Runtime/Podman owner enforces exact
+    host resources and stop. Extend existing allocation preparation and Audit reconciliation ports with
+    concrete callers; do not add a second coordinator, generic provider framework, receipt table or independent
+    lease system. Supporting tasks publish ordinary material outputs, not a fabricated hypothesis/check
+    result.
+  implementation_entry: Implementation is not started by this planning change. Complete dependencies and
+    verify their recorded decisions before taking the task.
+  entry_evidence: V469-001 must conclude go with a pinned transport/version, verified package install/cancellation
+    and enforceable disk/budget limits. No source-level redesign is authorized by an inconclusive prototype.
+  minimal_tradeoff: Supporting work uses ordinary material output slots. Full audit-results@2 tools, security
+    checks/findings and arbitrary native OpenCode extensions are outside this slice. Existing common collector
+    already accepts supporting outputs without a logical result slot.
+  decision_record: The retained Audit container is the user-selected direction. An allocation-local container
+    plus prebuilt image would be simpler but would lose packages/files installed by earlier Runs. Reopen
+    the plan only if V469-001 shows retained rootless ownership, cancellation or finite disk/resource
+    bounds need a separate subsystem; record the smaller options before production work.
+scope:
+  in:
+  - Implement the one opencode@1 factory and selected private transport proved by V469-001 behind the
+    existing Runtime A2A endpoint.
+  - Add the minimum typed configuration/capability and trusted allocation projection for the actual caller;
+    derive authority from persisted Audit execution membership through the existing allocation-preparation
+    composition port.
+  - Persist one environment identity, placement, creation image/config digests and fixed port mappings
+    with the Audit owner. Prefer fields on the existing Audit row over a 1:1 table; select storage using
+    the measured reader/update needs from V469-001.
+  - Extend the existing Podman owner for explicit retained-Audit ownership; reuse engine invocation, private
+    locks, lifecycle operations and resource limits. Preserve the allocation-container cleanup contract.
+  - Hydrate pinned source inputs only when creating the environment, pass later invocation material through
+    bounded staging, and export explicitly declared regular files with exact provenance through existing
+    Artifact APIs.
+  - Support normal release, exclusive acquisition, invocation cancellation, whole-container stop fallback,
+    pause-after-drain, terminal stop and confirmed deletion in the first production path; V469-003 adds
+    adversarial recovery conformance, not missing safety.
+  - Update owning specs, limit/error/failure/lifecycle registries, architecture and shared wire cases.
+    Update OpenAPI and both generated clients for public changes; update table ownership/ERD for changed
+    relations or cross-package readers.
+  out:
+  - Dynamic service publication, forwarder containers, multiple environments per Audit, VM migration or
+    automatic cloud provisioning.
+  - Controlled sandbox HTTP bridge, transparent interception, VPN, automatic user tunnels or public application
+    hosting; no dependencies on V410-037 or V411-013.
+  - A new workflow engine, custom OpenCode A2A wrapper, transferring all Contractor toolsets/Skills/MCP
+    into OpenCode, or automatic Findings/hypothesis production.
+  - Cross-allocation conversation continuation, automatic model substitution, compatibility readers or
+    modifying active deployments.
+requirements:
+- id: R1
+  text: 'No new worker selection or execution graph: AgentTemplate selects the adapter, Workflow selects
+    model policies, existing Run/Scheduler/Planner invoke it. Unsupported Contractor toolsets, compaction
+    or trusted check-completion modes fail admission explicitly.'
+- id: R2
+  text: One Audit has one exact retained container and one mutating allocation. Derive environment use
+    from accepted work; reuse existing claims/Run allocation ownership and an indexed Audit-owned reservation,
+    without another claim table.
+- id: R3
+  text: The image and initial container ports are operator-controlled and immutable for this environment.
+    Rootless namespace UID 0 and writable rootfs permit package installation; host root/socket mounts
+    and arbitrary Podman flags are not exposed.
+- id: R4
+  text: Use operator deployment egress for package repositories and application dependencies. Do not route
+    all downloads through engagement target origins, inherit target credentials or promise controlled
+    HTTP accounting. Model/Gateway traffic remains on its configured route.
+- id: R5
+  text: The deployment must provide a dedicated placement identity and shared Podman owner. Start on one
+    Linux host; the same mechanism may run on a selected cloud VM without adding cloud orchestration or
+    tunnels.
+- id: R6
+  text: A fresh allocation gets a fresh OpenCode session; sequential shared invocations within that allocation
+    reuse its explicit session ID. Sessions and adapter-owned secrets are ephemeral; application files
+    and installed packages persist.
+- id: R7
+  text: Runtime validates and freezes exported content, builds completion/progress and records only observed
+    usage. Missing counters are unavailable, and admission rejects budgets the selected backend cannot
+    enforce. No model-authored final structured package.
+- id: R8
+  text: Normal successful release keeps the app running while Audit is active and releases the Runtime
+    slot. Abnormal stop may stop the whole container; confirmed stop precedes reuse and transient configuration
+    removal.
+- id: R9
+  text: Apply the exact numeric bounds and compatible configuration shape established by V469-001 in Go,
+    Python, OpenAPI and shared fixtures. If a separate network/resource service proves necessary, stop
+    and file its prerequisite instead of expanding this task.
+- id: R10
+  text: Use an adapter-owned ephemeral configuration/state directory and revoke its model credentials
+    on release. Namespace-root code can read the credentials supplied to it; do not claim erasure of workload-created
+    copies or isolation of its app from its own root process. Record this execution trust boundary, keep
+    host secrets out, and exclude a new durable application-secret facility.
+failure_outcomes:
+- operation: Prepare, invoke or stop the exact Audit environment
+  permanent: Reject unsupported configuration, unavailable required capability, foreign owner, wrong image/container
+    identity or over-bound input before work. Use owning classified outcomes; no fallback executor or
+    model.
+  retryable: Only bounded read/reconciliation retries under the original deadline; do not repeat possibly
+    executed prompts or shell operations.
+  ambiguous: Inspect the original container/session/operation identity. Quarantine uncertain ownership
+    and do not dispatch another mutating allocation until stop or prior outcome is established.
+  cancelled: Join adapter, descendants and publishers through allocation ownership. If executor-only stop
+    cannot be proven, stop the same whole container while retaining its writable layer.
+  timeout: Invocation deadline and finite prepare/stop/reconciliation budgets are distinct. No background
+    invocation may survive release.
+- operation: Reserve environment ownership and persist create intent before Podman create
+  permanent: Reject invalid settings/foreign Audit through existing classified validation; no external
+    create after rejected intent.
+  retryable: Existing storage_transaction_conflict maps to HTTP 503 where public; use existing bounded
+    claim/retry policy.
+  ambiguous: Reconcile the original intent and exact container identity; never allocate a replacement
+    simply because acknowledgement was lost.
+  cancelled: Release the existing reservation only after external creation is settled or recorded for
+    reconciliation.
+  timeout: Use existing storage deadlines and a separate finite Podman preparation deadline, fixed by
+    V469-001.
+- operation: Export declared files and publish ordinary immutable Artifact outputs
+  permanent: Unsafe/symlink/out-of-root, oversized or malformed export is rejected without a fabricated
+    successful completion.
+  retryable: Use existing bounded Artifact transport behavior, retaining the same publication identity.
+  ambiguous: Read the existing Artifact publication receipt; never rerun the OpenCode prompt to recover
+    an upload acknowledgement.
+  cancelled: Join snapshot/export/publication before releasing allocation ownership; retain existing publication
+    receipts.
+  timeout: Use Artifact operation deadlines bounded by allocation time; no publisher outlives release.
+cardinality:
+- collection: Audit environments, allocations and host resources
+  expected: One environment, one writer and one application port in the end-to-end demonstrator.
+  maximum: One environment per Audit and one mutating allocation per environment. The demonstrator has
+    one declared application port; the finite production port, retained-environment, rootfs/log/output
+    byte and deadline limits are measured and fixed in V469-001 before production implementation. Existing
+    source/artifact and Podman CPU/RAM/PID bounds remain. No whole-history scan, unbounded container discovery
+    or implicit installation on startup.
+  bound: Use indexed per-Audit/host lookup and bounded reconciliation pages; finite stream frames, output
+    bytes, process trees and cleanup work.
+lifecycle:
+- entity: Audit-owned container and allocation-owned OpenCode execution
+  delete: Audit/Project deletion drains users, confirms exact container/network removal and then purges
+    ownership. An unreachable host leaves cleanup pending.
+  cascade: Use the existing Audit deletion path; ordinary Run deletion cannot remove the Audit container
+    or retained outputs.
+  retention: Normal successful allocation release preserves the running app while Audit is active. Pause
+    drains current Runs before stop; terminal Audit stops it. Rootfs persists until explicit Audit deletion.
+    Resume of a paused Audit restarts the exact container; no terminal-Audit reopening is added; processes
+    restart from the declared supervisor configuration, not a RAM snapshot.
+acceptance_criteria:
+- id: A1
+  given: An active Audit with pinned source and one configured application port
+  when: two sequential supporting tasks run through the real Server/Runtime path
+  then: both use the same container, installed package and service; exact ordinary outputs are retained
+    without semantic verdicts.
+- id: A2
+  given: An owned environment and competing or stale allocations
+  when: acquisition, create or prepare is repeated, or a foreign owner/placement is presented
+  then: there is no second container or concurrent writer; stale or foreign access is rejected.
+- id: A3
+  given: Active, paused and terminal Audits with retained material
+  when: cancel, timeout, pause/resume, terminal transition, Run deletion and Audit deletion are exercised
+  then: executions stop and join; pause drains then stops; terminal stops; Run deletion preserves the
+    environment; Audit deletion confirms cleanup before purge.
+- id: A4
+  given: An existing modified environment and adversarial export/configuration inputs
+  when: source selection changes, unsafe files are exported or unsupported settings are selected
+  then: existing files are not silently overwritten; unsafe publication and unsupported execution fail
+    with classified outcomes.
+- id: A5
+  given: Existing ADK/tool/Podman profiles and common Go/Python/public wire fixtures
+  when: the new runtime is registered and invalid/unknown values are decoded
+  then: all consumers enforce the same new contract and existing allocation cleanup continues to pass.
+tests:
+- command: go test -count=1 ./internal/config/... ./internal/controlplane/... ./internal/runservice/...
+    ./internal/auditservice/... ./internal/auditstore/... ./internal/auditcontroller/... ./internal/auditimport/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-runtime test-wire-cross-language verify-public-api verify-public-api-postgres
+  covers:
+  - A2
+  - A4
+  - A5
+- command: make test-opencode-audit-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint verify-architecture
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+test_prerequisites:
+- A newly named make/process target is a deliverable of this task and must execute nonzero cases; absent
+  targets or zero-match selections fail.
+- Persistence behavior uses disposable PostgreSQL; a configured unreachable database fails. Use a single
+  owned database per lane and drop it after all processes stop.
+- Real rootless Linux Podman and pinned OpenCode are required for container/process acceptance. Missing
+  Linux resources are not passing evidence. Test catalogs live under testdata, not the live configs tree.
+- No live Gateway calls in deterministic gates. A scripted Gateway is used with the real OpenCode binary;
+  any later live demonstration needs separate authorization and retains the project-selected model.
+- Full suites of every touched package must pass. Heavy-I/O opt-in stays disabled unless explicitly requested;
+  disabled heavy fixtures are not passing coverage.

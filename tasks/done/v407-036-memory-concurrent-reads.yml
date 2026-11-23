@@ -1,0 +1,203 @@
+schema_version: '1.0'
+id: V407-036
+title: Load Memory note payloads concurrently within the existing serialized operation
+milestone: server-runtime-review-2026-10
+epic: memory
+kind: chore
+introduced_by: V9-002
+priority: P3
+status: archived
+archive:
+  date: '2026-10-24'
+  previous_status: in_progress
+  reason: >-
+    Declined after reassessment (see reassessment below). Overlapping Worker
+    note reads would compete for the Server's four process-wide, fail-fast
+    Artifact transfer slots (LIM-BLB-1, BLB-R24 to BLB-R26) and turn
+    successful Memory operations into memory_unavailable, so the goal's
+    preserved outcomes (A2) cannot hold together with A1.
+  disposition: >-
+    Archived by the V407/V409 integrator under the autonomous-execution
+    instruction, following this task's proposed_disposition; the user may
+    reactivate it. Removed from V407-039 depends_on and recorded as declined
+    for G14 in the review ledger in the same change. No production code,
+    specification or test changed.
+depends_on: []
+languages:
+- python
+goal: Overlap up to eight independent note reads while preserving Memory operation serialization, deterministic
+  validation, ordering and mutation outcomes.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/tools/memory.md
+  finding: runtime/src/contractor_runtime/toolsets/memory/tools.py:211-237 performs a bounded prefix list
+    then up to 128 sequential read_artifact calls. list_memories, search_memory, list_memory_tags and
+    creation of a new note invoke it under the session lock (:136-139,159-161,199-209). The count and
+    ordinal rules rely on MEM-R49 call/mutation serialization; only independent payload reads inside one
+    owned operation can overlap. Runtime ArtifactClient exposes no Worker batch-read operation, even though
+    Server-side stores have batch helpers. Creating a note also performs an initial lookup and a write,
+    so the list-only 1+N count is not the complete create cost.
+  siblings: All _load_all callers, corrupt prefix/namespace/revision/ordinal validation, read failure
+    classification and cancellation ownership. Planner Memory batch loading is a separate boundary and
+    does not imply an existing private Worker batch endpoint.
+  validation: 'Confirmed as a bounded performance opportunity on dc7012e8: loading 128 valid notes used
+    maximum client concurrency one. No correctness defect or measured production latency was established;
+    MEM-R49 intentionally serializes calls and mutations.'
+plan:
+- Keep the outer Memory session lock and all create/append writes serialized. Bound the listed input before
+  launching at most eight payload reads within the owned operation. Record per-reference structural, read
+  and decode outcomes without returning a later failure before all earlier references are resolved.
+- Consume outcomes in the original reference order and apply the existing decode, duplicate and ordinal
+  checks at the same logical boundary. An early delayed read error must win over a later malformed reference,
+  decode error or faster read failure, just as in the serial implementation.
+- On caller cancellation, cancel/join all started reads. On a reference failure, resolve all earlier references
+  before selecting the first failure; cancel only later outstanding work, then join every started read
+  before returning or releasing ownership. No read outlives allocation cleanup and no write follows a
+  failed load.
+- Use a barrier-controlled fake Artifact client with 128 valid notes to prove overlap and maximum concurrency
+  eight without timing thresholds. Check identical ordering/output and failure behavior with reversed
+  completion order, empty/max/over-limit listings, malformed notes and injected cancellation. Include
+  an early delayed forbidden read followed by a malformed reference or a faster read failure, so eager
+  validation/cancellation cannot change the selected error.
+scope:
+  in:
+  - Bounded concurrent payload reads within _load_all; deterministic aggregation, validation and joined
+    cleanup.
+  out:
+  - Parallel Memory calls or writes, changed ordinal/count guarantees, new private batch API, note formats,
+    bindings or limits.
+  - Network latency guarantees or claims of a measured production speedup.
+acceptance_criteria:
+- id: A1
+  text: A deterministic 128-note load starts more than one and at most eight read operations before releases,
+    and preserves the exact prior listing/search/tag ordering and content. The concurrency assertion fails
+    on the original serial loop.
+- id: A2
+  text: Empty, maximum-size, over-limit and corrupt-note cases retain their existing outcomes. Permuting
+    read completion order does not change output or selected model-facing failure. An early delayed forbidden
+    read wins over a later malformed reference or fast read failure, matching the original serial order.
+- id: A3
+  text: Cancellation and read failure join every started read before the operation releases its lock;
+    a failed load performs no note mutation, and create/append count and ordinal behavior stays serialized.
+- id: A4
+  text: Full Memory toolset tests pass with the same tool schemas, formats and limits; added performance
+    checks use counters and barriers, never elapsed time.
+tests:
+- command: cd runtime && uv run --locked pytest -q tests/test_memory_toolset.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A2
+  - A3
+  - A4
+reassessment:
+  date: '2026-10-23'
+  revision: d7b825c452998186456275e6223779442f4053b9
+  outcome: >-
+    Blocked before implementation. Overlapping Worker note reads conflicts with
+    the Server's process-wide Artifact transfer admission, so A1 cannot be met
+    without breaking A2 and the goal's "preserve outcomes" requirement. No code,
+    spec or test was changed; the task stays in_progress until the user chooses
+    a disposition.
+  source_lines_rechecked: >-
+    The finding still matches the code.
+    runtime/src/contractor_runtime/toolsets/memory/tools.py:211-237 lists the
+    prefix and then reads up to 128 payloads one at a time. The callers are
+    list_memories :136-139, write_memory create :159-161, search_memory
+    :199-204 and list_memory_tags :206-209, all under the session lock. Reads
+    map errors through _mapped_client_error :734-744.
+  evidence:
+  - >-
+    LIM-BLB-1 and docs/spec/artifacts/blob-storage.md BLB-R24 to BLB-R26 allow
+    four simultaneous full-payload transfers per Server process. Private
+    Worker reads share that limit with every other Worker, Planner, public
+    upload or download and Git import. When all four slots are taken, the next
+    request fails at once with the retryable 503 artifact_transfer_capacity
+    (FAIL-BLB-1, errors.md). It is not queued.
+  - >-
+    The code works the same way. internal/artifacts/blob_context.go:85 creates
+    `make(chan struct{}, 4)`, and :136-140 acquires a slot without waiting or
+    returns ErrTransferCapacity.
+    internal/httpapi/privateartifacts/artifact_handlers.go:113 takes one slot
+    for each private GET until its response is written. internal/app/app.go:172
+    and internal/app/system.go:63 install that limit for the private listener.
+    internal/apierror/registry.go:160 maps the error to 503 with retryable
+    true.
+  - >-
+    Existing Server test TestPrivateArtifactStalledDownloadsReleaseTransferSlots
+    (internal/httpapi/privateartifacts/artifact_transfer_deadline_test.go:62)
+    holds four private downloads, and a fifth private GET then gets 503. It
+    was re-run on this revision (see verification) and passed.
+  - >-
+    The Runtime never retries a capacity rejection. `grep -rn
+    artifact_transfer_capacity runtime/src` finds nothing.
+    ArtifactClient.read_artifact raises ArtifactAPIError(503,
+    artifact_transfer_capacity), and tools.py:734-744 turns it into the
+    model-facing memory_unavailable.
+  - >-
+    A Memory operation holds one transfer slot everywhere else. The
+    Server-side Planner adapter loads every note in one ReadPrefixBatch under
+    a single slot (internal/memory/postgres.go:40-53,
+    internal/artifacts/postgres_read_batch.go:46). The serial Worker loop holds
+    at most one slot at a time. No Runtime toolset sends concurrent
+    full-payload Artifact reads (no gather or TaskGroup over read_artifact in
+    runtime/src).
+  consequence: >-
+    With eight overlapping reads, one list_memories, search_memory,
+    list_memory_tags or create would ask for up to eight of the Server's four
+    slots. Even on an idle Server, any moment when more than four of those
+    GETs are inside their slot window rejects the extra reads. The tool call
+    then fails with memory_unavailable intermittently, which the serial loop
+    never causes. A bound of two to four removes the self-rejection but
+    multiplies one tool call's share of the shared limit. Other Workers'
+    Artifact reads and writes, finding submissions, Planner Memory batches and
+    UI transfers that start meanwhile then fail with
+    artifact_transfer_capacity. The latency gain would be paid for with
+    model-visible failures and spent tool budget. That contradicts the goal
+    (preserve outcomes), A2 (keep existing outcomes) and AGENTS 3.2. The
+    2026-10-23 review (G14) did not consider LIM-BLB-1.
+  alternatives_considered:
+  - >-
+    Lower the bound to four or less. Rejected because the limit is per Server
+    process and shared, and the Runtime cannot see the other users of it. No
+    bound above one keeps current outcomes for every caller.
+  - >-
+    Retry artifact_transfer_capacity with backoff inside the loader. Rejected
+    because this is a new retry policy with its own attempts, backoff and
+    deadline, outside scope.in. It would still take slots from callers that do
+    not retry, and it amplifies load under exactly the contention it reacts
+    to.
+  - >-
+    Add a private Worker batch read that holds one slot per Memory operation,
+    as the Planner adapter does, or let small reads queue on the Server.
+    Rejected for this task because scope.out excludes a new private batch API
+    and the other option changes the Server admission contract. Either needs
+    its own design task.
+  proposed_disposition: >-
+    Decline and archive V407-036 with this evidence. In the same metadata
+    change, remove it from V407-039 depends_on and record G14 in the review
+    ledger as declined, because serial Worker note reads are the intended
+    one-slot-per-operation rule. Optionally state that rule as a MEM
+    requirement so the optimisation is not proposed again.
+  reopen_when: >-
+    Reopen when the Server can serve small private reads without fail-fast
+    contention for the shared four slots, or when a private Worker batch-read
+    operation lets one Memory operation hold one slot. Then measure with a
+    real Server and Runtime, not with a fake client.
+  decision_needed: >-
+    The user decides between archiving the task (proposed_disposition) and a
+    separate design task for a batch read or an admission change. Under the
+    brief, an agent cannot archive or widen the task.
+  verification:
+  - command: cd runtime && uv run --locked pytest -q tests/test_memory_toolset.py
+    result: 68 passed on the unchanged code (baseline; no implementation was made)
+  - command: >-
+      go test -count=1 -run
+      'TestPrivateArtifactStalledDownloadsReleaseTransferSlots|TestTransferBudgetIsBoundedReentrantAndReleased'
+      ./internal/httpapi/privateartifacts/ ./internal/artifacts/
+    result: passed (shows the fail-fast four-slot limit that blocks the task)

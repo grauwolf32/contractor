@@ -1,0 +1,47 @@
+schema_version: '1.0'
+id: V482-003
+title: Reuse validated Audit evidence during final result collection
+milestone: hub-audit-structure-2026-10
+epic: audits
+kind: chore
+introduced_by: V478-004
+priority: P3
+status: completed
+depends_on: []
+languages: [go]
+goal: Each collection reads and validates the retained evidence once, then reuses it for final and interrupted result assembly.
+context:
+  authority: User request 2026-11-23 authorizes cleanup items 1, 2 and 4 from the release review. Audit priority removal is excluded.
+  specification: [docs/spec/audits/execution.md, docs/spec/audits/review-and-reports.md]
+  finding: internal/auditimport/partial_results.go:90 reads every note before tasks.go:455 invokes selected_evidence.go:13 to list, read and validate the same notes again.
+  boundary: The importer owns retained-evidence interpretation and exact Artifact reads. Keep a collection-local validated result, use it for both consumers and validate its task/hypothesis membership against the frozen assignment. Receipts, persistence, authority and byte bounds keep their current owners.
+  failure_outcomes: Invalid records or foreign membership remain permanent collection failures. Transient reads return for ordinary receipt reconciliation, cancellation propagates, and no cache or work survives the collection call.
+  cardinality: At most 256 retained annotations and eight MiB of evidence documents per execution. Reuse their existing material lists and avoid another copy of document payloads.
+scope:
+  in:
+    - Pass already validated collection evidence to final normalization and remove duplicate Artifact reads and parsing.
+    - Preserve source scope, exact revision, task/hypothesis checks and uncited-input exclusion, with read-count regression coverage on the real PostgreSQL collection path.
+  out:
+    - New stores, persistent caches, API changes, lifecycle states, retry mechanisms and Audit priority changes.
+acceptance_criteria:
+  - id: A1
+    text: Successful final collection lists evidence once and reads every retained note once, without retaining duplicate document payloads.
+  - id: A2
+    text: Final and interrupted collection preserve accepted results and exact evidence, reject foreign task or hypothesis material and exclude uncited assigned inputs.
+  - id: A3
+    text: Complete touched Go package suites, PostgreSQL regression and the incremental-evidence process fixture pass.
+tests:
+  - command: go test -tags=integration -count=1 ./internal/auditimport ./internal/auditservice ./internal/runservice
+    covers: [A1, A2, A3]
+  - command: go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^TestAuditIncrementalEvidenceAcrossProcesses$'
+    covers: [A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification:
+  - go test -tags=integration -count=1 ./internal/auditimport ./internal/auditservice ./internal/runservice passed against the owned disposable PostgreSQL database.
+  - The new real-store regression collects four final results backed by 32 notes, lists evidence once and reads every note once.
+  - With the former importer the same regression fails because evidence is listed twice.
+  - The complete auditimport suite also rejects foreign sources, task identities and hypotheses, and excludes uncited assigned materials.
+  - TestAuditIncrementalEvidenceAcrossProcesses passed and its complete Go event report was verified with the shared verifier.
+  - make lint passed. Production Go shrinks by 17 lines across the three changed implementation files.
+implementation_commit: bfea9b628a43dc817184258ee75b7f291fd30b8a

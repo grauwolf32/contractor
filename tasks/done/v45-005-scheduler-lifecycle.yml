@@ -1,0 +1,60 @@
+schema_version: '1.0'
+id: V45-005
+title: Separate Scheduler lifecycle phases
+milestone: server-maintainability
+epic: quality
+kind: chore
+priority: P2
+status: completed
+implementation_commit: 9ef3eec6f9841abdfb3165536d488c437c613004
+depends_on: []
+languages:
+- go
+goal: Separate Scheduler lifecycle phases.
+context:
+  verified_evidence: scheduler.go contains 2276 lines across lane supervision, claims, Stage preparation,
+    Planner invocation, terminal transitions, releases and reports.
+  current_contract: Behavior-preserving refactoring of the existing Go Server. Preserve exact pinned identities,
+    authority checks and operation/resource ownership. Tests describe the required verification, not measured
+    production performance.
+scope:
+  in:
+  - Split lifecycle responsibilities into focused files inside internal/scheduler.
+  - Extract preparation, Planner invocation and finalization transition from prepareAndPlan.
+  - Retain explicit operation context ownership and durable transition ordering.
+  out:
+  - Scheduling policy changes, concurrency redesign, new durable states and generic orchestration frameworks.
+requirements:
+- id: R1
+  text: Keep dependencies explicit and changes confined to this task; preserve unrelated working-tree
+    changes.
+- id: R2
+  text: Use existing behavior tests and add regressions for newly exposed boundaries or bounded query
+    counts.
+acceptance_criteria:
+- id: A1
+  given: The current Server contracts and supported input fixtures.
+  when: The refactored path executes.
+  then: Existing success, failure, retry, escalation and capacity-deferral behavior remains equivalent.
+- id: A2
+  given: Failures, boundary cases and existing lifecycle behavior.
+  when: The relevant regression suite runs.
+  then: Cancellation, claim loss, allocation fencing and terminal release recovery retain their existing
+    authority and ordering.
+tests:
+- name: scheduler-race
+  command: go test -race -count=1 ./internal/scheduler ./internal/controlplane ./internal/planner/...
+  covers:
+  - A1
+  - A2
+- name: diff
+  command: git diff --check
+  covers:
+  - A1
+  - A2
+
+verification:
+- Required Scheduler/controlplane/Planner race suite passed.
+- Lifecycle code split into supervision, Run execution, Stage preparation, Planner invocation, termination, finalization, reservations, release and reports.
+- Preparation and Planner share one computed Stage deadline; telemetry closure remains after finalization and allocation ownership checks retain their order.
+- Existing cancellation, claim-loss, allocation fencing, retry and release recovery regressions passed; git diff --check passed.

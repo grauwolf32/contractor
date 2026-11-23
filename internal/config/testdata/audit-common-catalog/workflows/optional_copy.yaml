@@ -1,0 +1,36 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata:
+  name: optional-copy
+  version: "1"
+spec:
+  parameters:
+    objective: {required: false}
+  inputs:
+    source: {required: false, mediaTypes: [text/plain]}
+  outputs:
+    result: {required: true, primary: true, mediaTypes: [text/plain]}
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+      modelPolicy: worker@1
+
+  entryStage: copy
+  stages:
+    copy:
+      objective: Copy the source artifact into the declared result artifact
+      instructions: {ref: instructions/copy-planner.md}
+      planner: passthrough@1
+      agents:
+        builder: {template: artifact_builder@1}
+      context:
+        artifacts:
+          source: {namespace: inputs, name: source, required: false}
+      result:
+        artifacts:
+          copied: {required: true, mediaTypes: [text/plain], from: {namespace: builder, name: copied}}
+      workflowOutputs: {result: copied}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

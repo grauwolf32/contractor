@@ -1,0 +1,88 @@
+schema_version: "1.0"
+id: V433-005
+title: Verify the Runtime resource-bound fixes and reconcile the review dispositions
+milestone: runtime-resource-bounds-2026-11
+epic: quality
+kind: chore
+priority: P3
+status: pending
+depends_on: [V433-001, V433-002, V433-003, V433-004, V433-006, V433-007]
+languages: [python, markdown]
+goal: The seven reported Runtime findings have verified dispositions and all four remaining corrections pass integrated Runtime checks.
+context:
+  authority: >-
+    User request 2026-11-02 authorizes revalidation and creation of fix tasks.
+    This shared exit task verifies the package after its defect tasks finish;
+    task creation does not start their implementation or claim them completed.
+    Subsequent user decisions 2026-11-02 authorize V433-001 and the CPU
+    parsing fixes V433-002/V433-004 in codex/runtime-shutdown-deadline, with
+    a behavior explanation and process diagrams before merge. These three
+    fixes are implemented and verified in that branch. V433-003 remains
+    pending, so this package exit task is not complete or started.
+    The subsequent user merge request is implemented by V433-006, preserving
+    newer main's Audit materials and Server-owned registration labels.
+  specification:
+    - docs/spec/execution/runtime-agent.md#RTA-R87
+    - docs/spec/execution/worker.md#WRK-R8
+    - docs/spec/platform/observability.md#OBS-R77
+    - docs/spec/findings/findings.md#FND-R122
+  review_base: 57634940d40862fb638d4beea212e53a5107994a
+  dispositions:
+    - Ordinary shutdown omission is fixed by V432-002; the common process deadline is implemented and verified by V433-001 in codex/runtime-shutdown-deadline.
+    - Repeated cancellation of State/session/tool-history cleanup is fixed by V432-001 and retained by the extracted owners in V432-006.
+    - Controlled HTTP header merging and aggregate session admission are fixed by V432-005.
+    - Retained HTTP-body truncation in reads/history/private capture is fixed by V432-005.
+    - Gateway response byte admission and joined off-loop JSON/ADK parsing are implemented and verified by V433-002 in the same branch.
+    - OTLP pre-allocation decompression admission remains V433-003.
+    - Findings preparation, reconciliation verification and page projections outside the event loop are implemented and verified by V433-004 in the same branch.
+  revalidation: >-
+    Current main passed 23 focused regressions: ten selected CLI, real ADK
+    State/session cancellation and controlled HTTP cases, plus thirteen
+    threads/history/completion cases. Streamed probes reproduced a 4-MiB
+    Gateway response at max_tokens=1, a 4,099-byte OTLP gzip chunk decoded
+    to 4 MiB before the 64-KiB check, and findings decode/preview work on
+    the loop thread. These are pre-fix dispositions, not acceptance evidence
+    for the pending tasks. User-provided links target the older primary
+    checkout; the review and new task line numbers target this current main.
+  boundary: >-
+    The exit gate adds no architecture or product scope. Each defect owns its
+    regressions, contracts and implementation commit; this task checks their
+    interaction with existing shutdown, repeated cancellation and HTTP fixes.
+  platform_acceptance: >-
+    User decision 2026-11-02 supersedes the earlier manual exclusions:
+    V433-007 marks the two V425-001/002 fixtures Linux-only. On macOS their
+    expected skips do not block acceptance; run the standard make test-runtime
+    with no --deselect. Skips remain reported as skips, not Linux coverage.
+  partial_implementation_verification: >-
+    P1/Gateway/findings combined Runtime selection: 5871 passed, 133 skipped,
+    2 named inherited macOS cases deselected in 758.45 seconds. Focused
+    Gateway suites: 227 passed; findings/allocation/thread suites: 190 passed.
+    Complete Go streamline package and make lint passed. The shared-fixture
+    gate passed against real disposable PostgreSQL: 373 fixtures, 393 Go and
+    289 Python shared tests. Negative probes fail on actual pre-fix code for
+    fresh shutdown budgets, oversized Gateway JSON admission and loop-thread
+    findings decoding. The scratch database was removed. These are pre-landing
+    results; V433-006 records subsequent current-main integration, verification
+    and merge. No live-model run or deployment was performed. OTLP V433-003
+    remains the outstanding prerequisite; these results do not close this exit task.
+scope:
+  in:
+    - Run integrated deterministic Runtime and lint checks on the combined revision and record exact commands, results, skips and any known platform exclusions.
+    - Verify every disposition against final code and ensure no duplicate pending task for the already fixed findings.
+    - Confirm task/spec/backlog consistency and report the branch revision and whether it is merged; follow the existing branch landing policy.
+  out:
+    - New feature work, live Gateway quality claims, deployment, database migrations and unrelated open task implementation.
+acceptance_criteria:
+  - id: A1
+    text: V433-001 through V433-004 meet every criterion with primary implementation commits and their required checks; all seven dispositions refer to actual final code and tests.
+  - id: A2
+    text: The standard make test-runtime and make lint pass on the combined revision with OPS-R1 platform marks; expected macOS skips are reported and do not block acceptance, without manual deselection or claims of Linux coverage.
+  - id: A3
+    text: Existing ordinary Worker shutdown, repeated State/session/history cancellation and controlled header/truncation regressions remain covered, and task/backlog/spec records agree with the final implementation and landing status.
+tests:
+  - command: make test-runtime
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+  - command: git diff --check
+    covers: [A3]

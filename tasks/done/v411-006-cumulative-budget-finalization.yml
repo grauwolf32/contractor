@@ -1,0 +1,201 @@
+schema_version: '1.0'
+id: V411-006
+title: Enforce cumulative pentest budgets and finalize at the hard active-time cap
+milestone: autonomous-http-pentest-2026-10
+epic: audits
+kind: feature
+priority: P1
+status: archived
+depends_on:
+- V411-002
+- V411-003
+languages:
+- go
+- python
+- sql
+- json
+goal: Make concurrent pentest child Runs consume one durable model/time/evidence allowance and produce
+  a retained incomplete report when the hard cumulative active-time budget is exhausted.
+context:
+  authority: User request on 2026-10-24 to decompose the updated proposals into implementation tasks.
+    This record authorizes no implementation during planning and does not reactivate deferred work.
+  proposal:
+  - docs/proposals/0033-autonomous-pentest-audits.md#5-budgets-and-durable-accounting
+  - docs/proposals/0033-autonomous-pentest-audits.md#11-action-journal-cancellation-and-recovery
+  - docs/proposals/0033-autonomous-pentest-audits.md#13-api-cli-ui-and-reports
+  - docs/proposals/0033-autonomous-pentest-audits.md#15-acceptance-and-evaluation-gates
+  specification:
+  - docs/spec/audits/execution.md#AUX-R45
+  - docs/spec/audits/execution.md#AUX-R78
+  - docs/spec/audits/execution.md#AUX-R82
+  - docs/spec/audits/audits.md#AUD-R162
+  - docs/spec/audits/audits.md#AUD-R163
+  - docs/spec/audits/audits.md#AUD-R164
+  - docs/spec/audits/review-and-reports.md
+  code:
+  - internal/auditcontroller
+  - internal/auditservice
+  - internal/auditstore
+  - internal/auditbaseline
+  - internal/scheduler
+  - internal/contracts
+  - runtime/src/contractor_runtime/contracts
+scope:
+  in:
+  - Reserve bounded maximum model calls/tokens for each child execution before dispatch and settle
+    only trusted accounting; keep unknown consumption charged.
+  - Extend existing cumulative Run/evidence accounting, active admission clock, pause/resume and report
+    finalization for the pentest profile without changing generic zero-deadline semantics.
+  - Clip child/action/grant deadlines at remaining cumulative allowance and wire active_time_budget_exhausted
+    into actual admission closure, drain/collection, deterministic report assembly and reads.
+  out:
+  - Request/RPS/concurrency ledger internals are V411-003; target transport and identity code are
+    V411-003/V411-005; richer pentest report/UI fields are later integration.
+  - No reset by resume, unbounded deadline, borrowed post-cap target/model cleanup allowance or fabricated
+    final accounting.
+requirements:
+- id: R1
+  text: Production callers are existing Audit dispatch, collection, pause/resume, journal admission
+    and finalization paths. Model-free children reserve no invented model budget; modeled children
+    reserve configured maxima before creation.
+- id: R2
+  text: Persist cumulative allowance and stop closure atomically; active time includes queue wait
+    and excludes owner pause. A shorter resumable admission deadline differs from the immutable cap.
+    No override can extend or disable the pinned cap.
+- id: R3
+  text: At cap admit no new action/continuation and stop target/model/sandbox work. Bounded teardown,
+    storage collection and deterministic paged report publication may finish afterward; terminal Audit
+    requires every owned Run terminal and released.
+- id: R4
+  text: Reserved cleanup must fit active time before expiry; incomplete cleanup remains explicit residue/unknown.
+    Inability to form a structurally valid report yields failed under existing finalization rules.
+- id: R5
+  text: 'Default/max limits are exactly proposal section 5 and shared registries: time 3600/86400
+    seconds, calls 200/2000, tokens 1000000/10000000, evidence 32/64 MiB and Runs 128/512. Lower operator/package/model
+    limits win.'
+- id: R6
+  text: Public reads/errors describe reserved, charged and unknown amounts; new active_time_budget_exhausted
+    is a stable stop reason, not a generic paused state. New budget mutation conflicts reuse 409 pentest_budget_exhausted/action
+    conflicts and 503 storage_transaction_conflict.
+failure_outcomes:
+- operation: Reserve/settle child budget and retained bytes
+  permanent: Insufficient allowance is permanent pentest_budget_exhausted/409 or existing non-retryable
+    collection disposition; invalid accounting cannot refund.
+  retryable: Only classified 503 storage conflicts retry within existing dispatch/collection deadlines.
+  ambiguous: Original execution/action receipt and exact retained revision identity settle once; lost
+    trusted accounting keeps maximum reservation charged.
+  cancelled: Cancellation still drains/collects accepted evidence and keeps unknown usage; no work
+    outlives released children.
+  timeout: Dispatch/collection/storage deadlines are separate; none extends active cap.
+- operation: Exhaust cap/resume/finalize
+  permanent: Attempted resume beyond exhausted cap returns existing lifecycle conflict with active_time_budget_exhausted;
+    no automatic retry. Structural report failure uses existing failed finalization outcome.
+  retryable: Retry bounded storage/report passes only; no target/model I/O is restarted.
+  ambiguous: Recover persisted closure, exact receipts and report candidate; no reset or second report
+    on restart.
+  cancelled: Owner cancel/delete follows existing fences and drains; final terminal status waits for
+    terminal released children.
+  timeout: Use existing bounded paged finalization and teardown allowances after cap solely for bookkeeping/cleanup
+    of processes, not target cleanup requests.
+cardinality:
+- collection: Child reservations and actions per Audit
+  expected: 128 child Runs, 200 calls and one million tokens
+  maximum: 512 Runs, 2000 calls, ten million tokens and 100000 target intents
+  bound: Mutate one child reservation plus parent ledger; recovery/finalization pages reuse existing
+    bounded controller limits, never scan all actions for each dispatch.
+- collection: Retained evidence revisions and active-time accounting
+  expected: 32 MiB retained and 3600 active seconds
+  maximum: 64 MiB retained and 86400 active seconds
+  bound: Charge exact retained revision once; use bounded totals/receipts and injected clock, not
+    per-tick whole-evidence reads.
+lifecycle:
+- entity: Pentest budget ledger and admission closure
+  delete: Audit deletion owns removal after drain; cap exhaustion cannot be cleared by resume or deleting
+    a child.
+  cascade: Existing cancellation/Project deletion collect terminal children before releasing holds
+    and removing ledger.
+  retention: Charged/reserved/unknown totals and stop cause remain with retained report; pauses/restarts
+    preserve them.
+acceptance_criteria:
+- id: A1
+  given: Concurrent modeled and model-free child Runs
+  when: They reserve, complete, fail or lose final accounting
+  then: Totals remain within caps, duplicate settlement does not double-refund and unknown model usage
+    remains charged.
+- id: A2
+  given: A shorter admission deadline, owner pause and remaining cumulative allowance
+  when: Pause/resume and deadline override execute
+  then: Only unconsumed allowance may resume; generic other profiles retain their existing deadline
+    behavior.
+- id: A3
+  given: Hard cap expires with active target/model/sandbox work
+  when: Controller closes admission and drains
+  then: No new action or continuation starts; unfinished cleanup is residue and deterministic incomplete
+    report freezes only after children are terminal/released.
+- id: A4
+  given: Crash during closure, collection or report publication
+  when: Server restarts with real PostgreSQL
+  then: Closure and usage survive, no new work is admitted and exactly one report or explicit failed
+    finalization results.
+- id: A5
+  given: 64 MiB evidence and maximum child history
+  when: Paged collection/finalization runs
+  then: Exact revisions are charged once, bounded passes converge and over-budget inputs get a permanent
+    truthful disposition.
+tests:
+- command: go test -tags=integration -race -count=1 ./internal/auditbaseline ./internal/auditdomain
+    ./internal/auditcontroller ./internal/auditservice ./internal/auditstore/... ./internal/auditimport
+    ./internal/scheduler ./internal/httpapi/public ./internal/contracts/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-audits-process test-pentest-action-process test-wire-cross-language test-runtime
+    verify-public-api
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+test_prerequisites:
+- Disposable PostgreSQL able to create/drop isolated schemas; never print its connection secret.
+- Repository-pinned Go and locked Runtime dependencies; run commands from the repository root unless
+  the command explicitly changes directory.
+verification_requirements:
+- Use testdata fixtures, never the live configs tree outside the documented e2e/eval exceptions. Keep
+  model choice unchanged; deterministic targets need no real Gateway.
+- Run every touched package in full, including any new package introduced by this task. Database tests
+  require disposable PostgreSQL through CONTRACTOR_TEST_DATABASE_URL; an unreachable configured database
+  fails and skipped mandatory cases do not pass.
+- New shared fixtures must be registered with their Go/Python/schema readers in the existing shared-fixture
+  gate. New process selections must fail when zero tests match and be reachable from release-verify.
+- Update the owning normative specification, shared limits/errors/lifecycle registries and public/private
+  contracts in the same change. Preserve existing contract ownership; do not add backward-compatibility
+  readers or edit generated clients manually.
+
+archive:
+  date: '2026-10-30'
+  previous_status: pending
+  authority: User requested rewriting stalled pentest work and archiving tasks requiring removed functionality;
+    planning only, on a separate branch.
+  reason: V422-002 retains the four ordinary Audit budgets and the existing Audit deadline. Separate cumulative
+    model/token reservations, an active-time clock and target-request settlement are outside the selected
+    contract.
+  superseded_by:
+  - V422-002
+  - V411-016
+  - V411-020
+  reactivation_condition: Explicit user direction and a new reviewed scope with a concrete production
+    caller. Completion of historical dependencies does not reactivate this task.
+  evidence: Original scope, acceptance criteria and test commands below/above are historical design, not
+    implementation evidence or requirements for active work.

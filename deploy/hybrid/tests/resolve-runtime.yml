@@ -1,0 +1,33 @@
+---
+- name: Resolve generated hybrid inventory without contacting cloud hosts
+  hosts: contractor_runtime
+  connection: local
+  gather_facts: false
+  vars:
+    ansible_connection: local
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+    ansible_system: Linux
+    ansible_service_mgr: systemd
+    ansible_os_family: Debian
+    ansible_architecture: x86_64
+  tasks:
+    - name: Retain the generated host declaration before resolving role defaults
+      ansible.builtin.set_fact:
+        hybrid_expected_placement_labels: "{{ contractor_runtime_placement_labels }}"
+    - name: Resolve the real Runtime role
+      ansible.builtin.include_role:
+        name: contractor_runtime
+        tasks_from: resolve
+    - name: Verify generated location arguments
+      ansible.builtin.assert:
+        that:
+          - item.args | zip(item.args[1:]) | selectattr('0', 'equalto', '--placement-label') | map('last') | list == hybrid_expected_placement_labels
+          - item.args | select('equalto', '--placement-label') | list | length == hybrid_expected_placement_labels | length
+          - "'--initial-label' not in item.args"
+        quiet: true
+        fail_msg: >-
+          expected={{ hybrid_expected_placement_labels }}
+          actual={{ item.args | zip(item.args[1:]) | selectattr('0', 'equalto', '--placement-label') | map('last') | list }}
+      loop: "{{ __contractor_runtime_instances }}"
+      loop_control:
+        label: "{{ item.name }}"

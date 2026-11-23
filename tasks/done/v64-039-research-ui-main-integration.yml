@@ -1,0 +1,76 @@
+schema_version: '1.0'
+id: V64-039
+title: Integrate the reviewed research UI into current main
+milestone: audit-check-prioritization
+epic: ui
+kind: chore
+priority: P2
+status: completed
+depends_on: [V64-009, V64-038]
+languages: [typescript, css, python, markdown]
+goal: Land the approved common Audit UI and compact timeline badges in main while preserving concurrent work.
+context:
+  authority: 'User request 2026-11-07: merge the reviewed UI into main.'
+  integration: >-
+    Reconcile codex/audit-research-ui with current main, including selected HTTP
+    evidence, process-local Gateway recovery and Eval owner-row persistence.
+    Preserve the native OpenDesign data and the independent primary-checkout work.
+    No demo deployment or database migration is requested.
+scope:
+  in:
+  - Resolve integration conflicts and regenerate derived task/dependency documents.
+  - Keep the combined UI patch release newer than main and retain all release-gate roots.
+  - Verify UI, public APIs and the real research browser journey on disposable PostgreSQL.
+  - Land through a no-fast-forward merge once the primary checkout permits safe integration.
+  out:
+  - Committing, discarding or overwriting the user's uncommitted changes.
+  - Additional product features, model changes or demo deployment.
+acceptance_criteria:
+- id: A1
+  text: Current main contains the reviewed research UI and compact Collected pills through a no-fast-forward merge, without losing concurrent changes.
+- id: A2
+  text: Relevant UI, API, browser and lint gates pass on the reconciled source, with explicit results and cleanup of the owned test database.
+tests:
+- command: make ui-verify
+  covers: [A1, A2]
+- command: make ui-browser-mocked
+  covers: [A1, A2]
+- command: make verify-public-api verify-public-api-postgres
+  covers: [A2]
+- command: make test-audit-research-ui
+  covers: [A2]
+- command: make lint
+  covers: [A1, A2]
+implementation_commit: 579e6cc970ba14be4d072c8084957e7696ff6848
+
+verification:
+  date: '2026-11-07'
+  main_merge: 579e6cc970ba14be4d072c8084957e7696ff6848
+  source: >-
+    UI/API/process/lint gates passed on 2deb56229a834d1000a5ae8d167ad7b118200a13,
+    after integrating current HTTP evidence, Gateway recovery and Eval persistence.
+    Later main commits changed documentation and one import-group blank line only;
+    UI, API, Runtime, browser and execution code are unchanged from the verified
+    candidate. Task/spec, dependency-document and whitespace checks passed after
+    reconciling those commits. The no-fast-forward main merge then succeeded.
+  results:
+  - command: VITEST_MAX_WORKERS=2 make ui-verify
+    result: Generated client, formatting/lint, typecheck, all 214 test files (2428 passing tests and one intentional expected failure), and production build passed.
+  - command: make ui-browser-mocked
+    result: All 166 cases across 28 specs passed, without skipped or flaky cases.
+  - command: make verify-public-api verify-public-api-postgres
+    result: Public contract and real PostgreSQL API suites passed.
+  - command: make test-audit-research-ui
+    result: Real Server/Runtime/PostgreSQL/session browser journey passed, including continuation, exact hypothesis grounds, scoped negative results, Project origin/evidence and material publication at 390/1440 px in every theme.
+  - command: make lint
+    result: Passed, including release-graph coverage, Go/static checks, UI gates, script suites, tasks/specification and layer checks.
+  preservation: >-
+    Git initially refused to overwrite three uncommitted primary-checkout documents.
+    All 23 original working files were verified unchanged after the refused attempt.
+    The user chose to commit the independent work in its original chat, producing
+    2b86e16a2 (documentation) and bad5f25ef (RunService formatting). Both commits
+    were incorporated before landing; no user work was discarded or stashed.
+    Native OpenDesign inputs, outputs, provenance and prior external archives remain.
+  cleanup: >-
+    The owned disposable database contractor_ui_merge_20261107_0b984d75 was dropped
+    after the API and process pools stopped. No demo data or deployment was changed.

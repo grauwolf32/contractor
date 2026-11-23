@@ -1,0 +1,238 @@
+import { act, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, expect, it } from "vitest";
+
+import { createApplicationQueryClient } from "../app/query-client";
+import { renderApplication } from "../test/application";
+import { createEvalFixture } from "../test/evals-fixture";
+import { json } from "../test/responses";
+import { evalServer, stubEvalBrowser } from "./evals/test-support";
+
+beforeEach(stubEvalBrowser);
+
+function refreshFixture() {
+  const fixture = createEvalFixture({ prepared: true });
+  const original = fixture.fetch;
+  const reads: URL[] = [];
+  const pending: (() => void)[] = [];
+  let holdMetadata = false;
+  let failMembers = false;
+  fixture.fetch = async (request) => {
+    const url = new URL(request.url);
+    reads.push(url);
+    if (failMembers && url.pathname.endsWith("/members")) {
+      throw new TypeError("offline");
+    }
+    const response = await original(request);
+    if (
+      holdMetadata &&
+      url.pathname === "/v1/eval-experiments/experiment-1" &&
+      request.method === "GET"
+    ) {
+      return new Promise<Response>((resolve) => {
+        pending.push(() => resolve(response));
+      });
+    }
+    return response;
+  };
+  return {
+    fixture,
+    reads,
+    pending,
+    hold() {
+      holdMetadata = true;
+    },
+    failMembers(value: boolean) {
+      failMembers = value;
+    },
+  };
+}
+
+function start(fixture: ReturnType<typeof createEvalFixture>, path: string) {
+  const cache = createApplicationQueryClient();
+  return {
+    cache,
+    ...renderApplication(path, {
+      server: evalServer(fixture),
+      queryClient: cache,
+      strict: true,
+    }),
+  };
+}
+
+async function release(pending: (() => void)[], index = 0) {
+  await act(async () => pending[index]!());
+}
+
+/** A filter chip ("Unresolved pairs") in its filter group ("Pair filter"). */
+function filterChip(group: string, name: string) {
+  return within(screen.getByRole("group", { name: group })).getByRole(
+    "button",
+    { name },
+  );
+}
+
+it("preserves comparison filters selected while refreshing to a newer snapshot", async () => {
+  const context = refreshFixture();
+  const user = userEvent.setup();
+  const { router } = start(
+    context.fixture,
+    "/evals/experiments/experiment-1/comparison?filter=all&viewSnapshot=view-7&chartCursor=old-chart&binFilter=old-bin",
+  );
+  await screen.findByRole("group", { name: "Pair filter" });
+  context.fixture.state.experiment.viewSnapshot = "view-8";
+  context.hold();
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
+  await waitFor(() => expect(context.pending).toHaveLength(1));
+  await user.selectOptions(
+    screen.getByLabelText("Comparison metric"),
+    "duration",
+  );
+  await user.click(filterChip("Pair filter", "Unresolved pairs"));
+  await release(context.pending);
+
+  await waitFor(() =>
+    expect(
+      new URLSearchParams(router.state.location.search).get("viewSnapshot"),
+    ).toBe("view-8"),
+  );
+  expect(filterChip("Pair filter", "Unresolved pairs")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(screen.getByLabelText("Comparison metric")).toHaveValue("duration");
+  const params = new URLSearchParams(router.state.location.search);
+  expect(params.has("cursor")).toBe(false);
+  expect(params.has("chartCursor")).toBe(false);
+  expect(params.has("binFilter")).toBe(false);
+  await waitFor(() =>
+    expect(
+      context.reads.some(
+        (url) =>
+          url.pathname.endsWith("/pairs") &&
+          url.searchParams.get("viewSnapshot") === "view-8" &&
+          url.searchParams.get("filter") === "unresolved",
+      ),
+    ).toBe(true),
+  );
+});
+
+it("preserves an attempt filter selected while retrying a failed page", async () => {
+  const context = refreshFixture();
+  context.failMembers(true);
+  const user = userEvent.setup();
+  const { router } = start(
+    context.fixture,
+    "/evals/experiments/experiment-1/attempts?filter=all&viewSnapshot=view-7&cursor=old-page",
+  );
+  await screen.findByText("Public API is unavailable");
+  context.fixture.state.experiment.viewSnapshot = "view-8";
+  context.hold();
+  await user.click(screen.getByRole("button", { name: "Try again" }));
+  await waitFor(() => expect(context.pending).toHaveLength(1));
+  await user.click(filterChip("Attempt filter", "Failed"));
+  context.failMembers(false);
+  await release(context.pending);
+
+  await waitFor(() =>
+    expect(
+      context.reads.some(
+        (url) =>
+          url.pathname.endsWith("/members") &&
+          url.searchParams.get("viewSnapshot") === "view-8" &&
+          url.searchParams.get("filter") === "failed",
+      ),
+    ).toBe(true),
+  );
+  expect(filterChip("Attempt filter", "Failed")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  const params = new URLSearchParams(router.state.location.search);
+  expect(params.get("filter")).toBe("failed");
+  expect(params.has("viewSnapshot")).toBe(false);
+  expect(params.has("cursor")).toBe(false);
+});
+
+it.each(["section", "experiment"] as const)(
+  "does not change navigation to another %s when a refresh completes",
+  async (destination) => {
+    const context = refreshFixture();
+    const user = userEvent.setup();
+    const { cache, router } = start(
+      context.fixture,
+      "/evals/experiments/experiment-1/comparison?filter=all&viewSnapshot=view-7",
+    );
+    await screen.findByRole("group", { name: "Pair filter" });
+    context.hold();
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(context.pending).toHaveLength(1));
+
+    let target = "/evals/experiments/experiment-1/overview";
+    if (destination === "experiment") {
+      // Cached metadata keeps EvalComparison mounted while its identity changes.
+      const other = {
+        ...structuredClone(context.fixture.state.experiment),
+        experimentId: "experiment-2",
+        name: "Another experiment",
+        viewSnapshot: "other-view",
+      };
+      cache.setQueryData(["evals", "experiment", other.experimentId], other);
+      const original = context.fixture.fetch;
+      context.fixture.fetch = async (request) =>
+        new URL(request.url).pathname === "/v1/eval-experiments/experiment-2"
+          ? json(other)
+          : original(request);
+      target =
+        "/evals/experiments/experiment-2/comparison?filter=unresolved&viewSnapshot=other-view";
+    }
+    await act(async () => {
+      await router.navigate(target);
+    });
+    expect(router.state.location.pathname + router.state.location.search).toBe(
+      target,
+    );
+    const location = router.state.location;
+    await release(context.pending);
+    expect(router.state.location).toEqual(location);
+  },
+);
+
+it("lets only the latest overlapping refresh apply its snapshot", async () => {
+  const context = refreshFixture();
+  const user = userEvent.setup();
+  const { router } = start(
+    context.fixture,
+    "/evals/experiments/experiment-1/comparison?filter=all&viewSnapshot=view-7",
+  );
+  await screen.findByRole("group", { name: "Pair filter" });
+  context.hold();
+  context.fixture.state.experiment.viewSnapshot = "view-8";
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
+  await waitFor(() => expect(context.pending).toHaveLength(1));
+  await user.click(filterChip("Pair filter", "Unresolved pairs"));
+  context.fixture.state.experiment.viewSnapshot = "view-9";
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
+  await waitFor(() => expect(context.pending).toHaveLength(2));
+  expect(filterChip("Pair filter", "Unresolved pairs")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(
+    new URLSearchParams(router.state.location.search).get("viewSnapshot"),
+  ).toBe("view-7");
+  await release(context.pending, 1);
+  await waitFor(() =>
+    expect(
+      new URLSearchParams(router.state.location.search).get("viewSnapshot"),
+    ).toBe("view-9"),
+  );
+  await release(context.pending, 0);
+  expect(
+    new URLSearchParams(router.state.location.search).get("viewSnapshot"),
+  ).toBe("view-9");
+  expect(filterChip("Pair filter", "Unresolved pairs")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+});

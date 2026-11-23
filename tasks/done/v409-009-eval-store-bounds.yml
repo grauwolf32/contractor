@@ -1,0 +1,345 @@
+schema_version: '1.0'
+id: V409-009
+title: Purge drained Eval data in bounded, restartable transactions
+milestone: sql-review-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-003
+priority: P2
+status: completed
+implementation_commit: f58ec2799a2d67042d820757a5eeb6571b098528
+depends_on: []
+languages:
+- go
+- sql
+goal: Experiment and Project deletion remove Eval-owned data with a shared dependent-row and byte
+  budget per committed pass while preserving drain gates, receipts and ownership.
+context:
+  review: docs/research/2026-10-23-sql-review.md, A10 and Eval purge disposition; other original
+    Eval query optimizations are explicitly assigned or declined below.
+  specification:
+  - docs/spec/evals/managed-evals.md#EVM-R223
+  - docs/spec/evals/managed-evals.md#EVM-R226
+  - docs/spec/evals/managed-evals.md#EVM-R216
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/platform/limits.md
+  severity: medium
+  finding: 'internal/evalstore/deletion.go:38-76 removes an experiment with one cascading DELETE;
+    :79-126 removes every Project experiment plus datasets, collections and receipts in one caller
+    transaction. internal/evalstore/records.go:83-156 permits additional distinct retained records
+    without a per-member total-count bound, so even a small admitted experiment can accumulate unbounded
+    deletion work. internal/projectlifecycle/controller.go:381-429 composes this purge with later
+    Project cleanup. LIMIT on parent members alone cannot bound their dependent records: baseline.sql:4315-4357
+    has cascades and selection references to records.'
+  siblings: Standalone deletion through internal/evalservice/service.go:393-411; Project deletion
+    through internal/projectlifecycle/controller.go:403; Eval-owned records, evidence, selections,
+    projections, submissions/suboperations, commands, view data, plan resources, datasets/collections
+    and retained mutation receipts. Audit purge in internal/auditstore/internal/pgstore/purge_sql.go
+    demonstrates leaf-first phases and a shared remaining-row budget; preserve its separate lifecycle.
+    Ordinary Run/Audit execution deletion remains with its existing owners.
+  validation: 'Revalidated on main 1d533b2db885e0162ebabb01d36470f139546009: unbatched purge is confirmed;
+    no production latency incident was measured. A native matrix admits at most 1000 members and
+    the document limit is 1 MiB. The existing 10000-member comparison test seeds the store directly
+    and is not a production-admitted plan. Current owner, deletion-fence, outstanding-work and unresolved-suboperation
+    checks are required protections, not redundant queries.'
+  provenance: git blame attributes Purge and the cascading DELETE to d4c4e8854d73fe44f52c8b3f6d461cfc56dcbcc1,
+    recorded by V38-003. V38-006 added comparison data later; it is not the origin of this purge
+    boundary.
+  decisions:
+  - The no-behavior comparison-page and existing-transaction recovery-query work from the original
+    V409-009 is owned by V409-014; member INSERT batching remains V407-028 and metadata-only FrozenPlan
+    reads remain V407-029.
+  - 'Full PublishView projection redesign is outside this task: complete-matrix denominators, atomic
+    generation publication and selected-document content identity are required by EVM-R164-R168.
+    Reopen only with a measured admitted-size workload and a design preserving all pair/report fields,
+    identity and byte bounds.'
+  - 'A persisted next_ordinal is not scheduled here: NextMembers is used only for native admission,
+    capped at 1000 members, with at most 10 admissions per tick. Reopen after representative plans
+    show repeated scans are material and cursor recovery is specified for failed commits, pause/cancel
+    and claim turnover.'
+  - 'One transaction/experiment lock for an entire coordinator tick is rejected: intent commit, ordinary
+    service side effect and acknowledgement must remain separate durable phases (EVM-R108-R111).
+    Reconciliation currently selects at most 10 intents plus 10 accepted submissions, not 100; CollectView
+    publishes once after a dirty batch, not per member.'
+  - The 16 MiB row-byte budget below is a proposed new accounting budget, not an existing limit or
+    a measured optimum. Its purpose is to keep batches of large retained documents smaller than the
+    1000-row ceiling alone would allow. Before fixing the constant, derive the largest legal individual
+    stored row across every affected table, including internally assembled projection/view rows;
+    the final documented budget must fit that row. Do not infer that the 1 MiB external-document
+    limit also bounds an assembled row.
+plan:
+- Trace the complete Eval FK/trigger graph and document a leaf-first purge order. Clear selection
+  references before their target records; exhaust record/evidence/suboperation children before deleting
+  their member/submission parents. Include deletion-trigger effects and final small cascades in the
+  accounting rather than counting only top-level DELETE command tags.
+- 'Use the existing CleanupBatchRows=1000 as one shared row-mutation budget across all Eval domain
+  phases of a pass, not a fresh budget per table or experiment. Introduce a stored-row-byte budget,
+  initially proposed at 16 MiB, measured by pg_column_size of bounded candidate rows before mutation.
+  Prove the largest legal individual row across the affected tables and raise the proposed constant
+  if necessary so every legal row fits; document the final value, rationale, accounting unit, fixed
+  bounded authority/claim overhead and registration in limits.md. A nonempty unblocked remainder
+  must make monotonic durable progress: do not introduce a permanent row-too-big deletion error,
+  a silent skip or an endless zero-progress success.'
+- Return explicit progress/done from the transaction-scoped purger. Keep the owning experiment or
+  deleting Project and its fence until children are gone; remove the experiment last. Update the
+  Eval service and Project controller to commit one incomplete pass and yield before starting another.
+  When a Project Eval pass exhausts its budget or still has work, do not continue to finding receipts
+  or artifact purge in that transaction. Empty Eval cleanup may continue through the existing later
+  Project phases.
+- Preserve owner checks, Project-before-experiment lock ordering, requireTx, no outstanding submissions,
+  no unresolved suboperations and drained execution-workspace dependencies before destructive work.
+  Keep mutation receipts after standalone experiment purge; during Project purge remove its Eval
+  receipts in bounded phases before the Project is removed. Do not create another receipt or lease
+  protocol.
+- 'Define reads during committed partial cleanup: never publish a guessed partial comparison or summary.
+  Keep lifecycle/identity metadata until the final delete, invalidate the selected-view pointer before
+  deleting its dependent rows, and return the existing classified unavailable/deletion outcome for
+  views that no longer exist. Specify and test the chosen existing error code and lifecycle-read
+  fields in the owning Eval contract and OpenAPI where required.'
+- A failed or cancelled pass rolls back its own mutations; earlier committed passes remain valid
+  progress. Resume from durable remaining rows, without in-memory-only cursors. Recheck current deletion/claim
+  authority on each owning controller pass and use existing definite-transaction retry rules; a lost
+  commit acknowledgement must be safely reconcilable by reading what remains.
+- Add real PostgreSQL regressions using an admitted experiment with more than two cleanup batches
+  of dependent records, multiple Project experiments, selected references and retained receipts.
+  Count aggregate dependent mutations and stored-row bytes per transaction, including a small member
+  set with many records so a parent-only limit cannot pass. Separately label any 10000-member defensive
+  fixture as directly seeded. Exercise interruption after a committed batch, rollback inside a batch,
+  retries, owner isolation, live drain blockers and the final small cleanup. Include the largest
+  legal row under the chosen accounting and a remaining budget too small for the next row; a fresh
+  pass must remove that row and eventually finish.
+scope:
+  in:
+  - Bounded Eval experiment and Project cleanup, controller progress integration, FK/trigger-aware
+    accounting, existing deletion/read failure outcomes and normative limits.
+  - Real PostgreSQL tests on standalone and Project deletion paths, including receipt lifetime and
+    recovery after partial progress.
+  out:
+  - Query/projection/reconciliation optimizations assigned to V409-014 or declined in context.decisions;
+    V407-028/029 work.
+  - Whole-tick transactions, new execution retry policy, changed comparison semantics, new receipt
+    tables, ordinary Run/Audit purge ownership or a new public lifecycle state.
+acceptance_criteria:
+- id: A1
+  text: Given an admitted experiment with a small member set and more than two batches of retained
+    children, when deletion advances, then each committed Eval pass mutates at most CleanupBatchRows
+    domain/dependent rows and the documented stored-row-byte budget (proposed at 16 MiB and finalized
+    after largest-row proof), with bounded fixed authority overhead; no parent cascade bypasses either
+    budget.
+- id: A2
+  text: Given several experiments and retained Eval receipts in a deleting Project, when its controller
+    purges Eval data, then all experiments share the same per-pass budget, the controller yields
+    between incomplete passes, unrelated Project/owner data remains intact, and the Project row is
+    deleted only after every required phase is complete.
+- id: A3
+  text: Given a completed pass followed by cancellation, rollback or a lost acknowledgement, when
+    a new controller resumes, then committed progress is preserved, the failed pass has no partial
+    effects, every remaining row is eventually removed once blockers clear, and standalone mutation
+    receipts still replay until Project purge. The largest legal row fits a fresh pass, and every
+    nonempty unblocked pass reduces the durable remaining work without a permanent size rejection.
+- id: A4
+  text: Given outstanding work, an unresolved side-effect intent, an undrained child workspace or
+    a foreign owner, when purge is requested, then the existing drain/authority error is returned
+    without removing protected data; partial cleanup never exposes a fabricated complete view or
+    partial denominator.
+- id: A5
+  text: Given the original cascading implementation, when the aggregate-budget regression runs on
+    PostgreSQL, then it exceeds the budget and fails; preservation checks for existing drain gates,
+    ordinary execution ownership and receipt replay remain green without wall-clock thresholds.
+tests:
+- command: CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set an isolated disposable
+    PostgreSQL URL}" go test -tags=integration -count=1 ./internal/evalstore/... ./internal/evalservice/...
+    ./internal/evalcoordinator/... ./internal/projectlifecycle/... ./internal/projectstore/... ./internal/persistence/...
+    ./internal/httpapi/public/... ./internal/findingintake/... ./internal/app/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make verify-public-api
+  covers:
+  - A4
+- command: make lint
+  covers: []
+  purpose: Static formatting, layers, SQL placement, specification links and task consistency only;
+    not evidence of purge bounds or recovery.
+manual_verification:
+- check: Record the FK/trigger phase table, exact row/byte accounting and finalization overhead in
+    the repository review. Confirm that no retained cascade or following Project phase escapes an
+    incomplete pass; record actual PostgreSQL commands, non-skipped results and the landing revision.
+    Record the largest-legal-row derivation and why the final proposed budget accommodates it; row-byte
+    accounting is not a heap-memory or WAL-volume claim.
+  covers:
+  - A1
+  - A2
+  - A5
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local); locked Node 24.20 and Runtime
+    venv; local PostgreSQL 17.11 database contractor_test_c2 with isolated
+    per-test schemas and all 34 migrations; worktree branch claude/rv-c2 on
+    base 9cc34c0b, with claude/review-v407-v409 (c36e3caa) merged in
+    17de731b. First implementation 56ca02d3; review fixes f58ec279.
+  re_verification: >-
+    The finding held on base 9cc34c0b: Store.Purge removed an experiment with
+    one DELETE of eval_experiments that cascaded through members, records,
+    evidence, projections, submissions and view rows; Store.PurgeProject
+    deleted every experiment, dataset revision, collection row and Eval
+    receipt of the Project in the Project controller's transaction, which then
+    continued to finding receipts and Artifacts. Nothing bounded rows or
+    bytes, and records per member have no count bound.
+  design_decision: >-
+    One shared CleanupBudget per pass (persistence/postgres cleanup.go):
+    1,000 row mutations (CleanupBatchRows) and 16 MiB of stored row bytes
+    (LIM-EVM-20), with a fresh pass always taking its first unit. Each
+    statement deletes the prefix of at most limit+1 ctid candidates whose
+    running row and pg_column_size sums fit. Phases go leaf first, so no
+    cascade removes an uncounted row. Collection rows that the triggers
+    rewrite are charged with their parent (3 per dataset revision, 2 per
+    experiment). The view pointer is cleared first, so no reader resolves a
+    partly deleted view. Authority reuses the existing Eval controller claim
+    (checkClaim) and Project deletion claim; no receipt, claim or retry
+    mechanism was added. Reads during a purge (deletion requested and no
+    selected view) keep identity and plan metadata, and member-level reads
+    return 409 eval_project_deleting, an existing code already declared on
+    every Eval read operation (EVM-R244). Rejected alternatives: a per-table
+    or per-experiment fresh budget (the task requires one shared budget); a
+    parent-member LIMIT (does not bound dependent records); a new
+    purge-progress table or cursor (progress is the durable remaining rows).
+    Reversal condition: a schema change that adds a table referencing a
+    purged table, under any name and with any delete action, or a trigger
+    that writes when a purge statement fires it, must extend the purge's
+    declarations (experimentPurgePhases, finalPurgeCascades,
+    projectPurgeTables, purgeDeleteTriggers, purgeRowColumns).
+    TestSharedPostgresEvalPurgeCoversCascadesAndTriggers derives the cascade
+    and trigger graph from pg_constraint and pg_trigger and fails otherwise.
+  review_changes: >-
+    The first review (CHANGES) found the schema guard compared only the
+    columns of eval_* tables: a new cascading child or writing DELETE
+    trigger passed it while a pass counted 63 of 4,863 rows. The guard now
+    walks the FK graph (every confdeltype) and the triggers a purge
+    statement fires, follows writes through called schema functions and
+    dynamic SQL, and has thirteen negative DDL fixtures in rolled-back
+    transactions. The final unit SQL, row costs and charged bytes are derived
+    from the same declarations the guard checks. CleanupBudget and
+    DeleteWithinBudget (now with an optional order) are the one definition of
+    "row and byte limits per pass, first unit always goes": the Project
+    purge of finding proposal receipts (LIM-DEL-3) uses it instead of its own
+    statement, and project_purge_sql.go is gone. The Audit purge keeps its
+    rows-only countdown because LIM-REV-10 has no byte bound; it adopts
+    CleanupBudget when an Audit pass needs one. The doc comment now says row
+    costs and the collection trigger bytes are constants the caller states.
+    Detection of the accepted purge rate: evalstore.PurgeMeter, used by the
+    Eval service and the Project deletion controller, logs each purge's first
+    pass, every 600th pass (a warning past one hour) and its end with pass
+    count, rows, bytes and age since the deletion request (the Project
+    deletion claim now carries deletion_requested_at). The merge of
+    claude/review-v407-v409 renumbered this task's IDs after V407-029.
+  regression_before_fix: >-
+    TestProjectDeletionPurgesEvalDataInBoundedTransactions and
+    TestSharedPostgresEvalPurgeYieldsBetweenTicksAndRefusesPartialReads were
+    copied onto a temporary worktree at 9cc34c0b (git worktree add, then
+    removed) and run against PostgreSQL. The first failed with "step 3 spent
+    5705 Eval row mutations, more than 1000"; the second failed with "one
+    tick left 0 evidence references, want one bounded pass". The evalstore
+    regressions use the new pass API and cannot compile against the base.
+  manual_verification: >-
+    Recorded in docs/research/2026-10-23-sql-review.md section G: the
+    FK/trigger phase table, the exclusion argument, the accounting unit and
+    its per-pass check against pg_stat_get_xact_tuples_* (equal on every
+    committed pass), the fixed authority and finalization overhead (at most 6
+    row mutations, about 3.1 MiB), the largest-legal-row derivation (queue
+    suites 9,295,001 bytes, progress observation counts 11,260,056 stored
+    bytes uncompressed, so 16 MiB fits every legal row), the commands and the
+    landing revision. Measured standalone purge of an 8-member populated
+    experiment of 3,171 dependent rows and 18,332,784 stored bytes: five
+    passes (1000, 1000, 1000, 149 byte-bound, 26 final). Row-byte accounting
+    is not a heap-memory or WAL-volume claim.
+  commands:
+    - >-
+      After the review fixes, CONTRACTOR_TEST_DATABASE_URL=postgres://ruslan@localhost:5432/contractor_test_c2?sslmode=disable
+      go test -tags=integration -count=1 ./internal/evalstore/...
+      ./internal/evalservice/... ./internal/evalcoordinator/...
+      ./internal/projectlifecycle/... ./internal/projectstore/...
+      ./internal/persistence/... ./internal/httpapi/public/...
+      ./internal/findingintake/... ./internal/app/... passed in every package
+      except internal/persistence, which fails only
+      TestSQLAccessFollowsTableOwnership (internal/cli/scan_sweep_remote.go:196)
+      and TestKeyedMutationsUseTheSharedHelpers
+      (internal/app/single_active_budget_test.go). Both fail identically on
+      the integration branch head c36e3caa (checked on a temporary worktree,
+      then removed); the first also fails on 9cc34c0b. -v runs showed every
+      new and preserved purge test passing and none skipped:
+      TestSharedPostgresEvalExperimentPurgeIsBoundedAndRestartable,
+      TestSharedPostgresEvalPurgeWaitsForDrainAndAuthority,
+      TestSharedPostgresEvalPurgeFitsLargestLegalRowInFreshPass,
+      TestSharedPostgresEvalProjectPurgeSharesOneBudget,
+      TestSharedPostgresEvalPurgeRemovesNativePlanResourcesAndCommands,
+      TestSharedPostgresEvalPurgeCoversCascadesAndTriggers (with its
+      thirteen fixtures), TestPurgeMeterLogsPassCountAndAge,
+      TestPostgresProjectReceiptPurgeIsBoundedAndScoped,
+      TestPostgresProjectDeletionClaimLifecycle,
+      TestSharedPostgresEvalPurgeYieldsBetweenTicksAndRefusesPartialReads,
+      TestProjectDeletionPurgesEvalDataInBoundedTransactions,
+      TestPostgresDeleteWithinBudgetBoundsRowsAndBytes,
+      TestPostgresReceiptRowBytesMeasuresEveryColumn,
+      TestPostgresMutationReceiptsKeepTheirShapeAndRetention,
+      TestSharedPostgresEvalBoundedPagesPinnedPurgeAndReceiptRetention and
+      TestSharedPostgresEvalProjectDeletionStillPurgesTerminalExperiments.
+    - >-
+      Mutants, reverted after the run: reordering eval_members before the
+      tombstones and projections, or dropping eval_controller_claims from
+      finalPurgeCascades, fails the coverage guard; removing either
+      PurgeMeter call fails the service or Project purge test.
+    - make verify-public-api passed.
+    - make test-wire-cross-language passed (1164 tests, with the test database set).
+    - go test -count=1 ./internal/apierror passed after regenerating the errors.md table with -update.
+    - make lint passed.
+  database_tests_configured: true
+  siblings_reviewed: >-
+    Standalone deletion (evalservice.purge under the coordinator claim) and
+    Project deletion (projectlifecycle.purgeProject) are the only callers of
+    Purge and PurgeProject. Every Eval table with an experiment_id, the
+    dataset revisions, the collection row and the Eval receipts are in the
+    phases. The Project purge of finding proposal receipts now shares the
+    CleanupBudget rule; Audit purge (auditstore) keeps its own lifecycle and
+    its rows-only budget (LIM-REV-10).
+    Ordinary Run and Audit deletion is untouched; the evalservice test keeps
+    the eight workflow Runs. Read paths during a partial purge: Get and List
+    (metadata only, freshness pending), Members, Pairs, Pair, Report, Chart
+    (withSelectedView), Review and Executions (Purging gate), GetCommand
+    (commands go in the last phase).
+  limits_registered: >-
+    LIM-EVM-20 (1,000 row mutations and 16 MiB of stored row bytes per Eval
+    purge pass), owned by the new EVM-R243, which also records the accepted
+    purge rate with its owner, detection and reopen condition. Also new:
+    EVM-R244 (reads during a purge) and FAIL-EVM-9 (failure outcomes of one
+    pass). V407-029 took EVM-R242 and LIM-EVM-19, so these were renumbered
+    from EVM-R242, EVM-R243 and LIM-EVM-19. Updated: EVM-R223, DEL-R44,
+    DEL-R60, LIFE-EVM-5, LIFE-DEL-9, FAIL-DEL-3, the observability table of
+    telemetry rules owned elsewhere, and the eval_project_deleting registry
+    meaning. LIM-EVM-18 was added to the managed-evals limits list, where it
+    was missing. No migration.
+  declined: >-
+    No OpenAPI change: every Eval read operation already declares 409, and
+    eval_project_deleting is in EvalAPIError. No UI change: some Eval reads
+    do run during a purge without the experiment's snapshot (pair.tsx with
+    the viewSnapshot URL parameter or none, and ExecutionReasons in
+    execution-status.tsx without a snapshot when the experiment reports
+    none), but they receive 409 eval_project_deleting and EvalError shows its
+    message, "The evaluation workspace is being deleted."; no page shows
+    partial data. Comparison, projection and
+    reconciliation optimizations stay with V409-014 and context.decisions.
+  accepted_risks: >-
+    Recorded in EVM-R243: the Eval coordinator commits one experiment purge
+    pass per tick (1 s by default), about 2.8 h for 10M rows; the Project
+    deletion controller runs its passes back to back. Owner: the Eval
+    coordinator. Detection: the PurgeMeter records (first pass, every 600th
+    pass, last pass; a warning once a purge is older than one hour), tested
+    by TestPurgeMeterLogsPassCountAndAge and asserted on both real purge
+    paths. Reopen when the warning is logged or deletion must finish faster
+    than one pass per tick.
+  remaining: None for this task.

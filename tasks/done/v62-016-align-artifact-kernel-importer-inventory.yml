@@ -1,0 +1,48 @@
+schema_version: '1.0'
+id: V62-016
+title: Align the artifact kernel importer inventory after archive cache delivery
+milestone: audit-iterative-composition-2026-10
+epic: quality
+kind: chore
+introduced_by: V413-001
+priority: P3
+status: completed
+implementation_commit: 520a80d8c2076a5a583a89559f6c796a9f9e630a
+depends_on:
+- V413-001
+languages: [go, yaml]
+goal: Restore the architecture gate's exact symbol inventory without changing artifact behavior or weakening the check.
+context:
+  review: Full owner and architecture verification during V62-007 integration.
+  finding: >-
+    internal/archtest/contracts_importers_test.go:61 still lists
+    ArtifactReadResult for internal/httpapi/privateartifacts after V413-001
+    moved archive reads to the authorized immutable archive path. Current main
+    has no use of that symbol, so TestContractsKernelImportersUseWireSymbols
+    fails before unrelated feature work can pass make lint.
+scope:
+  in:
+  - Remove the single stale symbol from the existing importer inventory.
+  - Keep all actual importer, wire-symbol and architecture checks enabled.
+  out:
+  - Runtime, archive transport, authorization, public or private API behavior.
+acceptance_criteria:
+- id: A1
+  text: The private artifact package lists only wire symbols it actually uses, and the exact importer guard passes.
+- id: A2
+  text: The full architecture package and make lint pass without an allowlist expansion or skipped check.
+tests:
+- command: go test -count=1 ./internal/archtest
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2]
+verification:
+  date: '2026-10-26'
+  result: passed
+  environment: Dedicated checkout based on main 79e409d112c3807b7142385af9795850c2d728bd, without unfinished V62-007 changes.
+  commands:
+  - command: CI=true UV_OFFLINE=1 make lint
+    result: passed; exact importer inventory, layers, generated documents and release graph checks remain enabled.
+  - command: go test -count=1 ./internal/archtest
+    result: passed, complete package in 1.103 seconds.
+  disposition: One stale inventory symbol removed; no production code, transport, authorization or API behavior changed.

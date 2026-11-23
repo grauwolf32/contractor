@@ -1,0 +1,660 @@
+"""Narrow backend-independent project workspace snapshots and handles."""
+
+from __future__ import annotations
+
+import asyncio
+import hashlib
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Protocol
+
+import jcs
+
+from contractor_runtime.contracts import ArtifactRef, WorkspaceMode
+from contractor_runtime.projectfs.config import WorkspaceLimits
+from contractor_runtime.projectfs.errors import WorkspaceStorageError as WorkspaceStorageError
+from contractor_runtime.projectfs.paths import (
+    ProjectPathError,
+    normalize_project_path,
+    parent_paths,
+)
+from contractor_runtime.projectfs.provider import ProjectWorkspaceStorage
+from contractor_runtime.threads import to_thread_until_done
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceTextFile:
+    path: str
+    text: str = field(repr=False)
+    size: int
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceSnapshot:
+    directories: tuple[str, ...]
+    files: tuple[WorkspaceTextFile, ...]
+    binary_paths: tuple[str, ...]
+    digest: str
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceObservationMetadata:
+    """Content-free metadata for one effective managed-text workspace tree."""
+
+    digest: str
+    managed_text_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceDiff:
+    text: str = field(repr=False)
+    returned_bytes: int
+    truncated: bool
+    offset_bytes: int = 0
+    next_offset: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceChange:
+    path: str
+    change: str
+    token: str = field(repr=False)
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceSourceFile:
+    """One atomic file capture relative to its immutable hydration source."""
+
+    path: str
+    source_path: str
+    source_ref: ArtifactRef
+    original: str = field(repr=False)
+    current: str = field(repr=False)
+
+
+class WorkspaceSourceReader(Protocol):
+    async def capture_source_file(self, path: str) -> WorkspaceSourceFile: ...
+
+
+class WorkspaceSourceView:
+    __slots__ = ("__reader",)
+
+    def __init__(self, reader: WorkspaceSourceReader) -> None:
+        self.__reader = reader
+
+    async def capture_source_file(self, path: str) -> WorkspaceSourceFile:
+        return await self.__reader.capture_source_file(path)
+
+
+class WorkspaceReader(Protocol):
+    async def snapshot(self) -> WorkspaceSnapshot: ...
+
+    async def file_paths(self) -> frozenset[str]: ...
+
+    async def read_text(self, path: str) -> str: ...
+
+    async def read_bytes(self, path: str) -> bytes: ...
+
+    async def observation_metadata(self) -> WorkspaceObservationMetadata: ...
+
+
+class WorkspaceWriter(WorkspaceReader, Protocol):
+    async def write_text(self, path: str, text: str) -> None: ...
+
+    async def make_directory(self, path: str, *, parents: bool = False) -> None: ...
+
+    async def delete_path(self, path: str, *, recursive: bool = False) -> None: ...
+
+    async def copy_path(
+        self, source: str, destination: str, *, recursive: bool = False
+    ) -> None: ...
+
+    async def move_path(self, source: str, destination: str) -> None: ...
+
+    async def update_text(self, path: str, transform: Callable[[str], str]) -> None: ...
+
+
+class WorkspaceChanges(Protocol):
+    async def change_entries(self, path: str = "") -> tuple[WorkspaceChange, ...]: ...
+
+    async def diff(
+        self, path: str = "", *, max_bytes: int = 65536, offset_bytes: int = 0
+    ) -> WorkspaceDiff: ...
+
+    async def rollback_changes(self, path: str = "") -> None: ...
+
+
+class WorkspaceReaderView:
+    """Narrow model-tool handle with no backend or provider properties."""
+
+    __slots__ = ("__reader",)
+
+    def __init__(self, reader: WorkspaceReader) -> None:
+        self.__reader = reader
+
+    async def snapshot(self) -> WorkspaceSnapshot:
+        return await self.__reader.snapshot()
+
+    async def file_paths(self) -> frozenset[str]:
+        return await self.__reader.file_paths()
+
+    async def read_text(self, path: str) -> str:
+        return await self.__reader.read_text(path)
+
+    async def read_bytes(self, path: str) -> bytes:
+        return await self.__reader.read_bytes(path)
+
+    async def observation_metadata(self) -> WorkspaceObservationMetadata:
+        return await self.__reader.observation_metadata()
+
+
+class WorkspaceWriterView:
+    """Narrow text writer/reader with no concrete backend escape hatch."""
+
+    __slots__ = ("__writer",)
+
+    def __init__(self, writer: WorkspaceWriter) -> None:
+        self.__writer = writer
+
+    async def snapshot(self) -> WorkspaceSnapshot:
+        return await self.__writer.snapshot()
+
+    async def file_paths(self) -> frozenset[str]:
+        return await self.__writer.file_paths()
+
+    async def read_text(self, path: str) -> str:
+        return await self.__writer.read_text(path)
+
+    async def read_bytes(self, path: str) -> bytes:
+        return await self.__writer.read_bytes(path)
+
+    async def observation_metadata(self) -> WorkspaceObservationMetadata:
+        return await self.__writer.observation_metadata()
+
+    async def write_text(self, path: str, text: str) -> None:
+        await self.__writer.write_text(path, text)
+
+    async def make_directory(self, path: str, *, parents: bool = False) -> None:
+        await self.__writer.make_directory(path, parents=parents)
+
+    async def delete_path(self, path: str, *, recursive: bool = False) -> None:
+        await self.__writer.delete_path(path, recursive=recursive)
+
+    async def copy_path(self, source: str, destination: str, *, recursive: bool = False) -> None:
+        await self.__writer.copy_path(source, destination, recursive=recursive)
+
+    async def move_path(self, source: str, destination: str) -> None:
+        await self.__writer.move_path(source, destination)
+
+    async def update_text(self, path: str, transform: Callable[[str], str]) -> None:
+        await self.__writer.update_text(path, transform)
+
+
+class WorkspaceChangesView:
+    """Narrow invocation-delta view without cumulative state or checkpoint commit."""
+
+    __slots__ = ("__changes",)
+
+    def __init__(self, changes: WorkspaceChanges) -> None:
+        self.__changes = changes
+
+    async def change_entries(self, path: str = "") -> tuple[WorkspaceChange, ...]:
+        return await self.__changes.change_entries(path)
+
+    async def diff(
+        self, path: str = "", *, max_bytes: int = 65536, offset_bytes: int = 0
+    ) -> WorkspaceDiff:
+        return await self.__changes.diff(path, max_bytes=max_bytes, offset_bytes=offset_bytes)
+
+    async def rollback_changes(self, path: str = "") -> None:
+        await self.__changes.rollback_changes(path)
+
+
+@dataclass(slots=True)
+class ManagedWorkspaceTree:
+    directories: set[str] = field(default_factory=set)
+    text_files: dict[str, str] = field(default_factory=dict, repr=False)
+    binary_paths: set[str] = field(default_factory=set)
+
+    def clone(self) -> ManagedWorkspaceTree:
+        return ManagedWorkspaceTree(
+            directories=set(self.directories),
+            text_files=dict(self.text_files),
+            binary_paths=set(self.binary_paths),
+        )
+
+    def snapshot(self) -> WorkspaceSnapshot:
+        return _snapshot(self.directories, self.text_files, self.binary_paths)
+
+    def kind(self, path: str) -> str | None:
+        if path in self.directories:
+            return "directory"
+        if path in self.text_files:
+            return "text"
+        if path in self.binary_paths:
+            return "binary"
+        return None
+
+    def paths(self) -> set[str]:
+        return self.directories | self.text_files.keys() | self.binary_paths
+
+
+class DirectWorkspaceSession:
+    """Disk-authoritative local direct or managed memory/overlay session."""
+
+    def __init__(
+        self,
+        *,
+        mode: WorkspaceMode,
+        storage: ProjectWorkspaceStorage,
+        content_root: str | None = None,
+        limits: WorkspaceLimits,
+        directories: set[str],
+        text_files: dict[str, str],
+        binary_paths: set[str],
+    ) -> None:
+        self._mode = mode
+        self._storage = storage
+        self._limits = limits
+        # Local imports keep the private disk implementation behind the narrow
+        # interfaces declared in this module, without a module import cycle.
+        from contractor_runtime.projectfs.local_direct import LocalDirectWorkspace
+
+        self._local = (
+            LocalDirectWorkspace(
+                content_root or f"{storage.root}/run_workdir",
+                limits,
+                operation_timeout_seconds=storage.operation_timeout_seconds,
+            )
+            if mode == "direct" and storage.storage == "local"
+            else None
+        )
+        self._tree = (
+            ManagedWorkspaceTree()
+            if self._local is not None
+            else ManagedWorkspaceTree(
+                directories=set(directories),
+                text_files=dict(text_files),
+                binary_paths=set(binary_paths),
+            )
+        )
+        self._lock = asyncio.Lock()
+        self._closed = False
+
+    @property
+    def mode(self) -> WorkspaceMode:
+        return self._mode
+
+    @property
+    def storage(self) -> ProjectWorkspaceStorage:
+        return self._storage
+
+    @property
+    def execution_guard(self):
+        """Private lifecycle seam; reader/writer tool views do not expose this."""
+        self._require_open()
+        if self._local is None:
+            raise WorkspaceStorageError("workspace_unavailable")
+        return self._local.guard
+
+    @property
+    def limits(self) -> WorkspaceLimits:
+        return self._limits
+
+    def reader_view(self) -> WorkspaceReader:
+        self._require_open()
+        return WorkspaceReaderView(self)
+
+    def writer_view(self) -> WorkspaceWriter:
+        self._require_open()
+        return WorkspaceWriterView(self)
+
+    def source_view(self) -> WorkspaceSourceReader:
+        raise WorkspaceStorageError("workspace_mode_unsupported")
+
+    def changes_view(self) -> WorkspaceChanges:
+        raise WorkspaceStorageError("workspace_mode_unsupported")
+
+    async def snapshot(self) -> WorkspaceSnapshot:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.snapshot()
+        async with self._lock:
+            self._require_open()
+            return await to_thread_until_done(self._tree.snapshot, name="workspace-snapshot")
+
+    async def file_paths(self) -> frozenset[str]:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.file_paths()
+        async with self._lock:
+            self._require_open()
+            return await to_thread_until_done(
+                lambda: frozenset(self._tree.text_files) | frozenset(self._tree.binary_paths),
+                name="workspace-file-paths",
+            )
+
+    async def observation_metadata(self) -> WorkspaceObservationMetadata:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.observation_metadata()
+        async with self._lock:
+            self._require_open()
+            return await to_thread_until_done(
+                self._observation_metadata, name="workspace-observation-metadata"
+            )
+
+    def _observation_metadata(self) -> WorkspaceObservationMetadata:
+        return WorkspaceObservationMetadata(
+            digest=workspace_digest(self._tree.directories, self._tree.text_files),
+            managed_text_paths=tuple(sorted(self._tree.text_files)),
+        )
+
+    async def read_bytes(self, path: str) -> bytes:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.read_bytes(path)
+        # Memory-backed workspaces retain managed UTF-8 files as text.
+        return (await self.read_text(path)).encode("utf-8")
+
+    async def read_text(self, path: str) -> str:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.read_text(path)
+        normalized = _normalized_path(path)
+        async with self._lock:
+            self._require_open()
+            if normalized in self._tree.binary_paths:
+                raise WorkspaceStorageError("binary_file_unsupported")
+            if normalized in self._tree.directories:
+                raise WorkspaceStorageError("workspace_type_conflict")
+            try:
+                return self._tree.text_files[normalized]
+            except KeyError:
+                raise WorkspaceStorageError("workspace_not_found") from None
+
+    async def write_text(self, path: str, text: str) -> None:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.write_text(path, text)
+        normalized = _normalized_path(path)
+        _validate_managed_text(text, self._limits)
+        async with self._lock:
+            self._require_open()
+            candidate = self._tree.clone()
+            kind = candidate.kind(normalized)
+            if kind == "binary":
+                raise WorkspaceStorageError("binary_file_unsupported")
+            if kind == "directory":
+                raise WorkspaceStorageError("workspace_type_conflict")
+            _require_parent(candidate, normalized)
+            candidate.text_files[normalized] = text
+            self._commit_candidate(candidate)
+
+    async def update_text(self, path: str, transform: Callable[[str], str]) -> None:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.update_text(path, transform)
+        normalized = _normalized_path(path)
+        async with self._lock:
+            self._require_open()
+            if self._tree.kind(normalized) == "binary":
+                raise WorkspaceStorageError("binary_file_unsupported")
+            try:
+                current = self._tree.text_files[normalized]
+            except KeyError:
+                raise WorkspaceStorageError("workspace_not_found") from None
+            updated = transform(current)
+            _validate_managed_text(updated, self._limits)
+            candidate = self._tree.clone()
+            candidate.text_files[normalized] = updated
+            self._commit_candidate(candidate)
+
+    async def make_directory(self, path: str, *, parents: bool = False) -> None:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.make_directory(path, parents=parents)
+        normalized = _normalized_path(path)
+        async with self._lock:
+            self._require_open()
+            candidate = self._tree.clone()
+            existing = candidate.kind(normalized)
+            if existing == "directory":
+                return
+            if existing is not None:
+                raise WorkspaceStorageError("workspace_type_conflict")
+            missing = [
+                parent for parent in parent_paths(normalized) if candidate.kind(parent) is None
+            ]
+            if missing and not parents:
+                raise WorkspaceStorageError("workspace_not_found")
+            for parent in parent_paths(normalized):
+                kind = candidate.kind(parent)
+                if kind not in {None, "directory"}:
+                    raise WorkspaceStorageError("workspace_type_conflict")
+                candidate.directories.add(parent)
+            candidate.directories.add(normalized)
+            self._commit_candidate(candidate)
+
+    async def delete_path(self, path: str, *, recursive: bool = False) -> None:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.delete_path(path, recursive=recursive)
+        normalized = _normalized_path(path)
+        async with self._lock:
+            self._require_open()
+            kind = self._tree.kind(normalized)
+            if kind is None:
+                raise WorkspaceStorageError("workspace_not_found")
+            selected = _subtree_paths(self._tree, normalized)
+            if any(path in self._tree.binary_paths for path in selected):
+                raise WorkspaceStorageError("binary_file_unsupported")
+            if len(selected) > 1 and not recursive:
+                raise WorkspaceStorageError("workspace_type_conflict")
+            candidate = self._tree.clone()
+            _remove_tree(candidate, normalized)
+            self._commit_candidate(candidate)
+
+    async def copy_path(self, source: str, destination: str, *, recursive: bool = False) -> None:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.copy_path(source, destination, recursive=recursive)
+        normalized_source = _normalized_path(source)
+        normalized_destination = _normalized_path(destination)
+        async with self._lock:
+            self._require_open()
+            candidate = self._tree.clone()
+            _copy_tree(
+                candidate,
+                normalized_source,
+                normalized_destination,
+                recursive=recursive,
+            )
+            self._commit_candidate(candidate)
+
+    async def move_path(self, source: str, destination: str) -> None:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.move_path(source, destination)
+        normalized_source = _normalized_path(source)
+        normalized_destination = _normalized_path(destination)
+        async with self._lock:
+            self._require_open()
+            candidate = self._tree.clone()
+            _copy_tree(
+                candidate,
+                normalized_source,
+                normalized_destination,
+                recursive=True,
+            )
+            _remove_tree(candidate, normalized_source)
+            self._commit_candidate(candidate)
+
+    async def close(self, *, deadline: float | None = None) -> None:
+        if self._local is not None:
+            await self._local.close(deadline=deadline)
+            self._closed = True
+            return
+        async with asyncio.timeout_at(deadline), self._lock:
+            self._closed = True
+            self._tree.directories.clear()
+            self._tree.text_files.clear()
+            self._tree.binary_paths.clear()
+
+    def _commit_candidate(self, candidate: ManagedWorkspaceTree) -> None:
+        _validate_managed_tree(candidate, self._limits)
+        self._tree = candidate
+
+    def _require_open(self) -> None:
+        if self._closed:
+            raise WorkspaceStorageError("workspace_not_found")
+
+
+def workspace_digest(directories: set[str], text_files: dict[str, str]) -> str:
+    # Preserve the canonical document byte for byte without materializing a
+    # second copy of the entire workspace. These fixed keys are in JCS order;
+    # each file still uses JCS for string escaping and Unicode encoding.
+    digest = hashlib.sha256()
+    digest.update(b'{"directories":')
+    digest.update(jcs.canonicalize(sorted(directories)))
+    digest.update(b',"files":[')
+    for index, path in enumerate(sorted(text_files)):
+        if index:
+            digest.update(b",")
+        digest.update(jcs.canonicalize({"path": path, "text": text_files[path]}))
+    digest.update(b"]}")
+    return "sha256:" + digest.hexdigest()
+
+
+def _snapshot(
+    directories: set[str], text_files: dict[str, str], binary_paths: set[str]
+) -> WorkspaceSnapshot:
+    return WorkspaceSnapshot(
+        directories=tuple(sorted(directories)),
+        files=tuple(
+            WorkspaceTextFile(
+                path=path,
+                text=text_files[path],
+                size=len(text_files[path].encode("utf-8")),
+            )
+            for path in sorted(text_files)
+        ),
+        binary_paths=tuple(sorted(binary_paths)),
+        digest=workspace_digest(directories, text_files),
+    )
+
+
+def _normalized_path(path: str) -> str:
+    try:
+        return normalize_project_path(path, allow_root=False)
+    except ProjectPathError:
+        raise WorkspaceStorageError("workspace_path_invalid") from None
+
+
+def _validate_managed_text(text: str, limits: WorkspaceLimits) -> bytes:
+    if not isinstance(text, str) or "\x00" in text:
+        raise WorkspaceStorageError("binary_file_unsupported")
+    try:
+        encoded = text.encode("utf-8")
+    except UnicodeError:
+        raise WorkspaceStorageError("binary_file_unsupported") from None
+    if len(encoded) > limits.max_file_bytes:
+        raise WorkspaceStorageError("workspace_limit_exceeded")
+    return encoded
+
+
+def _validate_managed_tree(
+    tree: ManagedWorkspaceTree,
+    limits: WorkspaceLimits,
+    *,
+    encoded_lengths: dict[str, int] | None = None,
+) -> int:
+    if (
+        tree.directories & tree.text_files.keys()
+        or tree.directories & tree.binary_paths
+        or tree.text_files.keys() & tree.binary_paths
+        or len(tree.paths()) > limits.max_files
+    ):
+        raise WorkspaceStorageError("workspace_limit_exceeded")
+    managed_bytes = 0
+    for path in tree.paths():
+        if _normalized_path(path) != path:
+            raise WorkspaceStorageError("workspace_path_invalid")
+        for parent in parent_paths(path):
+            if parent not in tree.directories:
+                raise WorkspaceStorageError("workspace_type_conflict")
+    for path, text in tree.text_files.items():
+        size = len(_validate_managed_text(text, limits))
+        managed_bytes += size
+        if encoded_lengths is not None:
+            encoded_lengths[path] = size
+    if managed_bytes > limits.max_managed_text_bytes or managed_bytes > limits.max_expanded_bytes:
+        raise WorkspaceStorageError("workspace_limit_exceeded")
+    return managed_bytes
+
+
+def _require_parent(tree: ManagedWorkspaceTree, path: str) -> None:
+    parents = parent_paths(path)
+    if parents and tree.kind(parents[-1]) != "directory":
+        raise WorkspaceStorageError("workspace_not_found")
+
+
+def _subtree_paths(tree: ManagedWorkspaceTree, root: str) -> set[str]:
+    return {path for path in tree.paths() if path == root or path.startswith(f"{root}/")}
+
+
+def _remove_tree(tree: ManagedWorkspaceTree, root: str) -> None:
+    if root and root not in tree.directories:
+        tree.text_files.pop(root, None)
+        tree.binary_paths.discard(root)
+        return
+    selected = {path for path in tree.paths() if _within(path, root)}
+    tree.directories.difference_update(selected)
+    for path in selected:
+        tree.text_files.pop(path, None)
+    tree.binary_paths.difference_update(selected)
+
+
+def _copy_subtree(
+    source: ManagedWorkspaceTree, destination: ManagedWorkspaceTree, root: str
+) -> None:
+    destination.directories.update(path for path in source.directories if _within(path, root))
+    destination.text_files.update(
+        (path, text) for path, text in source.text_files.items() if _within(path, root)
+    )
+    destination.binary_paths.update(path for path in source.binary_paths if _within(path, root))
+
+
+def _within(path: str, root: str) -> bool:
+    return root == "" or path == root or path.startswith(f"{root}/")
+
+
+def _copy_tree(
+    tree: ManagedWorkspaceTree,
+    source: str,
+    destination: str,
+    *,
+    recursive: bool,
+) -> None:
+    kind = tree.kind(source)
+    if kind is None:
+        raise WorkspaceStorageError("workspace_not_found")
+    selected = _subtree_paths(tree, source)
+    if any(path in tree.binary_paths for path in selected):
+        raise WorkspaceStorageError("binary_file_unsupported")
+    if kind == "directory" and not recursive:
+        raise WorkspaceStorageError("workspace_type_conflict")
+    if tree.kind(destination) is not None:
+        raise WorkspaceStorageError("workspace_type_conflict")
+    if destination.startswith(f"{source}/"):
+        raise WorkspaceStorageError("workspace_type_conflict")
+    _require_parent(tree, destination)
+    for path in sorted(selected, key=lambda value: (value.count("/"), value)):
+        suffix = path[len(source) :]
+        target = destination + suffix
+        if tree.kind(target) is not None:
+            raise WorkspaceStorageError("workspace_type_conflict")
+        if path in tree.directories:
+            tree.directories.add(target)
+        elif path in tree.text_files:
+            tree.text_files[target] = tree.text_files[path]

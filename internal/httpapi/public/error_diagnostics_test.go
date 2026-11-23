@@ -1,0 +1,208 @@
+package public
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"log/slog"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/helpers/requestid"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+)
+
+func TestPublicErrorDiagnosticsAreCorrelatedRedactedAndDoNotChangeEnvelopes(t *testing.T) {
+	const secret = "recognizable-password-session-sql-artifact-secret"
+	for _, test := range []struct {
+		name, cause, code string
+		err               error
+		status            int
+	}{
+		{"storage", "storage_constraint_failed", "internal_error", &pgconn.PgError{
+			Code: persistencepostgres.SQLStateForeignKeyViolation, Message: secret, Detail: secret, Where: secret, InternalQuery: secret,
+		}, http.StatusInternalServerError},
+		{"storage-unknown-code", "storage_failed", "internal_error", &pgconn.PgError{
+			Code: secret, Message: secret,
+		}, http.StatusInternalServerError},
+		{"storage-serialization", "storage_serialization_conflict", "storage_transaction_conflict", &pgconn.PgError{
+			Code: persistencepostgres.SQLStateSerializationFailure, Message: secret,
+		}, http.StatusServiceUnavailable},
+		{"storage-deadlock", "storage_deadlock", "storage_transaction_conflict", &pgconn.PgError{
+			Code: persistencepostgres.SQLStateDeadlockDetected, Message: secret,
+		}, http.StatusServiceUnavailable},
+		{"storage-closed", "storage_unavailable", "internal_error", persistencepostgres.WrapError("commit PostgreSQL transaction", pgconn.ErrConnClosed), http.StatusInternalServerError},
+		{"storage-eof", "storage_unavailable", "internal_error", io.EOF, http.StatusInternalServerError},
+		{"downstream", "downstream_unavailable", "gateway_unavailable", credentials.ErrGatewayUnavailable, http.StatusBadGateway},
+		{"downstream-closed-cause", "downstream_unavailable", "gateway_unavailable", errors.Join(credentials.ErrGatewayUnavailable, pgconn.ErrConnClosed), http.StatusBadGateway},
+		{"credential-recovery", "credential_recovery_required", "credential_recovery_required", credentials.ErrRecoveryRequired, http.StatusServiceUnavailable},
+		{"transfer-capacity", "artifact_transfer_capacity", "artifact_transfer_capacity", blob.ErrTransferCapacity, http.StatusServiceUnavailable},
+		{"history-pending", "artifact_history_maintenance_pending", "artifact_history_maintenance_pending", &artifacts.HistoryMaintenanceError{Maintained: true}, http.StatusServiceUnavailable},
+		{"cancelled", "cancelled", "internal_error", context.Canceled, http.StatusInternalServerError},
+		{"deadline", "deadline_exceeded", "internal_error", context.DeadlineExceeded, http.StatusInternalServerError},
+		{"unknown", "unknown", "internal_error", errors.New(secret), http.StatusInternalServerError},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&logs, nil))
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("POST /v1/diagnostics/{resource}", func(w http.ResponseWriter, _ *http.Request) {
+				handleError(w, fmt.Errorf("%s: %w", secret, test.err))
+			})
+			boundary := withAPIVersion(requestid.Middleware(withErrorDiagnostics(mux), requestid.Options{
+				Generator: func() (string, error) { return "request-diagnostic", nil },
+				Logger:    logger, Boundary: "public-api",
+			}))
+			request := httptest.NewRequest(http.MethodPost, "/v1/diagnostics/"+secret+"?token="+secret, strings.NewReader(secret))
+			request.Header.Set("Authorization", "Bearer "+secret)
+			request.Header.Set("Cookie", "session="+secret)
+			request.Header.Set(requestid.Header, secret)
+			response := httptest.NewRecorder()
+			boundary.ServeHTTP(response, request)
+			if response.Code != test.status || response.Header().Get(requestid.Header) != "request-diagnostic" {
+				t.Fatalf("response = %d %v", response.Code, response.Header())
+			}
+			var envelope map[string]any
+			if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
+				t.Fatal(err)
+			}
+			if len(envelope) != 4 || envelope["code"] != test.code || envelope["retryable"] != true || envelope["requestId"] != "request-diagnostic" {
+				t.Fatalf("public envelope changed: %v", envelope)
+			}
+			if strings.Contains(logs.String()+response.Body.String(), secret) {
+				t.Fatal("diagnostic or response leaked private error/request material")
+			}
+			decoder := json.NewDecoder(&logs)
+			var event map[string]any
+			if err := decoder.Decode(&event); err != nil {
+				t.Fatal(err)
+			}
+			if event["msg"] != "HTTP request failed" || event["cause"] != test.cause ||
+				event["operation"] != "POST /v1/diagnostics/{resource}" || event["request_id"] != "request-diagnostic" ||
+				event["status"] != float64(test.status) || event["boundary"] != "public-api" {
+				t.Fatalf("diagnostic = %v", event)
+			}
+			if err := decoder.Decode(&event); err != io.EOF {
+				t.Fatalf("expected exactly one request diagnostic, got another event: %v (%v)", event, err)
+			}
+		})
+	}
+}
+
+func TestPublicExpectedErrorsKeepContractsWithoutFailureLogs(t *testing.T) {
+	for _, test := range []struct {
+		err       error
+		status    int
+		code      string
+		retryable bool
+	}{
+		{contracts.ErrValidation, http.StatusBadRequest, "invalid_request", false},
+		{projectstore.ErrNotFound, http.StatusNotFound, "not_found", false},
+		{projectstore.ErrPrecondition, http.StatusPreconditionFailed, "precondition_failed", false},
+		{artifacts.ErrArtifactConflict, http.StatusConflict, "conflict", true},
+	} {
+		t.Run(test.code, func(t *testing.T) {
+			var logs bytes.Buffer
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("GET /v1/diagnostics", func(w http.ResponseWriter, _ *http.Request) {
+				handleError(w, fmt.Errorf("private request payload: %w", test.err))
+			})
+			boundary := requestid.Middleware(withErrorDiagnostics(mux), requestid.Options{
+				Logger:    slog.New(slog.NewJSONHandler(&logs, nil)),
+				Generator: func() (string, error) { return "request-expected", nil },
+			})
+			response := httptest.NewRecorder()
+			boundary.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/diagnostics", nil))
+			var envelope errorResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != test.status || envelope.Code != test.code || envelope.Retryable != test.retryable || envelope.RequestID != "request-expected" {
+				t.Fatalf("response changed = %d %+v", response.Code, envelope)
+			}
+			if logs.Len() != 0 {
+				t.Fatalf("expected rejection emitted failure logs: %s", &logs)
+			}
+		})
+	}
+}
+
+func TestPublicAuthenticationRejectionDoesNotEmitDiagnostic(t *testing.T) {
+	var logs bytes.Buffer
+	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false,
+		slog.New(slog.NewJSONHandler(&logs, nil)))
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/v1/projects", nil)
+	request.Header.Set("Authorization", "Bearer private-invalid-token")
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized || response.Header().Get(requestid.Header) != "request-fixed" || logs.Len() != 0 {
+		t.Fatalf("authentication response=%d logs=%s", response.Code, &logs)
+	}
+	forbidden := httptest.NewRecorder()
+	request = authenticatedRequest(http.MethodGet, "/v1/projects", bytes.NewReader(nil))
+	request.Header.Set("Origin", "https://forbidden.example.test")
+	fixture.handler.ServeHTTP(forbidden, request)
+	if forbidden.Code != http.StatusForbidden || forbidden.Header().Get(requestid.Header) != "request-fixed" || logs.Len() != 0 {
+		t.Fatalf("authorization response=%d logs=%s", forbidden.Code, &logs)
+	}
+}
+
+func TestDiagnosticCauseUsesOnlyClosedCategories(t *testing.T) {
+	for _, test := range []struct {
+		err   error
+		cause string
+	}{
+		{&pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure}, "storage_serialization_conflict"},
+		{&pgconn.PgError{Code: persistencepostgres.SQLStateDeadlockDetected}, "storage_deadlock"},
+		{&pgconn.PgError{Code: persistencepostgres.SQLStateLockNotAvailable}, "storage_lock_unavailable"},
+		{&pgconn.PgError{Code: persistencepostgres.SQLStateQueryCanceled}, "storage_query_cancelled"},
+		{&pgconn.PgError{Code: persistencepostgres.SQLStateTooManyConnections}, "storage_unavailable"},
+		{pgconn.ErrConnClosed, "storage_unavailable"},
+		{errors.Join(pgconn.ErrConnClosed, context.Canceled), "cancelled"},
+		{errors.Join(pgconn.ErrConnClosed, context.DeadlineExceeded), "deadline_exceeded"},
+		{io.EOF, "storage_unavailable"},
+		{io.ErrUnexpectedEOF, "storage_unavailable"},
+		{net.ErrClosed, "storage_unavailable"},
+		{pgx.ErrTxClosed, "storage_transaction_failed"},
+		{errors.Join(credentials.ErrGatewayUnavailable, pgconn.ErrConnClosed), "downstream_unavailable"},
+		{errors.Join(blob.ErrMissing, io.EOF), "artifact_content_missing"},
+		{credentials.ErrCrypto, "credential_crypto_failed"},
+		{credentials.ErrKeyUnavailable, "credential_key_unavailable"},
+		{fmt.Errorf("lookup: %w", credentials.ErrRecoveryRequired), "credential_recovery_required"},
+		{blob.ErrTransferCapacity, "artifact_transfer_capacity"},
+		{fmt.Errorf("read: %w", blob.ErrIntegrity), "artifact_integrity_failed"},
+		{fmt.Errorf("read: %w", blob.ErrMissing), "artifact_content_missing"},
+		{fmt.Errorf("write: %w", artifacts.ErrHistoryProtected), "artifact_history_protected"},
+		{&artifacts.HistoryMaintenanceError{Cause: errors.New("private storage failure")}, "artifact_history_maintenance_pending"},
+		{&net.DNSError{Err: "private network payload", Name: "private-host", IsTimeout: true}, "storage_unavailable"},
+		{&net.DNSError{Err: "private network payload", Name: "private-host"}, "storage_unavailable"},
+		{&fs.PathError{Op: "read", Path: "private-path", Err: fs.ErrPermission}, "storage_io_failed"},
+		{diagnosticOpaqueError{}, "unknown"},
+	} {
+		t.Run(test.cause, func(t *testing.T) {
+			if got := diagnosticCause(test.err); got != test.cause {
+				t.Fatalf("cause = %q, want %q", got, test.cause)
+			}
+		})
+	}
+}
+
+type diagnosticOpaqueError struct{}
+
+func (diagnosticOpaqueError) Error() string { panic("diagnostics must not stringify errors") }

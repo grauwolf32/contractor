@@ -1,0 +1,155 @@
+{
+  "date": "2026-11-22",
+  "baseline": "d8b9f6d621a68e04c8a7dd86784529e27c0d93a9",
+  "branch": "codex/v476-runtime-guidance",
+  "implementationCommits": {
+    "V476-001": "1bf8daccc0b6126d492c3a497f5b99aa7560a569",
+    "V476-002": "bf0f43a3f99c14c3da964cc7d0904f839c24a570",
+    "V476-003": "bcc40fe8832ff577b853620e94e99c8ebcd0e2a4",
+    "V476-004": "ff9a268596e99894a8543c1eb2cdeec82b3cb71f"
+  },
+  "productionSourceSha256": {
+    "internal/planner/streamline/guidance.go": "bbf48ec10dfdb9e6d1e324e2e62eeb1f75be5ab6b3ad699355d0f414687a67a7",
+    "internal/planner/streamline/planner.go": "38cbc7ee318b173f9440609d6a41c937a2bff0c09b7c0fe53ca67261ebf77652",
+    "runtime/src/contractor_runtime/adapters/http_transport.py": "44a144d640eaee8c1ad15dbd0bbd18732d6c3c6c5fd82d186a39f8ec9743bfb1",
+    "runtime/src/contractor_runtime/toolsets/common/artifact_images.py": "5e5317468d93b4aa75e39e45445b4bc4e9cc85d46b1d2903181ea66f9aedcaad",
+    "runtime/src/contractor_runtime/toolsets/common/repeats.py": "67a27dd49b7efed3693df8295c3cd7a77722e6288b6f5248fe5afd42b648886b",
+    "runtime/src/contractor_runtime/toolsets/http/controlled.py": "5e8c9c4585e948d8e18a23778fb26aa53bd0d31aabb1f7b9171c73fbe91c7537",
+    "runtime/src/contractor_runtime/toolsets/run_artifacts/tools.py": "73d38e0de31b05ebe43e76fb77520c907d868728e89f97b7c28d0b71b1536f7e",
+    "runtime/src/contractor_runtime/worker/guidance.py": "e7830be35113429c8f918128538ff13c8acf386814b80e691f75f827767977fa",
+    "runtime/src/contractor_runtime/worker/instrumentation.py": "5f57d357f53e796b2c406f16e26e2baf43144344faa91047ea0a3beec4177614",
+    "runtime/src/contractor_runtime/worker/repeats.py": "143937cf6426404ca6d2e48de911700f8effa21a59b5df3a4ca35cb3a313c254",
+    "runtime/src/contractor_runtime/worker/runtime.py": "cc320140718558142a4ff0ceebe1edd73efde9828ab7774f5c3ecef7ec7ae4ab"
+  },
+  "checks": [
+    {
+      "command": "go test -race -count=1 ./internal/planner/streamline ./internal/planner/router",
+      "result": "passed with real owned PostgreSQL",
+      "packageSeconds": {
+        "streamline": 97.269,
+        "router": 2.129
+      },
+      "note": "Final full affected-package race pass includes the real ADK 30/32 mixed-plan scenario for both modeled Planners."
+    },
+    {
+      "command": "pytest: seven HTTP files listed in V476-002",
+      "result": "passed",
+      "tests": 102
+    },
+    {
+      "command": "pytest: eight repeat/artifact/instrumentation files listed in V476-003",
+      "result": "passed",
+      "tests": 270,
+      "seconds": 57.56
+    },
+    {
+      "command": "pytest: Worker guidance, call limits, instrumentation, ordinary/Audit compaction, summarizer, completion, images, actual ADK Runtime and repeats",
+      "result": "passed",
+      "tests": 426,
+      "seconds": 59.22
+    },
+    {
+      "command": "pytest runtime/tests/test_worker_guidance.py",
+      "result": "passed",
+      "tests": 5,
+      "note": "Final guidance test input adds terminal@1 coverage; production inputs unchanged."
+    },
+    {
+      "command": "pytest runtime/tests/test_http_proxy_bridge.py runtime/tests/test_http_proxy_adapter.py",
+      "result": "passed",
+      "tests": 28,
+      "seconds": 8.1
+    },
+    {
+      "command": "Focused TestSharedRequestGuidanceMaximumAndReplacement and test_shared_request_guidance_limit with reader log",
+      "result": "passed",
+      "readers": [
+        "go",
+        "python"
+      ],
+      "manifest": "api/testdata/readers.json"
+    },
+    {
+      "command": "ruff check changed component directories and test files",
+      "result": "passed"
+    },
+    {
+      "command": "lint-imports",
+      "result": "passed",
+      "contractsKept": 4
+    },
+    {
+      "command": "python3 scripts/check_spec.py",
+      "result": "passed",
+      "documents": 51
+    },
+    {
+      "command": "python3 scripts/check_release_verify_graph.py",
+      "result": "passed",
+      "note": "The new root is registered in the release process selection."
+    },
+    {
+      "command": "python3 scripts/shared_fixture_gate.py --sources-only and focused new-fixture coverage",
+      "result": "passed"
+    },
+    {
+      "command": "go test -json -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^(TestRuntimeGuidanceAcrossProductionProcesses|TestWorkerSessionModesAcrossProductionProcesses|TestWorkerCompactionContinuesIsolatedWorker|TestEngagementHTTPBoundsAcrossProcesses)$'",
+      "result": "passed",
+      "rootSeconds": {
+        "TestEngagementHTTPBoundsAcrossProcesses": 16.02,
+        "TestRuntimeGuidanceAcrossProductionProcesses": 55.49,
+        "TestWorkerCompactionContinuesIsolatedWorker": 109.29,
+        "TestWorkerSessionModesAcrossProductionProcesses": 222.32
+      },
+      "casesIncludingParents": 36,
+      "seconds": 403.505,
+      "failed": 0,
+      "skipped": 0,
+      "reportSha256": "54d8ad114166d701bf78d71dda965b1f08b84922c71b0917dcd2828f870942e8",
+      "reportPath": "/private/tmp/contractor-v476-process-final.jsonl"
+    }
+  ],
+  "diagnosticRuns": [
+    "New unit-test fixture corrections: cleanup API, valid text window, metric field access and safe tool response versus original assistant argument visibility.",
+    "New process-fixture corrections: required includeReasoning, explicit compactor policy/instruction fixtures, and the pre-existing passthrough a2a.invoke contribution to stage tool totals.",
+    "Diagnostic attempts are not acceptance evidence. Some temporary logs were replaced by corrected runs; the final selected process report alone supplies integration acceptance."
+  ],
+  "limitations": [
+    "No complete Runtime/Go/lint/release gate, per user instruction.",
+    "No live-model efficacy experiment, configured-model change, deployment or merge into main.",
+    "Remaining-token/time countdowns and guards on other tools remain outside V476.",
+    "Counts from overlapping Runtime selections are not summed."
+  ],
+  "cleanup": {
+    "ownedDatabaseDropped": true,
+    "ownedPostgresStopped": true,
+    "ownedPostgresDataRemoved": true,
+    "taskVenvSymlinkRemoved": true,
+    "primaryHead": "ba994d20714286a534d24049c8d69015ca0b8386",
+    "primaryCheckoutClean": true,
+    "primaryModifiedByThisLane": false,
+    "mainHead": "d8b9f6d621a68e04c8a7dd86784529e27c0d93a9",
+    "primaryBranchObserved": "codex/v477-tool-argument-helpers-plan"
+  },
+  "testInputSha256": {
+    "api/testdata/readers.json": "0bcba5d692f575e39a70e785e723d1f4feaad76f5445ab270d550c2b7910a484",
+    "api/testdata/request-guidance.json": "becd51cda03e4df136c1b5e4c52f7cfb8e58c8979163b5a4a85113b23cabb39b",
+    "internal/planner/streamline/guidance_test.go": "3440eb540774083fe1960720fc13c99491682015dc45a9371e0fb1dda3c96479",
+    "make/release.mk": "5a5d251eb0ef25efbdcf8a6022748d4529324b8d0b6766fe5cfb84a7d1e1379b",
+    "runtime/tests/test_adk_runtime.py": "6f5a598d6391a273a2542b59894c9052191526ba8276c7e80d1a250066d6c5e8",
+    "runtime/tests/test_controlled_http_outcomes.py": "f962635f263c9446af2d8f01ce2e1875c5f482872cd5773913ea1bd270362332",
+    "runtime/tests/test_tool_repeats.py": "5642f35db82f7525a2efc068e210cdf2ec1bb75423f6b88897b0c75c30edc95b",
+    "runtime/tests/test_worker_guidance.py": "b7b4116184777e71ca8544eb8e809f8ee093a6787e00e3ffbdbd6781745612e1",
+    "scripts/check_release_verify_graph.py": "4e996b30ec3122f0388ae429f085a2c2678a94a644848c74b47f5f52e463da78",
+    "tests/e2e/engagement_action_harness_test.go": "ecf5b5469541ae65a8ab70e29096c2516e28016686cab87104f30214bd11ca78",
+    "tests/e2e/fake_domain_gateway_test.go": "f752e1c58390492fb5d7119cd372474b8c1fce62024c06be3aca094b5fa7a6ed",
+    "tests/e2e/runtime_guidance_test.go": "5d0ecf97411f7586dc07d90117b2563e70127231259b6dc1428060fb6fe35975",
+    "tests/e2e/worker_compaction_test.go": "67c553e4abc3c0aa520fea62ea35c69cd4899ebfeb45a441bd04d478b451782b"
+  },
+  "parallelPlanning": {
+    "branch": "codex/v477-tool-argument-helpers-plan",
+    "commit": "ba994d20714286a534d24049c8d69015ca0b8386",
+    "status": "Unmerged planning work in primary checkout; preserved by this lane.",
+    "acceptanceBoundary": "Its additional V477 dependencies and A5/A6 for V476-005 are outside this baseline implementation/acceptance. Preserve and execute them when integrating the V477 plan; original V476 completion does not prove V477 readiness."
+  }
+}

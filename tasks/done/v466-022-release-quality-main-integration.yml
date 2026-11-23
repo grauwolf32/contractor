@@ -1,0 +1,98 @@
+schema_version: '1.0'
+id: V466-022
+title: Merge the verified compaction release and Eval work into main
+milestone: worker-context-compaction-quality-2026-10
+epic: evals
+kind: chore
+priority: P2
+status: completed
+depends_on:
+- V417-009
+- V466-018
+- V466-019
+- V466-020
+- V466-021
+languages:
+- go
+- python
+- markdown
+goal: Land the existing verified V417 release-quality branch in local main while preserving all primary
+  uncommitted work and the live-study pause.
+context:
+  authority: User request 2026-11-16 explicitly authorizes merging codex/v417-release-quality into main.
+    This authorizes integration and necessary deterministic checks, without resuming live experiments
+    or implementing the rejected finish_with proposal.
+  source_head: 76104ef70bb83a9794c581d48cf7df2efa9d8c7f
+  main_before: 926395e18e1850ce277b576cd17ae5737818e08f
+  finding: Main is an ancestor of the source branch and lacks its25 commits. Six primary modified/untracked
+    files must retain exact bytes and modes; only generated tasks/BACKLOG.md overlaps the requested merge.
+    The staged delta is empty.
+  boundary: Prepare a two-parent merge in an isolated worktree. Install through the existing guarded ref-advance/selective-restore
+    procedure; advance the protected backlog index base while leaving its working bytes intact. Verify
+    original hashes, modes and staged delta before and after.
+  verification_reuse: The merged production/test trees must equal the pinned source. Runtime, UI, compaction
+    process/gate and owning Go inputs remain byte-identical to the accepted V417-009 release baseline7ef5d58deb5ff42cec9175fa4261d169047c1d22;
+    its full release evidence remains applicable. Re-run current Eval/Audit packages, public API/PostgreSQL,
+    wire, offline controls and lint on the merge.
+  accepted_limits: V417-010 remains user-paused and incomplete. Frozen assessments are retained even where
+    investigation found strict-format or coverage-related scorer failures; no quality or savings recommendation
+    follows from them. No scorer or finalizer redesign belongs in this merge.
+  design: docs/testing/README.md
+  verification: tasks/evidence/v466-022-main-integration-20261116.json
+scope:
+  in:
+  - Merge the pinned source through a no-fast-forward commit with the original main as first parent.
+  - Verify the integrated revision and retain safe integration/protection/cleanup evidence.
+  - Advance local main while preserving all six primary working files, their modes and the staged delta.
+  out:
+  - Live Gateway calls, deployment, remote push and changing configured models.
+  - Resuming V417-010 or starting reserved shared V417-004.
+  - Changing scorers, introducing finish_with or redesigning report finalization.
+acceptance_criteria:
+- id: A1
+  text: Main contains a two-parent merge of original main and the pinned source; production and test trees
+    exactly match that source.
+- id: A2
+  text: Every listed deterministic gate succeeds with real PostgreSQL where required; declared optional
+    skips are reported separately from passes.
+- id: A3
+  text: All six protected primary files retain exact SHA-256 and modes, the staged delta is unchanged,
+    and the owned database is dropped after processes stop.
+- id: A4
+  text: Completed task/evidence identify the merge, actual checks and preserved user pause without claiming
+    live quality or another full release run.
+tests:
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A4
+- command: go test -count=1 ./internal/auditcontroller ./internal/evalservice ./internal/evalstore ./internal/evaldomain
+  covers:
+  - A1
+  - A2
+- command: make verify-public-api-postgres
+  covers:
+  - A2
+- command: make test-wire-cross-language
+  covers:
+  - A2
+- command: make test-context-compaction-eval-fixtures
+  covers:
+  - A2
+  - A4
+- command: python3 /private/tmp/contractor-v466-022-merge-20261116-4g3_zcg5/install-main.py --verify-only
+  covers:
+  - A3
+- command: git diff --exit-code 76104ef70bb83a9794c581d48cf7df2efa9d8c7f HEAD -- runtime ui internal tests
+    scripts make docs
+  covers:
+  - A1
+implementation_commit: 017b8b289e6da12e68d13d28a592bc7fb66c43ba
+verification_results:
+- Local main contains the exact two-parent merge; all non-task tracked paths equal the pinned source.
+- All five deterministic gates passed with PostgreSQL configured; one declared optional heavy shared fixture
+  skipped, not counted as passing coverage.
+- All six primary working files retain their original bytes and modes; staged delta unchanged.
+- The owned database was dropped with zero active clients. No live calls, deployment, remote push or report-finalization
+  redesign.

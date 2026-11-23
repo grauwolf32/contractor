@@ -1,0 +1,76 @@
+schema_version: "1.0"
+id: V368-006
+title: "Write Audit manifests, tasks and worklists frozen through one path"
+milestone: hub-audit-defects-2026-10
+epic: audits
+kind: defect
+priority: P1
+status: completed
+implementation_commit: 21e34f3de5bb7b0f61c439237bbccf5d2414d708
+depends_on: []
+languages: [go]
+goal: "After an Audit round no binding in an audit-* namespace is unfrozen (PostgreSQL test)."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), artifacts G3, C2, F3; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Audit manifests, tasks and worklists are written into audit-* as
+    unfrozen mutable bindings (auditcontroller/builder.go:105, 366, 505;
+    auditstore/immutable_artifact.go:25; auditservice/start.go:670-692)
+    although artifact-store.md:60 and REV-R146 require them frozen. Three
+    mechanisms write immutable Audit artifacts
+    (auditstore/immutable_artifact.go, auditcontroller/artifacts.go:66-123,
+    auditimport/artifacts.go:32-172) and four structs describe an exact
+    artifact with different checks (auditstore/types.go:368,
+    findingintake/types.go:48, auditstandards/types.go:135,
+    auditdomain/types.go:233).
+  specification:
+    - docs/spec/audits/review-and-reports.md#REV-R146
+    - docs/spec/audits/review-and-reports.md#REV-R149
+    - docs/spec/artifacts/artifact-store.md#ART-R26
+  decision: >-
+    Verified on 4146eea: Audit start, the next round, the initial inventory
+    and the Controller wrote task packages, worklists, inventories and
+    execution manifests through ScopedStore.Write (unfrozen); the round test
+    now fails on the old code with three unfrozen bindings.
+    artifacts.Service.WriteAuditArtifact is the one writer of
+    Server-generated Audit material: frozen and create-only, with one replay
+    comparison that reads the existing binding's metadata first, so a retry
+    neither stages another blob nor writes again, and accepts it only when it
+    is frozen with the payload's digest, media type and size; other content
+    is ErrAuditArtifactCollision (wraps ErrArtifactIntegrity, permanent).
+    The writer's repository interface carries Metadata, so test doubles
+    implement both. ScopedStore.Write refuses every ProjectScope write under
+    audit-* (ErrReservedNamespace), which closes the class: no generic path
+    can create or advance an Audit binding; trusted imports stay on
+    ImportAuditArtifact. The PostgreSQL writer now discards its fresh blob
+    candidate after a definite refusal, as Write does.
+    contracts.ExactArtifact (kernel) is the one descriptor with Validate and
+    one Verify (same exact revision and digest, plus media type and size when
+    the descriptor records them); ScopedStore.ReadExact is the one exact read
+    and replaces both ReadProjectExact checks. auditstore.ExactArtifact and
+    findingintake.ExactArtifact are aliases of it, kept as package-local
+    names so parallel branches merge without a 56-file rename; a mechanical
+    rename can drop them later. auditstandards.ExactPackage (public
+    AuditStandardExactPackage names its ref "artifact") and
+    auditdomain.ExactInput (execution-manifest {name, ref, digest}) keep
+    their wire shapes, because /v1 changes must be additive and the manifest
+    is a Runtime-read format, and convert with Exact() for every check.
+    Rounds, executions and results persist only ref and digest, so a
+    digest-only descriptor is legitimate; its JSON omits media type and
+    size, while a complete descriptor always carries both, including
+    sizeBytes 0, as FindingExactArtifact requires. Reopen if the Audit
+    tables start storing media type and size for every descriptor, which
+    would let Verify require them always.
+scope:
+  in:
+    - "One Service.WriteAuditArtifact (frozen, create-only) with one replay comparison; one contracts.ExactArtifact with one Verify used by all four."
+  out:
+    - "Artifact names and namespaces."
+acceptance_criteria:
+  - id: A1
+    text: "After an Audit round no binding in an audit-* namespace is unfrozen (PostgreSQL test)."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/auditcontroller ./internal/auditservice ./internal/auditimport ./internal/artifacts"
+    covers: [A1]

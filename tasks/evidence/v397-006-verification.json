@@ -1,0 +1,53 @@
+{
+  "task": "V397-006",
+  "date": "2026-10-29",
+  "branch": "codex/sarif-export",
+  "baseRevision": "c57f21ff39e8996606bc17f6f5a2aeb833032107",
+  "checks": [
+    {
+      "command": "go test -count=1 ./internal/findinganalysis ./internal/auditdomain ./internal/findingintake ./internal/auditservice ./internal/httpapi/public ./internal/publicclient/... ./internal/cli",
+      "outcome": "passed",
+      "postgres": "dedicated disposable database; no database skip claimed as pass"
+    },
+    {
+      "command": "go test -tags=integration -count=1 -timeout=15m ./internal/findingintake",
+      "outcome": "passed",
+      "seconds": 226.543
+    },
+    {
+      "command": "cd runtime && uv run pytest -W error tests/test_finding_analysis.py tests/test_text_artifacts_toolset.py tests/test_http_capture.py tests/test_security_findings_toolset.py tests/test_findings_reader_toolset.py tests/test_finding_facades.py tests/test_finding_tool_contracts.py",
+      "outcome": "passed",
+      "tests": 220,
+      "skipped": 0
+    },
+    {
+      "command": "make test-wire-cross-language test-findings-e2e verify-public-api",
+      "outcome": "passed",
+      "sharedFixtures": 453,
+      "findingsRequiredProcessCases": 14
+    },
+    {
+      "command": "make ui-verify test-ui-stack",
+      "outcome": "passed",
+      "browserStackSeconds": 1147.459
+    },
+    {
+      "command": "make lint",
+      "outcome": "passed"
+    }
+  ],
+  "regressions": [
+    "invalid exact file digest rejects publication atomically",
+    "analysis original refs resolve through owned Audit holds after Run deletion",
+    "256 receipts reuse one archive expansion",
+    "Unicode columns, CRLF, tabs, empty files, archive traversal/symlinks/file-directory conflicts",
+    "saved HTTP captures preserve origin and omit private HTTP fields",
+    "Go capture decoder accepts the already declared 1-MiB request and 16-MiB response limits; regression failed before its fix"
+  ],
+  "limitations": {
+    "fullRuntime": "macOS run interrupted after 11 failures, 3257 passes, 5 skips outside the SARIF changes; no full Runtime pass claimed",
+    "authority": "User explicitly authorized complete touched-package checks and retaining the full Runtime gate as a limitation on 2026-10-29",
+    "linuxPreparation": "isolated Podman runner preparation could not fetch package repositories (HTTP 403); no Linux result claimed"
+  },
+  "delivery": "Analysis/resolver only; export snapshot, rendering and Audit-local API/CLI/UI remain the dependent stages."
+}

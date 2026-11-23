@@ -1,0 +1,48 @@
+package postgres
+
+import (
+	"context"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// maxTransactionAttempts bounds the transactions InTxWithRetry starts for one
+// operation.
+const maxTransactionAttempts = 3
+
+// InTxWithRetry is opt-in, for database-only operations whose entire callback
+// can safely be replayed. Each attempt uses a fresh transaction and snapshot;
+// callbacks must reset any captured result state on entry. Never use it around
+// external effects. InTx finishes rollback before the next attempt begins.
+// Only PostgreSQL's definite serialization/deadlock aborts are retried, never
+// business CAS conflicts, timeouts, EOF or ambiguous commit/transport failures.
+func InTxWithRetry(ctx context.Context, pool *pgxpool.Pool, options pgx.TxOptions, fn func(pgx.Tx) error) error {
+	return retryTransaction(ctx, func() error { return InTx(ctx, pool, options, fn) })
+}
+
+func retryTransaction(ctx context.Context, attempt func() error) error {
+	for index := 0; ; index++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		err := attempt()
+		if err == nil || index+1 == maxTransactionAttempts || !IsTransactionConflict(err) {
+			return err
+		}
+		timer := time.NewTimer(time.Duration(index+1) * 10 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+// IsTransactionConflict identifies server-confirmed transaction aborts. An
+// unclassified transport/commit error must never be assumed rolled back.
+func IsTransactionConflict(err error) bool {
+	return Classify(err) == ClassTransactionConflict
+}

@@ -1,0 +1,218 @@
+schema_version: '1.0'
+id: V420-005
+title: Accept Planner compaction through real-process and integrated release gates
+milestone: planner-context-compaction-2026-10
+epic: quality
+kind: chore
+priority: P1
+status: pending
+depends_on:
+- V420-006
+- V420-003
+- V420-004
+languages:
+- go
+- markdown
+goal: Deliver Planner compaction only after deterministic real-process evidence proves safe continuation, per-owner
+  strategy selection and unchanged Scheduler semantics.
+context:
+  authority: 'User request on 2026-10-25: create detailed tasks for Go ADK v2.6.0 and Planner compaction, including
+    compatibility, tests and mutual exclusion with terminal summarization; keep Scheduler substantially unchanged.
+    These pending records authorize planning only, do not start implementation and do not change the current
+    delivery focus. User decision on 2026-10-31: the release gate also covers V420-006 shared compactor@1 catalog activation and explicit summary-continuation Planner compaction, without Worker changes.'
+  review: tasks/evidence/v419-go-adk-26-review.json
+  specification:
+  - docs/spec/execution/planners.md#PLN-R1
+  - docs/spec/execution/planners.md#PLN-R81
+  - docs/spec/execution/planners.md#PLN-R94
+  - docs/spec/execution/planners.md#PLN-R106
+  - docs/spec/execution/planners.md#PLN-R107
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/platform/failure-model.md
+  - docs/spec/configuration/workflows.md#WFL-R14
+  - docs/spec/configuration/workflows.md#WFL-R86
+  - docs/spec/configuration/agent-templates.md#TPL-R19
+  - docs/spec/platform/persistence.md#PER-R24
+  - docs/spec/platform/lifecycle.md#LIFE-R1
+  - docs/spec/execution/scheduler.md
+  - docs/spec/platform/observability.md
+  - docs/testing/README.md
+  - docs/testing/live-models.md
+  - docs/spec/execution/planners.md#PLN-R130
+  - docs/spec/configuration/agent-templates.md#TPL-R117
+  implementation_boundary: Update owning numbered specifications, limits/errors/failure/lifecycle registries
+    and every affected reader/writer with implementation. A planned extension is not current shipped behavior.
+    No legacy readers, v1/v2 production branches, native SDK resume, new receipt store or model substitution.
+    Scheduler retains claims, queues, Stage identities, transitions, retries and completed recovery; only configuration
+    plumbing, mechanical imports and regression fixtures may change there.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: Planner compact@1 is already explicitly enabled in shipped modeled Stages and summary
+    continuations by V420-006, then migrated to executionConfig by V425-042. Existing TestWorkerSummarizerProductionBoundaries
+    and production configuration staging supply partial evidence; Router/two-checkpoint/fault composed
+    release acceptance remains required.
+scope:
+  in:
+  - A registered real-process gate, integrated release verification, final safe evidence and an optional repeatable
+    evaluation recipe.
+  out:
+  - Automatically running live models, choosing a new model/default, deployment, Python SDK upgrade, Worker
+    compaction implementation or substantial Scheduler changes.
+acceptance_criteria:
+- id: A1
+  given: Real Server/Runtime/PostgreSQL, controlled Gateway and both modeled Planners
+  when: Repeated compaction process scenarios finish
+  then: Exact early evidence survives and each Worker effect occurs once under the same Planner/Stage identity.
+- id: A2
+  given: Per-owner configuration matrix and existing terminal handoff
+  when: Admission and continuation scenarios execute
+  then: Mutually exclusive local modes are enforced without forbidding independent Worker summarization or
+    changing Scheduler transitions.
+- id: A3
+  given: Faults/cancel/deadline/checkpoint loss near finish
+  when: Real process and store scenarios unwind
+  then: No false candidate or late work occurs; failure, receipts and recovery match the owning contracts.
+- id: A4
+  given: Integrated revision with every predecessor test inventory
+  when: Full release and contract checks execute
+  then: All required cases actually pass, documentation and configuration agree and quality claims are limited
+    to measured evidence.
+tests:
+- command: make test-planner-compaction-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make release-verify
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make verify-public-api-postgres
+  covers:
+  - A2
+  - A3
+  - A4
+- command: make test-config
+  covers:
+  - A2
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+requirements:
+- id: R1
+  text: Create make test-planner-compaction-e2e with a nonzero required-case inventory and register it
+    in the release graph; it runs a real Server/Runtime/PostgreSQL process scenario with a scripted Gateway
+    controlling both main Planner and compactor responses and a real Worker/A2A path. Cover Streamline
+    and Router, at least two compactions and successful finish using an early exact artifact reference.
+    Fake WorkerInvoker tests are complementary, not this acceptance. Reuse existing summary-continuation/configuration
+    process cases and extend only the missing matrix; register required cases once in the consolidated
+    release graph. Assert the compactor uses its separate tool-free ADK agent and strict output schema through the actual Gateway HTTP request (V420-007).
+- id: R2
+  text: Count actual Worker effects across checkpoints and assert singular dispatch/receipt identity, stable
+    SessionID/StageExecutionID, cumulative budgets/deadline, preserved task/continuation/result contract and
+    ordinary final candidate. Compaction neither emits Worker summarized nor creates an extra Stage, lease,
+    claim, retry or transition.
+- id: R3
+  text: Run the explicit none/compact fixture matrix, rejected Planner terminal/mixed settings, Worker
+    terminal with Planner compact, existing passthrough terminal-summary escalation with Planner none,
+    and the already implemented isolated Worker compact control with its local mutual exclusion. Verify
+    real shipped direct and continuation selection through executionConfig; Worker shared/Audit future
+    extensions do not become Planner release prerequisites.
+- id: R4
+  text: Inject process cancellation/deadline, Gateway failure and real session-write failure at checkpoint
+    and finish. Assert no false candidate or late model/write/Worker work. A marker commit with lost acknowledgement
+    fences the invocation under PLN-R130, with no marker replay or read-back continuation. Preserve existing
+    Worker-effect receipts, completed recovery without model calls and unfinished recovery without SDK
+    resume.
+- id: R5
+  text: Run accepted scale/privacy/diagnostic matrices and the full deterministic release graph on the integrated
+    committed module graph. New process gates fail missing prerequisites/zero selected cases, participate in
+    release-verify, and use full package suites in addition to focused tests; inspect consolidation reports.
+- id: R6
+  text: 'Record exact revision, module graph/checksums, Go/Runtime versions, required case inventory/counts,
+    skips, safe outcomes and branch/merge status. Explicitly separate deterministic conformance from model
+    quality: no claim of cost or quality improvement from a single scripted or live sample.'
+- id: R7
+  text: Provide a bounded optional evaluation recipe using frozen external ground truth, repeated none-versus-compact
+    trials, the same configured main model and equal total budgets including compactor spend. Record exact-ref
+    retention, completed objectives and duplicate effects if run. Live execution/default changes are not part
+    of this deterministic exit and require their own authorized run.
+- id: R8
+  text: Verify current specs, generated contracts and the explicitly enabled shipped catalog agree with
+    V420-006 and V425-042. Both direct modeled Planners and summary-continuation targets select the generated
+    compactor@1 through executionConfig. None fixtures remain supported controls. Do not restore duplicate
+    policy examples, change independent Worker strategies, deploy or migrate the demo, or expand Scheduler
+    functionality.
+failure_outcomes:
+- operation: Compactor model call, checkpoint selection/append, history projection and continuation
+  permanent: Empty/declined/tool-bearing/truncated/oversized/invalid output is a finite planner_compaction_failed
+    outcome; exhausted cycle/retention limits use planner_compaction_limit_exceeded. Freeze stable codes/reasons
+    in V420-001 and owning registries before implementation. Invalid session writes remain nonretryable
+    planner_session_rejected. Never fall back to terminal summarizer or silently continue after an admitted
+    failed checkpoint.
+  retryable: Gateway/session outages retain their existing classified bounded recovery and PLN-R106 rules.
+    Do not add semantic compaction retries, duplicate summary appends or model fallbacks. Total attempts/known
+    usage and original deadline remain authoritative.
+  ambiguous: 'Follow PLN-R130: a checkpoint append with lost acknowledgement fences this invocation and
+    candidate completion; never replay the marker or use read-back to resume. Already dispatched Worker
+    effects use their existing receipts independently.'
+  cancelled: Cancellation takes precedence; the Planner owner closes the iterator and joins main/compactor/persistence/repair
+    work before return and cleanup. It cannot promise rollback of a dispatched remote effect.
+  timeout: The original Planner/Stage deadline and the existing Server Planner Gateway request timeout
+    bound admission and transport. LLMGatewayConfig has no requestTimeout field; session writes and joined
+    cleanup retain their current bounded owners.
+cardinality:
+- collection: Invocation-local raw history, prior summaries and validated Worker-result/reference index together
+  expected: Several dozen groups and two or more checkpoints within one ordinary Planner invocation.
+  maximum: 'Initial design envelope to prove/freeze in V420-001: 4096 complete source groups and 32 MiB aggregate
+    retained UTF-8/serialized data; 64 MiB accounted peak including bounded projections and transient copies;
+    summary 16 KiB, recent tail 1 MiB, 1..16 recent groups default 4, 1..16 compactions default 8.'
+  bound: Count shared backing data once and actual copies separately. Bound each scan, serialization, append
+    and history page. Enforce existing 4-MiB actual Gateway-request bytes and stricter policy context window;
+    compaction does not reclaim raw ADK history automatically.
+- collection: Authoritative plan, validated results and existing durable session state
+  expected: Default 32 subtasks, one current subtask/active dispatch and exact refs from completed Workers.
+  maximum: 'Existing independent ceilings: 1000 subtasks, objective 64 KiB, subtask objective 8 KiB/instructions
+    32 KiB, Worker result text 64 KiB/payload 256 KiB/128 refs, session JSON 2 MiB and 256 recorded fact digests.'
+  bound: Do not inject the full plan/result index into each prompt or assume all independent maxima fit. Preserve
+    exact full authority in its existing owner and expose bounded current projections/pages; enclosing overflow
+    produces a classified failure before further effects.
+lifecycle:
+- entity: One Planner invocation context generation, checkpoint and bounded in-memory history/result index
+  delete: Planner owner releases these on success, failure, cancellation or timeout after joining all local
+    work.
+  cascade: All history, summaries, paging cursors and retained validated result views are invalidated with
+    that session; completed StageResult and existing receipts/artifacts retain their existing owners.
+  retention: RAM only for raw context, summary and history index. No PostgreSQL transcript/checkpoint table,
+    cross-Stage context service or partial restart recovery. Completed-result recovery remains durable and
+    model-free.
+test_prerequisites:
+- Commands are future implementation acceptance, not checks completed by this planning change. Record exact
+  revision, Go/ADK versions, module graph/checksums, commands, executed case counts, skips and outcomes. Required
+  cases cannot be skipped or match zero tests.
+- Use disposable real PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set for persistence acceptance; an unreachable
+  configured database fails. Canonicalize TMPDIR as Makefile does. Full package suites accompany focused regressions.
+  make test-streamline does not cover Router, so run all internal/planner packages too.
+- Use actual pinned ADK Runner/tool dispatch and controlled Gateway responses. tests/integration/streamline
+  uses a fake WorkerInvoker and does not prove a real Server/Runtime process. Register new process cases in
+  the release graph and provide their fixtures/prerequisites.
+- Use testdata and test-only pseudo-Skills rather than reading live configs. Use injected clocks, synchronization
+  barriers and work/byte/row counters, not wall-clock assertions. Live Gateway benchmarks are outside deterministic
+  acceptance; keep configured models unchanged.
+- No dependency on Python V418 or Worker compaction V417 is implied. Cross-language regression uses the currently
+  supported Runtime lock. New shared grammar or wire changes, if actually needed, must update all implementations
+  and shared fixtures in the owning task.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.

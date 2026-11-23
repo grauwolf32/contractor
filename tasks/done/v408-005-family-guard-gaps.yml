@@ -1,0 +1,83 @@
+schema_version: "1.0"
+id: V408-005
+title: "Close the family-target guard gaps and run the Runtime suite once with warnings as errors"
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+introduced_by: V155-001
+priority: P2
+status: completed
+implementation_commit: 0a2bb8e27b2b4c27c1f6b26ad5a3a96df7d11c88
+depends_on: []
+languages: [make, python]
+goal: "Inside release-verify family targets do not repeat canonical Go or Runtime executions, and warnings-as-errors covers the whole Runtime suite."
+context:
+  review: "docs/research/2026-10-23-test-gate-cost-review.md, finding T4"
+  finding: >-
+    Makefile:41 run-family-test replaces a family suite with a no-op when
+    RELEASE_CONSOLIDATED is set, but these lines are not wrapped and run
+    again inside release-verify-families: make/features.mk:15 and :40 (audit
+    hardening under -race -tags=integration), make/platform.mk:22, :25, :83,
+    :119, :134, :138, :139, make/toolsets.mk:84, :107, :108. All 20 uv run
+    pytest lines in make/features.mk, make/toolsets.mk and make/platform.mk
+    are unwrapped: tests/test_allocation.py runs 7 times,
+    tests/test_lease_watchdog.py 5, tests/test_adk_runtime.py 3,
+    tests/test_adapter_host.py 3. make/core.mk:18 test-runtime-hardening
+    (pytest -W error over the suite) is called by no stage, so -W error
+    coverage is only the union of the family subsets.
+decision:
+  date: "2026-10-23"
+  authority: "User requested V408-005 and a dedicated worktree."
+  guarantee: >-
+    Canonical unit, integration and process runs own execution. Focused family
+    targets retain direct invocation. Existing Audit/findings validators reuse
+    canonical Go JSON and Runtime JUnit reports; the shared-fixture gate reuses
+    actual read records. Required subcases, parametrized minimums and no-skip
+    rules remain enforced. Unit and race passes remain distinct obligations.
+  alternatives: >-
+    Merely wrapping the visible commands leaves hidden script reruns. Dropping
+    those scripts would lose required-case and actual-reader evidence. Reuse
+    their existing validators rather than create a second validation contract.
+  reversal_condition: >-
+    Fail lint when a consolidated family executes a test driver, when a direct
+    family selection loses canonical coverage, or when the full Runtime run,
+    warnings-as-errors or mandatory report validators become unreachable.
+plan:
+  - "Wrap every listed go test and uv run pytest line in run-family-test; where a family's Go selection is not already covered by the race, integration or process passes, add the missing test names to the consolidated union in make/release.mk (the release-graph guard tells you)."
+  - "Replace test-runtime in release-verify-unit with test-runtime-hardening (-W error over the whole suite) and make test-runtime an alias for local use; keep the family pytest subsets for direct invocation only."
+  - "Extend scripts/check_release_verify_graph.py (or a new source check in make lint) to fail on an unwrapped go test or pytest line inside a target that release-verify-families depends on."
+  - "Move the four findings process tests to canonical process shard C; retain the Audit completion selection in the canonical integration pass. Replace hidden gate reruns with existing validators applied to canonical reports."
+  - "Update the stage table in docs/testing/README.md (make lint checks it)."
+scope:
+  in:
+    - "Guard wrapping, consolidated union additions, one -W error run, guard check, docs table."
+    - "Reuse canonical Go JSON, Runtime JUnit and shared-fixture read reports with the existing mandatory-case validators, preserving no-skip and parametrized-count guarantees."
+    - "Explicitly expect the warning emitted while constructing the intentionally duplicate ZIP test fixture; keep malformed-pack rejection coverage."
+  out:
+    - "Removing any family target from direct invocation."
+acceptance_criteria:
+  - id: A1
+    text: "make -n release-verify-families RELEASE_CONSOLIDATED=1 prints no go test and no pytest command; the new lint check fails on an unwrapped line."
+  - id: A2
+    text: "release-verify-unit runs pytest -W error over the full Runtime suite and passes."
+  - id: A3
+    text: "Every test selected by a family target before the change is still selected by some stage (release-graph guard passes)."
+tests:
+  - command: make lint
+    covers: [A1, A3]
+  - command: make test-runtime-hardening
+    covers: [A2]
+  - command: make test-release-integration
+    covers: [A3]
+  - command: make test-release-process-e2e-c
+    covers: [A3]
+
+verification:
+  - "All task commands passed on the branch integrated with current main: make lint, make test-runtime-hardening, make test-release-integration and make test-release-process-e2e-c."
+  - "Runtime ran once with -W error on Linux/Python 3.13: 4375 passed and 55 existing optional skips. The Audit/findings required-case JUnit validators passed."
+  - "The complete 13-test process shard C and its mandatory findings report validator passed on isolated PostgreSQL. The consolidated integration pass passed under -race -p 2 with its mandatory Audit report validator."
+  - "Current shared evidence verified 249 fixtures, 231 Go shared tests and 184 Python shared tests using one focused Go run and the existing full Runtime read log."
+  - "Compiled coverage guard passed: 99 race packages, 25 process tests, seven configuration fixtures, 49 tagged e2e tests (eight opt-in), 159 integration-selection names and both blob backend modes. Consolidated families execute no Go/pytest/test-script drivers; direct family suites remain available."
+  - "Existing sweep-page fixture repair arrived from main as V405-006. Two test-only blockers were repaired and verified separately as V408-008 and V408-009; no production validation was loosened."
+  - "Broader unrelated namespace-literal and SQL-ownership guards still fail on unchanged base paths, reconfirmed separately. This closure does not claim a green complete release-verify or a CI run; Runtime acceptance and all commands listed above passed."
+  - "User explicitly requested closure and merge after the implementation report. Raw verification logs remain outside git under /private/tmp/v408-close-*.log."

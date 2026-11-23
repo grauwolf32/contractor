@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V59-004",
+  "verified_on": "2026-09-19",
+  "base_commit": "8b5f243e3215947f2c4a79abf6ae00eaa4fa9876",
+  "implementation_commit": "d2daa5382da2340936e8d19729d97c68bab7ee7b",
+  "findings": ["R06", "R07", "R08", "R10", "R11", "R12"],
+  "environment": {
+    "go": "go1.25.6 linux/amd64",
+    "node": "v26.7.0",
+    "declared_node": "24.20.x",
+    "pnpm": "11.24.0",
+    "oapi_codegen": "v2.8.0",
+    "openapi_typescript": "7.13.0",
+    "worktree": ".local/worktrees/v59-request-contracts",
+    "database_env_configured": false,
+    "ui_dependencies": "Existing main node_modules symlink; verify-deps-before-run=false prevents automatic installation through the shared directory."
+  },
+  "changes": [
+    "Finding decisions use closed typed branches for true_positive, duplicate and other supported verdicts, including required and forbidden fields.",
+    "Both Run list label selectors accept empty values while preserving embedded equals signs and newlines.",
+    "Login password schema documents the existing 12–1024 UTF-8 byte policy using explicit byte annotations; the UI no longer applies a 12-character minimum.",
+    "Four Git mutations declare existing conditional Origin/CSRF headers and generated request builders serialize them.",
+    "Git import descriptions preserve absent-binding creation without headers and exact CAS for existing bindings.",
+    "RunStatus no longer advertises an unsupported 1024-item cap for complete attempts/transitions; no runtime quota or truncation was added."
+  ],
+  "focused_regressions": {
+    "verdicts": "18 shared wire cases (five valid, thirteen invalid) validated against both request unions and the real auditservice validator; five valid generated Go request builders preserve exact body fields and concurrency headers.",
+    "labels": "Eight authenticated HTTP request/response checks across general and Project Run lists: a=, triaged=, a=b=c, and a=line\\nbreak; each selects exactly the expected fixture Run.",
+    "passwords": "Real password hashing/bootstrap/login establishes cookies for 12-byte Cyrillic and 1024-byte supplementary-Unicode passwords; 10/1028-byte inputs remain rejected. UI login tests submit ASCII, Cyrillic and maximum-byte supplementary-Unicode passwords.",
+    "git": "Four authenticated operations times five modes (bearer, valid cookie, missing Origin, missing CSRF, wrong CSRF). Rejected requests cannot reach fake domain mutations. Generated builders preserve present/absent browser headers. Real import precondition logic over a fixture repository covers absent/existing bindings with nil, stale and exact expected revisions.",
+    "history": "Actual config loading accepts automatic retry maxAttempts=1025. Actual authenticated RunStatus handler serializes 1025 fixture attempts and 1025 transitions through the public response validator, retaining the final entries."
+  },
+  "checks": [
+    {
+      "command": "go test -count=1 ./internal/httpapi/public ./internal/auth ./internal/config ./internal/auditservice ./internal/gitimport ./internal/cli ./internal/publicclient/...",
+      "result": "passed",
+      "limitation": "Database-dependent integration cases skip when CONTRACTOR_TEST_DATABASE_URL is absent."
+    },
+    {
+      "command": "go generate ./internal/publicclient/generated",
+      "result": "passed"
+    },
+    {
+      "command": "cd ui && corepack pnpm --config.verify-deps-before-run=false run generate",
+      "result": "passed"
+    },
+    {
+      "command": "cd ui && corepack pnpm --config.verify-deps-before-run=false typecheck",
+      "result": "passed; both main and e2e TypeScript projects"
+    },
+    {
+      "command": "cd ui && corepack pnpm --config.verify-deps-before-run=false exec vitest run src/app/application.test.tsx src/api/audits.test.ts src/routes/projects/audits/audits.test.tsx",
+      "result": "passed; three files, 38 tests"
+    },
+    {
+      "command": "cd ui && corepack pnpm --config.verify-deps-before-run=false exec prettier --check src/routes/login.tsx src/routes/projects/audits/detail.tsx src/app/application.test.tsx src/api/generated/public.ts",
+      "result": "passed"
+    },
+    {
+      "command": "git diff --cached --check",
+      "result": "passed before implementation commit"
+    }
+  ],
+  "limits": [
+    "No live models, deployments or remote repository imports were performed.",
+    "Fixture persistence is distinguished from real PostgreSQL; 1025 actual Scheduler executions were not run.",
+    "Password byte annotations document the server policy; standard JSON Schema character length is not used as a substitute for UTF-8 byte validation.",
+    "Existing optional-field nullability, server credential validation, owner authority and CAS behavior remain unchanged.",
+    "The Node version mismatch produced an engine warning; checks completed successfully."
+  ],
+  "integration": "Include TestPublicRequestAndHistoryContracts in the normal verify-public-api gate, reconcile source schema changes and regenerate both clients during V59-005."
+}

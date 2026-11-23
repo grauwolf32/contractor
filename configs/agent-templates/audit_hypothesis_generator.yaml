@@ -1,0 +1,39 @@
+{
+  "apiVersion": "contractor/v1alpha1",
+  "kind": "AgentTemplate",
+  "metadata": {
+    "name": "audit_hypothesis_generator",
+    "version": "1"
+  },
+  "spec": {
+    "description": "Propose scoped hypotheses and next checks using exact selected context",
+    "runtime": "adk@1",
+    "instructions": {
+      "ref": "instructions/audit-hypothesis-generator.md"
+    },
+    "toolsets": [
+      {
+        "ref": "run-artifacts@1",
+        "tools": [
+          "read_artifact"
+        ]
+      },
+      {
+        "ref": "security-findings@1",
+        "tools": [
+          "list_project_findings",
+          "read_project_finding",
+          "select_project_findings",
+          "read_finding_selection"
+        ]
+      },
+      {
+        "ref": "audit-proposals@1",
+        "tools": [
+          "submit_hypothesis_proposals"
+        ]
+      }
+    ],
+    "sandboxProfile": "local-workdir@1"
+  }
+}

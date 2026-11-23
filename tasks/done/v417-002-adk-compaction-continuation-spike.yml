@@ -1,0 +1,179 @@
+schema_version: '1.0'
+id: V417-002
+title: Prove safe context checkpoints and continuation on accepted ADK 2.13
+milestone: worker-context-compaction-2026-10
+epic: planner-worker
+kind: chore
+priority: P1
+status: completed
+depends_on:
+- V418-007
+languages:
+- python
+- markdown
+goal: Resolve the SDK integration uncertainty before production compact@1 is implemented, on the exact
+  ADK 2.13.0 closure accepted by V418-007 with a deterministic Gateway/tool harness.
+context:
+  authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
+    includeReasoning independently deliverable. This record plans work; it does not start implementation
+    or change existing delivery priorities.'
+  proposal: docs/proposals/0046-workflow-context-compaction.md
+  evidence: tasks/evidence/v417-002-adk-compaction-spike.json
+  decision: tasks/evidence/v417-002-adk-compaction-spike.md
+  specification:
+  - docs/spec/execution/worker.md#WRK-R143
+  - docs/spec/execution/worker.md#WRK-R65
+  implementation_boundary: Update numbered owning specifications, limits/errors/failure/lifecycle registries,
+    strict schemas, fixtures and every affected reader/writer together with implemented behavior. Generated
+    clients are regenerated through their tools. No legacy readers, unsupported accepted configuration,
+    speculative exports or new receipt store.
+  adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
+    Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
+    not 2.8 callback/identity assumptions.
+scope:
+  in:
+  - Test-only integration spike under runtime/tests with real pinned ADK Runner/SessionService and controlled
+    Gateway responses.
+  - A short evidence record linked from proposal 0046, selecting a proven public EventCompaction adapter
+    or a tested request-projection alternative.
+  out:
+  - Production config/wire changes, SDK upgrade, enabling ADK resumability or automatic/post-invocation
+    compaction.
+  - Unused production abstractions, exports or new persistent checkpoint entities; terminal includeReasoning
+    implementation.
+acceptance_criteria:
+- id: A1
+  given: Accepted ADK 2.13 lock, deterministic Gateway/tools and multiple internal Runner turns
+  when: Two checkpoints and continuations run
+  then: The actual next requests contain the protected task, one memory and intact recent groups; the
+    earlier side effect happens once and one logical State/collector/budget/deadline owner survives repeated
+    SDK callbacks.
+- id: A2
+  given: Inclusive timestamp boundaries with equal-time retained neighbors, out-of-order/foreign events,
+    interleaved calls and previous/overlapping summaries
+  when: Range selection and marker application run
+  then: Exactly selected safe groups are represented or rejected before append; Runtime identity/scope
+    agrees with the tested public adapter or request-projection alternative.
+- id: A3
+  given: Cancellation or lost append acknowledgement at each transition
+  when: Continuation ownership and reconciliation are exercised
+  then: The exact pending marker is reconciled once or uncertainty fences continuation; no new semantic
+    dispatch starts after cancellation, local work joins before cleanup and uncertain already-dispatched
+    effects follow existing receipts.
+- id: A4
+  given: The evidence and exact SDK pin
+  when: The implementation approach is recorded
+  then: V417-003 has a tested adapter, logical invocation/SDK turn mapping, strict failure policy and
+    reversal condition on the accepted lock, without new production exports or changes to terminal summarization.
+- id: A5
+  given: An admitted compaction has invalid output before commit, or its valid checkpoint proves ineffective
+    only on the next measured main response
+  when: The real compaction integration consumes each outcome
+  then: Pre-commit rejection adds no marker or continuation. Post-commit detection preserves the accepted
+    marker and charged calls and stops before further dispatch; neither outcome permits native silent
+    skip or looping without progress.
+tests:
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+requirements:
+- id: R1
+  text: Start only after V418-007. Record the accepted exact ADK 2.13.0 version, Runtime revision and
+    lock digest. Use real Runner, SessionService and model-request content building, not mocks of the
+    behavior being established. The historical 2.8 baseline is not the target or a second supported branch.
+- id: R2
+  text: Prove two checkpoints and two continuations within one logical Contractor invocation/A2A task/subtask/session
+    using the V418 logical-invocation-to-SDK-turn contract. Multiple internal Runner turns and callbacks
+    must preserve one State owner, completion collector, tools, observations, total budgets and original
+    deadline. Capture supplied/observed SDK IDs and actual Gateway messages; do not require reuse of the
+    SDK invocation ID/context object or call before_run only once. Close generators in their owner task;
+    do not rely on new_message=None in a non-resumable Runner.
+- id: R3
+  text: 'Runtime owns ordered source event IDs/ordinals, context generation, pending marker identity and
+    session/branch/isolation scope. Public ADK 2.13 EventCompaction contains start_timestamp, end_timestamp
+    and compacted_content, not event_ids. Prove exact representation through its inclusive timestamp range
+    before append: equal timestamps at both boundaries, same-time retained neighbors, out-of-order events,
+    interleaved call/result groups, error/partial events, previous summaries, overlapping/subsumed markers
+    and foreign branches/scopes. Never absorb protected recent groups, other scope events or split calls
+    from responses; reject unrepresentable selections before mutation or prove the request-projection
+    alternative.'
+- id: R4
+  text: Prove that a side-effecting tool executed before a checkpoint is not executed again on continuation,
+    and no nested model call occurs in an instrumentation callback. Native automatic/post-invocation compaction
+    remains disabled.
+- id: R5
+  text: Inject append acknowledgement loss and cancellation/deadline around append and continuation. Establish
+    the inspection needed to reconcile the same pending marker; ambiguity must fence continuation.
+- id: R6
+  text: If the public event mechanism cannot meet these properties, record the precise failing case and
+    prove the smallest request-projection alternative before completing the task. No silent SDK-private
+    helper dependency or compatibility shim; unresolved continuation means the task remains incomplete.
+- id: R7
+  text: Keep the spike test-local. Reuse or replace its fixtures during V417-003 implementation without
+    shipping a second compaction engine.
+- id: R8
+  text: 'Prove strict failure semantics for summarizer exceptions, None/empty/oversized/output-limited
+    output and a candidate demonstrably ineffective before commit. The rejected attempt adds no marker
+    and starts no continuation/model/tool request; cancellation/deadline takes precedence. Separately
+    test ineffectiveness first discovered from the next main response after a valid checkpoint: retain
+    the accepted marker, observations and all charged calls, then stop before another semantic dispatch/cycle
+    if no eligible progress exists. Native skip/continue is not this contract; automatic/token-trigger/post-invocation
+    compaction, resumability and semantic retries remain disabled.'
+failure_outcomes:
+- operation: Test Gateway call, session marker append and Runner continuation
+  permanent: Protocol/range mismatch fails the experiment and names the unsupported property.
+  retryable: No nondeterministic retry conceals a failing SDK property.
+  ambiguous: Inspect/reconcile the exact pending marker identity/range; confirm one existing marker or
+    prove absence before append. Reusing an Event.id does not establish append idempotency. Unresolvable
+    ambiguity fences continuation, with no blind replay or new marker.
+  cancelled: Join the owner generator and fake provider before cleanup; assert no late tool dispatch.
+  timeout: Use injected signals/deadlines; no wall-clock speed assertions.
+cardinality:
+- collection: Spike transcript
+  expected: Two compaction cycles, multiple calls per model turn and distinct recent groups
+  maximum: Finite declared fixture with cases at the proposed 16-group recent-tail bound
+  bound: No live model/network or whole production archive; scale tests remain in V417-003/V417-004.
+lifecycle:
+- entity: Test sessions and side-effect counters
+  delete: Test fixture owns teardown and joins all tasks.
+  cascade: Remove temporary sessions/markers on fixture teardown.
+  retention: Retain only test sources and safe evidence record; no production runtime state.
+test_prerequisites:
+- These are future implementation acceptance commands, not verification performed while creating tasks.
+  Implement every explicitly named new gate in its owning task; zero selected or skipped mandatory cases
+  fail.
+- Use locked Runtime dependencies, testdata catalogs and pseudo-Skills. Unit and integration tests never
+  read the live configs tree; make test-config validates the shipped catalog.
+- Persistence and immutable snapshot reads use disposable real PostgreSQL. Set CONTRACTOR_TEST_DATABASE_URL
+  for required gates; an unreachable configured database or skipped required case is a failure.
+- Run full suites for every touched package in addition to focused gates. Use injected clocks and deterministic
+  work counters for assertions, not wall-clock thresholds.
+- Run integration acceptance on the exact ADK 2.13.0 closure accepted by V418-007; record Runtime revision
+  and lock digest. No separate old-SDK compaction implementation or version-switching production path.
+- Cancellation/expiry prohibits new semantic dispatch and unowned local work after release, not remote
+  completion of already-sent operations. Reconcile uncertain effects through existing receipts; preserve
+  separately authorized bounded terminal cleanup/auto-export under WRK-R168.
+
+verification:
+  result: Public request projection selected after real native timestamp-boundary failures; two checkpoints
+    and continuations preserve one logical State/budget/collector/deadline owner on exact accepted lock.
+  tests: Linux make test-runtime PASS (5115 passed, 55 existing allowed opt-in skips); all 32 new
+    spike cases pass without skips. Darwin focused 32 PASS. Frozen-source make lint PASS.
+  first_host_attempt: Darwin full Runtime failed on native Linux prerequisites; preserved as failed evidence,
+    reproduced SOCK_SEQPACKET absence and completed the full mandatory gate in a fresh owned Linux source/venv.
+  delivery: Merged codex/compaction-spikes into main with --no-ff at the user request on 2026-10-26.
+    Implementation commit and original verification evidence are retained; no push or deployment.
+    Production compaction remains for V417-003 and successors.
+  merge_checks: Integrated main passed the full streamline race suite (283 records, zero skips/failures),
+    all 32 Runtime spike cases, task/spec checks and formatting/lint for the changed test files.
+implementation_commit: eda7fee76bba996786822107a269c9bb38844a63

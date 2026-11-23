@@ -1,0 +1,202 @@
+schema_version: '1.0'
+id: V406-007
+title: Gate the complete web scan and rule sweep journeys
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: scan-tools
+kind: chore
+priority: P2
+status: completed
+depends_on:
+- V406-001
+- V406-002
+- V406-003
+- V406-004
+- V406-005
+- V406-006
+- V406-008
+- V406-009
+- V406-010
+- V406-013
+- V406-014
+- V406-015
+- V406-016
+- V406-017
+languages:
+- go
+- python
+- typescript
+goal: Close the proposal 0041 milestone with real-store/process/browser evidence that parameterized scans,
+  owner rulepacks and recoverable Project sweeps work together, and keep the deterministic release gate
+  able to fail.
+context:
+  proposal: docs/proposals/0041-web-nuclei-scanning-and-rule-sweeps.md
+  specification:
+  - docs/testing/README.md
+  - docs/spec/tools/scanners.md
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/lifecycle.md
+  - docs/spec/api/public-api.md
+scope:
+  in:
+  - Extend the mandatory deterministic process/browser gate and its release graph/CI selection so all
+    proposal journeys run with disposable PostgreSQL and scanner fixtures.
+  - Keep an explicit installed-Nuclei smoke/pack test for actual engine compatibility; distinguish it
+    from deterministic CI fixture coverage.
+  - Collect acceptance evidence for cross-language parity, realistic bounds, lost acknowledgements, source
+    mutation/deletion, replacement, cancel and populated purge.
+  - Reconcile remaining proposal text into owning normative docs, update architecture/ERD and record phase/task
+    completion truthfully.
+  out:
+  - New product capabilities, target/model changes, benchmark-specific rules or live-model checks.
+requirements:
+- id: R1
+  text: A zero-test gate selection, unexpected PostgreSQL skip or unavailable configured database fails.
+    Fixture stores enforce production validation.
+- id: R2
+  text: Tests use testdata/config fixtures, injected clocks and deterministic work budgets; never read
+    live configs except allowed e2e/ui-stack gates.
+- id: R3
+  text: Every changed release selector runs its consuming checks; no completed milestone while a required
+    test is skipped or an acceptance criterion remains open.
+failure_outcomes:
+- operation: Process/browser gate startup, disposable stores and scanner fixtures
+  permanent: Unavailable required prerequisites or zero matched tests fail clearly.
+  retryable: Only existing bounded harness readiness retries, never masking a real assertion.
+  ambiguous: Use recorded process/Run identities and existing receipts; retain diagnostic evidence.
+  cancelled: Join fixture processes/browsers and remove only test-owned database/schema/workspaces.
+  timeout: Separate bounded harness startup and scenario deadlines, raised without changing configured
+    models.
+cardinality:
+- collection: Test Projects, templates, members and paginated results
+  expected: 7-Project scenario plus boundary cases
+  maximum: 1000 member boundary and declared pack/package byte/count maxima
+  bound: Exercise the production per-tick/page limits and at least one realistically sized set; no wall-clock
+    performance assertions.
+lifecycle:
+- entity: Test-owned schemas, processes and workspaces
+  delete: The harness cleans only its own resources after joined work.
+  cascade: No demo/user business data, primary checkout edits or owner library artifacts.
+  retention: Acceptance logs record command/outcome/revision; temporary resources are removed after collection.
+acceptance_criteria:
+- id: A1
+  given: all implementation tasks completed on the branch
+  when: deterministic gates run against disposable PostgreSQL
+  then: web scan, once-uploaded rulepack and recoverable/cancellable sweep journeys pass through real
+    Server/Runtime/browser boundaries
+- id: A2
+  given: installed Nuclei and representative custom/installed rules
+  when: the explicit engine smoke gate runs
+  then: actual engine behavior matches the declared package/selection/report contract, with failures reported
+    separately from deterministic fixture checks
+- id: A3
+  given: the complete milestone and every affected gate
+  when: final verification and documentation reconciliation run
+  then: required commands pass with nonempty selections, no unexpected skips and honest completion/branch
+    status
+tests:
+- command: make test-nuclei-web-e2e
+  covers: &id001
+  - A1
+  - A2
+  - A3
+- command: make test-nuclei-web-installed
+  covers: *id001
+- command: make test-scan-e2e
+  covers: *id001
+- command: make test-wire-cross-language
+  covers: *id001
+- command: make verify-public-api-postgres
+  covers: *id001
+- command: make ui-verify
+  covers: *id001
+- command: make test-ui-stack
+  covers: *id001
+- command: make verify-architecture
+  covers: *id001
+- command: make test-config
+  covers: *id001
+- command: make lint
+  covers: *id001
+- command: make release-verify
+  covers: *id001
+execution_notes:
+- On 2026-10-24 the user initially authorized focused checks and postponed full release-verify.
+- Later on 2026-10-24 the user explicitly authorized full release-verify on main and closing this task and the proposal milestone only after a green result. The earlier deferral is lifted.
+- After the concurrent V407/V409 merge advanced main to b523ae77, the user explicitly requested closure against the green a993c4d3 run; a full run of newer main is separate work.
+implementation_commit: 7b9d991c47988f8a16eb167774eb20fae1621304
+verification:
+  date: '2026-10-24'
+  release_gate:
+    command: make -k release-verify RACE_PACKAGE_PARALLELISM=1
+    revision: a993c4d335266b79b98ff1cd54056f48dcfec936
+    branch: main
+    platform: Ubuntu 24.04 linux/arm64, PostgreSQL 17.11, Go 1.26.9, Node 24.20.0, Python 3.13.14
+    started_at: '2026-10-24T06:12:58Z'
+    finished_at: '2026-10-24T07:57:14Z'
+    seconds: 6256.17
+    exit_code: 0
+    stages_passed: 12
+    process_top_level_passed: 25
+    evidence: reports/proposal-0041-release-20261024-a993c4d3/README.md
+    newer_main: b523ae77c5c9d3eee26c3d5f34cb68dde674bb9f
+    newer_main_coverage: Not covered by this full run; the user assigned its full verification separately.
+  work_commits:
+  - 624b3a47a648819be12969aad9966b23b16ab5a9
+  - 7b9d991c47988f8a16eb167774eb20fae1621304
+  - 2fb310c642d09f609135ea7570b3765391a12b03
+  diagnosis: The original native timeout occurred at comparison navigation after executions succeeded,
+    with an empty page. A distinct sibling UI rebuild reproduced HTTP 404 for a live static server cached
+    index script. V406-013 isolates private build snapshots. Clean native baseline and the complete fixed
+    native/external process matrix passed without model or deadline changes.
+  passed:
+  - command: make -k release-verify RACE_PACKAGE_PARALLELISM=1
+    result: Exit 0 on the recorded main revision; all 12 stages passed, including both full race stages, 408 PostgreSQL integration test/subtest passes, all 25 process scenarios and strict shared-fixture/audit/finding report validators. No mandatory PostgreSQL, process or browser scenario skipped.
+  - command: release-verify browser stages
+    result: All 91 mocked scenarios and 94 real-stack browser scenarios passed; native and external managed Evals were green, with zero skipped, unexpected or flaky cases.
+  - command: make test-ui-stack
+    result: Full package passed in 1174.506 seconds; 29 Go test/subtest passes and 94 browser scenarios
+      across Operations, widgets and native/external Evals, with zero skipped/unexpected/flaky cases.
+  - command: make test-nuclei-web-e2e
+    result: Passed with the deterministic scanner protocol fixture through actual Server/Scheduler/Runtime
+      and resumable client/durable sweeps.
+  - command: make test-nuclei-web-installed
+    result: Latest main run passed in 175.389 seconds on 316f426126314f861f680585797ca2445dff193a with the real installed Nuclei engine, custom/installed rules, pinned manifests and argument/admission cases. Product code matched the full a993c4d3 gate revision.
+  - command: make test-scan-e2e
+    result: Passed; Katana and the installed scanner protocol cases. Both explicit scanner-browser build
+      modes passed separately under V406-013.
+  - command: make test-wire-cross-language
+    result: Passed; shared fixture inventory verified 249 fixtures, 231 Go and 184 Python shared tests.
+  - command: make verify-public-api-postgres
+    result: Passed with PostgreSQL and the race detector.
+  - command: make verify-public-api
+    result: Passed; every required public operation was covered.
+  - command: make ui-verify
+    result: 196 files and 2385 passing tests plus one expected failure; generated client, lint, typecheck,
+      Node server tests and production build passed.
+  - command: go test -json -count=1 ./internal/app ./internal/scanservice ./internal/scanstore ./internal/scancontroller
+      ./internal/cli/... ./internal/publicclient/...
+    result: 'Passed: 344 Go test/subtest passes. One known non-database CLI fixture skip on the macOS
+      filesystem is recorded below. Sweeps covered the 1000-member boundary, 10001-Project containing
+      portfolio, lost acknowledgement/controller replacement, captured inputs/targets, cancellation fencing,
+      deadlines and populated purge.'
+  - command: make verify-architecture
+    result: Current LikeC4 source validated.
+  - command: make test-config
+    result: Passed after V406-014 corrected the staged Skills loader boundary; shipped configuration validated.
+  - command: make lint
+    result: Passed on the final closure branch after integrating main b523ae77, including release-graph selection, all 1194 task records, spec validation, UI lint, Go vet/staticcheck, Runtime layers and ERD freshness.
+  - command: go test -count=1 ./internal/persistence ./internal/configload
+    result: Both complete guard packages passed.
+  aggregate_optional_skips:
+    go_unit: Seven expected environment/privilege cases for live Gateway, NVIDIA, OTLP and root-only file ownership; no database skip. Go unit recorded 7172 test/subtest passes.
+    runtime: 4375 passed and 55 expected opt-in/environment skips for live Gateway, rootless/Podman or optional scanner binaries; the separately launched Go Artifact API scenario ran in the integration gate. Actual Nuclei compatibility passed independently.
+    ui: 2385 passing tests plus one declared expected failure across 196 files; generate-check, lint, typecheck, Node tests and build passed.
+  diagnostic_runs:
+  - The original macOS full run exited 2 and is not release proof; it exposed the namespace guard fixed by V406-015 and Linux-specific Runtime fixture/API limitations.
+  - Earlier Linux attempts exposed V406-016 shared evidence initialization and V406-017 portable browser screenshot paths; neither interrupted diagnostic run is counted as a pass.
+  accepted_skips:
+  - test: TestSourcePushRejectsRuntimeUnopenableBundleBeforeArtifactRequest/file_and_directory_collide_after_NFC
+    reason: The macOS filesystem cannot represent both fixture names after NFC normalization. This unrelated
+      CLI fixture was the only skip in the additional Go packages; no required database or sweep acceptance
+      test skipped.
+  remaining: []

@@ -1,0 +1,646 @@
+{
+  "schemaVersion": 1,
+  "task": "V417-010",
+  "date": "2026-11-16",
+  "phase": "separate development calibration; zero held-out samples",
+  "runs": [
+    {
+      "runId": "run_e556d4fa5b70a1ba5959ac88fd045fd3",
+      "mode": "ordinary compact",
+      "state": "succeeded",
+      "released": true,
+      "frozenSha256": "sha256:461007e9600c05e88e957b83e11ab1686bbfc6e65bf6c49f4fb4cad96cf08d11",
+      "frozen": {
+        "id": "context-development-20261116-03",
+        "relationToPrior": "Separate development03 after successful development02 showed a late checkpoint; change only soft trigger12000\u21926000, retain every prior attempt and all model/budget/instruction choices",
+        "createdAt": "2026-11-15T21:55:55.123399+00:00",
+        "caseSha256": "sha256:e800bc66aeed5ad41635453dba20567a6d4ed847c64e81222c5b3348c6ed2124",
+        "workflowSha256": "sha256:3ee8cac3468fc6e13ccda67760ddf147e853c04851284089b843d7441458c2b6",
+        "sourceCommit": "d3b214e59ece8bb15a1302170897609bfbd7d840",
+        "sourceDirty": false,
+        "adk": "2.13.0",
+        "python": "3.13.16",
+        "runtimeLockSha256": "sha256:945f997f38cabe445f1f05a559a26089fdf3bf44c95b523a6d8eb71c8e235c65",
+        "launcherSha256": "sha256:4d5f8661ec94f226b6197560d75bc69d447f4f72ccbdcfb3c135122f961c78db",
+        "catalogFiles": {
+          "agent-templates/artifact_builder.yaml": "sha256:989508d4bf9e4a22b3894fd307f2314484bf4008b53224f90cd876f60c65f61b",
+          "agent-templates/artifact_reviewer.yaml": "sha256:6cb4f7299477139dbe21a5bd6c488708a5bdf17879cfc6025a58eea74e4576b0",
+          "agent-templates/bounded_reader.yaml": "sha256:26c033d124538269d797f0e04a5d548fae598485aad6ecb9c80070d26357211a",
+          "agent-templates/capability_copy_builder.yaml": "sha256:0dfb036145b57b692de042b1c2425e3f9f0943b716f337fdffac2e7015438704",
+          "agent-templates/compact_worker.yaml": "sha256:a0903a9963286fbc4ee4a58e539cb0ee74fd0541dad1ecd54efa1e375ac0e567",
+          "agent-templates/context-eval-controlled-compact.yaml": "sha256:929255686722dee23b212e7a1434e2feea019f52008e4149a839c8d15b3e06d3",
+          "agent-templates/context-eval-masking.yaml": "sha256:b618ed511d2597312c08fbc321e6cefdfef4c758e18c3d246dacf1d3dfb1983e",
+          "agent-templates/context-eval-terminal-off.yaml": "sha256:dfa1efb922b252510f3b4484d8034d841eea6ca501c338883a80260dee876cae",
+          "agent-templates/context-eval-terminal-on.yaml": "sha256:5698e12f7048979fb7047f6c5c0f7c963b4dc057c6d3a82387cd886c108e66be",
+          "agent-templates/context-eval-worker.yaml": "sha256:081f4f2f090ca240becaeae98b09dda2eb0ea915f37256a500826bc1b2a97d08",
+          "agent-templates/observation_builder.yaml": "sha256:ca1033702321152f2553d6d9baf38b551de056f3c54e551517ba489434120978",
+          "agent-templates/observation_reviewer.yaml": "sha256:091f8880b003d05aa5e70287b36fd2c7d5d20c1243d0080831e83115a620dc7f",
+          "agent-templates/session_probe_worker.yaml": "sha256:0912ca82b2eb8a7c45a76cad2ff989f5ae38ca56db2822537decf0a1a782470e",
+          "agent-templates/shared_memory_reviewer.yaml": "sha256:e785784c4ba877f071e38580f8ff46ad3781aaa9c5d640a5bf82179f7854fb3b",
+          "agent-templates/shared_memory_worker.yaml": "sha256:1935188b0a92351ef2c42f939180bba243be332e908125c8294d0e26e7da5c82",
+          "agent-templates/summarizer_disabled_worker.yaml": "sha256:afd2239abd18340c9e04af855f7585bed026567e37849613954d7f1a0b098bf4",
+          "agent-templates/summarizer_enabled_worker.yaml": "sha256:d5e548d51683a4462e7e945964ce42597982f06fdbff9818c8f28a14defd33c7",
+          "agent-templates/summarizer_reasoning_worker.yaml": "sha256:3b1b55bc4a839f4939517118e06d8d99ae9aaac8c9a7e2bebf98bdded1ee913e",
+          "agent-templates/workspace_editor.yaml": "sha256:9b265c10cd3a2b520b940f0ff2fc0b3b3eae77b339460e04cd6baa5219d0b25d",
+          "audit-profiles/.gitkeep": "sha256:01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+          "audit-standards/.gitkeep": "sha256:01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+          "instructions/artifact-builder.md": "sha256:643cb38c2e1f743a5667e736287969e47fe67063c037446ba5a194c97e1c73ed",
+          "instructions/artifact-reviewer.md": "sha256:4bbaecf1a3bdbf6d4c297e5382934f4b212e51b08a39d3e9fc224bd74eb10f29",
+          "instructions/budget-loop-planner.md": "sha256:752f7c1ed846b0672f44beae6be56f2d2c17345eba97c0a6a73696659a164590",
+          "instructions/budget-loop-worker.md": "sha256:1d2486bee1f59ee8d859fb73e3663ae460768e9d034503f8ff31311ccf9f0ebf",
+          "instructions/context-eval-task.md": "sha256:d6a667f7e2d714060923a982521fe961f7ee653dbbf42af411ef9c84d755111d",
+          "instructions/context-eval-worker.md": "sha256:d70edc7d79af084aeb126eb2660ab4bcb630d218fadc17460049481934a3e152",
+          "instructions/copy-planner.md": "sha256:e053ccd72bdfd2970477445c3aff7c28157c6d56e6cb86a6d6d35f99f2befe71",
+          "instructions/planner-compaction.md": "sha256:af88c4cbd75a113044baf6de895b7aff44f64923dc4b86d1d2a953cc9ed5f756",
+          "instructions/session-probe-worker.md": "sha256:852abc39dfd9241f36f81eaa67bc30c40cb645b71d12920a13216ffd430cb5df",
+          "instructions/shared-memory-planner.md": "sha256:751c641d8a4518394ce00a366786a6dd4c2e32552277b0a902bebfa1d5597dbc",
+          "instructions/shared-memory-reviewer.md": "sha256:cb125a89cbc6640c551a603fcbb89571214e1fb3274f6dbbee107e7bdcd33152",
+          "instructions/shared-memory-worker.md": "sha256:ee8ceba578cc3fc9516501d741993724122a1048c3dc30399cd5313bd92e3be9",
+          "instructions/worker-compaction.md": "sha256:c254fdf2971cbbd139da2fd7992edfdfcb5bf446f2b89b857e2f2e0cf7ace54c",
+          "instructions/worker-observations-builder.md": "sha256:0ec6558523460af4db2f4ec40e6fc252ced0676f3f8ed069063901e74ee1476a",
+          "instructions/worker-observations-planner.md": "sha256:d33b05332cf7d768d51ef0cd9fe67e5a908ef7e5983135cec13c71399424518e",
+          "instructions/worker-observations-reviewer.md": "sha256:8cb54cad65031485766d73fb8ef360aeb2375ccd4599bb16013281df06219c57",
+          "instructions/worker-summarizer.md": "sha256:82e6548ecc77c99eb00016b3c011422fb44a67de947502c181a91c20d2f9cdbd",
+          "instructions/workspace-editor.md": "sha256:33e816f18cae0347fc737176cf24f45c497f259fa9896821aeda3bcda0a0852a",
+          "llm-gateways/cloud-study.yaml": "sha256:cd8719f0c634d333508dd9b2a0b1cd892c3681d4d8b07189ac9d7c303dd37f34",
+          "llm-gateways/local_litellm.yaml": "sha256:9766c2c30a30c42ffab9fb10c7e652bc271fa6144ee4080fb6dcc8fe7f43a634",
+          "model-policies/bounded_worker.yaml": "sha256:f9648e23a11c115a699704444f338131c9dfe5d543e496e41998d01b9c359d91",
+          "model-policies/compact_worker.yaml": "sha256:e1e16790b758fdf20d2225126fbea35d06aa254c00ce6dc467476f83c3fb50a1",
+          "model-policies/context_study_auxiliary.yaml": "sha256:9f020d9987c7c99054c84c12df63b72ebfea67fa24924aa145c5fd593e124932",
+          "model-policies/context_study_planner.yaml": "sha256:7a7bdd50ac053d074a2ac74aec39ccd3f2cada1bb74ed8bc83b0d242d178b3ea",
+          "model-policies/context_study_worker.yaml": "sha256:4a0ad4ec0148456d2aa3225acf0c48ad4deba04afc2d31bb007b21fd8248eec1",
+          "model-policies/observation_planner.yaml": "sha256:1be3271a543e756a5364d731bda6e91928af0440f4b856fe21bc70b09a02c2fb",
+          "model-policies/planner.yaml": "sha256:9371f0c592af63259e32097b067b7b482dc4e4df4980b1c345c8f45918f4d62f",
+          "model-policies/planner_compactor.yaml": "sha256:ad0bcefedba002db23a2759fd7b26dce0cd14a04d342e006ac3ed14714086e5c",
+          "model-policies/reviewer_worker.yaml": "sha256:1c3512ba7a82e44345826c5628a7fcf3cec1c0ae307f068cdd9e558c27081695",
+          "model-policies/shared_memory_planner.yaml": "sha256:974a49c48df8aebc212f781f32a2044bf240a05d25c2827a8a33478670501e4c",
+          "model-policies/strong_planner.yaml": "sha256:d26d20239996f70fe6521aa55389621c2e3ba3079bf2d99c792a610ecb429b8e",
+          "model-policies/strong_worker.yaml": "sha256:eb5f3cb95d5169e18821fe58e74a6628407f0014021d3a7f4adafd3ebf7f037a",
+          "model-policies/summarizer_context_worker.yaml": "sha256:114f698acb882990cfc6ee388a1e312bc1bf183715dcbac5c4322eac2da0d480",
+          "model-policies/summary_continuation_planner.yaml": "sha256:f6d018f5259406fd26c125d9d2c7556f2945becf120ff292529318d2a18bc346",
+          "model-policies/terminal_summarizer.yaml": "sha256:452f71226c5619db10bf1cc6a945f42b45c5e196155daf7fdde6cc46e02d5094",
+          "model-policies/worker.yaml": "sha256:67dffb89f19ad6d6e1e617002b60e43424bace85c372c1e717b144e1479e1ab4",
+          "model-policies/worker_compactor.yaml": "sha256:b690c13ebdbdd0e83a8fc0f30045d00a32792ec272809d0691698b07d5249a32",
+          "workflows/artifact_copy.yaml": "sha256:a5fe026504999f414e67972226e2c11bb2b2b5efd13e498708eabbb386ad2d40",
+          "workflows/budget_loop.yaml": "sha256:425377bab96d3b803950d46d04314894a49fa0390119315bb858fb6f22f35bdc",
+          "workflows/capability_copy.yaml": "sha256:ea001f7309a7985e7ca4e50f7460cc31eb4d355f52e36f0e24153f7bf429269d",
+          "workflows/dev3-context-eval-compact-off.yaml": "sha256:0816b2b25d4cf30310d826d7ff5be54290f81ad4e41e483e29134d8e6714681b",
+          "workflows/dev3-context-eval-compact-on.yaml": "sha256:db323422e3bd8d8eacaf938e0af8f6f2933a14278d17d7d04d0e84bae9a622a9",
+          "workflows/dev3-context-eval-controlled-compact.yaml": "sha256:b6853c1a8115681a41206b07fc8a3ddbc968992f44c56842f38c4271a0ee689f",
+          "workflows/dev3-context-eval-masking.yaml": "sha256:cd04bf120056da44d039a01743c0037e917e68ad674a587a483d0b6cd1701724",
+          "workflows/dev3-context-eval-terminal-handoff.yaml": "sha256:be2e2eb1d2065dee625ccd6c222afd9b2391317c464b592ec42486a0d5cd7841",
+          "workflows/dev3-context-eval-terminal-off.yaml": "sha256:d70674b0f0176366d943a3775f60ccf62cfd09fe98694c02c4840a25c9605583",
+          "workflows/dev3-context-eval-terminal-on.yaml": "sha256:66c06a30fe196e478c3f2d9a32f82b6af6262c3b76bd55683b01eabb92483d1e",
+          "workflows/escalating_copy.yaml": "sha256:c1edbfef63097e6e16ad763458209047b30c781fd836576dfff087fefa97274d",
+          "workflows/router_review.yaml": "sha256:f3ae5b31a6c276f7abe50f6de9dc035b00d2d1b44a3ac7e68eec64030d7ecda0",
+          "workflows/shared_memory_router.yaml": "sha256:a3cf00fd4fc57871979d52c8bf9b93ae5bf99a07870bc4ab65ab9c48b8c6548d",
+          "workflows/shared_memory_streamline.yaml": "sha256:3c834edcc99af5493431da841b3d35b82d842e4a4807fced5d98951b2b0b4919",
+          "workflows/streamline_copy.yaml": "sha256:3a869b1b058fafe84730942238d50f7315f740cfcdcbbabe337698d1c34ee2f1",
+          "workflows/worker_compaction.yaml": "sha256:19b6938a3425e8664e2fc9e3211873bc66228844b2d0c3a70bc7bd929b02ec9d",
+          "workflows/worker_observations_router.yaml": "sha256:d2fd4f5150eaa802db7ea80134c69753fcef35a65a5b643390ab221cbd1036dd",
+          "workflows/worker_observations_streamline.yaml": "sha256:bc4de4a28c658a4ac5579ff92e58020a517192f7af9df56a5edf90b8863cbd6e",
+          "workflows/worker_session_router.yaml": "sha256:ab3d3c7208176766c763100e2036a2b40353de3f42d37457d6d942a1629ef40f",
+          "workflows/worker_session_streamline.yaml": "sha256:a84111b32c1f697aad2d0d547a01a63229492dbfaf7dc99d89e01236339dc3b5",
+          "workflows/worker_summarizer.yaml": "sha256:029dac32633de920d88aefd4fad86b99544b5a9774957074d4928ed599552e7a",
+          "workflows/worker_summarizer_context.yaml": "sha256:54b2caa3a75865e27ef123f325435be50fe39d3fd5e847ebbe4dc946105e9dac",
+          "workflows/worker_summarizer_disabled.yaml": "sha256:96622b24cd8b666f96d3ba1f3c69dd05d32ce9a47bc573ca96f06ba0ae9147fc",
+          "workflows/worker_summarizer_reasoning.yaml": "sha256:92f3b2bae4f3ce6ba1edf26313ea17111c6aa89009467653342cd382da679aff",
+          "workflows/worker_summary_continuation.yaml": "sha256:be8727fe5a663b4c7f6ecf31b0d323b3790c830d06c0570d12db162c92210b17",
+          "workflows/workspace_roundtrip.yaml": "sha256:15cc1957a9fd26e7c1ac9b5d112c765fd6617c9e7da353cc58070e9254a82ead"
+        },
+        "configuredModelsSha256": "sha256:aba17f5e7375c2e20abc81388f49765b9ac567dd431550ba8d6a7520de5201a8",
+        "budgets": {
+          "callerMaxModelCalls": 20,
+          "callerMaxToolCalls": 64,
+          "callerMaxTotalTokens": 250000,
+          "auxiliaryMaxModelCalls": 1,
+          "auxiliaryMaxTotalTokens": 100000,
+          "memberDeadlineSeconds": 900,
+          "transportDeadlineSeconds": 1200,
+          "gatewayKeyUSDPerDayCap": 25
+        },
+        "parameters": {
+          "contextWindowRatio": 0.006,
+          "keepRecentGroups": 1,
+          "maxCompactions": 4
+        },
+        "heldOut": false
+      },
+      "diagnostics": [
+        {
+          "compaction": {
+            "invocationId": "worker-e86bd4dcae824fdc94cee16581b43d00",
+            "generation": 1,
+            "phase": "applied",
+            "attempts": 1,
+            "failures": 0,
+            "archiveReads": 0,
+            "inputBytes": 20950,
+            "summaryBytes": 2130,
+            "reasoningAvailable": 0,
+            "reasoningIncluded": 0,
+            "reasoningTruncated": 0,
+            "beforePrompt": {
+              "generation": 0,
+              "promptTokens": 6928
+            },
+            "afterPrompt": {
+              "generation": 1,
+              "promptTokens": 2522
+            }
+          },
+          "modelPhases": {
+            "main": {
+              "modelCalls": 6,
+              "inputTokens": 23559,
+              "outputTokens": 2080,
+              "totalTokens": 25639,
+              "tokenUsageUnavailable": 0,
+              "durationMs": 37908
+            },
+            "compaction": {
+              "modelCalls": 1,
+              "inputTokens": 5828,
+              "outputTokens": 2139,
+              "totalTokens": 7967,
+              "tokenUsageUnavailable": 0,
+              "durationMs": 19744
+            },
+            "finalization": {
+              "modelCalls": 1,
+              "inputTokens": 513,
+              "outputTokens": 399,
+              "totalTokens": 912,
+              "tokenUsageUnavailable": 0,
+              "durationMs": 3030
+            },
+            "summarization": {
+              "modelCalls": 0,
+              "inputTokens": 0,
+              "outputTokens": 0,
+              "totalTokens": 0,
+              "tokenUsageUnavailable": 0
+            }
+          },
+          "logicalAgent": "builder",
+          "status": "available",
+          "complete": true,
+          "durationMs": "61395",
+          "stopReason": "finalized",
+          "stopReasonTruncated": false,
+          "adapters": [
+            {
+              "ref": "otlp-http@1",
+              "operations": "2",
+              "failedOperations": "0",
+              "flushAttempted": true,
+              "flushSucceeded": true,
+              "droppedSpans": {
+                "queueOverflow": "0",
+                "encodingFailed": "0",
+                "nonRetryable": "0",
+                "retryExhausted": "0",
+                "collectorRejected": "0",
+                "deadlineExceeded": "0",
+                "cancelled": "0",
+                "shutdown": "0"
+              }
+            }
+          ]
+        }
+      ],
+      "nativeCost": {
+        "scope": "run",
+        "scopeId": "run_e556d4fa5b70a1ba5959ac88fd045fd3",
+        "currency": "USD",
+        "amount": "0.00387207",
+        "calls": "8",
+        "pricedCalls": "8",
+        "reports": "2",
+        "unknownReports": "0",
+        "basis": "reported",
+        "coverage": "complete",
+        "pending": false,
+        "historicalGap": false,
+        "asOf": "2026-11-15T22:05:35.925375Z",
+        "updatedAt": "2026-11-15T21:56:56.659211Z",
+        "checksAmount": "0",
+        "standaloneAmount": "0.00387207",
+        "activity": [
+          {
+            "key": "compaction",
+            "label": "Context compaction",
+            "calls": "1",
+            "amount": "0.0019437",
+            "basis": "reported"
+          },
+          {
+            "key": "finalization",
+            "label": "Finalization",
+            "calls": "1",
+            "amount": "0.00027645",
+            "basis": "reported"
+          },
+          {
+            "key": "worker",
+            "label": "Worker analysis",
+            "calls": "6",
+            "amount": "0.00165192",
+            "basis": "reported"
+          }
+        ],
+        "models": [
+          {
+            "key": "model:openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "label": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "calls": "1",
+            "amount": "0.0019437",
+            "basis": "reported"
+          },
+          {
+            "key": "model:openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "label": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "calls": "7",
+            "amount": "0.00192837",
+            "basis": "reported"
+          }
+        ],
+        "executions": []
+      },
+      "independent": {
+        "findingMatchesAST": true,
+        "findingSchemaExact": false,
+        "observedVsUncertain": false,
+        "constraints": true,
+        "mutations": 0,
+        "effects": [
+          "641b6d3761b36e364d3c9afd69d21c0b091a95c270f2d4844f08d273eb2150e1",
+          "534c737ae73ad854fac1243f03f9e323c12380d61e0d764a88e0c3a6f685693b"
+        ],
+        "usefulAfterCheckpoint": 3,
+        "retrieved": [],
+        "newProbes": []
+      },
+      "controls": {
+        "projectionRecords": 0,
+        "lateQuestionActivated": false,
+        "maskedResponsesAcrossRequests": 0,
+        "futureAnswerMatches": null,
+        "evidenceSha256": null
+      }
+    },
+    {
+      "runId": "run_38dee1d1454e2ce841287c577e24420b",
+      "mode": "controlled-compact",
+      "state": "succeeded",
+      "released": true,
+      "frozenSha256": "sha256:9a0c85eb801d4ee071e8cbefb0858b59ec7b22d7a39ed0c2385da4fe928461c7",
+      "frozen": {
+        "id": "context-development-20261116-04",
+        "createdAt": "2026-11-15T21:59:51.812173+00:00",
+        "source": {
+          "namespace": "context-development",
+          "name": "dev-source-03",
+          "revision": "rev_b6cc4140a61cb55cee0f151d4b404d26"
+        },
+        "sourceSha256": "sha256:e800bc66aeed5ad41635453dba20567a6d4ed847c64e81222c5b3348c6ed2124",
+        "workflowSha256": "sha256:7d3a5998294e1e448e879c98830113077b00e629f688af0f5f01efc407ca286e",
+        "purpose": "Actual test-only control/probe composition on a separate development case; no held-out sample",
+        "parameters": {
+          "ratio": 0.006,
+          "keepRecentGroups": 1,
+          "maxCompactions": 4
+        },
+        "memberDeadlineSeconds": 900,
+        "questionsSha256": "sha256:d6f8b3fe273c82804c15ae3ad31a8bef4badc51887fe9a8918c019fb394323ac",
+        "consumerSHA": "sha256:ab6bb9f1d6310750a388ddd0c3cd609d2b49b63a9ee77c5fe6013366290ef0a9",
+        "launcherSHA": "sha256:4d5f8661ec94f226b6197560d75bc69d447f4f72ccbdcfb3c135122f961c78db"
+      },
+      "diagnostics": [
+        {
+          "compaction": {
+            "invocationId": "worker-6376ce18ee7643739592a0c5bc199a56",
+            "generation": 1,
+            "phase": "applied",
+            "attempts": 1,
+            "failures": 0,
+            "archiveReads": 0,
+            "inputBytes": 20950,
+            "summaryBytes": 2673,
+            "reasoningAvailable": 2,
+            "reasoningIncluded": 0,
+            "reasoningTruncated": 0,
+            "beforePrompt": {
+              "generation": 0,
+              "promptTokens": 6788
+            },
+            "afterPrompt": {
+              "generation": 1,
+              "promptTokens": 2858
+            }
+          },
+          "modelPhases": {
+            "main": {
+              "modelCalls": 8,
+              "inputTokens": 34772,
+              "outputTokens": 8208,
+              "totalTokens": 42980,
+              "tokenUsageUnavailable": 0,
+              "durationMs": 62348
+            },
+            "compaction": {
+              "modelCalls": 1,
+              "inputTokens": 5838,
+              "outputTokens": 3468,
+              "totalTokens": 9306,
+              "tokenUsageUnavailable": 0,
+              "durationMs": 24479
+            },
+            "finalization": {
+              "modelCalls": 1,
+              "inputTokens": 383,
+              "outputTokens": 373,
+              "totalTokens": 756,
+              "tokenUsageUnavailable": 0,
+              "durationMs": 2719
+            },
+            "summarization": {
+              "modelCalls": 0,
+              "inputTokens": 0,
+              "outputTokens": 0,
+              "totalTokens": 0,
+              "tokenUsageUnavailable": 0
+            }
+          },
+          "logicalAgent": "builder",
+          "status": "available",
+          "complete": true,
+          "durationMs": "91329",
+          "stopReason": "finalized",
+          "stopReasonTruncated": false,
+          "adapters": [
+            {
+              "ref": "otlp-http@1",
+              "operations": "2",
+              "failedOperations": "0",
+              "flushAttempted": true,
+              "flushSucceeded": true,
+              "droppedSpans": {
+                "queueOverflow": "0",
+                "encodingFailed": "0",
+                "nonRetryable": "0",
+                "retryExhausted": "0",
+                "collectorRejected": "0",
+                "deadlineExceeded": "0",
+                "cancelled": "0",
+                "shutdown": "0"
+              }
+            }
+          ]
+        }
+      ],
+      "nativeCost": {
+        "scope": "run",
+        "scopeId": "run_38dee1d1454e2ce841287c577e24420b",
+        "currency": "USD",
+        "amount": "0.0094583957",
+        "calls": "10",
+        "pricedCalls": "10",
+        "reports": "2",
+        "unknownReports": "0",
+        "basis": "reported",
+        "coverage": "complete",
+        "pending": false,
+        "historicalGap": false,
+        "asOf": "2026-11-15T22:05:35.933309Z",
+        "updatedAt": "2026-11-15T22:01:23.194008Z",
+        "checksAmount": "0",
+        "standaloneAmount": "0.0094583957",
+        "activity": [
+          {
+            "key": "compaction",
+            "label": "Context compaction",
+            "calls": "1",
+            "amount": "0.001844304",
+            "basis": "reported"
+          },
+          {
+            "key": "finalization",
+            "label": "Finalization",
+            "calls": "1",
+            "amount": "0.0001829625",
+            "basis": "reported"
+          },
+          {
+            "key": "worker",
+            "label": "Worker analysis",
+            "calls": "8",
+            "amount": "0.0074311292",
+            "basis": "reported"
+          }
+        ],
+        "models": [
+          {
+            "key": "model:openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "label": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "calls": "1",
+            "amount": "0.001844304",
+            "basis": "reported"
+          },
+          {
+            "key": "model:openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "label": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "calls": "9",
+            "amount": "0.0076140917",
+            "basis": "reported"
+          }
+        ],
+        "executions": []
+      },
+      "independent": {
+        "findingMatchesAST": true,
+        "findingSchemaExact": false,
+        "observedVsUncertain": true,
+        "constraints": true,
+        "mutations": 0,
+        "effects": [
+          "185a8726b6438f7e26a3f288058c051d43f6cf07375dd8852eb951bbe0cb092f",
+          "60a3955cc4e5b0e6255cc5e73444c284090e5e9cbd0750ad9b2ae9a18ae0866c"
+        ],
+        "usefulAfterCheckpoint": 5,
+        "retrieved": [],
+        "newProbes": []
+      },
+      "controls": {
+        "projectionRecords": 8,
+        "lateQuestionActivated": true,
+        "maskedResponsesAcrossRequests": 0,
+        "futureAnswerMatches": true,
+        "evidenceSha256": "sha256:56f1fed256ee6b821c3897e05d89cbfeeb025292a99f5714257624b95c185c75"
+      }
+    },
+    {
+      "runId": "run_803768777b07a310c3f8b65defcff322",
+      "mode": "masking",
+      "state": "succeeded",
+      "released": true,
+      "frozenSha256": "sha256:f21bd2b7345c244b762d5412f5469e78d48801dd86d57adc1fb006b12f619098",
+      "frozen": {
+        "id": "context-development-20261116-05",
+        "createdAt": "2026-11-15T22:01:23.852824+00:00",
+        "source": {
+          "namespace": "context-development",
+          "name": "dev-source-03",
+          "revision": "rev_b6cc4140a61cb55cee0f151d4b404d26"
+        },
+        "sourceSha256": "sha256:e800bc66aeed5ad41635453dba20567a6d4ed847c64e81222c5b3348c6ed2124",
+        "workflowSha256": "sha256:14f16b2c3e5f463aedbf86f54318bf7bf5144768e4c8d98962e52c0d8fff193a",
+        "purpose": "Actual test-only control/probe composition on a separate development case; no held-out sample",
+        "parameters": {
+          "ratio": 0.006,
+          "keepRecentGroups": 1,
+          "maxCompactions": 4
+        },
+        "memberDeadlineSeconds": 900,
+        "questionsSha256": "sha256:d6f8b3fe273c82804c15ae3ad31a8bef4badc51887fe9a8918c019fb394323ac",
+        "consumerSHA": "sha256:ab6bb9f1d6310750a388ddd0c3cd609d2b49b63a9ee77c5fe6013366290ef0a9",
+        "launcherSHA": "sha256:4d5f8661ec94f226b6197560d75bc69d447f4f72ccbdcfb3c135122f961c78db"
+      },
+      "diagnostics": [
+        {
+          "modelPhases": {
+            "main": {
+              "modelCalls": 14,
+              "inputTokens": 72223,
+              "outputTokens": 30136,
+              "totalTokens": 102359,
+              "tokenUsageUnavailable": 0,
+              "durationMs": 137975
+            },
+            "compaction": {
+              "modelCalls": 0,
+              "inputTokens": 0,
+              "outputTokens": 0,
+              "totalTokens": 0,
+              "tokenUsageUnavailable": 0,
+              "durationMs": 0
+            },
+            "finalization": {
+              "modelCalls": 1,
+              "inputTokens": 418,
+              "outputTokens": 1420,
+              "totalTokens": 1838,
+              "tokenUsageUnavailable": 0,
+              "durationMs": 7976
+            },
+            "summarization": {
+              "modelCalls": 0,
+              "inputTokens": 0,
+              "outputTokens": 0,
+              "totalTokens": 0,
+              "tokenUsageUnavailable": 0
+            }
+          },
+          "logicalAgent": "builder",
+          "status": "available",
+          "complete": true,
+          "durationMs": "147460",
+          "stopReason": "finalized",
+          "stopReasonTruncated": false,
+          "adapters": [
+            {
+              "ref": "otlp-http@1",
+              "operations": "2",
+              "failedOperations": "0",
+              "flushAttempted": true,
+              "flushSucceeded": true,
+              "droppedSpans": {
+                "queueOverflow": "0",
+                "encodingFailed": "0",
+                "nonRetryable": "0",
+                "retryExhausted": "0",
+                "collectorRejected": "0",
+                "deadlineExceeded": "0",
+                "cancelled": "0",
+                "shutdown": "0"
+              }
+            }
+          ]
+        }
+      ],
+      "nativeCost": {
+        "scope": "run",
+        "scopeId": "run_803768777b07a310c3f8b65defcff322",
+        "currency": "USD",
+        "amount": "0.0177678021",
+        "calls": "15",
+        "pricedCalls": "15",
+        "reports": "2",
+        "unknownReports": "0",
+        "basis": "reported",
+        "coverage": "complete",
+        "pending": false,
+        "historicalGap": false,
+        "asOf": "2026-11-15T22:05:35.942607Z",
+        "updatedAt": "2026-11-15T22:04:01.965068Z",
+        "checksAmount": "0",
+        "standaloneAmount": "0.0177678021",
+        "activity": [
+          {
+            "key": "finalization",
+            "label": "Finalization",
+            "calls": "1",
+            "amount": "0.000542144",
+            "basis": "reported"
+          },
+          {
+            "key": "worker",
+            "label": "Worker analysis",
+            "calls": "14",
+            "amount": "0.0172256581",
+            "basis": "reported"
+          }
+        ],
+        "models": [
+          {
+            "key": "model:openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "label": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "calls": "15",
+            "amount": "0.0177678021",
+            "basis": "reported"
+          }
+        ],
+        "executions": []
+      },
+      "independent": {
+        "findingMatchesAST": true,
+        "findingSchemaExact": true,
+        "observedVsUncertain": false,
+        "constraints": true,
+        "mutations": 0,
+        "effects": [
+          "50c5ce4060f0e2f701bc1f0b65b5ed400b0de841fa1afae99d5c177706a35131",
+          "b31885ac9e4785bffcfdbfad4c563c9b4d0fe0a0e0615a4cac788c6992712d44"
+        ],
+        "usefulAfterCheckpoint": 16,
+        "retrieved": [],
+        "newProbes": []
+      },
+      "controls": {
+        "projectionRecords": 14,
+        "lateQuestionActivated": true,
+        "maskedResponsesAcrossRequests": 101,
+        "futureAnswerMatches": true,
+        "evidenceSha256": "sha256:eedc21c4a35553832adecf3e8c7ef669bc1c3a00de70d148dd10a92566a5db6e"
+      }
+    }
+  ],
+  "decision": "Freeze ratio0.006 (configured context1M =>soft6000), keepRecentGroups1,maxCompactions4, unchanged configured aliases/sampling/call/tool/token budgets and common generic instruction. Development03 proves useful continuation; both live controls activate and answer the later question. No quality or savings inference from these samples.",
+  "primaryStudyCounts": {
+    "declared": 120,
+    "registered": 0,
+    "submitted": 0
+  },
+  "pairedReplay": "unsupported: no identical native checkpoint replay",
+  "transcriptBoundary": "Only safe aggregate diagnostics and digests retained here; raw traces/answers remain evaluator-private."
+}

@@ -1,0 +1,238 @@
+schema_version: '1.0'
+id: V420-006
+title: Accept shipped Planner compaction and native YAML reuse
+milestone: planner-context-compaction-2026-10
+epic: planner-worker
+kind: feature
+priority: P1
+status: in_progress
+depends_on:
+- V420-002
+- V425-042
+languages: [go, typescript, yaml]
+goal: Shipped Streamline/Router Planners, including terminal-summary continuations, use Workflow-selected
+  compact@1 and generated compactor@1 through executionConfig. Verify meaningful native YAML reuse and
+  unchanged effective Worker settings across the current production catalog; retain the historical 24-Workflow
+  rollout evidence.
+demonstration: >-
+  Validate the shipped catalog, then run a real Server/Runtime/PostgreSQL
+  terminal-summary continuation whose Planner compacts and completes with the
+  original task and Worker selection. Verify every shipped modelled Planner and
+  every summary-continuation target pins compactor@1.
+context:
+  authority: >-
+    User decision on 2026-10-31: remove planner_compactor_policy.yaml, reference
+    compactor@1 in Workflows, and switch every current Planner to compaction.
+    User clarification on 2026-10-31: do not change Workers; their context
+    strategies remain independent. User decision on 2026-10-31: remove duplication
+    through native YAML anchors/aliases/merge keys within each Workflow, as in
+    GitLab configuration. The user explicitly asks to review every Workflow,
+    not only Planner-specific examples; do not add a reference resolver, shared profile kind or
+    Workflow-default mechanism for templating. This task continues from the merged V420-002
+    and V417 implementations; their unfinished broad validation is not claimed
+    complete and is not a new dependency on a pending task.
+    User decision 2026-11-01 supersedes the direct-Stage modelPolicy shorthand:
+    V425-042 moves Planner compactor selection exclusively into Workflow
+    executionConfig and uses one behavior-only context grammar for ordinary
+    Stages and summary continuations. This task's status and Worker scope are
+    unchanged; earlier authoring decisions below are historical.
+  specification:
+  - docs/spec/configuration/workflows.md#WFL-R90
+  - docs/spec/configuration/workflows.md#WFL-R86
+  - docs/spec/configuration/agent-templates.md#TPL-R117
+  - docs/spec/configuration/agent-templates.md#TPL-R118
+  - docs/spec/execution/planners.md#PLN-R125
+  - docs/spec/execution/scheduler.md#SCH-R173
+  implementation_boundary: >-
+    Catalog/config owns strategy and exact policy/instruction resolution;
+    Scheduler carries the selected Planner context policy into the ordinary
+    StageSpec and preserves it on retry/resume. Existing Planner code owns
+    compaction. Reuse the existing transition, execution-selection, digest and
+    Stage snapshot mechanisms. No new receipt, store or Runtime capability.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: Catalog activation and summary-continuation wiring are merged through f4c34afeb; V425-042
+    subsequently migrated model selection to Workflow executionConfig. The recorded rollout covered
+    24 Workflows, eight direct Stages and sixteen continuation Planners at that revision. V425-020/021
+    removed the historical lint blockers.
+  dependency_update: The 2026-11-07 review adds explicit acceptance dependencies on the already-merged
+    Planner slice and completed policy-source migration. This does not undo the authorized October rollout;
+    it prevents closing its catalog acceptance ahead of the core contract it consumes.
+scope:
+  in:
+  - Every current shipped direct modeled Planner Stage and summary-continuation target in configs/workflows;
+    record the current inventory alongside the historical rollout counts.
+  - Planner examples using the shared compactor@1; removal of the duplicate policy example.
+  - Strict optional plannerContextManagement on on.summarized.escalate, resolved and pinned like the ordinary
+    Stage branch.
+  - Summary-continuation Stage creation, retries/resume, public read projection, schemas/clients and focused
+    real-process proof.
+  - Review all current production Workflow files for repeated contexts, result slots and transition policies;
+    deduplicate with native YAML references where useful.
+  - Reconcile superseded Planner task decisions, owning specs and catalog documentation.
+  out:
+  - Changes to Worker bindings, AgentTemplates, summarizer configuration or Runtime code.
+  - New deployment model-selection roles, changes to live models, or enabling compaction on deterministic
+    passthrough/scan-plan Stages.
+  - Changing deliberately uncompacted test fixtures en masse or fixing unrelated baseline gate defects.
+requirements:
+- id: R1
+  text: Every shipped modelled Planner and summary-continuation target explicitly selects compact@1 with
+    compactor@1 and instructions/planner-compaction.md. Existing per-Stage Planner factories and Worker
+    definitions remain intact.
+- id: R2
+  text: >-
+    Summary escalation accepts the existing closed Planner context union;
+    omitted/none preserves ordinary API behavior, while compact pins instructions,
+    defaults and the exact compactor policy before Run admission. Reject null,
+    unknown/duplicate members, malformed branches and context overrides on
+    non-summary escalation. Existing executionConfig precedence still applies.
+- id: R3
+  text: >-
+    The target Planner receives the selected branch in its saved StageSpec.
+    Resolved snapshot read, cloning, request projection and retry/manual-resume
+    checks preserve the same policy and provenance. Worker authority, summary
+    artifact, deadline and existing transition receipts remain unchanged.
+- id: R4
+  text: >-
+    Use compactor@1 for Planner examples and remove the duplicate hand-written
+    policy. Keep the existing generator, Gateway routing and deployment roles.
+    Record that Worker strategies are independent and do not edit their config.
+failure_outcomes:
+- operation: Catalog/Run admission and persisted summary-continuation reads
+  permanent: Invalid context selection fails with existing config/invalid-snapshot errors before model or Worker effects.
+  retryable: Existing storage_transaction_conflict/503 handling; no additional retry mechanism.
+  ambiguous: Existing Run/transition receipt and StageSpec pins reconcile the same attempt.
+  cancelled: Existing Scheduler/Planner owners join work before release; no extra background work.
+  timeout: Existing Stage/continuation deadline and model request timeout remain authoritative.
+cardinality:
+- collection: Shipped Planner selections
+  expected: 8 direct Stages and 16 summary-continuation targets, plus 2 examples.
+  maximum: Existing catalog and Workflow Stage/transition limits; no new runtime scan.
+  bound: Resolve once during ordinary publication/Run pinning; existing compact input/history/cycle bounds apply.
+lifecycle:
+- entity: Pinned Planner context selection
+  delete: Existing Workflow/Run/Stage retention owns the selection.
+  cascade: No new entity, table or independent lifecycle.
+  retention: New Runs pin the new catalog; existing snapshots retain their original content.
+acceptance_criteria:
+- id: A1
+  given: The shipped catalog and Planner examples
+  when: The catalog is validated and resolved selections are inspected
+  then: All direct and continuation modelled Planners use compact@1/compactor@1; the duplicate example is absent and Workers are unchanged.
+- id: A2
+  given: Compact/none and malformed summary-escalation configurations
+  when: Authoring, strict snapshot reload, public projection and clone/override paths run
+  then: Valid policies remain exact and independent; invalid selections fail before effects.
+- id: A3
+  given: A terminal Worker summary and a compacting continuation Planner
+  when: Real Server/Runtime/PostgreSQL execution, retries and existing resume checks run
+  then: The target compacts and completes with the original task, Worker and exact refs, preserving accounting and cancellation.
+tests:
+- command: go test ./internal/config/... ./internal/scheduler/... ./internal/httpapi/public/...
+  covers: [A1, A2, A3]
+- command: make test-config
+  covers: [A1, A2]
+- command: make verify-public-api
+  covers: [A2]
+- command: make ui-verify
+  covers: [A2]
+- command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestWorkerSummarizerProductionBoundaries|TestWorkerCompactionContinuesIsolatedWorker)$'
+  covers: [A3]
+- command: make lint
+  covers: [A1, A2, A3]
+
+decisions:
+- >-
+  2026-11-01 (user decision, V425-042): supersedes the direct-Stage shorthand
+  decision below. Select compactorModelPolicy through Workflow executionConfig
+  and retain native YAML reuse of the behavior-only plannerContextManagement.
+- >-
+  2026-10-31 (implementation choice within the user direction): direct Stage
+  authoring keeps its existing plannerContextManagement.modelPolicy shorthand.
+  Summary continuation reuses the same closed context policy and bounds but
+  selects the exact model through its already existing
+  executionConfig.planner.compactorModelPolicy; the context block rejects a
+  second modelPolicy source there. This keeps one execution-selection authority,
+  the existing override/ref precedence and accurate per-field origin without
+  adding another persisted policy/default mechanism. The Planner context branch
+  is pinned on the existing transition and copied into ordinary StageSpec.
+
+- >-
+  2026-10-31 (user decision): identical YAML is defined once at its first real
+  use in each Workflow, with standard anchors and aliases for later uses. Direct
+  Planners reuse the context block; identical summary-continuation targets reuse
+  the complete escalation mapping. The existing YAML parser resolves those
+  references before ordinary validation/pinning. No new templating language,
+  cross-file reference resolver, configuration kind or Workflow default is added.
+
+- >-
+  2026-10-31: inspected all 24 production Workflows, including deterministic
+  Workflows. Native YAML aliases remove meaningful repeated contexts, workspace
+  result slots and retry policies in nine files in addition to the shared
+  Planner blocks. Single-use/small mappings remain inline. Cross-file templates
+  and Runtime/Worker changes are outside this user-authorized YAML cleanup.
+
+- >-
+  2026-10-31: streamline_compaction_workflow.yaml becomes behaviorally identical
+  to streamline_review_workflow.yaml once all Planner examples use compact@1.
+  Remove that redundant example together with planner_compactor_policy.yaml,
+  keeping the ordinary Streamline and Router examples as the two runnable paths.
+
+verification_results:
+- >-
+  2026-10-31: all 24 production Workflows were reviewed. The eight direct
+  Streamline Stages and sixteen summary-continuation Planners select the shared
+  compactor@1. Nine Workflow files gained meaningful native YAML reuse beyond
+  the Planner blocks; the production YAML diff is 188 added/502 removed lines,
+  including the new Planner selections. Worker binding and Runtime code are unchanged.
+- >-
+  A temporary Go configload comparison over all 24 production Workflows produced
+  identical normalized snapshots before and after YAML deduplication:
+  SHA-256 2585221d6b473fd589b20d7615253e632a2a475fc9ad08d76c7ca232eefba016.
+  Comparison with main 6df4107c9 after removing only plannerContextManagement
+  and compactorModelPolicy fields was also identical, proving that the rollout
+  preserved Worker settings and all unrelated Workflow behavior.
+- >-
+  go test ./internal/config/... ./internal/scheduler/... ./internal/httpapi/public/...
+  passed against a newly created disposable PostgreSQL database. Subsequent full
+  config suites passed native alias/merge equivalence and rejection of null fields
+  inherited through a merge. go test -race -count=1 ./internal/scheduler -run Summary
+  passed, including summary-continuation policy preservation on retry.
+- >-
+  go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run
+  '^(TestWorkerSummarizerProductionBoundaries|TestWorkerCompactionContinuesIsolatedWorker|TestProductionMemoryConfigurationStaging)$'
+  passed (387.557s). The real Server/Runtime/PostgreSQL continuation Planner
+  compacted once and finished with the original Worker/task/pins and exact total
+  token accounting. The existing independent Worker compaction process regression
+  also passed. After YAML deduplication and redundant-example removal, the whole
+  production staging test passed again, checking all 24 normalized Workflows,
+  every Planner selection and both remaining Planner examples.
+- >-
+  make test-config and make verify-public-api passed. The public projection
+  includes the target context policy without raw instruction text, the schema
+  rejects null, and the regenerated Go client retains the field. Generated Go/UI
+  client freshness checks, specification/task checks, release-graph validation,
+  shared-fixture source checks and Audit/Workflow graph freshness checks passed.
+- >-
+  make ui-verify passed: 213 files, 2632 tests passed, one existing expected
+  failure, 17 server tests passed and production build passed. UI version is 0.10.20.
+- >-
+  make lint remains blocked by the pre-existing unused compactionThreshold
+  constant in internal/planner/streamline/compaction_test.go:27 (U1000), after its
+  preceding generated/model/graph/UI/format/go-vet checks passed. This task stays
+  in_progress until its required lint gate passes; the unrelated baseline defect
+  is not silently included in the Workflow rollout.
+test_prerequisites:
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.
+remaining_work:
+- Verify the current catalog inventory and normalized behavior, rather than freezing the historical count
+  of 24 as a future requirement.
+- Reconcile recorded process/config/API/UI evidence with the current revision and complete required acceptance;
+  retain independent Worker strategies and the native YAML reuse.

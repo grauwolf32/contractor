@@ -1,0 +1,395 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-25",
+  "captured_at_utc": "2026-10-25T13:27:45.090690+00:00",
+  "task": "V418-003",
+  "status": "accepted focused and common native Linux verification",
+  "source_base_commit": "965e3dee188d66683a9987f69aafa4ed147ace78",
+  "adk_migration_primary_commit": "85bf48cc68752ca2318d3ed13a8da91f9bdeab3e",
+  "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+  "source_files_sha256": {
+    "runtime/uv.lock": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+    "runtime/src/contractor_runtime/agent_skills/runtime.py": "23a8faa1fac454d7ecd3b82285d0ab89a61d2d9eb1e0b14a7fdb7264c72db661",
+    "runtime/src/contractor_runtime/agent_skills/package.py": "e924a223a07e1ded208e6f6d95c8231ef7adeb625da0763a519d49d463347d66",
+    "runtime/src/contractor_runtime/allocation/service.py": "7abdf710ae3aa69a149648ba097b93a5004945dc743b65c6b65f9a96d387a2b9",
+    "runtime/src/contractor_runtime/worker/adk_caches.py": "2238eab5c74018fd43a00ad5bf25e6ac1be71df4170bff8d61f6dc143ba807f1",
+    "runtime/src/contractor_runtime/worker/adk_features.py": "9ae7c45c8670b8ab9ec11a742bbc432981e50ba32539a5590c0882c711948c2f",
+    "runtime/tests/test_agent_skill_toolset.py": "259d7d4cda9dcbaef0f923bd60763cd13101c5aef7046783233344e5f9091ec7",
+    "runtime/tests/test_agent_skill_lifecycle.py": "51cc2b63f455389c00ff42056e16854befaceac9bc70417f9a529c4bb0329eca"
+  },
+  "environment": {
+    "python": "3.13.16",
+    "platform": "Darwin arm64",
+    "google-adk": "2.13.0",
+    "method": "Committed coordinator .venv reused read-only; PYTHONPATH explicitly selects this worktree runtime/src and runtime/tests. No dependency or production-source changes. Fresh locked Linux/full Runtime acceptance is a separate coordinator gate.",
+    "source_workspace": "/Users/ruslan/.codex/worktrees/adk-pid-fixture-fix/contractor",
+    "interpreter": "/Users/ruslan/.codex/worktrees/adk-runtime-upgrade/contractor/runtime/.venv/bin/python"
+  },
+  "checks": [
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/ruslan/.codex/worktrees/adk-pid-fixture-fix/contractor/runtime/src:/Users/ruslan/.codex/worktrees/adk-pid-fixture-fix/contractor/runtime/tests /Users/ruslan/.codex/worktrees/adk-runtime-upgrade/contractor/runtime/.venv/bin/python -m pytest --tb=short -p no:cacheprovider -W error runtime/tests/test_allocation.py runtime/tests/test_worker_state.py runtime/tests/test_abort.py runtime/tests/test_lease_watchdog.py runtime/tests/test_agent_skill_package.py runtime/tests/test_agent_skill_toolset.py runtime/tests/test_agent_skill_lifecycle.py runtime/tests/test_run_artifacts_toolset.py runtime/tests/test_adk_features.py",
+      "passed": 161,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "scope": "All eight task-listed Runtime modules plus unchanged feature guard module."
+    },
+    {
+      "command": "UV_PROJECT_ENVIRONMENT=/Users/ruslan/.codex/worktrees/adk-runtime-upgrade/contractor/runtime/.venv UV_NO_SYNC=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/ruslan/.codex/worktrees/adk-pid-fixture-fix/contractor/runtime/src:/Users/ruslan/.codex/worktrees/adk-pid-fixture-fix/contractor/runtime/tests make test-agent-skills-runtime-hardening",
+      "passed": 76,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "scope": "Full package9 + toolset29 + lifecycle20 + run-artifacts18; UV_NO_SYNC prevents mutation of the shared committed environment."
+    },
+    {
+      "command": "ruff check --no-cache runtime/tests/test_agent_skill_toolset.py runtime/tests/test_agent_skill_lifecycle.py; ruff format --check --no-cache runtime/tests/test_agent_skill_toolset.py runtime/tests/test_agent_skill_lifecycle.py; git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "new_case_count": 21,
+  "new_cases": {
+    "tests/test_agent_skill_toolset.py::test_native_probe_rejects_expanded_or_executing_surfaces": [
+      "registry",
+      "executor",
+      "environment",
+      "tools",
+      "toolsets",
+      "surface"
+    ],
+    "tests/test_agent_skill_toolset.py::test_all_32_skills_use_lazy_native_dispatch_and_are_erased": null,
+    "tests/test_agent_skill_toolset.py::test_multibyte_disclosure_reaches_16_mib_without_seed_or_refund": null,
+    "tests/test_agent_skill_lifecycle.py::test_used_skill_graph_is_collected_and_next_allocation_is_independent": [
+      "finalize-hashable",
+      "finalize-unhashable",
+      "abort-hashable",
+      "abort-unhashable"
+    ],
+    "tests/test_agent_skill_lifecycle.py::test_failed_prepare_after_skill_and_declaration_build_collects_graph": [
+      "hashable",
+      "unhashable"
+    ],
+    "tests/test_agent_skill_lifecycle.py::test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced": [
+      "error-runner",
+      "error-plugin",
+      "error-native",
+      "cancelled-runner",
+      "cancelled-plugin",
+      "cancelled-native"
+    ],
+    "tests/test_agent_skill_lifecycle.py::test_cancelled_release_joins_one_cleanup_before_skill_slot_reuse": null
+  },
+  "maximum_skill_fixture": {
+    "skills": 32,
+    "description_utf8_bytes_each": 1024,
+    "main_native_tools": [
+      "list_skills",
+      "load_skill",
+      "load_skill_resource"
+    ],
+    "discovery_mode": "LAZY",
+    "skill_lifecycle_enabled": false,
+    "calls": {
+      "list_skills": 1,
+      "load_skill": 32,
+      "terminal_text": 1,
+      "result_finalizer": 1
+    },
+    "provider_calls": 35,
+    "private_artifact_reads": 32,
+    "checks": [
+      "Every Skill loads through a real Worker Runner; all 32 activation identities persist while lifecycle is off.",
+      "All main requests expose exactly three permitted native tools; auxiliary finalizer is tool-free.",
+      "Disclosure equals the sum of exact planned UTF-8 charges, no implicit reset.",
+      "Finalization scrubs all 32 held Skill instruction objects and clears native maps/extraction.",
+      "A 33-entry selection fails before client creation or fetch."
+    ],
+    "fixtures": "Test-only generated ZIPs; no live configs or real Skill catalog."
+  },
+  "maximum_disclosure_fixture": {
+    "allocation_limit_bytes": 16777216,
+    "resource_limit_bytes": 1048576,
+    "reservation_bytes_each": 1048576,
+    "multibyte_prefix_bytes": 2000,
+    "initial_used_bytes": 0,
+    "sequence": [
+      "15 real native resource disclosures reserve 15 MiB.",
+      "A second valid resource whose planned charge is 1 MiB + 1 is refused with exactly 1 MiB remaining, before native dispatch.",
+      "One final exact 1-MiB charge succeeds and reaches 16 MiB.",
+      "Further disclosure is refused without partial content."
+    ],
+    "attempts": 18,
+    "native_dispatches": 16,
+    "failed_attempts": 2,
+    "final_used_bytes": 16777216,
+    "checks": [
+      "The real default DisclosureBudget is used; its used counter is never seeded or reset.",
+      "Resource contents stay below the 1-MiB per-resource package cap; UTF-8 envelope accounting determines padding.",
+      "Rejected calls expose no content and never invoke the native resource method.",
+      "Ordinary metric snapshots retain no resource prefix."
+    ],
+    "existing_reused_tests": [
+      "test_disclosure_reservation_is_exact_non_refunding_and_pre_dispatch",
+      "test_concurrent_disclosure_reservations_stop_at_the_exact_allocation_limit",
+      "test_script_source_disclosure_is_exact_bounded_and_never_executes",
+      "test_worker_loads_binary_skill_asset_through_text_gateway",
+      "test_cancelled_skill_calls_are_recorded"
+    ]
+  },
+  "allocation_graph_proof": {
+    "positive_paths": [
+      "Hashable and unhashable production read_artifact proxies, real prepared Skills and declarations, invocation, finalize/abort, release and heartbeat-confirmed idle.",
+      "Two allocations have distinct declarations/session identities and their own Skill instructions, activation and initially-zero disclosure budgets.",
+      "Post-Worker/declaration/Skill-build commit failure rolls back, collects its graph and permits a successful subsequent allocation.",
+      "Cancelled private release retains one cleanup task; retry joins that task before deleting the real workspace, then a new allocation invokes its fresh Skill successfully."
+    ],
+    "weakref_roots": [
+      "Worker runtime",
+      "Worker State",
+      "MetricsState",
+      "ordinary Tool objects",
+      "ADK FunctionTool wrappers",
+      "read proxy retaining its ArtifactClient",
+      "model",
+      "native SkillToolset",
+      "Contractor Skill adapter",
+      "native Skill tools",
+      "disclosure wrappers",
+      "loaded Skill objects",
+      "each freshly-created ArtifactClient"
+    ],
+    "non_weakrefable_owner": "PreparedAgentSkills and DisclosureBudget are slotted without weakref slots. The owner always strongly holds native_toolset, so native_toolset collection rules out a surviving PreparedAgentSkills owner. Adapter detachment and actual SDK session deletion separately assert activation/state erasure.",
+    "no_hidden_cleanup": "Positive release/rollback weakref cases call no test-side cache_clear or manual cache eviction. Existing cache-characterization unit cases remain separate.",
+    "existing_reused_tests": [
+      "test_release_collects_allocation_graph_captured_by_declared_tool_closure",
+      "test_failed_cache_release_keeps_the_slot_fenced_until_the_retry_repeats_it",
+      "test_release_retains_no_adapter_secret_or_session_credential",
+      "test_released_allocation_retains_no_worker_state_projection"
+    ]
+  },
+  "cleanup_failure_contract": {
+    "components": [
+      "Runner.close",
+      "WorkerInstrumentationPlugin.close",
+      "native SkillToolset.close"
+    ],
+    "outcomes": [
+      "controlled exception",
+      "controlled in-flight request cancellation"
+    ],
+    "checks": [
+      "Stop remains unconfirmed; the service stays FENCED and requests force_exit(70).",
+      "Neither a new allocation nor private release is admitted while the Worker is unconfirmed.",
+      "Injected close tasks are joined by the test harness; positive release tests do not depend on that fixture cleanup."
+    ],
+    "scope_limit": "Unconfirmed in-process stop requires process exit under the existing contract. These failure fixtures do not claim a successful local release or collected graph; their held Skill owner is disposed only after the persistent fence is proven."
+  },
+  "upstream_cache_inventory": [
+    {
+      "name": "google.adk.utils.context_utils.find_context_parameter",
+      "kind": "process LRU, maxsize1024, strong hashable callable keys; unhashable calls bypass cache",
+      "owner": "production release_adk_tool_caches, after tools/state/settings cleanup and on failed prepare rollback"
+    },
+    {
+      "name": "google.adk.tools.function_tool._build_declaration_cached",
+      "kind": "process LRU, maxsize1024, strong hashable callable keys; unhashable declaration uses per-instance cache",
+      "owner": "same production release hook"
+    },
+    {
+      "name": "google.adk.utils._callable_utils._get_type_hints_for_unwrapped",
+      "kind": "process LRU, maxsize1024, strong unwrapped function keys; allocation-capturing closures are relevant",
+      "owner": "same hook; V418-002 real closure allocation case is included in the 161-case gate"
+    },
+    {
+      "name": "FunctionTool._spec/_type_adapter_cache/_generator_node_cache/_declaration_cache/_compatible_func_cache",
+      "kind": "instance-owned callable/signature/type-hint/declaration/delegate references",
+      "owner": "FunctionTool/Worker release; actual ADK wrapper weakrefs must die"
+    },
+    {
+      "name": "BaseToolset._cached_invocation_id/_cached_prefixed_tools",
+      "kind": "instance invocation cache; Contractor adapter inherits it",
+      "owner": "Toolset/Worker release; native and disclosure tool/adapter weakrefs must die"
+    },
+    {
+      "name": "SkillToolset._fetched_skill_cache",
+      "kind": "instance OrderedDict, max16 cached turns; registry is None so remote fetch is unavailable",
+      "owner": "native close cancels pending futures and clears the cache; no new global eviction needed"
+    },
+    {
+      "name": "SkillToolset._skills/_tools/_provided_tools_by_name/_provided_toolsets and SDK activation State",
+      "kind": "allocation/session ownership, not process-global caches",
+      "owner": "PreparedAgentSkills.close scrubs loaded content/native maps; Runner/session close deletes activation State; unsupported registry/executor/environment/additional surfaces fail capability probe"
+    },
+    {
+      "name": "Skill loaders and BaseLlm/OneShotModel paths",
+      "kind": "No additional allocation-keyed process cache found in inspected pinned skills loader/BaseLlm code; model delegates are instance-owned",
+      "owner": "model/Worker weakref proof; no indiscriminate clearing of unrelated process state"
+    }
+  ],
+  "feature_and_probe_policy": {
+    "supported": "LAZY discovery with SKILL_LIFECYCLE=False; no registry, executor, environment or additional tools/toolsets.",
+    "negative_native_cases": [
+      "registry",
+      "executor",
+      "environment",
+      "provided tools",
+      "provided toolsets",
+      "expanded run_skill_script surface"
+    ],
+    "existing_feature_cases": "All ten unchanged test_adk_features.py cases are in the 161-case gate, including real public env/override activation rejection before resources.",
+    "reversal_condition": "Re-audit strong cache keys only if a future pinned SDK makes them weak or instance-owned. Any native Skill lifecycle/EAGER adoption requires a separately authorized feature decision."
+  },
+  "negative_control": {
+    "description": "In a separate interpreter, pytest.MonkeyPatch replaces only AllocationService.release_adk_tool_caches with a no-op. Repository/SDK files are untouched and no test-side cache is cleared.",
+    "command": "cd runtime && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:tests .venv/bin/python - <<'PY'\nimport pytest\nimport contractor_runtime.allocation.service as allocation_service\nwith pytest.MonkeyPatch.context() as patch:\n    patch.setattr(allocation_service, 'release_adk_tool_caches', lambda: None)\n    result = pytest.main(['-q', '--tb=line', '-p', 'no:cacheprovider', '-W', 'error', 'tests/test_agent_skill_lifecycle.py', '-k', 'used_skill_graph or failed_prepare_after_skill'])\nraise SystemExit(result)\nPY",
+    "selected": 6,
+    "failed": 3,
+    "passed": 3,
+    "exit_code": 1,
+    "failed_cases": [
+      "test_used_skill_graph_is_collected_and_next_allocation_is_independent[finalize-hashable]",
+      "test_used_skill_graph_is_collected_and_next_allocation_is_independent[abort-hashable]",
+      "test_failed_prepare_after_skill_and_declaration_build_collects_graph[hashable]"
+    ],
+    "interpretation": "Hashable proxies/metrics/tools remain reachable without production eviction. All three unhashable cases still pass because their static call methods and per-instance declaration paths retain no released allocation.",
+    "plugin_note": "Plugin autoload is disabled only for this control, avoiding unrelated anyio rewrite warnings from preloading the mutation. Normal gates retain -W error and ordinary plugin loading."
+  },
+  "pending_coordinator_gates": [
+    "make test-runtime on supported Linux with full prerequisites",
+    "make lint",
+    "Final task closure and task/backlog metadata"
+  ],
+  "common_aggregate_acceptance": {
+    "commands": [
+      "cd runtime && uv sync --locked",
+      "make test-runtime",
+      "python3 scripts/release_test_reports.py verify-runtime --report REPORT"
+    ],
+    "runtime": {
+      "executable": "/work/runtime/.venv-v418002-fresh/bin/python",
+      "machine": "aarch64",
+      "optional_provider_sdks_present": {
+        "anthropic": false,
+        "litellm": false,
+        "openai": false
+      },
+      "python": "3.13.5",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.9.1",
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0"
+      }
+    },
+    "runtime_uid": 1000,
+    "runtime_gid": 1000,
+    "result": {
+      "errors": 0,
+      "expected_count_matches": true,
+      "failed": 0,
+      "passed": 4984,
+      "skip_policy_matches_baseline": true,
+      "skip_reasons": {
+        "Vacuum executable is unavailable": 2,
+        "explicit real Podman release gate": 5,
+        "explicit real gate: make test-podman-supervisor": 11,
+        "explicit real-rootless command execution gate": 12,
+        "explicit real-rootless deployment/workflow gate": 1,
+        "explicit real-rootless owner-process gate": 3,
+        "explicit real-rootless startup capability gate": 2,
+        "launched by make test-audit-completion-e2e with a real Go Artifact API": 1,
+        "live LLM Gateway environment is not configured": 3,
+        "optional Katana binary is absent": 5,
+        "optional ffuf binary is absent": 3,
+        "optional nuclei binary is absent": 3,
+        "optional sqlmap binary is absent": 3,
+        "run make test-interactsh-protocol for the pinned upstream server": 1
+      },
+      "skipped": 55,
+      "total": 5039
+    },
+    "sync_exit_code": 0,
+    "runtime_metadata_exit_code": 0,
+    "make_exit_code": 0,
+    "verify_runtime_exit_code": 0,
+    "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+    "source_revision": "965e3dee188d66683a9987f69aafa4ed147ace78",
+    "source_manifest_sha256": "d3bfb3eedeb26d1c27287063922ad626144e45168673cb2ba0bf77926aa374cc",
+    "archive_sha256": "5b41446792c89f606587ef3edf2cedbd54c97c51b5c03c0a894b41f1bcdd8af3",
+    "tracked_patch_sha256": "bb15aa5522eda1c67494d76171226fc59c8bf2cb13efc8e759c9eccd6867ee7f",
+    "artifact_hashes": {
+      "runtime-metadata.json": "d15c21d69fd40f0bdf193f3116eddb3f661c04d53b30cd3c044ddc090a3a2c15",
+      "runtime.log": "365afbe39b5d095f54400cada8cb091288511eb063fd299a04f7b4c45829628d",
+      "runtime.xml": "ffa7347a82787166e4915acc9560619068260076246e5496545f0f03c3607340",
+      "shared-fixture-reads.log": "0e2a7c3791ddb6dc973c2664617d1e6eebf1a3d835b6da7c56e4f739adb0242d",
+      "sync.log": "d6111c64aad6cf762ef650cf25e7c89efbcc04cda0608cdd1abd178a59c067e6",
+      "verify-runtime.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "case_delta_from_accepted_v418002": {
+      "added": 41,
+      "added_by_module": {
+        "tests.test_adk_gateway_conformance": 20,
+        "tests.test_agent_skill_lifecycle": 13,
+        "tests.test_agent_skill_toolset": 8
+      },
+      "added_cases": [
+        "tests.test_adk_gateway_conformance::test_actual_gateway_documents_last_duplicate_argument_and_ignores_envelope_extensions",
+        "tests.test_adk_gateway_conformance::test_actual_gateway_role_cancellation_joins_request_or_recovery_without_resend[recovery-finalizer]",
+        "tests.test_adk_gateway_conformance::test_actual_gateway_role_cancellation_joins_request_or_recovery_without_resend[recovery-main]",
+        "tests.test_adk_gateway_conformance::test_actual_gateway_role_cancellation_joins_request_or_recovery_without_resend[recovery-summarizer]",
+        "tests.test_adk_gateway_conformance::test_actual_gateway_role_cancellation_joins_request_or_recovery_without_resend[request-finalizer]",
+        "tests.test_adk_gateway_conformance::test_actual_gateway_role_cancellation_joins_request_or_recovery_without_resend[request-main]",
+        "tests.test_adk_gateway_conformance::test_actual_gateway_role_cancellation_joins_request_or_recovery_without_resend[request-summarizer]",
+        "tests.test_adk_gateway_conformance::test_actual_parallel_dispatch_preserves_self_recorded_correlation_for_every_error_path",
+        "tests.test_adk_gateway_conformance::test_actual_summary_gateway_keeps_strict_errors_and_spent_usage[length]",
+        "tests.test_adk_gateway_conformance::test_actual_summary_gateway_keeps_strict_errors_and_spent_usage[malformed_arguments]",
+        "tests.test_adk_gateway_conformance::test_actual_summary_gateway_keeps_strict_errors_and_spent_usage[missing_usage]",
+        "tests.test_adk_gateway_conformance::test_native_skill_content_reaches_only_the_authorized_serialized_sink[False-False]",
+        "tests.test_adk_gateway_conformance::test_native_skill_content_reaches_only_the_authorized_serialized_sink[True-False]",
+        "tests.test_adk_gateway_conformance::test_native_skill_content_reaches_only_the_authorized_serialized_sink[True-True]",
+        "tests.test_adk_gateway_conformance::test_real_gateway_roles_preserve_schemas_reasoning_and_serialized_capture_policy[False-False-finalizer]",
+        "tests.test_adk_gateway_conformance::test_real_gateway_roles_preserve_schemas_reasoning_and_serialized_capture_policy[False-False-summarizer]",
+        "tests.test_adk_gateway_conformance::test_real_gateway_roles_preserve_schemas_reasoning_and_serialized_capture_policy[True-False-finalizer]",
+        "tests.test_adk_gateway_conformance::test_real_gateway_roles_preserve_schemas_reasoning_and_serialized_capture_policy[True-False-summarizer]",
+        "tests.test_adk_gateway_conformance::test_real_gateway_roles_preserve_schemas_reasoning_and_serialized_capture_policy[True-True-finalizer]",
+        "tests.test_adk_gateway_conformance::test_real_gateway_roles_preserve_schemas_reasoning_and_serialized_capture_policy[True-True-summarizer]",
+        "tests.test_agent_skill_lifecycle::test_cancelled_release_joins_one_cleanup_before_skill_slot_reuse",
+        "tests.test_agent_skill_lifecycle::test_failed_prepare_after_skill_and_declaration_build_collects_graph[hashable]",
+        "tests.test_agent_skill_lifecycle::test_failed_prepare_after_skill_and_declaration_build_collects_graph[unhashable]",
+        "tests.test_agent_skill_lifecycle::test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced[cancelled-native]",
+        "tests.test_agent_skill_lifecycle::test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced[cancelled-plugin]",
+        "tests.test_agent_skill_lifecycle::test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced[cancelled-runner]",
+        "tests.test_agent_skill_lifecycle::test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced[error-native]",
+        "tests.test_agent_skill_lifecycle::test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced[error-plugin]",
+        "tests.test_agent_skill_lifecycle::test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced[error-runner]",
+        "tests.test_agent_skill_lifecycle::test_used_skill_graph_is_collected_and_next_allocation_is_independent[abort-hashable]",
+        "tests.test_agent_skill_lifecycle::test_used_skill_graph_is_collected_and_next_allocation_is_independent[abort-unhashable]",
+        "tests.test_agent_skill_lifecycle::test_used_skill_graph_is_collected_and_next_allocation_is_independent[finalize-hashable]",
+        "tests.test_agent_skill_lifecycle::test_used_skill_graph_is_collected_and_next_allocation_is_independent[finalize-unhashable]",
+        "tests.test_agent_skill_toolset::test_all_32_skills_use_lazy_native_dispatch_and_are_erased",
+        "tests.test_agent_skill_toolset::test_multibyte_disclosure_reaches_16_mib_without_seed_or_refund",
+        "tests.test_agent_skill_toolset::test_native_probe_rejects_expanded_or_executing_surfaces[environment]",
+        "tests.test_agent_skill_toolset::test_native_probe_rejects_expanded_or_executing_surfaces[executor]",
+        "tests.test_agent_skill_toolset::test_native_probe_rejects_expanded_or_executing_surfaces[registry]",
+        "tests.test_agent_skill_toolset::test_native_probe_rejects_expanded_or_executing_surfaces[surface]",
+        "tests.test_agent_skill_toolset::test_native_probe_rejects_expanded_or_executing_surfaces[tools]",
+        "tests.test_agent_skill_toolset::test_native_probe_rejects_expanded_or_executing_surfaces[toolsets]"
+      ],
+      "all_added_passed": true,
+      "removed": 0,
+      "removed_cases": []
+    },
+    "new_module_results": {
+      "runtime/tests/test_adk_gateway_conformance.py": {
+        "failed_or_skipped": 0,
+        "total": 20
+      }
+    },
+    "postrun_nontask_sources_unchanged": true,
+    "provenance_sha256": "deeb624d2ab2bb3615560403662e19c86f58a12b0e48c00b0541a5f5eee204fa",
+    "make_lint": {
+      "exit_code": 0,
+      "log_sha256": "d8001d0a76ed5f9d0deb1dd08a0a8050af45504ab4d8c5214a5f38009aa73a1e"
+    }
+  }
+}

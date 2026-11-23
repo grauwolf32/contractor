@@ -1,0 +1,84 @@
+schema_version: "1.0"
+id: V368-008
+title: "Share the workspace path, blank-text and byte-count rules between Go and Python"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+priority: P1
+status: completed
+implementation_commit: "b2c160c7d3538694f908d127266a49d2b48f5cf7"
+depends_on: []
+languages: [go, python]
+goal: "make test-wire-cross-language runs the three fixtures on both sides and they agree."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), contracts G4, G5; V367-008 follow-up; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Go accepts the workspace target ж:docs (config/workflow.go:479-505,
+    contracts/workspace.go:195) and the Runtime rejects it
+    (contracts/base.py:248), failing allocation preparation. U+001C..U+001F
+    are text in Go and whitespace in Python, so objective="\x1c" passes Go
+    and fails the Runtime (base.py:57-60). reporting.marshalAgentStateJSON
+    counts U+2028/U+2029 as 6 bytes while Python counts 3, so Worker State
+    bounds differ at the limit. Three Go and two Python copies of the path
+    predicate exist.
+  specification:
+    - docs/spec/tools/workspace.md#WSP-R13
+    - docs/spec/execution/control-plane.md#CTL-R152
+    - docs/spec/execution/worker.md#WRK-R165
+  siblings: >-
+    Path rule: the three Go copies (config/workflow.go, contracts/workspace.go
+    for targets and reported files, reporting/agent_state.go) and the two
+    Python copies in contracts/base.py now call one predicate per language.
+    A third Python copy, projectfs normalize_project_path, checked the drive
+    before NFC normalization, so U+212A KELVIN SIGN + ":" became the drive
+    "K:" in a path the Runtime used and recorded in Worker State (which the
+    Server rejects); it now judges the NFC form with the shared predicate,
+    and normalize_project_glob checks its drive after NFC too. Studio's
+    inline target check (ui advanced-validation.ts) agreed but had no
+    guard; it is extracted as isWorkspaceTarget and tested against the
+    fixture. Ruled out: sourcebundle.portablePath (its own stricter grammar,
+    NFC first, ':' refused everywhere), evalstore, auditdomain and
+    agentskills paths (different domains and grammars). Blank text: every
+    Runtime check with a Server twin now uses is_blank/trim_whitespace (wire
+    models, artifact client envelopes, failure signatures, binding names,
+    invocation IDs, runtime endpoints, Audit result text in audit_results
+    contracts and v2, finding proposals in security_findings submission and
+    collection, Skill manifest description and body, the Worker result
+    candidate). Ruled out: process CLI arguments (settings.py), tool input
+    checks without a Server twin (OpenAPI, code analysis, scanners), and
+    allocation IDs (ResourceId grammar has no whitespace). Byte counts: the
+    Runtime State builder (worker/state.py) and observation reducer now use
+    json_byte_size. Ruled out: LIM-AWC-12, where Python measures
+    json.dumps(value) and Go the raw bytes; the completion object's strict
+    schema keeps any valid object far below 4 KiB, so the measures only
+    change which error an invalid object gets. Runtime-only budgets
+    (summarizer, skill disclosure, tool reports) have no Server twin.
+  decision: >-
+    Guarantee: one predicate per language and rule, each pinned by a
+    shared fixture that make test-wire-cross-language runs on both sides
+    (and the Studio target check in the UI suite). The intended grammars
+    are unchanged; where the copies disagreed the Server's rule wins: a
+    Windows drive is an ASCII letter and a colon, blank means Unicode
+    White_Space (unicode.IsSpace), and byte bounds count compact UTF-8 with
+    U+2028/U+2029 as three bytes, as WRK-R37 already said. The fixture
+    readers are strict, so a missing verdict cannot default to false.
+    Alternatives rejected: generating the Python predicates from Go (no
+    generator exists for these rules and a fixture already proves
+    agreement) and making Go treat U+001C..U+001F as whitespace (Python's
+    definition comes from bidirectional classes, not White_Space, and
+    would widen what the public API refuses). Reversal: change a rule only
+    by editing its fixture, which fails every implementation until each
+    follows.
+scope:
+  in:
+    - "Shared fixtures workspace-path-cases.json, blank-text-cases.json and json-byte-size-cases.json read by Go and Python; one predicate per language for each rule."
+  out:
+    - "The rules' intended grammar."
+acceptance_criteria:
+  - id: A1
+    text: "make test-wire-cross-language runs the three fixtures on both sides and they agree."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "make test-wire-cross-language"
+    covers: [A1]

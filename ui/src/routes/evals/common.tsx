@@ -1,0 +1,319 @@
+import {
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+  type Ref,
+} from "react";
+import { PublicAPIError } from "../../api/error";
+import { ErrorNotice } from "../../app/error-notice";
+import {
+  Button,
+  DetailHeader,
+  StatusChip,
+  type BreadcrumbItem,
+} from "../../ui";
+import { KeyValueValidityContext } from "./key-value-validity";
+import { evalStateLabel, type EvalState } from "./labels";
+import "./evals.css";
+
+/**
+ * A full Evals page (V3B): one flat sheet with a header (breadcrumb, h1
+ * title, status, a meta line and actions), an optional row such as the
+ * section tabs, and a padded body. The experiments list is a PaneLayout
+ * instead.
+ */
+export function EvalFrame({
+  title,
+  titleRef,
+  children,
+  action,
+  description,
+  breadcrumb,
+  status,
+  tabs,
+  back,
+}: {
+  title: ReactNode;
+  /** The h1, which can then take focus (DetailHeader titleRef). */
+  titleRef?: Ref<HTMLHeadingElement> | undefined;
+  children: ReactNode;
+  /** Controls at the right of the title. */
+  action?: ReactNode;
+  /** The line under the title: a short description or the page's facts. */
+  description?: ReactNode;
+  breadcrumb?: readonly BreadcrumbItem[] | undefined;
+  /** Next to the title, usually an EvalStateChip. */
+  status?: ReactNode;
+  /** Between the header and the body, e.g. section tabs. */
+  tabs?: ReactNode;
+  /** A contextual back link above the header. */
+  back?: ReactNode;
+}) {
+  return (
+    <div className="eval-page">
+      <div className="eval-sheet">
+        {back ? <div className="eval-sheet-back">{back}</div> : null}
+        <DetailHeader
+          breadcrumb={breadcrumb}
+          title={title}
+          titleAs="h1"
+          titleRef={titleRef}
+          status={status}
+          meta={description}
+          actions={action}
+        />
+        {tabs}
+        <div className="eval-sheet-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/** Lifecycle state of an experiment as a status chip (word and glyph). */
+export function EvalStateChip({
+  state,
+  size,
+}: {
+  state: EvalState;
+  size?: "sm" | "md" | undefined;
+}) {
+  const { label, tone } = evalStateLabel(state);
+  return (
+    <StatusChip tone={tone} size={size}>
+      {label}
+    </StatusChip>
+  );
+}
+
+/**
+ * Variant identity: A is always a blue circle, B an orange striped square
+ * (S30:593-596), so the arm never depends on colour alone.
+ */
+export function ArmKey({
+  arm,
+  children,
+}: {
+  arm: "a" | "b";
+  children: ReactNode;
+}) {
+  return (
+    <span className="eval-arm-key" data-arm={arm}>
+      <span className="eval-arm-swatch" aria-hidden="true" />
+      <span>{children}</span>
+    </span>
+  );
+}
+
+export function CommaSeparatedInput({
+  value,
+  onChange,
+  ...props
+}: Omit<ComponentProps<"input">, "value" | "onChange"> & {
+  value: string[];
+  onChange: (values: string[]) => void;
+}) {
+  const normalized = value.join(", ");
+  const [buffer, setBuffer] = useState({
+    source: normalized,
+    text: normalized,
+  });
+  if (buffer.source !== normalized) {
+    setBuffer({ source: normalized, text: normalized });
+  }
+  return (
+    <input
+      {...props}
+      value={buffer.text}
+      onChange={(event) => {
+        const text = event.target.value;
+        const values = text
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        setBuffer({ source: values.join(", "), text });
+        onChange(values);
+      }}
+    />
+  );
+}
+
+export function EvalError({
+  error,
+  reload,
+}: {
+  error: unknown;
+  reload?: (() => void) | undefined;
+}) {
+  if (!error) return null;
+  const code = error instanceof PublicAPIError ? error.code : "";
+  const changed = [
+    "eval_revision_mismatch",
+    "eval_view_changed",
+    "eval_member_conflict",
+  ].includes(code);
+  return (
+    <div className="eval-error" role="alert">
+      <ErrorNotice error={error} />
+      {changed ? (
+        <p>
+          The saved evidence or draft changed. Reload it before continuing; your
+          previous action has not been applied to the new revision.
+        </p>
+      ) : null}
+      {reload ? (
+        <Button size="sm" onClick={reload}>
+          {changed ? "Reload current revision" : "Try again"}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+type KeyValueRow = { id: number; name: string; value: string };
+
+function sameKeyValues(
+  left: Record<string, string>,
+  right: Record<string, string>,
+): boolean {
+  const keys = Object.keys(left);
+  return (
+    keys.length === Object.keys(right).length &&
+    keys.every((key) => Object.hasOwn(right, key) && left[key] === right[key])
+  );
+}
+
+function rowProblem(rows: KeyValueRow[], index: number): string | null {
+  const name = rows[index]!.name;
+  if (!name.trim()) return "Enter a name before saving.";
+  if (rows.some((row, other) => other !== index && row.name === name)) {
+    return "This name is already in use. Choose a different name.";
+  }
+  return null;
+}
+
+export function KeyValueEditor({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: Record<string, string>;
+  onChange: (value: Record<string, string>) => void;
+}) {
+  const editorId = useId();
+  const register = useContext(KeyValueValidityContext);
+  const nextRowId = useRef(Object.keys(value).length);
+  const published = useRef(value);
+  const [rows, setRows] = useState<KeyValueRow[]>(() =>
+    Object.entries(value).map(([name, rowValue], id) => ({
+      id,
+      name,
+      value: rowValue,
+    })),
+  );
+  const invalid = rows.some((_, index) => rowProblem(rows, index) !== null);
+
+  useEffect(() => {
+    if (!sameKeyValues(value, published.current)) {
+      published.current = value;
+      setRows(
+        Object.entries(value).map(([name, rowValue]) => ({
+          id: nextRowId.current++,
+          name,
+          value: rowValue,
+        })),
+      );
+    }
+  }, [value]);
+
+  useEffect(() => {
+    register?.(editorId, invalid);
+  }, [editorId, invalid, register]);
+  useEffect(
+    () => () => {
+      register?.(editorId, false);
+    },
+    [editorId, register],
+  );
+
+  function update(next: KeyValueRow[]) {
+    setRows(next);
+    if (next.some((_, index) => rowProblem(next, index) !== null)) return;
+    const nextValue = Object.fromEntries(
+      next.map((row) => [row.name, row.value]),
+    );
+    published.current = nextValue;
+    onChange(nextValue);
+  }
+  return (
+    <fieldset className="eval-key-values">
+      <legend>{label}</legend>
+      {rows.map((row, index) => (
+        <div className="eval-key-value" key={row.id}>
+          <input
+            aria-label={`${label} name ${index + 1}`}
+            aria-invalid={rowProblem(rows, index) !== null}
+            aria-describedby={
+              rowProblem(rows, index)
+                ? `${editorId}-${row.id}-error`
+                : undefined
+            }
+            value={row.name}
+            onChange={(event) =>
+              update(
+                rows.map((item) =>
+                  item.id === row.id
+                    ? { ...item, name: event.target.value }
+                    : item,
+                ),
+              )
+            }
+          />
+          <input
+            aria-label={`${label} value ${index + 1}`}
+            value={row.value}
+            onChange={(event) =>
+              update(
+                rows.map((item) =>
+                  item.id === row.id
+                    ? { ...item, value: event.target.value }
+                    : item,
+                ),
+              )
+            }
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={`Remove ${label} ${index + 1}`}
+            onClick={() => update(rows.filter((item) => item.id !== row.id))}
+          >
+            Remove
+          </Button>
+          {rowProblem(rows, index) ? (
+            <small id={`${editorId}-${row.id}-error`} role="alert">
+              {rowProblem(rows, index)}
+            </small>
+          ) : null}
+        </div>
+      ))}
+      <Button
+        size="sm"
+        onClick={() => {
+          let number = 1;
+          while (rows.some((row) => row.name === `field-${number}`)) number++;
+          update([
+            ...rows,
+            { id: nextRowId.current++, name: `field-${number}`, value: "" },
+          ]);
+        }}
+      >
+        Add {label.toLowerCase()}
+      </Button>
+    </fieldset>
+  );
+}

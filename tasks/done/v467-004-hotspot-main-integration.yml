@@ -1,0 +1,59 @@
+schema_version: '1.0'
+id: V467-004
+title: Integrate the verified hotspot corrections into main
+milestone: run-workspaces-hardening
+epic: workspaces
+kind: chore
+introduced_by: V467-001
+priority: P2
+status: completed
+depends_on: [V467-001, V467-002, V467-003]
+languages: [markdown]
+goal: Land all three verified corrections through a no-fast-forward main merge while preserving the primary checkout's uncommitted work exactly.
+context:
+  review: tasks/evidence/v467-004-main-integration.json
+  authority: User request 2026-11-14 explicitly authorizes merging codex/graphify-hotspot-fixes into main.
+  finding: >-
+    Main remains at f9eabdec2a37f87c56cc17792907dbc79f828a45, the verified branch's
+    base. Only generated tasks/BACKLOG.md overlaps the six modified/untracked
+    primary files; their bytes, modes and staged delta must be retained.
+  verification_reuse: >-
+    Runtime and UI production trees and their tests remain byte-identical to
+    verified feature head 97536e3ef33679d61ef29e1648981850623eefa6. The completed
+    Runtime suites (353 passed, one declared platform skip), full ui-verify
+    (2527 passed, one existing expected failure and 17 server tests) and make lint
+    remain applicable. Recheck task/spec consistency and tree identity after merging.
+scope:
+  in:
+    - Record a no-fast-forward merge in an isolated checkout and install it in local main through a guarded ref advance.
+    - Preserve all primary changed-file bytes and modes and the staged patch, including the working backlog.
+    - Record merge identity, consistency checks and delivery of the three completed tasks.
+  out:
+    - New production changes, remote push, deployment, database work and further Graphify runs.
+acceptance_criteria:
+  - id: A1
+    text: Main contains the feature through a two-parent merge whose first parent is the prior main and whose tree equals the verified feature tree plus task metadata.
+  - id: A2
+    text: Runtime, UI and specification trees equal the verified feature; task and specification consistency checks pass.
+  - id: A3
+    text: All six original primary files retain their SHA-256 and modes and the staged binary patch remains identical.
+tests:
+  - command: cd runtime && uv run --locked python ../scripts/check_tasks.py
+    covers: [A2]
+  - command: cd runtime && uv run --locked python ../scripts/check_spec.py
+    covers: [A2]
+  - command: git diff --exit-code 97536e3ef33679d61ef29e1648981850623eefa6 HEAD -- runtime ui docs/spec
+    covers: [A2]
+  - command: git merge-base --is-ancestor codex/graphify-hotspot-fixes main
+    covers: [A1]
+  - command: python3 /private/tmp/contractor-hotspot-install-main.py --verify-only
+    covers: [A3]
+implementation_commit: 609803f7b0bc93628ff1fa74c22aaabb638ddb40
+verification_results:
+  - "2026-11-14: no-fast-forward merge 609803f7b0bc93628ff1fa74c22aaabb638ddb40 has the previous main and feature head as its two parents; its tree equals the feature tree."
+  - "Runtime, UI and docs/spec match verified head 97536e3ef exactly. Existing full Runtime, UI and lint evidence remains applicable; task and spec consistency were rechecked."
+  - "All six primary modified/untracked files retain exact SHA-256 and modes, and the staged binary patch remains identical. The working backlog was preserved while its committed base advanced."
+delivery:
+  date: '2026-11-14'
+  merged_into_main: true
+  merge_commit: 609803f7b0bc93628ff1fa74c22aaabb638ddb40

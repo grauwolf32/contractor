@@ -1,0 +1,81 @@
+schema_version: "1.0"
+id: V367-009
+title: "Count excluded items as gaps and ignore expired reviews in the Audit workspace"
+milestone: hub-audit-2026-10
+epic: audits
+kind: defect
+introduced_by: V37-010
+priority: P2
+status: completed
+implementation_commit: 5f37b8c588c7eed996d3a5b3d85f9b7756f756b9
+depends_on: []
+languages: [go, typescript]
+goal: "The Audit workspace and the Audit report classify coverage from one table, and the waiting-decisions count shows only reviews that can still be decided."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq), audit G1, G2 / F3"
+  specification:
+    - docs/spec/audits/review-and-reports.md
+  finding: >-
+    auditservice/workspace_sql.go:14 counts coverage_status 'excluded' as a
+    completed check and :16 does not count it as a gap, so an item rejected
+    by its owner (auditstore/item_review_decision_sql.go:10-18 sets excluded
+    and gap human-approval-rejected) shows as done with 0 follow-ups, while
+    the report for the same data writes completed-with-gaps
+    (auditimport/report.go:499-501). AUD-R178 requires a visible gap.
+    workspace_sql.go:20 counts audit_review_requests in state pending
+    without checking expires_at; finding-triage requests expire only
+    lazily (finding_review.go:85, review_write.go:72-79), so terminal Audits
+    show waiting decisions forever. The workspace test covers 6 of 10
+    coverage statuses (service_postgres_test.go:180-183).
+  decision: >-
+    The buckets partition the round: excluded moves from completed to gap
+    instead of being counted in both. UI-R144 said completed includes
+    explicit exclusions, which contradicted AUD-R178 and the report; the spec
+    now defines the buckets once (REV-R193) and UI-R144 refers to them.
+    Counting excluded in both was rejected because completed + gaps +
+    unchecked would exceed the total and the UI progress line clamps gaps to
+    total - done, which hides the gap again. Reopen if a later spec separates
+    settled from assessed progress; then add a separate excluded count
+    (additive OpenAPI change) rather than overlapping buckets. The ten status
+    literals and the table live in auditdomain (coverage_status.go);
+    auditstore's constants alias them, CoverageStatus.Valid and the codec
+    use the table, the workspace SQL takes the bucket lists as parameters and
+    reads the round's items in one pass instead of five, and the report
+    conclusion asks the same table. api/testdata/public/audit-coverage-buckets.json
+    holds Go and the UI result groups to it. In the UI, excluded leaves the
+    "Not applicable / excluded" filter (now "Not applicable") for "Need
+    follow-up", so the gap count, the report's "Review coverage gaps" link
+    and the filter list the same items (UI-R146); the UI's concluded set is
+    derived from the filter groups. Expiry is judged against
+    statement_timestamp(), the asOf the snapshot reports.
+  siblings: >-
+    Fixed: auditimport report conclusion (hasIncompleteCoverage) and its
+    coverage table, auditdomain codec status validation, auditstore
+    CoverageStatus.Valid, UI check-model isConcluded (CONCLUDED set),
+    assessments STATUS_GROUPS, progress and inbox progress comments. Ruled
+    out: ListReviewsPage, ListReviews and ListOwnerReviews filter by stored
+    state and return expiresAt (list filters, not counts; changing what
+    state=pending returns is review expiry semantics, out of scope);
+    pendingReportReview and the findingintake report-freeze predicate are
+    write fences whose expired case is closed by the REV-R50 cleanup claim;
+    claims, renewal and review_write expiry predicates are expiry semantics.
+    The report's applicable denominator (REV-R22) is a different measure and
+    is unchanged. Left open: the UI Inbox decision list (usePendingDecisions)
+    shows stored-pending requests past their expiry in non-terminal Audits.
+scope:
+  in:
+    - "One coverage-status classification (completed, gap, unchecked) in auditdomain used by the workspace SQL (generated literal list or parameter) and by the report."
+    - "The pending-review count excludes expired requests."
+    - "Sibling: other read models that count pending reviews or coverage buckets."
+  out:
+    - "Review expiry semantics and the report format."
+acceptance_criteria:
+  - id: A1
+    text: "A PostgreSQL workspace test covers all 10 coverage statuses and agrees with the report's classification for each."
+  - id: A2
+    text: "An expired pending request is not counted as waiting."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/auditservice ./internal/auditimport ./internal/auditdomain"
+    covers: [A1, A2]

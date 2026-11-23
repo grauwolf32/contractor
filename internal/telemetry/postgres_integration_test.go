@@ -1,0 +1,680 @@
+package telemetry_test
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/grauwolf32/contractor/internal/stageresult"
+	"github.com/grauwolf32/contractor/internal/telemetry"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+const postgresSecret = "postgres-telemetry-secret"
+
+func TestMetricsPostgresIdempotencyRedactionAggregationAndRetention(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedTelemetryPool(t, ctx)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	reports := telemetry.NewRepository(pool)
+	createTelemetryRun(t, ctx, runs)
+
+	old := time.Now().UTC().Add(-31 * 24 * time.Hour)
+	oldStage := createTelemetryStage(t, ctx, runs, "stage-old", "allocation-old", "session-old")
+	allocation := allocationEnvelope(oldStage, "allocation-old", old, true)
+	if err := reports.RecordAllocationReport(ctx, allocation); err != nil {
+		t.Fatal(err)
+	}
+	if err := reports.RecordAllocationReport(ctx, allocation); err != nil {
+		t.Fatalf("idempotent allocation report: %v", err)
+	}
+	planner := plannerEnvelope(oldStage, "session-old", old)
+	if err := reports.RecordPlannerReport(ctx, planner); err != nil {
+		t.Fatal(err)
+	}
+	if err := reports.RecordPlannerReport(ctx, planner); err != nil {
+		t.Fatalf("idempotent Planner report: %v", err)
+	}
+	metrics, err := reports.RebuildStageMetrics(ctx, oldStage, contracts.APIVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metrics.Summary.ModelCalls != 5 || metrics.Summary.ToolCalls != 1 ||
+		metrics.Summary.ErrorCount != 1 {
+		t.Fatalf("aggregate doubled or lost counters: %+v", metrics.Summary)
+	}
+	var raw string
+	if err := pool.QueryRow(ctx, `
+SELECT report::text FROM allocation_execution_reports WHERE allocation_id = 'allocation-old'`,
+	).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(raw, postgresSecret) {
+		t.Fatalf("persisted report contains configured secret: %s", raw)
+	}
+	different := allocation
+	different.Report.Worker.Complete = false
+	if err := reports.RecordAllocationReport(ctx, different); !errors.Is(err, telemetry.ErrConflict) {
+		t.Fatalf("different duplicate report error = %v, want conflict", err)
+	}
+	finishTelemetryStage(t, ctx, runs, oldStage)
+	if _, err := pool.Exec(ctx, `
+UPDATE stage_metrics SET expires_at = clock_timestamp() - interval '1 day'
+WHERE stage_execution_id = $1`, oldStage); err != nil {
+		t.Fatal(err)
+	}
+
+	activeStage := createTelemetryStage(t, ctx, runs, "stage-active", "allocation-active", "session-active")
+	placeholder := allocationEnvelope(activeStage, "allocation-active", old, false)
+	placeholder.Report.ReportID = "allocation-final-missing-allocation-active"
+	placeholder.Report.Worker.ReportID = "worker-missing-allocation-active"
+	if err := reports.RecordAllocationReport(ctx, placeholder); err != nil {
+		t.Fatal(err)
+	}
+	late := allocationEnvelope(activeStage, "allocation-active", old.Add(time.Minute), true)
+	if err := reports.RecordAllocationReport(ctx, late); err != nil {
+		t.Fatalf("late complete report after placeholder: %v", err)
+	}
+	effective, err := reports.ListAllocationReports(ctx, activeStage)
+	if err != nil || len(effective) != 1 || !effective[0].Report.Worker.Complete {
+		t.Fatalf("effective late report = (%+v, %v)", effective, err)
+	}
+	activeMetrics, err := reports.RebuildStageMetrics(ctx, activeStage, contracts.APIVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !activeMetrics.Summary.ReportsComplete {
+		t.Fatalf("late complete report did not supersede placeholder: %+v", activeMetrics.Summary)
+	}
+	if _, err := pool.Exec(ctx, `
+UPDATE stage_metrics SET expires_at = clock_timestamp() - interval '1 day'
+WHERE stage_execution_id = $1`, activeStage); err != nil {
+		t.Fatal(err)
+	}
+	extraStage := createTelemetryStage(t, ctx, runs, "stage-extra", "allocation-extra", "session-extra")
+	if err := reports.RecordAllocationReport(
+		ctx, allocationEnvelope(extraStage, "allocation-extra", old.Add(time.Hour), true),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reports.RebuildStageMetrics(ctx, extraStage, contracts.APIVersion); err != nil {
+		t.Fatal(err)
+	}
+	finishTelemetryStage(t, ctx, runs, extraStage)
+	if _, err := pool.Exec(ctx, `
+UPDATE stage_metrics SET expires_at = clock_timestamp() - interval '1 day'
+WHERE stage_execution_id = $1`, extraStage); err != nil {
+		t.Fatal(err)
+	}
+
+	newStage := createTelemetryStage(t, ctx, runs, "stage-new", "allocation-new", "session-new")
+	if err := reports.RecordAllocationReport(
+		ctx, allocationEnvelope(newStage, "allocation-new", time.Now().UTC(), true),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reports.RebuildStageMetrics(ctx, newStage, contracts.APIVersion); err != nil {
+		t.Fatal(err)
+	}
+	finishTelemetryStage(t, ctx, runs, newStage)
+
+	deleted, err := reports.CleanupExpired(ctx, time.Now().UTC(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deleted != 3 {
+		t.Fatalf("first per-table cleanup deleted %d rows, want 3", deleted)
+	}
+	// More than one expired metric exists, yet the first pass still reaches
+	// both report tables instead of spending its entire budget on metrics.
+	assertTelemetryCount(t, ctx, pool, "allocation_execution_reports", oldStage, 0)
+	assertTelemetryCount(t, ctx, pool, "planner_execution_reports", oldStage, 0)
+	remainingDeleted, err := reports.CleanupExpired(ctx, time.Now().UTC(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if remainingDeleted != 2 { // One metric and the extra allocation report remain.
+		t.Fatalf("second cleanup deleted %d rows, want 2", remainingDeleted)
+	}
+	assertTelemetryCount(t, ctx, pool, "allocation_execution_reports", oldStage, 0)
+	assertTelemetryCount(t, ctx, pool, "planner_execution_reports", oldStage, 0)
+	assertTelemetryCount(t, ctx, pool, "stage_metrics", oldStage, 0)
+	assertTelemetryCount(t, ctx, pool, "stage_metrics", extraStage, 0)
+	assertTelemetryCount(t, ctx, pool, "allocation_execution_reports", extraStage, 0)
+	assertTelemetryCount(t, ctx, pool, "allocation_execution_reports", activeStage, 2)
+	assertTelemetryCount(t, ctx, pool, "stage_metrics", activeStage, 1)
+	assertTelemetryCount(t, ctx, pool, "allocation_execution_reports", newStage, 1)
+	assertTelemetryCount(t, ctx, pool, "stage_metrics", newStage, 1)
+}
+
+// TestMetricsPostgresReplayComparesNumbersAsStored replays both report kinds
+// with argument numbers as the Runtime writes them. jsonb stores 5e-05 as
+// 0.00005, 1e-07 and the large exponents at the edge of LIM-OBS-16 as their
+// decimal expansion and -0.0 as 0.0, and keeps 2^53+1 exactly, so a replay of
+// the same report must stay idempotent (OBS-R42), while a report with another
+// number still conflicts.
+func TestMetricsPostgresReplayComparesNumbersAsStored(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedTelemetryPool(t, ctx)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	reports := telemetry.NewRepository(pool)
+	createTelemetryRun(t, ctx, runs)
+	receivedAt := time.Now().UTC()
+	for index, literal := range []string{
+		"5e-05", "1e-07", "1e+16", "1e+19", "-0.0", "9007199254740993", "-9.999999999999998e+19",
+	} {
+		allocationID := fmt.Sprintf("allocation-number-%d", index)
+		sessionID := fmt.Sprintf("session-number-%d", index)
+		stage := createTelemetryStage(
+			t, ctx, runs, fmt.Sprintf("stage-number-%d", index), allocationID, sessionID,
+		)
+		allocation := allocationEnvelope(stage, allocationID, receivedAt, true)
+		allocation.Report.Worker.ToolCalls[0].Arguments = runtimeArguments(t, literal)
+		planner := plannerEnvelope(stage, sessionID, receivedAt)
+		calls, succeeded := int64(1), int64(1)
+		planner.Report.Metrics.Tools = map[string]reporting.ToolMetrics{
+			"probe": {Calls: &calls, Succeeded: &succeeded},
+		}
+		planner.Report.ToolCalls = []reporting.ToolCallRecord{{
+			CallID: "call-" + sessionID, Tool: "probe",
+			Arguments: runtimeArguments(t, literal), Outcome: reporting.ToolCallSucceeded,
+		}}
+		for attempt := range 2 {
+			if err := reports.RecordAllocationReport(ctx, allocation); err != nil {
+				t.Fatalf("%s: allocation report attempt %d: %v", literal, attempt+1, err)
+			}
+			if err := reports.RecordPlannerReport(ctx, planner); err != nil {
+				t.Fatalf("%s: Planner report attempt %d: %v", literal, attempt+1, err)
+			}
+		}
+
+		changedCall := allocation.Report.Worker.ToolCalls[0]
+		changedCall.Arguments = runtimeArguments(t, "7")
+		changed := allocation
+		changed.Report.Worker.ToolCalls = []reporting.ToolCallRecord{changedCall}
+		if err := reports.RecordAllocationReport(ctx, changed); !errors.Is(err, telemetry.ErrConflict) {
+			t.Fatalf("%s: changed allocation report error = %v, want conflict", literal, err)
+		}
+		changedPlanner := planner
+		changedPlanner.Report.ToolCalls = []reporting.ToolCallRecord{{
+			CallID: "call-" + sessionID, Tool: "probe",
+			Arguments: runtimeArguments(t, "7"), Outcome: reporting.ToolCallSucceeded,
+		}}
+		if err := reports.RecordPlannerReport(ctx, changedPlanner); !errors.Is(err, telemetry.ErrConflict) {
+			t.Fatalf("%s: changed Planner report error = %v, want conflict", literal, err)
+		}
+	}
+
+	// A number outside LIM-OBS-16 never reaches the column, where 1e-20000
+	// would fail the insert and 0e-16383 would read back as 16 KB of digits.
+	// Receipt rejects such a Runtime report; persistence, which also normalizes
+	// the Server's own Planner reports, stores the marker the Runtime writes.
+	for index, literal := range []string{"1e-20000", "0e-16383", "1e999999", "1e-08", "1e+20"} {
+		allocationID := fmt.Sprintf("allocation-range-%d", index)
+		stage := createTelemetryStage(
+			t, ctx, runs, fmt.Sprintf("stage-range-%d", index), allocationID,
+			fmt.Sprintf("session-range-%d", index),
+		)
+		allocation := allocationEnvelope(stage, allocationID, receivedAt, true)
+		allocation.Report.Worker.ToolCalls[0].Arguments = runtimeArguments(t, literal)
+		if err := reports.RecordAllocationReport(ctx, allocation); err != nil {
+			t.Fatalf("%s: allocation report: %v", literal, err)
+		}
+		var stored string
+		var truncated bool
+		if err := pool.QueryRow(ctx, `
+SELECT report->'worker'->'toolCalls'->0->'arguments'->>'value',
+       (report->'worker'->'toolCalls'->0->>'argumentsTruncated')::boolean
+FROM allocation_execution_reports WHERE stage_execution_id = $1`, stage).Scan(&stored, &truncated); err != nil {
+			t.Fatal(err)
+		}
+		if stored != reporting.ArgumentNumberMarker || !truncated {
+			t.Fatalf("%s: stored %q (truncated %t), want the marker", literal, stored, truncated)
+		}
+	}
+}
+
+// TestMetricsPostgresReadsReportsTrimmedToTheByteBound stores reports whose
+// rendering exceeds the 1 MiB bound the received report met and reads them
+// back: jsonb renders a stored report with a space after each separator and
+// every number expanded (OBS-R110). Short strings in 280 calls trimmed to the
+// bound add about a tenth; 1e19, the widest expansion LIM-OBS-16 allows, needs
+// only 60 calls of 4096-byte summaries to pass 1 MiB. Every reader of a stored
+// report (ListAllocationReports, RebuildStageMetrics and the replay identity
+// lookup of both kinds) must still decode it.
+func TestMetricsPostgresReadsReportsTrimmedToTheByteBound(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	pool := isolatedTelemetryPool(t, ctx)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	reports := telemetry.NewRepository(pool)
+	createTelemetryRun(t, ctx, runs)
+	receivedAt := time.Now().UTC()
+	for index, test := range []struct {
+		element string
+		calls   int
+		trimmed bool
+	}{{`"abcdefgh"`, 280, true}, {"1e19", 60, false}} {
+		element := test.element
+		allocationID := fmt.Sprintf("allocation-bound-%d", index)
+		sessionID := fmt.Sprintf("session-bound-%d", index)
+		stage := createTelemetryStage(
+			t, ctx, runs, fmt.Sprintf("stage-bound-%d", index), allocationID, sessionID,
+		)
+		arguments := runtimeArgumentsJSON(t, boundedArgumentSummary(element))
+		calls := make([]reporting.ToolCallRecord, test.calls)
+		for call := range calls {
+			calls[call] = reporting.ToolCallRecord{
+				CallID: fmt.Sprintf("call-%04d", call), Tool: "probe",
+				Arguments: arguments, Outcome: reporting.ToolCallSucceeded,
+			}
+		}
+		count := int64(len(calls))
+		tools := map[string]reporting.ToolMetrics{"probe": {Calls: &count, Succeeded: &count}}
+		allocation := allocationEnvelope(stage, allocationID, receivedAt, true)
+		allocation.Report.Worker.Metrics.Tools = tools
+		allocation.Report.Worker.ToolCalls = calls
+		planner := plannerEnvelope(stage, sessionID, receivedAt)
+		planner.Report.Metrics.Tools = tools
+		planner.Report.ToolCalls = calls
+		for attempt := range 2 { // The second attempt replays both reports.
+			if err := reports.RecordAllocationReport(ctx, allocation); err != nil {
+				t.Fatalf("%s: allocation report attempt %d: %v", element, attempt+1, err)
+			}
+			if err := reports.RecordPlannerReport(ctx, planner); err != nil {
+				t.Fatalf("%s: Planner report attempt %d: %v", element, attempt+1, err)
+			}
+		}
+		for _, table := range []string{"allocation_execution_reports", "planner_execution_reports"} {
+			var truncated bool
+			var rendered int
+			if err := pool.QueryRow(ctx, `
+SELECT coalesce(report->'worker', report)->>'truncated' = 'true', octet_length(report::text)
+FROM `+table+` WHERE stage_execution_id = $1`, stage).Scan(&truncated, &rendered); err != nil {
+				t.Fatal(err)
+			}
+			if truncated != test.trimmed || rendered <= telemetry.MaxReportJSONBytes {
+				t.Fatalf("%s: %s truncated=%t renders %d bytes, want truncated=%t beyond 1 MiB",
+					element, table, truncated, rendered, test.trimmed)
+			}
+		}
+		stored, err := reports.ListAllocationReports(ctx, stage)
+		if err != nil || len(stored) != 1 || stored[0].Report.Worker.Truncated != test.trimmed {
+			t.Fatalf("%s: stored allocation reports = %d (%v), want one report", element, len(stored), err)
+		}
+		metrics, err := reports.RebuildStageMetrics(ctx, stage, contracts.APIVersion)
+		if err != nil {
+			t.Fatalf("%s: rebuild StageMetrics: %v", element, err)
+		}
+		if metrics.Summary.ToolCalls != 2*count {
+			t.Fatalf("%s: StageMetrics tool calls = %d, want %d", element, metrics.Summary.ToolCalls, 2*count)
+		}
+	}
+}
+
+// runtimeArguments decodes an argument summary holding literal as the Server
+// decodes a Runtime report, which keeps the literal as written.
+func runtimeArguments(t *testing.T, literal string) reporting.ToolArguments {
+	t.Helper()
+	return runtimeArgumentsJSON(t, `{"value":`+literal+`}`)
+}
+
+// boundedArgumentSummary fills a 4096-byte summary with element in arrays of
+// 32, the most items a summary container keeps.
+func boundedArgumentSummary(element string) string {
+	row := "[" + strings.TrimSuffix(strings.Repeat(element+",", 32), ",") + "]"
+	rows := make([]string, 0, 32)
+	for len(rows) < 32 && len(`{"v":[]}`)+len(rows)*(len(row)+1)+len(row) <= 4096 {
+		rows = append(rows, row)
+	}
+	return `{"v":[` + strings.Join(rows, ",") + `]}`
+}
+
+func runtimeArgumentsJSON(t *testing.T, summary string) reporting.ToolArguments {
+	t.Helper()
+	var arguments reporting.ToolArguments
+	if err := json.Unmarshal([]byte(summary), &arguments); err != nil {
+		t.Fatal(err)
+	}
+	return arguments
+}
+
+func TestAllocationResourceHistoryUsesTerminalIdentityAndPinnedPolicy(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedTelemetryPool(t, ctx)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	reports := telemetry.NewRepository(pool)
+	createTelemetryRun(t, ctx, runs)
+
+	requestedStage := createTelemetryStageWithPolicy(
+		t, ctx, runs, "stage-requested", "allocation-requested", "session-requested",
+		reporting.PerformanceCollectionRequested,
+	)
+	finishTelemetryStage(t, ctx, runs, requestedStage)
+	duration, cpuUser, cpuSystem, gap := 31.0, 2.0, 1.0, 15.0
+	rssStart, rssEnd, rssPeak, samples := uint64(100), uint64(125), uint64(150), uint64(4)
+	envelope := allocationEnvelope(requestedStage, "allocation-requested", time.Now().UTC(), true)
+	envelope.PerformanceCollectionPolicy = reporting.PerformanceCollectionRequested
+	envelope.Report.Runtime.Resources = &reporting.RuntimeResources{
+		Version: 1, Scope: "runtime_process", Status: reporting.ResourceComplete,
+		DurationSeconds: &duration, CPUUserSeconds: &cpuUser, CPUSystemSeconds: &cpuSystem,
+		RSSStartBytes: &rssStart, RSSEndBytes: &rssEnd, RSSPeakObservedBytes: &rssPeak,
+		RSSSampleCount: &samples, MaxSampleGapSeconds: &gap,
+	}
+	if err := reports.RecordAllocationReport(ctx, envelope); err != nil {
+		t.Fatal(err)
+	}
+	if err := runs.MarkStageAllocationReleased(ctx, "allocation-requested"); err != nil {
+		t.Fatal(err)
+	}
+
+	unsupportedStage := createTelemetryStageWithPolicy(
+		t, ctx, runs, "stage-unsupported", "allocation-unsupported", "session-unsupported",
+		reporting.PerformanceCollectionUnsupported,
+	)
+	finishTelemetryStage(t, ctx, runs, unsupportedStage)
+	if err := runs.MarkStageAllocationReleased(ctx, "allocation-unsupported"); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := reports.ListAllocationResourceHistory(ctx, telemetry.AllocationResourceHistoryParams{
+		OwnerID: "user", Limit: 10,
+	})
+	if err != nil || len(items) != 2 {
+		t.Fatalf("allocation history = (%+v, %v)", items, err)
+	}
+	byID := map[string]telemetry.AllocationResourceSummary{}
+	for _, item := range items {
+		byID[item.AllocationID] = item
+	}
+	requested := byID["allocation-requested"]
+	if requested.Status != telemetry.AllocationResourceAvailable || requested.Resources == nil ||
+		requested.Resources.RSSPeakObservedBytes == nil || *requested.Resources.RSSPeakObservedBytes != rssPeak ||
+		requested.FinishedAt.IsZero() || requested.Outcome != "succeeded" {
+		t.Fatalf("requested resource summary = %+v", requested)
+	}
+	unsupported := byID["allocation-unsupported"]
+	if unsupported.Status != telemetry.AllocationResourceUnsupported || unsupported.Resources != nil {
+		t.Fatalf("unsupported resource summary = %+v", unsupported)
+	}
+	foreign, err := reports.ListAllocationResourceHistory(ctx, telemetry.AllocationResourceHistoryParams{
+		OwnerID: "another-owner", RunID: "run-telemetry", Limit: 10,
+	})
+	if err != nil || len(foreign) != 0 {
+		t.Fatalf("foreign history = (%+v, %v)", foreign, err)
+	}
+	batch, err := reports.ListStageAllocationResources(ctx, "user", []string{requestedStage, unsupportedStage})
+	if err != nil || len(batch[requestedStage]) != 1 || len(batch[unsupportedStage]) != 1 {
+		t.Fatalf("stage resource batch = (%+v, %v)", batch, err)
+	}
+}
+
+func allocationEnvelope(
+	stageExecutionID string,
+	allocationID string,
+	receivedAt time.Time,
+	complete bool,
+) telemetry.AllocationReportEnvelope {
+	modelCalls, toolCalls, succeeded := int64(3), int64(1), int64(1)
+	startedAt := receivedAt.Add(-time.Second)
+	stopReason := "provider returned " + postgresSecret
+	return telemetry.AllocationReportEnvelope{
+		PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled,
+		StageExecutionID:            stageExecutionID, AllocationID: allocationID,
+		LogicalAgentName: "builder", ReportSchemaVersion: contracts.APIVersion,
+		Secrets: []string{postgresSecret}, ReceivedAt: receivedAt,
+		Report: reporting.AllocationFinalReport{
+			ReportID: "allocation-final-" + allocationID, AllocationID: allocationID,
+			StartedAt: startedAt, FinishedAt: receivedAt,
+			Worker: reporting.ExecutionReport{
+				ReportID: "worker-" + allocationID, Complete: complete,
+				Metrics: reporting.ExecutionMetrics{
+					ModelCalls: &modelCalls,
+					Tools: map[string]reporting.ToolMetrics{
+						"probe": {Calls: &toolCalls, Succeeded: &succeeded},
+					},
+				},
+				ToolCalls: []reporting.ToolCallRecord{{
+					CallID: "call-" + allocationID, Tool: "probe",
+					Arguments: map[string]any{
+						"authorization": "Bearer " + postgresSecret,
+					},
+					Outcome: reporting.ToolCallSucceeded,
+				}},
+				Errors: []reporting.ExecutionError{{
+					Code: "provider_error", Message: "provider returned " + postgresSecret,
+				}},
+			},
+			Runtime: reporting.RuntimeReport{
+				Complete: complete, StopReason: &stopReason,
+			},
+		},
+	}
+}
+
+func plannerEnvelope(
+	stageExecutionID string,
+	sessionID string,
+	receivedAt time.Time,
+) telemetry.PlannerReportEnvelope {
+	modelCalls := int64(2)
+	return telemetry.PlannerReportEnvelope{
+		StageExecutionID: stageExecutionID, SessionID: sessionID,
+		InvocationID:        "invocation-" + stageExecutionID,
+		StartedAt:           receivedAt.Add(-time.Second),
+		FinishedAt:          receivedAt,
+		ReportSchemaVersion: contracts.APIVersion,
+		ReceivedAt:          receivedAt, Secrets: []string{postgresSecret},
+		Report: reporting.ExecutionReport{
+			ReportID: "planner-" + sessionID, Complete: true,
+			Metrics: reporting.ExecutionMetrics{
+				ModelCalls: &modelCalls, Tools: map[string]reporting.ToolMetrics{},
+			},
+			ToolCalls: []reporting.ToolCallRecord{}, Errors: []reporting.ExecutionError{},
+		},
+	}
+}
+
+func createTelemetryRun(t *testing.T, ctx context.Context, store *runstore.PostgresStore) {
+	t.Helper()
+	_, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
+		LaneClass: resolved.LaneClassModel,
+		RunID:     "run-telemetry", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
+		WorkflowSchemaVersion: contracts.APIVersion,
+		WorkflowSnapshot:      json.RawMessage(`{"name":"workflow"}`),
+		Parameters:            map[string]string{},
+		RuntimeConfig:         runtimeconfigtest.BuiltInRunSnapshot(),
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, "run-telemetry", runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "initialized"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, "run-telemetry", runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func createTelemetryStage(
+	t *testing.T,
+	ctx context.Context,
+	store *runstore.PostgresStore,
+	stageExecutionID string,
+	allocationID string,
+	sessionID string,
+) string {
+	return createTelemetryStageWithPolicy(
+		t, ctx, store, stageExecutionID, allocationID, sessionID,
+		reporting.PerformanceCollectionDisabled,
+	)
+}
+
+func createTelemetryStageWithPolicy(
+	t *testing.T,
+	ctx context.Context,
+	store *runstore.PostgresStore,
+	stageExecutionID string,
+	allocationID string,
+	sessionID string,
+	collectionPolicy reporting.PerformanceCollectionPolicy,
+) string {
+	t.Helper()
+	_, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
+		StageExecutionID: stageExecutionID, RunID: "run-telemetry", StageName: stageExecutionID,
+		Attempt: 1, StageSpecSchemaVersion: contracts.APIVersion,
+		StageSpecSnapshot:         json.RawMessage(`{"objective":"test"}`),
+		StageContextSchemaVersion: contracts.APIVersion,
+		StageContext:              runstore.StageContextSnapshot{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordStageAllocation(ctx, runstore.StageAllocation{
+		AllocationID: allocationID, StageExecutionID: stageExecutionID,
+		LogicalAgentName: "builder", Namespace: "builder",
+		AgentTemplateRef: contracts.AgentTemplateRef{
+			TemplateID: "builder", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
+		},
+		WorkerRuntimeRef:                  contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"},
+		RuntimeAgentID:                    strings.Repeat("1", 64),
+		RuntimeAgentInstanceID:            "runtime-1",
+		RuntimeAgentLabelRevision:         1,
+		RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
+		RuntimeConfiguration:              telemetryAllocationRuntimeConfiguration(),
+		PerformanceCollectionPolicy:       collectionPolicy,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	invocationID := "invocation-" + stageExecutionID
+	startedData, err := json.Marshal(map[string]string{
+		"stageExecutionId": stageExecutionID,
+		"sessionId":        sessionID, "invocationId": invocationID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eventID := "planner-started-" + stageExecutionID
+	if err := store.StartPlanner(ctx, runstore.StartPlannerParams{
+		StageExecutionID: stageExecutionID, SessionID: sessionID,
+		InvocationID:       invocationID,
+		StateSchemaVersion: contracts.APIVersion,
+		InitialState:       json.RawMessage(`{"step":0}`),
+		RunEvent: runstore.RunEventAppend{
+			EventID: eventID, EventSchemaVersion: contracts.APIVersion,
+			Kind: runstore.RunEventPlannerStarted, Data: startedData,
+		},
+		Reason: runstore.Reason{Code: "planner_started"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return stageExecutionID
+}
+
+func telemetryAllocationRuntimeConfiguration() *runstore.AllocationRuntimeConfiguration {
+	gateway := llmgateway.LLMGatewayConfigRef{
+		GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
+	}
+	return &runstore.AllocationRuntimeConfiguration{
+		ModelPolicy: contracts.ModelPolicyRef{
+			PolicyID: "worker", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64),
+		},
+		Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{
+			LLMGateway: &runtimeconfig.RuntimeFieldOrigin{Layer: runtimeconfig.LayerWorkflow},
+		},
+		Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{
+			Default: runtimesettings.RuntimeLabelBindingProvenance{
+				Label: "default", BindingRevision: 1,
+				Config: runtimesettings.RuntimeConfigRef{
+					Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion,
+					Digest: runtimeconfig.BuiltInDigest,
+				},
+			},
+			RunLabels:       []runtimesettings.RuntimeLabelBindingProvenance{},
+			AgentLabels:     []runtimesettings.RuntimeLabelBindingProvenance{},
+			RuntimeAdapters: []runtimesettings.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
+			RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
+		},
+	}
+}
+
+func finishTelemetryStage(
+	t *testing.T,
+	ctx context.Context,
+	store *runstore.PostgresStore,
+	stageExecutionID string,
+) {
+	t.Helper()
+	result := stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded,
+		Summary: "done", Artifacts: map[string]contracts.ArtifactRef{},
+	}
+	if err := store.EnterFinalizing(ctx, runstore.EnterFinalizingParams{
+		StageExecutionID: stageExecutionID, ResultSchemaVersion: contracts.APIVersion,
+		Candidate: result, FinalizationID: "finalize-" + stageExecutionID,
+		Deadline: time.Now().Add(time.Minute), Reason: runstore.Reason{Code: "planner_completed"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CompleteStageResult(
+		ctx, stageExecutionID, contracts.APIVersion, result,
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertTelemetryCount(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	table string,
+	stageExecutionID string,
+	want int,
+) {
+	t.Helper()
+	var got int
+	query := `SELECT count(*) FROM ` + pgx.Identifier{table}.Sanitize() +
+		` WHERE stage_execution_id = $1`
+	if err := pool.QueryRow(ctx, query, stageExecutionID).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("%s rows for %s = %d, want %d", table, stageExecutionID, got, want)
+	}
+}
+
+func isolatedTelemetryPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
+	t.Helper()
+	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{})
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
+		t.Fatal(err)
+	}
+	return pool
+}

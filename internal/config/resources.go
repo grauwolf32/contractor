@@ -1,0 +1,235 @@
+package config
+
+import (
+	"fmt"
+	"sort"
+
+	"github.com/grauwolf32/contractor/internal/apierror"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+)
+
+type ConfigurationKind string
+
+const (
+	ConfigurationAgentTemplates ConfigurationKind = "agent-templates"
+	ConfigurationModelPolicies  ConfigurationKind = "model-policies"
+	ConfigurationLLMGateways    ConfigurationKind = "llm-gateways"
+)
+
+type ConfigurationSource string
+
+const (
+	ConfigurationSourceOperator ConfigurationSource = "operator"
+	ConfigurationSourceManaged  ConfigurationSource = "managed"
+)
+
+var (
+	ErrInvalidConfigurationKind = apierror.New(apierror.InvalidRequest, "invalid configuration kind")
+	ErrConfigurationNotFound    = apierror.New(apierror.NotFound, "configuration not found")
+	ErrInvalidPublication       = apierror.New(apierror.InvalidRequest, "invalid configuration publication")
+	ErrPublicationConflict      = apierror.New(apierror.ConfigurationConflict, "configuration publication conflict")
+	// ErrConfigurationDrift reports that the reloaded configuration roots differ
+	// from the Server's loaded snapshot by a change the publication manager did
+	// not make. Retrying cannot succeed until the roots match again (CAT-R75).
+	ErrConfigurationDrift = apierror.New(apierror.ConfigurationDrift,
+		"configuration roots changed outside the publication manager")
+)
+
+type ConfigurationRef struct {
+	Kind    ConfigurationKind `json:"kind"`
+	Name    string            `json:"name"`
+	Version string            `json:"version"`
+	Digest  string            `json:"digest"`
+}
+
+// ConfigurationResource is a safe public projection. Body is always one of
+// the closed, secret-free shapes constructed in this package.
+type ConfigurationResource struct {
+	Ref    ConfigurationRef    `json:"ref"`
+	Body   any                 `json:"body"`
+	Source ConfigurationSource `json:"source"`
+}
+
+func ParseConfigurationKind(raw string) (ConfigurationKind, error) {
+	kind := ConfigurationKind(raw)
+	switch kind {
+	case ConfigurationAgentTemplates,
+		ConfigurationModelPolicies, ConfigurationLLMGateways:
+		return kind, nil
+	default:
+		return "", fmt.Errorf("%w: %q", ErrInvalidConfigurationKind, raw)
+	}
+}
+
+// configurations builds caller-owned resources of kind in exact selector
+// order; ConfigurationDiscovery publishes them with their fingerprint.
+func (s *Snapshot) configurations(kind ConfigurationKind) ([]ConfigurationResource, error) {
+	if _, err := ParseConfigurationKind(string(kind)); err != nil {
+		return nil, err
+	}
+	selectors := s.configurationSelectors(kind)
+	result := make([]ConfigurationResource, 0, len(selectors))
+	for _, selector := range selectors {
+		resource, err := s.Configuration(kind, selector)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, resource)
+	}
+	return result, nil
+}
+
+func (s *Snapshot) Configuration(
+	kind ConfigurationKind, raw string,
+) (ConfigurationResource, error) {
+	selector, err := resolved.ParseSelector(raw)
+	if err != nil {
+		return ConfigurationResource{}, fmt.Errorf("%w: invalid selector", ErrInvalidPublication)
+	}
+	source := s.configurationSource(kind, selector.String())
+	switch kind {
+	case ConfigurationModelPolicies:
+		value, ok := s.policies[selector.String()]
+		if !ok {
+			return ConfigurationResource{}, ErrConfigurationNotFound
+		}
+		return ConfigurationResource{
+			Ref: ConfigurationRef{
+				Kind: kind, Name: selector.ID, Version: selector.Version, Digest: value.Ref.Digest,
+			},
+			Body: modelPolicyResourceBody(value), Source: source,
+		}, nil
+	case ConfigurationLLMGateways:
+		value, ok := s.gateways[selector.String()]
+		if !ok {
+			return ConfigurationResource{}, ErrConfigurationNotFound
+		}
+		return ConfigurationResource{
+			Ref: ConfigurationRef{
+				Kind: kind, Name: selector.ID, Version: selector.Version, Digest: value.Ref.Digest,
+			},
+			Body: llmGatewayResourceBody(value), Source: source,
+		}, nil
+	case ConfigurationAgentTemplates:
+		value, ok := s.templates[selector.String()]
+		if !ok {
+			return ConfigurationResource{}, ErrConfigurationNotFound
+		}
+		return ConfigurationResource{
+			Ref: ConfigurationRef{
+				Kind: kind, Name: selector.ID, Version: selector.Version, Digest: value.Ref.Digest,
+			},
+			Body: agentTemplateResourceBody(value), Source: source,
+		}, nil
+	default:
+		return ConfigurationResource{}, ErrInvalidConfigurationKind
+	}
+}
+
+func (s *Snapshot) configurationSelectors(kind ConfigurationKind) []string {
+	var result []string
+	switch kind {
+	case ConfigurationModelPolicies:
+		result = mapKeys(s.policies)
+	case ConfigurationLLMGateways:
+		result = mapKeys(s.gateways)
+	case ConfigurationAgentTemplates:
+		result = mapKeys(s.templates)
+
+	}
+	sort.Strings(result)
+	return result
+}
+
+func mapKeys[T any](values map[string]T) []string {
+	result := make([]string, 0, len(values))
+	for key := range values {
+		result = append(result, key)
+	}
+	return result
+}
+
+func (s *Snapshot) configurationSource(
+	kind ConfigurationKind, selector string,
+) ConfigurationSource {
+	source, ok := s.sources[configurationSourceKey(kind, selector)]
+	if !ok {
+		return ConfigurationSourceOperator
+	}
+	return source
+}
+
+func configurationSourceKey(kind ConfigurationKind, identity string) string {
+	return string(kind) + "\x00" + identity
+}
+
+func modelPolicyResourceBody(policy contracts.ResolvedModelPolicy) map[string]any {
+	result := map[string]any{"model": policy.Model}
+	addModelPolicyOptions(result, policy)
+	if policy.Temperature != nil {
+		result["temperature"] = *policy.Temperature
+	}
+	return result
+}
+
+func llmGatewayResourceBody(gateway llmgateway.ResolvedLLMGatewayConfig) map[string]any {
+	result := map[string]any{"protocol": gateway.Protocol, "url": gateway.URL}
+	if gateway.CredentialManager != nil {
+		result["credentialManager"] = map[string]any{
+			"implementation": gateway.CredentialManager.Implementation,
+			"managementUrl":  gateway.CredentialManager.ManagementURL,
+		}
+	}
+	if gateway.FailureSignatures != nil {
+		result["failureSignatures"] = failureSignaturesDocument(*gateway.FailureSignatures)
+	}
+	return result
+}
+
+func agentTemplateResourceBody(template contracts.ResolvedAgentTemplate) map[string]any {
+	toolsets := make([]any, 0, len(template.Toolsets))
+	for _, selection := range template.Toolsets {
+		toolsets = append(toolsets, map[string]any{
+			"ref":   selection.Ref.ToolsetID + "@" + selection.Ref.Version,
+			"tools": append([]string(nil), selection.Tools...),
+		})
+	}
+	result := map[string]any{
+		"description": template.Description,
+		"runtime":     template.Runtime.RuntimeID + "@" + template.Runtime.Version,
+		"instructions": map[string]any{
+			"ref": template.Instructions.Ref, "digest": template.Instructions.Digest,
+		},
+		"toolsets": toolsets,
+		"sandboxProfile": template.SandboxProfile.SandboxProfileID + "@" +
+			template.SandboxProfile.Version,
+	}
+	if template.ResponseRecovery != "" {
+		result["responseRecovery"] = template.ResponseRecovery
+	}
+	if template.IsToolWorker() {
+		delete(result, "instructions")
+		result["execution"] = template.Execution.Clone()
+	}
+	if len(template.Skills) > 0 {
+		result["skills"] = append([]contracts.ArtifactRef(nil), template.Skills...)
+	}
+	if template.Summarizer != nil {
+		summarizer := map[string]any{
+			"contextWindowRatio": template.Summarizer.ContextWindowRatio,
+			"includeReasoning":   template.Summarizer.IncludeReasoning,
+		}
+		if template.Summarizer.CumulativeBudget != nil {
+			summarizer["cumulativeBudget"] = *template.Summarizer.CumulativeBudget
+		}
+		result["summarizer"] = summarizer
+		if instructions := template.Summarizer.Instructions; instructions != nil {
+			summarizer["instructions"] = map[string]any{
+				"ref": instructions.Ref, "digest": instructions.Digest,
+			}
+		}
+	}
+	return result
+}

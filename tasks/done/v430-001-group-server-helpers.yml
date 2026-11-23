@@ -1,0 +1,101 @@
+schema_version: "1.0"
+id: V430-001
+title: Group shared Server primitives under internal/helpers
+milestone: hub-audit-structure-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: completed
+implementation_commit: 6cb7bbb0bde6f9c8dad14fcd8b4030fddf8cc2b1
+depends_on: []
+languages: [go]
+goal: Reduce visual clutter in the Server package tree while retaining the existing helper APIs, behavior and dependency boundaries.
+context:
+  integration_renumbering: >-
+    User-authorized main integration on 2026-11-01: the original branch used
+    V425-037, which current main has assigned to unrelated work. Rename this
+    historical record to V430-001; preserve the original implementation commit
+    and verification. No shared commit is rewritten.
+  authority: >-
+    User request 2026-11-01: inspect simplification opportunities outside the
+    concurrent Audit/configuration redesign and collect the Server's small
+    helper packages in a helpers directory. This task implements that package
+    organization only; additional behavior changes remain proposals.
+  finding: >-
+    Fourteen shared primitive packages occupy separate internal/ directories
+    alongside domain services. Their implementations already have separate
+    names and foundation-layer ownership; no duplicate implementation or
+    runtime defect is alleged by this organization change.
+  boundary: >-
+    Move cabundle, clone, contentdigest, documentnumber, documentyaml,
+    exactinteger, pagelimit, randomid, requestid, secretmatch, securefile,
+    sourcezip, strictjson and zipdirectory to internal/helpers/<name>.
+    Preserve separate Go packages and explicit foundation classifications.
+    Keep domain policies, controller lifecycles, HTTP adapters, services and
+    owner-specific test support at their existing boundaries. A single helpers
+    Go package would hide those responsibilities and force unrelated imports;
+    retaining the current flat tree would not address the user's navigation
+    concern. Revisit placement if a helper gains a domain/service dependency.
+  preservation: >-
+    This is a path-only refactor: public/wire formats, error classification,
+    limits, authority, receipts, cancellation, cardinality and persistence
+    behavior remain unchanged. No migration, external operation, new state,
+    package API, compatibility alias or dependency is introduced.
+scope:
+  in:
+    - Relocate the fourteen packages together with their existing tests.
+    - Update all Go consumers, explicit layer entries, make targets and current source/specification references.
+    - Adjust repository-root lookups and canonical source paths in moved source-scanning tests so those guards retain their coverage.
+    - Document the helpers directory boundary and verify full Go suites and repository lint.
+  out:
+    - Audit/configuration redesign, database schema changes and behavior-changing simplifications.
+    - Combining unrelated Go packages, extracting additional utilities or rewriting historical task/evidence records.
+acceptance_criteria:
+  - id: A1
+    text: The fourteen old package directories are absent; each has one new home under internal/helpers, with existing exported names and production implementation preserved apart from import/source-path references.
+  - id: A2
+    text: Production and test imports, explicit architecture classifications and executable make targets use the new paths, without old-path forwarding packages or a blanket helpers layer exemption.
+  - id: A3
+    text: Moved source-scanning tests still scan the repository and detect their existing synthetic violations; shared fixtures and current specification/source references identify the new paths.
+  - id: A4
+    text: Full Go package tests and make lint pass; database skips and any environment limitations are reported explicitly, and the original checkout's uncommitted work is untouched.
+tests:
+  - command: go test -json -count=1 ./...
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+implementation_notes:
+  - >-
+    Grouped fourteen named packages without merging their APIs. The internal/
+    top level now has 62 directories instead of 75. Updated Go imports,
+    fourteen explicit foundation entries, make fault/lint package selections,
+    current specification and cross-language source references, and the two
+    source-scanning tests' repository roots/canonical source path.
+  - >-
+    Regenerated docs/spec/audit-workflow-dependencies.html with make
+    docs-dependencies because its fingerprint includes implementation source
+    bytes. Historical tasks, evidence records and research notes are retained.
+  - >-
+    A temporary AST/token comparison against base commit
+    09ab84494089eb14152254bfcc0e5c2448106299 confirmed unchanged
+    production declarations in all 273 changed production Go files after
+    excluding import declarations and normalizing relocated source paths.
+    Production Go line count is unchanged; this task improves navigation,
+    not runtime architecture or execution cost.
+verification: >-
+  2026-11-01: go test -json -count=1 ./... passed against the dedicated
+  contractor_helpers_20261101 PostgreSQL database over TCP: 109 packages
+  passed, 25 packages had no test files, and 10,707 tests/subtests passed.
+  Ten optional/platform tests skipped: three APFS Unicode fixture cases,
+  one root-only file ownership case, one GPU smoke test, one pinned LiteLLM
+  contract, one external OTLP collector and three live model/project cases.
+  No database-unset skips occurred. An initial Unix-socket database URL
+  failed TCP proxy/keepalive tests; the complete TCP rerun succeeded.
+  Complete make lint passed after the separately tracked V430-002 repaired
+  the pre-existing archived Audit export-baseline references. This includes
+  tagged Go static checks, the export-tool suite, task/spec/shared-fixture/ERD
+  guards, UI gates, deployment-script checks and all four Runtime import
+  contracts. Moved helper/source guards and architecture tests passed within
+  the full Go suite. The isolated worktree leaves the original checkout's
+  three uncommitted documentation paths unchanged. No complete release gate
+  or live-model verification is claimed; the branch remains unmerged.

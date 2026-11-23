@@ -1,0 +1,1216 @@
+{
+  "general": {
+    "name": "finding",
+    "description": "Record one finding with optional source/web locations.\n\nA proposal records an observation, not a confirmed vulnerability. Describe\nthe impact and supporting observations. Locations may combine code and HTTP.\nEach location is either file with optional line/range, or url with optional\nmethod. Omit unknown coordinates and classification instead of guessing.\n\nArgs:\n    title: Short non-empty finding title.\n    description: Observation, impact, prerequisites and reproduction details.\n    locations: Optional explicit source or web locations.\n    cwe: Optional CWE-NNN weakness identifier from the pinned catalog.\n    sources: Selected code, HTTP or artifact objects, native array or serialized once.\n        Artifact selectors use kind=artifact and namespace/name; Runtime supplies\n        the selected revision. Code selects file/start_line/end_line in the opened\n        pinned archive; workspace=true verifies current workspace coordinates.\n        HTTP selects kind=http and a local request_id without replay; at most one\n        local exchange. Retained sources preserve their original observation context.\n        A fact statement or Memory note does not independently verify its claim.\n    standard_refs: Optional exact standard identities copied from an assigned\n        Audit task. A finding linked to a standard-mapped Audit result must\n        cite every assigned entry ID.\n    proposed_checks: Optional follow-up questions, each with objective and\n        method. At most 512; these suggestions grant no execution authority.\n    item_key: Optional actual Audit member key from read_audit_task. Required\n        for task-bound batches; omit for a general incidental observation.\n    incidental: An independent discovery that does not test the assigned hypothesis.\n        Without item_key, retains Run/Audit origin only. Selecting a member adds\n        Task origin; incidental calls never associate its hypothesis.\n    severity_suggestion: Optional producer severity; leaves analyst assessment unset.\n        Saving always requires an active Project and selected exact evidence.",
+    "parameters": {
+      "$defs": {
+        "ArtifactSource": {
+          "additionalProperties": false,
+          "properties": {
+            "namespace": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Namespace",
+              "type": "string"
+            },
+            "name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            },
+            "kind": {
+              "const": "artifact",
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          "required": [
+            "namespace",
+            "name",
+            "kind"
+          ],
+          "title": "ArtifactSource",
+          "type": "object"
+        },
+        "CodeSource": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "code",
+              "title": "Kind",
+              "type": "string"
+            },
+            "file": {
+              "maxLength": 512,
+              "minLength": 1,
+              "title": "File",
+              "type": "string"
+            },
+            "start_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "Start Line",
+              "type": "integer"
+            },
+            "end_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "End Line",
+              "type": "integer"
+            },
+            "workspace": {
+              "default": false,
+              "title": "Workspace",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "file",
+            "start_line",
+            "end_line"
+          ],
+          "title": "CodeSource",
+          "type": "object"
+        },
+        "HTTPSource": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "http",
+              "title": "Kind",
+              "type": "string"
+            },
+            "request_id": {
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Request Id",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "request_id"
+          ],
+          "title": "HTTPSource",
+          "type": "object"
+        },
+        "LineRange": {
+          "additionalProperties": false,
+          "properties": {
+            "start_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "Start Line",
+              "type": "integer"
+            },
+            "end_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "End Line",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "start_line",
+            "end_line"
+          ],
+          "title": "LineRange",
+          "type": "object"
+        },
+        "ProposedCheck": {
+          "additionalProperties": false,
+          "description": "One follow-up question; its method grants no execution authority.",
+          "properties": {
+            "objective": {
+              "title": "Objective",
+              "type": "string"
+            },
+            "method": {
+              "title": "Method",
+              "type": "string"
+            }
+          },
+          "required": [
+            "objective",
+            "method"
+          ],
+          "title": "ProposedCheck",
+          "type": "object"
+        },
+        "SourceLocation": {
+          "additionalProperties": false,
+          "properties": {
+            "file": {
+              "title": "File",
+              "type": "string"
+            },
+            "line": {
+              "default": null,
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "Line",
+              "type": "integer"
+            },
+            "range": {
+              "$ref": "#/$defs/LineRange",
+              "default": null,
+              "title": "Range"
+            }
+          },
+          "required": [
+            "file"
+          ],
+          "title": "SourceLocation",
+          "type": "object"
+        },
+        "StandardReference": {
+          "additionalProperties": false,
+          "properties": {
+            "scheme": {
+              "title": "Scheme",
+              "type": "string"
+            },
+            "version": {
+              "title": "Version",
+              "type": "string"
+            },
+            "requirement_id": {
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "scheme",
+            "version",
+            "requirement_id"
+          ],
+          "title": "StandardReference",
+          "type": "object"
+        },
+        "WebLocation": {
+          "additionalProperties": false,
+          "properties": {
+            "url": {
+              "title": "Url",
+              "type": "string"
+            },
+            "method": {
+              "default": null,
+              "title": "Method",
+              "type": "string"
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "title": "WebLocation",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "locations": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/SourceLocation"
+                  },
+                  {
+                    "$ref": "#/$defs/WebLocation"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Locations"
+        },
+        "cwe": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwe"
+        },
+        "sources": {
+          "anyOf": [
+            {
+              "items": {
+                "discriminator": {
+                  "mapping": {
+                    "artifact": "#/$defs/ArtifactSource",
+                    "code": "#/$defs/CodeSource",
+                    "http": "#/$defs/HTTPSource"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/ArtifactSource"
+                  },
+                  {
+                    "$ref": "#/$defs/HTTPSource"
+                  },
+                  {
+                    "$ref": "#/$defs/CodeSource"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sources"
+        },
+        "standard_refs": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/StandardReference"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Standard Refs"
+        },
+        "proposed_checks": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ProposedCheck"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Proposed Checks"
+        },
+        "severity_suggestion": {
+          "anyOf": [
+            {
+              "enum": [
+                "informational",
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Severity Suggestion"
+        },
+        "item_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Item Key"
+        },
+        "incidental": {
+          "default": false,
+          "title": "Incidental",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "title",
+        "description"
+      ],
+      "title": "findingParams",
+      "type": "object"
+    }
+  },
+  "fact": {
+    "name": "fact",
+    "description": "Save one informational Project observation with exact evidence.\n\nAn active Project and selected exact evidence are required. Describe what the\nsource actually reports, including uncertainty; a note is a reported claim.\nThe record has no automatic analyst verdict or severity assessment.\n\nArgs:\n    title: Short non-empty observation title.\n    description: Observation, source quality, conditions and limitations.\n    sources: Selected code, HTTP or artifact objects, native array or serialized once.\n        Artifact selectors use kind=artifact and namespace/name; Runtime supplies\n        the selected revision. Code selects file/start_line/end_line in the opened\n        pinned archive; workspace=true verifies current workspace coordinates.\n        HTTP selects kind=http and a local request_id without replay; at most one\n        local exchange. Retained sources preserve their original observation context.\n        A fact statement or Memory note does not independently verify its claim.\n    memory_name: Optional exact memory name from the assigned memories snapshot.\n        Attaches its complete original content, description and tags; no quotation\n        is required. Describe uncertainty and inference in your own words.\n    item_key: Optional assigned Audit member key to retain Task origin.\n    incidental: True retains Run/Audit origin without a hypothesis. Set false\n        to derive the selected Task's exact hypothesis; batch tasks need item_key.",
+    "parameters": {
+      "$defs": {
+        "ArtifactSource": {
+          "additionalProperties": false,
+          "properties": {
+            "namespace": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Namespace",
+              "type": "string"
+            },
+            "name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            },
+            "kind": {
+              "const": "artifact",
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          "required": [
+            "namespace",
+            "name",
+            "kind"
+          ],
+          "title": "ArtifactSource",
+          "type": "object"
+        },
+        "CodeSource": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "code",
+              "title": "Kind",
+              "type": "string"
+            },
+            "file": {
+              "maxLength": 512,
+              "minLength": 1,
+              "title": "File",
+              "type": "string"
+            },
+            "start_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "Start Line",
+              "type": "integer"
+            },
+            "end_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "End Line",
+              "type": "integer"
+            },
+            "workspace": {
+              "default": false,
+              "title": "Workspace",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "file",
+            "start_line",
+            "end_line"
+          ],
+          "title": "CodeSource",
+          "type": "object"
+        },
+        "HTTPSource": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "http",
+              "title": "Kind",
+              "type": "string"
+            },
+            "request_id": {
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Request Id",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "request_id"
+          ],
+          "title": "HTTPSource",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "sources": {
+          "anyOf": [
+            {
+              "items": {
+                "discriminator": {
+                  "mapping": {
+                    "artifact": "#/$defs/ArtifactSource",
+                    "code": "#/$defs/CodeSource",
+                    "http": "#/$defs/HTTPSource"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/ArtifactSource"
+                  },
+                  {
+                    "$ref": "#/$defs/HTTPSource"
+                  },
+                  {
+                    "$ref": "#/$defs/CodeSource"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sources"
+        },
+        "memory_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Memory Name"
+        },
+        "item_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Item Key"
+        },
+        "incidental": {
+          "default": true,
+          "title": "Incidental",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "title",
+        "description"
+      ],
+      "title": "factParams",
+      "type": "object"
+    }
+  },
+  "code": {
+    "name": "finding",
+    "description": "Record one code finding at an explicit source file.\n\nExplain the observation, impact and prerequisites. This records a proposal;\nit does not confirm exploitability. Use line or range, never both. Coordinates\nare one-based and inclusive. Omit unknown line numbers rather than guessing.\n\nArgs:\n    title: Short non-empty finding title.\n    description: Source observation, reasoning, impact and prerequisites.\n    file: Exact case-sensitive relative POSIX path in the inspected source.\n    line: Optional one-based line number.\n    range: Optional inclusive start_line/end_line object.\n    cwe: Optional CWE-NNN weakness identifier from the pinned catalog.\n    sources: Selected code, HTTP or artifact objects, native array or serialized once.\n        Artifact selectors use kind=artifact and namespace/name; Runtime supplies\n        the selected revision. Code selects file/start_line/end_line in the opened\n        pinned archive; workspace=true verifies current workspace coordinates.\n        HTTP selects kind=http and a local request_id without replay; at most one\n        local exchange. Retained sources preserve their original observation context.\n        A fact statement or Memory note does not independently verify its claim.\n    standard_refs: Optional exact standard identities copied from an assigned\n        Audit task. A finding linked to a standard-mapped Audit result must\n        cite every assigned entry ID.\n    proposed_checks: Optional follow-up questions, each with objective and\n        method. At most 512; these suggestions grant no execution authority.\n    item_key: Optional actual Audit member key from read_audit_task. Required\n        for task-bound batches; omit for a general incidental observation.\n    incidental: An independent discovery that does not test the assigned hypothesis.\n        Without item_key, retains Run/Audit origin only. Selecting a member adds\n        Task origin; incidental calls never associate its hypothesis.\n    severity_suggestion: Optional producer severity; leaves analyst assessment unset.\n        Saving always requires an active Project and selected exact evidence.",
+    "parameters": {
+      "$defs": {
+        "ArtifactSource": {
+          "additionalProperties": false,
+          "properties": {
+            "namespace": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Namespace",
+              "type": "string"
+            },
+            "name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            },
+            "kind": {
+              "const": "artifact",
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          "required": [
+            "namespace",
+            "name",
+            "kind"
+          ],
+          "title": "ArtifactSource",
+          "type": "object"
+        },
+        "CodeSource": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "code",
+              "title": "Kind",
+              "type": "string"
+            },
+            "file": {
+              "maxLength": 512,
+              "minLength": 1,
+              "title": "File",
+              "type": "string"
+            },
+            "start_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "Start Line",
+              "type": "integer"
+            },
+            "end_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "End Line",
+              "type": "integer"
+            },
+            "workspace": {
+              "default": false,
+              "title": "Workspace",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "file",
+            "start_line",
+            "end_line"
+          ],
+          "title": "CodeSource",
+          "type": "object"
+        },
+        "HTTPSource": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "http",
+              "title": "Kind",
+              "type": "string"
+            },
+            "request_id": {
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Request Id",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "request_id"
+          ],
+          "title": "HTTPSource",
+          "type": "object"
+        },
+        "LineRange": {
+          "additionalProperties": false,
+          "properties": {
+            "start_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "Start Line",
+              "type": "integer"
+            },
+            "end_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "End Line",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "start_line",
+            "end_line"
+          ],
+          "title": "LineRange",
+          "type": "object"
+        },
+        "ProposedCheck": {
+          "additionalProperties": false,
+          "description": "One follow-up question; its method grants no execution authority.",
+          "properties": {
+            "objective": {
+              "title": "Objective",
+              "type": "string"
+            },
+            "method": {
+              "title": "Method",
+              "type": "string"
+            }
+          },
+          "required": [
+            "objective",
+            "method"
+          ],
+          "title": "ProposedCheck",
+          "type": "object"
+        },
+        "StandardReference": {
+          "additionalProperties": false,
+          "properties": {
+            "scheme": {
+              "title": "Scheme",
+              "type": "string"
+            },
+            "version": {
+              "title": "Version",
+              "type": "string"
+            },
+            "requirement_id": {
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "scheme",
+            "version",
+            "requirement_id"
+          ],
+          "title": "StandardReference",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "line": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line"
+        },
+        "range": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LineRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cwe": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwe"
+        },
+        "sources": {
+          "anyOf": [
+            {
+              "items": {
+                "discriminator": {
+                  "mapping": {
+                    "artifact": "#/$defs/ArtifactSource",
+                    "code": "#/$defs/CodeSource",
+                    "http": "#/$defs/HTTPSource"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/ArtifactSource"
+                  },
+                  {
+                    "$ref": "#/$defs/HTTPSource"
+                  },
+                  {
+                    "$ref": "#/$defs/CodeSource"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sources"
+        },
+        "standard_refs": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/StandardReference"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Standard Refs"
+        },
+        "proposed_checks": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ProposedCheck"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Proposed Checks"
+        },
+        "severity_suggestion": {
+          "anyOf": [
+            {
+              "enum": [
+                "informational",
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Severity Suggestion"
+        },
+        "item_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Item Key"
+        },
+        "incidental": {
+          "default": false,
+          "title": "Incidental",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "title",
+        "description",
+        "file"
+      ],
+      "title": "findingParams",
+      "type": "object"
+    }
+  },
+  "http": {
+    "name": "finding",
+    "description": "Record one HTTP finding at an explicit URL and method.\n\nDescribe the observed behavior, impact and authorization context. An optional\nHTTP source selector attaches the captured outgoing request and response\nfrom the allocation's recent HTTP history. Reporting never sends or replays\nan HTTP request.\n\nArgs:\n    title: Short non-empty finding title.\n    description: Observations, impact, prerequisites and reproduction details.\n    url: Absolute HTTP/HTTPS URL of the affected endpoint.\n    method: Explicit HTTP method; no default method is inferred.\n    cwe: Optional CWE-NNN weakness identifier from the pinned catalog.\n    sources: Selected code, HTTP or artifact objects, native array or serialized once.\n        Artifact selectors use kind=artifact and namespace/name; Runtime supplies\n        the selected revision. Code selects file/start_line/end_line in the opened\n        pinned archive; workspace=true verifies current workspace coordinates.\n        HTTP selects kind=http and a local request_id without replay; at most one\n        local exchange. Retained sources preserve their original observation context.\n        A fact statement or Memory note does not independently verify its claim.\n    standard_refs: Optional exact standard identities copied from an assigned\n        Audit task. A finding linked to a standard-mapped Audit result must\n        cite every assigned entry ID.\n    proposed_checks: Optional follow-up questions, each with objective and\n        method. At most 512; these suggestions grant no execution authority.\n    item_key: Optional actual Audit member key from read_audit_task. Required\n        for task-bound batches; omit for a general incidental observation.\n    incidental: An independent discovery that does not test the assigned hypothesis.\n        Without item_key, retains Run/Audit origin only. Selecting a member adds\n        Task origin; incidental calls never associate its hypothesis.\n    severity_suggestion: Optional producer severity; leaves analyst assessment unset.\n        Saving always requires an active Project and selected exact evidence.",
+    "parameters": {
+      "$defs": {
+        "ArtifactSource": {
+          "additionalProperties": false,
+          "properties": {
+            "namespace": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Namespace",
+              "type": "string"
+            },
+            "name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            },
+            "kind": {
+              "const": "artifact",
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          "required": [
+            "namespace",
+            "name",
+            "kind"
+          ],
+          "title": "ArtifactSource",
+          "type": "object"
+        },
+        "CodeSource": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "code",
+              "title": "Kind",
+              "type": "string"
+            },
+            "file": {
+              "maxLength": 512,
+              "minLength": 1,
+              "title": "File",
+              "type": "string"
+            },
+            "start_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "Start Line",
+              "type": "integer"
+            },
+            "end_line": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "title": "End Line",
+              "type": "integer"
+            },
+            "workspace": {
+              "default": false,
+              "title": "Workspace",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "file",
+            "start_line",
+            "end_line"
+          ],
+          "title": "CodeSource",
+          "type": "object"
+        },
+        "HTTPSource": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "http",
+              "title": "Kind",
+              "type": "string"
+            },
+            "request_id": {
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Request Id",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "request_id"
+          ],
+          "title": "HTTPSource",
+          "type": "object"
+        },
+        "ProposedCheck": {
+          "additionalProperties": false,
+          "description": "One follow-up question; its method grants no execution authority.",
+          "properties": {
+            "objective": {
+              "title": "Objective",
+              "type": "string"
+            },
+            "method": {
+              "title": "Method",
+              "type": "string"
+            }
+          },
+          "required": [
+            "objective",
+            "method"
+          ],
+          "title": "ProposedCheck",
+          "type": "object"
+        },
+        "StandardReference": {
+          "additionalProperties": false,
+          "properties": {
+            "scheme": {
+              "title": "Scheme",
+              "type": "string"
+            },
+            "version": {
+              "title": "Version",
+              "type": "string"
+            },
+            "requirement_id": {
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "scheme",
+            "version",
+            "requirement_id"
+          ],
+          "title": "StandardReference",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "method": {
+          "title": "Method",
+          "type": "string"
+        },
+        "cwe": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwe"
+        },
+        "sources": {
+          "anyOf": [
+            {
+              "items": {
+                "discriminator": {
+                  "mapping": {
+                    "artifact": "#/$defs/ArtifactSource",
+                    "code": "#/$defs/CodeSource",
+                    "http": "#/$defs/HTTPSource"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/ArtifactSource"
+                  },
+                  {
+                    "$ref": "#/$defs/HTTPSource"
+                  },
+                  {
+                    "$ref": "#/$defs/CodeSource"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sources"
+        },
+        "standard_refs": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/StandardReference"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Standard Refs"
+        },
+        "proposed_checks": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ProposedCheck"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Proposed Checks"
+        },
+        "severity_suggestion": {
+          "anyOf": [
+            {
+              "enum": [
+                "informational",
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Severity Suggestion"
+        },
+        "item_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Item Key"
+        },
+        "incidental": {
+          "default": false,
+          "title": "Incidental",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "title",
+        "description",
+        "url",
+        "method"
+      ],
+      "title": "findingParams",
+      "type": "object"
+    }
+  },
+  "reader": {
+    "name": "list_findings",
+    "description": "List finding proposals from this Run's prepared collection.\n\nReturns bounded previews and exact current-Run artifact references. Use\nread_artifact with proposal.ref or evidence[].ref for full content. Source\nrefs are provenance only. Captured Project Finding metadata describes the collection snapshot;\nlisting does not confirm, deduplicate or change a finding.\n\nArgs:\n    subject_kind: Optional exact, case-sensitive subject kind identifier.\n    subject_key: Optional exact subject key; requires subject_kind.\n    limit: Maximum items to return, from 1 to 100; defaults to 20. The byte\n        limit may shorten a page. Follow next_cursor until it is null.\n    cursor: Opaque next_cursor from this collection with the same filters.\n        Omit for the first page. The limit may change between pages.\n\nReturns:\n    items with receipt identity, subject, title and description previews,\n    hypothesis presence, proposal and evidence refs, and the captured\n    Project Finding when published;\n    next_cursor is null when no matching entries remain. No matches returns\n    an empty items list. Invalid filters or cursors and oversized individual\n    items fail explicitly without dropping entries.",
+    "parameters": {
+      "properties": {
+        "subject_kind": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subject Kind"
+        },
+        "subject_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subject Key"
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit"
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cursor"
+        }
+      },
+      "title": "list_findingsParams",
+      "type": "object"
+    }
+  }
+}

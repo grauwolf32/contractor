@@ -1,0 +1,416 @@
+import { QueryClient } from "@tanstack/react-query";
+import { screen, waitFor, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+
+import type { RuntimeCredentialMetadata } from "../../api/operations";
+import type { Project } from "../../api/projects";
+import { queryKeys } from "../../api/query-keys";
+import * as build from "../../test/builders";
+import { json, page } from "../../test/responses";
+import { renderWithAPI } from "../../test/render";
+import { ProjectHTTPTargetEditor } from "./http-target-editor";
+
+const project = build.project("project_example", {
+  name: "Payment service",
+  createdAt: "2026-09-20T10:00:00Z",
+  updatedAt: "2026-09-20T10:00:00Z",
+});
+
+function credential(
+  credentialId: string,
+  kind: RuntimeCredentialMetadata["kind"] = "http-origin-bearer@1",
+): RuntimeCredentialMetadata {
+  return build.conforming("RuntimeCredentialMetadata", {
+    credentialId,
+    kind,
+    createdBy: "user_local",
+    createdAt: "2026-09-20T10:00:00Z",
+  });
+}
+
+/** The editor over a fake Server answering `handle`, with a cached first page. */
+function fixture(
+  handle: (request: Request) => Promise<Response>,
+  currentProject: Project = project,
+) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const pageSnapshot = page([credential("cached-page")]);
+  queryClient.setQueryData(
+    queryKeys.operations.runtimeCredentials.list(),
+    pageSnapshot,
+  );
+  const { user } = renderWithAPI(
+    <ProjectHTTPTargetEditor project={currentProject} />,
+    { server: (request) => handle(request), queryClient },
+  );
+  return { user, queryClient, pageSnapshot };
+}
+
+describe("Project HTTP credential picker", () => {
+  it.each(["basic", "bearer"] as const)(
+    "replays one %s credential after its committed creation response is lost",
+    async (mode) => {
+      const writes: Request[] = [];
+      const saved = new Map<string, RuntimeCredentialMetadata>();
+      let patch: { httpTarget?: Project["httpTarget"] } | undefined;
+      const { user } = fixture(async (request) => {
+        if (request.method === "POST") {
+          writes.push(request.clone());
+          const body = (await request.json()) as {
+            credentialId: string;
+            kind: RuntimeCredentialMetadata["kind"];
+          };
+          saved.set(
+            body.credentialId,
+            credential(body.credentialId, body.kind),
+          );
+          if (writes.length === 1)
+            throw new TypeError("Connection lost after credential commit");
+          return json(saved.get(body.credentialId), 201);
+        }
+        if (request.method === "PATCH") {
+          patch = (await request.json()) as typeof patch;
+          return json({ ...project, ...patch, revision: "2" }, 200, {
+            ETag: '"2"',
+          });
+        }
+        return json(page([...saved.values()]));
+      });
+      await user.click(
+        screen.getByRole("button", { name: "Configure target" }),
+      );
+      await user.type(
+        screen.getByLabelText("Application URL"),
+        "https://app.example.test/",
+      );
+      await user.selectOptions(screen.getByLabelText("Authorization"), mode);
+      async function enterSecret() {
+        if (mode === "basic") {
+          await user.type(screen.getByLabelText("Username"), "analyst");
+          await user.type(
+            screen.getByLabelText("Password · write only"),
+            "same-secret",
+          );
+        } else {
+          await user.type(
+            screen.getByLabelText("Bearer token · write only"),
+            "same-secret",
+          );
+        }
+      }
+      await enterSecret();
+      await user.click(screen.getByRole("button", { name: "Save target" }));
+      await screen.findByText(/Re-enter the same secret to retry/);
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Save target" }),
+        ).toBeEnabled(),
+      );
+      expect(
+        screen.getByLabelText(
+          mode === "basic"
+            ? "Password · write only"
+            : "Bearer token · write only",
+        ),
+      ).toHaveValue("");
+      if (mode === "basic")
+        expect(screen.getByLabelText("Username")).toHaveValue("");
+      await enterSecret();
+      await user.click(screen.getByRole("button", { name: "Save target" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(writes).toHaveLength(2);
+      expect(writes[1]!.headers.get("Idempotency-Key")).toBe(
+        writes[0]!.headers.get("Idempotency-Key"),
+      );
+      expect(await writes[1]!.json()).toEqual(await writes[0]!.json());
+      expect(saved.size).toBe(1);
+      expect(patch?.httpTarget?.credential?.credentialId).toBe(
+        [...saved.keys()][0],
+      );
+    },
+  );
+
+  it("keeps the created credential when the Project update is refused", async () => {
+    let saved: RuntimeCredentialMetadata | undefined;
+    let creates = 0;
+    let patches = 0;
+    const { user } = fixture(async (request) => {
+      if (request.method === "POST") {
+        creates++;
+        const body = (await request.json()) as { credentialId: string };
+        saved = credential(body.credentialId);
+        return json(saved, 201);
+      }
+      if (request.method === "PATCH") {
+        patches++;
+        if (patches === 1)
+          return json(
+            {
+              code: "storage_transaction_conflict",
+              message: "Try the Project update again",
+              retryable: true,
+            },
+            503,
+          );
+        const patch = (await request.json()) as {
+          httpTarget: Project["httpTarget"];
+        };
+        return json({ ...project, ...patch, revision: "2" }, 200, {
+          ETag: '"2"',
+        });
+      }
+      return json(page(saved === undefined ? [] : [saved]));
+    });
+    await user.click(screen.getByRole("button", { name: "Configure target" }));
+    await user.type(
+      screen.getByLabelText("Application URL"),
+      "https://app.example.test/",
+    );
+    await user.selectOptions(screen.getByLabelText("Authorization"), "bearer");
+    await user.type(
+      screen.getByLabelText("Bearer token · write only"),
+      "same-secret",
+    );
+    await user.click(screen.getByRole("button", { name: "Save target" }));
+    await screen.findByText(/is active, but the Project update failed/);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Save target" })).toBeEnabled(),
+    );
+    expect(screen.getByLabelText("Authorization")).toHaveValue("existing");
+    expect(screen.getByLabelText("Active HTTP origin credential")).toHaveValue(
+      saved!.credentialId,
+    );
+    await user.click(screen.getByRole("button", { name: "Save target" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(creates).toBe(1);
+    expect(patches).toBe(2);
+  });
+
+  it("selects a later-page origin credential without replacing the page cache", async () => {
+    const cursors: Array<string | null> = [];
+    let update: unknown;
+    const { user, queryClient, pageSnapshot } = fixture(async (request) => {
+      const url = new URL(request.url);
+      if (request.method === "PATCH") {
+        update = await request.json();
+        return json({ ...project, ...(update as object), revision: "2" }, 200, {
+          ETag: '"2"',
+        });
+      }
+      cursors.push(url.searchParams.get("cursor"));
+      return json(
+        url.searchParams.has("cursor")
+          ? page([credential("later-origin")])
+          : page(
+              Array.from({ length: 50 }, (_, index) =>
+                credential(`proxy-${index}`, "http-proxy-basic@1"),
+              ),
+              "page-2",
+            ),
+      );
+    });
+    await user.click(screen.getByRole("button", { name: "Configure target" }));
+    await user.selectOptions(
+      screen.getByLabelText("Authorization"),
+      "existing",
+    );
+    await screen.findByRole("option", {
+      name: "later-origin · http-origin-bearer@1",
+    });
+    expect(cursors).toEqual([null, "page-2"]);
+    expect(
+      queryClient.getQueryData(queryKeys.operations.runtimeCredentials.list()),
+    ).toEqual(pageSnapshot);
+    await user.type(
+      screen.getByLabelText("Application URL"),
+      "https://app.example.test",
+    );
+    await user.selectOptions(
+      screen.getByLabelText("Active HTTP origin credential"),
+      "later-origin",
+    );
+    await user.click(screen.getByRole("button", { name: "Save target" }));
+    await waitFor(() =>
+      expect(update).toEqual({
+        httpTarget: {
+          url: "https://app.example.test",
+          credential: {
+            credentialId: "later-origin",
+            kind: "http-origin-bearer@1",
+          },
+        },
+      }),
+    );
+  });
+
+  it("reports a later-page failure and reloads the whole inventory on retry", async () => {
+    let fail = true;
+    const cursors: Array<string | null> = [];
+    const { user } = fixture(async (request) => {
+      const cursor = new URL(request.url).searchParams.get("cursor");
+      cursors.push(cursor);
+      if (cursor !== null)
+        return fail
+          ? json(
+              {
+                code: "storage_transaction_conflict",
+                message: "Later credentials unavailable",
+                retryable: true,
+              },
+              503,
+            )
+          : json(page([credential("later-origin")]));
+      return json(page([credential("first-origin")], "page-2"));
+    });
+    await user.click(screen.getByRole("button", { name: "Configure target" }));
+    await user.selectOptions(
+      screen.getByLabelText("Authorization"),
+      "existing",
+    );
+    await screen.findByText("Later credentials unavailable");
+    expect(screen.queryByRole("option", { name: /first-origin/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Save target" })).toBeDisabled();
+    fail = false;
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await screen.findByRole("option", { name: /later-origin/ });
+    expect(screen.getByRole("option", { name: /first-origin/ })).toBeVisible();
+    expect(cursors).toEqual([null, "page-2", null, "page-2"]);
+  });
+
+  it("keeps the Project's current credential visible when it is absent from the inventory", async () => {
+    const { user } = fixture(async () => json(page([])), {
+      ...project,
+      httpTarget: {
+        url: "https://app.example.test/",
+        credential: {
+          credentialId: "current-origin",
+          kind: "http-origin-bearer@1",
+        },
+      },
+    });
+    await user.click(screen.getByRole("button", { name: "Edit target" }));
+    expect(
+      await screen.findByRole("option", { name: /current-origin/ }),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Active HTTP origin credential")).toHaveValue(
+      "current-origin",
+    );
+  });
+
+  it("masks new secrets unless the user asks to see them while typing", async () => {
+    const { user } = fixture(async () => json(page([])));
+    await user.click(screen.getByRole("button", { name: "Configure target" }));
+    await user.selectOptions(screen.getByLabelText("Authorization"), "basic");
+    const password = screen.getByLabelText("Password · write only");
+    expect(password).toHaveAttribute("type", "password");
+    expect(password).toHaveAttribute("autocomplete", "new-password");
+    const reveal = screen.getByRole("checkbox", {
+      name: "Show secret while entering",
+    });
+    expect(reveal).not.toBeChecked();
+    await user.click(reveal);
+    expect(password).toHaveAttribute("type", "text");
+    await user.selectOptions(screen.getByLabelText("Authorization"), "bearer");
+    expect(screen.getByLabelText("Bearer token · write only")).toHaveAttribute(
+      "type",
+      "text",
+    );
+  });
+
+  it("asks before removing the target and removes the one it showed", async () => {
+    const targeted: Project = {
+      ...project,
+      revision: "4",
+      httpTarget: {
+        url: "https://app.example.test/",
+        credential: {
+          credentialId: "current-origin",
+          kind: "http-origin-bearer@1",
+        },
+      },
+    };
+    const writes: Request[] = [];
+    const { user } = fixture(async (request) => {
+      if (request.method === "PATCH") {
+        writes.push(request.clone());
+        const updated: Project = { ...project, revision: "5" };
+        return json(updated, 200, { ETag: '"5"' });
+      }
+      return json(page([]));
+    }, targeted);
+    expect(screen.getByText("current-origin")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Remove target" }));
+    let dialog = screen.getByRole("alertdialog", {
+      name: "Remove the live target?",
+    });
+    expect(dialog).toHaveTextContent("https://app.example.test/");
+    expect(
+      within(dialog).getByRole("button", { name: "Cancel" }),
+    ).toHaveFocus();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(writes).toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: "Remove target" }));
+    dialog = screen.getByRole("alertdialog", {
+      name: "Remove the live target?",
+    });
+    await user.click(
+      within(dialog).getByRole("button", { name: "Remove target" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.headers.get("If-Match")).toBe('"4"');
+    await expect(writes[0]?.json()).resolves.toEqual({ httpTarget: null });
+  });
+
+  it("keeps a refused removal open with the reason and does not retry it", async () => {
+    const targeted: Project = {
+      ...project,
+      httpTarget: { url: "https://app.example.test/" },
+    };
+    const writes: Request[] = [];
+    const { user } = fixture(async (request) => {
+      if (request.method === "PATCH") {
+        writes.push(request);
+        return json(
+          {
+            code: "precondition_failed",
+            message: "resource revision precondition failed",
+            retryable: false,
+          },
+          412,
+        );
+      }
+      return json(page([]));
+    }, targeted);
+    await user.click(screen.getByRole("button", { name: "Remove target" }));
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Remove the live target?",
+    });
+    await user.click(
+      within(dialog).getByRole("button", { name: "Remove target" }),
+    );
+    expect(
+      await within(dialog).findByText("resource revision precondition failed"),
+    ).toBeVisible();
+    expect(writes).toHaveLength(1);
+  });
+
+  it("rejects cyclic pagination instead of treating the first page as complete", async () => {
+    const reads = vi.fn(async () =>
+      json(page([credential("first-origin")], "repeated")),
+    );
+    const { user } = fixture(reads);
+    await user.click(screen.getByRole("button", { name: "Configure target" }));
+    await user.selectOptions(
+      screen.getByLabelText("Authorization"),
+      "existing",
+    );
+    await screen.findByText("Server returned an invalid page continuation");
+    expect(reads).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: "Save target" })).toBeDisabled();
+  });
+});

@@ -1,0 +1,75 @@
+schema_version: "1.0"
+id: V371-013
+title: "Read Eval JSON documents with strictjson.DecodeBounded"
+milestone: hub-audit-defects-2026-10
+epic: evals
+kind: chore
+priority: P3
+status: completed
+implementation_commit: "62ce6daee1300e1fad28789e260a82974159c0e8"
+depends_on: []
+languages: [go]
+goal: "The Eval domain uses the one bounded strict JSON walker instead of its own, with unchanged verdicts and error codes."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (group G5); recommended as a follow-up by V370-014; verified on a07f5e9"
+  specification: "docs/spec/evals/format.md#EVF-R15"
+  finding: >-
+    evaldomain.StrictJSON (internal/evaldomain/json.go:24-99) is a fifth
+    bounded token walker: a 1 MiB document, depth 32, duplicate keys,
+    trailing data, lone surrogate escapes and finite numbers kept as
+    json.Number, mapped to eval_limit_exceeded and eval_invalid. V370-014
+    replaced the other four walkers with strictjson.DecodeBounded
+    (internal/strictjson/bounded.go:43) and left this one, noting that it
+    converts the same way with MaxNodes set to MaxDocumentBytes. Predates
+    the shallow history (boundary 6349621).
+  siblings: >-
+    Callers: evaldomain/mutation.go:43, evaldomain/schema.go:75,
+    evalstore/submissions.go:195 and 233, evalservice/native_checks.go:56.
+    The four walkers V370-014 converted (planner/scan, auditdomain,
+    auditpriority, scanplan) stay as they are.
+  decision: >-
+    Guarantee: StrictJSON keeps its size, UTF-8, json.Valid and
+    ValidUnicodeEscapes prechecks, so an oversized document is
+    eval_limit_exceeded and invalid JSON is eval_invalid even when it is also
+    too deep, and then reads the value with strictjson.DecodeBounded.
+    Bounds: MaxDepth+1, because the Eval walker put the top-level value at
+    depth 0 and DecodeBounded puts it at depth 1 (33 levels of values stay
+    accepted, 34 stay eval_limit_exceeded); MaxNodes is MaxDocumentBytes,
+    which never binds because every value takes at least one byte of its own;
+    no string bound and no name nodes. The number function keeps the
+    json.Number literal and rejects what json.Number.Float64 cannot represent
+    finitely, as the old walker did. ErrBounds maps to eval_limit_exceeded
+    and every other error to eval_invalid; DecodeBounded checks depth,
+    duplicates and numbers in document order as the old walker did, so the
+    first violation decides the code. Evidence: TestStrictJSONVerdictsAndCodes,
+    TestStrictJSONDocumentSizeBound and TestStrictJSONKeepsNumberLiterals
+    (internal/evaldomain/json_test.go) passed on the old walker before the
+    change and pass on DecodeBounded; dropping the +1 fails the three
+    deepest-value cases.
+scope:
+  in:
+    - "StrictJSON delegates to DecodeBounded with a number function that keeps finite json.Number values, and maps size and ErrBounds to eval_limit_exceeded and every other failure to eval_invalid."
+  out:
+    - "Eval verdicts, limits and error codes."
+acceptance_criteria:
+  - id: A1
+    text: "internal/evaldomain contains no JSON token walker of its own."
+  - id: A2
+    text: "The evaldomain conformance tests (depth, duplicate keys, trailing data, 1e999 and the fixtures) pass unchanged."
+tests:
+  - command: "go test ./internal/evaldomain ./internal/evalstore ./internal/evalservice"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+verification:
+  date: "2026-10-23"
+  revision: "4925c9c78b9457bccca516060e789cb4bc939c25"
+  environment: >-
+    Integration branch integration/quick-wins-2026-10-23 on macOS arm64 with
+    Go 1.26.9, Node 24.20.0, pnpm 11.24.0, disposable PostgreSQL 17.11
+    (CONTRACTOR_TEST_DATABASE_URL set) and TMPDIR under /private/tmp.
+  merged_run:
+    - "make -k verify: lint after the dependency graph refresh, ui-verify (2,260 UI tests), test-config and build passed; make lint passed in full on the rerun."
+    - "make test-go: every package passed except internal/app TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder, which fails the same way on main because macOS PostgreSQL does not support tcp_user_timeout."
+    - "make test-runtime: the 102 failures it reports (Podman, Darwin process limits, sandbox) fail identically on main; test_scan_toolset::test_capabilities_check_each_binary_independently[scan_nuclei] is timing-dependent (V371-022 class) and passed on rerun."
+    - "make test-wire-cross-language (243 fixtures, 1,135 tests) and make verify-public-api passed."

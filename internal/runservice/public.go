@@ -1,0 +1,366 @@
+package runservice
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sort"
+
+	"github.com/grauwolf32/contractor/internal/agentskills"
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
+	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/engagement"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+)
+
+// CreatePublic preserves the public create/replay contract while keeping all
+// mutable resolution behind a replay-first boundary. A committed response-loss
+// replay therefore does not need the original Workflow credential, Runtime
+// label binding, Skill binding, or Project target to remain current.
+func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (CreateResult, error) {
+	normalized, err := normalizePublicCreate(params)
+	if err != nil {
+		return CreateResult{}, err
+	}
+	stored, replayed, err := s.runs.LookupRunIdempotency(
+		ctx, normalized.OwnerID, normalized.IdempotencyKey, normalized.RequestDigest,
+	)
+	if err != nil {
+		return CreateResult{}, err
+	}
+	if replayed {
+		return CreateResult{Run: stored, Replayed: true}, nil
+	}
+	runID, err := normalized.NewRunID()
+	if err != nil {
+		return CreateResult{}, fmt.Errorf("generate WorkflowRun identity: %w", err)
+	}
+
+	created := false
+	createPinned := func() error {
+		return s.credentialGuard.WithRunCreation(ctx, func() error {
+			var workflow resolved.ResolvedWorkflow
+			var resolveErr error
+			if normalized.PinnedWorkflow != nil {
+				workflow, resolveErr = s.workflows.ResolvePinnedRunWorkflow(ctx, *normalized.PinnedWorkflow, s.llmCredentials)
+			} else {
+				workflow, resolveErr = s.workflows.ResolveRunWorkflow(ctx, normalized.Workflow, s.llmCredentials)
+			}
+			if resolveErr != nil {
+				// A credential lookup outage keeps its cause so the caller can
+				// answer the retryable recovery or storage outcome.
+				if errors.Is(resolveErr, resolved.ErrCredentialLookup) || errors.Is(resolveErr, contentdigest.ErrPinnedSelectionChanged) {
+					return resolveErr
+				}
+				return fmt.Errorf("%w: invalid Workflow selection: %v", ErrInvalid, resolveErr)
+			}
+			if err := contentdigest.CheckPinnedSelection(normalized.ExpectedWorkflowSHA256, workflow); err != nil {
+				return err
+			}
+			if validationErr := validateWorkflowInputs(workflow, normalized.Parameters, normalized.Inputs); validationErr != nil {
+				return validationErr
+			}
+			engagementSlot, slotErr := engagement.InputSlot(workflow.Inputs)
+			if slotErr != nil {
+				return fmt.Errorf("%w: engagement input declaration is invalid", ErrInvalid)
+			}
+			_, hasEngagement := normalized.Inputs[engagementSlot]
+			skillRefs, resolveErr := resolved.WorkflowSkillRefs(workflow)
+			if resolveErr != nil {
+				return fmt.Errorf("%w: invalid Workflow Skill selection: %v", ErrInvalid, resolveErr)
+			}
+			if len(skillRefs) > 0 && !s.skillInitializationAvailable {
+				return fmt.Errorf("%w: Run Skill initialization is unavailable", ErrNotConfigured)
+			}
+			// The stored snapshot is the bounded encoding the Scheduler
+			// measures again; an oversized one is rejected before acceptance
+			// (CAT-R76).
+			workflowSnapshot, encodeErr := resolved.EncodeResolvedWorkflowSnapshot(workflow)
+			if errors.Is(encodeErr, resolved.ErrWorkflowSnapshotTooLarge) {
+				return fmt.Errorf("%w: %v", ErrInvalid, encodeErr)
+			}
+			if encodeErr != nil {
+				return encodeErr
+			}
+
+			var projectTarget *runtimesettings.HTTPOriginTargetRef
+			if normalized.ProjectID != nil {
+				project, projectErr := s.projects.Get(ctx, normalized.OwnerID, *normalized.ProjectID)
+				if projectErr != nil {
+					return projectErr
+				}
+				if project.Lifecycle == projectstore.LifecycleDeleting {
+					return projectstore.ErrDeleting
+				}
+				if !hasEngagement {
+					projectTarget = project.HTTPTarget.Clone()
+				}
+				if projectTarget != nil && projectTarget.Credential != nil {
+					// The target was authorized when it was attached; pinning it
+					// re-checks that the requesting owner may still use it.
+					if credentialErr := s.runtimeCredentials.ValidateRuntimeCredentialUse(
+						ctx, credentials.RuntimeCredentialUser{
+							UserID: normalized.OwnerID, Operations: normalized.OperationsPrincipal,
+						},
+						projectTarget.Credential.CredentialID, string(projectTarget.Credential.Kind),
+					); credentialErr != nil {
+						return credentialErr
+					}
+				}
+			}
+
+			return s.publicTransaction(ctx, func(runs PublicRunWriter, artifactService *artifacts.Service, credentialValidator RuntimeCredentialValidator) error {
+				// The PostgreSQL unit of work may replay this entire database-only
+				// callback with a fresh snapshot after a definite transaction abort.
+				stored, created, err = runstore.WorkflowRun{}, false, nil
+				catalog, catalogErr := agentskills.NewCatalog(artifactService)
+				if catalogErr != nil {
+					return catalogErr
+				}
+				runtimeSnapshot, pinErr := runs.PinRuntimeLabels(ctx, normalized.RuntimeLabels, resolved.WorkflowToolWorkersOnly(workflow))
+				if pinErr != nil {
+					return pinErr
+				}
+				if err := contentdigest.CheckPinnedSelection(normalized.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
+					return err
+				}
+				selectedSkills := []agentskills.RunSkillSnapshot{}
+				if len(skillRefs) > 0 {
+					selectedSkills, catalogErr = catalog.SelectRunSources(ctx, normalized.OwnerID, skillRefs)
+					if catalogErr != nil {
+						return catalogErr
+					}
+					if catalogErr = agentskills.ValidateSelectedLimits(
+						selectedSkills, resolved.WorkflowSkillSets(workflow),
+					); catalogErr != nil {
+						return catalogErr
+					}
+				}
+				if err := contentdigest.CheckPinnedSelection(normalized.ExpectedSkillsSHA256, selectedSkills); err != nil {
+					return err
+				}
+				policy, policyErr := selectRunEngagement(ctx, artifactService, credentialValidator, workflow, normalized, engagementSlot)
+				if policyErr != nil {
+					return policyErr
+				}
+				credentialIDs := []string{}
+				if policy != nil {
+					credentialIDs = engagement.CredentialIDs(policy.Document)
+				}
+				stored, created, err = runs.CreateRunIdempotent(ctx, runstore.CreateRunIdempotentParams{
+					CreateRunParams: runstore.CreateRunParams{
+						RequiredPlacementLabels: append([]string{}, normalized.requiredPlacementLabels...),
+						RunID:                   runID, OwnerID: normalized.OwnerID, ProjectID: normalized.ProjectID,
+						WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
+						WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
+						Parameters: clone.Map(normalized.Parameters), MetadataLabels: normalized.MetadataLabels,
+						RuntimeConfig: runtimeSnapshot, ProjectHTTPTarget: projectTarget,
+						EngagementCredentialIDs: credentialIDs,
+						LaneClass:               resolved.EntryLaneClass(workflow),
+					},
+					IdempotencyKey: normalized.IdempotencyKey, RequestDigest: normalized.RequestDigest,
+				})
+				if err != nil || !created {
+					return err
+				}
+				if len(selectedSkills) > 0 {
+					if err := runs.SetRunSkillSelections(ctx, runID, selectedSkills); err != nil {
+						return err
+					}
+					if err := catalog.RequireRunSources(ctx, normalized.OwnerID, selectedSkills); err != nil {
+						return err
+					}
+				}
+				projectID := ""
+				if normalized.ProjectID != nil {
+					projectID = *normalized.ProjectID
+				}
+				var budget *contracts.MaterialBudget
+				if workflowHasMaterialSets(workflow) {
+					budget = &contracts.MaterialBudget{}
+				}
+				inputs := clone.Map(normalized.Inputs)
+				expected := map[string]contracts.ExactArtifact{}
+				excluded := map[string]bool{}
+				if policy != nil {
+					inputs[engagementSlot] = policy.Artifact.Ref
+					expected[engagementSlot] = policy.Artifact
+					excluded[engagementSlot] = true
+				}
+				checked, err := checkWorkflowInputs(ctx, artifactService, workflow, inputs, artifacts.MaterialAuthority{OwnerID: normalized.OwnerID, ProjectID: projectID}, func(slot string) (artifacts.Scope, error) {
+					return inputSourceScope(normalized.OwnerID, normalized.ProjectID, workflow.Inputs[slot].SourceScope)
+				}, excluded, expected, budget)
+				if err != nil {
+					return err
+				}
+				prepared, err := artifactService.MaterializeInputs(ctx, runID, checked)
+				if err != nil {
+					return err
+				}
+				for slot, input := range prepared.Inputs {
+					if input.MediaType == engagementcontract.MediaType && slot != engagementSlot {
+						return fmt.Errorf("%w: engagement requires an explicit typed input slot", ErrInvalid)
+					}
+					if workflow.Inputs[slot].SourceScope == "user" && !scan.ValidNucleiRulepackMetadata(input.MediaType, input.SizeBytes) {
+						return fmt.Errorf("%w: rulepack input exceeds its byte limit", ErrInvalid)
+					}
+				}
+
+				if len(selectedSkills) == 0 {
+					stored, err = runs.TransitionRun(
+						ctx, runID, runstore.RunInitializing, runstore.RunPending,
+						runstore.Reason{Code: "initialized"},
+					)
+					return err
+				}
+				stored.SkillSnapshot = append([]agentskills.RunSkillSnapshot(nil), selectedSkills...)
+				stored.StateReason = runstore.Reason{Code: runstore.SkillInitializationPendingReason}
+				return nil
+			})
+		})
+	}
+
+	err = createPinned()
+	if err != nil {
+		if ctx.Err() != nil || (!errors.Is(err, runstore.ErrConflict) && !persistencepostgres.IsTransactionConflict(err)) {
+			return CreateResult{}, err
+		}
+		var recovered bool
+		stored, recovered, _ = s.runs.LookupRunIdempotency(
+			ctx, normalized.OwnerID, normalized.IdempotencyKey, normalized.RequestDigest,
+		)
+		if !recovered {
+			return CreateResult{}, err
+		}
+		created = false
+	}
+	return CreateResult{Run: stored, Created: created, Replayed: !created}, nil
+}
+
+func normalizePublicCreate(params PublicCreateParams) (PublicCreateParams, error) {
+	if params.OwnerID == "" || params.Workflow == "" || params.IdempotencyKey == "" ||
+		params.RequestDigest == "" || params.NewRunID == nil {
+		return PublicCreateParams{}, fmt.Errorf("%w: required public Run field is missing", ErrInvalid)
+	}
+	if params.PinnedWorkflow != nil {
+		if !contentdigest.Valid(params.ExpectedWorkflowSHA256) || params.Workflow != params.PinnedWorkflow.Ref.Name+"@"+params.PinnedWorkflow.Ref.Version {
+			return PublicCreateParams{}, ErrInvalid
+		}
+		pinned := params.PinnedWorkflow.Clone()
+		params.PinnedWorkflow = &pinned
+	}
+	labels, err := runtimeconfig.NormalizeLabels(params.RuntimeLabels)
+	if err != nil {
+		return PublicCreateParams{}, err
+	}
+	metadata, err := runstore.NormalizeRunMetadataLabels(params.MetadataLabels)
+	if err != nil {
+		return PublicCreateParams{}, err
+	}
+	params.RuntimeLabels = labels
+	params.requiredPlacementLabels, err = metadata.PlacementRequirements()
+	if err != nil {
+		return PublicCreateParams{}, fmt.Errorf("%w: invalid required placement labels: %v", ErrInvalid, err)
+	}
+	params.MetadataLabels = metadata
+	params.Parameters = clone.Map(params.Parameters)
+	params.Inputs = contracts.CloneArtifactRefs(params.Inputs)
+	if params.ProjectID != nil {
+		projectID := *params.ProjectID
+		if projectID == "" {
+			return PublicCreateParams{}, fmt.Errorf("%w: Project identity is empty", ErrInvalid)
+		}
+		params.ProjectID = &projectID
+	}
+	return params, nil
+}
+
+func validateWorkflowInputs(
+	workflow resolved.ResolvedWorkflow,
+	parameters map[string]string,
+	inputs map[string]contracts.ArtifactRef,
+) error {
+	for name := range parameters {
+		if _, ok := workflow.Parameters[name]; !ok {
+			return fmt.Errorf("%w: unknown parameter %q", ErrInvalid, name)
+		}
+	}
+	for name, slot := range workflow.Parameters {
+		if _, ok := parameters[name]; slot.Required && !ok {
+			return fmt.Errorf("%w: required parameter %q is missing", ErrInvalid, name)
+		}
+	}
+	for _, stage := range workflow.Stages {
+		if stage.ScanPlan != nil {
+			continue // The scan Planner owns its generated per-job parameters.
+		}
+		for _, agent := range stage.Agents {
+			if !agent.Template.IsToolWorker() || agent.Template.Execution == nil {
+				continue
+			}
+			arguments := map[string]any{}
+			for name, argument := range agent.Template.Execution.Arguments {
+				switch argument.Source {
+				case "parameter":
+					value, err := argument.ResolveParameter(parameters)
+					if err != nil {
+						return fmt.Errorf("%w: invalid bound tool parameter", ErrInvalid)
+					}
+					arguments[name] = value
+				case "literal":
+					arguments[name] = argument.Value
+				}
+			}
+			if agent.Template.Execution.Tool == "scan_nuclei" {
+				if err := scan.ValidateNucleiArguments(arguments); err != nil {
+					return fmt.Errorf("%w: invalid Nuclei inputs", ErrInvalid)
+				}
+			}
+		}
+	}
+	for name, ref := range inputs {
+		if _, ok := workflow.Inputs[name]; !ok {
+			return fmt.Errorf("%w: unknown input artifact %q", ErrInvalid, name)
+		}
+		if err := ref.Validate(); err != nil {
+			return fmt.Errorf("%w: invalid input artifact %q", ErrInvalid, name)
+		}
+	}
+	for name, slot := range workflow.Inputs {
+		if _, ok := inputs[name]; slot.Required && !ok {
+			return fmt.Errorf("%w: required input artifact %q is missing", ErrInvalid, name)
+		}
+	}
+	return nil
+}
+
+// inputSourceScope derives scope from authenticated owner and validated catalog
+// authority. Only the narrow rulepack override changes a Project input source.
+func inputSourceScope(ownerID string, projectID *string, override string) (artifacts.Scope, error) {
+	if override != "" && override != "user" {
+		return artifacts.Scope{}, ErrInvalid
+	}
+	if projectID == nil || override == "user" {
+		return artifacts.UserScope(ownerID)
+	}
+	return artifacts.ProjectScope(*projectID)
+}
+
+func sortedInputSlots[T any](source map[string]T) []string {
+	result := make([]string, 0, len(source))
+	for slot := range source {
+		result = append(result, slot)
+	}
+	sort.Strings(result)
+	return result
+}

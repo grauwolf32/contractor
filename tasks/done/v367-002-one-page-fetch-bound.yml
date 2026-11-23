@@ -1,0 +1,84 @@
+schema_version: "1.0"
+id: V367-002
+title: "Accept the documented limit=200 on every paged public list"
+milestone: hub-audit-2026-10
+epic: api-contracts
+kind: defect
+introduced_by: V23-001
+priority: P1
+status: completed
+implementation_commit: 11a9cc279055b013b7eec95c637f05fcfc7637b7
+depends_on: []
+languages: [go]
+goal: "Every paged public list accepts limit=200, and the page size and the one-extra-row fetch are defined once."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq), public API G1 / F1"
+  specification:
+    - docs/spec/api/public-api.md
+  finding: >-
+    internal/httpapi/public/pagination.go:55 accepts limit 1..200 and handlers
+    pass limit+1 to stores that allow at most 200, so a documented limit=200
+    returns 400 invalid_request on 8 operations: GET /v1/projects
+    (project_handlers.go:89 -> projectstore/store.go:328), Audit items
+    (audit_handlers.go:431 -> auditstore/validation.go:178), Audit coverage
+    (audit_handlers.go:527 -> auditstore/read.go:501), Run and Audit
+    finding proposals (finding_handlers.go:92 -> findingintake/postgres.go:364),
+    Operations runtime-configs and runtime-labels
+    (runtime_configuration_handlers.go:55, 165 -> runtimeconfig/repository.go:152, 271)
+    and runtime-credentials (runtime_configuration_handlers.go:348 ->
+    credentials/runtime_repository.go:106). The CLI reaches it
+    (contractor project list --limit 200). 592271f5 fixed only GET /v1/audits;
+    fakes ignore Limit, so no unit test sees it. Other introducing commits:
+    c7632c22 (V25-004), 610cab5f (V25-010).
+  decision: >-
+    The shared bound lives in a new foundation package, internal/pagelimit
+    (MaxRows 200, MaxFetchRows 201, FetchRows for the look-ahead read,
+    ValidPage, ValidFetch), because the stores sit in the platform,
+    execution and product layers and the handlers and CLI above them; the
+    runstore.MaxRunPageRows precedent and the other per-store copies
+    (projectstore.MaxPageSize, auditstore.MaxPageSize,
+    auditservice.MaxFindingPageSize, credentials, runtimeconfig,
+    findingintake, artifacts, run queue, Runtime Agent principals) were
+    removed rather than kept as aliases. A2 is enforced by a Go source test,
+    TestNoOtherPublicPageBound in internal/pagelimit (make test-go), that
+    rejects a limit compared with, assigned or declared as a literal 200/201
+    outside the package; make lint (go vet, staticcheck) proves no caller of a
+    removed constant remains. Siblings found beyond the finding: the CLI
+    --limit check had two copies (validatedLimit, listWorkflowsParams) and
+    now uses pagelimit; ReadRunDeletionGates and DeletableRuns, which only
+    receive the trimmed page, are bounded by MaxRows instead of 201; the
+    internal credential recovery batch got its own constant instead of
+    reusing the page constant; the Audit next-round inbox scan and Audit
+    import loop read pages of pagelimit.MaxRows. Ruled out: Managed Eval
+    lists (own bound LIM-EVM-15, no look-ahead read), allocation history
+    (own bound LIM-OPS-28), Runtime code-analysis tool pages (LIM-CAN-8), and
+    internal batch sizes that are chunked (MaxAuditReceiptBatchSize,
+    MaxReconcileRows). The A1 test calls every operation that takes the
+    OpenAPI Limit parameter (36) and fails when a new one has no request
+    path; Projects, Runs, Artifacts, Audits, finding intake and Runtime Agent
+    principals are the real services, and LLM credentials, Runtime
+    credentials and RuntimeConfigs/labels list through their real
+    repositories behind thin adapters because their services pass the limit
+    through unchanged. The rule is stated in the spec as API-R67 and
+    LIM-API-18. auditstore.PostgresStore.ListEvents has no production caller
+    (only tests); it was left in place and is outside this task.
+scope:
+  in:
+    - "One exported page bound in a low layer (public page maximum 200, store fetch maximum 201) used by the handlers and by every store behind a public paged list; runstore.MaxRunPageRows is the existing precedent."
+    - "Every store listed in the finding and every other store whose list validation rejects limit+1 for a public page (search all List*/page validations)."
+    - "Fakes behind public list handlers enforce the same bound as the real store."
+  out:
+    - "Default page sizes, cursor format and ordering."
+    - "UI page sizes (50 and 100 stay as they are)."
+acceptance_criteria:
+  - id: A1
+    text: "A PostgreSQL test calls each paged public list operation with limit=200 on the real stores and gets 200 or fewer rows and no error; limit=201 is rejected with 400 by the handler."
+  - id: A2
+    text: "No store validation in the repository compares a public page limit with a literal 200 or 201; they use the shared bound."
+  - id: A3
+    text: "A handler test with fakes fails if a fake accepts more rows than the shared bound."
+tests:
+  - command: make lint
+    covers: [A2]
+  - command: "go test -tags integration ./internal/httpapi/public ./internal/projectstore ./internal/auditstore ./internal/findingintake ./internal/runtimeconfig ./internal/credentials"
+    covers: [A1, A3]

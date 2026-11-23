@@ -1,0 +1,142 @@
+schema_version: '1.0'
+id: V418-012
+title: Patch Runtime CA trust and OpenTelemetry with an explicit tested ADK override
+milestone: adk-213-upgrade-2026-10
+epic: execution-core
+kind: defect
+introduced_by: MVP-012
+priority: P1
+status: completed
+depends_on:
+- V418-002
+- V418-004
+languages:
+- python
+- markdown
+goal: Use fixed certifi and a compatible fixed OTel API/SDK with ADK2.13 through the ordinary reproducible
+  lock, then perform only the targeted checks authorized by the user.
+context:
+  severity: high
+  finding: The first V418-007 live advisory gate on871d704a reports certifi2026.7.22/PYSEC-2026-4320 and
+    opentelemetry-api1.42.1/CVE-2026-114603. Both versions already existed before V418002. ADK2.13 declares
+    API/SDK>=1.39,<=1.44, while patched API/SDK1.45.1 is outside that declared cap. The separate hash-pinned
+    scanner requirements also contain the old certifi.
+  provenance: MVP-001/e30a34f266f1972cb16b9165fc1b8ae71af4072c introduced the old certifi lock; MVP-012/a565c2426b7ca6019de7735f4567ab3b9260c370
+    introduced ADK/OTel dependencies; V8-011/9b684356774c679cce8762f7bef757744a4d79d0 owns custom OTLP/proto
+    integration. These are existing upstream closure advisories, not vulnerabilities introduced by V418002.
+  authority: 'User believes fixedOTel remains compatible and requests testing it. User explicitly directs:
+    «Только полный прогон не делай после этого обновления». Use a documented exact uv resolver override,
+    no advisory suppression, no full Runtime/release/globalE2E rerun after this patch.'
+  advisories:
+  - https://github.com/certifi/python-certifi/security/advisories/GHSA-6q48-6c7w-9gw2
+  - https://osv.dev/vulnerability/PYSEC-2026-4320
+  - https://github.com/open-telemetry/opentelemetry-python/security/advisories/GHSA-xcq7-p3pf-p88h
+  specification:
+  - docs/spec/execution/runtime-agent.md
+  - docs/spec/platform/observability.md#OBS-R24
+  - docs/spec/platform/security.md
+  siblings: Runtime lock/constraint, SDK/API coupling, independent hashed audit-tool CA bundle, dependency
+    smoke/ADK native execution, custom OTLP wire/redaction, private mTLS. Go/Node CA stores are independent;
+    no Go SDK pin or Scheduler change.
+  evidence: tasks/evidence/v418-patched-dependency-acceptance.json
+scope:
+  in:
+  - Target certifi>=2026.10.19 and exact OTel API/SDK1.45.1; record a narrow explicit uv override of only
+    the ADK declared upper bound.
+  - Retain direct opentelemetry-proto1.42.1 and the public1.41.1 telemetry corpus because neither requires
+    this advisory fix; validate existing custom exporter behavior.
+  - Update scanner certifi version and both official distribution hashes; preserve its otherwise unchanged
+    hashed closure.
+  - Meaningful CA-bundle and bounded-tracestate regressions, focused actual ADK/Gateway/telemetry/TLS
+    checks and fresh live advisory evidence.
+  out:
+  - Full Runtime5086, complete release graph or globalE2E reruns after this update, per explicit user
+    instruction.
+  - Changing ADK2.13, configured models, Scheduler logic, enabling native exporters/compaction/Consult,
+    hidden wheel overlays or ignored advisories.
+acceptance_criteria:
+- id: A1
+  text: Fresh uv sync --locked selects ADK2.13.0, patchedcertifi and matched OTelAPI/SDK1.45.1; only the
+    two documented ADK metadata upper-bound conflicts are deliberately overridden. No other dependency
+    mismatch is hidden.
+- id: A2
+  text: The compromised emSign ECC Root CA-G3 is absent from the installed bundle; oversized tracestate
+    is refused before vulnerable parsing or raw-content logging. Both regressions fail on old dependencies
+    without an expensive timing assertion.
+- id: A3
+  text: Focused real ADK main/finalizer/summarizer/tool and Gateway/OTLP/mTLS cases preserve schema, budgets,
+    cancellation, known usage, strict content policy and absence of optional provider SDKs.
+- id: A4
+  text: Runtime live advisory gate detects its known-vulnerable canary then reports no advisories for
+    the new production lock. Scanner trust bundle is also patched with valid pinned hashes.
+- id: A5
+  text: Exact versions, constraint override, known metadata mismatch, source/lock/test hashes and user-limited
+    verification are recorded; prior broad tests remain historical for their old lock and are never relabelled
+    as a full run on the patched closure.
+tests:
+- command: cd runtime && uv sync --locked
+  covers:
+  - A1
+- command: cd runtime && uv run --locked pytest -W error tests/test_dependency_smoke.py tests/test_adk_runtime.py
+    tests/test_instrumentation.py tests/test_openai_gateway_llm.py tests/test_telemetry_content.py tests/test_shared_genai_telemetry.py
+    tests/test_adk_gateway_conformance.py tests/test_sensitive_output_tools.py tests/test_result_finalizer.py
+    tests/test_worker_summarizer.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A5
+- command: make test-control-integration
+  covers:
+  - A3
+- command: go test -count=1 ./internal/telemetry/...
+  covers:
+  - A3
+- command: runtime/.venv/bin/python -m unittest discover -s scripts -p 'test_audit_runtime_dependencies.py'
+  covers:
+  - A4
+  - A5
+- command: make test-runtime-dependencies-audit
+  covers:
+  - A1
+  - A4
+- command: cd runtime && uv run --locked ruff check tests/test_dependency_smoke.py && uv run --locked
+    ruff format --check tests/test_dependency_smoke.py
+  covers:
+  - A2
+  - A5
+- command: runtime/.venv/bin/python scripts/check_tasks.py
+  covers:
+  - A5
+failure_outcomes:
+- operation: Patched locked dependency resolution and focused verification
+  permanent: Unexpected resolver/metadata conflict or compatibility regression blocks completion; no blanket
+    ignore or unsupported mixed API/SDK.
+  retryable: Network outage is recorded as unavailable, never a clean advisory result; preserve the first
+    failure before bounded setup repair.
+  ambiguous: No production storage or external business effects; keep exact package hashes and original
+    test evidence.
+  cancelled: Join fixture/server/client/scanner ownership before cleanup.
+  timeout: Finite tool/test safety budgets; no elapsed-time pass assertions or repeated full run.
+cardinality:
+- collection: Resolver exceptions and security dependency changes
+  expected: Exactly API/SDK1.45.1 overrides; one certifi floor and scanner hash block.
+  maximum: Two explicit metadata overrides; no unrelated global dependency upgrade.
+  bound: Targeted uv resolution, stable existing fixture sizes, no optional provider/native exporter installation.
+lifecycle:
+- entity: Fixed dependency environments and scanner fixtures
+  delete: The owned temporary scanner/env/test processes are cleaned after joins.
+  cascade: No new persisted entity or protocol operation.
+  retention: Version/checksum/safe command outcomes retained; old broad records keep their original source/lock
+    identities.
+verification:
+  source: Base275a708197626b2b07d122f3a9b5d3d25b37b9c0 plus exact seven-file patch; all6035captured source
+    files unchanged after targeted acceptance. Final lockfeb5a55a9097fc6224384a99b7c506467196ab87435ba3a83ac0a230023bb027.
+  targeted: Fresh locked Linux smoke5 and listed10-module profile323PASS0skip/fail; native11leaves/13recordsPASS0skip;
+    telemetry121passrecords+1explicitoptionalCollector skip; scanner6testsPASS; live advisory canary then
+    production0advisories; Ruff/format/spec/trackerPASS.
+  controls: Both CA fingerprint and public oversized-tracestate regressions fail on old dependencies,
+    without timing assertions or expensive regex.
+  limit: Per explicit user direction no full Runtime, release graph or global E2E rerun after the patch.
+    Earlier broad evidence remains attributed to the old lock.
+implementation_commit: d3f10fcb8c6016ae18bbb885686a3a7b1a4fe63c

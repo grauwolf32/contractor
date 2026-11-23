@@ -1,0 +1,185 @@
+schema_version: "1.0"
+id: V421-003
+title: Expose retained Runtime adapter failures in owner-visible attempt diagnostics
+milestone: data-model-consumers-2026-10
+epic: operations
+kind: feature
+priority: P2
+status: completed
+depends_on: []
+languages: [go, typescript, yaml, markdown]
+goal: >-
+  Let a Run owner inspect the already collected Runtime adapter counters,
+  delivery failures and shutdown facts for one Stage attempt, so failed flushes
+  and discarded spans no longer disappear into retained PostgreSQL JSON.
+context:
+  evidence: tasks/evidence/v421-003-runtime-diagnostics.json
+  review: >-
+    User-requested data-model consumer review on 2026-10-27, finding 3. The user
+    accepted connecting these existing facts to diagnostics. This task adds a
+    real reader; collection and successful execution remain separate concerns.
+  specification:
+    - docs/spec/platform/observability.md
+    - docs/spec/execution/runs.md
+    - docs/spec/api/public-api.md
+    - docs/spec/platform/limits.md
+    - docs/spec/platform/errors.md
+    - docs/spec/platform/failure-model.md
+    - docs/spec/platform/lifecycle.md
+    - docs/spec/ui/ui.md
+    - docs/design/ui/README.md
+  finding: >-
+    runtime/src/contractor_runtime/adapters/host.py:180-199 produces operations,
+    failedOperations, flushAttempted, flushSucceeded, lastErrorCode and
+    droppedSpans. internal/telemetry/repository.go:272-295 retains the reports
+    in StageMetrics. internal/telemetry/aggregate.go:88-99 uses only
+    RuntimeReport.Complete; internal/httpapi/public/run_handlers.go:489-493
+    exposes only Summary and ProjectAttemptDiagnostics, which reads Planner
+    and Worker errors. internal/evalstore/metric_snapshots_sql.go:34-37 keeps
+    only runtime.complete. Runtime DurationMS and StopReason also have no
+    presentation reader. Failed adapter operations and discarded spans are
+    therefore retained but inaccessible through the product.
+  siblings: >-
+    Cover every selected Runtime adapter, including otlp-http@1, and report
+    placeholders, partial/malformed reports and late final reports. Preserve
+    internal/controlplane/runtime_client.go:377-402: adapter membership and
+    validation already affect completeness. Preserve Eval usage accounting,
+    external OTLP export and resource-history policy. V421-004 adds the
+    separate tool-call detail reader and reuses the bounded attempt diagnostic
+    authorization/selection rules established here.
+  decision: >-
+    Existing Runtime report facts gain an owner-authorized on-demand API and
+    a Technical details panel in the Stage attempt. They do not become semantic
+    Run outcomes. No new report journal, receipt, telemetry table or model call
+    is needed. Record the public projection and its reversal condition in the
+    owning specs: reopen if a selected adapter's failure cannot be explained
+    from the bounded retained facts.
+  revalidated_on_main: >-
+    Still applicable on main 1716e40db. Use bounded SQL projections from retained stage_metrics as the reader authority, including Eval-held metrics after original allocation/planner reports expire. Reuse the existing effective report assembly semantics; do not call ListAllocationReports on every page or decode an entire Stage in Go. Generation is the retained StageMetrics update generation.
+scope:
+  in:
+    - Add an owner-only GET /v1/runs/{runId}/attempts/{stageExecutionId}/runtime-diagnostics with a production consumer in the attempt Technical details panel.
+    - Read bounded Runtime-only projections from retained StageMetrics, whose assembly already applies the effective-report rule; bind Stage membership to the owned Run before reading content.
+    - Return logical Worker attribution, exact adapter refs and their safe typed metrics, Runtime duration/stop reason, availability and truncation facts; expose no credentials, physical addresses or raw report bodies.
+    - Amend RUN-R91/R94 and OBS rules with this explicit bounded diagnostic surface, update OpenAPI and both generated clients through their generators, and register limits, failure outcomes and lifecycle semantics.
+    - Share only the minimal attempt authorization and effective-report selection helper needed by this endpoint and V421-004; keep SQL under the table owner.
+    - Add real PostgreSQL/public API and browser regressions and bump the UI package version for the UI change.
+  out:
+    - Changing Run/Stage success, retries, Worker budgets, OTLP sender behavior or Eval scoring because an adapter reports delivery failure.
+    - Whole-report downloads, tool arguments, prompts, provider payloads or a generic observability framework.
+    - New durable diagnostic state, extended retention or unbounded live polling.
+requirements:
+  - id: R1
+    text: >-
+      Authorize the Run owner and exact Stage-to-Run association before returning
+      any diagnostics. A caller may select only logical participants; no caller
+      supplies a Runtime URL, report identity or physical allocation selector.
+  - id: R2
+    text: >-
+      Preserve nullable and missing facts: false flushSucceeded is different
+      from no flush report, a dropped-span counter is a local discard count,
+      and missing telemetry is never rendered as zero errors or zero duration.
+      The set of adapter refs retains its existing completeness semantics.
+  - id: R3
+    text: >-
+      Read the effective reports already assembled into retained StageMetrics
+      using the repository's complete-first/newest rule, without a second
+      competing definition or dependence on expired source report rows. Treat
+      malformed optional siblings independently. Sanitize stopReason through
+      the existing secret policy and public URL-shaped-text policy before
+      presentation; lastErrorCode remains a closed vocabulary.
+  - id: R4
+    text: >-
+      Return at most 10 logical participants and 128 KiB compact UTF-8 JSON per
+      page, default 5 participants; each report has at most the existing 64
+      adapter refs. Use deterministic participant order and an opaque cursor
+      bound to the owner, Run, Stage and retained StageMetrics update generation. Do not
+      reread full reports for every attempt in Run detail or issue N+1 reads.
+      Select at most 11 participant keys (including lookahead)
+      before loading JSON; decode at most 10 Runtime-only projections and
+      2 MiB of projected JSON per request. Bound stopReason to 4096 UTF-8
+      bytes with an explicit truncation flag before presentation. Do not
+      decode Worker ToolCalls or all allocations of the selected Stage.
+  - id: R5
+    text: >-
+      Private counters remain unchanged. Public uint64 counters and int64
+      millisecond durations use canonical unsigned decimal strings, with the
+      existing numeric range validated before conversion. OpenAPI and both
+      generated clients declare this lossless representation; UI formatting
+      must not pass it through JavaScript number. Cover 2^53+1 and uint64 max.
+  - id: R6
+    text: >-
+      Load on panel open, an observed terminal transition and explicit refresh;
+      back off failed reads and stop polling settled objects. Show pending,
+      partial, absent/expired and failed-read states truthfully. Check 390 px
+      and light, dark and black themes with shared UI components and tokens.
+failure_outcomes:
+  - operation: Read one owner-authorized page of retained Runtime diagnostics
+    permanent: >-
+      Return existing 401/404 authorization/not-found outcomes without leaking
+      another owner's existence; malformed or wrong-scope cursors are 400
+      invalid_request. Report generation changes during a continued read are
+      409 conflict and require an explicit fresh first page, not mixed data.
+    retryable: >-
+      PostgreSQL serialization/deadlock rejection maps to 503
+      storage_transaction_conflict. Use the public Retry-After policy and UI
+      bounded backoff; a failed request does not erase already displayed facts.
+    ambiguous: GET is side-effect free; retry the same page cursor without advancing local pagination.
+    cancelled: Cancel the HTTP/database read with its request context; no collector or mutation survives the read.
+    timeout: Use the existing public database/request budget; render unavailable data without changing Run state.
+  - operation: Read telemetry that has not arrived, is malformed or has expired
+    permanent: >-
+      A successful page carries an explicit pending/unavailable/partial status
+      and reason. Preserve healthy participants. Do not silently manufacture
+      counters or use a placeholder as proof of successful delivery.
+    retryable: Pending live facts can be refreshed through the bounded UI policy; expiry is not an endless retry.
+    ambiguous: Read the currently selected effective report; do not trigger re-collection or finalization.
+    cancelled: Same joined request cancellation as the page read.
+    timeout: Same read budget; diagnostic failure remains separate from durable execution state.
+cardinality:
+  - collection: Attempts in the containing Run
+    expected: A few Stage attempts
+    maximum: Attempt ordinals use LIM-RUN-2 (1..1024); the reader does not enumerate the containing Run
+    bound: One explicitly selected attempt per diagnostics request; no all-attempt report decode in Run detail.
+  - collection: Selected logical Worker Runtime reports and adapter entries
+    expected: One to eight Workers with a few adapters each
+    maximum: Existing Stage allocation bound and 64 adapter entries per report
+    bound: At most 10 participants and 128 KiB per response; query and decode budgets must be independent of other attempts.
+lifecycle:
+  - entity: Owner-visible Runtime diagnostic projection
+    delete: No independent deletion; follows Run/Stage and retained StageMetrics deletion.
+    cascade: Parent deletion invalidates the view and every cursor; never recreates deleted telemetry.
+    retention: Existing 30-day telemetry retention and Eval holds remain authoritative; no new retention extension.
+acceptance_criteria:
+  - id: A1
+    given: A real stored final report with failed operations, a failed flush, distinct dropped-span reasons, duration and stop reason
+    when: Its Run owner opens the Stage attempt Technical details
+    then: The API and UI display those exact safe facts with logical attribution; Run/Stage state and Eval counters are unchanged.
+  - id: A2
+    given: Missing, partial, malformed and late reports plus another owner's Run
+    when: Diagnostics are requested or refreshed
+    then: Availability and nullable values are truthful, healthy siblings remain visible, ownership is enforced and late telemetry never rewrites terminal results.
+  - id: A3
+    given: Maximum Stage allocations, 64 adapters per report, oversized stop reasons, counters above 2^53 and enough records for multiple byte-limited pages
+    when: Every page is consumed and a report generation changes between pages
+    then: Counted input rows/decoded bytes and output budgets hold even for the containing Stage maximum, counters display exactly in the browser, the stable generation has no duplicates or omissions, and a changed generation causes the documented restart outcome.
+  - id: A4
+    given: Cancellation, a real store failure, expired telemetry and synthetic secret/URL sentinels
+    when: Reads fail or data is displayed
+    then: Work ends with the request, classified errors and retention states are correct, sentinels are absent, and the UI does not claim successful delivery.
+  - id: A5
+    given: Public contracts, generated clients and the responsive Technical details panel
+    when: Contract, owner-package and browser checks run
+    then: Specs and implementations agree, both clients are generated, themes and 390 px work, and a real-path regression fails without the feature.
+tests:
+  - command: go test -count=1 ./internal/contracts/...
+    covers: [A2, A5]
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" go test -tags=integration -count=1 ./internal/telemetry ./internal/runservice ./internal/httpapi/public ./internal/controlplane'
+    covers: [A1, A2, A3, A4, A5]
+  - command: make verify-public-api verify-public-api-postgres
+    covers: [A1, A2, A4, A5]
+  - command: make ui-verify ui-browser-mocked
+    covers: [A1, A2, A3, A4, A5]
+  - command: make lint
+    covers: [A3, A5]
+implementation_commit: 61f79e8ebcb9d9087109f4bd6ebb1a6e80e00066

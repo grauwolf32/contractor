@@ -1,0 +1,1106 @@
+{
+  "schema": "contractor.audit-iterative-evidence-draft.v1",
+  "task_id": "V62-013",
+  "status": "passed",
+  "draft_only": false,
+  "generated_at": "2026-10-26T21:20:58.092734+00:00",
+  "publication": "Actual bounded targeted verification at each recorded revision; this is not a claim that the entire release-verify gate ran.",
+  "source": {
+    "assembly_revision": "51bc9e21064b006040b124423ad7bee41f6dfc84",
+    "assembly_dirty": false,
+    "direct_gate_revision": "a79adf6dfa96013c6df68e24194a3e7887a98686",
+    "direct_gate_revision_dirty": false,
+    "later_changes_since_direct_gate": [
+      "scripts/test_release_integration_selection.py",
+      "scripts/test_release_test_reports.py"
+    ],
+    "revision_policy": "Each result retains its actual revision. Two later Python test-only changes do not rewrite the source pins of earlier passing reports.",
+    "final_test_revision": "51bc9e21064b006040b124423ad7bee41f6dfc84",
+    "final_test_revision_dirty": false
+  },
+  "environment": {
+    "os": "Darwin",
+    "architecture": "arm64",
+    "go": "1.26.9",
+    "python": "3.13.16",
+    "uv": "0.13.1",
+    "node": "24.20.0",
+    "postgresql": "17.11",
+    "database": "Dedicated disposable databases; no connection value recorded.",
+    "providers": "Local scripted protocol fixtures; no live or paid model quality claim."
+  },
+  "redaction": {
+    "contents": "Only revision, case identity, counts, digests and fixed diagnostic metadata. No connection URLs, environment values, credentials or target payload bodies included.",
+    "maximum_bytes": 65536
+  },
+  "matrix": {
+    "path": "tests/e2e/audit_iterative_matrix.yml",
+    "digest": "sha256:59c622fa2acb13ccab89506af47c4caecbd13f5bc99f1d4e5926c69052c34267",
+    "counts": {
+      "postgres": 53,
+      "process": 5,
+      "harness": 8
+    },
+    "coverage_records": 54,
+    "coverage": {
+      "A1": [
+        {
+          "boundary": "process",
+          "package": "github.com/grauwolf32/contractor/tests/e2e",
+          "case": "TestAuditIterativeCompositionAcrossProductionProcesses/iterative_two_rounds",
+          "purpose": "Join both settled snapshots, exact receipt routing and retained input reads in one four-Run/two-Round production journey.",
+          "limits": [
+            "2 Rounds",
+            "4 ordinary Runs",
+            "exact original/retained/consumer digests and bytes"
+          ]
+        },
+        {
+          "boundary": "process",
+          "package": "github.com/grauwolf32/contractor/tests/e2e",
+          "case": "TestAuditRoundResultsAcrossProductionProcesses",
+          "purpose": "Read every page using ordinary Run-local access behind one declared input and the initialization fence.",
+          "limits": [
+            "129 actual Run-local pages",
+            "1 declared Workflow mapping",
+            "zero allocations before closure"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+          "case": "TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDeletion",
+          "purpose": "Use actual accepted preparation and item result sources after both producer Runs are deleted; cancel and delete the consumer.",
+          "limits": [
+            "4 exact input mappings",
+            "one consumer child",
+            "lineage hold release equals incoming edges"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditservice",
+          "case": "TestPostgresRoundResultsMaterializerResumesDependencyChunks",
+          "purpose": "Resume exact dependency chunks through the real Run checkpoint; compare every rewritten payload and original attribution.",
+          "limits": [
+            "65 required artifacts",
+            "32/32/1 fork transactions",
+            "one child and debit"
+          ]
+        }
+      ],
+      "A2": [
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
+          "case": "TestPostgresRoundResultsCaptureRestartsBeforeSealAndPinsReviewGeneration",
+          "purpose": "Interleave a review revision with partial capture, then freeze one complete generation and reject later mutation.",
+          "limits": [
+            "33 selected items",
+            "2 pages",
+            "one accepted metadata debit"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
+          "case": "TestPostgresIterativeSnapshotPublicationReplaysAfterClaimTakeover",
+          "purpose": "Lose a committed page acknowledgement, replace the claim and replay exact publication without accepting a partial root.",
+          "limits": [
+            "2 pages",
+            "33 items",
+            "old epoch fenced",
+            "one page/root debit"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/findingintake",
+          "case": "TestPostgresFindingImportSerializesWithRunDeletion",
+          "purpose": "Race actual finding import with Run deletion in both commit orderings and cancellation/rollback.",
+          "limits": [
+            "one retained exact copy or explicit unavailable",
+            "no late hold"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/artifacts",
+          "case": "TestPostgresHistoryReadRacingRetention",
+          "purpose": "Race exact filesystem reads and batched reads against historical eviction without a latest fallback.",
+          "limits": [
+            "2-revision fixture policy",
+            "exact unavailable outcome"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/artifacts",
+          "case": "TestPostgresHistoryPreservesHoldsAndReseeksAReleasedHold",
+          "purpose": "Prove counted lineage holds protect old revisions until release and a later exact fork of an evicted source is unavailable.",
+          "limits": [
+            "3-revision fixture policy",
+            "protected history rejection",
+            "no current substitution"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/artifacts",
+          "case": "TestPostgresExactReadVerifiesTheDescriptor",
+          "purpose": "Reject descriptor digest/media/size mismatch at the production exact-read boundary.",
+          "limits": [
+            "exact metadata authority",
+            "no foreign or mismatched bytes"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditimport",
+          "case": "TestPostgresMaximumCollectionResumesAfterInterruptedRetention",
+          "purpose": "Interrupt after the first committed retention slice, replay the same revisions, and publish one complete collection.",
+          "limits": [
+            "512 first-slice forks",
+            "959 distinct retained revisions",
+            "1024 links"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditimport",
+          "case": "TestPostgresMaximumCollectionStopsAtTransientFailureAndClaimLoss",
+          "purpose": "Inject transient metadata failure and claim loss between committed retention transactions; only the next holder completes the same outcome.",
+          "limits": [
+            "32-ref descriptions",
+            "512 retention work",
+            "one accepted receipt"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+          "case": "TestPostgresControllersConvergeWithoutDuplicateExecutionAttempts",
+          "purpose": "Competing real controllers converge on existing intent identities without duplicate execution attempts.",
+          "limits": [
+            "one accepted execution per attempt",
+            "transactional dispatch capacity"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+          "case": "TestPostgresTypedRoutingUsesActualAdmissionAfterPauseRestartAndProducerDeletion",
+          "purpose": "Recover a lost accepted-Round response after pause, producer deletion and restart; verify differently named routes and one rejection.",
+          "limits": [
+            "3 registered routes",
+            "one rejected unknown method",
+            "one source/ordinal association"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/runservice",
+          "case": "TestAuditInputPostgresResumesOneChildAndClassifiesFailures",
+          "purpose": "First-slice rollback, same-child replay, transient/permanent failure and finite original input deadline retain one reservation.",
+          "limits": [
+            "one child/debit",
+            "zero scheduler eligibility before complete input",
+            "10-minute original deadline"
+          ]
+        }
+      ],
+      "A3": [
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+          "case": "TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDeletion",
+          "purpose": "Cancel and collect the later consumer, then hard-delete it while Audit-retained content remains exact.",
+          "limits": [
+            "zero remaining Run scope/progress/revisions/lineage",
+            "exact incoming hold decrement"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
+          "case": "TestPostgresAdmissionPreparedAndAcceptedMembershipPurgeWithAudit",
+          "purpose": "Purge both private prepared and accepted typed membership after ordinary drain, including frozen artifacts and the last held receipt index.",
+          "limits": [
+            "9 typed items per branch",
+            "bounded purge passes",
+            "no orphan namespace/rows"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
+          "case": "TestPostgresAdmissionCancellationRemovesPrivateRowsInBoundedPasses",
+          "purpose": "Remove private membership without publication, charging primary, staging-counter and review/dependency work.",
+          "limits": [
+            "17 private items",
+            "8-unit closure passes",
+            "accepted membership unchanged"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditservice",
+          "case": "TestAuditPausePreservesRemainingTimeAndResumeCanDisableDeadline",
+          "purpose": "Injected pause/resume clock preserves remaining time and idempotent deadline overrides.",
+          "limits": [
+            "finite pinned Audit deadline",
+            "no elapsed wall-clock threshold"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditservice",
+          "case": "TestAuditDeadlinePauseResumesAndRenewsExpiredReviews",
+          "purpose": "Deadline exhaustion pauses and resume renews expired approvals through existing policy.",
+          "limits": [
+            "default/extended/unlimited resume cases",
+            "no premature terminal completion"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+          "case": "TestPostgresControllerDrainBatchesCancellationObservationAndDeletion",
+          "purpose": "Actual cancellation, terminal observation, collection and deletion progress in bounded batches amid surrounding work.",
+          "limits": [
+            "32 drain mutations",
+            "2000 surrounding records"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditimport",
+          "case": "TestImporterPostgresClosedDispatchPreservesSubmissionDrain",
+          "purpose": "Closed-dispatch unbound failures keep existing cancellation/settlement semantics.",
+          "limits": [
+            "check and declared assessment siblings",
+            "no invalid-result relabel"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditimport",
+          "case": "TestImporterPostgresPermanentInputReceiptReplaysAfterCancellation",
+          "purpose": "A committed permanent input receipt replays unchanged after cancellation without redoing target work.",
+          "limits": [
+            "one receipt",
+            "one child/reservation",
+            "closed dispatch fence"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/findingintake",
+          "case": "TestPostgresFindingRunDeletionSerializesWithAuditPurge",
+          "purpose": "Race native source deletion with owning Audit purge in both lock orderings.",
+          "limits": [
+            "joined operations",
+            "zero surviving source Run/Audit/holds"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+          "case": "TestPostgresTypedAdmissionWaitsForExplicitProjectionRebuildOrOriginalDeadline",
+          "purpose": "Missing projection waits without false completion and resumes only after rebuild, or stops on original deadline/cancellation.",
+          "limits": [
+            "same generation/deadline",
+            "no fabricated ordinal",
+            "no duplicate waiting decision"
+          ]
+        }
+      ],
+      "A4": [
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
+          "case": "TestPostgresRoundResultsCaptureAtRoundAndAuditCeilings",
+          "purpose": "Capture only the complete selected Round within a maximum containing Audit and inspect physical custom/generic plans.",
+          "limits": [
+            "4096 selected items",
+            "100000 containing items",
+            "more than128 and at most256 pages",
+            "source item reads <=64 plus planning allowance"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
+          "case": "TestPostgresIterativeAdmissionBoundsCandidatesAtContainingCeiling",
+          "purpose": "Raw candidate/rejection traversal remains bounded before filters in a large held-source population.",
+          "limits": [
+            "100000 receipt/hold headers",
+            "128 rejected prefix",
+            "2000 unrelated retained links",
+            "custom/generic index read bounds",
+            "zero proposal payload reads"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditservice",
+          "case": "TestPostgresAcceptedRetainedDependencyManifestMaximumReplayAndPurge",
+          "purpose": "Admit and purge maximum complete manifests across unrelated bindings/links, with exact mutation work instrumentation.",
+          "limits": [
+            "32 descriptors/item",
+            "16+1 selected checks",
+            "2000 unrelated bindings and links",
+            "512 weighted cleanup work",
+            "distinct revisions charged once"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditimport",
+          "case": "TestPostgresMaximumCollectionDescribesEvidenceAndRetainsInBoundedTransactions",
+          "purpose": "Measure every metadata description, fork and retention transaction at maximum collection size.",
+          "limits": [
+            "64 items",
+            "1024 links",
+            "958 distinct evidence plus1 result",
+            "32 refs/DescribeExact statement",
+            "512 work/retention transaction"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/artifacts",
+          "case": "TestDescribeExactReadsBoundedMetadataBatchesWithoutPayloads",
+          "purpose": "Describe more than three exact metadata batches with repeated refs and no payload reads.",
+          "limits": [
+            "32 refs/statement",
+            "104 requested positions",
+            "zero payload reads"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/runservice",
+          "case": "TestAuditInputPostgresCanonicalByteBoundaryAndImmutability",
+          "purpose": "Round-trip exact canonical progress byte ceiling and reject oversize, identity rewrite and stale CAS.",
+          "limits": [
+            "262144 serialized bytes",
+            "immutable identity/deadline",
+            "stale revision conflict"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
+          "case": "TestPostgresRoundResultsRejectUnsettledAndOversizeSources",
+          "purpose": "Reject unsettled and oversized source pages before accepting a root.",
+          "limits": [
+            "600KiB coverage source",
+            "no silent truncation",
+            "no accepted incomplete root"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
+          "case": "TestPostgresAdmissionRaw128HeadersAndAllPortsUseSingleConnection",
+          "purpose": "Read only the bounded ordinal prefix and use all read/savepoint ports through one connection.",
+          "limits": [
+            "512 source check headers",
+            "128 raw records",
+            "MaxConns=1"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+          "case": "TestPostgresTypedAdmissionContinuesBeyondOnePrimarySliceBeforeAtomicAcceptance",
+          "purpose": "Actual typed producer continues selection and hidden staging past one primary window before fixed-size atomic acceptance.",
+          "limits": [
+            "130 selected checks",
+            "one item per changing controller slice",
+            "no child while proposed"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/artifacts",
+          "case": "TestPostgresHistoryMaintenanceIsBoundedPerTransaction",
+          "purpose": "Measure history maintenance transaction work without widening the bound.",
+          "limits": [
+            "64 revision mutations/transaction"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/artifacts",
+          "case": "TestPostgresHistoryBoundSpansTheCallersTransaction",
+          "purpose": "The history work allowance spans the caller transaction rather than restarting per nested write.",
+          "limits": [
+            "one caller transaction",
+            "shared64-row work ceiling"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/artifacts",
+          "case": "TestPostgresHistoryPassReclaimsAtMost64MiB",
+          "purpose": "Bound one history reclamation pass by actual bytes.",
+          "limits": [
+            "64MiB reclaimed/pass"
+          ]
+        }
+      ],
+      "A5": [
+        {
+          "boundary": "process",
+          "package": "github.com/grauwolf32/contractor/tests/e2e",
+          "case": "TestAuditIterativeCompositionAcrossProductionProcesses/direct_model_free_bypass",
+          "purpose": "Execute a real standalone model-free Run without iterative mappings, model/ranking calls or Audit state.",
+          "limits": [
+            "zero Audit/research entities",
+            "original terminal result"
+          ]
+        },
+        {
+          "boundary": "process",
+          "package": "github.com/grauwolf32/contractor/tests/e2e",
+          "case": "TestAuditIterativeCompositionAcrossProductionProcesses/default_audit_bypass",
+          "purpose": "Execute an ordinary default-route Audit while explicitly asserting absent iterative snapshot/admission machinery.",
+          "limits": [
+            "no typed mappings",
+            "no hypothesis/cycle state",
+            "original membership/coverage"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/runservice",
+          "case": "TestPostgresToolParameterProjectionValidatesBeforeCreationAndPreservesStrings",
+          "purpose": "Create actual ordinary tool Runs with strict unchanged parameter behavior and no model catalog requirement.",
+          "limits": [
+            "model-free tool lane",
+            "invalid values fail before creation"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditservice",
+          "case": "TestWebScanAuditPinsOneProjectWithoutModelOrOpenAPI",
+          "purpose": "Installed and custom deterministic web-scan inventory retain exact Project inputs without an LLM or OpenAPI.",
+          "limits": [
+            "one deterministic item",
+            "no LLM credential IDs",
+            "idempotent start"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditservice",
+          "case": "TestCoverageReadsRetainedTasksAndSharedResult",
+          "purpose": "Read the original retained task/result coverage for current deterministic profiles.",
+          "limits": [
+            "exact task/result descriptors",
+            "unchanged coverage denominator"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditservice",
+          "case": "TestPostgresNextRoundRebuildsWorklistAfterFailedAcceptanceAndInboxGrowth",
+          "purpose": "Default next-Round retry rebuilds current accepted membership after failed acceptance/inbox growth.",
+          "limits": [
+            "no typed method map",
+            "consume-once source ordinals"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+          "case": "TestPostgresControllerDispatchesOrdinaryRunsThroughDerivedWindow",
+          "purpose": "Default check dispatch continues ordinary child Runs through the original derived capacity window.",
+          "limits": [
+            "original item membership",
+            "no optional snapshot/routing requirement"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+          "case": "TestPostgresControllerBatchBuildsOnePinnedRunForTwoItems",
+          "purpose": "Default compatible items still share one pinned child and execution manifest.",
+          "limits": [
+            "2 items",
+            "one ordinary Run",
+            "exact task/input closure"
+          ]
+        },
+        {
+          "boundary": "postgres",
+          "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+          "case": "TestPostgresControllerCollectsAndPublishesExactAuditReport",
+          "purpose": "Original check collection and report assembly keep exact coverage/evidence through terminal completion.",
+          "limits": [
+            "unchanged ordinary report/coverage",
+            "no generator/ranker"
+          ]
+        }
+      ],
+      "A6": [
+        {
+          "boundary": "harness",
+          "package": "test_audit_iterative_gate",
+          "case": "AuditIterativeGateTest.test_missing_prerequisites_fail_before_commands",
+          "purpose": "Fail closed on absent infrastructure, incomplete/invalid reports or stale evidence; cancellation/deadline cases join owned processes before cleanup.",
+          "limits": [
+            "actual named unittest execution",
+            "no skipped/empty mandatory selection",
+            "bounded redacted evidence"
+          ]
+        },
+        {
+          "boundary": "harness",
+          "package": "test_audit_iterative_gate",
+          "case": "AuditIterativeGateTest.test_zero_missing_skipped_failed_and_out_of_order_reports_fail",
+          "purpose": "Fail closed on absent infrastructure, incomplete/invalid reports or stale evidence; cancellation/deadline cases join owned processes before cleanup.",
+          "limits": [
+            "actual named unittest execution",
+            "no skipped/empty mandatory selection",
+            "bounded redacted evidence"
+          ]
+        },
+        {
+          "boundary": "harness",
+          "package": "test_audit_iterative_gate",
+          "case": "AuditIterativeGateTest.test_stale_evidence_is_not_reused",
+          "purpose": "Fail closed on absent infrastructure, incomplete/invalid reports or stale evidence; cancellation/deadline cases join owned processes before cleanup.",
+          "limits": [
+            "actual named unittest execution",
+            "no skipped/empty mandatory selection",
+            "bounded redacted evidence"
+          ]
+        },
+        {
+          "boundary": "harness",
+          "package": "test_audit_iterative_gate",
+          "case": "AuditIterativeGateTest.test_bounded_redacted_evidence_records_source_revision",
+          "purpose": "Fail closed on absent infrastructure, incomplete/invalid reports or stale evidence; cancellation/deadline cases join owned processes before cleanup.",
+          "limits": [
+            "actual named unittest execution",
+            "no skipped/empty mandatory selection",
+            "bounded redacted evidence"
+          ]
+        },
+        {
+          "boundary": "harness",
+          "package": "test_release_test_reports",
+          "case": "ReportReuseTest.test_cancellation_joins_the_owned_child",
+          "purpose": "Fail closed on absent infrastructure, incomplete/invalid reports or stale evidence; cancellation/deadline cases join owned processes before cleanup.",
+          "limits": [
+            "actual named unittest execution",
+            "no skipped/empty mandatory selection",
+            "bounded redacted evidence"
+          ]
+        },
+        {
+          "boundary": "harness",
+          "package": "test_release_test_reports",
+          "case": "ReportReuseTest.test_cancellation_joins_descendant_processes",
+          "purpose": "Fail closed on absent infrastructure, incomplete/invalid reports or stale evidence; cancellation/deadline cases join owned processes before cleanup.",
+          "limits": [
+            "actual named unittest execution",
+            "no skipped/empty mandatory selection",
+            "bounded redacted evidence"
+          ]
+        },
+        {
+          "boundary": "harness",
+          "package": "test_release_test_reports",
+          "case": "ReportReuseTest.test_deadline_joins_silent_child",
+          "purpose": "Fail closed on absent infrastructure, incomplete/invalid reports or stale evidence; cancellation/deadline cases join owned processes before cleanup.",
+          "limits": [
+            "actual named unittest execution",
+            "no skipped/empty mandatory selection",
+            "bounded redacted evidence"
+          ]
+        },
+        {
+          "boundary": "harness",
+          "package": "test_release_test_reports",
+          "case": "ReportReuseTest.test_iterative_report_cli_reuses_canonical_cases",
+          "purpose": "Fail closed on absent infrastructure, incomplete/invalid reports or stale evidence; cancellation/deadline cases join owned processes before cleanup.",
+          "limits": [
+            "actual named unittest execution",
+            "no skipped/empty mandatory selection",
+            "bounded redacted evidence"
+          ]
+        }
+      ]
+    },
+    "coverage_evaluation": {
+      "A1": {
+        "mapped_records": 4,
+        "records_passed_in_source_pinned_direct_gate": 4,
+        "acceptance_status": "passed",
+        "harness_records_passed_at_pinned_revision": 0
+      },
+      "A2": {
+        "mapped_records": 11,
+        "records_passed_in_source_pinned_direct_gate": 11,
+        "acceptance_status": "passed",
+        "harness_records_passed_at_pinned_revision": 0
+      },
+      "A3": {
+        "mapped_records": 10,
+        "records_passed_in_source_pinned_direct_gate": 10,
+        "acceptance_status": "passed",
+        "harness_records_passed_at_pinned_revision": 0
+      },
+      "A4": {
+        "mapped_records": 12,
+        "records_passed_in_source_pinned_direct_gate": 12,
+        "acceptance_status": "passed",
+        "harness_records_passed_at_pinned_revision": 0
+      },
+      "A5": {
+        "mapped_records": 9,
+        "records_passed_in_source_pinned_direct_gate": 9,
+        "acceptance_status": "passed",
+        "harness_records_passed_at_pinned_revision": 0
+      },
+      "A6": {
+        "mapped_records": 8,
+        "records_passed_in_source_pinned_direct_gate": 0,
+        "acceptance_status": "passed",
+        "harness_records_passed_at_pinned_revision": 8
+      }
+    },
+    "isolation": [
+      "PostgreSQL and real-process boundaries use different physical databases; a per-schema distinction does not isolate the one-active-Server lease.",
+      "Store fixtures use their existing isolated schemas; physical read-budget fixtures keep their own disposable database, vacuumed statistics and custom/generic plans.",
+      "At most two heavy Go/PostgreSQL lanes; no live/demo data, live configs, paid model or arbitrary target is used."
+    ]
+  },
+  "gates": [
+    {
+      "id": "iterative_postgres",
+      "command": "make test-audit-iterative-postgres",
+      "status": "passed",
+      "source": {
+        "revision": "a79adf6dfa96013c6df68e24194a3e7887a98686",
+        "dirty": false
+      },
+      "matrix_digest": "sha256:59c622fa2acb13ccab89506af47c4caecbd13f5bc99f1d4e5926c69052c34267",
+      "result": {
+        "path": "/private/tmp/contractor-audit-iteration/.local/audit-iterative-gate/postgres-eap0qr7s/result.json",
+        "digest": "sha256:5c364b953871de975c26a9020bb15f4a4e7e49ca2477e7ba50e713fda97a5026"
+      },
+      "report": {
+        "path": "/private/tmp/contractor-audit-iteration/.local/audit-iterative-gate/postgres-eap0qr7s/go.jsonl",
+        "digest": "sha256:b9c75065a4157e4295e12a6f3469651f42e064e8401bb48f5470f8f61078fd11"
+      },
+      "counts": {
+        "required": 53,
+        "passed": 53,
+        "skipped": 0
+      },
+      "execution_counts": {
+        "top_level_passed": 53,
+        "cases_and_subcases_passed": 100,
+        "package_passes": 7,
+        "failed_events": 0,
+        "skipped_events": 0
+      },
+      "package_elapsed_seconds": {
+        "github.com/grauwolf32/contractor/internal/auditservice": 52.006,
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore": 69.982,
+        "github.com/grauwolf32/contractor/internal/runservice": 4.058,
+        "github.com/grauwolf32/contractor/internal/auditimport": 12.167,
+        "github.com/grauwolf32/contractor/internal/artifacts": 3.916,
+        "github.com/grauwolf32/contractor/internal/findingintake": 3.141,
+        "github.com/grauwolf32/contractor/internal/auditcontroller": 80.136
+      },
+      "required_cases": [
+        "github.com/grauwolf32/contractor/internal/artifacts/TestDescribeExactReadsBoundedMetadataBatchesWithoutPayloads",
+        "github.com/grauwolf32/contractor/internal/artifacts/TestPostgresExactReadVerifiesTheDescriptor",
+        "github.com/grauwolf32/contractor/internal/artifacts/TestPostgresHistoryBoundSpansTheCallersTransaction",
+        "github.com/grauwolf32/contractor/internal/artifacts/TestPostgresHistoryMaintenanceIsBoundedPerTransaction",
+        "github.com/grauwolf32/contractor/internal/artifacts/TestPostgresHistoryPassReclaimsAtMost64MiB",
+        "github.com/grauwolf32/contractor/internal/artifacts/TestPostgresHistoryPreservesHoldsAndReseeksAReleasedHold",
+        "github.com/grauwolf32/contractor/internal/artifacts/TestPostgresHistoryReadRacingRetention",
+        "github.com/grauwolf32/contractor/internal/artifacts/TestReadExactBatchPreservesScopeRevisionAndBlobIntegrity",
+        "github.com/grauwolf32/contractor/internal/auditcontroller/TestPostgresControllerBatchBuildsOnePinnedRunForTwoItems",
+        "github.com/grauwolf32/contractor/internal/auditcontroller/TestPostgresControllerCollectsAndPublishesExactAuditReport",
+        "github.com/grauwolf32/contractor/internal/auditcontroller/TestPostgresControllerDispatchesOrdinaryRunsThroughDerivedWindow",
+        "github.com/grauwolf32/contractor/internal/auditcontroller/TestPostgresControllerDrainBatchStopsAtALostClaim",
+        "github.com/grauwolf32/contractor/internal/auditcontroller/TestPostgresControllerDrainBatchesCancellationObservationAndDeletion",
+        "github.com/grauwolf32/contractor/internal/auditcontroller/TestPostgresControllerDrainBatchesUnboundIntentFailures",
+        "github.com/grauwolf32/contractor/internal/auditcontroller/TestPostgresControllersConvergeWithoutDuplicateExecutionAttempts",
+        "github.com/grauwolf32/contractor/internal/auditcontroller/TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDeletion",
+        "github.com/grauwolf32/contractor/internal/auditcontroller/TestPostgresTypedAdmissionContinuesBeyondOnePrimarySliceBeforeAtomicAcceptance",
+        "github.com/grauwolf32/contractor/internal/auditcontroller/TestPostgresTypedAdmissionDefersAtNonTimeRoundBudgetWithoutTargetRetry",
+        "github.com/grauwolf32/contractor/internal/auditcontroller/TestPostgresTypedAdmissionWaitsForExplicitProjectionRebuildOrOriginalDeadline",
+        "github.com/grauwolf32/contractor/internal/auditcontroller/TestPostgresTypedRoutingUsesActualAdmissionAfterPauseRestartAndProducerDeletion",
+        "github.com/grauwolf32/contractor/internal/auditimport/TestImporterPostgresClosedDispatchPreservesSubmissionDrain",
+        "github.com/grauwolf32/contractor/internal/auditimport/TestImporterPostgresPermanentInputReceiptReplaysAfterCancellation",
+        "github.com/grauwolf32/contractor/internal/auditimport/TestPostgresMaximumCollectionDescribesEvidenceAndRetainsInBoundedTransactions",
+        "github.com/grauwolf32/contractor/internal/auditimport/TestPostgresMaximumCollectionResumesAfterInterruptedRetention",
+        "github.com/grauwolf32/contractor/internal/auditimport/TestPostgresMaximumCollectionStopsAtTransientFailureAndClaimLoss",
+        "github.com/grauwolf32/contractor/internal/auditservice/TestAuditDeadlinePauseResumesAndRenewsExpiredReviews",
+        "github.com/grauwolf32/contractor/internal/auditservice/TestAuditPausePreservesRemainingTimeAndResumeCanDisableDeadline",
+        "github.com/grauwolf32/contractor/internal/auditservice/TestCoverageReadsRetainedTasksAndSharedResult",
+        "github.com/grauwolf32/contractor/internal/auditservice/TestPostgresAcceptedRetainedDependencyManifestMaximumReplayAndPurge",
+        "github.com/grauwolf32/contractor/internal/auditservice/TestPostgresNextRoundPreparesNineNearLimitProposals",
+        "github.com/grauwolf32/contractor/internal/auditservice/TestPostgresNextRoundRebuildsWorklistAfterFailedAcceptanceAndInboxGrowth",
+        "github.com/grauwolf32/contractor/internal/auditservice/TestPostgresRoundResultsMaterializerResumesDependencyChunks",
+        "github.com/grauwolf32/contractor/internal/auditservice/TestWebScanAuditPinsOneProjectWithoutModelOrOpenAPI",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestPostgresAcceptedItemCountReadsRoundCountersAtAuditCeiling",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestPostgresAdmissionAnchorsDBCutoffAndDoesNotResetDeadline",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestPostgresAdmissionCancellationRemovesPrivateRowsInBoundedPasses",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestPostgresAdmissionExactSourceSavepointAndDecisionReplay",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestPostgresAdmissionPreparedAndAcceptedMembershipPurgeWithAudit",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestPostgresAdmissionRaw128HeadersAndAllPortsUseSingleConnection",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestPostgresAdmissionStagesMoreThan128AndAcceptsConstantParentSeal",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestPostgresIterativeAdmissionBoundsCandidatesAtContainingCeiling",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestPostgresIterativeSnapshotPublicationReplaysAfterClaimTakeover",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestPostgresProposedMembershipHasNoReadOrReviewAuthority",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestPostgresRoundResultsCaptureAtRoundAndAuditCeilings",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestPostgresRoundResultsCaptureRestartsBeforeSealAndPinsReviewGeneration",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestPostgresRoundResultsPendingCapturePurgesWithAudit",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore/TestPostgresRoundResultsRejectUnsettledAndOversizeSources",
+        "github.com/grauwolf32/contractor/internal/findingintake/TestPostgresFindingImportSerializesWithRunDeletion",
+        "github.com/grauwolf32/contractor/internal/findingintake/TestPostgresFindingRunDeletionSerializesWithAuditPurge",
+        "github.com/grauwolf32/contractor/internal/runservice/TestAuditInputPostgresCanonicalByteBoundaryAndImmutability",
+        "github.com/grauwolf32/contractor/internal/runservice/TestAuditInputPostgresResumesOneChildAndClassifiesFailures",
+        "github.com/grauwolf32/contractor/internal/runservice/TestPostgresToolParameterProjectionValidatesBeforeCreationAndPreservesStrings",
+        "github.com/grauwolf32/contractor/internal/runservice/TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill"
+      ]
+    },
+    {
+      "id": "iterative_process",
+      "command": "make test-audit-iterative-e2e",
+      "status": "passed",
+      "source": {
+        "revision": "a79adf6dfa96013c6df68e24194a3e7887a98686",
+        "dirty": false
+      },
+      "matrix_digest": "sha256:59c622fa2acb13ccab89506af47c4caecbd13f5bc99f1d4e5926c69052c34267",
+      "result": {
+        "path": "/private/tmp/contractor-audit-iteration/.local/audit-iterative-gate/process-eva45y52/result.json",
+        "digest": "sha256:4d80224c8eef3c02b8e84fec90cd2bb863a34a27456be23fabb63206d8cd9610"
+      },
+      "report": {
+        "path": "/private/tmp/contractor-audit-iteration/.local/audit-iterative-gate/process-eva45y52/go.jsonl",
+        "digest": "sha256:d3c18118ce7f1c09b92bee7edfc9bf51aaeb67f68a0232dc2c3a4989f788f0d4"
+      },
+      "counts": {
+        "required": 5,
+        "passed": 5,
+        "skipped": 0
+      },
+      "execution_counts": {
+        "top_level_passed": 3,
+        "cases_and_subcases_passed": 6,
+        "package_passes": 1,
+        "failed_events": 0,
+        "skipped_events": 0
+      },
+      "package_elapsed_seconds": {
+        "github.com/grauwolf32/contractor/tests/e2e": 233.955
+      },
+      "required_cases": [
+        "github.com/grauwolf32/contractor/tests/e2e/TestAuditIterativeCompositionAcrossProductionProcesses/default_audit_bypass",
+        "github.com/grauwolf32/contractor/tests/e2e/TestAuditIterativeCompositionAcrossProductionProcesses/direct_model_free_bypass",
+        "github.com/grauwolf32/contractor/tests/e2e/TestAuditIterativeCompositionAcrossProductionProcesses/iterative_two_rounds",
+        "github.com/grauwolf32/contractor/tests/e2e/TestAuditRoundResultsAcrossProductionProcesses",
+        "github.com/grauwolf32/contractor/tests/e2e/TestAuditTypedCheckRoutingAcrossProductionProcesses"
+      ]
+    },
+    {
+      "id": "harness_units",
+      "commands": [
+        "cd runtime && uv run python -m unittest discover -s ../scripts -p 'test_audit_iterative_gate.py' -v",
+        "cd runtime && uv run python -m unittest discover -s ../scripts -p 'test_release_test_reports.py' -v"
+      ],
+      "status": "passed",
+      "source_revision": "51bc9e21064b006040b124423ad7bee41f6dfc84",
+      "report": {
+        "path": "/private/tmp/v62-013-harness-pinned-final.log",
+        "digest": "sha256:1df60f37610002ee97f3e394015fc0e2ea3d391238e9c6df324af16a8a5a0561"
+      },
+      "counts": {
+        "required": 8,
+        "required_names_observed_passed": 8,
+        "named_module_tests_passed": 18,
+        "skipped": 0
+      },
+      "required_cases": [
+        "test_audit_iterative_gate.AuditIterativeGateTest.test_missing_prerequisites_fail_before_commands",
+        "test_audit_iterative_gate.AuditIterativeGateTest.test_zero_missing_skipped_failed_and_out_of_order_reports_fail",
+        "test_audit_iterative_gate.AuditIterativeGateTest.test_stale_evidence_is_not_reused",
+        "test_audit_iterative_gate.AuditIterativeGateTest.test_bounded_redacted_evidence_records_source_revision",
+        "test_release_test_reports.ReportReuseTest.test_cancellation_joins_the_owned_child",
+        "test_release_test_reports.ReportReuseTest.test_cancellation_joins_descendant_processes",
+        "test_release_test_reports.ReportReuseTest.test_deadline_joins_silent_child",
+        "test_release_test_reports.ReportReuseTest.test_iterative_report_cli_reuses_canonical_cases"
+      ],
+      "command": "make test-audit-iterative-harness"
+    },
+    {
+      "id": "public_api_postgres_and_wire",
+      "command": "make verify-public-api verify-public-api-postgres test-wire-cross-language",
+      "status": "passed",
+      "source_revision": "51bc9e21064b006040b124423ad7bee41f6dfc84",
+      "report": {
+        "path": "/private/tmp/v62-013-public-wire-pinned-final.log",
+        "digest": "sha256:4ac5cf211290b602b82ed9966e774be268a75208faeacf4178f6336dbb408bd0"
+      },
+      "counts": {
+        "shared_fixtures": 285,
+        "go_shared_tests": 341,
+        "python_shared_tests": 237,
+        "runtime_shared_selected_passed": 1339,
+        "runtime_shared_deselected": 3951,
+        "runtime_contract_and_performance_tests_passed": 323
+      },
+      "limits": "These are the explicit shared-suite counters from the log, not an inferred total for every public API or Go test."
+    },
+    {
+      "id": "legacy_composition",
+      "command": "make test-audit-composition-e2e",
+      "status": "passed",
+      "source_revision": "51bc9e21064b006040b124423ad7bee41f6dfc84",
+      "report": {
+        "path": "/private/tmp/v62-013-legacy-gates-final.log",
+        "digest": "sha256:5d7ea181e513f9e985dc399c5c004c95ca9e4757da548a8d4e78fcfb42f24b58"
+      },
+      "counts": {
+        "mandatory_store_cases": 58,
+        "mandatory_process_cases": 11,
+        "browser_journeys": 1,
+        "mandatory_skipped": 0
+      }
+    },
+    {
+      "id": "legacy_completion",
+      "command": "make test-audit-completion-e2e",
+      "status": "passed",
+      "source_revision": "51bc9e21064b006040b124423ad7bee41f6dfc84",
+      "report": {
+        "path": "/private/tmp/v62-013-legacy-gates-final.log",
+        "digest": "sha256:5d7ea181e513f9e985dc399c5c004c95ca9e4757da548a8d4e78fcfb42f24b58"
+      },
+      "counts": {
+        "selected_go_cases": 250,
+        "selected_runtime_cases": 469,
+        "selected_skipped": 0
+      }
+    },
+    {
+      "id": "lint",
+      "command": "make lint",
+      "status": "passed",
+      "source_revision": "51bc9e21064b006040b124423ad7bee41f6dfc84",
+      "report": {
+        "path": "/private/tmp/v62-013-lint-recovered-final.log",
+        "digest": "sha256:74c00676539fac99e26f48820b2ee8dbd33d1a22bcf132f9d405e97c4d54802a"
+      },
+      "counts": {
+        "script_unit_tests": 157,
+        "release_stages": 12,
+        "race_packages": 107,
+        "process_tests": 30,
+        "configuration_fixtures": 8,
+        "run_selections": 427,
+        "tagged_e2e_tests": 56,
+        "opt_in_tests": 8,
+        "integration_tests": 275
+      }
+    }
+  ],
+  "touched_owner_verification": {
+    "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
+    "source_revision": "d9b5d85730fc698779cb5bd25244c686b041c8de",
+    "source_dirty": false,
+    "final_repeat": {
+      "command": "go test -json -tags=integration ./internal/auditstore/internal/pgstore -count=1",
+      "status": "passed",
+      "elapsed_seconds": 149.278,
+      "counts": {
+        "top_level_passed": 84,
+        "cases_and_subcases_passed": 194,
+        "package_passes": 1,
+        "failed_events": 0,
+        "skipped_events": 0
+      },
+      "report": {
+        "path": "/private/tmp/v62-013-pgstore-full-repeat.jsonl",
+        "digest": "sha256:df4ddbe9df7095cdcb6f5d182962c609c86bd487e713963e46e6925c88deda91"
+      },
+      "scale_observation": {
+        "source_identities": 100000,
+        "unrelated_retained_links": 2000,
+        "plan_modes": [
+          "force_custom_plan",
+          "force_generic_plan"
+        ],
+        "physical_reads_each_mode": {
+          "holds": 128,
+          "receipts": 128,
+          "decision_links": 128,
+          "artifact_payloads": 0
+        },
+        "changing_slice_limits": {
+          "primary": 128,
+          "related": 512,
+          "metadata_bytes": 1048576
+        }
+      }
+    },
+    "initial_full_attempt": {
+      "command": "go test -tags=integration ./internal/auditstore/internal/pgstore -count=1",
+      "status": "failed",
+      "elapsed_seconds": 133.608,
+      "failing_case": "TestPostgresListRoundItemsReadsOneBoundedRound",
+      "diagnostic": "First accepted-to-executing transition returned stale Controller claim.",
+      "reported_case_elapsed_seconds": 1.87,
+      "report": {
+        "path": "/private/tmp/v62-013-pgstore-full.log",
+        "digest": "sha256:3424ed4f4f496391d72ca23f14cd16cf56cc7a494dc76ef55fc46a534c9d61ab"
+      },
+      "cause": "unconfirmed; this plain report has no per-event timestamps"
+    },
+    "isolated_followup": {
+      "command": "go test -tags=integration ./internal/auditstore/internal/pgstore -run '^TestPostgresListRoundItemsReadsOneBoundedRound$' -count=1 -v",
+      "status": "passed",
+      "package_elapsed_seconds": 2.507,
+      "case_elapsed_seconds": 1.57,
+      "report": {
+        "path": "/private/tmp/v62-013-pgstore-round-items.log",
+        "digest": "sha256:882a1c683d236bf40397204492c047de9d1772a31e5790181794a8d10d88032e"
+      }
+    },
+    "same_case_in_full_repeat": {
+      "status": "passed",
+      "case_elapsed_seconds": 2.72
+    },
+    "clock_observations": {
+      "observed_in": "passing repeat report only",
+      "intervals": [
+        {
+          "case": "package",
+          "start": "2026-10-26T20:28:32.35974+03:00",
+          "end": "2026-10-26T20:40:28.515632+03:00",
+          "wall_seconds": 716.155892,
+          "go_elapsed_seconds": 149.278,
+          "difference_seconds": 566.877892
+        },
+        {
+          "case": "TestPostgresRoundResultsCaptureAtRoundAndAuditCeilings",
+          "start": "2026-10-26T20:30:49.16206+03:00",
+          "end": "2026-10-26T20:40:25.378499+03:00",
+          "wall_seconds": 576.216439,
+          "go_elapsed_seconds": 9.34,
+          "difference_seconds": 566.876439
+        }
+      ],
+      "interpretation": "The passing repeat records a large wall-clock versus Go elapsed discontinuity, consistent with a host clock/wake discontinuity category. It does not prove the cause of the earlier failure because that initial report lacks event timestamps.",
+      "action": "No product or test condition was changed to mask the initial failure."
+    }
+  },
+  "remaining_before_final_publication": [],
+  "verification_date_local": "2026-10-27",
+  "timezone": "Europe/Moscow",
+  "additional_owner_verification": {
+    "commands": [
+      "go test -count=1 ./tests/e2e",
+      "make test-release-config-fixtures"
+    ],
+    "status": "passed",
+    "source_revision": "51bc9e21064b006040b124423ad7bee41f6dfc84",
+    "scope": "Complete untagged owner package plus all eight tagged configuration fixtures. Tagged production processes are exercised by the required family gates.",
+    "report": {
+      "path": "/private/tmp/v62-013-e2e-owner-final.log",
+      "digest": "sha256:7969f962732d52d9d017f0583bd40e7a5b1837241d9f847481a335111f4319a3"
+    }
+  },
+  "canonical_report_reuse": {
+    "status": "passed",
+    "source_revision": "51bc9e21064b006040b124423ad7bee41f6dfc84",
+    "commands": [
+      "python3 scripts/release_test_reports.py verify-iterative-postgres --report .local/audit-iterative-gate/postgres-eap0qr7s/go.jsonl",
+      "python3 scripts/release_test_reports.py verify-iterative-process --report .local/audit-iterative-gate/process-eva45y52/go.jsonl"
+    ],
+    "scope": "Both canonical-report verification actions accepted the actual executed direct gate reports. Consolidated family dry-run executes no Go, pytest or unittest suites; the release graph verifies exact coverage and single process selection.",
+    "report": {
+      "path": "/private/tmp/v62-013-canonical-report-reuse.log",
+      "digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "verification_history": [
+    {
+      "scope": "process fixture development",
+      "outcomes": [
+        {
+          "attempt": 1,
+          "status": "failed",
+          "elapsed_seconds": 20.497,
+          "cause": "Fixture used stale paused Audit revision; corrected to re-read before resume."
+        },
+        {
+          "attempt": 2,
+          "status": "failed",
+          "elapsed_seconds": 600.888,
+          "cause": "Fixture used a text-only Artifact tool for a ZIP result and failed to stop on early terminal state; corrected to existing source-analysis archive/text tools and explicit fail-fast diagnostics."
+        },
+        {
+          "attempt": 3,
+          "status": "joined_chain_and_model_free_passed_default_fixture_failed",
+          "elapsed_seconds": 104.891,
+          "cause": "Default fixture retained finding capability under disabled finding confirmation; corrected with a separate capability-compatible default Worker."
+        },
+        {
+          "status": "corrected_default_and_catalog_passed",
+          "elapsed_seconds": 16.546
+        },
+        {
+          "status": "all_new_subcases_and_reused_processes_passed",
+          "evidence_gate": "iterative_process"
+        }
+      ]
+    },
+    {
+      "scope": "full lint",
+      "outcomes": [
+        {
+          "status": "failed",
+          "cause": "Existing isolated selection-test fixture omitted the newly required iterative gate; updated fixture. Deadline unit trigger was also synchronized with child readiness without changing production capture."
+        },
+        {
+          "status": "failed",
+          "cause": "Standard-library source files disappeared from the temporary Go installation; the repository code was unchanged."
+        },
+        {
+          "status": "passed",
+          "report": {
+            "path": "/private/tmp/v62-013-lint-recovered-final.log",
+            "digest": "sha256:74c00676539fac99e26f48820b2ee8dbd33d1a22bcf132f9d405e97c4d54802a"
+          }
+        }
+      ]
+    }
+  ],
+  "toolchain_recovery": {
+    "version": "go1.26.9",
+    "filename": "go1.26.9.darwin-arm64.tar.gz",
+    "archive_sha256": "f9bb7c0a02506c5d9bf0d1eb1f7ee6c7684f844ae49558308a0427b830e022cc",
+    "official_release_source": "https://go.dev/dl/#go1.26.9",
+    "action": "Recovered the same pinned distribution in an ignored task cache outside /tmp and preserved the damaged cache; no Go version or project code change.",
+    "verification": "Archive SHA-256 matches official release metadata; go version and 360 standard package entries verified.",
+    "sleep_prevention": "Per-command caffeinate assertions used for long final checks and released with each command."
+  },
+  "scope_limits": [
+    "No product behavior, public API, wire schema, model policy or catalog release changed.",
+    "No full release-verify or full Runtime/Podman pass is claimed; only the explicitly recorded required and owner suites ran."
+  ]
+}

@@ -1,0 +1,47 @@
+schema_version: "1.0"
+id: V373-001
+title: "Scope the receipt fold migration test's function lookup to its own schema"
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: defect
+introduced_by: V370-007
+priority: P1
+status: completed
+implementation_commit: "b38fac62e1d7d241a455e8d9a0fe8ead4b460fb5"
+depends_on: []
+languages: [go]
+goal: "TestPostgresMutationReceiptsFoldMigration reads the Eval tombstone trigger function of its own isolated schema and passes while other test schemas of the shared database define the same function."
+context:
+  review: "CI run 38206262914 of PR grauwolf32/contractor#545 (head b2b09ea), job release-verify-unit"
+  severity: medium
+  finding: >-
+    internal/persistence/postgres/mutation_receipts_migration_test.go:105
+    looks up contractor_eval_retain_deleted_execution in pg_proc by name only.
+    Every PostgreSQL test migrates its own schema in the one shared test
+    database, so while another package's test schema exists the subquery
+    returns one row per schema and the statement fails with "more than one
+    row returned by a subquery used as an expression (SQLSTATE 21000)". It
+    passed in the agent's run and failed in CI, where the Go packages run in
+    parallel against one database. Reproduced locally by creating a second
+    schema that defines the function.
+  siblings: >-
+    The other catalog lookups in PostgreSQL tests are already scoped: the
+    Audit event allocator test filters pg_proc by current_schema()
+    (internal/auditstore/internal/pgstore/event_allocation_postgres_test.go),
+    the workflow_runs trigger test resolves its table through regclass
+    (internal/persistence/postgres/workflow_run_triggers_postgres_test.go),
+    the foreign key index test filters constraints by the current schema,
+    and the purge tests start from regclass-resolved tables.
+scope:
+  in:
+    - "Filter the pg_proc lookup by pronamespace = current_schema()::regnamespace."
+  out:
+    - "The migration, which is correct."
+acceptance_criteria:
+  - id: A1
+    text: "Given another schema in the test database that defines contractor_eval_retain_deleted_execution, when TestPostgresMutationReceiptsFoldMigration runs, then it reads its own schema's function and passes; on the unfixed test it fails with SQLSTATE 21000."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence/postgres -run '^TestPostgresMutationReceiptsFoldMigration$'"
+    covers: [A1]
+  - command: make lint
+    covers: [A1]

@@ -1,0 +1,14 @@
+[
+  {"name":"ordinary-success","valid":true,"result":{"apiVersion":"contractor/v1alpha1","outcome":"succeeded","summary":"done","artifacts":{}}},
+  {"name":"ordinary-failure","valid":true,"result":{"apiVersion":"contractor/v1alpha1","outcome":"failed","summary":"failed","artifacts":{},"error":{"code":"worker_failed","message":"Failed","retryable":true}}},
+  {"name":"summary-before-publication","valid":true,"result":{"apiVersion":"contractor/v1alpha1","outcome":"failed","summary":"partial","artifacts":{},"summarized":true,"error":{"code":"worker_summarized","message":"Continuation required","retryable":false}}},
+  {"name":"saved-summary","valid":true,"result":{"apiVersion":"contractor/v1alpha1","outcome":"failed","summary":"partial","artifacts":{},"summarized":true,"summaryArtifact":{"namespace":"builder","name":"summary.stage-source","revision":"r1"},"error":{"code":"worker_summarized","message":"Continuation required","retryable":false}}},
+  {"name":"summary-success","valid":false,"result":{"apiVersion":"contractor/v1alpha1","outcome":"succeeded","summary":"partial","artifacts":{},"summarized":true}},
+  {"name":"counterfeit-code","valid":false,"result":{"apiVersion":"contractor/v1alpha1","outcome":"failed","summary":"partial","artifacts":{},"error":{"code":"worker_summarized","message":"Continuation required","retryable":false}}},
+  {"name":"wrong-code","valid":false,"result":{"apiVersion":"contractor/v1alpha1","outcome":"failed","summary":"partial","artifacts":{},"summarized":true,"error":{"code":"worker_failed","message":"Failed","retryable":false}}},
+  {"name":"retryable-summary","valid":false,"result":{"apiVersion":"contractor/v1alpha1","outcome":"failed","summary":"partial","artifacts":{},"summarized":true,"error":{"code":"worker_summarized","message":"Continuation required","retryable":true}}},
+  {"name":"null-flag","valid":false,"result":{"apiVersion":"contractor/v1alpha1","outcome":"succeeded","summary":"done","artifacts":{},"summarized":null}},
+  {"name":"null-summary-ref","valid":false,"result":{"apiVersion":"contractor/v1alpha1","outcome":"failed","summary":"partial","artifacts":{},"summarized":true,"summaryArtifact":null,"error":{"code":"worker_summarized","message":"Continuation required","retryable":false}}},
+  {"name":"inexact-summary-ref","valid":false,"result":{"apiVersion":"contractor/v1alpha1","outcome":"failed","summary":"partial","artifacts":{},"summarized":true,"summaryArtifact":{"namespace":"builder","name":"summary.stage-source"},"error":{"code":"worker_summarized","message":"Continuation required","retryable":false}}},
+  {"name":"summary-ref-without-flag","valid":false,"result":{"apiVersion":"contractor/v1alpha1","outcome":"succeeded","summary":"done","artifacts":{},"summaryArtifact":{"namespace":"builder","name":"summary.stage-source","revision":"r1"}}}
+]

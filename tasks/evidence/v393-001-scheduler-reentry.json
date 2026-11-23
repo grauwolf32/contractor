@@ -1,0 +1,75 @@
+{
+  "incident": {
+    "date": "2026-10-22",
+    "timezone": "Europe/Moscow",
+    "auditId": "audit_387903b4030eb04b28969a71a23c5cc2",
+    "runId": "run_214f654e2f15f2ed6d2fb377609ab576",
+    "plannerStartedAt": "09:27:35.108646",
+    "hostWakeAt": "09:40:48",
+    "interruptedAt": "09:40:49.049863",
+    "originalPlannerFailedAt": "09:40:50.423016",
+    "terminationCode": "planner_invocation_in_progress",
+    "lateLaneError": "cannot abort StageExecution from interrupted",
+    "modelCalls": 23,
+    "toolCalls": 50,
+    "totalTokens": 878473,
+    "hostSleepEvents": [
+      {
+        "at": "09:37:25",
+        "event": "Idle Sleep",
+        "reportedSleepSeconds": 49
+      },
+      {
+        "at": "09:38:14",
+        "event": "DarkWake"
+      },
+      {
+        "at": "09:38:22",
+        "event": "Maintenance Sleep",
+        "reportedSleepSeconds": 49
+      },
+      {
+        "at": "09:39:11",
+        "event": "DarkWake"
+      },
+      {
+        "at": "09:39:19",
+        "event": "Maintenance Sleep",
+        "reportedSleepSeconds": 89
+      },
+      {
+        "at": "09:40:48",
+        "event": "User Wake"
+      }
+    ]
+  },
+  "evidenceSources": [
+    "macOS pmset -g log sleep/wake history",
+    "contractor_demo.workflow_run_events",
+    "contractor_demo.allocation_execution_reports",
+    ".local/demo/logs/server.log"
+  ],
+  "reproduction": {
+    "test": "TestPostgresLivePlannerSurvivesExpiredClaimBeforeRenewal",
+    "method": "Park Worker and injected renewal clock, expire the SQL lease explicitly, attempt a second claim before original renewal; no sleep or live model.",
+    "beforeFix": "FAIL: competing lane re-entered the live Planner: worked=true err=<nil>",
+    "afterFix": "PASS with -race; the original lane renews its exact claim and succeeds with one Stage and one Worker invocation."
+  },
+  "verification": {
+    "fullPackages": {
+      "command": "TMPDIR=/private/tmp CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -race -count=1 ./internal/scheduler ./internal/runstore ./internal/planner/...",
+      "result": "passed; every PostgreSQL suite ran against a dedicated test database"
+    },
+    "scale": {
+      "test": "TestPostgresClaimReadsTenThousandRunsInClaimOrder",
+      "queueRows": 10000,
+      "excludedRuns": 32,
+      "customAndGenericPlans": "use claim indexes with no Sort"
+    },
+    "initialEnvironmentFailure": "macOS default temporary path traverses /var symlink; filesystem blob tests pass with canonical TMPDIR=/private/tmp.",
+    "lint": {
+      "command": "make lint",
+      "result": "passed"
+    }
+  }
+}

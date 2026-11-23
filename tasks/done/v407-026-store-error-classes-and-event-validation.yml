@@ -1,0 +1,138 @@
+schema_version: '1.0'
+id: V407-026
+title: Classify missing Project references at the Run-store boundary
+milestone: server-runtime-review-2026-10
+epic: persistence
+kind: defect
+introduced_by: V370-012
+priority: P3
+status: completed
+implementation_commit: 6ce41d31784e8b6d8ff95df77a84008983d6c28e
+depends_on: []
+languages:
+- go
+goal: A missing Project reference in Run insertion returns the stable not-found class without hiding unrelated
+  integrity errors.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/platform/persistence.md
+  severity: low
+  finding: internal/runstore/store.go:164-173 does not classify the workflow_runs_project_owner_fkey rejection,
+    while sibling Run-store insertions map missing parents to ErrNotFound. The public CreatePublic path
+    already performs projects.Get at internal/runservice/public.go:90-97, so an ordinary API request for
+    a missing Project is rejected before insertion; the demonstrated gap is at the store boundary, not
+    a proven ordinary API 500.
+  siblings: Every insert in internal/runstore and internal/projectstore that can hit an FK on a parent
+    (grep ClassReferenceViolation).
+  validation: 'The artifact-write race remains an unverified hypothesis: key replacement alone does not
+    make the WHERE reject two filesystem candidates. A mixed filesystem/PostgreSQL candidate case, possible
+    through auto fallback, needs a production-path two-writer PostgreSQL reproduction before a separate
+    fix is scheduled. Immutable Run-event revalidation is an optimization question, not a defect; retain
+    strict validation on read as required by AGENTS.'
+plan:
+- Add a real PostgreSQL regression through the public Run-store insertion method with a valid Run and
+  missing Project, checking error class and absence of partial rows.
+- Map the specific missing-Project FK outcome to ErrNotFound using the shared SQLSTATE/constraint classification
+  facilities; inspect sibling missing-parent insertions without mapping every unrelated FK violation blindly.
+- Keep public Project prechecks and their 404 outcome; test deleting and existing Project outcomes and
+  retained integrity errors. Record the separate artifact hypothesis and read-validation optimization
+  as outside this implementation.
+scope:
+  in:
+  - Missing-Project Run-store error mapping and directly analogous confirmed missing-parent paths, with
+    real-store regressions.
+  out:
+  - Artifact CTE changes without a reproduced race, blanket conversion of every FK to conflict/not-found,
+    removing Run-event read validation, or changing API ownership checks.
+acceptance_criteria:
+- id: A1
+  text: Creating a valid Run through the store for a nonexistent Project returns errors.Is(err, ErrNotFound),
+    writes no Run/artifact scope, and the new store regression fails on the original code.
+- id: A2
+  text: Existing Project success, deleting-Project rejection, replay behavior and unrelated FK/integrity
+    failures keep their documented outcomes.
+- id: A3
+  text: The public missing-Project request remains 404 through its existing precheck; this preservation
+    test is not claimed to fail before the fix.
+tests:
+- command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/runstore/...
+    ./internal/runservice/... ./internal/httpapi/public/...
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+verification:
+  date: '2026-10-23'
+  revision: 6ce41d31784e8b6d8ff95df77a84008983d6c28e
+  environment: Worktree contractor-wt/e2, branch claude/rv-e2 on base 925a614c, macOS arm64 (Darwin),
+    Go 1.26.9 (GOTOOLCHAIN=local), PostgreSQL 17.11 database contractor_test_e2 through
+    CONTRACTOR_TEST_DATABASE_URL, Node 24.20 with Corepack pnpm, runtime uv sync --locked.
+  database_tests_configured: true
+  reverified_finding: 'On 925a614c insertRun (internal/runstore/store.go:167-176, formerly 164-173) mapped
+    only ClassDeleting; a Run for an unknown or another owner''s Project returned the raw
+    workflow_runs_project_owner_fkey violation (SQLSTATE 23503), which the public handler answers as 500.
+    The public paths still prechecked the Project (internal/httpapi/public/run_handlers.go:232 and
+    internal/runservice/public.go:104-110), so the ordinary request was already 404; the gap was the store
+    boundary, reachable when the Project disappears between the precheck and the Run transaction.'
+  results:
+  - 'A1: insertRun maps a reference violation whose constraint is workflow_runs_project_owner_fkey (class
+    from persistencepostgres.Classify, name from the new shared persistencepostgres.ConstraintName) to
+    ErrNotFound. TestPostgresRunCreationClassifiesTheMissingProjectParent (internal/runstore/run_creation_postgres_test.go)
+    creates a valid keyed Run for an unknown and for another owner''s Project: errors.Is(err, ErrNotFound),
+    and no workflow_runs row, Run event, RunScope (artifact_scopes) or create-Run key remains. With
+    internal/runstore/store.go restored from 925a614c the test fails for both cases with the raw 23503
+    error, and so does the updated foreign-membership assertion in TestPostgresWorkflowRunProjectMembershipIsOwnedImmutableAndFilterable.'
+  - 'A1 service path: TestPostgresProjectRunForAMissingProjectIsNotFound (internal/runservice/project_run_postgres_test.go)
+    answers the precheck with a Project read before its purge; CreatePublic now returns runstore.ErrNotFound
+    (public 404) after one transaction that stored no Run or RunScope. On the base store it failed with
+    the raw 23503 error.'
+  - 'A2: the same store test keeps a present Project creating its Run, an identical replay returning
+    the stored Run with inserted false, a deleting Project answering ErrProjectDeleting (not ErrNotFound)
+    with nothing stored, and a missing trusted Audit association (CreateAuditRun with an absent
+    AuditExecution in a present Project) keeping its ClassReferenceViolation and constraint
+    workflow_runs_audit_submission_fkey instead of becoming ErrNotFound. The artifact revision-limit
+    check now reads its constraint through the same helper; internal/artifacts passes unchanged.'
+  - 'A3: TestPostgresProjectRunForAMissingProjectAnswersNotFound (internal/httpapi/public/project_run_postgres_test.go)
+    sends POST /v1/projects/{id}/runs for an unknown and another owner''s Project on the PostgreSQL stores;
+    both answer the contract-validated 404 not_found from the handler precheck and store no Run. The
+    runservice test''s precheck case returns projectstore.ErrNotFound before any transaction begins. These
+    are preservation tests and are not claimed to fail before the fix.'
+  - 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/runstore/...
+    ./internal/runservice/... ./internal/httpapi/public/...: passed (runstore, runservice, httpapi/public,
+    httpapi/public/events ok).'
+  - 'go test -tags=integration -count=1 ./internal/persistence/postgres ./internal/artifacts/... ./internal/projectstore/...
+    ./internal/projectlifecycle/...: passed (sqlstate unit test TestConstraintNameReadsTheWrappedCondition
+    included).'
+  - 'go test -tags=integration -count=1 ./internal/persistence: only TestSQLAccessFollowsTableOwnership
+    fails, at internal/cli/scan_sweep_remote.go:196 (pre-existing on the base since b76026f9, unrelated);
+    the rest of the package passes with that test skipped.'
+  - 'make lint: passed.'
+  siblings:
+  - 'CreateStageExecution, RecordStageAllocation, RecordStageTransitionDecision and AppendPlannerEvent already
+    map their reference violation to ErrNotFound; at statement time each can only meet the foreign key
+    of the parent its caller named (the lineage, Planner-session, resume-receipt and transition-target
+    keys are DEFERRABLE INITIALLY DEFERRED), so they need no constraint narrowing. Unchanged.'
+  - 'RecordRunOutputPublication maps every reference violation, including the artifact revision keys,
+    to ErrNotFound. Narrowing it belongs to the unreproduced artifact two-writer hypothesis (review C6),
+    which scope.out excludes. Unchanged.'
+  - 'run_stage_resumptions (resume_store.go), the planner_sessions and Run-event inserts of startPlannerSQL
+    and owner_queue_controls reference rows the same transaction locked or derived, or no parent at all,
+    so a missing parent is unreachable. projectstore.Create sets no foreign-key column; projectstore.Update
+    sets the target credential only inside RuntimeCredentials.WithCredentialReferences after
+    ValidateRuntimeCredentialUse, so its foreign key cannot meet a concurrently deleted credential.
+    No change.'
+  - 'The handler fake fakeRunStore.CreateRun (internal/httpapi/public/fakes_test.go) does not model Project
+    membership; every handler path reaches Run creation only after the Project precheck, so no handler
+    test depends on the store''s missing-Project outcome, which the real-store tests above cover.'
+  declined:
+  - 'The artifact-write race (review C6) stays an unverified hypothesis: no CTE or ClassReferenceViolation
+    mapping in internal/artifacts changed; a production-path two-writer PostgreSQL reproduction is required
+    before a separate fix is scheduled.'
+  - 'Run-event read validation (review C8) is retained: revalidating immutable events on read is an
+    optimization question, not a defect, and AGENTS requires strict validation on read.'
+  - 'The public Project prechecks and API ownership checks are unchanged (scope.out).'

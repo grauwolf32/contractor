@@ -1,0 +1,154 @@
+schema_version: "1.0"
+id: V414-012
+title: "Classify a closed PostgreSQL connection, including a lost COMMIT reply, as unavailable"
+milestone: review-v407-v409-followups-2026-10
+epic: persistence
+kind: defect
+introduced_by: V368-003
+priority: P2
+status: completed
+depends_on: []
+languages: [go]
+goal: >-
+  persistencepostgres.Classify returns ClassUnavailable for pgconn.ErrConnClosed, so a
+  transaction whose connection died, a lost COMMIT reply included, is a transient failure
+  that is ambiguous at commit (PER-R13) everywhere, and no caller treats pgx's
+  SafeToRetry as proof that nothing reached the server.
+context:
+  review: >-
+    tasks/done/v409-001-finding-correlation-project-lock.yml, verification.observations
+    ("A lost commit response surfaces from pgx as a conn closed error that
+    persistencepostgres.Classify returns as ClassNone"); recorded as a follow-up of the
+    V407-017 lease work and the V407/V409 integration tracker.
+  specification:
+    - docs/spec/platform/persistence.md#PER-R13
+    - docs/spec/platform/persistence.md#PER-R16
+    - docs/spec/api/public-api.md#API-R73
+  severity: medium
+  finding: >-
+    internal/persistence/postgres/sqlstate.go:132-152 maps io.EOF, io.ErrUnexpectedEOF,
+    net.ErrClosed, net.Error and *pgconn.ConnectError to ClassUnavailable and everything
+    else without a PgError to ClassNone. pgx v5.10.0 reports a closed connection as
+    *pgconn.connLockError{"conn closed"} wrapping pgconn.ErrConnClosed
+    (pgconn/errors.go:96-118), which matches none of those, so Classify returns ClassNone
+    and IsTransientFailure (transient.go:10-17) returns false. The same error is what a
+    lost COMMIT reply produces: MultiResultReader.NextResult (pgconn/pgconn.go:1618-1620)
+    discards the read error of peekMessage, which has already closed the connection, and
+    the following receiveMessage (pgconn.go:664-667) returns connLockError, whose
+    SafeToRetry() is true although the COMMIT was sent. Reproduced on PostgreSQL 17.11
+    at 19f7477f with a temporary test in internal/persistence/postgres: (c) a TCP proxy
+    that forwards COMMIT to the server and then closes the client connection without its
+    reply makes InTx return safeError("commit PostgreSQL transaction") ->
+    connLockError("conn closed") -> ErrConnClosed with Classify=ClassNone,
+    IsTransientFailure=false, pgconn.SafeToRetry=true, while the row was committed
+    (count 1), in 3 of 3 runs; (b) after pg_terminate_backend the next statement gets
+    PgError 57P01 (ClassUnavailable), and the statement after it and the COMMIT get
+    "conn closed" (ClassNone); (d) a COMMIT on a closed connection gets "conn closed"
+    (ClassNone). A lost COMMIT reply that reaches pgx as a read error (io.EOF) is
+    already ClassUnavailable; only the connLockError form is misclassified.
+  impact: >-
+    Every transaction shares Classify. With ClassNone: Scheduler.recoverCompletedSummary
+    (internal/scheduler/summary.go:17-30) fails the Run as an invalid run state instead
+    of retrying the read; transientPublicationFailure (scheduler/postgres.go:760-763)
+    records a Project output publication as permanently failed; the Planner completion
+    write (planner/session_lifecycle.go:125-150) is not retried; Scheduler credential
+    preparation (execution_preparation.go:456) reports configuration_unavailable
+    instead of storage_unavailable; gatewayrecovery/http.go:74,151 treats it as
+    permanent; the public diagnostics (httpapi/public/error_diagnostics.go:33-95, diagnosticCause) log
+    "unknown" instead of storage_unavailable, although the public answer stays the
+    retryable 500 internal_error of API-R73.
+  siblings: >-
+    In scope: Classify and IsTransientFailure; every IsTransientFailure caller listed
+    under impact, checked to stay idempotent when it retries an ambiguous commit (they
+    already retry io.EOF, which has the same ambiguity); the public error diagnostics,
+    which classify transport errors outside the PgError branch with their own
+    ConnectError and net.Error checks and must derive storage_unavailable from Classify;
+    performance/database.go:132-141 (already DatabaseUnavailable for every class but
+    timeout and permission, so unchanged, but covered by the table test); the
+    credential delete intent (credentials/lifecycle.go:609-615 raises the uncertain
+    fence for any unclassified error, so it is already conservative). Ruled out: no Go
+    code calls pgconn.SafeToRetry or compares ErrConnClosed today (grep of internal/
+    and cmd/ at 19f7477f); internal/planner/a2a/client.go:342 classifies A2A transport,
+    not PostgreSQL. The Runtime has no PostgreSQL client.
+  provenance: >-
+    git blame of sqlstate.go:132-152 points at eb5136675e8352bc6d7350dcea3a334010c41ba9
+    "fix(persistence): classify database failures in one place", the implementation
+    commit of tasks/done/v368-003-classify-database-failures-once.yml.
+scope:
+  in:
+    - "Classify returns ClassUnavailable for any error chain that contains pgconn.ErrConnClosed, below the cancellation and deadline checks that already win."
+    - "PER-R13's table names a connection closed before or during a call, a lost COMMIT reply included, as unavailable and ambiguous at commit, and says pgx's SafeToRetry is not evidence that a commit was not sent."
+    - "error_diagnostics.go preserves explicit typed-domain diagnostic precedence, then derives storage_unavailable for every remaining ClassUnavailable error, not only for PgError and ConnectError chains."
+    - "A source check or table test that keeps pgconn.SafeToRetry out of production retry decisions."
+    - "A PostgreSQL regression that loses a real COMMIT reply through the pool's DialFunc and asserts the class, the transient verdict and that the row committed."
+  out:
+    - "Changing which callers retry an unavailable database or their attempt bounds; each caller keeps its existing receipt or replay rule."
+    - "Public status codes: an unclassified database failure stays the retryable 500 internal_error of API-R73."
+    - "Upgrading or patching pgx."
+failure_outcomes:
+  - operation: "Any transaction commit whose connection is closed before or while its reply is read"
+    permanent: "none; a closed connection is never permanent"
+    retryable: "ClassUnavailable: an idempotent callee may replay within its existing bounds"
+    ambiguous: "the COMMIT may have been applied; callers reconcile through their existing receipt, natural key or replay read (PER-R24), never by blind re-append"
+    cancelled: "a cancelled caller context still wins (ClassCancelled), as today"
+    timeout: "an expired caller deadline still wins (ClassTimeout); pgx's own errTimeout is unchanged"
+acceptance_criteria:
+  - id: A1
+    given: "an error chain holding pgconn.ErrConnClosed, bare, inside connLockError or wrapped by postgres.WrapError"
+    when: "Classify and IsTransientFailure run"
+    then: "Classify returns ClassUnavailable and IsTransientFailure returns true; a chain that also holds context.Canceled or context.DeadlineExceeded keeps ClassCancelled or ClassTimeout"
+  - id: A2
+    given: "a pool whose DialFunc wrapper forwards a transaction's COMMIT to PostgreSQL and then closes the client side before the reply"
+    when: "InTx commits an INSERT through it"
+    then: "the error classifies as ClassUnavailable, IsTransientFailure is true, and a separate session sees the committed row"
+  - id: A3
+    given: "a backend terminated with pg_terminate_backend inside a transaction"
+    when: "the transaction runs another statement and InTx tries to commit"
+    then: "every error the caller can observe (57P01 and the following conn closed) classifies as ClassUnavailable"
+  - id: A4
+    given: "a public request whose store returns a closed-connection error"
+    when: "the error diagnostics run"
+    then: "the logged diagnostic code is storage_unavailable and the response envelope is unchanged"
+  - id: A5
+    given: "the unfixed Classify at 19f7477f"
+    when: "the A1, A2 and A4 regressions run"
+    then: "they fail"
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=\"${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}\" go test -count=1 ./internal/persistence/postgres/..."
+    covers: [A1, A2, A3, A5]
+  - command: "go test -count=1 ./internal/httpapi/public/... ./internal/scheduler/... ./internal/planner/... ./internal/gatewayrecovery/... ./internal/performance/..."
+    covers: [A1, A4, A5]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+progress:
+  completed_work:
+    - "Classify recognizes pgconn.ErrConnClosed below cancellation/deadline precedence, including wrapped and joined causes."
+    - "Public diagnostics preserve typed-domain causes and derive otherwise unclassified transport unavailability from the central class; duplicate transport classifiers were removed and the retryable 500 internal_error envelope is unchanged."
+    - "A real DialFunc connection wrapper loses the successful COMMIT reply, proves the row committed from another session, and proves InTxWithRetry does not replay the mutation or run AfterCommit effects. Backend termination covers the initial server condition and subsequent closed statement/commit errors."
+    - "PER-R13 now records closed connections and COMMIT ambiguity; a checked production-source scan rejects use of pgconn.SafeToRetry, including aliases and captured function values."
+  remaining_work: []
+verification:
+  date: "2026-10-25"
+  environment: "Isolated codex/v414-closed-pg-connections worktree, Go 1.26.9, dedicated disposable v416_eval PostgreSQL database, GOMAXPROCS=2 and go -p 2."
+  regression_before_fix: >-
+    The committed closed-connection regressions were run before changing production code
+    on the task branch based on 5ca3f8f3 (the classifier remained unchanged from the
+    reviewed revision). The real lost COMMIT reply yielded ClassNone/transient=false
+    and pgconn.SafeToRetry=true while a separate session saw one committed row. The
+    post-termination closed statement and commit also yielded ClassNone. Bare/wrapped
+    classifier cases failed, and the public diagnostic was unknown with a retryable
+    500 internal_error response. All focused regressions passed after the fix.
+  sibling_audit:
+    - "Explicit typed-domain diagnostics keep precedence: a credential Gateway failure wrapping ErrConnClosed remains downstream_unavailable, and a missing artifact wrapping EOF remains artifact_content_missing. Raw/wrapped closed database chains use storage_unavailable. Both precedence and unchanged public envelopes are covered by regressions; raw network errors now follow the same central unavailable class."
+    - "Scheduler summary recovery re-reads the same Stage/session; output publication retains the Run/output receipt and exact frozen source, the existing five-failure bound, and the source Stage deadline for summarized output retries. No new dispatch or publication key is generated by this classification change."
+    - "Scheduler credential preparation reads the same pinned credential/configuration. Its existing Stage failure/retry flow now reports storage_unavailable; dedicated resolver and composite-provider cases cover the closed cause."
+    - "Planner CompleteSession and CompleteScanSession keep the same session identity and completion across the existing bounded write attempts. Both real session implementations recognize an already committed equal completion. The Passthrough regression covers a closed connection on the first completion attempt."
+    - "Gateway recovery record keeps the original RequestID through its three attempts. Failed outcomes use the existing route/request receipt; terminal outcomes guard the probe identity and reconcile the same participant wait. Do retains a successful/permanent model response after a transient bookkeeping failure."
+    - "The central transaction retry helper still retries only definite transaction conflicts. The real lost-reply regression proves a closed COMMIT does not repeat its callback, even though pgx claims SafeToRetry."
+    - "Performance databaseReason already maps this cause to DatabaseUnavailable; a table now checks it and context precedence. Credential delete already raises its uncertainty fence after any attempted intent insertion with an unknown outcome, so its behavior remains conservative and unchanged."
+  results:
+    - "go test -count=1 ./internal/persistence/... ./internal/httpapi/public/... ./internal/scheduler/... ./internal/planner/... ./internal/gatewayrecovery/... ./internal/performance/... passed with the disposable PostgreSQL URL configured. This covers both required package commands and the new production-source guard."
+    - "After adding explicit typed-domain wrapper precedence cases, go test -count=1 ./internal/httpapi/public/... passed again (public 98.572s; events 3.996s)."
+    - "make lint passed, including Go vet/staticcheck, test-only export checks, UI gates, repository validators, deployment tests, Runtime lint and import contracts. The dependency graph was current and required no regeneration."
+    - "make tasks-backlog, scripts/check_tasks.py, scripts/check_spec.py and git diff --check passed."
+implementation_commit: 1e78341d44193aac141c6ff18bad98639f7633ba

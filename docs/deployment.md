@@ -1,0 +1,442 @@
+# Deployment
+
+[Documentation](README.md) · [Local walkthrough](guides/local-stack.md)
+
+The baseline deployment is one host with PostgreSQL, one Contractor Server,
+one or more Python Runtime Agents, and an optional Node UI. An external
+OpenAI-compatible Gateway supplies the models. This guide covers the service
+layout and installation sequence; the local walkthrough includes a first Run.
+Only one Server may be active per database. A second process remains unready
+until it acquires the Control Plane lease; the Kubernetes example uses a
+`Recreate` update to avoid overlapping active pods.
+The lease uses a dedicated PostgreSQL session, so connect directly to
+PostgreSQL or through a session-pooling proxy, not transaction-mode pooling.
+The active Server probes that session every second; a single probe may run up
+to a ten-second tolerance window, so a brief client-to-database stall does not
+stop the Server. Once a probe fails within that window, the Server closes both
+listeners and stops the Scheduler. The window stays below the server-side
+keepalive bound, so the Server stops before PostgreSQL releases the lock to a
+standby. PostgreSQL applies the lease session's 30-second TCP user timeout only
+on Linux; with PostgreSQL on another operating system, takeover after the
+active Server's host vanishes can take minutes instead of about half a minute.
+A standby that hits a transient acquisition stall reconnects and keeps
+polling rather than exiting.
+
+## Install the release
+
+Build the commands and install locked Runtime/UI dependencies using
+[development setup](development.md#build-the-commands). The following commands
+assume `contractor` is on `PATH`. On a service host, install the built binaries,
+configuration tree, Runtime environment and UI build under paths owned by its
+service account; use absolute executable paths in the service manager.
+
+Server and ordinary Runtime target Linux and macOS. The deterministic CI stack
+runs on Linux; a cross-compiled binary alone does not verify another host.
+Podman execution requires a separately provisioned Linux host with local
+rootless Podman and the cgroup capabilities in the [Podman guide](../deploy/podman/README.md).
+The [Ansible role](../deploy/ansible/README.md) provisions such hosts with the
+Runtime Agents and the prerequisites of the capabilities chosen for them.
+
+## Services and network
+
+| Service | Baseline address | Access |
+| --- | --- | --- |
+| Server public API | `127.0.0.1:8080` | HTTPS reverse proxy for browsers and CLI |
+| Server private Control Plane | `https://127.0.0.1:8443` | Runtime Agents with deployment mTLS identities |
+| Runtime control and A2A | `https://127.0.0.1:9443` | Server with its Control Plane mTLS identity |
+| Node UI | `127.0.0.1:4173` | HTTPS reverse proxy serving static UI |
+| PostgreSQL | Operator-provided DSN | Server only |
+| LLM Gateway | Configured API base | Server Planners and Runtime Workers |
+
+Use separate same-site HTTPS origins such as `https://ui.contractor.example`
+and `https://api.contractor.example`. The browser calls the API directly;
+configure its exact UI origin in Server's `browserOrigins`. Forward public API
+HTTP and WebSocket traffic to Server. Node receives the public API origin and
+no bearer token or model credentials. See [UI deployment](../deploy/ui/README.md).
+
+For remote Runtime hosts, change private listen/advertised addresses and issue
+certificates whose SANs match those hosts. Use a unique Runtime certificate,
+listener port and work root for each process. Keep private mTLS listeners off
+the public reverse-proxy routes. A Runtime has one allocation slot; adding a
+process adds capacity only for the capabilities it advertises.
+
+## Identity, configuration and storage
+
+For the one-host layout, initialize deployment identities and the local login
+from the repository/release root:
+
+```shell
+contractor pki init-ca
+contractor pki issue-control-plane
+contractor pki issue-runtime --name runtime-local
+umask 077
+mkdir -p .local/secrets
+contractor server auth hash-password \
+  --user-id=local-user --username=admin > .local/secrets/local-auth.yaml
+```
+
+The PKI files live under `.local/pki`; keep the CA private key and leaf keys
+protected. Password hashing reads the password from the terminal and stores
+only its hash. Perform this bootstrap once for a fresh installation.
+
+The Control Plane and Runtime Agent leaf certificates are valid for 365 days,
+but never past the deployment CA's own expiry: a leaf issued or renewed within
+a year of the CA expiring is clamped to the CA's `NotAfter`. Both processes log
+their leaf and the deployment CA expiry at startup and warn during the last
+30 days of each. Because a leaf never outlives the CA, an approaching CA expiry
+breaks every private mTLS link and cannot be fixed by leaf renewal alone; the
+CA warning advises rotating the CA and reissuing leaves. Set the Server's
+`--cert-expiry-warning-window` (or `CONTRACTOR_CERT_EXPIRY_WARNING_WINDOW`, for
+example `720h`) and the Runtime's `--cert-expiry-warning-days` (or
+`CONTRACTOR_CERT_EXPIRY_WARNING_DAYS`) to change that lead time. Before expiry, stop the affected processes, renew their leaves,
+then restart them so their in-memory TLS contexts load the new certificates:
+
+```shell
+contractor pki renew-control-plane
+contractor pki renew-runtime --name runtime-local
+```
+
+Renewal reuses each existing private key and preserves its DNS, IP and URI SANs.
+The Runtime Agent therefore keeps the same principal and Operations-assigned
+labels. The standalone `contractor-pki` tool offers `renew-control-plane` and
+`renew-agent --name ...` for the same operation. Re-issuing with `--force`
+generates a new key and changes the Runtime principal; use that only for an
+intentional key rotation. The deployment CA has a separate ten-year validity
+period and is not renewed by these leaf commands.
+
+Create `.local/server.yaml` with non-secret process settings. Relative paths
+are resolved from that file, so this example uses `../configs` for the catalog:
+
+```yaml
+apiVersion: contractor/v1alpha1
+kind: ServerConfig
+spec:
+  listen: 127.0.0.1:8080
+  privateListen: 127.0.0.1:8443
+  privateUrl: https://127.0.0.1:8443
+  operatorConfigRoot: ../configs
+  managedConfigRoot: managed-configs
+  localAuthFile: secrets/local-auth.yaml
+  browserOrigins:
+    - https://ui.contractor.example
+  insecureLoopbackCookie: false
+  trustedProxies:
+    - 127.0.0.1
+  caFile: pki/ca.crt
+  certificateFile: pki/control-plane.crt
+  privateKeyFile: pki/control-plane.key
+  artifactBlobBackend: postgresql
+```
+
+Replace the example origin with the real proxy origin, and list the reverse
+proxy's own source address in `trustedProxies` so failed logins are throttled
+per browser client from `X-Forwarded-For` rather than per proxy; leave the list
+empty when clients connect to Server directly. The
+[local configuration](../configs/server.local.yaml) shows additional timeout
+and diagnostics settings, with an explicitly insecure loopback browser mode.
+Process settings follow `defaults < YAML < environment < flags` and require a
+restart. [Timeout configuration](operations/timeout-configuration.md) owns the
+settings table and independent deadline rules.
+
+| Data | Persistence requirement |
+| --- | --- |
+| Execution, artifact metadata and PostgreSQL-backed payloads | Back up PostgreSQL |
+| Filesystem-backed payloads | Back up the separate blob root along with its PostgreSQL metadata |
+| Operator and managed configurations | Retain both roots; production managed storage must support hard links and durable publication |
+| Login, PKI and encrypted-credential master key | Retain owner-only files; the master key is needed to decrypt stored credentials |
+| Runtime workspaces | Disposable allocation data; cleanup must finish before reusing a slot |
+
+Server creates the managed root and its kind subtrees at startup. If one is
+later removed or unmounted, publications fail and the current configuration
+stays in effect until the subtree is restored.
+
+The [no-PVC Kubernetes example](operations/artifact-blob-storage.md#deployment-without-pvc)
+is a disposable exception: its `/managed` memory volume loses every
+API-published configuration version on pod replacement. Use only baked-in
+operator configurations there. Do not bind credentials, admin keys or
+RuntimeConfigs to a Gateway published in that ephemeral root.
+
+The default payload policy is `auto`: a configured writable file root stores
+new payloads above the inclusive inline threshold; smaller payloads and writes
+without available filesystem storage use PostgreSQL. Existing blobs retain
+their own backend. Configure `artifactBlobPath` and `artifactBlobInlineMaxBytes`
+in ServerConfig, or force a new-write backend explicitly. S3 is not implemented. Storage, backup implications and
+offline cleanup are described in [artifact blob storage](operations/artifact-blob-storage.md).
+Each Artifact binding keeps at most 2,000 revisions and 1 GiB of history by
+default; `artifactHistoryMaxRevisions` and `artifactHistoryMaxBytes` raise or
+lower that limit ([retained history](operations/artifact-blob-storage.md#retained-history)).
+
+The Gateway endpoint and model aliases belong to immutable documents under
+`configs/llm-gateways` and `configs/model-policies`. The shipped catalog uses
+`local-litellm@1` and the digest-qualified model routes compiled from `deploy/models/`; verify that both Server
+and Runtime hosts can reach the selected Gateway. Tokens remain outside YAML.
+For the shipped development credential selectors, set the bootstrap token
+variables described in [the local walkthrough](guides/local-stack.md).
+Their exact Gateway selector defaults to `local-litellm@1`. Override it with
+ServerConfig `spec.developmentLlmGateway`, `CONTRACTOR_DEVELOPMENT_LLM_GATEWAY`
+or `--development-llm-gateway`, using the same file/environment/flag precedence.
+This binds only the development bootstrap tokens; ordinary managed credentials
+keep their own pinned Gateway identity. Registry heartbeat and confirmed-lease
+defaults remain 10 and 60 seconds and are not new ServerConfig settings.
+For managed LiteLLM keys, configure the persistent encryption key and exact
+admin binding in [Gateway credentials](operations/gateway-credentials.md), then
+select the issued credential in the Workflow or Run execution configuration.
+
+## LLM Gateway
+
+The local model source is `deploy/models/`: model capabilities and upstream
+routes are in `catalog/*.yaml`, initial role selection in `selection.yaml`, and
+portable role budgets in `roles.yaml`. All four roles initially select
+OpenRouter `z-ai/glm-5.3-flash`, with a 1,000,000-token operating window and a
+128,000-token output capability ceiling. These conservative values fit the
+[OpenRouter endpoint capacities](https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints)
+checked on 2026-10-21; they are operator metadata, not live discovery.
+
+To switch the bootstrap model, add a profile and change `defaultModel`, or
+set a role override, for example:
+
+```yaml
+defaultModel: glm-5.3-flash
+roles:
+  summarizer: another-deployed-model
+```
+
+Run `make model-config` and `make test-config`. Generation creates the existing
+four bootstrap ModelPolicies, up to four compatible model-specific ModelPolicies per profile,
+`configs/model-selection.json` and
+[`deploy/litellm/litellm_config.yaml`](../deploy/litellm/litellm_config.yaml).
+The Server/Runtime continue to consume ordinary resolved ModelPolicies;
+Workflow and AgentTemplate references need no mass rewrite. The generated
+model-choice catalog makes model-specific policies available for Run/Eval
+selection. `selection.yaml` supplies the initial deployment choice; a Run pins
+its resolved selection and never reads this file during execution.
+
+Each Gateway alias includes the upstream model identifier, profile digest and
+role. All deployed profiles have separate routes: switching selection does not
+rewrite a route used by another Run. Keep profiles needed by active Runs.
+Changing profile content creates new aliases, and removing a profile removes
+its generated model-specific policies and routes. History records the requested
+route and configuration digest; only provider evidence can establish a weights
+revision. The generator never contacts a provider, reads credentials or applies
+changes to running services. It prevalidates all inputs/targets and replaces
+individual files atomically. An interrupted multi-file write fails check mode;
+rerun generation before applying. Unknown fields, duplicate keys, YAML aliases,
+symlinks, literal key fields and unsafe endpoints are rejected.
+
+Context capacity, per-response output and cumulative spend are independent.
+Generation rejects a role output budget above the model's declared output
+capacity; it never silently raises or shrinks the role budget. Terminal-summary
+triggers remain in AgentTemplates. Byte limits (including the 512 KiB summary
+projection and 4 MiB Planner request/response bounds), tool read sizes and
+request timeouts do not scale with context. Choosing a smaller summarizer still
+requires validating that the actual projection fits its token window.
+
+The bundled `run.sh` loads the OpenRouter inference key. A profile using another
+provider's environment name also needs that variable passed by its deployment
+launcher; selecting a profile does not provision provider credentials.
+
+The run script uses digest-pinned LiteLLM
+and PostgreSQL images, retains LiteLLM's virtual-key database in a named Podman
+volume, and keeps the proxy itself in the foreground. Create owner-only
+local bootstrap keys and a database password before the first start, and save a
+dedicated OpenRouter inference key in `.local/secrets/openrouter-api-key` with mode `0600`. An
+OpenRouter management key provisions inference keys; keep it separate from
+LiteLLM and never use it as the upstream inference key:
+
+```shell
+umask 077
+mkdir -p .local/secrets
+printf 'sk-%s\n' "$(openssl rand -hex 32)" > .local/secrets/litellm-master-key
+printf 'sk-%s\n' "$(openssl rand -hex 32)" > .local/secrets/litellm-salt-key
+openssl rand -hex 32 > .local/secrets/litellm-postgres-password
+CONTRACTOR_LITELLM_MASTER_KEY_FILE="$(pwd)/.local/secrets/litellm-master-key" \
+CONTRACTOR_LITELLM_SALT_KEY_FILE="$(pwd)/.local/secrets/litellm-salt-key" \
+CONTRACTOR_LITELLM_POSTGRES_PASSWORD_FILE="$(pwd)/.local/secrets/litellm-postgres-password" \
+CONTRACTOR_OPENROUTER_API_KEY_FILE="$(pwd)/.local/secrets/openrouter-api-key" \
+  deploy/litellm/run.sh
+```
+
+`Ctrl-C` removes the proxy container but deliberately leaves
+`contractor-litellm-postgres` and its named volume intact. The master key file
+is also the `adminKeyFile` used by Contractor's exact Gateway binding; the salt
+key remains LiteLLM-only. The upstream inference key is read from its file and
+passed to Podman by environment name. The database password and derived DSN
+also travel by environment name, keeping all credential values out of process
+arguments. All credential files must be regular, owner-only files with one
+nonempty value. Use a URL-safe password (letters, digits, `_` and `-`), as
+generated above. The launcher needs Python 3 for portable file validation.
+None of these files belongs in repository YAML. Retain the original password
+for an existing PostgreSQL volume: editing its file does not rotate the stored
+password. Only generate these files once, before initial installation.
+
+Restart the proxy to load new model routes and restart the Server to load
+newly generated catalog content. Existing Run snapshots retain their selection. Existing named PostgreSQL
+containers and volumes must be retained so managed Gateway credentials survive.
+
+## Local trace viewer
+
+For local OTLP trace inspection, use the single-container
+[Phoenix profile](../deploy/phoenix/README.md):
+
+```shell
+deploy/phoenix/run.sh up
+```
+
+Its UI is at `http://127.0.0.1:6006`, and its SQLite data is bind-mounted in
+`.local/phoenix`. No additional PostgreSQL, ClickHouse, Redis or S3 service is
+required. The profile includes a RuntimeConfig example for the existing
+`otlp-http@1` exporters; enabling it for a Run remains an explicit choice.
+
+## Audit execution-format upgrade
+
+Before applying migration `000052_audit_execution_manifest_transition`, use
+the previous Server to finish or cancel every Audit that already has a Round.
+This includes paused Audits and those waiting for review, finalizing,
+cancelling or deleting; let their existing drain/cleanup finish. Stop the old
+Server before running the migration, and start only the new Server afterwards.
+This is an offline format transition, without mixed-version writers.
+
+The migration refuses the upgrade while such an Audit remains. It reads only
+Audit and Round metadata, applies no partial schema/ledger changes on refusal,
+and does not parse or rewrite artifacts. Drafts and preparation that have no
+Round may remain. Completed, cancelled and failed Audit records and their
+historical frozen worklists remain evidence; no legacy dispatch reader is
+installed. See [the persistence requirement](spec/platform/persistence.md#PER-R40).
+
+## Audit admission-page upgrade
+
+Before applying migration `000053_audit_admission_chain_transition`, finish or
+cancel Audits that have typed admission checkpoints or prepared membership
+using the previous Server, including their review waits, pause, finalization,
+drain and deletion work. Then stop that Server, apply the migration and start
+only the new Server. Do not resume the previous writer after the upgrade.
+
+The migration refuses any live Audit with a Round carrying an admission
+checkpoint, prepared generation or prepared page count. It probes only parent
+metadata and changes no business data on success or refusal. Ordinary live
+Audits without these typed markers and preparation without Rounds may remain.
+Terminal records, literal old checkpoints, frozen selection/prepared pages and
+roots, exact holds and accounting remain evidence without rewriting. Current
+readers require the single-chain format; no legacy recovery reader is installed.
+See [the persistence requirement](spec/platform/persistence.md#PER-R41).
+
+## Start and verify
+
+Supply the database DSN and, for CLI access, a bearer token through the service
+environment. These example values must be replaced:
+
+```shell
+export CONTRACTOR_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor?sslmode=disable'
+export CONTRACTOR_PUBLIC_BEARER_TOKEN='replace-with-an-api-token'
+contractor server config validate --root ./configs
+contractor server migrate
+contractor server run --config .local/server.yaml
+```
+
+`config validate` checks the operator root and its sibling `managed-configs/`
+without creating directories. It and `server run` derive that sibling from the
+cleaned operator root, so `configs/` and `configs` are equivalent, and Server
+rejects overlapping roots before it creates a missing managed root. If Server
+uses a different managed root, pass the same path with `--managed-root`.
+Offline validation requires every AuditProfile standard to be bundled under
+the operator root; it reports an error for a database-only standard that it
+cannot verify.
+
+The DSN above assumes a local database; configure PostgreSQL TLS for a remote
+database. Migrations are forward-only and run in one transaction. A concurrent
+migrator of the same schema (the first existing schema in `search_path`) polls
+for that schema's migration leader's advisory lock until it is released, the
+caller cancels, or the whole migrator deadline expires; other schemas in the
+same database migrate independently. Once it holds the
+lock, each statement is limited to 120 seconds and each lock wait, on a
+relation or a row, to 10 seconds by default; for a large upgrade raise them with
+`--statement-timeout` and `--lock-timeout` (or
+`CONTRACTOR_MIGRATE_STATEMENT_TIMEOUT` and
+`CONTRACTOR_MIGRATE_LOCK_TIMEOUT`, which the flags override). The lock timeout
+must be shorter than the statement timeout, and the whole run, every pending
+migration file together, is allowed at least 15 minutes or the statement
+timeout plus about 5 minutes. A run whose connection is lost while it applies
+a file fails only at that run deadline. These settings
+apply only to `migrate`, not to ServerConfig database budgets. A failed or
+timed-out run applies nothing, so it can simply be run again; the
+[migration rules](spec/platform/persistence.md#schema-migrations) and their
+limits (LIM-PER-9 to LIM-PER-13) are specified with persistence. Keep Server
+running while starting a Runtime in another terminal:
+
+```shell
+runtime/.venv/bin/contractor-runtime \
+  --control-plane-url https://127.0.0.1:8443 \
+  --advertised-control-url https://127.0.0.1:9443 \
+  --advertised-a2a-url https://127.0.0.1:9443 \
+  --listen 127.0.0.1:9443 \
+  --ca-file .local/pki/ca.crt \
+  --certificate-file .local/pki/agents/runtime-local.crt \
+  --private-key-file .local/pki/agents/runtime-local.key \
+  --work-root .local/runtime/runtime-local
+```
+
+For document-generation Workflows add the required
+[local workspace and validator capabilities](guides/project-workflows.md#runtime-workspace-requirements)
+before startup. Capabilities are probed once; restart the process after changing
+its tool environment. [Runtime configuration](operations/runtime-configuration.md)
+covers labels and adapter placement.
+
+HTTP and scanner tools reach public and private-network targets, but refuse
+loopback and link-local targets unless a Project HTTP target points there. When
+application targets live on the Runtime host, allow those networks explicitly
+with a repeatable `--allowed-target-network CIDR` (or
+`CONTRACTOR_ALLOWED_TARGET_NETWORKS`), for example `127.0.0.0/8`. Server,
+Runtime and other infrastructure endpoints and cloud metadata addresses remain
+refused even inside an allowed network; see the
+[target policy](spec/platform/security.md).
+
+Start the built UI behind its HTTPS proxy:
+
+```shell
+make ui-build
+CONTRACTOR_UI_API_BASE_URL=https://api.contractor.example \
+  node ui/server/index.mjs
+```
+
+Verify Server `/readyz`, UI `/healthz`, browser login and the Runtime's confirmed
+idle slot in Operations. Follow the [CLI guide](guides/cli.md) to configure a
+context, then inspect `contractor check` and `contractor ops agents`. Execute
+the artifact-copy example in the local walkthrough to check the full boundary.
+
+## Upgrades and operational references
+
+For a Server/private-contract change, pause new work, drain or cancel active
+allocations and confirm release before replacing Server and Runtime together.
+Back up durable state, apply migrations, restart and verify before resuming
+admission. Follow [Runtime upgrade rules](operations/runtime-configuration.md#worker-session-mode-upgrade)
+for immutable snapshots and rollback constraints. A compatible UI can be
+rebuilt and restarted independently.
+
+For running services, use the [operations index](operations/README.md) for
+timeouts, credentials, metrics, profiling and cleanup. Use [testing](testing/README.md)
+to choose release checks. [Deployment tooling](../deploy/README.md) separates
+reusable operations from concrete installation inputs in ignored `.local/` state.
+Deployment examples under `deploy/` cover the
+[independent UI](../deploy/ui/README.md), [Server blob storage without PVC](operations/artifact-blob-storage.md#deployment-without-pvc)
+(PostgreSQL by default, with an opt-in filesystem overlay),
+[Runtime labels](../deploy/runtime-labels/README.md), [Podman](../deploy/podman/README.md)
+and [Runtime Agent hosts with Ansible](../deploy/ansible/README.md);
+they are component examples and require the remaining services above.
+
+### Changing the active model selection
+
+After deploying profiles and their Gateway routes, use **Operations → Settings →
+Models** to change the default or a role override for new executions. PostgreSQL
+stores this selection with a revision; `selection.yaml` initializes it only on
+the first startup. Restarting or regenerating files does not reset a saved
+selection. Removing a selected model makes startup fail until a valid deployment
+and saved selection agree. The UI does not install provider credentials or
+provision remote routes.
+
+Run and Eval execution overrides can select exact model-specific policies,
+including `workers.summarizerModelPolicy` for a summary-enabled Worker. An Audit
+pins defaults at draft creation; a prepared Eval retains its binding through
+submission. Run history shows requested aliases and exact policy digests per
+consumer; provider weight revisions remain unknown unless observed. Context
+capacity comes from the profile, role spending/output budgets from `roles.yaml`,
+and the terminal-summary trigger and instructions from the AgentTemplate.

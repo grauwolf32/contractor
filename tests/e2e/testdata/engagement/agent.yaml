@@ -1,0 +1,13 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: engagement_fixture_worker, version: "1"}
+spec:
+  description: Records a deterministic result using explicit controlled HTTP tools
+  runtime: adk@1
+  instructions: {ref: instructions/engagement-fixture.md}
+  toolsets:
+    - ref: audit-results@2
+      tools: [read_audit_task, submit_result, submit_results, evidence]
+    - ref: http-tools@1
+      tools: [http_request, http_credentials, http_credential_read]
+  sandboxProfile: local-workdir@1

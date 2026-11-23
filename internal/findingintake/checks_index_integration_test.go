@@ -1,0 +1,117 @@
+//go:build integration
+
+package findingintake
+
+import (
+	"bytes"
+	"encoding/json"
+	"reflect"
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/runstore"
+)
+
+func TestPostgresFindingChecksIndexIntakeImmutabilityAndRetention(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
+	for _, backend := range []string{"postgresql", "filesystem"} {
+		t.Run(backend, func(t *testing.T) {
+			ctx := t.Context()
+			pool := isolatedFindingPool(t, ctx)
+			if backend == "filesystem" {
+				files, err := filesystem.Open(ctx, t.TempDir())
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer files.Close()
+				artifactRuntime = blob.NewRuntime(files, nil)
+				artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+			}
+			const owner, project, run = "owner", "delete-project", "run"
+			if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: project,
+				OwnerID: owner, Kind: projectstore.KindProject, Name: "Check indexes", IdempotencyKey: "project",
+				RequestDigest: auditdomain.DigestBytes([]byte("project"))}); err != nil {
+				t.Fatal(err)
+			}
+			grant := quotaSubmissionGrant(t, ctx, pool, owner, project, run)
+			service, _ := New(pool, artifactStorage)
+			input := testSubmission("checks", "checks", fixtureEvidence(t, ctx, pool, grant))
+			input.Proposal.ProposedChecks = []auditdomain.ProposedCheck{
+				{Objective: "Verify UTF-8 世界, braces }{ and a quoted \"proposed_checks\" key.", Method: "static-trace"},
+				{Objective: "Preserve an ordinary unsupported method.", Method: "operator-custom-method"},
+			}
+			receipt, _, err := service.Submit(ctx, grant, input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			readIndex := func() []byte {
+				t.Helper()
+				var data []byte
+				if err := pool.QueryRow(ctx, `SELECT checks_projection FROM finding_proposal_receipts WHERE receipt_id=$1`, receipt.ReceiptID).Scan(&data); err != nil {
+					t.Fatal(err)
+				}
+				return data
+			}
+			initial := readIndex()
+			var projection auditdomain.FindingChecksProjection
+			err = json.Unmarshal(initial, &projection)
+			if err != nil || len(projection.Checks) != 2 || projection.Checks[0].Status != "registered" || projection.Checks[1].Status != "unsupported" {
+				t.Fatalf("trusted index: %+v %v", projection, err)
+			}
+			store, _ := artifacts.NewService(artifactStorage.Repository(pool)).Run(run)
+			source, err := store.ReadExact(ctx, receipt.Proposal)
+			if err != nil {
+				t.Fatal(err)
+			}
+			proposal, err := auditdomain.DecodeFindingProposal(source.Payload.Data)
+			if err != nil || !reflect.DeepEqual(proposal.ProposedChecks, input.Proposal.ProposedChecks) {
+				t.Fatalf("exact proposal checks changed: %+v %v", proposal.ProposedChecks, err)
+			}
+			if _, err := pool.Exec(ctx, `UPDATE finding_proposal_receipts SET checks_projection=NULL WHERE receipt_id=$1`, receipt.ReceiptID); err == nil {
+				t.Fatal("published private index was mutable")
+			}
+			// The column constraint independently rejects absent indexes even if an
+			// administrative operation temporarily disables immutability triggers.
+			if _, err := pool.Exec(ctx, `ALTER TABLE finding_proposal_receipts DISABLE TRIGGER finding_proposal_receipts_protect_immutable`); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, `UPDATE finding_proposal_receipts SET checks_projection=NULL WHERE receipt_id=$1`, receipt.ReceiptID); err == nil {
+				t.Fatal("absent private index was accepted")
+			}
+			if _, err := pool.Exec(ctx, `ALTER TABLE finding_proposal_receipts ENABLE TRIGGER finding_proposal_receipts_protect_immutable`); err != nil {
+				t.Fatal(err)
+			}
+			f := deletionImportFixture{ctx: ctx, pool: pool, intake: service, receiptID: receipt.ReceiptID,
+				request: ImportRequest{OwnerID: owner, RunID: run, Proposal: receipt.Proposal.Ref}}
+			createFixtureAudit(t, f, "audit")
+			request := f.request
+			request.AuditID = "audit"
+			if _, _, err := service.ImportIntoAudit(ctx, request); err != nil {
+				t.Fatal(err)
+			}
+			runs := runstore.NewPostgresStore(pool, artifactStorage)
+			if err := runs.MarkStageAllocationReleased(ctx, grant.AllocationID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := runs.TransitionRun(ctx, run, runstore.RunRunning, runstore.RunFailed, runstore.Reason{Code: "fixture_finished"}); err != nil {
+				t.Fatal(err)
+			}
+			if err := deleteRun(ctx, pool, owner, run); err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(initial, readIndex()) {
+				t.Fatal("source Run deletion changed the immutable check index")
+			}
+		})
+	}
+}

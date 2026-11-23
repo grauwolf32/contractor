@@ -1,0 +1,153 @@
+package public
+
+import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/url"
+	"strconv"
+
+	"github.com/grauwolf32/contractor/internal/apierror"
+	"github.com/grauwolf32/contractor/internal/evaldomain"
+	"github.com/grauwolf32/contractor/internal/evalstore"
+)
+
+const (
+	defaultEvalPageSize = 25
+	maxEvalCursorBytes  = 8 * 1024
+)
+
+func evalJSON(w http.ResponseWriter, status int, kind string, v any) {
+	raw, err := json.Marshal(v)
+	if err == nil && len(raw) > evaldomain.MaxDocumentBytes {
+		handleError(w, evaldomain.Failure("eval_limit_exceeded"))
+		return
+	}
+	if err == nil {
+		err = evaldomain.Validate(kind, raw)
+	}
+	if err != nil {
+		writeError(w, apierror.InternalError, "Evaluation response could not be rendered")
+		return
+	}
+	writeJSON(w, status, json.RawMessage(raw))
+}
+func evalBody(w http.ResponseWriter, r *http.Request, kind string, cas bool) (evaldomain.Frozen, evaldomain.MutationIdentity, bool) {
+	fail := func() (evaldomain.Frozen, evaldomain.MutationIdentity, bool) {
+		handleError(w, evaldomain.Failure("eval_invalid"))
+		return evaldomain.Frozen{}, evaldomain.MutationIdentity{}, false
+	}
+	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		return fail()
+	}
+	if requireJSONMediaType(r) != nil {
+		return fail()
+	}
+	if len(r.Header.Values("Idempotency-Key")) != 1 || len(r.Header.Values("If-Match")) > 1 || !cas && r.Header.Get("If-Match") != "" {
+		return fail()
+	}
+	// The key and precondition are checked before the body is read (API-R112).
+	if _, err := evaldomain.MutationPrecondition(r.Header.Get("Idempotency-Key"), r.Header.Get("If-Match"), cas); err != nil {
+		handleError(w, err)
+		return evaldomain.Frozen{}, evaldomain.MutationIdentity{}, false
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, evaldomain.MaxDocumentBytes+1))
+	if err != nil {
+		return fail()
+	}
+	doc, err := evaldomain.Freeze(kind, body)
+	if err != nil {
+		handleError(w, err)
+		return doc, evaldomain.MutationIdentity{}, false
+	}
+	mutation, err := evaldomain.IdentifyMutation(r.Header.Get("Idempotency-Key"), r.Header.Get("If-Match"), cas, kind, body)
+	if err != nil {
+		handleError(w, err)
+		return doc, mutation, false
+	}
+	return doc, mutation, true
+}
+func (h *evalHandlers) evalReceipt(w http.ResponseWriter, status int, r evalstore.Receipt) {
+	ref, err := r.Experiment()
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	if r.Replayed {
+		w.Header().Set("Idempotency-Replayed", "true")
+	}
+	w.Header().Set("ETag", strconv.Quote(strconv.FormatInt(ref.Revision, 10)))
+	evalJSON(w, status, "ExperimentReceipt", map[string]any{"experimentId": ref.ExperimentID, "revision": ref.Revision, "state": ref.State})
+	h.EvalNotifier.Wake()
+}
+
+func evalQuery(r *http.Request, extra ...string) (url.Values, int, error) {
+	values, err := exactQuery(r.URL.RawQuery, append([]string{"limit", "cursor"}, extra...)...)
+	if err != nil {
+		return nil, 0, evaldomain.Failure("eval_invalid")
+	}
+	limit := defaultEvalPageSize
+	if raw, ok := values["limit"]; ok {
+		limit, err = strconv.Atoi(raw[0])
+		if err != nil || limit < 1 || limit > evaldomain.MaxPageSize {
+			return nil, 0, evaldomain.Failure("eval_invalid")
+		}
+	}
+	if raw, ok := values["cursor"]; ok && (raw[0] == "" || len(raw[0]) > maxEvalCursorBytes) {
+		return nil, 0, evaldomain.Failure("eval_invalid")
+	}
+	return values, limit, nil
+}
+
+type evalCursor struct {
+	Context  string   `json:"context"`
+	Position []string `json:"position"`
+	Snapshot string   `json:"snapshot"`
+}
+
+func evalCursorContext(r *http.Request, q url.Values) string {
+	copy := url.Values{}
+	for k, v := range q {
+		if k != "cursor" && k != "viewSnapshot" {
+			copy[k] = v
+		}
+	}
+	return evaldomain.Digest([]byte(principalUserID(r.Context()) + "\n" + r.URL.Path + "\n" + copy.Encode()))
+}
+func (h *evalHandlers) readEvalCursor(r *http.Request, q url.Values, count int) (evalCursor, error) {
+	var out evalCursor
+	if q.Get("cursor") == "" {
+		return out, nil
+	}
+	raw, ok := h.cursors.open("", q.Get("cursor"))
+	if !ok || json.Unmarshal(raw, &out) != nil || out.Context != evalCursorContext(r, q) || len(out.Position) != count || out.Snapshot == "" {
+		return out, evaldomain.Failure("eval_invalid")
+	}
+	return out, nil
+}
+func (h *evalHandlers) evalPage(r *http.Request, q url.Values, more bool, snapshot string, positions ...string) (evalPageInfo, error) {
+	out := evalPageInfo{HasMore: more}
+	if !more {
+		return out, nil
+	}
+	raw, err := json.Marshal(evalCursor{evalCursorContext(r, q), positions, snapshot})
+	if err != nil {
+		return out, err
+	}
+	cursor := h.cursors.seal("", raw)
+	if len(cursor) > maxEvalCursorBytes {
+		return out, evaldomain.Failure("eval_limit_exceeded")
+	}
+	out.NextCursor = &cursor
+	return out, nil
+}
+func cursorRevision(c evalCursor) (*int64, error) {
+	if c.Snapshot == "" {
+		return nil, nil
+	}
+	revision, err := strconv.ParseInt(c.Snapshot, 10, 64)
+	if err != nil || revision < 0 {
+		return nil, evaldomain.Failure("eval_invalid")
+	}
+	return &revision, nil
+}

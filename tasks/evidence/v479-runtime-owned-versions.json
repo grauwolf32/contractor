@@ -1,0 +1,436 @@
+{
+  "date": "2026-11-22",
+  "tasks": {
+    "V479-001": {
+      "runtime_tests": 278,
+      "runtime_result": "passed",
+      "process_test": "TestRuntimeManagedArtifactWritesAcrossProcesses",
+      "process_result": "passed",
+      "process_seconds": 15.223,
+      "checks": [
+        "targeted Ruff",
+        "four import contracts",
+        "51 specification documents",
+        "catalog lock and validation"
+      ],
+      "full_suites_run": false,
+      "notes": "Private bases survive checkpoints and are cleared per invocation. Reconciliation never adopts mismatching read-back as a reviewed write base. Config identities bumped to podman_python_fixer@4 and podman-python-check@4."
+    },
+    "V479-002": {
+      "runtime_tests": 236,
+      "runtime_result": "passed",
+      "process_test": "TestAuditCompactionPreservesTrustedCompletionAcrossProcesses",
+      "process_result": "passed",
+      "process_seconds": 16.997,
+      "checks": [
+        "targeted Ruff",
+        "four import contracts",
+        "specifications",
+        "catalog lock and validation"
+      ],
+      "notes": "Sequential scalar replacements are automatic; sibling changes share an internal base. Batch corrections remain explicit single-item operations. Eight new instruction paths and 27 dependent manifest identities preserve catalog immutability. V478 is still outside main; apply the newer correction contract to its future renamed tools."
+    },
+    "V479-003": {
+      "runtime_tests": 227,
+      "allocation_tests": 69,
+      "runtime_result": "passed",
+      "go_package": "./internal/projectsitemap",
+      "go_result": "passed",
+      "go_seconds": 7.936,
+      "process_tests": {
+        "TestProjectSitemapToolsAcrossProductionProcesses": 95.718,
+        "TestRuntimeManagedSitemapEditsAcrossProcesses": 14.948
+      },
+      "process_result": "passed",
+      "checks": [
+        "targeted Ruff",
+        "four import contracts",
+        "specifications"
+      ],
+      "notes": "No model preconditions; runtime-held reviewed map and derived manual-source predecessor. Old pages remain read-only after edits. Ambiguous calls keep frozen key/command across refresh. Shared Go/Python source identity fixture; canonical TMPDIR avoids the macOS /var symlink."
+    },
+    "V479-008": {
+      "result": "passed",
+      "evidence_task": "V479-003",
+      "notes": "Atomic delivery with the first concrete Sitemap owner. Strict model and tool@1 facets share owner identity/lifecycle; complete tool Worker and deadline tests plus real production process pass."
+    },
+    "V479-004": {
+      "runtime_tests": 433,
+      "runtime_result": "passed",
+      "additional_owner_cases": 245,
+      "process_tests": [
+        "TestRuntimeManagedMaterialVersionsAcrossProcesses",
+        "TestRuntimeGuidanceAcrossProductionProcesses",
+        "TestArtifactImagesAcrossProcesses"
+      ],
+      "process_result": "passed",
+      "process_seconds": 117.3,
+      "checks": [
+        "targeted Ruff",
+        "four import contracts",
+        "specifications",
+        "catalog lock and validation"
+      ],
+      "notes": "Current reads, pinned start cursors, exact continuations, native images, checkpoint/repeat lifecycle verified. Scripted e2e callers reject removed input fields rather than relying on compatibility."
+    },
+    "V479-005": {
+      "runtime_tests": 713,
+      "runtime_result": "passed",
+      "final_changed_owner_cases": 222,
+      "additional_worker_cases": 108,
+      "argument_owner_cases": 96,
+      "process_tests": [
+        "TestProjectFindingsReaderAcrossProcesses",
+        "TestProjectSitemapReportImportsAcrossProductionProcesses",
+        "TestScannerFindingsAcrossProcesses"
+      ],
+      "process_result": "passed",
+      "process_seconds": 106.999,
+      "checks": [
+        "targeted Ruff",
+        "four import contracts",
+        "specifications",
+        "catalog lock and validation"
+      ],
+      "notes": "Nuclei rulepack and trace-derived evidence included. Model selectors are closed namespace/name records; trusted tool Workers retain exact scanner/import arguments. No V478 files changed."
+    },
+    "V479-006": {
+      "go_tests": 512,
+      "go_result": "passed with race detector and real PostgreSQL, zero skips",
+      "go_packages": {
+        "streamline_seconds": 99.531,
+        "router_seconds": 1.48
+      },
+      "runtime_tests": 108,
+      "runtime_result": "passed",
+      "checks": [
+        "specifications",
+        "release graph structural checker"
+      ],
+      "notes": "Actual Go ADK calls use closed revision-free finish selectors. Latest verified result per logical Worker supplies versions; disagreeing independent owners reject. Inspector error classes and compaction remain covered. No Python round trip or wire changes."
+    },
+    "V479-007": {
+      "runtime_inventory_and_adk_cases": 44,
+      "final_ref_and_scanner_owner_cases": 788,
+      "runtime_result": "passed",
+      "process": {
+        "result": "passed",
+        "cases": 10,
+        "failures": 0,
+        "skips": 0,
+        "seconds": 316.253,
+        "tests": [
+          {
+            "test": "TestAuditCompactionPreservesTrustedCompletionAcrossProcesses",
+            "seconds": 82.68
+          },
+          {
+            "test": "TestProjectFindingsReaderAcrossProcesses",
+            "seconds": 33.09
+          },
+          {
+            "test": "TestProjectSitemapToolsAcrossProductionProcesses",
+            "seconds": 91.85
+          },
+          {
+            "test": "TestRuntimeGuidanceAcrossProductionProcesses/http-and-audit-argument-contracts",
+            "seconds": 13.99
+          },
+          {
+            "test": "TestRuntimeGuidanceAcrossProductionProcesses/streamline",
+            "seconds": 21.77
+          },
+          {
+            "test": "TestRuntimeGuidanceAcrossProductionProcesses/exact-reads-and-checkpoint-images",
+            "seconds": 33.09
+          },
+          {
+            "test": "TestRuntimeGuidanceAcrossProductionProcesses",
+            "seconds": 68.85
+          },
+          {
+            "test": "TestRuntimeManagedArtifactWritesAcrossProcesses",
+            "seconds": 13.06
+          },
+          {
+            "test": "TestRuntimeManagedSitemapEditsAcrossProcesses",
+            "seconds": 13.05
+          },
+          {
+            "test": "TestRuntimeManagedMaterialVersionsAcrossProcesses",
+            "seconds": 13.06
+          }
+        ]
+      },
+      "affected_catalog_consumers": {
+        "result": "passed",
+        "cases": 5,
+        "failures": 0,
+        "skips": 0,
+        "seconds": 236.146,
+        "tests": [
+          {
+            "test": "TestAuditHypothesisContinuationAcrossProductionProcesses/initial=false",
+            "seconds": 104.65
+          },
+          {
+            "test": "TestAuditHypothesisContinuationAcrossProductionProcesses/initial=true",
+            "seconds": 62.78
+          },
+          {
+            "test": "TestAuditHypothesisContinuationAcrossProductionProcesses",
+            "seconds": 167.42
+          },
+          {
+            "test": "TestWorkflowMaterialSetsAcrossProductionProcesses",
+            "seconds": 33.17
+          },
+          {
+            "test": "TestProjectFactsAcrossProcesses",
+            "seconds": 33.11
+          }
+        ]
+      },
+      "html_preview": {
+        "interfaces": 150,
+        "statuses": {
+          "done": 20,
+          "proposal": 10,
+          "kept": 3
+        },
+        "encoding": "UTF-8 with BOM and early charset",
+        "javascript_errors": 0,
+        "widths": [
+          1060,
+          736,
+          390,
+          320
+        ],
+        "result": "passed; canonical main extraction follows merge"
+      },
+      "checks": [
+        "targeted Ruff (53 files)",
+        "four import contracts",
+        "51 specification documents",
+        "task records/backlog",
+        "catalog lock/validation",
+        "release graph structural checker"
+      ],
+      "summary": "V479: 7 основных реальных Server/Runtime/PostgreSQL сценариев (10 parent/child cases) и 3 дополнительных owner-сценария (5 cases) прошли без failures/skips. 44 ADK/schema и 788 owner-тестов Runtime прошли; наборы пересекаются. 512 Go Planner cases с race/PostgreSQL. Полных suites, live models и деплоя не было.",
+      "rerun_notes": [
+        "Initial integrated Audit fixture still sent revision=null; strict rejection was retained and the model fixture corrected. The complete seven-root command then passed.",
+        "Hypothesis and MaterialSet fixtures referenced shipped generation Workflow @2; update to immutable @4. Initial continuation with its renamed Workflow already passed; both initial variants and the full affected roots now pass.",
+        "An overlapping supplemental process run on the same database waited for the single-active-Server lease and timed out. No acceptance is based on that attempt; supplemental roots were rerun sequentially after all other process runners stopped."
+      ],
+      "catalog_limit": "Trace factory constructs only finding despite additional inherited registered exports; catalog marks those inherited interfaces unavailable. V478 remains unmerged and untouched.",
+      "full_suites_run": false,
+      "live_models_run": false,
+      "deployed": false,
+      "canonical_catalog": {
+        "source_main": "b8698af47e839a4c6ea3ef2dd6ae6ce3bd39c912",
+        "interfaces": 150,
+        "schemas_without_version_inputs": 150,
+        "utf8_bom": true,
+        "early_charset": true,
+        "javascript_errors": 0,
+        "widths": [
+          1060,
+          736,
+          390,
+          320
+        ],
+        "statuses": {
+          "done": 20,
+          "proposal": 10,
+          "kept": 3
+        },
+        "result": "passed"
+      }
+    }
+  },
+  "verified_source_digests": {
+    "api/testdata/sitemap-editor-source-id.json": "335ece930ac4747b2f5aa0b4d33efcabfbe2fd1f431f56e22ba0730a2b45f569",
+    "configs/README.md": "03ad32d7579807d676d7113cc8001560ff4e3ec37822a3f607001f45aac0e2d0",
+    "configs/agent-templates/audit_asvs_source_verifier.yaml": "f698a966a7a9bab7845664667f844edcd13ffa6a407de81fc05017213d0f5538",
+    "configs/agent-templates/audit_hypothesis_generator.yaml": "1b64959d84391fca5aed5c20994de3d8edc2e5bf9c1310f463d5923e0db65794",
+    "configs/agent-templates/audit_openapi_operation_observer.yaml": "6c307fe60c7472bfbfbf511f38f1449c6a42e3ad25d19cde9ec16256c7462121",
+    "configs/agent-templates/audit_openapi_operation_tracer.yaml": "6dab8159905d0efa514b12bbfb165fa4bbe071ce71f7499dc7b44a0e317ddf5b",
+    "configs/agent-templates/audit_risk_source_checker.yaml": "46b5f3c8249bf71c08baaf9e1e6009b805d09a6115ca2923faf7f264171095c2",
+    "configs/agent-templates/audit_source_checker.yaml": "f876668831426a0da3906e4075ccd310be6d9790c4bfe7d6ce9c0c57fb557eaa",
+    "configs/agent-templates/audit_standard_source_verifier.yaml": "8c4ad4d1b792b1d107e42d7b9fe435f62e47d899eddaae01a9c6991b1527d8ca",
+    "configs/agent-templates/audit_wstg_http_verifier.yaml": "af65bee463760d8b061d56980890b28cf9de2d9adc650b2db092929c609e4d2f",
+    "configs/agent-templates/caido_analyst_v3_memory.yaml": "cc727e5a595b24c9faac0f6a410233881cc3d4b1e4ab14d19f38f9b9b5dab372",
+    "configs/agent-templates/http_explorer_v3_memory.yaml": "968b811458ee61d025b12781d0c532e64dade22fce7c32742465028a0c92a69b",
+    "configs/agent-templates/likec4_builder_v4_memory.yaml": "f1d483454a7828bb67571c1c49006a6250ccb95d781a2793893640c6346487a3",
+    "configs/agent-templates/openapi_builder_v3_memory.yaml": "46e63575a8fe1639e021a5727541e5067589c8a7d1894d5b877dc44d359799b9",
+    "configs/agent-templates/openapi_validator_v3_memory.yaml": "75b24e937f276c40ae018260e4908948e5cd96ddf55ed2d1fc012a1a12237496",
+    "configs/agent-templates/podman_python_fixer_v2_memory.yaml": "b968c87fd3e4412d7565920adcd73c060f5a43114bec130833c528d381382404",
+    "configs/agent-templates/workspace_source_graph_analyst_v3_memory.yaml": "e94ca0dd326ffbb04dedecf3e79912213fc2cab6863a55e5c7077f20105c8907",
+    "configs/agent-templates/workspace_taint_analyst_v3_memory.yaml": "3fb6e2278ca9709531bacc2e0a09cd60ecee6097c37fdeaf415d2ca310b9877e",
+    "configs/audit-profiles/hypothesis_research.yaml": "0433ae725b36aa9aaee0ba1406dbfceff354d0ddb076219ce4e6a76b663018e1",
+    "configs/audit-profiles/openapi_operation_observe.yaml": "cb4437c49fc353ac1a274c78fe376b6d65d494389186bdf2993598432e05cf68",
+    "configs/audit-profiles/openapi_operation_trace.yaml": "1fda0a5ddc886bbdcf1926758cd633dd5b611f405d75923eb197b03a357de523",
+    "configs/audit-profiles/owasp_asvs_5_0_l1_source_pilot.yaml": "120592c4f8372f838b94d4294d3d0cd067574f690b1c7bf6736ed8ebd06b1919",
+    "configs/audit-profiles/owasp_asvs_5_0_l1_source_review.yaml": "65ad3a4726a5f2c22f904b7fa13e93e2a9f290eb7d1019bd267669cd3b3e9a3e",
+    "configs/audit-profiles/owasp_top10_2025_source_risk.yaml": "5785507e0214b6a637e73865564dc3a59fb71a9754a5d4c037cd0b7857241646",
+    "configs/audit-profiles/owasp_wstg_4_2_active_http.yaml": "0f0c360c06d893c105b6c30e25637ac1406bf79911f066613bdc589715ab6f10",
+    "configs/audit-profiles/owasp_wstg_4_2_fast_active_http.yaml": "f6a3ee338fedf7202403c07abf58093afcfee15cd7dd71827e8a10539539bce3",
+    "configs/audit-profiles/owasp_wstg_4_2_fast_source_review.yaml": "c8bb78958eb9b90bd96c9ad68bab463c8d286074496237fd3b7c85e3c8e62fc6",
+    "configs/audit-profiles/owasp_wstg_4_2_source_review.yaml": "147e82f5aa502a081bf8a5ab16b23b13e52a60bceb820b0921b6d79c0185294c",
+    "configs/audit-profiles/source_checklist.yaml": "47e2a236fbd111ea2f353b3340c222fa314a9eedf3d289894b7afb16fbc73d9f",
+    "configs/audit-profiles/source_openapi_sqlmap_scan.yaml": "cb3e7f010bb05ff569a8afa6f1b536391850d3ef4b88268ea6643fc11789d3bf",
+    "configs/catalog.lock.json": "09b963d4c3d450d50dc54af35540a29e4bc35bd18bb4ca05f134286d54f18b2e",
+    "configs/examples/router_openapi_workflow.yaml": "e831df91aa91eba0295a02d5673876378a3198604af2c05190aa5a0a2ddc22b7",
+    "configs/instructions/audit-asvs-source-verifier-worker-project-findings-keyed-results-runtime-versions.md": "f0a4d9acca68aff312b113d79fa3d955d2eeb14685f54776f3c23657027368ca",
+    "configs/instructions/audit-hypothesis-generator-runtime-versions-selected-materials.md": "bc95fa04e5f1d1aa8a1eacd7053d9c35ec6f919884b5438770a0d2309374ca58",
+    "configs/instructions/audit-hypothesis-generator-runtime-versions.md": "51d67a58bbe1deea930dbf31adb6cf30c80fea6424c0109a8e5f8de63da1eaab",
+    "configs/instructions/audit-openapi-operation-observer-worker-keyed-results-runtime-versions.md": "d894344d63b0d3d6ea14d95c877f9cef2fcaae9e438076c9bea307dc32e0f2c7",
+    "configs/instructions/audit-openapi-operation-tracer-worker-project-findings-keyed-results-runtime-versions.md": "bd09dd8f9a52cac1e6b2c0273163d5abf33c4a20059ee7de127af4e8bb468eab",
+    "configs/instructions/audit-risk-source-checker-worker-project-findings-keyed-results-runtime-versions.md": "f0a4d9acca68aff312b113d79fa3d955d2eeb14685f54776f3c23657027368ca",
+    "configs/instructions/audit-source-checker-worker-project-findings-keyed-results-runtime-versions.md": "37e19b7586fb61ca80f73e7a728444c27e8f086e5b66c647abf1d0b82bd891d8",
+    "configs/instructions/audit-standard-source-verifier-worker-project-findings-keyed-results-runtime-versions.md": "0cc026ff83a3b58bbe4b628bdd17cb0715ee20d77052df0287749e05a785c4f8",
+    "configs/instructions/audit-wstg-http-verifier-worker-project-findings-keyed-results-runtime-versions.md": "67cfdadd471b71daf3e9e188739c810a71e9aa56a9aa47b3c0fd7f40e149b340",
+    "configs/instructions/caido-analyst-worker-stored-evidence-cursor-reads.md": "f4023f3fd1a99136972c2cb95a636fb60ddc12b3cab84dd2577a7a1855260ff6",
+    "configs/instructions/http-explorer-worker-memory-cursor-reads.md": "9207671b949b034bd2575a1f8906f779df55cf8c812bf50ec7a6cc5b65ab1018",
+    "configs/instructions/likec4-builder-worker-v2-memory-cursor-reads.md": "62ea6fb97d908a1b6422483d21ebe6c09318c248bd7c9c13db11c3d9901291fb",
+    "configs/instructions/openapi-builder-worker-memory-cursor-reads.md": "fee2adc83fa79112ca3cfe5432499ca01f2d4cfd9a73a17198f2147a08032b18",
+    "configs/instructions/openapi-validator-worker-memory-cursor-reads.md": "a2fe652ad99386ac8745308a6633d18803c30b613b8de3f6a22aa63f4ee0ca05",
+    "configs/instructions/podman-python-fixer-runtime-versions.md": "6f0fe6b5c66a404fce7416a0471eb1d8f3d9984b3ab9650149d09e03d8c3ca1c",
+    "configs/instructions/workspace-source-graph-analyst-worker-memory-artifact-reader-cursor-reads.md": "a804ac9db8d707eb659b69559ec607ab3bb390d2ff65efc199f403e5b2d96295",
+    "configs/instructions/workspace-taint-analyst-worker-memory-artifact-reader-cursor-reads.md": "51a9d65e7b922f5d9e2b7a807465581484ddb1632b32b8ef218108efe13c7324",
+    "configs/workflows/audit_asvs_source_verification.yaml": "def0bad91fcc186d8c17a4e0c489add7ec497e1e7d157dd002b85f79b659e184",
+    "configs/workflows/audit_hypothesis_generation.yaml": "b0744299c6ac5f996be1a54f417acc03c26950b87d052c02788f1e38d002fc21",
+    "configs/workflows/audit_openapi_operation_observe.yaml": "966ae34f550a7487b5316147197a584a3f0add6e84a3a01ad9670b5246e11a85",
+    "configs/workflows/audit_openapi_operation_trace.yaml": "afd1baae122c07d2df43c8e7159ed49bfecc9fba389f46f19896f485f3506202",
+    "configs/workflows/audit_source_check.yaml": "1543917843ce9f7ce7964f0b25663b728eff2a83920765665bcc58c2bcc179ac",
+    "configs/workflows/audit_standard_source_review.yaml": "8ab32b22fa1d289e7db8236cf5c04d48d50cdade5bd296c76a94f586b344dfad",
+    "configs/workflows/audit_top10_source_risk.yaml": "66a1be68b741030597ac34ad81bba17f11f982bfb9d807b67116d9f6fc331696",
+    "configs/workflows/audit_wstg_active_http.yaml": "3ac3b655e3230fd09e90b15a230f7b0ec27a335f5c18a6f084125cb1cd175ad8",
+    "configs/workflows/likec4_from_analysis_v5_memory.yaml": "4a9a62297790af6a568777994187bee02e7f3629bfc032818c9d60d53ae7ace2",
+    "configs/workflows/likec4_from_workspace_streamline_v4_memory.yaml": "3409fad6f86a78d88b07d98d37d59f785b123054c74187294f4b2cdfe854d916",
+    "configs/workflows/likec4_from_workspace_v7_memory.yaml": "1e49808f606921ebfce87b63b09ef6f0efb6357dc6a8f127d3cfefb8e9748571",
+    "configs/workflows/openapi_from_analysis_v4_memory.yaml": "53c14462525229408794ca7ea51fc02ad6f80591eaaf16101ab5e9b78652fa1f",
+    "configs/workflows/openapi_from_workspace_streamline_v2_memory.yaml": "7a7f23e4ccdf7687ec6bfabedcb047011e4453c534fc2b91dbcf7f520c7797a3",
+    "configs/workflows/openapi_from_workspace_v7_memory.yaml": "00b0457d404cc7a1c069d8ff78362f3f84d2709edbe4f8e90f9dcde3e948d6c4",
+    "configs/workflows/podman_python_check_v2_memory.yaml": "7597433ead4d4f202bc59f61e2f6531797cb3d54bfee02b8d60e0b3998c57559",
+    "configs/workflows/security_analysis_v4_memory.yaml": "eabea0a01fa3c71f9a8b83f11751882fa55ed6bc6bd71f4a8ec31031f4c8f787",
+    "configs/workflows/source_openapi_prepare_work.yaml": "544213191a222bed51a6462985f65f3d9ca1d9b2561030908063d185dc08cc55",
+    "configs/workflows/taint_trace_from_workspace_compact.yaml": "3e4a860513befec89c02481ef9f5a46d97fa2433cf332011e7caef7908d47485",
+    "configs/workflows/taint_trace_from_workspace_v4_memory.yaml": "c3834d1c5d6d87800a4b3fe36fe80347606edcca59aecfcee640ffbb86e411d0",
+    "docs/spec/artifacts/artifact-store.md": "dfac836d779e778275cd38f2f48d04e018452a1d9748c17b3299af0b78b70aa2",
+    "docs/spec/artifacts/project-sitemap.md": "2f4a6aabfd25c483ec8f880b9fd0be12f202ed32c29e0f3566d4363c8787ec16",
+    "docs/spec/audits/hypotheses.md": "8d3a6f78f964c79dc6a044bf43f36506f8d9fb225624de5e345cb8a7320b9660",
+    "docs/spec/audits/worker-completion.md": "ee0d82e5af0ccf1a8c5bca45eea36183f84b96380ae22f5b7f241d2ad68d4059",
+    "docs/spec/execution/planners.md": "fe3a0355019af6271e1a967420022fcd9cf3347698b77a133e36013a9fe2077c",
+    "docs/spec/execution/worker.md": "384ff4f7493bae2426fe5dc2dcd81e2bc250605cbb31ddfea39344a5197ee032",
+    "docs/spec/findings/findings.md": "4d6e9d4bb65c7f1e161848bcb9fc24cb468ee7b0c1055f2ad6ab78446bdd5d03",
+    "docs/spec/platform/limits.md": "8951fc9c3b46e038dce9fb9ac13baf77374ca63d13bf102ff1a1524e8ba475b1",
+    "docs/spec/tools/scanners.md": "40eed4473a89f3e49840cfc86f95852d215a47b51ebaa0f0f0c9ea9d9db644c1",
+    "internal/planner/router/factory_test.go": "f259917d66a35edeb227b54fbc2683eb39e03bad4f005b9f101b4a75b9d58ffa",
+    "internal/planner/streamline/artifact_verification_test.go": "5559cc93e87737e062040e268ba1f9ccfe393a472c6e2d11c231e4992c123a11",
+    "internal/planner/streamline/compaction_postgres_test.go": "55c6b14f96c96b125d0642e20f22bcac44ac1dd9acbac93e90f5772f6db49a65",
+    "internal/planner/streamline/compaction_test.go": "f78c6ac2be9ad8695e3bf1a3eef21bcefee20db192125585c6404fce4ee4e553",
+    "internal/planner/streamline/finish_materials_test.go": "c4a0475ca0ebc5cc0a672d598f5678dca74a76151626edc7ff79cb20fb974ca4",
+    "internal/planner/streamline/go_adk_characterization_test.go": "eea1857e027cf7181d45216dac65ca05a0254927fe5a27f3b13bed25d5b7d8a8",
+    "internal/planner/streamline/planner.go": "ea88e98070025562fa1cd626c720af05dbc6039b64e76b4625ac2eafd40424e9",
+    "internal/planner/streamline/planner_test.go": "23a14a99ce7417807c38e9956f2cc7ee66a9df355d0290e0985f93fb769d3cc5",
+    "internal/planner/streamline/response_recovery_test.go": "7c6d923c5ebabe564255f5c7ebb2d48fa8361f3d1ccf22ebdfa27f8f1fd38a5f",
+    "internal/planner/streamline/session_write_test.go": "1a54aa3db49a1dbf1faa3bcfcad6e23c73dfe8d0568b903b0918c4b75a3b5493",
+    "internal/planner/streamline/state.go": "963b47d354e12b787f4691cdf1c4bbc8cbce12a89c66477a91ae2ed2608e958e",
+    "internal/planner/streamline/state_tools_test.go": "3a30861172afbcdcd6dae66b29a0a5141538ef320ed7a6f9006d93abc3edd8c4",
+    "internal/planner/streamline/tools.go": "cc9fe843c28a4063a34d1843bd1fa22184b1e1796276c40600942124322d9cdb",
+    "internal/projectsitemap/editor_identity_test.go": "ed25b4eebe5bcc1b9275784b463506a2e78a4eacd0bb86508c7a4a25f26d5623",
+    "make/release.mk": "1ddea578ef101977130b9b397b25a8bcd55193235cddf46533c49c7af6c57798",
+    "runtime/src/contractor_runtime/allocation/preparation.py": "3b9db6c54fe382bc680ab1d3f307da037250e09ddaeeb21fccfd4c6b723c50f9",
+    "runtime/src/contractor_runtime/toolsets/audit_results/collector.py": "ed47a75f561612f7df3c466b01d8bc754ff5302c1df616a941ec20cab0064afa",
+    "runtime/src/contractor_runtime/toolsets/audit_results/proposals.py": "fb9d14e1df88c7ca42de2032fcedbc2bc8e864d1b277687f5cdaeae4c40b1ad4",
+    "runtime/src/contractor_runtime/toolsets/audit_results/v2.py": "0f009a460fa63508bc8aee6f3846804f08db55f299c9179d61ab61157f4c227d",
+    "runtime/src/contractor_runtime/toolsets/common/artifact_cursors.py": "0aabed8f9a0de0ee4311c5bd58244f0f20222e51cc842f1bd3019453b49152e1",
+    "runtime/src/contractor_runtime/toolsets/common/document_session.py": "9159baeeae394ec78ce614cae54036d387ed0b79bc84ac9599a8ddac91d547f5",
+    "runtime/src/contractor_runtime/toolsets/common/resources.py": "d8b4dec1d33f130365c71fd214e98f05613bb1098dd6075ea5eae188afe2ab44",
+    "runtime/src/contractor_runtime/toolsets/common/versions.py": "d26e40176377c9f8499e6dacf2c9e0adcbf1e48abf1203be2f1fa11efc7aab54",
+    "runtime/src/contractor_runtime/toolsets/likec4/tools.py": "8c65d6e27e3757a339e6dee088a58ef580ee844d19ca8d50a28b3544deab0dd7",
+    "runtime/src/contractor_runtime/toolsets/openapi/tools.py": "d7dd7b585c4a3ffc30f964143e75b23877edcd5f4e2af4dbb2c305cd2c46f06a",
+    "runtime/src/contractor_runtime/toolsets/run_artifacts/tools.py": "871c571ffe85087628a985522161e374c50d2308812609d19013f857e39fc32f",
+    "runtime/src/contractor_runtime/toolsets/scan/tools.py": "b63eb37676997ee781a93733d23ed3287494d79a241f1a39b476c8404217d0dd",
+    "runtime/src/contractor_runtime/toolsets/security_findings/facades.py": "b8bcc5cea53da2aa6f6033d06bdfb22886dc8c8236ce6eebe5b4f405a105387a",
+    "runtime/src/contractor_runtime/toolsets/security_findings/project_reader.py": "98a1ad556ec46352103658243e4be5325a1e7b7db33c09222b2c01bd1f7ee4c6",
+    "runtime/src/contractor_runtime/toolsets/security_findings/publisher.py": "eeb2d07e5d6e55a661b5254a86858089aa5fb8ac235270974bc2c4d2157a8e5a",
+    "runtime/src/contractor_runtime/toolsets/security_findings/trace.py": "26cbc70a0e571c6e41182c30d8170753e6afd9a8a2e753003a7f21eba8b3b337",
+    "runtime/src/contractor_runtime/toolsets/sitemap/session.py": "c2954c9622d353996a8fbc148055f84579c383a87be7fcc3cf9b14fd235815b0",
+    "runtime/src/contractor_runtime/toolsets/sitemap/tools.py": "ef794bbddea469d024d16b1ded321e100b284d243b413a04777c94dcb67a4a08",
+    "runtime/src/contractor_runtime/toolsets/source_analysis/tools.py": "081ef620fdb0fd6a04bdd6a97cb50a092bd05adfbcee5f3516444920f66fd87e",
+    "runtime/src/contractor_runtime/toolsets/text_artifacts/tools.py": "f56de5b3cb68570d727281dd2b16f34d9c63dbabf3706bbb9426fe847828ff0f",
+    "runtime/src/contractor_runtime/worker/completion.py": "179ba4ddede2a9e4bbc23e1b8be487f5bacd5fad4b729ffb24987cb70e994636",
+    "runtime/src/contractor_runtime/worker/prompts.py": "32a49472addd8515ef2edb6bca212313a7dc6aca503b19d7fcabcbaaf0d62d45",
+    "runtime/src/contractor_runtime/worker/runtime.py": "482d5ed2002eb7c572fe3ecd6ab5b7e3de82aacd681b2b439b1335ed6ca7e606",
+    "runtime/src/contractor_runtime/worker/tool_runtime.py": "97028ca223dcb51d8f3754995168ed8a0123e19ad00bb73076b0c4edc211b564",
+    "runtime/tests/test_adk_runtime.py": "99876c916642233b69f0496e3b54461c4d76a149c781c869a3cb449732da6d8d",
+    "runtime/tests/test_allocation.py": "63c912d46b12d36b78f60b9b153431963e405f9fc3c02423dedf44c1920b82f0",
+    "runtime/tests/test_artifact_cursors.py": "e00b16d6a0dbdbd1736321e30b417c082f899b6a851fa8fbe22dbcef0625a1a5",
+    "runtime/tests/test_artifact_images.py": "a1d22a9d7b317695fd483b8415aa3f579e308d3de89926373e7e5269df404204",
+    "runtime/tests/test_audit_proposals.py": "db201d31b2c60660e9f0bbeb7df2f297786c9b94020c9f58bff042f54c50a3b8",
+    "runtime/tests/test_audit_result_collector.py": "43a7fe991e48d885df384dc80937a641b0abed74a315c0447180e6e29dc943c8",
+    "runtime/tests/test_audit_results_toolset.py": "7e0714a0e977522c70409872c836be465b77159e9d2e33189f0654fdefff7d0f",
+    "runtime/tests/test_finding_facades.py": "b4df05e00296a9c5d7ae1c671a8187cd54e53480beb531f24e1ed5d9b84e6acd",
+    "runtime/tests/test_findings_reader_toolset.py": "458d7b3c87050b183d8daedefc5c7aa673543495276a9ad7cc1af066d96a868a",
+    "runtime/tests/test_likec4_toolset.py": "7a9cf857927f8bc0bc1d1fac2fa8845bc298a0812bf0fdbf5357f095e63061ff",
+    "runtime/tests/test_nuclei_engagement.py": "4a1a1c7a58cc4139fc064f5f70167f931956687c859a29227631361ed3bc370f",
+    "runtime/tests/test_openapi_toolset.py": "afe8c9d4e61f854511a337de920e5177bd0d37756c9e6441e01f7cddcb7d8379",
+    "runtime/tests/test_run_artifacts_toolset.py": "f18899e61c6f3d998ac5d0c6ed7bae31db610a4d796b3f0bc580e2693ad22abd",
+    "runtime/tests/test_scan_ffuf.py": "876e688cb6b2ca74764d591a687a8a35390dcd36ef95704e0b76b5e7df7d4e64",
+    "runtime/tests/test_scan_sqlmap_live.py": "9e67b3ce57d19c4c39a8d0e5ea85ba7a773dc75dfbe4ea5117e01628b60f22fa",
+    "runtime/tests/test_scan_sqlmap_request.py": "9ad4214e655109d83cd224ad5e0842c9efd58e77c082b3b1566740bb4c5977de",
+    "runtime/tests/test_scan_toolset.py": "66ddef61574b1237ff119ca7cd33dd7ed8931b0dab7b0b3fc3ac3ce5d289a08c",
+    "runtime/tests/test_security_findings_toolset.py": "a11a38df9bcfdfa25d6f127de48cecb2fc598b1bc5381d895525c3436faf9c71",
+    "runtime/tests/test_sitemap_imports.py": "413cc5f267518e58b95febaae90e3a3c85526492f62a349300e1930d4efc356a",
+    "runtime/tests/test_sitemap_tools.py": "437c8ff0143578a9387d8317a3efc9add9f8b612ad91e4b48d77951d76618e42",
+    "runtime/tests/test_source_analysis_toolset.py": "b4812f8082bafc8014426e92f2f715a78826911402e9a687e6f626af3426bdec",
+    "runtime/tests/test_text_artifacts_toolset.py": "50fcaea647cea033978cbcb97a6a605767eca253d11f88b4cf3e6e09090de2b9",
+    "runtime/tests/test_tool_input_errors.py": "ac03d6b3ed9ffbcac45082b7601396b60ab66522a4c4e968bafd635ef8915ec3",
+    "runtime/tests/test_tool_operation_ownership.py": "2042ed95414642f730aa85421ea21ffad0283e41fb23f283ffa9dc4ddc6470ac",
+    "runtime/tests/test_tool_repeats.py": "bddc1922d3cf145b6162d6e23b56fbd9be206828c99fbc598c2b82bcb4ef38fa",
+    "runtime/tests/test_tool_version_surfaces.py": "bd5d21decd8601a264c2d96e11c89ff9b74cf86a1d80dd8d65e22eff5172be33",
+    "runtime/tests/test_tool_versions.py": "2ce65d0113248a02bc318360931a8c7d7fd73ac3e62b3ee250f493b49907a734",
+    "runtime/tests/test_tool_worker.py": "65817bb96467c4aa01f3415b3462cb1db02c1aa9af2c912dfc1db50343af2ed4",
+    "runtime/tests/test_worker_guidance.py": "f1d25ad804dc2a79e8c21aedd55adc7e47df213e4e400ff017ef3aa8a3f6747d",
+    "runtime/tests/testdata/finding-tool-contracts.json": "85297af0775ac91e03bd6587654ffb843fbfcd52704e634950dc165002215543",
+    "scripts/check_release_verify_graph.py": "81d10920912825913500c08818adbd63d026216cf36f7f587d48414fbd01415c",
+    "tests/e2e/agent_skills_gateway_test.go": "d0035dc8e51be81c333a5cdff6e9b46b8168f0d9ec72c368463b247e50c5f3a7",
+    "tests/e2e/artifact_images_process_test.go": "f2b55f7d634483ef26868ca4195c697f38949c557bc1152bb3c716d4d4cf378e",
+    "tests/e2e/audit_basic_process_test.go": "e25cad74f0d08bb1c608650a1a49090330dd3e9fe7f40745735512806c4cc3a9",
+    "tests/e2e/audit_compaction_test.go": "ac97bb7ddd5881615bce42c4a9b09ccf529be63ed0ce0763ceda12155f9db6b2",
+    "tests/e2e/audit_generation_process_test.go": "3cb823304514beeb40e5ae9b768758ea3b018a1bcad05b47e7d02d7a8746a38a",
+    "tests/e2e/code_analysis_gateway_test.go": "0d1c27e585f3be58aa5dd1b5d9f0b03d532820240d0567aa43e9d4f537268265",
+    "tests/e2e/engagement_run_process_test.go": "606e5bc2e6f7cd4f19766910c737084cf9accd5458791faf519ffb272329aafb",
+    "tests/e2e/eval_finding_project_navigation_test.go": "b8722d6e011fa234c595c176c0a063b635ee222e34918cd5073283275a46fac9",
+    "tests/e2e/fact_extraction_eval_process_test.go": "283cd7d74e2e69b80324205685f905d257014458064f765cca1f049114290f84",
+    "tests/e2e/fact_extraction_process_test.go": "0c21aa5ce5046668188d85c645d9e9efa4046b3266fb1444f6b516ffbc107cd9",
+    "tests/e2e/fake_domain_gateway_test.go": "ebdaaaad1363df3b0c2bf90db764d5ca4768d6b105cc07d53554513a2185aa83",
+    "tests/e2e/fake_gateway_test.go": "d9be0cd3987589366e950ec2338119930ad6c87cfe8ee788dd57a3ed08084d10",
+    "tests/e2e/findings_locations_process_test.go": "0e999acca7bfae09e222950db12782f071895338e74dfa4e25a6056f928aaa25",
+    "tests/e2e/findings_process_test.go": "c50395787af88b5b1d43b39d6fb9cb5b09496458f76c779139aaf2da60e95e1b",
+    "tests/e2e/http_caido_gateway_test.go": "5ae9bd4b0c3ca25d2b9d23f1731008e2b7ce0d8e5a7633eb207d1a7fe758cae3",
+    "tests/e2e/material_set_process_test.go": "0581807b5f31e4aafc93767895225a0f9cf253ecfc8ce89155f018a05fa3b6d6",
+    "tests/e2e/memory_snapshot_process_test.go": "573d58cb51d5befb82e0523ab154d69d28c670fd0de13d620289ab9e89451d64",
+    "tests/e2e/podman_sandbox_test.go": "932a34bddded07615692e51322de0e93fdbc6090882b525d2f75e91bea950cf3",
+    "tests/e2e/production_memory_test.go": "0af4add741bea5e293e029905f921259849ea4042af1144ff90162b7a026fb77",
+    "tests/e2e/project_facts_process_test.go": "3805a5b47589a56439e83b6107b8c0ade1acd42f7c955e887cf7d670e54cf3ca",
+    "tests/e2e/project_findings_reader_process_test.go": "1ae7816278ed2cfb587f022dc85a75bfe22d9efb40f1a065fb7bc31aa9f05142",
+    "tests/e2e/project_sitemap_collection_proxy_test.go": "f3d79c7dffdfc26f3818355c923e4d81d962eeedc5376a0a8cfbfc2f6a2f79dd",
+    "tests/e2e/routing_gateway_test.go": "bfe4c933788c59240081771b7d242fc1ebf6f4070f92c7acaf709e87c6bc5ffd",
+    "tests/e2e/runtime_guidance_test.go": "8caa29dab99a2cf488b612af8a8df905eaaa998abb942ba21d37e4a871c0b18a",
+    "tests/e2e/runtime_versions_test.go": "d1507c8ca12eace2385d59f90562f6a9e19a3ee9b8ec75ba24eb5f65d5c6bd68",
+    "tests/e2e/scheduler_concurrency_gateway_test.go": "03d91c7fcdb36d3a986a0faaf7a55be4d4362e15c3abf6df151ef901feee0c80",
+    "tests/e2e/taint_annotations_gateway_test.go": "3493b9f6b8de4a913361604bfbffe53c4cdaf841343307301fea343e8440c45c",
+    "tests/e2e/worker_compaction_test.go": "5cbd2cfd46a2d6476ff57b6e7c4bc761071b3ab4cb234589c02af4caf827d7d6",
+    "tests/e2e/worker_summarizer_gateway_test.go": "7faeab6d8e5f2cd45dee64942465744ded2ec6977f0ef24c5a04581eec02c59c"
+  },
+  "resource_cleanup": "Owned contractor_test_v479 dropped and absence verified; dedicated PG17 on port 55479 stopped; only owned PG data and canonical test TMPDIR removed.",
+  "integration": {
+    "main_merge": "b8698af47e839a4c6ea3ef2dd6ae6ce3bd39c912",
+    "implementation_tip": "d1c53158854a3c2ef1681d58168c461cd0758bb7",
+    "source_digests_match": true,
+    "note": "Final task-only acceptance commit does not change verified tool sources. Canonical external catalog is regenerated for that final main HEAD."
+  }
+}

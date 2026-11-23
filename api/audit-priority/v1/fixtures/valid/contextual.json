@@ -1,0 +1,1 @@
+{"confidence":"medium","evidence_ids":["finding-3"],"item_key":"AUTHZ-07","missing_context":["The tenant isolation design is not supplied."],"priority":"high","rationale":"Existing cross-tenant access reports make this check useful."}

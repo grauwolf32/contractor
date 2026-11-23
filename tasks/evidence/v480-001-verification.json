@@ -1,0 +1,363 @@
+{
+  "tasks": [
+    "V480-001",
+    "V480-002",
+    "V480-003"
+  ],
+  "delivery_branch": "codex/reset-preproduction-delivery",
+  "tested_code_commits": [
+    "9194cc2a7ac76658318e40613c35b2eabd959764",
+    "6a7ba4150e5962453509ff3df657fb46033eb984",
+    "2c95faae7c1b43bed3089d02f4a358fab922a69a"
+  ],
+  "merged_to_main": false,
+  "verification": {
+    "go_postgres": "go test -tags=integration -count=1 ./internal/... passed against the owned UTF8 PostgreSQL instance",
+    "backup_restore": "Backup/restore integration package and verified demo backup restoration passed",
+    "required_catalog_lock": true,
+    "lint": "make lint passed",
+    "offline_evals": "go test -count=1 ./tests/eval/project_workflows ./tests/eval/project_facts passed",
+    "ui": "Complete tests/ui-stack package passed with real Server/Runtime/PostgreSQL/browser and managed Evals",
+    "native_e2e": {
+      "inventory_count": 128,
+      "passed_roots": 125,
+      "commands": [
+        [
+          "go",
+          "test",
+          "-json",
+          "-tags=e2e",
+          "-count=1",
+          "-timeout=75m",
+          "-run",
+          "^(TestRuntimePlacementAcrossProductionProcesses|TestWorkerCompactionContinuesIsolatedWorker|TestProjectSitemapToolsAcrossProductionProcesses|TestFindingsCollectionsRetainOrdinaryAndAuditReceipts|TestMemorySnapshotAcrossProcesses|TestEngagementHTTPRouteMatrixAcrossProcesses|TestArtifactImagesAcrossProcesses|TestFindingLocationsAcrossProcesses|TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses|TestEngagementIdentitySessionsAcrossProcesses|TestAuditFixedHypothesesAcrossProductionProcesses|TestRuntimeManagedArtifactWritesAcrossProcesses)$",
+          "./tests/e2e"
+        ],
+        [
+          "go",
+          "test",
+          "-json",
+          "-tags=e2e",
+          "-count=1",
+          "-timeout=75m",
+          "-run",
+          "^(TestScannerFindingsAcrossProductionProcesses|TestNucleiWebAcrossProductionProcesses|TestProductionMemoryTemplatesAcrossProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestSchedulerConcurrencyAcrossProductionProcesses|TestLocalGoToPythonArtifactCopy|TestAuditWorkspaceAcrossProductionProcesses|TestProjectDocumentResponseRecoveryAcrossProcesses|TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses|TestAuditCompactionPreservesTrustedCompletionAcrossProcesses|TestEngagementHTTPFindingReusesSelectedEvidenceAcrossProcesses|TestOpenAPIPreparedWorkServerOperation|TestAuditCompletionGateRedactsDatabaseCredentials|TestProductionMemoryConfigurationStaging|TestFactExtractionAcrossProcesses|TestHTTPCaidoE2EConfigurationClosure|TestAuditProgramCatalogRemovalConfigurationClosure|TestAuditCommonFixtureConfigurationLoads|TestFindingsGateRejectsSkippedAndAbsentRuntimeCases|TestFindingsGateRequiresProcessPrerequisites|TestProcessServerBuildsStayInPackageCache|TestAgentSkillsUseOnlyArtifactPlaneInventories|TestFFUFEngagementAcrossProductionProcesses|TestPodmanSandboxMatrixCoversEveryAcceptanceCase|TestMemoryUsesOnlyArtifactPlaneInventories)$",
+          "./tests/e2e"
+        ],
+        [
+          "go",
+          "test",
+          "-json",
+          "-tags=e2e",
+          "-count=1",
+          "-timeout=75m",
+          "-run",
+          "^(TestAuditHypothesisContinuationAcrossProductionProcesses|TestNucleiWebWithDeterministicScannerAcrossProcesses|TestAuditCommonSourcePreparationAcrossProductionProcesses|TestRunMetadataLabelsAcrossProcesses|TestFindingsReaderBoundariesAcrossProcesses|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestArtifactHistoryAcrossProductionProcesses|TestArtifactFilePublicationAcrossProcesses|TestAuditIncrementalEvidenceAcrossProcesses|TestRuntimeManagedMaterialVersionsAcrossProcesses|TestEngagementHTTPSelectedEvidenceAcrossProcesses|TestTraceFindingCoordinatesAcrossProcesses)$",
+          "./tests/e2e"
+        ],
+        [
+          "go",
+          "test",
+          "-json",
+          "-tags=e2e",
+          "-count=1",
+          "-timeout=75m",
+          "-run",
+          "^(TestAgentSkillsMVPProcesses|TestAuditResearchUIAcrossProductionProcesses|TestAuditBasicExactHandoffAcrossProductionProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses|TestRuntimeGuidanceAcrossProductionProcesses|TestEngagementIdentityLifecycleAcrossProcesses|TestProjectDocumentOutputLimitRecoveryAcrossProcesses|TestKatanaDiscoveryAcrossProductionProcesses|TestAuditCommonObservationProfilesAcrossProductionProcesses|TestEngagementOrdinaryRunAcrossProcesses|TestEngagementHTTPBoundsAcrossProcesses|TestRuntimePlacementScannerFixture|TestProjectSitemapServerOperationsAcrossProductionProcesses|TestAuditProgramCatalogReplacementRestartsServer|TestAuditCompletionGateRejectsIncompleteRuntimeReports|TestFindingsGateRejectsFalseGreenProcessReports|TestCodeAnalysisE2EConfigurationLoads|TestProjectFindingBacktraceScriptRestartsRevisionBoundTraversal|TestAuditInvestigationInstructionCatalog|TestProjectWorkerBudgetMatchesPinnedPolicy|TestEngagementAssertionSourcesUseCurrentDomainContract|TestPerformanceMetricsMatrixIsComplete|TestSchedulerConcurrencyMatrixIsComplete|TestAgentSkillsHardeningMatrixIsComplete|TestAuditProgramLibraryMatrixIsComplete|TestAuditsHardeningMatrixIsComplete|TestCodeAnalysisHardeningMatrixIsComplete|TestRuntimeWorkRootEmptyAllowsPersistentOwnerLock|TestDomainGatewayFindsNamedInputAfterParameterBlock|TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure|TestHTTPCaidoHardeningMatrixIsComplete|TestPerformanceReleaseEvidenceIsComplete|TestIndependentFindingsServersAcrossProcesses|TestProfilingHelperProcess|TestProjectWorkspaceHardeningMatrixIsComplete|TestProjectWorkspaceLocalDirectMatrixIsComplete|TestRuntimeAdapterSelectionAllowsAdditionalCapabilities|TestRuntimeConfigurationHardeningMatrixIsComplete|TestMemoryHardeningMatrixIsComplete|TestTaintAnnotationHardeningMatrixIsComplete|TestWorkerObservationsHardeningMatrixIsComplete)$",
+          "./tests/e2e"
+        ],
+        [
+          "go",
+          "test",
+          "-json",
+          "-tags=e2e",
+          "-count=1",
+          "-timeout=75m",
+          "-run",
+          "^(TestProjectWorkspaceLifecycleAcrossProductionProcesses|TestEngagementHTTPLifecycleAcrossProcesses|TestMemoryMVPProcesses|TestProjectSitemapReportImportsAcrossProductionProcesses|TestWorkerSummarizerProductionBoundaries|TestHeterogeneousRuntimeCapabilityPlacement|TestProjectFactsAcrossProcesses|TestEvalFindingProjectNavigationAcrossProcesses|TestFindingsProducerAndReaderAcrossProcesses|TestNucleiEngagementAcrossProductionProcesses|TestRuntimeManagedSitemapEditsAcrossProcesses|TestFactExtractionAuditEvalAcrossProcesses|TestAuditCompletionGateRejectsFalseGreenGoReports|TestProcessDatabaseIsolation|TestAuditProgramsE2EConfigurationLoads|TestAuditProgramsResolveAsRunnableMVPProfiles|TestAuditCompletionGateRequiresPrerequisites|TestFindingsGateRequiresRuntimePrerequisite|TestProfilingSeparateProcessUsesOnlyTheDiagnosticListener|TestRunMetadataLabelsHardeningMatrixIsComplete|TestLifecycleControlsHardeningMatrixIsComplete|TestArtifactPlaneInventoryScansNewProductionFiles|TestWorkerSummarizerHardeningMatrixIsComplete)$",
+          "./tests/e2e"
+        ],
+        [
+          "go",
+          "test",
+          "-json",
+          "-tags=e2e",
+          "-count=1",
+          "-timeout=75m",
+          "-run",
+          "^(TestScanToolsAcrossProductionProcesses|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestRoutingAndEscalationProductionBoundaries|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestAuditCommonScanProfilesAcrossProductionProcesses|TestWorkerSessionModesAcrossProductionProcesses|TestProjectFindingsReaderAcrossProcesses|TestWorkflowMaterialSetsAcrossProductionProcesses|TestAuditCompositionAcrossProductionProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestAuditPartialJudgmentsAcrossProcesses|TestAuditCompactionLeaseLossAcrossProcesses)$",
+          "./tests/e2e"
+        ]
+      ],
+      "results": [
+        {
+          "lane": 0,
+          "exit_code": 0,
+          "results": {
+            "TestArtifactImagesAcrossProcesses": "pass",
+            "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses": "pass",
+            "TestAuditFixedHypothesesAcrossProductionProcesses": "pass",
+            "TestEngagementHTTPRouteMatrixAcrossProcesses": "pass",
+            "TestEngagementIdentitySessionsAcrossProcesses": "pass",
+            "TestFindingLocationsAcrossProcesses": "pass",
+            "TestFindingsCollectionsRetainOrdinaryAndAuditReceipts": "pass",
+            "TestMemorySnapshotAcrossProcesses": "pass",
+            "TestProjectSitemapToolsAcrossProductionProcesses": "pass",
+            "TestRuntimePlacementAcrossProductionProcesses": "pass",
+            "TestRuntimeManagedArtifactWritesAcrossProcesses": "pass",
+            "TestWorkerCompactionContinuesIsolatedWorker": "pass"
+          },
+          "missing": [],
+          "skipped_cases": []
+        },
+        {
+          "lane": 1,
+          "exit_code": 0,
+          "results": {
+            "TestAgentSkillsUseOnlyArtifactPlaneInventories": "pass",
+            "TestAuditCompactionPreservesTrustedCompletionAcrossProcesses": "pass",
+            "TestAuditCompletionGateRedactsDatabaseCredentials": "pass",
+            "TestAuditCommonFixtureConfigurationLoads": "pass",
+            "TestAuditProgramCatalogRemovalConfigurationClosure": "pass",
+            "TestAuditWorkspaceAcrossProductionProcesses": "pass",
+            "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses": "pass",
+            "TestLocalGoToPythonArtifactCopy": "pass",
+            "TestEngagementHTTPFindingReusesSelectedEvidenceAcrossProcesses": "pass",
+            "TestFactExtractionAcrossProcesses": "pass",
+            "TestFFUFEngagementAcrossProductionProcesses": "pass",
+            "TestFindingsGateRejectsSkippedAndAbsentRuntimeCases": "pass",
+            "TestFindingsGateRequiresProcessPrerequisites": "pass",
+            "TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses": "pass",
+            "TestHTTPCaidoE2EConfigurationClosure": "pass",
+            "TestNucleiWebAcrossProductionProcesses": "pass",
+            "TestOpenAPIPreparedWorkServerOperation": "pass",
+            "TestPodmanSandboxMatrixCoversEveryAcceptanceCase": "pass",
+            "TestProductionMemoryConfigurationStaging": "pass",
+            "TestProductionMemoryTemplatesAcrossProcesses": "pass",
+            "TestProjectDocumentResponseRecoveryAcrossProcesses": "pass",
+            "TestScannerFindingsAcrossProductionProcesses": "pass",
+            "TestSchedulerConcurrencyAcrossProductionProcesses": "pass",
+            "TestProcessServerBuildsStayInPackageCache": "pass",
+            "TestMemoryUsesOnlyArtifactPlaneInventories": "pass"
+          },
+          "missing": [],
+          "skipped_cases": []
+        },
+        {
+          "lane": 2,
+          "exit_code": 0,
+          "results": {
+            "TestArtifactHistoryAcrossProductionProcesses": "pass",
+            "TestAuditCommonSourcePreparationAcrossProductionProcesses": "pass",
+            "TestAuditHypothesisContinuationAcrossProductionProcesses": "pass",
+            "TestAuditIncrementalEvidenceAcrossProcesses": "pass",
+            "TestEngagementHTTPSelectedEvidenceAcrossProcesses": "pass",
+            "TestArtifactFilePublicationAcrossProcesses": "pass",
+            "TestFindingsReaderBoundariesAcrossProcesses": "pass",
+            "TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses": "pass",
+            "TestNucleiWebWithDeterministicScannerAcrossProcesses": "pass",
+            "TestRunMetadataLabelsAcrossProcesses": "pass",
+            "TestRuntimeManagedMaterialVersionsAcrossProcesses": "pass",
+            "TestTraceFindingCoordinatesAcrossProcesses": "pass"
+          },
+          "missing": [],
+          "skipped_cases": []
+        },
+        {
+          "lane": 3,
+          "exit_code": 0,
+          "results": {
+            "TestAgentSkillsHardeningMatrixIsComplete": "pass",
+            "TestAgentSkillsMVPProcesses": "pass",
+            "TestProjectFindingBacktraceScriptRestartsRevisionBoundTraversal": "pass",
+            "TestAuditBasicExactHandoffAcrossProductionProcesses": "pass",
+            "TestAuditProgramCatalogReplacementRestartsServer": "pass",
+            "TestAuditCommonObservationProfilesAcrossProductionProcesses": "pass",
+            "TestAuditCompletionGateRejectsIncompleteRuntimeReports": "pass",
+            "TestAuditResearchUIAcrossProductionProcesses": "pass",
+            "TestAuditProgramLibraryMatrixIsComplete": "pass",
+            "TestAuditInvestigationInstructionCatalog": "pass",
+            "TestAuditsHardeningMatrixIsComplete": "pass",
+            "TestCodeAnalysisE2EConfigurationLoads": "pass",
+            "TestCodeAnalysisHardeningMatrixIsComplete": "pass",
+            "TestRuntimeWorkRootEmptyAllowsPersistentOwnerLock": "pass",
+            "TestEngagementAssertionSourcesUseCurrentDomainContract": "pass",
+            "TestEngagementHTTPBoundsAcrossProcesses": "pass",
+            "TestEngagementIdentityLifecycleAcrossProcesses": "pass",
+            "TestEngagementOrdinaryRunAcrossProcesses": "pass",
+            "TestDomainGatewayFindsNamedInputAfterParameterBlock": "pass",
+            "TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure": "pass",
+            "TestFindingsGateRejectsFalseGreenProcessReports": "pass",
+            "TestHTTPCaidoHardeningMatrixIsComplete": "pass",
+            "TestProjectSitemapHTTPCollectionAcrossProductionProcesses": "pass",
+            "TestKatanaDiscoveryAcrossProductionProcesses": "pass",
+            "TestPerformanceMetricsMatrixIsComplete": "pass",
+            "TestPerformanceReleaseEvidenceIsComplete": "pass",
+            "TestIndependentFindingsServersAcrossProcesses": "pass",
+            "TestProfilingHelperProcess": "pass",
+            "TestProjectDocumentOutputLimitRecoveryAcrossProcesses": "pass",
+            "TestProjectSitemapServerOperationsAcrossProductionProcesses": "pass",
+            "TestProjectWorkerBudgetMatchesPinnedPolicy": "pass",
+            "TestProjectWorkspaceHardeningMatrixIsComplete": "pass",
+            "TestProjectWorkspaceLocalDirectMatrixIsComplete": "pass",
+            "TestRuntimeAdapterSelectionAllowsAdditionalCapabilities": "pass",
+            "TestRuntimeConfigurationHardeningMatrixIsComplete": "pass",
+            "TestRuntimeGuidanceAcrossProductionProcesses": "pass",
+            "TestRuntimePlacementScannerFixture": "pass",
+            "TestSchedulerConcurrencyMatrixIsComplete": "pass",
+            "TestMemoryHardeningMatrixIsComplete": "pass",
+            "TestTaintAnnotationHardeningMatrixIsComplete": "pass",
+            "TestWorkerObservationsHardeningMatrixIsComplete": "pass"
+          },
+          "missing": [],
+          "skipped_cases": []
+        },
+        {
+          "lane": 4,
+          "exit_code": 0,
+          "results": {
+            "TestAuditCompletionGateRejectsFalseGreenGoReports": "pass",
+            "TestAuditCompletionGateRequiresPrerequisites": "pass",
+            "TestAuditProgramsE2EConfigurationLoads": "pass",
+            "TestHeterogeneousRuntimeCapabilityPlacement": "pass",
+            "TestEngagementHTTPLifecycleAcrossProcesses": "pass",
+            "TestEvalFindingProjectNavigationAcrossProcesses": "pass",
+            "TestFactExtractionAuditEvalAcrossProcesses": "pass",
+            "TestFindingsGateRequiresRuntimePrerequisite": "pass",
+            "TestFindingsProducerAndReaderAcrossProcesses": "pass",
+            "TestLifecycleControlsHardeningMatrixIsComplete": "pass",
+            "TestNucleiEngagementAcrossProductionProcesses": "pass",
+            "TestProcessDatabaseIsolation": "pass",
+            "TestProfilingSeparateProcessUsesOnlyTheDiagnosticListener": "pass",
+            "TestProjectFactsAcrossProcesses": "pass",
+            "TestProjectSitemapReportImportsAcrossProductionProcesses": "pass",
+            "TestProjectWorkspaceLifecycleAcrossProductionProcesses": "pass",
+            "TestArtifactPlaneInventoryScansNewProductionFiles": "pass",
+            "TestRunMetadataLabelsHardeningMatrixIsComplete": "pass",
+            "TestRuntimeManagedSitemapEditsAcrossProcesses": "pass",
+            "TestMemoryMVPProcesses": "pass",
+            "TestWorkerSummarizerHardeningMatrixIsComplete": "pass",
+            "TestWorkerSummarizerProductionBoundaries": "pass",
+            "TestAuditProgramsResolveAsRunnableMVPProfiles": "pass"
+          },
+          "missing": [],
+          "skipped_cases": []
+        },
+        {
+          "lane": 5,
+          "exit_code": 0,
+          "results": {
+            "TestAuditCommonScanProfilesAcrossProductionProcesses": "pass",
+            "TestAuditCompactionLeaseLossAcrossProcesses": "pass",
+            "TestAuditCompositionAcrossProductionProcesses": "pass",
+            "TestAuditPartialJudgmentsAcrossProcesses": "pass",
+            "TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses": "pass",
+            "TestWorkflowMaterialSetsAcrossProductionProcesses": "pass",
+            "TestProjectFindingsReaderAcrossProcesses": "pass",
+            "TestRoutingAndEscalationProductionBoundaries": "pass",
+            "TestLabelDrivenRuntimeConfigurationAcrossProcesses": "pass",
+            "TestScanToolsAcrossProductionProcesses": "pass",
+            "TestTaintAnnotationsAcrossRealRuntimeProcess": "pass",
+            "TestWorkerSessionModesAcrossProductionProcesses": "pass"
+          },
+          "missing": [],
+          "skipped_cases": []
+        }
+      ]
+    },
+    "real_podman": {
+      "host": "macOS",
+      "target": "Linux, selected Podman engine architecture",
+      "passed_roots": [
+        "TestArtifactBlobBackendsContainers",
+        "TestGitArtifactsProductionContainers"
+      ],
+      "blob_backend_modes": 4,
+      "git_backends": [
+        "postgresql",
+        "filesystem"
+      ]
+    },
+    "heavy_io_enabled": false,
+    "excluded_e2e_root": {
+      "name": "TestPodmanSandboxAcrossProductionProcesses",
+      "reason": "The explicit CONTRACTOR_TEST_PODMAN_IMAGE Linux Runtime sandbox image is not configured on this macOS host; this is not passing coverage."
+    },
+    "full_release_verify_claimed": false
+  },
+  "prior_failures_resolved": [
+    "UTF8 PostgreSQL test cluster and sufficient lock budget replaced an unsuitable local test environment.",
+    "The task-local ffuf executable uses the repository-pinned 2.3.0 release metadata.",
+    "Current catalog consumer references and writer fixtures were corrected; frozen Eval corpus bytes remain unchanged.",
+    "The isolated UI worktree has its own pnpm modules; pnpm correctly refused an outside-root node_modules symlink.",
+    "The real research browser now selects a concrete retained receipt with exact descriptor checks (V480-003).",
+    "The deterministic Nuclei scenario hit the shared five-minute budget in the first concurrent run; its unchanged standalone rerun and the complete final shard both pass."
+  ],
+  "logs": {
+    "internal-tests-utf8.log": {
+      "sha256": "5d93ef0bea1b990d7e77bf474b3b5c698f9232e38d8c207c5eefae84b7b44383",
+      "record": "private .local/v480/internal-tests-utf8.log",
+      "exit_code": 0
+    },
+    "restore-utf8.log": {
+      "sha256": "eb816d9f7410b33d850ceb2e27e600740b405669dd6c8e936faa5b292708f1b0",
+      "record": "private .local/v480/restore-utf8.log",
+      "exit_code": 0
+    },
+    "server-build-tests.log": {
+      "sha256": "906d094de9269f61a393a01aa38780f07df01446919ae72f4c0a65da393fa439",
+      "record": "private .local/v480/server-build-tests.log",
+      "exit_code": 0
+    },
+    "ui-stack-final.log": {
+      "sha256": "70fdffa3641573e6099669cff4ec7dd01c5cf7d5ab9bcdafd49fa11bcc517ecc",
+      "record": "private .local/v480/ui-stack-final.log",
+      "exit_code": 0
+    },
+    "blob-container.log": {
+      "sha256": "49b6743baccdce11203d801a66cad508dcfc414ce86235fe925dd2eebe7310f9",
+      "record": "private .local/v480/blob-container.log",
+      "exit_code": 0
+    },
+    "git-container.log": {
+      "sha256": "0c5d5bf449b4c6839796551f7e942fc202119fa2b9f627011c5e3bf2dc865ad0",
+      "record": "private .local/v480/git-container.log",
+      "exit_code": 0
+    },
+    "offline-evals-final.log": {
+      "sha256": "98a5f0dd60f72e915c733c49b6cbd9394262557a832209d94348c715dc8a21fc",
+      "record": "private .local/v480/offline-evals-final.log",
+      "exit_code": 0
+    },
+    "lint-delivery.log": {
+      "sha256": "7df54a9ebfc96bf4e3fe4891189fd40a608c688fb494b9b47c44eb864ea5ac96",
+      "record": "private .local/v480/lint-delivery.log",
+      "exit_code": 0
+    },
+    "config-validation.log": {
+      "sha256": "cf0bd8e93d19e710497b34c82a6bca111577d08ae5cc0365a1c9c2813ee5287c",
+      "record": "private .local/v480/config-validation.log",
+      "exit_code": 0
+    },
+    "research-browser-final.log": {
+      "sha256": "84308d77d1581794ce2f289e9c29b19ba8e70c84867615fa36731b844cb76ccd",
+      "record": "private .local/v480/research-browser-final.log",
+      "exit_code": 0
+    }
+  },
+  "demo_reset_evidence": "tasks/evidence/v480-001-demo-reset.json",
+  "schema_equivalence_evidence": "tasks/evidence/v480-001-schema-equivalence.json",
+  "resource_cleanup": {
+    "owned_test_cluster": {
+      "databases_explicitly_dropped": true,
+      "stopped": true,
+      "data_directory_removed": true
+    },
+    "old_stopped_test_cluster_removed": true,
+    "initial_demo_instance_test_database_dropped": true,
+    "business_demo_database_preserved": true,
+    "retained_demo_backup_preserved": true,
+    "podman_gate_containers_remaining": 0,
+    "podman_gate_images_remaining": 0
+  }
+}

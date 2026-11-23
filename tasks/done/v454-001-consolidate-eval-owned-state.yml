@@ -1,0 +1,76 @@
+schema_version: "1.0"
+id: V454-001
+title: Fold Eval plan and current selection into their owning rows
+milestone: eval-maintenance-2026-10
+epic: evals
+kind: chore
+introduced_by: V38-006
+priority: P3
+status: completed
+implementation_commit: d0ceecbf437513efc2049b519cf3ce1cd09ec38d
+depends_on: []
+languages: [go, sql]
+goal: Reduce Eval persistence from nineteen to seventeen tables while preserving exact frozen plans, current selections, recovery, read bounds and bounded purge.
+context:
+  authority: User 2026-11-06 approves merging eval_selections into eval_members and eval_frozen_plans into eval_experiments after the schema investigation in this chat.
+  specification: [docs/spec/evals/managed-evals.md, docs/spec/platform/persistence.md, docs/spec/platform/limits.md]
+  finding: internal/evalstore/selections.go stores one mutable selection per immutable member; internal/evalstore/experiments.go stores one immutable frozen plan per experiment. These dependent one-to-one tables duplicate owner identity and require extra joins and purge steps.
+  source_implementation: 5e3c7a9023a6011598a84c217b19cde00b9615ce
+  merge_authority: User 2026-11-06 explicitly requests merging this completed feature into main. Preserve current Gateway memory recovery, Runtime stop/State changes, HTTP evidence and the UI design archive; adapt only unmerged identities and regenerate derived files.
+  migration_identity: Main now owns 000014_gateway_recovery_memory.sql. The unmerged Eval migration is assigned 000015_eval_owned_state.sql; only disposable test databases had applied its prior 000014 name and those databases were dropped. No deployed ledger is rewritten.
+  tracker_identity: Originally allocated as V451-001, then V452-001 after the first concurrent collision. Main now owns V452-001 allocation stop and V452-002 Worker State; this Eval task uses V454-001 before integration. Historical implementation hashes and scope are preserved.
+  origin: V38-006 introduced selected records; V38-003 introduced managed experiment persistence. Historical task contracts remain historical.
+  boundary: EvalStore retains authority. Immutable plan and matrix columns use column-scoped guards; mutable selection columns remain independent of projection rows. Existing receipts, CAS revisions, controller claims and atomic view publication remain unchanged.
+  alternatives: Keep the separate tables, which avoids migration work but retains redundant identities and joins. Folding projections or claims would alter locking boundaries and is outside this change.
+  digest_decision: PostgreSQL experiments proved that a stored generated digest is re-evaluated on a counter update when the table has a BEFORE UPDATE row trigger. Pure experiment/plan guards now run AFTER UPDATE in the same statement, preserving rollback on rejection and keeping the generated digest without a second writer or per-progress hash. The real-store regression counts generated-expression evaluations.
+  reopen: Reconsider physical separation only if real-store measurements show parent-row contention or payload read/write amplification; explicit projections must continue to avoid transferring frozen documents.
+scope:
+  in:
+    - Forward migration preserving frozen bytes, digests, readiness, setup, timestamps and current selection attribution/revisions; remove both old tables without compatibility readers.
+    - Update production SQL, column immutability, foreign keys, bounded purge accounting and all affected real-store fixtures.
+    - Update normative ownership/limits, ERD metadata and regenerate the schema diagram.
+  out:
+    - External contracts, execution semantics, tombstones, projection/claim consolidation and deployment or demo database mutation.
+acceptance_criteria:
+  - id: A1
+    text: The migrated schema has seventeen Eval-owned tables; existing native/external plans and selections retain their exact bytes, digests, attribution and revisions. Fresh and populated migrations succeed and leave no legacy read path.
+  - id: A2
+    text: Frozen plan and matrix changes are rejected, selection remains mutable with exact record foreign keys and existing CAS/idempotency, and plan metadata/page reads do not transfer plan bytes.
+  - id: A3
+    text: Experiment and Project purge with selected records completes in bounded passes with exact charged rows/bytes, including triggers; interrupted passes remain resumable and ordinary Run/Audit state survives.
+  - id: A4
+    text: Full suites of touched Go packages and lint pass against a disposable PostgreSQL database; generated ERD and source ownership/size registries agree with the schema.
+tests:
+  - command: go test -p=2 -race -tags=integration -count=1 ./internal/evalstore ./internal/evalservice ./internal/evaldomain ./internal/httpapi/public ./internal/persistence ./internal/persistence/postgres
+    covers: [A1, A2, A3, A4]
+  - command: make docs-erd
+    covers: [A1, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification:
+  results:
+    - Full six-package Go race suites passed with and without integration tags against the disposable PostgreSQL database. Final tagged run includes the final generated-digest and AFTER-guard design.
+    - Populated native/external migration preserves exact document bytes, generated and attributed digests, setup, readiness, freeze timestamps, member identities, selection revisions/authors and existing projection/collection revisions; the installed Eval schema has seventeen tables.
+    - Real-store regressions reject a partial matrix at commit, preserve immutable plan/matrix fields and exact record foreign keys, count one generated digest evaluation at freeze and zero at progress, and clear 1200 selected members in bounded resumable passes without dirtying projections.
+    - Existing dense experiment and Project purge, recovery, CAS/idempotency, native-ceiling metadata reads and API suites pass. Optional heavy-I/O fixtures were not enabled by this lane.
+    - Feature make docs-erd passed with 67 total tables and 84 foreign keys. Combined-main regeneration now has 62 total tables and 75 foreign keys, preserving the five-table Gateway retirement and the seventeen Eval tables; ownership and size registries agree.
+    - Final make lint passes, including generated contracts, formatting, vet, staticcheck, test-only export checks, script/deployment tests, release graph, task/spec/fixture/ERD checks, Ruff and Runtime import boundaries.
+    - Combined-main verification passes the complete six-package Go/PostgreSQL command with -p=2, -race and integration tags, plus make lint and make docs-erd. Both 000014 Gateway and 000015 Eval populated migration tests pass. No full release-verify, live-model or additional Runtime/UI suites are claimed for this merge.
+  cleanup: Feature database contractor_test_v451_eval and integration database contractor_test_eval_merge were explicitly dropped after their Go processes and pools stopped; no demo data was changed.
+  delivery: Merged into local main through no-fast-forward merge d0ceecbf437513efc2049b519cf3ce1cd09ec38d after combined verification. Deployment remains outside this merge request.
+delivery:
+  date: '2026-11-07'
+  merged_into_main: true
+  merge_commit: d0ceecbf437513efc2049b519cf3ce1cd09ec38d
+  previous_main: b8d6129c6468eda366ef46f47f9371ffef049a7b
+  source_head: 82c265f665255564c131c18d1399d3a628849444
+  migration: 000015_eval_owned_state.sql
+  preservation: >-
+    Prepared the no-fast-forward merge with previous main as its first parent
+    and the exact completed feature head as its second parent. Native three-way
+    checkout, CAS main-ref advancement and reattachment preserve all 23
+    pre-existing dirty tracked/untracked paths and their modes: 22 retain their
+    exact bytes and the one overlapping Eval specification retains its user
+    change merged with the committed consolidation. The user index stays clean.
+    Recoverable snapshot: /private/tmp/eval-main-preserve-xdiwymjq/snapshot.json.
+  limitations: Full release-verify and additional Runtime/UI/live-model suites were not rerun for this merge. Optional heavy-I/O fixtures were not enabled by the lane.

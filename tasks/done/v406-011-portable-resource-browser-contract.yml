@@ -1,0 +1,38 @@
+schema_version: '1.0'
+id: V406-011
+title: Keep the browser resource assertion aligned with portable collection
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: ui
+kind: defect
+introduced_by: V396-001
+priority: P2
+status: completed
+depends_on: [V396-001]
+languages: [typescript]
+goal: Let the real UI gate validate the current Linux and macOS process-resource contract without expecting obsolete unsupported-host reports.
+context:
+  specification: docs/spec/operations/operations.md#OPS-R73
+  finding: ui/e2e/stack.spec.ts:39 still expects unavailable on macOS. V396-001 changed Server/Runtime collection to gopsutil/psutil and OPS-R73 now supports macOS; the real browser correctly displays available and the old assertion fails.
+  siblings: The shared expectNativeResources helper checks both Run attempts and retained Operations cards; unsupported hosts retain explicit unavailable/reason checks. No sampler or production UI change is needed.
+scope:
+  in:
+  - Align the supported-host predicate with OPS-R73 for both real browser resource views.
+  - Keep strict available, requested collection, and Runtime process scope assertions on supported hosts.
+  out:
+  - Production metrics code, API changes, disabling assertions or accepting arbitrary resource states.
+acceptance_criteria:
+- id: A1
+  text: The real Server/Runtime/browser operations gate accepts available resources on native macOS and reaches the following Run and widget assertions.
+- id: A2
+  text: Linux remains strict, and hosts outside Linux/macOS keep explicit unavailable and unsupported-platform checks in both views.
+tests:
+- command: make test-ui-stack-operations
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2]
+implementation_commit: 8d4ae5375e7e72f1ed29de6ba222268b5664ac7c
+verification:
+  date: '2026-10-23'
+  passed:
+  - make test-ui-stack-operations passed in 157.24 seconds on native macOS, including both resource views.
+  - make lint passed.
