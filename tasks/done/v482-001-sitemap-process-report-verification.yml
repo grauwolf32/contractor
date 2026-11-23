@@ -6,7 +6,7 @@ epic: quality
 kind: defect
 introduced_by: V410-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: The sitemap process gate rejects skipped or missing required scenarios and reports actual passing coverage.
@@ -38,3 +38,4 @@ verification:
   - The three new entry-point tests passed; the complete script suite ran 231 tests with one opt-in Podman storage test skipped.
   - make lint passed, including the release graph, shared report tests and task consistency.
   - The former script accepted the synthetic apply-only skip and printed zero skips; the new entry point rejects it.
+implementation_commit: 644d0e7dee5be8908d2ca5c1e8d3d16d58edc0f3
