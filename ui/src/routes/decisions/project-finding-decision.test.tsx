@@ -92,8 +92,15 @@ it("edits the Project directly from a check and refetches the same state in both
   let current = sample();
   const writes: { headers: Headers; body: unknown }[] = [];
   const gate = deferred<void>();
+  const refreshGate = deferred<void>();
+  let refreshReads = 0;
   const server = fakeServer({
     ...reads(() => current),
+    "GET /v1/projects/{projectId}/findings/{findingId}": async () => {
+      if (current.revision === 2 && ++refreshReads === 3)
+        await refreshGate.promise;
+      return json(current, 200, { ETag: `"${current.revision}"` });
+    },
     "PATCH /v1/projects/{projectId}/findings/{findingId}": async ({
       request,
     }) => {
@@ -116,6 +123,10 @@ it("edits the Project directly from a check and refetches the same state in both
   const view = renderWithAPI(<Workspace />, { server });
   await screen.findByRole("button", { name: /Confirm issue/ });
   expect(screen.queryByRole("textbox", { name: /Why/ })).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Use issue summary" }),
+  ).toBeNull();
+  expect(screen.queryByText("Choose a decision.")).toBeNull();
   await view.user.click(screen.getByRole("button", { name: /Confirm issue/ }));
   await view.user.click(screen.getByRole("radio", { name: "High" }));
   await view.user.type(
@@ -137,10 +148,25 @@ it("edits the Project directly from a check and refetches the same state in both
     screen.getByRole("button", { name: "Record decision" }),
   ).toHaveAttribute("aria-disabled", "true");
   gate.resolve();
+  await waitFor(() =>
+    expect(screen.getByLabelText("First check")).toHaveTextContent(
+      "confirmed · 2",
+    ),
+  );
+  expect(
+    screen.getByRole("button", { name: "Record decision" }),
+  ).toHaveAttribute("aria-disabled", "true");
+  expect(screen.queryByRole("button", { name: "Change decision" })).toBeNull();
+  refreshGate.resolve();
   for (const name of ["Project", "First check", "Second check"])
     await waitFor(() =>
       expect(screen.getByLabelText(name)).toHaveTextContent("confirmed · 2"),
     );
+  await view.user.click(
+    await screen.findByRole("button", { name: "Change decision" }),
+  );
+  expect(screen.getByRole("button", { name: "Confirm issue" })).toBeVisible();
+  expect(screen.queryByRole("textbox", { name: /Why/ })).toBeNull();
   expect(
     server.requests.every((request) => !request.url.includes("/reviews")),
   ).toBe(true);

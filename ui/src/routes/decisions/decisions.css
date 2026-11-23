@@ -66,3 +66,20 @@
 .decisions-finding:focus {
   outline: none;
 }
+
+.decisions-review-actions,
+.decisions-save-notice {
+  padding: var(--space-3) var(--ui-pad-end, 1rem) var(--space-3)
+    var(--ui-pad-start, 1rem);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.decisions-review-actions {
+  border-top: 1px solid var(--line);
+}
+
+.decisions-save-notice {
+  padding-bottom: 0;
+  color: var(--success);
+}

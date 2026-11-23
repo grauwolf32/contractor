@@ -173,7 +173,11 @@ describe.each(["runtime", "tool"] as const)(
         );
         const { view } = fixture(kind, fetcher);
         const rendered = render(view());
-        expect(await screen.findByText("1", { exact: true })).toBeVisible();
+        expect(
+          await screen.findByText(kind === "tool" ? "1 ms" : "1", {
+            exact: true,
+          }),
+        ).toBeVisible();
         expect(fetcher).toHaveBeenCalledTimes(1);
         rendered.rerender(view({ state: "failed", snapshot: 1 }));
         await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
@@ -181,11 +185,17 @@ describe.each(["runtime", "tool"] as const)(
         await waitFor(() => expect(aborted).toBe(1));
         rendered.rerender(view({ state: "failed", entry: 1 }));
         if (outcome === "success")
-          expect(await screen.findByText("2", { exact: true })).toBeVisible();
+          expect(
+            await screen.findByText(kind === "tool" ? "2 ms" : "2", {
+              exact: true,
+            }),
+          ).toBeVisible();
         else {
           expect(await screen.findByText("Retained read failed")).toBeVisible();
           expect(screen.getByText(/Previously loaded/i)).toBeVisible();
-          expect(screen.getByText("1", { exact: true })).toBeVisible();
+          expect(
+            screen.getByText(kind === "tool" ? "1 ms" : "1", { exact: true }),
+          ).toBeVisible();
         }
         expect(fetcher).toHaveBeenCalledTimes(outcome === "retryable" ? 5 : 3);
       },
@@ -201,7 +211,11 @@ describe.each(["runtime", "tool"] as const)(
       );
       const { view, client, key } = fixture(kind, fetcher);
       const rendered = render(view());
-      expect(await screen.findByText("1", { exact: true })).toBeVisible();
+      expect(
+        await screen.findByText(kind === "tool" ? "1 ms" : "1", {
+          exact: true,
+        }),
+      ).toBeVisible();
       rendered.rerender(view({ snapshot: 1 }));
       await act(() =>
         client.invalidateQueries({ queryKey: queryKeys.runs.all }),
@@ -236,7 +250,11 @@ describe.each(["runtime", "tool"] as const)(
       expect(client.getQueryState(other)?.isInvalidated).toBe(false);
       expect(fetcher).toHaveBeenCalledTimes(1);
       rendered.rerender(view({ entry: 1, open: true }));
-      expect(await screen.findByText("2", { exact: true })).toBeVisible();
+      expect(
+        await screen.findByText(kind === "tool" ? "2 ms" : "2", {
+          exact: true,
+        }),
+      ).toBeVisible();
       expect(fetcher).toHaveBeenCalledTimes(2);
     });
   },

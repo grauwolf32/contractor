@@ -119,14 +119,18 @@ export function IssueRecordedDecision({
       aria-label="Recorded decision"
       data-tone={state.tone}
     >
-      <p className="issues-section-label">Recorded decision</p>
-      <StatusChip tone={state.tone}>{state.label}</StatusChip>
-      <p className="ui-caption">
-        by {finding.actorId} ·{" "}
-        {finding.assessedAt === null ? null : (
-          <RecordedTime value={finding.assessedAt} />
-        )}
-      </p>
+      <header>
+        <span className="issues-section-label">Recorded decision</span>
+        <StatusChip size="sm" tone={state.tone}>
+          {state.label}
+        </StatusChip>
+        <span className="ui-caption">
+          by {finding.actorId} ·{" "}
+          {finding.assessedAt === null ? null : (
+            <RecordedTime value={finding.assessedAt} />
+          )}
+        </span>
+      </header>
       {finding.rationale === null ? null : (
         <DecisionMarkdown source={finding.rationale} />
       )}

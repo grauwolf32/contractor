@@ -32,6 +32,7 @@ export function MaterialList<P extends MaterialPage>({
   pagesLabel,
   pages,
   children,
+  advancedFilter = false,
 }: {
   query: {
     data: P | undefined;
@@ -51,12 +52,30 @@ export function MaterialList<P extends MaterialPage>({
     controls: (page: PageContinuation | undefined) => CursorStackControls;
   };
   children: (page: P) => ReactNode;
+  advancedFilter?: boolean;
 }) {
   const filter = useNamespaceFilter({ value: namespace, onApply: onNamespace });
   return (
     <>
       <div className="materials-panel-head">
-        {filter.form}
+        {advancedFilter ? (
+          <details
+            className="materials-filter-disclosure"
+            open={namespace !== undefined || undefined}
+          >
+            <summary>
+              Filter by namespace
+              {namespace === undefined ? "" : ` · ${namespace}`}
+            </summary>
+            {filter.form}
+            <p className="ui-caption">
+              Namespaces group stored files. Select an archive namespace to
+              include its historical files.
+            </p>
+          </details>
+        ) : (
+          filter.form
+        )}
         {namespace === undefined ? null : (
           <Button
             variant="ghost"

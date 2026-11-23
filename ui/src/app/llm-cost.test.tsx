@@ -93,7 +93,11 @@ describe("LLM cost presentation", () => {
       new URL("https://example.test/v1/runs/run_1/llm-cost"),
     )!;
     const view = render(<LLMCostCard value={unknown} />);
-    expect(screen.getByText("—")).toBeVisible();
+    expect(screen.getByText("No recorded cost")).toBeVisible();
+    expect(screen.getByText("No cost data")).toBeVisible();
+    expect(
+      screen.getByText("Earlier work has no retained monetary data."),
+    ).toBeVisible();
     expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
     view.rerender(
       <LLMCostCard

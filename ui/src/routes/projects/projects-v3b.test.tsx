@@ -994,7 +994,7 @@ describe("Project overview", () => {
     const card = await within(results).findByRole("article", {
       name: "openapi",
     });
-    expect(within(card).getByText("outputs/openapi@r1")).toBeVisible();
+    expect(within(card).getByTitle("outputs/openapi@r1")).toBeVisible();
     const artifactReads = () =>
       requests.filter(
         (request) =>
@@ -1016,7 +1016,7 @@ describe("Project overview", () => {
         queryKey: queryKeys.runs.detail("run_ok"),
       });
     });
-    const updated = await within(results).findByText("outputs/openapi@r2");
+    const updated = await within(results).findByTitle("outputs/openapi@r2");
     expect(updated).toBeVisible();
     expect(artifactReads()).toHaveLength(2);
     const nextCard = within(results).getByRole("article", { name: "openapi" });
@@ -1059,8 +1059,8 @@ describe("Project overview", () => {
     const card = await within(results).findByRole("article", {
       name: "openapi",
     });
-    await within(results).findAllByText(/Output roles unavailable/);
-    expect(within(card).getByText("Run output")).toBeVisible();
+    await within(results).findAllByText(/Result labels could not be loaded/);
+    expect(within(card).getByText("Saved result")).toBeVisible();
     expect(within(card).queryByText("Primary result")).toBeNull();
     await user.click(within(card).getByRole("button", { name: "Preview" }));
     await within(card).findByText("Output access denied");
@@ -1159,7 +1159,9 @@ describe("Project overview", () => {
       auditId === "audit_running" ? held.promise : undefined;
     const issueReads = () => reads(requests, "/v1/projects/project_a/findings");
     const before = issueReads();
-    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    await user.click(
+      screen.getByRole("button", { name: "Refresh project details" }),
+    );
     await waitFor(() => expect(issueReads()).toBe(before + 1));
     // The previous revision stays counted while the new one loads.
     expect(

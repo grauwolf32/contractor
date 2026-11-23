@@ -337,7 +337,7 @@
   max-width: 68ch;
   margin: 0;
   color: var(--muted);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   line-height: 1.55;
 }
 
@@ -399,6 +399,28 @@
   padding: var(--space-2-5) var(--space-4);
   border-bottom: 1px solid var(--line);
   background: var(--surface-subtle);
+}
+
+.materials-filter-disclosure {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.materials-filter-disclosure > summary {
+  cursor: pointer;
+}
+.materials-filter-disclosure > form {
+  margin-block: var(--space-3) var(--space-2);
+}
+.materials-filter-disclosure > p {
+  margin: 0;
+}
+.materials-row-preview {
+  position: relative;
+  z-index: 1;
+  font-size: var(--text-xs);
+  white-space: nowrap;
 }
 
 .materials-panel > :is(.form-error, .notice) {

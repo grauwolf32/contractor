@@ -56,6 +56,11 @@
   letter-spacing: -0.035em;
   margin-bottom: var(--space-1);
 }
+.llm-cost-total[data-empty] {
+  font-size: var(--text-base);
+  letter-spacing: normal;
+  font-weight: 650;
+}
 .llm-cost-amount {
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;

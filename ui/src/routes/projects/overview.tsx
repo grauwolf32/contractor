@@ -3,8 +3,6 @@ import {
   materialDisplayRef,
 } from "../artifacts/display-name";
 import { useId, type ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys } from "../../api/query-keys";
 import { Link, useLocation, useSearchParams } from "react-router";
 
 import { AUDIT_PAGE_SIZE, type Audit, type AuditState } from "../../api/audits";
@@ -17,13 +15,11 @@ import { LLMCostPanel } from "../../app/llm-cost";
 import { auditPollInterval } from "../../api/audits";
 import { isTerminalRunState } from "../../api/runs";
 import { RecordedTime } from "../../app/recorded-time";
-import { RefreshButton } from "../../app/refresh-button";
 import { checkStateLabel } from "../../app/vocabulary";
 import { StatusChip, StatusGlyph } from "../../ui";
 import { artifactDetailPath } from "../artifacts/paths";
 import { auditProfileLabel } from "./audits/labels";
 import { CheckComposer } from "./check-composer";
-import { ProjectSectionActions } from "./navigation";
 import {
   type MaterialsSample,
   type PossibleIssuesToReview,
@@ -414,7 +410,6 @@ function Attention({
  * counts say when they cover only the newest checks.
  */
 export function ProjectOverview({ project }: { project: Project }) {
-  const queryClient = useQueryClient();
   const projectId = project.projectId;
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -443,30 +438,8 @@ export function ProjectOverview({ project }: { project: Project }) {
     });
   }
 
-  const fetching =
-    checks.isFetching ||
-    runs.isFetching ||
-    results.isFetching ||
-    materials.isFetching;
-
   return (
     <div className="projects-overview">
-      <ProjectSectionActions>
-        <RefreshButton
-          size="sm"
-          isFetching={fetching}
-          onRefresh={() => {
-            void queryClient.invalidateQueries({
-              queryKey: queryKeys.llmCost("project", projectId),
-            });
-            void issues.refetch();
-            void checks.refetch();
-            void runs.refetch();
-            void results.refetch();
-            materials.refetch();
-          }}
-        />
-      </ProjectSectionActions>
       <CheckComposer project={project} materials={materials.items} />
       <Attention projectId={projectId} issues={issues} />
       {checks.error !== null && checks.data === undefined ? (

@@ -24,6 +24,8 @@ Issues and Inbox share the complete `IssueDetail` reader, including identity,
 Summary, exact retained evidence and independent-source History. The reader
 uses `FindingDecision` with `presentation: "review"`. There is no separate
 compact Finding summary in Inbox and no second annotation command owner.
+Saved review opens through **Change decision**; idle review hides draft-only
+guidance and summary-copy controls. Expanded editors scroll with the reader.
 
 `FindingDecision` offers confirm with a required severity, false positive,
 needs evidence, duplicate and reopen. Reopen is available after an assessment.

@@ -15,8 +15,44 @@ import { queryKeys } from "../../api/query-keys";
 import type { StageAttempt } from "../../api/runs";
 import { useRuntimeDiagnosticRefresh } from "./runtime-diagnostics-refresh";
 import { ToolCallDiagnostics } from "./tool-diagnostics";
+import { screenshotPolishFixture } from "../../test/screenshot-polish-fixture";
+import { renderWithAPI } from "../../test/render";
+import { fakeServer } from "../../test/fake-server";
 
 describe("retained Tool calls panel", () => {
+  it("keeps a failed call message primary and treats null measurements as unrecorded", async () => {
+    const data = screenshotPolishFixture();
+    const view = renderWithAPI(
+      <ToolCallDiagnostics
+        runId="run_failed_preview"
+        attempt={data.runs[1]!.attempts[0]!}
+        open
+      />,
+      {
+        server: fakeServer({
+          "GET /v1/runs/{runId}/attempts/{stageExecutionId}/tool-calls": ({
+            request,
+          }) => data.respond(request),
+        }),
+      },
+    );
+    expect(
+      await screen.findByText("Planner telemetry export failed"),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Duration and result size were not recorded."),
+    ).toBeVisible();
+    expect(screen.queryByText("null ms")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Copy call reference" }),
+    ).not.toBeVisible();
+    await view.user.click(screen.getByText("Call details"));
+    expect(
+      screen.getByRole("button", { name: "Copy call reference" }),
+    ).toBeVisible();
+    expect(screen.getByTitle(data.callReference)).toBeVisible();
+    expect(screen.getByText("Not retryable")).toBeVisible();
+  });
   it("selects participants, follows pages, preserves choice and facts across remounts and failed state refresh", async () => {
     let fail = false;
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
@@ -142,9 +178,12 @@ describe("retained Tool calls panel", () => {
     expect(
       screen.getByText("The selected report is incomplete."),
     ).toBeVisible();
+    fireEvent.click(screen.getByText("Call details"));
     fireEvent.click(screen.getByText("Sanitized arguments"));
     expect(screen.getByText(fixture.argumentsJson)).toBeVisible();
-    expect(screen.getByText("9007199254740993", { exact: true })).toBeVisible();
+    expect(
+      screen.getByText("9007199254740993 bytes", { exact: true }),
+    ).toBeVisible();
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
     rendered.rerender(view("running", 1));
     expect(screen.getByLabelText("Tool-call participant")).toHaveValue(

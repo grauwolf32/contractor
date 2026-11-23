@@ -120,6 +120,8 @@ export function formatLabel(mediaType: string): string {
   if (mediaType === ENGAGEMENT_MEDIA_TYPE) return "Engagement";
   if (mediaType === HTTP_EXCHANGE_MEDIA_TYPE) return "HTTP exchange";
   if (MEDIA_TYPE_KINDS[mediaType] === "api") return "OpenAPI";
+  if (mediaType.endsWith("+json")) return "JSON";
+  if (mediaType.endsWith("+yaml")) return "YAML";
   return Object.hasOwn(workflowFormats, mediaType)
     ? workflowFormats[mediaType]!
     : mediaType;

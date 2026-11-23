@@ -165,6 +165,9 @@ describe("material kinds", () => {
     expect(formatLabel("application/zip")).toBe("ZIP");
     expect(formatLabel("text/markdown")).toBe("Markdown");
     expect(formatLabel("application/x-custom")).toBe("application/x-custom");
+    expect(formatLabel("application/vnd.contractor.nuclei-manifest+json")).toBe(
+      "JSON",
+    );
   });
 
   it("offers one upload kind per material kind with a valid suggestion", () => {

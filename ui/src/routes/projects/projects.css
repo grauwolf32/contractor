@@ -591,31 +591,30 @@
 
 /* ---------- Overview ---------- */
 
-.projects-workspace[data-section="overview"] > .ui-detail-pane {
+.projects-workspace > .ui-detail-pane {
   --ui-pad-start: 1.25rem;
   --ui-pad-end: 1.25rem;
   background: var(--background);
 }
 
-.projects-workspace[data-section="overview"] .ui-detail-header {
+.projects-workspace .ui-detail-header {
   border-bottom: 0;
 }
 
-.projects-workspace[data-section="overview"] .ui-detail-header-heading {
+.projects-workspace .ui-detail-header-heading {
   font-size: var(--text-xl);
 }
 
-.projects-workspace[data-section="overview"] .ui-detail-header-meta {
+.projects-workspace .ui-detail-header-meta {
   flex-direction: column;
   align-items: flex-start;
 }
 
-.projects-workspace[data-section="overview"] .projects-tabs-bar {
+.projects-workspace .projects-tabs-bar {
   background: var(--background);
 }
 
-.projects-workspace[data-section="overview"]
-  .projects-tab[aria-current="page"] {
+.projects-workspace .projects-tab[aria-current="page"] {
   background: var(--sel);
 }
 
