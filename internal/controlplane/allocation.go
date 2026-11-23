@@ -44,6 +44,7 @@ type ReservationRequest struct {
 	RunID                   string
 	StageExecutionID        string
 	RunMetadataLabels       runlabels.RunMetadataLabels
+	ProjectID               string
 	Bindings                []BindingRequirement
 	// RuntimeConfig is nil only for the in-process Registry surface used
 	// by focused capacity tests. Production placement always supplies the
@@ -146,6 +147,7 @@ type Reservation struct {
 	ExecutionConfig             AllocationExecutionConfig
 	Workspace                   *contracts.AllocationWorkspaceSpec
 	RunMetadataLabels           runlabels.RunMetadataLabels
+	ProjectID                   string
 	RuntimeAgentLabelRevision   uint64
 	ResolvedRuntimeConfig       *runtimeconfig.ResolvedRuntimeConfig
 	PerformanceCollectionPolicy reporting.PerformanceCollectionPolicy

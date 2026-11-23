@@ -117,10 +117,14 @@ func (s *Scheduler) newPlannerTelemetry(
 			}
 		}
 	}
+	projectID := ""
+	if run.ProjectID != nil {
+		projectID = *run.ProjectID
+	}
 	created, err := s.options.PlannerTelemetry.Create(configuration.Adapter, telemetry.PlannerAdapterSettings{
 		Endpoint: configuration.Endpoint, Headers: headers, KnownCredentials: knownCredentials,
 		FlushTimeout: time.Duration(configuration.FlushTimeoutSeconds) * time.Second,
-		Resource:     resource, RunMetadataLabels: run.MetadataLabels.Clone(),
+		Resource:     resource, RunMetadataLabels: run.MetadataLabels.Clone(), ProjectID: projectID,
 	})
 	for name := range headers {
 		delete(headers, name)

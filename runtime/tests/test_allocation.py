@@ -197,6 +197,10 @@ def test_prepare_is_single_slot_idempotent_and_constructs_only_selected_tools(
         assert conflict.value.code == "allocation_conflict"
         assert (await state.snapshot()).process_state is ProcessState.ALLOCATED
 
+        changed_project = make_spec().model_copy(update={"project_id": "other-project"})
+        with pytest.raises(AllocationError, match="differs from the active allocation"):
+            await service.prepare(changed_project)
+
         changed_policy = make_spec()
         changed_policy.model_policy.model = "another-effective-model"
         changed_policy.model_policy.ref.digest = _model_policy_digest(changed_policy.model_policy)

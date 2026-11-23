@@ -1064,28 +1064,52 @@ or request is created.
 **OBS-R102.** The Server makes the immutable metadata-label map of a
 WorkflowRun ([Runs](../execution/runs.md)) available to Planner and Worker
 telemetry, so that an operator can correlate model traces with an eval
-invocation and leg. Planner and Worker trace exporters may attach the bounded
-map without exposing it to either model.
+invocation and leg, a Project and an Audit. Planner and Worker trace exporters
+attach the bounded map to invocation spans without exposing it to either model;
+OBS-R128 defines the Project and Audit IDs attached to every span.
 
 **OBS-R103.** Planner spans obtain the labels from the authoritative
 WorkflowRun row.
 
 **OBS-R104.** Scheduler copies the same bounded map into each
-`AllocationSpec` as `runMetadataLabels`.
+`AllocationSpec` as `runMetadataLabels`. It also copies known immutable Run
+Project membership into optional `projectId`, validated with the shared
+ResourceId grammar. An absent Project omits the field; present null or invalid
+values are rejected. Reservation and allocation replay identities include it.
+This separate field preserves the metadata-map capacity.
 
 **OBS-R105.** The Runtime validates the wire bounds and exposes labels
 only to its telemetry adapter, as per-execution span attributes. They are not
 process-wide resource attributes, because one Runtime process serves different
 Runs over time.
 
-**OBS-R106.** The Runtime never injects metadata labels into
-prompts, ADK State, tool arguments, WorkspaceFS, Skills or model-visible
-results.
+**OBS-R106.** The Runtime never injects metadata labels or telemetry Project
+identity into prompts, ADK State, tool arguments, WorkspaceFS, Skills or
+model-visible results.
 
 **OBS-R107.** Telemetry uses a namespaced attribute projection such
 as `contractor.run.label.eval.id`. An exporter-specific adapter may additionally
 map the conventional eval labels to native trace tags when that mapping loses no
 values. The exact original map remains authoritative in the Server.
+
+**OBS-R128.** Every Planner and Worker span, including model, tool, auxiliary,
+transition and error spans, carries `contractor.run.label.project.id` when Run
+Project membership is known, and `contractor.run.label.audit.id` when the
+existing Run `audit.id` metadata is known and non-empty. Unknown IDs are omitted.
+The Project attribute comes exclusively from immutable Run membership, overriding
+any descriptive `project.id` label; that descriptive label is never projected.
+The Audit label retains its descriptive meaning and grants no authority. Other
+metadata labels remain invocation-span attributes only. Exporters apply existing
+credential redaction, attribute bounds and delivery budgets. Context is scoped
+to the invocation/allocation and discarded on close; subsequent Runs cannot
+inherit it. These IDs are neither metric dimensions nor process-wide Resource
+attributes. No additional store lookup or mutation is needed.
+
+Decision: per-span identity permits direct filtering of model/tool calls while
+preserving the existing bounded metadata transport and model isolation. A typed
+Project field avoids reducing the 32-entry user metadata capacity or changing
+immutable labels. Broader correlation transport is reconsidered only for a
+concrete additional identity that needs it.
 
 **OBS-R108.** Metadata labels are not metric dimensions.
 
@@ -1297,8 +1321,9 @@ never change execution results, aggregate counters or Eval usage.
 **OBS-R127.** The standalone `scripts/audit_trace_report.py` reads an existing
 Audit's retained Phoenix spans without changing Contractor or its collector.
 It first discovers trace IDs through `contractor.run.label.audit.id`, then
-pages through every span of those traces. Filtering all spans by that label
-would omit Worker model and tool spans. The private local archive preserves
+pages through every span of those traces. Full-trace retrieval preserves the
+complete retained trace rather than relying on identity attributes for each row.
+The private local archive preserves
 Phoenix's captured span representation; offline replay produces the same
 deterministic analytics. Worker tool spans alone count as tool calls; model
 tool declarations and lifecycle counters never add calls. Failed calls,

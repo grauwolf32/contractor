@@ -99,6 +99,7 @@ type PlannerAdapterSettings struct {
 	FlushTimeout      time.Duration
 	Resource          PlannerResource
 	RunMetadataLabels runlabels.RunMetadataLabels
+	ProjectID         string
 }
 
 func (s PlannerAdapterSettings) clone() PlannerAdapterSettings {

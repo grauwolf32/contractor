@@ -26,8 +26,11 @@ are refused; use the collector's final base URL rather than `/v1/traces`.
 
 The script first finds Audit-labelled spans, then downloads their **whole
 traces**, following all cursors and deduplicating trace/span identities.
-Worker model/tool spans themselves do not carry the Audit label. The label
-provides diagnostic correlation, not Contractor authorization. This reads
+All Planner and Worker spans carry `contractor.run.label.audit.id` when known;
+Project-bound Runs also carry `contractor.run.label.project.id`. Other Run labels
+remain on invocation spans. The script retrieves whole traces to preserve every
+retained span. These attributes provide diagnostic correlation, not Contractor
+authorization. This reads
 Phoenix's existing REST API; it does not change an Audit, Run or RuntimeConfig.
 
 | File | Contents |

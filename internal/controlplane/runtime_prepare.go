@@ -50,6 +50,9 @@ func (c *RuntimeControlClient) Prepare(
 		Workspace:                       contracts.CloneAllocationWorkspaceSpec(reservation.Workspace),
 		PerformanceMetrics:              clonePerformanceMetricsRequest(reservation.PerformanceMetrics),
 	}
+	if reservation.ProjectID != "" {
+		spec.ProjectID = &reservation.ProjectID
+	}
 	if c.preparation != nil {
 		return c.preparation.WithPreparedSpec(ctx, reservation, spec, func(prepared control.AllocationSpec) (contracts.WorkerHandle, error) {
 			return c.prepareAllocation(ctx, reservation, prepared)

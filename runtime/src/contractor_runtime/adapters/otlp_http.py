@@ -45,6 +45,7 @@ from contractor_runtime.contracts import (
     RuntimeAdapterRef,
     TelemetrySettings,
 )
+from contractor_runtime.contracts.base import RESOURCE_ID_PATTERN
 from contractor_runtime.http_body import BOUNDED_ACCEPT_ENCODING, HTTP_TRANSPORT_ERRORS
 from contractor_runtime.redaction import contains_private_value
 from contractor_runtime.shared_config import get_shared_config
@@ -200,6 +201,7 @@ class OTLPInstrumentation(RuntimeInstrumentation):
         max_pending_spans: int,
         max_pending_bytes: int,
         run_metadata_labels: Mapping[str, str] | None = None,
+        project_id: str | None = None,
         wall_time_ns: Callable[[], int] = time.time_ns,
         monotonic_ns: Callable[[], int] = time.perf_counter_ns,
         on_enqueue: Callable[[], None] | None = None,
@@ -219,6 +221,25 @@ class OTLPInstrumentation(RuntimeInstrumentation):
                 {k: self._redactor.text(v) for k, v in (run_metadata_labels or {}).items()},
                 self._secret_values,
             )
+        )
+        correlation = dict(self._run_metadata_attributes)
+        if (
+            project_id
+            and RESOURCE_ID_PATTERN.fullmatch(project_id) is not None
+            and not contains_private_value(project_id, self._secret_values)
+        ):
+            correlation[RUN_METADATA_LABEL_ATTRIBUTE_PREFIX + "project.id"] = project_id
+        self._run_metadata_attributes = MappingProxyType(correlation)
+        self._identity_attributes = MappingProxyType(
+            {
+                key: value
+                for key, value in correlation.items()
+                if key
+                in {
+                    RUN_METADATA_LABEL_ATTRIBUTE_PREFIX + "project.id",
+                    RUN_METADATA_LABEL_ATTRIBUTE_PREFIX + "audit.id",
+                }
+            }
         )
         self._resource = Resource(
             attributes=_key_values(
@@ -271,9 +292,10 @@ class OTLPInstrumentation(RuntimeInstrumentation):
                 self._secret_values,
             )
             safe_attributes["outcome"] = outcome
+            safe_attributes.update(self._identity_attributes)
             if name == "contractor.worker.a2a_task":
                 safe_attributes.update(self._run_metadata_attributes)
-            allowed_keys = _ALLOWED_SPAN_ATTRIBUTES
+            allowed_keys = _ALLOWED_SPAN_ATTRIBUTES | frozenset(self._identity_attributes)
             if name == "contractor.worker.a2a_task":
                 allowed_keys = allowed_keys | frozenset(self._run_metadata_attributes)
             span = Span(
@@ -389,6 +411,7 @@ class OTLPInstrumentation(RuntimeInstrumentation):
         self._redactor = TelemetryRedactor(())
         self._trace_id = b""
         self._run_metadata_attributes = MappingProxyType({})
+        self._identity_attributes = MappingProxyType({})
         self._closed = True
 
     @property
@@ -481,6 +504,7 @@ class OTLPHTTPAdapter:
             resource_attributes,
             secret_values=secret_values,
             run_metadata_labels=context.run_metadata_labels,
+            project_id=context.project_id,
             on_enqueue=self._schedule_export,
             max_pending_spans=self._export_settings.max_pending_spans,
             max_pending_bytes=self._export_settings.max_pending_bytes,
@@ -716,7 +740,11 @@ def _run_metadata_attributes(source: Mapping[str, str], secrets: Sequence[str]) 
             or len(value.encode("utf-8")) > get_shared_config().run_metadata_value_max_bytes
         ):
             return {}
-        if contains_private_value(value, secrets):
+        if (
+            key == "project.id"
+            or (key == "audit.id" and not value)
+            or contains_private_value(value, secrets)
+        ):
             continue
         result[attribute_key] = value
     return result

@@ -19,6 +19,9 @@ import (
 	"testing"
 	"time"
 
+	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -638,8 +641,11 @@ func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.
 			snapshot.RuntimeCredentialIDs = []string{"planner-otel"}
 			harness.store.run.RuntimeConfig = snapshot
 			harness.store.run.RuntimeLabels = []string{"debug"}
+			projectID := "project-telemetry"
+			harness.store.run.ProjectID = &projectID
 			harness.store.run.MetadataLabels = runstore.RunMetadataLabels{
 				"purpose": "eval", "eval.id": "metadata-eval-id-canary", "eval.leg": "a",
+				"audit.id": "audit-telemetry",
 			}
 
 			selection := harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"]
@@ -682,6 +688,28 @@ func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.
 				!bytes.Contains(bodies[0], []byte("metadata-eval-id-canary")) {
 				t.Fatalf("Planner OTLP selection leaked or missed provenance: requests=%d header=%q body=%q", len(bodies), header, bodies)
 			}
+			var exported collectortracev1.ExportTraceServiceRequest
+			if err := proto.Unmarshal(bodies[0], &exported); err != nil {
+				t.Fatal(err)
+			}
+			spanCount := 0
+			for _, resource := range exported.ResourceSpans {
+				for _, scope := range resource.ScopeSpans {
+					for _, span := range scope.Spans {
+						spanCount++
+						identities := map[string]string{}
+						for _, attribute := range span.Attributes {
+							identities[attribute.Key] = attribute.Value.GetStringValue()
+						}
+						if identities["contractor.run.label.project.id"] != projectID || identities["contractor.run.label.audit.id"] != "audit-telemetry" {
+							t.Fatalf("span %s missed Run identity: %v", span.Name, identities)
+						}
+					}
+				}
+			}
+			if spanCount == 0 {
+				t.Fatal("no Planner spans exported")
+			}
 			if !recordingRegistry.preparedCredentialSeen || recordingRegistry.creates != 1 || len(recordingRegistry.resources) != 1 ||
 				len(recordingRegistry.metadataLabels) != 1 ||
 				!equalRunMetadataLabels(
@@ -693,7 +721,8 @@ func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.
 				t.Fatalf("Planner registry inputs = creates:%d resources:%+v", recordingRegistry.creates, recordingRegistry.resources)
 			}
 			if len(harness.workers.preparedReservations) != 1 ||
-				len(harness.workers.preparedReservations[0]) != 1 || !equalRunMetadataLabels(
+				len(harness.workers.preparedReservations[0]) != 1 ||
+				harness.workers.preparedReservations[0][0].ProjectID != projectID || !equalRunMetadataLabels(
 				harness.workers.preparedReservations[0][0].RunMetadataLabels,
 				harness.store.run.MetadataLabels,
 			) {
@@ -3162,6 +3191,7 @@ func (a *memoryAllocator) reservationForRequest(request controlplane.Reservation
 		WorkerSessionMode: binding.WorkerSessionMode, ContextManagement: binding.ContextManagement.Clone(),
 		AgentTemplate: binding.AgentTemplate, ResolvedSkills: contracts.CloneResolvedSkills(binding.ResolvedSkills),
 		RunMetadataLabels:         request.RunMetadataLabels.Clone(),
+		ProjectID:                 request.ProjectID,
 		ExecutionConfig:           binding.ExecutionConfig,
 		RuntimeAgentLabelRevision: 1, LeaseExpiresAt: a.clock.now.Add(time.Minute),
 		PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled,

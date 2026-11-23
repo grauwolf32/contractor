@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import MappingProxyType
@@ -17,7 +18,7 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
 )
 from opentelemetry.proto.trace.v1.trace_pb2 import Status
 
-from contractor_runtime.adapters.host import RuntimeAdapterBuildContext
+from contractor_runtime.adapters.host import RuntimeAdapterBuildContext, RuntimeAdapterMetricsState
 from contractor_runtime.adapters.otlp_http import (
     MAX_SPAN_ATTRIBUTES,
     MAX_STRING_ATTRIBUTE_BYTES,
@@ -530,3 +531,113 @@ def test_otlp_status_uses_original_protocol_outcome(secret: str, outcome: str) -
     assert span.status.code == (
         Status.STATUS_CODE_OK if outcome == "succeeded" else Status.STATUS_CODE_ERROR
     )
+
+
+@pytest.mark.parametrize(
+    ("project_id", "audit_id"),
+    [
+        ("project-1", "audit-1"),
+        ("project-2", None),
+        (None, None),
+        (None, "audit-2"),
+        ("P" + "." * 255, "audit-boundary"),
+    ],
+)
+def test_every_worker_span_has_known_identities_at_metadata_capacity(
+    project_id: str | None, audit_id: str | None
+) -> None:
+    payloads: list[bytes] = []
+
+    async def collector(request: httpx.Request) -> httpx.Response:
+        payloads.append(await request.aread())
+        return httpx.Response(200)
+
+    async def scenario() -> None:
+        labels = {"project.id": "descriptive-project"}
+        if audit_id is not None:
+            labels["audit.id"] = audit_id
+        while len(labels) < 32:
+            labels[f"label.{len(labels)}"] = "value"
+        factory = OTLPHTTPAdapterFactory(httpx.MockTransport(collector))
+        adapter = await factory.create(
+            replace(
+                adapter_context(),
+                project_id=project_id,
+                run_metadata_labels=MappingProxyType(labels),
+            ),
+            telemetry_settings(),
+        )
+        instrumentation = adapter.handles.instrumentation
+        assert instrumentation is not None
+        for name in (
+            "contractor.worker.a2a_task",
+            "contractor.worker.model",
+            "contractor.worker.tool",
+            "contractor.worker.error",
+            "unknown-span",
+        ):
+            # Caller-controlled attributes cannot overwrite telemetry identity.
+            span = instrumentation.start_span(
+                name,
+                attributes={
+                    "contractor.run.label.project.id": "forged-project",
+                    "contractor.run.label.audit.id": "forged-audit",
+                },
+            )
+            span.end(outcome="succeeded")
+        await adapter.flush()
+        await adapter.close()
+
+        # The same factory subsequently serves another Run without identities.
+        other = await factory.create(
+            replace(adapter_context(), project_id=None, run_metadata_labels=MappingProxyType({})),
+            telemetry_settings(),
+        )
+        assert other.handles.instrumentation is not None
+        other.handles.instrumentation.start_span("contractor.worker.model").end(outcome="succeeded")
+        await other.flush()
+        await other.close()
+
+    asyncio.run(scenario())
+    assert len(payloads) == 2
+    first = ExportTraceServiceRequest.FromString(payloads[0]).resource_spans[0]
+    assert not any(
+        key.startswith("contractor.run.label.") for key in _attributes(first.resource.attributes)
+    )
+    spans = first.scope_spans[0].spans
+    assert len(spans) == 5
+    for span in spans:
+        attributes = _attributes(span.attributes)
+        for key, value in (("project.id", project_id), ("audit.id", audit_id)):
+            if value is None:
+                assert "contractor.run.label." + key not in attributes
+            else:
+                assert attributes["contractor.run.label." + key] == value
+        assert len(attributes) == len(span.attributes) <= MAX_SPAN_ATTRIBUTES
+        assert ("contractor.run.label.label.2" in attributes) == (
+            span.name == "contractor.worker.a2a_task"
+        )
+    assert b"descriptive-project" not in payloads[0]
+    assert b"forged-project" not in payloads[0] and b"forged-audit" not in payloads[0]
+    later = ExportTraceServiceRequest.FromString(payloads[1]).resource_spans[0]
+    assert not any(
+        key.startswith("contractor.run.label.")
+        for key in _attributes(later.scope_spans[0].spans[0].attributes)
+    )
+
+
+def test_project_identity_obeys_known_credential_redaction() -> None:
+    metrics = RuntimeAdapterMetricsState()
+    instrumentation = OTLPInstrumentation(
+        metrics,
+        {},
+        secret_values=(HEADER_SECRET,),
+        max_pending_spans=MAX_PENDING_SPANS,
+        max_pending_bytes=MAX_PENDING_BYTES,
+        project_id=HEADER_SECRET,
+    )
+    instrumentation.start_span("contractor.worker.model").end(outcome="succeeded")
+    payload = instrumentation.export_request()
+    assert HEADER_SECRET.encode() not in payload
+    span = ExportTraceServiceRequest.FromString(payload).resource_spans[0].scope_spans[0].spans[0]
+    assert "contractor.run.label.project.id" not in _attributes(span.attributes)

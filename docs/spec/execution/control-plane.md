@@ -226,7 +226,10 @@ digest-bearing AgentTemplate body ([skills](../tools/skills.md)), an optional
 `workspace` value ([workspace](../tools/workspace.md)), an optional
 Server-pinned completion contract
 ([worker-completion](../audits/worker-completion.md)) and the optional
-`performanceMetrics` field (CTL-R133).
+`performanceMetrics` field (CTL-R133). Optional `projectId` carries immutable
+Run membership to allocation-local telemetry only; validation, replay identity
+and per-span projection are defined by
+[OBS-R104 and OBS-R128](../platform/observability.md).
 
 ### WorkerHandle
 

@@ -20,6 +20,7 @@ from contractor_runtime.contracts.base import (
     WireModel,
     WorkerSessionMode,
     _require_aware_datetime,
+    _require_resource_id,
     _require_text,
     normalize_run_metadata_labels,
 )
@@ -137,6 +138,7 @@ class AllocationSpec(VersionedWireModel):
     worker_session_mode: WorkerSessionMode
     context_management: WorkerContextManagement
     run_metadata_labels: dict[str, str]
+    project_id: str | None = Field(default=None, exclude_if=lambda value: value is None)
     lease_expires_at: datetime
     agent_template: ResolvedAgentTemplate
     resolved_skills: list[ResolvedSkill] = Field(max_length=32)
@@ -158,6 +160,13 @@ class AllocationSpec(VersionedWireModel):
         if value is None:
             raise ValueError("compactorModelPolicy must not be null")
         return value
+
+    @field_validator("project_id")
+    @classmethod
+    def validate_project_id(cls, value: str | None) -> str:
+        if value is None:
+            raise ValueError("projectId must not be null")
+        return _require_resource_id("projectId", value)
 
     @field_validator("run_metadata_labels")
     @classmethod

@@ -120,6 +120,7 @@ class RuntimeAdapterBuildContext:
     run_metadata_labels: Mapping[str, str]
     runtime_adapter_refs: tuple[str, ...]
     private_bypass_hosts: tuple[str, ...]
+    project_id: str | None = None
     known_credentials: tuple[str, ...] = field(default=(), repr=False)
 
 
@@ -312,6 +313,7 @@ class AllocationAdapterHost:
                             replace(
                                 context,
                                 run_metadata_labels=run_metadata_labels,
+                                project_id=spec.project_id,
                                 known_credentials=runtime_secrets(spec.runtime_settings),
                             )
                             if isinstance(settings, TelemetrySettings)

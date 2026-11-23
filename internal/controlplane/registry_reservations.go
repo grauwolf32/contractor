@@ -226,6 +226,7 @@ func (r *InMemoryRegistry) reserveAll(
 			ExecutionConfig:           binding.ExecutionConfig,
 			Workspace:                 binding.Workspace,
 			RunMetadataLabels:         runMetadataLabels.Clone(),
+			ProjectID:                 request.ProjectID,
 			RuntimeAgentLabelRevision: entry.principal.LabelRevision,
 			LeaseExpiresAt:            entry.confirmedLeaseExpiresAt,
 			initialLeaseExpiresAt:     entry.confirmedLeaseExpiresAt,

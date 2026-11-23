@@ -146,11 +146,12 @@ def test_shared_hanging_flush_is_metrics_only_and_replayed_lifecycle_is_idempote
         )
         source_labels = {"purpose": "eval", "eval.id": "eval_01"}
         spec = configured_spec(telemetry=True).model_copy(
-            update={"run_metadata_labels": source_labels}
+            update={"run_metadata_labels": source_labels, "project_id": "project-1"}
         )
         await service.prepare(spec)
         source_labels["eval.id"] = "changed"
         assert len(telemetry.contexts) == 1
+        assert telemetry.contexts[0].project_id == "project-1"
         assert dict(telemetry.contexts[0].run_metadata_labels) == {
             "purpose": "eval",
             "eval.id": "eval_01",
@@ -192,6 +193,26 @@ def test_shared_hanging_flush_is_metrics_only_and_replayed_lifecycle_is_idempote
         assert events.count("close:otlp-http@1") == 1
         assert (await state.snapshot()).process_state is ProcessState.IDLE
 
+        next_spec = configured_spec(telemetry=True).model_copy(
+            update={"allocation_id": "allocation-next", "run_id": "run-next"}
+        )
+        await service.prepare(next_spec)
+        assert len(telemetry.contexts) == 2
+        assert telemetry.contexts[1].project_id is None
+        assert dict(telemetry.contexts[1].run_metadata_labels) == {}
+        await service.finalize(
+            FinalizeAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId=next_spec.allocation_id,
+                finalizationId="finalize-next",
+                deadline=datetime.now(UTC) + timedelta(milliseconds=50),
+            )
+        )
+        await service.release(
+            ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=next_spec.allocation_id)
+        )
+        await service.confirm_release(next_spec.allocation_id)
+
     asyncio.run(scenario())
 
 
@@ -217,12 +238,16 @@ def test_shared_handles_are_injected_explicitly_and_erased_on_confirmed_lease_lo
             runtime=runtime,
         )
         spec = configured_spec(proxy_targets=["llm-gateway", "tool-http"]).model_copy(
-            update={"run_metadata_labels": {"purpose": "eval", "eval.id": "eval_01"}}
+            update={
+                "run_metadata_labels": {"purpose": "eval", "eval.id": "eval_01"},
+                "project_id": "project-proxy-hidden",
+            }
         )
         await service.prepare(spec)
 
         assert len(proxy.contexts) == 1
         assert dict(proxy.contexts[0].run_metadata_labels) == {}
+        assert proxy.contexts[0].project_id is None
 
         assert toolset.handles is not None
         assert toolset.handles.tool_http is tool_handle
