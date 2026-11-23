@@ -1,0 +1,56 @@
+schema_version: "1.0"
+id: V484-002
+title: Integrate Project and Audit span correlation into current main
+milestone: run-metadata-labels
+epic: quality
+kind: chore
+priority: P2
+status: in_progress
+depends_on: [V484-001]
+languages: [go, python, json, yaml, markdown]
+goal: >-
+  Local main exports known Project and Audit IDs on every Planner and Worker
+  span together with the current baseline, release cleanup and Project facts.
+context:
+  authority: >-
+    User request 2026-11-24 explicitly authorizes merging this chat's verified
+    trace correlation implementation into main through a no-fast-forward merge.
+  source: codex/v481-trace-context at 01252a32068a7c1787ceeac23dba897f420620e9.
+  target: main at 744d93ae5fddbc5834aa9f3cc5c7e45f2e4236a2.
+  specification:
+    - docs/spec/platform/observability.md#OBS-R128
+  boundary: >-
+    Prepare the merge on an isolated integration branch. Main independently
+    uses V481-001 for Project facts, so only this source feature's tracker ID
+    becomes V484-001 while its implementation hash stays exact. Regenerate
+    the combined backlog and dependency graph; preserve main's code/config
+    changes. Advance the clean main worktree only after checks pass, with a
+    fresh target-head check. Keep all integration writes out of the primary
+    dirty checkout and record its before/after snapshot.
+scope:
+  in:
+    - Merge the complete source feature history, resolve its task ID collision and regenerate combined documents.
+    - Verify affected Go/PostgreSQL and Runtime suites, strict shared wire fixtures, e2e matrices, the real trace delivery process path and lint.
+    - Land the verified two-parent merge in local main and remove the owned disposable PostgreSQL resources.
+  out:
+    - Remote publication, deployment, live model calls, new tracing behavior and unrelated primary working-tree changes.
+acceptance_criteria:
+  - id: A1
+    text: Main contains the pinned trace source through a no-fast-forward merge, preserving the existing fact task and tracking traces uniquely as completed V484-001.
+  - id: A2
+    text: Listed combined-tree checks pass; optional heavy-I/O, platform and live-model skips are reported separately from passing coverage.
+  - id: A3
+    text: Main and integration worktrees are clean, integration does not write primary dirty files, its before/after snapshot is recorded and owned database resources are removed.
+tests:
+  - command: go test -race -count=1 ./internal/contracts/... ./internal/controlplane/... ./internal/scheduler/... ./internal/telemetry/...
+    covers: [A1, A2]
+  - command: cd runtime && uv run pytest -W error tests/test_contracts.py tests/test_otlp_adapter.py tests/test_otlp_retries.py tests/test_adapter_host.py tests/test_allocation.py tests/test_telemetry_content.py tests/test_telemetry_redaction.py tests/test_runtime_trace_delivery.py tests/test_claim_workspace_sources.py tests/test_project_facts.py
+    covers: [A2]
+  - command: make test-wire-cross-language
+    covers: [A2]
+  - command: go test -count=1 ./tests/e2e
+    covers: [A2]
+  - command: go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestRunMetadataLabelsAcrossProcesses$'
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]
