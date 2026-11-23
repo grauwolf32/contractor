@@ -452,7 +452,7 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 		return nil, err
 	}
 	assignment := trusted
-	trusted, selectedTranslations, err := i.taskSelectedContext(ctx, execution, trusted, raw)
+	trusted, selectedTranslations, err := partials.taskSelectedContext(trusted, raw)
 	if err != nil {
 		return nil, err
 	}

@@ -16,17 +16,23 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
+// selectedTaskEvidence contains only materials whose stored origin was validated.
+type selectedTaskEvidence struct {
+	hypothesis *auditcontract.HypothesisRef
+	materials  []auditcontract.Material
+}
+
 type partialTaskResults struct {
 	common   bool
 	run      *runstore.WorkflowRun
 	accepted map[string]auditcontract.AcceptedJudgment
 	links    map[string]auditstore.ArtifactLink
-	evidence map[string][]auditcontract.Material
+	evidence map[string]selectedTaskEvidence
 	reason   auditcontract.ResultStop
 }
 
 func (i *Importer) readPartialResults(ctx context.Context, snapshot auditstore.ReconcileSnapshot, execution auditstore.Execution, tasks []auditstore.Task) (partialTaskResults, error) {
-	result := partialTaskResults{accepted: map[string]auditcontract.AcceptedJudgment{}, links: map[string]auditstore.ArtifactLink{}, evidence: map[string][]auditcontract.Material{}}
+	result := partialTaskResults{accepted: map[string]auditcontract.AcceptedJudgment{}, links: map[string]auditstore.ArtifactLink{}, evidence: map[string]selectedTaskEvidence{}}
 	if execution.RunID == nil {
 		return result, nil
 	}
@@ -114,12 +120,14 @@ func (i *Importer) readPartialResults(ctx context.Context, snapshot auditstore.R
 		}
 		material := auditcontract.Material{ScopeKind: "audit", ScopeID: execution.AuditID, Ref: link.Artifact.Ref, Digest: link.Artifact.Digest, MediaType: link.Artifact.MediaType, SizeBytes: link.Artifact.SizeBytes}
 		selected := append([]auditcontract.Material{material}, record.Sources...)
+		evidence := result.evidence[record.Origin.TaskID]
+		evidence.hypothesis = record.Origin.Hypothesis
 		for _, source := range selected {
-			values := result.evidence[record.Origin.TaskID]
-			if !slices.ContainsFunc(values, func(prior auditcontract.Material) bool { return reflect.DeepEqual(prior, source) }) {
-				result.evidence[record.Origin.TaskID] = append(values, source)
+			if !slices.ContainsFunc(evidence.materials, func(prior auditcontract.Material) bool { return reflect.DeepEqual(prior, source) }) {
+				evidence.materials = append(evidence.materials, source)
 			}
 		}
+		result.evidence[record.Origin.TaskID] = evidence
 	}
 	return result, nil
 }
@@ -158,7 +166,7 @@ func (p partialTaskResults) selectTask(execution auditstore.Execution, task audi
 		value := "inconclusive"
 		stop.Verdict = &value
 	}
-	for _, source := range p.evidence[task.Document.TaskID] {
+	for _, source := range p.evidence[task.Document.TaskID].materials {
 		stop.Evidence = append(stop.Evidence, source)
 		key, _ := strictjson.Canonical(source)
 		name := strings.TrimPrefix(auditdomain.DigestBytes(key), "sha256:")
