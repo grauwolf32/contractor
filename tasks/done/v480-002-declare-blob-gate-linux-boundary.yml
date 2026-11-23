@@ -6,7 +6,7 @@ epic: quality
 kind: defect
 introduced_by: V34-005
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -66,3 +66,12 @@ tests:
   covers:
   - A1
   - A3
+verification:
+  compiler: Full serverbuildtest package passed, including execution of a native binary and ELF machine validation for an
+    explicitly selected Linux architecture.
+  containers: 'Both real Podman gates passed on macOS in the isolated delivery worktree: four blob backend modes (119.895s)
+    and Git PostgreSQL/filesystem HTTPS/SSH (89.237s), with native migrations, mTLS Runtime connectivity and actual container
+    peak RSS.'
+  lint: make lint passed in the isolated worktree; optional heavy-I/O was not enabled.
+  delivery: codex/reset-preproduction-delivery; not merged to main.
+implementation_commit: 6a7ba4150e5962453509ff3df657fb46033eb984
