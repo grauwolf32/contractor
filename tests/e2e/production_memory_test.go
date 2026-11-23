@@ -198,7 +198,7 @@ func productionMemoryCopyResponse(step int, request map[string]any) (map[string]
 		if !ok {
 			return nil, "", "", fmt.Errorf("production input lost after Memory write")
 		}
-		return gatewayToolCall("production-write", "write_text_artifact", map[string]any{"name": "copied", "media_type": "text/plain", "text": e2eReport, "expected_revision": nil})
+		return gatewayToolCall("production-write", "write_text_artifact", map[string]any{"name": "copied", "media_type": "text/plain", "text": e2eReport})
 	case 4:
 		if _, ok := lastExactArtifact(request, "builder", "copied"); !ok {
 			return nil, "", "", fmt.Errorf("production output exact revision not observed")

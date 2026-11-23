@@ -78,7 +78,7 @@ def dataset(project, revisions, case_ids):
 
 def experiment(revision, case_ids, repetitions):
     load_corpus()
-    result = json.loads((ROOT / "experiment-template-v5.json").read_text())
+    result = json.loads((ROOT / "experiment-template.json").read_text())
     result["draft"]["dataset"]["revision"] = revision
     result["draft"]["caseIds"] = case_ids
     result["draft"]["repetitions"] = repetitions

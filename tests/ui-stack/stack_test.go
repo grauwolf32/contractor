@@ -861,12 +861,12 @@ func stageUIStackConfiguration(
 	if err != nil {
 		t.Fatalf("stage UI-stack configuration: %v", err)
 	}
-	// Imported e2e Workflows explicitly select worker@1. Keep its fixture
-	// model and budgets beside the production worker@1, without replacing it.
+	// Keep the e2e model and budgets under a distinct fixture identity.
 	workerBytes, err := os.ReadFile(filepath.Join(source, "e2e", "model-policies", "worker.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
+	workerBytes = bytes.Replace(workerBytes, []byte("  name: worker\n"), []byte("  name: ui-worker\n"), 1)
 	if err := os.WriteFile(filepath.Join(target, "model-policies", "worker_ui_fixture.yaml"), workerBytes, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -891,12 +891,10 @@ func adaptUIStackCopyWorkflow(t *testing.T, source []byte) []byte {
 	if bytes.Count(source, workerPolicy) != 1 {
 		t.Fatal("UI copy fixture must select exactly one worker@1 policy")
 	}
-	result := bytes.ReplaceAll(source, []byte("modelPolicy: planner@1"), []byte("modelPolicy: planner@1"))
-	result = bytes.ReplaceAll(result, []byte("artifact_builder@1"), []byte("artifact_builder@1"))
-	// Template v2 has a terminal summarizer. Keep its original summarizer@1
+	// The template has a terminal summarizer. Keep its summarizer@1
 	// selection explicit now that Workflows own all model selections.
-	return bytes.Replace(result, workerPolicy,
-		[]byte("      modelPolicy: worker@1\n      summarizerModelPolicy: summarizer@1\n"), 1)
+	return bytes.Replace(source, workerPolicy,
+		[]byte("      modelPolicy: ui-worker@1\n      summarizerModelPolicy: summarizer@1\n"), 1)
 }
 
 func projectSourceArchive(t *testing.T) []byte {

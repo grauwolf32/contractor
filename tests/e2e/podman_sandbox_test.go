@@ -56,7 +56,7 @@ func TestPodmanSandboxAcrossProductionProcesses(t *testing.T) {
 			toolGatewayStep("read_file", fixedArguments(map[string]any{"path": "calculator.py"})),
 			toolGatewayStep("edit", fixedArguments(map[string]any{"path": "calculator.py", "old": "return a - b", "new": "return a + b"})),
 			toolGatewayStep("exec_command", fixedArguments(map[string]any{"command": "python3 -B check.py", "cwd": "", "timeout_seconds": 30})),
-			toolGatewayStep("write_artifact", fixedArguments(map[string]any{"namespace": "builder", "name": "check_report", "media_type": "application/json", "source_path": "report.json", "expected_revision": nil})),
+			toolGatewayStep("write_artifact", fixedArguments(map[string]any{"namespace": "builder", "name": "check_report", "media_type": "application/json", "source_path": "report.json"})),
 			finalGatewayStep("Offline check passed", map[string]domainArtifactBinding{"report": {namespace: "builder", name: "check_report"}}),
 		},
 	}})

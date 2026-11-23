@@ -3,7 +3,7 @@
   "kind": "AuditProfile",
   "metadata": {
     "name": "hypothesis-research",
-    "version": '1'
+    "version": "1"
   },
   "spec": {
     "schema": "contractor.audit.program.v1",

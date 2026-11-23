@@ -628,7 +628,7 @@ func ordinaryFindingsProducerStage(name string) domainGatewayStage {
 
 func runCommonFindingAudit(t *testing.T, h *findingsHarness, projectID string, inputs map[string]artifactRef, operations int) (string, []basicTask) {
 	t.Helper()
-	draft, _ := basicAuditRequest(t, h, http.MethodPost, "/v1/projects/"+projectID+"/audits", map[string]any{"profile": map[string]string{"name": "openapi-operation-trace", "version": "7"}, "inputs": inputs, "scope": map[string]string{"objective": "Trace exact operations and retain their independent finding sources"}}, "finding-draft", 0, http.StatusCreated)
+	draft, _ := basicAuditRequest(t, h, http.MethodPost, "/v1/projects/"+projectID+"/audits", map[string]any{"profile": map[string]string{"name": "openapi-operation-trace", "version": "1"}, "inputs": inputs, "scope": map[string]string{"objective": "Trace exact operations and retain their independent finding sources"}}, "finding-draft", 0, http.StatusCreated)
 	id := draft["auditId"].(string)
 	basicAuditRequest(t, h, http.MethodPost, "/v1/audits/"+id+"/start", nil, "finding-start", uint64(draft["revision"].(float64)), http.StatusOK)
 	tasks := waitBasicTask(t, h, id, operations+1, "settled")

@@ -124,6 +124,8 @@ func projectFindingsReview(t *testing.T, responseFailure string) {
 		}
 		template := strings.Replace(string(source), "name: project_findings_analyst", "name: project_findings_seed", 1)
 		template = strings.Replace(template, "tools: [list_project_findings, read_project_finding, select_project_findings, read_finding_selection]", "tools: [finding]", 1)
+		// This seed authors findings; the reader's document-only recovery does not apply.
+		template = strings.Replace(template, "  responseRecovery: document@1\n", "", 1)
 		if err := os.WriteFile(filepath.Join(root, "agent-templates", "project_findings_seed.yaml"), []byte(template), 0600); err != nil {
 			t.Fatal(err)
 		}

@@ -422,8 +422,9 @@ items have no task payload read. Ordinary singletons keep their accepted SQL
 dependency and exact task descriptor path without a task payload read. Runtime
 always verifies the actual task package and plan/dependency body before model
 context. The private prepared projection remains bounded, immutable and
-separate from this compact Run-visible manifest. The incompatible format
-preflight is [PER-R40](../platform/persistence.md).
+separate from this compact Run-visible manifest. Fresh installations use the
+current baseline; retired schemas fail the strict ledger check
+([PER-R30](../platform/persistence.md)).
 
 **AUX-R36.** The importer verifies a result set against the immutable
 execution manifest of its execution (AUX-R93): it verifies the

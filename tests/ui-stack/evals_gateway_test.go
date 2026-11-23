@@ -216,8 +216,10 @@ func TestUIStackConfigurationClosure(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			stagedWorker, err := snapshot.ModelPolicy("worker@1")
-			if err != nil || !reflect.DeepEqual(stagedWorker, worker) {
+			stagedWorker, err := snapshot.ModelPolicy("ui-worker@1")
+			expectedWorker := worker
+			expectedWorker.Ref = stagedWorker.Ref
+			if err != nil || stagedWorker.Ref.PolicyID != "ui-worker" || !reflect.DeepEqual(stagedWorker, expectedWorker) {
 				t.Fatalf("staged Worker fixture model or budgets changed: %v", err)
 			}
 			stagedProductionWorker, err := snapshot.ModelPolicy("worker@1")
@@ -248,7 +250,7 @@ func TestUIStackConfigurationClosure(t *testing.T) {
 					t.Fatal(err)
 				}
 				selection := workflow.Stages["copy"].ExecutionConfig.Agents["builder"]
-				if !reflect.DeepEqual(selection.ModelPolicy, worker) {
+				if !reflect.DeepEqual(selection.ModelPolicy, stagedWorker) {
 					t.Fatalf("%s must keep its exact fixture Worker model and budgets", selector)
 				}
 				if selection.SummarizerModelPolicy == nil || !reflect.DeepEqual(*selection.SummarizerModelPolicy, summarizer) {

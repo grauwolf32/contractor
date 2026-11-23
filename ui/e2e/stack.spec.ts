@@ -793,19 +793,19 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     .click();
   await expect(
     page.getByLabel("Version of openapi-from-workspace", { exact: true }),
-  ).toHaveValue("9");
+  ).toHaveValue("1");
   await page
     .getByLabel("Version of openapi-from-workspace", { exact: true })
-    .selectOption("9");
+    .selectOption("1");
   await page
-    .getByRole("button", { name: "Configure openapi-from-workspace@9" })
+    .getByRole("button", { name: "Configure openapi-from-workspace@1" })
     .click();
   const workflowDialog = page.getByRole("dialog", {
     name: "Configure Run",
   });
   await expect(
     workflowDialog.locator(".workflow-drawer-heading code"),
-  ).toHaveText("openapi-from-workspace@9");
+  ).toHaveText("openapi-from-workspace@1");
   await workflowDialog
     .getByRole("button", { name: "Confirm input for source" })
     .click();
@@ -859,7 +859,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     );
   }
   await expect(
-    page.locator(".run-metadata").getByText("openapi-from-workspace@9", {
+    page.locator(".run-metadata").getByText("openapi-from-workspace@1", {
       exact: true,
     }),
   ).toBeVisible();
@@ -899,15 +899,15 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     .click();
   await page
     .getByLabel("Version of openapi-from-workspace", { exact: true })
-    .selectOption("9");
+    .selectOption("1");
   await expect(
-    page.getByRole("button", { name: "Run again openapi-from-workspace@9" }),
+    page.getByRole("button", { name: "Run again openapi-from-workspace@1" }),
   ).toBeVisible();
 
   await page.goto("/operations/configurations");
   const workerRow = page
     .locator("details.ops-resource-row")
-    .filter({ has: page.getByText("worker@2", { exact: true }) });
+    .filter({ has: page.getByText("worker@1", { exact: true }) });
   await openDetails(workerRow);
   await workerRow.getByRole("link", { name: "Inspect / clone" }).click();
   await page.getByRole("button", { name: "Clone to new version" }).click();
@@ -947,7 +947,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await credentialForm.getByLabel(/RPM limit/).fill("20");
   await credentialForm.getByLabel(/Parallel requests/).fill("2");
   await credentialForm
-    .getByLabel(/^worker@2 ·/)
+    .getByLabel(/^worker@1 ·/)
     .first()
     .check();
   await credentialForm

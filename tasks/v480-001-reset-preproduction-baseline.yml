@@ -7,54 +7,120 @@ kind: chore
 priority: P2
 status: in_progress
 depends_on: []
-languages: [go, sql, yaml, python, markdown]
-goal: Fresh installations use one current schema migration and one current definition per catalog identity, all at version 1.
+languages:
+- go
+- sql
+- yaml
+- python
+- markdown
+goal: Fresh installations use one current schema migration and one current definition per catalog identity, all at version
+  1.
 context:
-  authority: >-
-    User request 2026-11-23 explicitly authorizes folding database migrations,
-    cleaning configs with the latest objects reset to @1, replacing the demo
-    database with a new database and recreating its Projects. This supersedes
-    shipped identity immutability only for this offline pre-production reset.
+  authority: User request 2026-11-23 explicitly authorizes folding database migrations, cleaning configs with the latest objects
+    reset to @1, replacing the demo database with a new database and recreating its Projects. This supersedes shipped identity
+    immutability only for this offline pre-production reset.
   specification:
-    - docs/spec/platform/persistence.md
-    - docs/spec/configuration/catalog.md
-  decision: >-
-    Extract the installed final schema and seed rows from the unchanged chain
-    on disposable PostgreSQL, prove equivalence and retain strict migrator drift
-    checks. Reset supplied catalog definitions and references together, regenerate
-    the lock, remove obsolete file-version suffixes and history. Preserve domain
-    versions, tool contracts and external standards. Application versioning and
-    publication immutability remain. Demo uses a verified backup, a fresh database
-    and ordinary API Project recreation; retain installation identities, model
-    choice and operational credentials. Retire previous business history instead
-    of importing incompatible snapshots. Reopen when external production users
-    require a different migration or configuration lifecycle.
+  - docs/spec/platform/persistence.md
+  - docs/spec/configuration/catalog.md
+  decision: Extract the installed final schema and seed rows from the unchanged chain on disposable PostgreSQL, prove equivalence
+    and retain strict migrator drift checks. Reset supplied catalog definitions and references together, regenerate the lock,
+    remove obsolete file-version suffixes and history. Preserve domain versions, tool contracts and external standards. Application
+    versioning and publication immutability remain. Demo uses a verified backup, a fresh database and ordinary API Project
+    recreation; retain installation identities, model choice and operational credentials. Retire previous business history
+    instead of importing incompatible snapshots. Reopen when external production users require a different migration or configuration
+    lifecycle.
+  native_verification_boundary: The isolated inventory contains 128 root tests. Six exhaustive disjoint selections cover 125
+    native roots; both real Podman container roots pass separately under V480-002. TestPodmanSandboxAcrossProductionProcesses
+    requires an explicitly configured Linux Runtime sandbox image (CONTRACTOR_TEST_PODMAN_IMAGE), absent on this macOS lane;
+    it is excluded explicitly and is not passing coverage. Optional heavy-I/O skips remain reported separately.
 scope:
   in:
-    - One final baseline, equivalent schema/seed evidence and removal of retired upgrade-only tests.
-    - Latest supplied config definitions at version 1, exact references, current documentation and generated lock/dependency pages.
-    - Update catalog consumers and generators affected by the reset, without rewriting historical task evidence or frozen Eval fixtures.
-    - Verified demo backup, fresh database, recreated Projects and deployment record with exact ledger and readiness.
+  - One final baseline, equivalent schema/seed evidence and removal of retired upgrade-only tests.
+  - Latest supplied config definitions at version 1, exact references, current documentation and generated lock/dependency
+    pages.
+  - Update catalog consumers and generators affected by the reset, without rewriting historical task evidence or frozen Eval
+    fixtures.
+  - Verified demo backup, fresh database, recreated Projects and deployment record with exact ledger and readiness.
   out:
-    - Runtime compatibility readers, automatic ledger repair or removal of the application's configuration version mechanism.
-    - Model changes, live Audits or restoring old execution/finding history into the new database.
+  - Runtime compatibility readers, automatic ledger repair or removal of the application's configuration version mechanism.
+  - Model changes, live Audits or restoring old execution/finding history into the new database.
 acceptance_criteria:
-  - id: A1
-    text: Exactly one baseline installs and replays through the production migrator; installed schema and seed values equal the retired chain, and stale ledgers fail closed.
-  - id: A2
-    text: Every supplied catalog object has one current definition at version 1, references resolve and required-lock config validation passes.
-  - id: A3
-    text: A recoverable demo backup is verified, the new database has the exact baseline ledger, previous Project names are recreated through the public API and installation model/Runtime readiness are verified.
-  - id: A4
-    text: Relevant complete package suites and lint pass, with optional skips and branch/deployment delivery status recorded.
+- id: A1
+  text: Exactly one baseline installs and replays through the production migrator; installed schema and seed values equal
+    the retired chain, and stale ledgers fail closed.
+- id: A2
+  text: Every supplied catalog object has one current definition at version 1, references resolve and required-lock config
+    validation passes.
+- id: A3
+  text: A recoverable demo backup is verified, the new database has the exact baseline ledger, previous Project names are
+    recreated through the public API and installation model/Runtime readiness are verified.
+- id: A4
+  text: Applicable package suites and lint pass; both macOS Podman gates are fixed and verified under V480-002. The explicit
+    Linux Runtime sandbox-image prerequisite and optional skips are recorded without claiming full release coverage, together
+    with delivery status.
 tests:
-  - command: go test -tags=integration -count=1 ./internal/...
-    covers: [A1, A2, A4]
-  - command: make shared-config-check
-    covers: [A1, A4]
-  - command: contractor server config validate --root ./configs --require-catalog-lock
-    covers: [A2]
-  - command: make test-backup-restore
-    covers: [A1, A4]
-  - command: make lint
-    covers: [A1, A2, A4]
+- command: go test -tags=integration -count=1 ./internal/...
+  covers:
+  - A1
+  - A2
+  - A4
+- command: make shared-config-check
+  covers:
+  - A1
+  - A4
+- command: contractor server config validate --root ./configs --require-catalog-lock
+  covers:
+  - A2
+- command: make test-backup-restore
+  covers:
+  - A1
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A4
+- command: go test -tags=e2e -count=1 -timeout=26m ./tests/ui-stack
+  covers:
+  - A2
+  - A4
+- command: go test -count=1 ./tests/eval/project_workflows ./tests/eval/project_facts
+  covers:
+  - A2
+  - A4
+- command: go test -json -tags=e2e -count=1 -timeout=75m -run '^(TestRuntimePlacementAcrossProductionProcesses|TestWorkerCompactionContinuesIsolatedWorker|TestProjectSitemapToolsAcrossProductionProcesses|TestFindingsCollectionsRetainOrdinaryAndAuditReceipts|TestMemorySnapshotAcrossProcesses|TestEngagementHTTPRouteMatrixAcrossProcesses|TestArtifactImagesAcrossProcesses|TestFindingLocationsAcrossProcesses|TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses|TestEngagementIdentitySessionsAcrossProcesses|TestAuditFixedHypothesesAcrossProductionProcesses|TestRuntimeManagedArtifactWritesAcrossProcesses)$'
+    ./tests/e2e
+  covers:
+  - A1
+  - A2
+  - A4
+- command: go test -json -tags=e2e -count=1 -timeout=75m -run '^(TestScannerFindingsAcrossProductionProcesses|TestNucleiWebAcrossProductionProcesses|TestProductionMemoryTemplatesAcrossProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestSchedulerConcurrencyAcrossProductionProcesses|TestLocalGoToPythonArtifactCopy|TestAuditWorkspaceAcrossProductionProcesses|TestProjectDocumentResponseRecoveryAcrossProcesses|TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses|TestAuditCompactionPreservesTrustedCompletionAcrossProcesses|TestEngagementHTTPFindingReusesSelectedEvidenceAcrossProcesses|TestOpenAPIPreparedWorkServerOperation|TestAuditCompletionGateRedactsDatabaseCredentials|TestProductionMemoryConfigurationStaging|TestFactExtractionAcrossProcesses|TestHTTPCaidoE2EConfigurationClosure|TestAuditProgramCatalogRemovalConfigurationClosure|TestAuditCommonFixtureConfigurationLoads|TestFindingsGateRejectsSkippedAndAbsentRuntimeCases|TestFindingsGateRequiresProcessPrerequisites|TestProcessServerBuildsStayInPackageCache|TestAgentSkillsUseOnlyArtifactPlaneInventories|TestFFUFEngagementAcrossProductionProcesses|TestPodmanSandboxMatrixCoversEveryAcceptanceCase|TestMemoryUsesOnlyArtifactPlaneInventories)$'
+    ./tests/e2e
+  covers:
+  - A1
+  - A2
+  - A4
+- command: go test -json -tags=e2e -count=1 -timeout=75m -run '^(TestAuditHypothesisContinuationAcrossProductionProcesses|TestNucleiWebWithDeterministicScannerAcrossProcesses|TestAuditCommonSourcePreparationAcrossProductionProcesses|TestRunMetadataLabelsAcrossProcesses|TestFindingsReaderBoundariesAcrossProcesses|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestArtifactHistoryAcrossProductionProcesses|TestArtifactFilePublicationAcrossProcesses|TestAuditIncrementalEvidenceAcrossProcesses|TestRuntimeManagedMaterialVersionsAcrossProcesses|TestEngagementHTTPSelectedEvidenceAcrossProcesses|TestTraceFindingCoordinatesAcrossProcesses)$'
+    ./tests/e2e
+  covers:
+  - A1
+  - A2
+  - A4
+- command: go test -json -tags=e2e -count=1 -timeout=75m -run '^(TestAgentSkillsMVPProcesses|TestAuditResearchUIAcrossProductionProcesses|TestAuditBasicExactHandoffAcrossProductionProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses|TestRuntimeGuidanceAcrossProductionProcesses|TestEngagementIdentityLifecycleAcrossProcesses|TestProjectDocumentOutputLimitRecoveryAcrossProcesses|TestKatanaDiscoveryAcrossProductionProcesses|TestAuditCommonObservationProfilesAcrossProductionProcesses|TestEngagementOrdinaryRunAcrossProcesses|TestEngagementHTTPBoundsAcrossProcesses|TestRuntimePlacementScannerFixture|TestProjectSitemapServerOperationsAcrossProductionProcesses|TestAuditProgramCatalogReplacementRestartsServer|TestAuditCompletionGateRejectsIncompleteRuntimeReports|TestFindingsGateRejectsFalseGreenProcessReports|TestCodeAnalysisE2EConfigurationLoads|TestProjectFindingBacktraceScriptRestartsRevisionBoundTraversal|TestAuditInvestigationInstructionCatalog|TestProjectWorkerBudgetMatchesPinnedPolicy|TestEngagementAssertionSourcesUseCurrentDomainContract|TestPerformanceMetricsMatrixIsComplete|TestSchedulerConcurrencyMatrixIsComplete|TestAgentSkillsHardeningMatrixIsComplete|TestAuditProgramLibraryMatrixIsComplete|TestAuditsHardeningMatrixIsComplete|TestCodeAnalysisHardeningMatrixIsComplete|TestRuntimeWorkRootEmptyAllowsPersistentOwnerLock|TestDomainGatewayFindsNamedInputAfterParameterBlock|TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure|TestHTTPCaidoHardeningMatrixIsComplete|TestPerformanceReleaseEvidenceIsComplete|TestIndependentFindingsServersAcrossProcesses|TestProfilingHelperProcess|TestProjectWorkspaceHardeningMatrixIsComplete|TestProjectWorkspaceLocalDirectMatrixIsComplete|TestRuntimeAdapterSelectionAllowsAdditionalCapabilities|TestRuntimeConfigurationHardeningMatrixIsComplete|TestMemoryHardeningMatrixIsComplete|TestTaintAnnotationHardeningMatrixIsComplete|TestWorkerObservationsHardeningMatrixIsComplete)$'
+    ./tests/e2e
+  covers:
+  - A1
+  - A2
+  - A4
+- command: go test -json -tags=e2e -count=1 -timeout=75m -run '^(TestProjectWorkspaceLifecycleAcrossProductionProcesses|TestEngagementHTTPLifecycleAcrossProcesses|TestMemoryMVPProcesses|TestProjectSitemapReportImportsAcrossProductionProcesses|TestWorkerSummarizerProductionBoundaries|TestHeterogeneousRuntimeCapabilityPlacement|TestProjectFactsAcrossProcesses|TestEvalFindingProjectNavigationAcrossProcesses|TestFindingsProducerAndReaderAcrossProcesses|TestNucleiEngagementAcrossProductionProcesses|TestRuntimeManagedSitemapEditsAcrossProcesses|TestFactExtractionAuditEvalAcrossProcesses|TestAuditCompletionGateRejectsFalseGreenGoReports|TestProcessDatabaseIsolation|TestAuditProgramsE2EConfigurationLoads|TestAuditProgramsResolveAsRunnableMVPProfiles|TestAuditCompletionGateRequiresPrerequisites|TestFindingsGateRequiresRuntimePrerequisite|TestProfilingSeparateProcessUsesOnlyTheDiagnosticListener|TestRunMetadataLabelsHardeningMatrixIsComplete|TestLifecycleControlsHardeningMatrixIsComplete|TestArtifactPlaneInventoryScansNewProductionFiles|TestWorkerSummarizerHardeningMatrixIsComplete)$'
+    ./tests/e2e
+  covers:
+  - A1
+  - A2
+  - A4
+- command: go test -json -tags=e2e -count=1 -timeout=75m -run '^(TestScanToolsAcrossProductionProcesses|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestRoutingAndEscalationProductionBoundaries|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestAuditCommonScanProfilesAcrossProductionProcesses|TestWorkerSessionModesAcrossProductionProcesses|TestProjectFindingsReaderAcrossProcesses|TestWorkflowMaterialSetsAcrossProductionProcesses|TestAuditCompositionAcrossProductionProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestAuditPartialJudgmentsAcrossProcesses|TestAuditCompactionLeaseLossAcrossProcesses)$'
+    ./tests/e2e
+  covers:
+  - A1
+  - A2
+  - A4

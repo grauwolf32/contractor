@@ -223,7 +223,6 @@ func stageBlobCatalogFixtures(t *testing.T, repositoryRoot, target string) {
 		"workflows/audit_top10_source_risk.yaml":           "workflows/audit_top10_source_risk.yaml",
 		"agent-templates/audit_risk_source_checker.yaml":   "agent-templates/audit_risk_source_checker.yaml",
 		"instructions/audit-risk-source-checker-worker.md": "instructions/audit-risk-source-checker-worker.md",
-		"model-policies/worker_v2.yaml":                    "model-policies/worker.yaml",
 	} {
 		data, err := os.ReadFile(filepath.Join(source, filepath.FromSlash(relative)))
 		if err != nil {

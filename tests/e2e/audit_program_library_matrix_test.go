@@ -58,7 +58,7 @@ func TestAuditProgramLibraryMatrixIsComplete(t *testing.T) {
 	})
 	t.Run("retired program", func(t *testing.T) {
 		bad := mustDecodeStrictMatrix[auditProgramLibraryMatrix](t, data, "common programs")
-		bad.Programs[0].Profile = "source-checklist@missing"
+		bad.Programs[0].Profile = "source-checklist@1"
 		if validateAuditProgramLibraryMatrix(root, bad) == nil {
 			t.Fatal("retired program accepted")
 		}

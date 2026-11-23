@@ -41,7 +41,7 @@ spec:
         interrupted: {fail: {}}
     extract:
       objective: Select useful source-grounded Project facts; zero observations is valid
-      instructions: {ref: instructions/fact-extractor-v1.md}
+      instructions: {ref: instructions/fact-extractor.md}
       planner: passthrough@1
       agents:
         extractor: {template: fact_extractor@1, namespace: facts}

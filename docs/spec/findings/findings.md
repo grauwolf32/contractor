@@ -567,7 +567,7 @@ reports read it instead of the proposal artifact
 ([review and reports](../audits/review-and-reports.md), REV-R195). This bounded
 projection makes the conditions available in the standalone report without
 artifact hydration; the first-proposal reference supplies attribution. The
-forward transition for retained projections follows
+retained projection contract follows
 [PER-R43](../platform/persistence.md#PER-R43).
 
 **FND-R185.** One source Run admits at most 4,096 proposal receipts

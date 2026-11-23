@@ -3,7 +3,7 @@
   "kind": "Workflow",
   "metadata": {
     "name": "audit-hypothesis-generation",
-    "version": '1'
+    "version": "1"
   },
   "spec": {
     "parameters": {},

@@ -513,7 +513,7 @@ Notes:
   `*_migration_test.go` in `internal/persistence/postgres`.
   `000001_baseline.sql` is the whole schema as of 2026-11-23 (V480-001);
   other stale ledgers fail drift; PER-R30 records the explicitly authorized
-  offline demo ledger transition.
+  pre-production demo reset.
 - A table needs a named reader; a transaction-scoped lookup uses the
   transaction, never a second pool connection (nested acquisition deadlocked
   under `MaxConns=1`, V60-003, V60-015).
