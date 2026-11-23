@@ -5,7 +5,8 @@ milestone: run-metadata-labels
 epic: execution-core
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 3966544a6525c78555c0fbe55352da3218adcd28
 depends_on: [V20-004]
 languages: [go, python, json, markdown, yaml]
 goal: >-
