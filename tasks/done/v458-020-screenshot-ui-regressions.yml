@@ -6,7 +6,7 @@ epic: ui
 kind: defect
 introduced_by: V64-014
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript, css]
 goal: Issue review, Inbox, Project materials/results/cost and Run diagnostics retain the compact useful design on real data.
@@ -80,3 +80,4 @@ verification:
     - Required rationale, stale revision, idempotency and pending canonical refresh regression cases passed. The review does not collapse or re-enable editing until the canonical reread completes. Existing direct-reader, mobile Back and Report behavior remains covered.
     - The read-only compiled preview and source/evidence are retained locally and copied into iterations/2026-11-23-screenshot-polish in the shared UI archive. Original OpenDesign archive contents are preserved; this iteration repairs the working UI without generating or replacing OpenDesign sources.
     - No Server/API/schema change, demo business-data mutation, deployment, main merge or full release gate was performed. Changes remain on codex/ui-screenshot-polish-20261123 pending user review.
+implementation_commit: e2de9f4978c74c8cc95800d2b816f45349a5bbbe
