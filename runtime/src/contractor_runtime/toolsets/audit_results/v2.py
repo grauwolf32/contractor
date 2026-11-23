@@ -285,6 +285,7 @@ def _record_cancelled(metrics, name, started):
 
 
 class AuditResultsToolsetFactory:
+    workspace_access = "source"
     ref = "audit-results@2"
     exported_tools = frozenset({"read_audit_task", "submit_result", "submit_results", "evidence"})
     infrastructure_channels = MappingProxyType({})

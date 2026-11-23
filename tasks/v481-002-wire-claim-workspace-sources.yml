@@ -1,0 +1,52 @@
+schema_version: '1.0'
+id: V481-002
+title: Supply optional workspace source capture to claim tools
+milestone: audit-evidence-results-2026-11
+epic: findings
+kind: defect
+introduced_by: V478-002
+priority: P1
+status: in_progress
+depends_on: []
+languages: [python]
+goal: Common fact, finding and Audit evidence tools can select exact source regions from an available overlay workspace while remaining usable without one.
+context:
+  authority: >-
+    User request 2026-11-23 adds fact to appropriate investigating Workers.
+    The first real-process discovery demonstration exposed this prerequisite.
+    Agent implementation choice: use the existing source-only workspace view and
+    requires_workspace classification, with no new tool, capability or store.
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/security_findings/facades.py:302 and
+    runtime/src/contractor_runtime/toolsets/audit_results/v2.py:287 construct
+    SourcePreparer with project_workspace but declare no workspace_access, so
+    allocation/preparation.py:417 passes None. Real discovery fact with
+    workspace=true fails with tool_input_invalid: workspace source capture is
+    unavailable, despite the allocation having an overlay.
+  siblings: >-
+    General finding/fact, inherited code/HTTP facades and Audit evidence all
+    consume common SourcePreparer and need the optional source view. Trace
+    finding already requires source access and must keep rejecting direct mode.
+    Artifact, HTTP and opened-archive sources must still work without overlay.
+  specification:
+    - docs/spec/tools/toolsets.md#TLS-R43
+    - docs/spec/findings/findings.md#FND-R241
+scope:
+  in:
+    - Declare source-only workspace access for common claim factories and Audit evidence.
+    - Return no optional source view in direct mode, retaining strict mandatory trace allocation rejection.
+    - Test actual hydrated overlay/direct views, existing facade/Audit source suites and the real discovery process path.
+  out:
+    - Additional workspace capabilities, source interpreters, permission grants, stores or changes to source-selector schemas.
+acceptance_criteria:
+  - id: A1
+    text: Allocation composition supplies a source-only overlay view to general/code/HTTP claim and Audit evidence factories; real discovery fact retains its source evidence.
+  - id: A2
+    text: Without a workspace or in direct mode, optional claim tools remain available for ordinary artifact/HTTP/archive evidence; required trace source access still rejects direct mode.
+  - id: A3
+    text: Regression tests use hydrated real workspace sessions and fail against the missing factory declarations.
+tests:
+  - command: cd runtime && uv run pytest -q tests/test_claim_workspace_sources.py tests/test_allocation.py tests/test_capabilities.py tests/test_finding_facades.py tests/test_project_facts.py tests/test_audit_results_toolset.py tests/test_trace_findings.py
+    covers: [A1, A2, A3]
+  - command: cd runtime && uv run ruff check src/contractor_runtime/allocation/preparation.py src/contractor_runtime/toolsets/security_findings/facades.py src/contractor_runtime/toolsets/audit_results/v2.py tests/test_claim_workspace_sources.py
+    covers: [A1, A2, A3]
