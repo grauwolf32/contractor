@@ -1,0 +1,41 @@
+schema_version: '1.0'
+id: V483-001
+title: Integrate reusable Project fact collection into current main
+milestone: project-facts-2026-11
+epic: quality
+kind: chore
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, python, yaml, markdown]
+goal: Local main contains reusable fact publication from investigating Workers with current baseline and release cleanup, preserving the user's working files.
+context:
+  authority: User request 2026-11-24 explicitly authorizes merging this chat's fact changes into main. The prior user decision edits existing AgentTemplate, Audit and Workflow identities at @1 without version bumps.
+  source: codex/reset-preproduction-baseline at a0fe5dbcd; only its four V481 commits remain outside current main.
+  target: main at cd8f6aa3e6dfd9ee88a17c9c2b09c4c51732eedb.
+  boundary: Prepare a no-fast-forward merge on an isolated integration branch. Regenerate the combined dependency graph and backlog; retain main's @1 catalog/test pins and add the fact tool to the observation fixture. Verify the combined tree before advancing the clean main worktree. Preserve primary file bytes, modes and staged delta.
+scope:
+  in:
+    - Merge both completed fact tasks with current main and resolve generated documents and the observation fixture tool list.
+    - Verify configuration, offline Eval recipes, affected Runtime suites, real discovery/Audit process paths and lint.
+    - Advance local main to the verified merge and clean up the owned disposable PostgreSQL resources.
+  out:
+    - Deployment, remote publication, live model calls and changes to unrelated primary working-tree files.
+acceptance_criteria:
+  - id: A1
+    text: Local main contains the fact source head through a no-fast-forward merge and keeps existing configuration identities at @1.
+  - id: A2
+    text: Listed checks pass on the combined tree; no skipped or unmatched test selection counts as passing coverage.
+  - id: A3
+    text: The primary checkout retains its original dirty file bytes, modes and staged delta, main and the integration worktree are clean, and owned database resources are removed.
+tests:
+  - command: go test -count=1 ./internal/config/... ./internal/configload/... ./tests/eval/project_workflows ./tests/eval/project_facts
+    covers: [A1, A2]
+  - command: go run ./cmd/contractor-server config validate --root ./configs --require-catalog-lock
+    covers: [A1, A2]
+  - command: cd runtime && uv run pytest -q tests/test_claim_workspace_sources.py tests/test_allocation.py tests/test_capabilities.py tests/test_finding_facades.py tests/test_project_facts.py tests/test_audit_results_toolset.py tests/test_trace_findings.py tests/test_memory_fact_sources.py
+    covers: [A2]
+  - command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestDiscoveryFactsAcrossProcesses|TestAuditCommonObservationProfilesAcrossProductionProcesses)$' -v
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]
