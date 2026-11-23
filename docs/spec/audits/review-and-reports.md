@@ -443,8 +443,8 @@ with the exact original strings in order and `[]` for no conditions. Human
 verdicts and later contributions do not replace the first receipt's conditions.
 The conditions count in existing projection, page and complete report byte
 budgets. The Markdown report retains its bounded summary/counts contract.
-Previously accepted report bytes remain immutable; the retained-projection
-forward transition is defined by [PER-R43](../platform/persistence.md#PER-R43).
+Previously accepted report bytes remain immutable; the retained
+projection contract is defined by [PER-R43](../platform/persistence.md#PER-R43).
 
 **REV-R196.** Finalization records the report's item and finding entries in
 pages, in report order: the items of each Round, then the findings of each

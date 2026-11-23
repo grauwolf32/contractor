@@ -41,6 +41,29 @@ negative/scoped results, ordinary continuation and exact Project publication,
 and visits 390/1440 px in light/dark/black. It is included in the first browser
 release stage; the browser report rejects skipped or empty selections.
 
+## Container verification on local Podman
+
+The blob-backend and Git container gates build static Linux executables for the
+architecture reported by the selected Podman engine. Host migration commands
+use the separate native process cache. The build cache keeps target and package
+selection for its entire lifetime; each executable is removed after its package's
+processes have joined.
+
+On Linux the gates use host networking. With a local macOS Podman VM, public and
+private API ports are published on host loopback, while owned fixture relays make
+host-only PostgreSQL and Gateway listeners reachable from the VM. Runtime endpoints
+use the fixture host interface and matching certificate SANs. Each relay admits at
+most 64 connections, bounds dialing and connection lifetime, and closes and joins
+all its connections during cleanup. These fixtures require an active non-loopback
+IPv4 interface, as the Git fixture does. They do not change the engine's networking
+configuration or remove shared images, volumes or networks.
+
+The scratch images contain the Server and an owned read-only process-status probe.
+The probe reads the Server's `/proc/1/status` in that container's PID namespace,
+so peak RSS comes from the actual Linux process on both platforms. Scratch-root,
+read-only filesystem, missing-volume, transfer-capacity and cleanup checks remain
+part of the real gates.
+
 ## Shared PostgreSQL test setup
 
 Use `internal/persistence/postgrestest.NewPool` for a single schema-isolated

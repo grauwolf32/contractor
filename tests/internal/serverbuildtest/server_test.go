@@ -1,9 +1,12 @@
 package serverbuildtest
 
 import (
+	"debug/elf"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -146,5 +149,48 @@ printf '%s' "$CGO_ENABLED" > "$3"
 		if string(data) != want {
 			t.Fatalf("CGO_ENABLED = %q, want %q", data, want)
 		}
+	}
+}
+
+// Exercise the real compiler: a native process executable and a Linux image
+// artifact are distinct even when the selected engine is on another platform.
+func TestRealNativeAndLinuxTargets(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "cmd", "contractor-server"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module fixture\n\ngo 1.26\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "cmd", "contractor-server", "main.go"), []byte("package main\nfunc main(){println(\"native\")}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var native Cache
+	defer native.Close()
+	executable, err := native.Binary(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := exec.Command(executable).CombinedOutput()
+	if err != nil || string(output) != "native\n" {
+		t.Fatalf("native executable did not run: %v", err)
+	}
+	arch, machine := "amd64", elf.EM_X86_64
+	if runtime.GOARCH == "amd64" {
+		arch, machine = "arm64", elf.EM_AARCH64
+	}
+	linux := Cache{DisableCGO: true, TargetOS: "linux", TargetArch: arch}
+	defer linux.Close()
+	imageArtifact, err := linux.Binary(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	binary, err := elf.Open(imageArtifact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer binary.Close()
+	if binary.Machine != machine {
+		t.Fatalf("unexpected ELF machine: %v", binary.Machine)
 	}
 }

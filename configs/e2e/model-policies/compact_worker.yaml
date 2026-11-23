@@ -3,7 +3,7 @@ kind: ModelPolicy
 
 metadata:
   name: compact_worker
-  version: "1"
+  version: '1'
 
 spec:
   model: worker-model

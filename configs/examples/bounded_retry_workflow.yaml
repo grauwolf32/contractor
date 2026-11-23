@@ -5,7 +5,7 @@ kind: Workflow
 
 metadata:
   name: artifact-report-with-retry
-  version: "3"
+  version: '1'
 
 spec:
   parameters:
@@ -25,7 +25,7 @@ spec:
       llmGateway: local-litellm@1
       credential: development-worker
 
-      modelPolicy: worker@2
+      modelPolicy: worker@1
     stages:
       copy:
         agents:
@@ -40,7 +40,7 @@ spec:
       planner: passthrough@1
       agents:
         builder:
-          template: artifact_builder@3
+          template: artifact_builder@1
       context:
         artifacts:
           source:

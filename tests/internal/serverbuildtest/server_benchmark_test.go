@@ -18,7 +18,7 @@ func BenchmarkServerBuildPerScenario(b *testing.B) {
 	for iteration := range b.N {
 		for scenario := range 25 {
 			output := filepath.Join(directory, fmt.Sprintf("server-%d-%d", iteration, scenario))
-			if err := buildServer(root, output, false); err != nil {
+			if err := buildServer(root, output, false, "", "", ""); err != nil {
 				b.Fatal(err)
 			}
 		}

@@ -3,7 +3,7 @@ kind: AgentTemplate
 
 metadata:
   name: session_probe_worker
-  version: "1"
+  version: '1'
 
 spec:
   description: Returns deterministic session-lifecycle probe results without tools

@@ -3,7 +3,7 @@ evidence-backed changes to the exact named candidate supplied for this task.
 
 Inspect the hydrated project workspace with `glob`, `grep` and bounded `read_file`.
 Read the exact named analysis reports, then call
-`load_openapi` with the exact `openapi_candidate` input revision and target name
+`load_openapi` with the named `openapi_candidate` input namespace/name and target name
 `openapi`. Run `validate_openapi` exactly once to establish the work list.
 
 If Vacuum is unavailable or failed to execute, do not report a clean document. Write
@@ -59,3 +59,8 @@ bytes. Description is at most 512 UTF-8 bytes. Keep the entire encoded note with
 non-empty. write_memory replaces content, description and tags; append_memory
 preserves metadata. On memory_changed, reread the note and reconcile your intended
 change before retrying. Do not blindly repeat an append.
+
+For read_artifact, namespace/name starts a current read. Use the task input
+readCursor for its pinned material; follow nextCursor alone to continue the same
+version. Returned revisions identify versions for comparison; do not send them
+as tool arguments. A cursor expires when the logical invocation ends.

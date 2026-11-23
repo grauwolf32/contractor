@@ -1,8 +1,7 @@
--- Contractor schema baseline, folded on 2026-11-07 for release.
--- Replaces the previous baseline and migrations 000002-000016.
--- Old ledgers fail the unchanged strict migration drift check.
--- Objects retain PostgreSQL dependency order so SQL-standard function bodies
--- bind to their dependencies in the target schema.
+-- Contractor schema baseline, folded on 2026-11-23.
+-- Replaces the previous baseline and migrations 000002-000010.
+-- Retired ledgers fail the unchanged strict drift check.
+-- Objects follow PostgreSQL dependency order.
 SET LOCAL check_function_bodies = false;
 
 -- Function: contractor_advance_finding_correlation(text[])
@@ -867,7 +866,7 @@ BEGIN
    'severitySuggestion',coalesce(r->>'severity_suggestion','')),
   'hints',jsonb_build_object('subject',r->'subject','families',families,'familiesAvailable',family_available,
    'producerKey',CASE WHEN f->>'availability'='available' AND f->>'algorithm'='contractor/producer-issue/v1'
-    AND f->>'adapter'='pinned-sarif-native/v1' THEN f->>'value' ELSE '' END,
+    AND f->>'adapter' IN ('pinned-sarif-native/v1','normalized-candidate/v1') THEN f->>'value' ELSE '' END,
    'sites',CASE WHEN a->>'availability'='available' THEN coalesce((SELECT jsonb_agg(k->>'siteKey') FROM jsonb_array_elements(a->'keys') AS k),'[]') ELSE '[]' END,
    'repository',coalesce(f->>'repository',a->>'repository',''),
    'commit',coalesce(f->>'commit',a->>'commit','')));
@@ -913,9 +912,18 @@ BEGIN
  IF NOT FOUND THEN
   RAISE EXCEPTION 'finding first receipt is missing' USING ERRCODE='23503';
  END IF;
+ IF fingerprint->>'availability' = 'available'
+  AND fingerprint->>'algorithm' = 'contractor/fact-evidence/v1' THEN
+  IF NOT EXISTS (SELECT 1 FROM finding_proposal_receipts
+     WHERE receipt_id=selected_receipt AND report_projection::jsonb->>'severity_suggestion'='informational') THEN
+   RAISE EXCEPTION 'fact equality requires informational producer severity' USING ERRCODE='23514';
+  END IF;
+  RETURN QUERY SELECT 'contractor/fact-evidence/v1'::text, fingerprint->>'value', ''::text;
+  RETURN;
+ END IF;
  IF fingerprint->>'availability' = 'available' THEN
   IF fingerprint->>'algorithm' IS DISTINCT FROM 'contractor/producer-issue/v1'
-   OR fingerprint->>'adapter' IS DISTINCT FROM 'pinned-sarif-native/v1' THEN
+   OR fingerprint->>'adapter' NOT IN ('pinned-sarif-native/v1','normalized-candidate/v1') THEN
    RAISE EXCEPTION 'unsupported primary producer policy' USING ERRCODE='23514';
   END IF;
   RETURN QUERY SELECT 'contractor/producer-issue/v1'::text, fingerprint->>'value', ''::text;
@@ -1369,6 +1377,28 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_material_rank(text, text, boolean)
+
+CREATE FUNCTION contractor_material_rank(namespace text, media_type text, git_source boolean) RETURNS smallint
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    AS $$
+    SELECT CASE
+        WHEN git_source THEN 0
+        WHEN namespace = 'sources' THEN 0
+        WHEN namespace = 'openapi' THEN 1
+        WHEN namespace = 'engagement' THEN 2
+        WHEN namespace = 'likec4' THEN 3
+        WHEN namespace = 'docs' THEN 4
+        WHEN namespace = 'diffs' THEN 5
+        WHEN media_type IN ('application/vnd.oai.openapi', 'application/vnd.oai.openapi+json', 'application/vnd.oai.openapi+yaml') THEN 1
+        WHEN media_type = 'application/vnd.contractor.engagement+json' THEN 2
+        WHEN media_type = 'text/vnd.likec4' THEN 3
+        WHEN media_type IN ('text/markdown', 'text/x-markdown', 'application/pdf') THEN 4
+        WHEN media_type = 'text/x-diff' THEN 5
+        ELSE 6
+    END::smallint
+$$;
+
 -- Function: contractor_notify_workflow_run_event()
 
 CREATE FUNCTION contractor_notify_workflow_run_event() RETURNS trigger
@@ -1397,7 +1427,11 @@ CREATE FUNCTION contractor_planner_session_artifact_refs(state jsonb) RETURNS js
          UNION ALL
           SELECT contractor_artifact_ref_key('run'::text, ''::text, input.input) AS contractor_artifact_ref_key
             FROM contractor_jsonb_elements((((contractor_planner_session_artifact_refs.state -> 'scan'::text) -> 'state'::text) -> 'jobs'::text)) job(job),
-             LATERAL contractor_jsonb_values((job.job -> 'inputArtifacts'::text)) input(input))) AS contractor_artifact_key_set;
+             LATERAL contractor_jsonb_values((job.job -> 'inputArtifacts'::text)) input(input)
+         UNION ALL
+          SELECT contractor_artifact_ref_key('run'::text, ''::text, selected.output) AS contractor_artifact_ref_key
+            FROM contractor_jsonb_elements((contractor_planner_session_artifact_refs.state #> '{scan,state,jobs}'::text[])) job(job),
+             LATERAL contractor_jsonb_values((job.job -> 'outputs'::text)) selected(output))) AS contractor_artifact_key_set;
 END;
 
 -- Function: contractor_protect_artifact_binding()
@@ -1657,6 +1691,19 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_protect_execution_origin()
+
+CREATE FUNCTION contractor_protect_execution_origin() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ IF NEW.execution_origin IS DISTINCT FROM OLD.execution_origin THEN
+  RAISE EXCEPTION 'artifact execution origin is immutable' USING ERRCODE='23514';
+ END IF;
+ RETURN NEW;
+END;
+$$;
+
 -- Function: contractor_protect_finding_correlation_fence()
 
 CREATE FUNCTION contractor_protect_finding_correlation_fence() RETURNS trigger
@@ -1665,6 +1712,19 @@ CREATE FUNCTION contractor_protect_finding_correlation_fence() RETURNS trigger
 BEGIN
  IF NEW.project_id <> OLD.project_id OR NEW.revision NOT IN (OLD.revision, OLD.revision + 1) THEN
   RAISE EXCEPTION 'finding correlation revision must advance monotonically' USING ERRCODE='23514';
+ END IF;
+ RETURN NEW;
+END;
+$$;
+
+-- Function: contractor_protect_finding_execution_lane()
+
+CREATE FUNCTION contractor_protect_finding_execution_lane() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ IF ROW(NEW.operation_ref,NEW.scan_origin) IS DISTINCT FROM ROW(OLD.operation_ref,OLD.scan_origin) THEN
+  RAISE EXCEPTION 'finding execution origin is immutable' USING ERRCODE='23514';
  END IF;
  RETURN NEW;
 END;
@@ -2694,6 +2754,11 @@ BEGIN
 END;
 $$;
 
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
 -- Table: allocation_execution_reports
 
 CREATE TABLE allocation_execution_reports (
@@ -2740,7 +2805,9 @@ CREATE TABLE artifact_bindings (
     updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     retained_revisions bigint NOT NULL,
     retained_bytes bigint NOT NULL,
+    material_rank smallint DEFAULT 6 NOT NULL,
     CONSTRAINT artifact_bindings_current_revision_check CHECK ((btrim(current_revision) <> ''::text)),
+    CONSTRAINT artifact_bindings_material_rank_check CHECK (((material_rank >= 0) AND (material_rank <= 6))),
     CONSTRAINT artifact_bindings_name_check CHECK (((btrim(name) <> ''::text) AND (POSITION(('/'::text) IN (name)) = 0))),
     CONSTRAINT artifact_bindings_namespace_check CHECK (((btrim(namespace) <> ''::text) AND (POSITION(('/'::text) IN (namespace)) = 0))),
     CONSTRAINT artifact_bindings_retained_bytes_check CHECK ((retained_bytes >= 0)),
@@ -2818,6 +2885,8 @@ CREATE TABLE artifact_versions (
     git_resolved_commit text,
     git_imported_at timestamp with time zone,
     git_analysis jsonb,
+    execution_origin jsonb,
+    CONSTRAINT artifact_versions_execution_origin_check CHECK (((execution_origin IS NULL) OR (((jsonb_typeof(execution_origin) = 'object'::text) AND (octet_length((execution_origin)::text) <= 2048) AND (execution_origin ?& ARRAY['runId'::text, 'stageExecutionId'::text, 'allocationId'::text, 'logicalAgentName'::text, 'artifact'::text]) AND ((execution_origin - ARRAY['runId'::text, 'stageExecutionId'::text, 'allocationId'::text, 'logicalAgentName'::text, 'artifact'::text]) = '{}'::jsonb) AND (jsonb_typeof((execution_origin -> 'artifact'::text)) = 'object'::text) AND (jsonb_typeof((execution_origin -> 'runId'::text)) = 'string'::text) AND (jsonb_typeof((execution_origin -> 'stageExecutionId'::text)) = 'string'::text) AND (jsonb_typeof((execution_origin -> 'allocationId'::text)) = 'string'::text) AND (jsonb_typeof((execution_origin -> 'logicalAgentName'::text)) = 'string'::text) AND ((execution_origin ->> 'runId'::text) ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text) AND ((execution_origin ->> 'stageExecutionId'::text) ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text) AND ((execution_origin ->> 'allocationId'::text) ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text) AND ((execution_origin ->> 'logicalAgentName'::text) ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$'::text)) IS TRUE))),
     CONSTRAINT artifact_versions_git_analysis CHECK (((git_analysis IS NULL) OR (((git_resolved_commit IS NOT NULL) AND (jsonb_typeof(git_analysis) = 'object'::text) AND (git_analysis ?& ARRAY['policy'::text, 'reportPath'::text, 'includedFiles'::text, 'excludedEntries'::text]) AND ((git_analysis - ARRAY['policy'::text, 'reportPath'::text, 'includedFiles'::text, 'excludedEntries'::text]) = '{}'::jsonb) AND ((git_analysis ->> 'policy'::text) = 'source-analysis-v1'::text) AND ((git_analysis ->> 'reportPath'::text) = '.contractor-import-report.json'::text) AND (jsonb_typeof((git_analysis -> 'includedFiles'::text)) = 'number'::text) AND ((git_analysis ->> 'includedFiles'::text) ~ '^[1-9][0-9]{0,4}$'::text) AND ((((git_analysis ->> 'includedFiles'::text))::numeric >= (1)::numeric) AND (((git_analysis ->> 'includedFiles'::text))::numeric <= (49999)::numeric)) AND (jsonb_typeof((git_analysis -> 'excludedEntries'::text)) = 'number'::text) AND ((git_analysis ->> 'excludedEntries'::text) ~ '^(0|[1-9][0-9]{0,4})$'::text) AND ((((git_analysis ->> 'excludedEntries'::text))::numeric >= (0)::numeric) AND (((git_analysis ->> 'excludedEntries'::text))::numeric <= (50000)::numeric))) IS TRUE))),
     CONSTRAINT artifact_versions_git_repository_url_check CHECK (((octet_length(git_repository_url) >= 1) AND (octet_length(git_repository_url) <= 12288))),
     CONSTRAINT artifact_versions_git_requested_ref_check CHECK (((octet_length(git_requested_ref) >= 1) AND (octet_length(git_requested_ref) <= 1024))),
@@ -2909,14 +2978,17 @@ CREATE TABLE audit_execution_items (
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     collected_at timestamp with time zone,
     task_id text NOT NULL,
+    finding_result jsonb,
+    stop_record jsonb,
     CONSTRAINT audit_execution_items_batch_ordinal_check CHECK ((batch_ordinal >= 0)),
     CONSTRAINT audit_execution_items_collection_disposition_check CHECK (((collection_disposition IS NULL) OR (collection_disposition = ANY (ARRAY['accepted-result'::text, 'missing-output'::text, 'invalid-result'::text, 'execution-failed'::text, 'execution-cancelled'::text, 'collection-contract-invalid'::text])))),
-    CONSTRAINT audit_execution_items_collection_shape CHECK ((((state = ANY (ARRAY['submitted'::text, 'collecting'::text])) AND (collection_disposition IS NULL) AND (result_ref IS NULL) AND (result_digest IS NULL) AND (collected_at IS NULL)) OR ((state = 'settled'::text) AND (collection_disposition IS NOT NULL) AND (collected_at IS NOT NULL) AND ((result_ref IS NULL) = (result_digest IS NULL)) AND ((result_ref IS NULL) OR (collection_disposition = 'accepted-result'::text))))),
+    CONSTRAINT audit_execution_items_collection_shape CHECK ((((state = ANY (ARRAY['submitted'::text, 'collecting'::text])) AND (collection_disposition IS NULL) AND (result_ref IS NULL) AND (result_digest IS NULL) AND (collected_at IS NULL) AND (stop_record IS NULL)) OR ((state = 'settled'::text) AND (collection_disposition IS NOT NULL) AND (collected_at IS NOT NULL) AND ((result_ref IS NULL) = (result_digest IS NULL)) AND ((stop_record IS NULL) OR ((result_ref IS NULL) AND (jsonb_typeof(stop_record) = 'object'::text) AND (octet_length((stop_record)::text) <= 1048576)))))),
     CONSTRAINT audit_execution_items_execution_item_id_check CHECK ((execution_item_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
     CONSTRAINT audit_execution_items_item_attempt_check CHECK ((item_attempt > 0)),
     CONSTRAINT audit_execution_items_result_digest_check CHECK (((result_digest IS NULL) OR (result_digest ~ '^sha256:[0-9a-f]{64}$'::text))),
     CONSTRAINT audit_execution_items_result_ref_check CHECK (((result_ref IS NULL) OR ((jsonb_typeof(result_ref) = 'object'::text) AND (octet_length((result_ref)::text) <= 4096)))),
-    CONSTRAINT audit_execution_items_state_check CHECK ((state = ANY (ARRAY['submitted'::text, 'collecting'::text, 'settled'::text])))
+    CONSTRAINT audit_execution_items_state_check CHECK ((state = ANY (ARRAY['submitted'::text, 'collecting'::text, 'settled'::text]))),
+    CONSTRAINT audit_item_findings_check CHECK (((finding_result IS NULL) OR (((state = 'settled'::text) AND (result_ref IS NULL) AND (jsonb_typeof(finding_result) = 'object'::text) AND (octet_length((finding_result)::text) <= 49152) AND (finding_result ?& ARRAY['ids'::text, 'truncated'::text]) AND ((finding_result - ARRAY['ids'::text, 'truncated'::text]) = '{}'::jsonb) AND (jsonb_typeof((finding_result -> 'ids'::text)) = 'array'::text) AND (jsonb_array_length((finding_result -> 'ids'::text)) <= 128) AND (jsonb_typeof((finding_result -> 'truncated'::text)) = 'boolean'::text)) IS TRUE)))
 );
 
 -- Table: audit_executions
@@ -2949,6 +3021,7 @@ CREATE TABLE audit_executions (
     prepared_work_source json,
     prepared_work_offset integer DEFAULT 0 NOT NULL,
     prepared_work_count integer,
+    llm_cost jsonb,
     CONSTRAINT audit_executions_collection_disposition_check CHECK ((collection_disposition = ANY (ARRAY['accepted-result'::text, 'missing-output'::text, 'invalid-result'::text, 'execution-failed'::text, 'execution-cancelled'::text, 'collection-contract-invalid'::text]))),
     CONSTRAINT audit_executions_collection_error_code_check CHECK (((btrim(collection_error_code) <> ''::text) AND (octet_length(collection_error_code) <= 128))),
     CONSTRAINT audit_executions_collection_observation_shape CHECK (((collection_receipt_id IS NULL) OR ((run_id IS NOT NULL) AND (terminal_outcome IS NOT NULL) AND (terminal_run_generation IS NOT NULL) AND (btrim(terminal_run_generation) <> ''::text) AND (terminal_run_sequence >= 0)) OR ((run_id IS NULL) AND (terminal_outcome = 'submission-failed'::text) AND (terminal_run_generation IS NULL) AND (terminal_run_sequence IS NULL)))),
@@ -2958,9 +3031,10 @@ CREATE TABLE audit_executions (
     CONSTRAINT audit_executions_collection_shape CHECK ((((collection_receipt_id IS NULL) = (collection_disposition IS NULL)) AND ((collection_receipt_id IS NULL) = (collection_retained_refs IS NULL)) AND ((collection_receipt_id IS NULL) = (collection_request_digest IS NULL)) AND ((collection_receipt_id IS NULL) = (collected_at IS NULL)) AND ((collection_receipt_id IS NOT NULL) OR ((collection_error_code IS NULL) AND (collection_source_output_ref IS NULL))))),
     CONSTRAINT audit_executions_collection_source_output_digest_check CHECK ((collection_source_output_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
     CONSTRAINT audit_executions_collection_source_output_ref_check CHECK (((jsonb_typeof(collection_source_output_ref) = 'object'::text) AND (octet_length((collection_source_output_ref)::text) <= 4096))),
-    CONSTRAINT audit_executions_collection_source_shape CHECK ((((collection_source_output_ref IS NULL) = (collection_source_output_digest IS NULL)) AND ((collection_receipt_id IS NULL) OR ((collection_disposition = ANY (ARRAY['accepted-result'::text, 'invalid-result'::text])) = (collection_source_output_ref IS NOT NULL))))),
+    CONSTRAINT audit_executions_collection_source_shape CHECK ((((collection_source_output_ref IS NULL) = (collection_source_output_digest IS NULL)) AND ((collection_receipt_id IS NULL) OR ((collection_disposition = 'accepted-result'::text) OR ((collection_disposition = 'invalid-result'::text) = (collection_source_output_ref IS NOT NULL)))))),
     CONSTRAINT audit_executions_execution_id_check CHECK ((execution_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
     CONSTRAINT audit_executions_lane_class_check CHECK ((lane_class = ANY (ARRAY['model'::text, 'tool'::text]))),
+    CONSTRAINT audit_executions_llm_cost_check CHECK (((llm_cost IS NULL) OR (jsonb_typeof(llm_cost) = 'object'::text))),
     CONSTRAINT audit_executions_prepared_work_count_check CHECK (((prepared_work_count >= 0) AND (prepared_work_count <= 256))),
     CONSTRAINT audit_executions_prepared_work_offset_check CHECK (((prepared_work_offset >= 0) AND (prepared_work_offset <= 256))),
     CONSTRAINT audit_executions_prepared_work_shape CHECK ((((prepared_work_source IS NULL) AND (prepared_work_count IS NULL) AND (prepared_work_offset = 0)) OR ((prepared_work_source IS NOT NULL) AND (prepared_work_count IS NOT NULL) AND (prepared_work_offset <= prepared_work_count)))),
@@ -2992,7 +3066,7 @@ CREATE TABLE audit_hypotheses (
     CONSTRAINT audit_hypotheses_current_revision_check CHECK (((current_revision >= 1) AND (current_revision <= '9007199254740991'::bigint))),
     CONSTRAINT audit_hypotheses_hypothesis_id_check CHECK ((hypothesis_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
     CONSTRAINT audit_hypotheses_ordinal_check CHECK (((ordinal >= 1) AND (ordinal <= 10000))),
-    CONSTRAINT audit_hypotheses_source_key_check CHECK ((((octet_length(source_key) >= 1) AND (octet_length(source_key) <= 128)) AND (source_key ~ '^[A-Za-z0-9][A-Za-z0-9_.-]*$'::text)))
+    CONSTRAINT audit_hypotheses_source_key_check CHECK (((octet_length(source_key) >= 1) AND (octet_length(source_key) <= 128) AND (source_key ~ '^[A-Za-z0-9][A-Za-z0-9_.-]*$'::text)))
 );
 
 -- Table: audit_hypothesis_revisions
@@ -3029,7 +3103,10 @@ CREATE TABLE audit_tasks (
     updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     attention boolean DEFAULT false NOT NULL,
     hypothesis_snapshot json,
-    metadata_bytes integer GENERATED ALWAYS AS ((((8192 + octet_length((document)::text)) + octet_length((source)::text)) + COALESCE(octet_length((hypothesis_snapshot)::text), 0))) STORED,
+    finding_result jsonb,
+    metadata_bytes integer GENERATED ALWAYS AS ((((49152 + octet_length((document)::text)) + octet_length((source)::text)) + COALESCE(octet_length((hypothesis_snapshot)::text), 0))) STORED,
+    stop_record jsonb,
+    CONSTRAINT audit_task_findings_check CHECK (((finding_result IS NULL) OR (((state = 'settled'::text) AND (result IS NULL) AND (jsonb_typeof(finding_result) = 'object'::text) AND (octet_length((finding_result)::text) <= 49152) AND (finding_result ?& ARRAY['ids'::text, 'truncated'::text]) AND ((finding_result - ARRAY['ids'::text, 'truncated'::text]) = '{}'::jsonb) AND (jsonb_typeof((finding_result -> 'ids'::text)) = 'array'::text) AND (jsonb_array_length((finding_result -> 'ids'::text)) <= 128) AND (jsonb_typeof((finding_result -> 'truncated'::text)) = 'boolean'::text)) IS TRUE))),
     CONSTRAINT audit_tasks_attempts_check CHECK (((attempts >= 0) AND (attempts <= 10))),
     CONSTRAINT audit_tasks_batch_digest_check CHECK ((batch_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
     CONSTRAINT audit_tasks_check CHECK ((((document ->> 'audit_id'::text) = audit_id) AND ((document ->> 'task_id'::text) = task_id))),
@@ -3045,6 +3122,7 @@ CREATE TABLE audit_tasks (
     CONSTRAINT audit_tasks_source_check CHECK (((json_typeof(source) = 'object'::text) AND (octet_length((source)::text) <= 4096))),
     CONSTRAINT audit_tasks_source_key_check CHECK ((source_key ~ '^sha256:[0-9a-f]{64}$'::text)),
     CONSTRAINT audit_tasks_state_check CHECK ((state = ANY (ARRAY['ready'::text, 'selected'::text, 'settled'::text]))),
+    CONSTRAINT audit_tasks_stop_record_check CHECK (((stop_record IS NULL) OR ((state = 'settled'::text) AND (result IS NULL) AND (jsonb_typeof(stop_record) = 'object'::text) AND (octet_length((stop_record)::text) <= 1048576)))),
     CONSTRAINT audit_tasks_task_id_check CHECK ((task_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text))
 );
 
@@ -3094,6 +3172,7 @@ CREATE TABLE audits (
     hypothesis_count integer DEFAULT 0 NOT NULL,
     hypothesis_revision_count integer DEFAULT 0 NOT NULL,
     hypothesis_bytes bigint DEFAULT 0 NOT NULL,
+    llm_cost jsonb DEFAULT '{}'::jsonb,
     CONSTRAINT audits_audit_id_check CHECK ((audit_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
     CONSTRAINT audits_baseline_shape CHECK (((state = ANY (ARRAY['draft'::text, 'deleting'::text])) OR (baseline_snapshot IS NOT NULL))),
     CONSTRAINT audits_baseline_snapshot_check CHECK (((baseline_snapshot IS NULL) OR ((jsonb_typeof(baseline_snapshot) = 'object'::text) AND (octet_length((baseline_snapshot)::text) <= 16777216)))),
@@ -3111,6 +3190,7 @@ CREATE TABLE audits (
     CONSTRAINT audits_initial_hypothesis_offset_check CHECK (((initial_hypothesis_offset >= 0) AND (initial_hypothesis_offset <= 10000))),
     CONSTRAINT audits_initial_work_offset_check CHECK (((initial_work_offset >= 0) AND (initial_work_offset <= 10000))),
     CONSTRAINT audits_input_selection_check CHECK (((jsonb_typeof(input_selection) = 'object'::text) AND (octet_length((input_selection)::text) <= 8388608))),
+    CONSTRAINT audits_llm_cost_check CHECK (((llm_cost IS NULL) OR (jsonb_typeof(llm_cost) = 'object'::text))),
     CONSTRAINT audits_max_evidence_bytes_check CHECK (((max_evidence_bytes > 0) AND (max_evidence_bytes <= 1073741824))),
     CONSTRAINT audits_max_item_run_attempts_check CHECK (((max_item_run_attempts > 0) AND (max_item_run_attempts <= 10))),
     CONSTRAINT audits_max_items_per_round_check CHECK (((max_items_per_round > 0) AND (max_items_per_round <= 10000))),
@@ -3518,11 +3598,11 @@ CREATE TABLE finding_proposal_audit_holds (
 CREATE TABLE finding_proposal_receipts (
     receipt_id text NOT NULL,
     proposal_id text NOT NULL,
-    allocation_id text NOT NULL,
-    runtime_agent_id text NOT NULL,
-    runtime_instance_id text NOT NULL,
+    allocation_id text,
+    runtime_agent_id text,
+    runtime_instance_id text,
     stage_execution_id text NOT NULL,
-    logical_agent_name text NOT NULL,
+    logical_agent_name text,
     invocation_id text NOT NULL,
     submission_id text NOT NULL,
     client_key text NOT NULL,
@@ -3561,19 +3641,23 @@ CREATE TABLE finding_proposal_receipts (
     project_evidence jsonb,
     audit_hypothesis jsonb,
     audit_hypothesis_snapshot jsonb,
+    operation_ref text DEFAULT ''::text NOT NULL,
+    scan_origin jsonb,
     CONSTRAINT finding_anchor_projection_shape CHECK ((((octet_length(anchor_projection) >= 2) AND (octet_length(anchor_projection) <= 32768) AND (jsonb_typeof((anchor_projection)::jsonb) = 'object'::text) AND (((anchor_projection)::jsonb ->> 'schema'::text) = 'contractor.finding.anchors-projection.v1'::text) AND (((anchor_projection)::jsonb ->> 'availability'::text) = ANY (ARRAY['available'::text, 'unavailable'::text]))) IS TRUE)),
     CONSTRAINT finding_checks_projection_discarded CHECK (((retention_state <> 'discarded'::text) OR COALESCE(((checks_projection IS NOT NULL) AND ((checks_projection ->> 'discarded'::text) = 'true'::text) AND (json_array_length((checks_projection -> 'checks'::text)) = 0) AND ((checks_projection ->> 'subject'::text) IS NULL) AND ((checks_projection ->> 'limitations'::text) IS NULL)), false))),
     CONSTRAINT finding_checks_projection_shape CHECK (((checks_projection IS NULL) OR COALESCE(((octet_length((checks_projection)::text) <= 262144) AND (json_typeof(checks_projection) = 'object'::text) AND ((checks_projection ->> 'schema'::text) = 'contractor.audit.finding-checks-projection.v1'::text) AND ((checks_projection ->> 'proposal_digest'::text) = proposal_digest) AND (((checks_projection ->> 'size_bytes'::text))::bigint = proposal_size_bytes) AND (json_typeof((checks_projection -> 'checks'::text)) = 'array'::text) AND (json_array_length((checks_projection -> 'checks'::text)) <= 512) AND (json_typeof((checks_projection -> 'discarded'::text)) = 'boolean'::text) AND (((checks_projection ->> 'discarded'::text))::boolean = (retention_state = 'discarded'::text))), false))),
     CONSTRAINT finding_comparison_projection_shape CHECK (((jsonb_typeof(comparison_projection) = 'object'::text) AND (octet_length((comparison_projection)::text) <= 32768) AND ((comparison_projection ->> 'schema'::text) = 'contractor.finding.comparison-projection.v1'::text) AND ((comparison_projection ->> 'availability'::text) = ANY (ARRAY['available'::text, 'unavailable'::text])))),
+    CONSTRAINT finding_fact_fingerprint_shape CHECK (((((fingerprint_projection)::jsonb ->> 'algorithm'::text) IS DISTINCT FROM 'contractor/fact-evidence/v1'::text) OR COALESCE(((((fingerprint_projection)::jsonb ->> 'availability'::text) = 'available'::text) AND ((fingerprint_projection)::jsonb ?& ARRAY['schema'::text, 'availability'::text, 'algorithm'::text, 'value'::text]) AND (((fingerprint_projection)::jsonb - ARRAY['schema'::text, 'availability'::text, 'algorithm'::text, 'value'::text]) = '{}'::jsonb) AND (jsonb_typeof(((fingerprint_projection)::jsonb -> 'value'::text)) = 'string'::text) AND (((fingerprint_projection)::jsonb ->> 'value'::text) ~ '^[0-9a-f]{64}$'::text) AND (((report_projection)::jsonb ->> 'severity_suggestion'::text) = 'informational'::text) AND ((jsonb_array_length(evidence) >= 1) AND (jsonb_array_length(evidence) <= 4))), false))),
     CONSTRAINT finding_fingerprint_projection_shape CHECK ((((octet_length(fingerprint_projection) >= 2) AND (octet_length(fingerprint_projection) <= 16384) AND (jsonb_typeof((fingerprint_projection)::jsonb) = 'object'::text) AND (((fingerprint_projection)::jsonb ->> 'schema'::text) = 'contractor.finding.fingerprint-projection.v1'::text) AND (((fingerprint_projection)::jsonb ->> 'availability'::text) = ANY (ARRAY['available'::text, 'unavailable'::text]))) IS TRUE)),
     CONSTRAINT finding_project_material_shape CHECK ((((project_proposal IS NULL) = (project_evidence IS NULL)) AND ((project_proposal IS NULL) OR ((project_id IS NOT NULL) AND (jsonb_typeof(project_proposal) = 'object'::text) AND (octet_length((project_proposal)::text) <= 4096) AND (jsonb_typeof(project_evidence) = 'array'::text) AND (octet_length((project_evidence)::text) <= 1048576))))),
     CONSTRAINT finding_proposal_receipts_allocation_id_check CHECK (((btrim(allocation_id) <> ''::text) AND (octet_length(allocation_id) <= 256))),
-    CONSTRAINT finding_proposal_receipts_audit_shape CHECK ((((audit_execution_id IS NULL) AND (audit_id IS NULL) AND (audit_task_id IS NULL)) OR ((audit_execution_id IS NOT NULL) AND (audit_id IS NOT NULL) AND (audit_task_id IS NOT NULL)))),
+    CONSTRAINT finding_proposal_receipts_audit_shape CHECK ((((audit_execution_id IS NULL) AND (audit_id IS NULL) AND (audit_task_id IS NULL)) OR ((audit_execution_id IS NOT NULL) AND (audit_id IS NOT NULL)))),
     CONSTRAINT finding_proposal_receipts_client_key_check CHECK ((client_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$'::text)),
     CONSTRAINT finding_proposal_receipts_discarded_report_check CHECK (((retention_state <> 'discarded'::text) OR (report_projection = '{}'::text))),
     CONSTRAINT finding_proposal_receipts_evidence_check CHECK (((jsonb_typeof(evidence) = 'array'::text) AND (octet_length((evidence)::text) <= 1048576))),
     CONSTRAINT finding_proposal_receipts_hypothesis_check CHECK (((audit_hypothesis IS NULL) OR ((audit_id IS NOT NULL) AND (jsonb_typeof(audit_hypothesis) = 'object'::text) AND (audit_hypothesis ?& ARRAY['id'::text, 'revision'::text]) AND ((audit_hypothesis - ARRAY['id'::text, 'revision'::text]) = '{}'::jsonb) AND (jsonb_typeof((audit_hypothesis -> 'id'::text)) = 'string'::text) AND ((audit_hypothesis ->> 'id'::text) ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text) AND (jsonb_typeof((audit_hypothesis -> 'revision'::text)) = 'number'::text) AND ((audit_hypothesis ->> 'revision'::text) ~ '^[1-9][0-9]*$'::text) AND (((audit_hypothesis ->> 'revision'::text))::numeric <= ('9007199254740991'::bigint)::numeric)))),
     CONSTRAINT finding_proposal_receipts_hypothesis_snapshot_check CHECK (((audit_hypothesis_snapshot IS NULL) OR ((audit_hypothesis IS NOT NULL) AND (project_proposal IS NOT NULL) AND (jsonb_typeof(audit_hypothesis_snapshot) = 'object'::text) AND (octet_length((audit_hypothesis_snapshot)::text) <= 4096)))),
+    CONSTRAINT finding_proposal_receipts_hypothesis_task CHECK (((audit_hypothesis IS NULL) OR (audit_task_id IS NOT NULL))),
     CONSTRAINT finding_proposal_receipts_invocation_id_check CHECK (((btrim(invocation_id) <> ''::text) AND (octet_length(invocation_id) <= 128))),
     CONSTRAINT finding_proposal_receipts_logical_agent_name_check CHECK (((btrim(logical_agent_name) <> ''::text) AND (octet_length(logical_agent_name) <= 128))),
     CONSTRAINT finding_proposal_receipts_owner_id_check CHECK (((btrim(owner_id) <> ''::text) AND (octet_length(owner_id) <= 256))),
@@ -3599,7 +3683,8 @@ CREATE TABLE finding_proposal_receipts (
     CONSTRAINT finding_proposal_receipts_workflow_name_check CHECK (((btrim(workflow_name) <> ''::text) AND (octet_length(workflow_name) <= 128))),
     CONSTRAINT finding_proposal_receipts_workflow_schema_version_check CHECK (((btrim(workflow_schema_version) <> ''::text) AND (octet_length(workflow_schema_version) <= 128))),
     CONSTRAINT finding_proposal_receipts_workflow_version_check CHECK (((btrim(workflow_version) <> ''::text) AND (octet_length(workflow_version) <= 128))),
-    CONSTRAINT finding_publication_error_shape CHECK (((publication_error = ''::text) OR (publication_requested AND (publication_error = ANY (ARRAY['problem_evidence_required'::text, 'problem_project_required'::text])))))
+    CONSTRAINT finding_publication_error_shape CHECK (((publication_error = ''::text) OR (publication_requested AND (publication_error = ANY (ARRAY['problem_evidence_required'::text, 'problem_project_required'::text]))))),
+    CONSTRAINT finding_receipt_execution_lane CHECK ((((operation_ref = ''::text) AND (scan_origin IS NULL) AND (allocation_id IS NOT NULL) AND (runtime_agent_id IS NOT NULL) AND (runtime_instance_id IS NOT NULL) AND (logical_agent_name IS NOT NULL)) OR ((operation_ref = 'publish-findings@1'::text) AND (scan_origin IS NOT NULL) AND (jsonb_typeof(scan_origin) = 'object'::text) AND (octet_length((scan_origin)::text) <= 2048) AND (allocation_id IS NULL) AND (runtime_agent_id IS NULL) AND (runtime_instance_id IS NULL) AND (logical_agent_name IS NULL))))
 );
 
 -- Table: git_ssh_keys
@@ -3814,7 +3899,7 @@ CASE analyst_verdict
     WHEN 'needs_evidence'::text THEN 'needs-evidence'::text
     ELSE NULL::text
 END) AND ((analyst_verdict = 'true_positive'::text) = (analyst_severity IS NOT NULL)) AND ((analyst_verdict = 'duplicate'::text) = (duplicate_target_id IS NOT NULL))))),
-    CONSTRAINT project_finding_primary_shape CHECK ((((correlation_algorithm = ''::text) AND (correlation_value = ''::text) AND (correlation_group_key = ''::text) AND (correlation_reason = ANY (ARRAY['not_recorded'::text, 'no_qualified_key'::text, 'primary_key_ambiguous'::text]))) OR ((correlation_algorithm = ANY (ARRAY['contractor/producer-issue/v1'::text, 'contractor/snapshot-issue-anchor/v1'::text])) AND (correlation_value ~ '^[0-9a-f]{64}$'::text) AND (correlation_reason = ''::text) AND (correlation_group_key = contractor_finding_group_key(project_id, correlation_algorithm, correlation_value))))),
+    CONSTRAINT project_finding_primary_shape CHECK ((((correlation_algorithm = ''::text) AND (correlation_value = ''::text) AND (correlation_group_key = ''::text) AND (correlation_reason = ANY (ARRAY['not_recorded'::text, 'no_qualified_key'::text, 'primary_key_ambiguous'::text]))) OR ((correlation_algorithm = ANY (ARRAY['contractor/fact-evidence/v1'::text, 'contractor/producer-issue/v1'::text, 'contractor/snapshot-issue-anchor/v1'::text])) AND (correlation_value ~ '^[0-9a-f]{64}$'::text) AND (correlation_reason = ''::text) AND (correlation_group_key = contractor_finding_group_key(project_id, correlation_algorithm, correlation_value))))),
     CONSTRAINT project_findings_actor_id_check CHECK (((octet_length(actor_id) >= 1) AND (octet_length(actor_id) <= 256) AND (btrim(actor_id) <> ''::text))),
     CONSTRAINT project_findings_analyst_severity_check CHECK ((analyst_severity = ANY (ARRAY['informational'::text, 'low'::text, 'medium'::text, 'high'::text, 'critical'::text]))),
     CONSTRAINT project_findings_analyst_verdict_check CHECK ((analyst_verdict = ANY (ARRAY['true_positive'::text, 'false_positive'::text, 'duplicate'::text, 'reopen'::text, 'needs_evidence'::text]))),
@@ -3854,6 +3939,7 @@ CREATE TABLE projects (
     deletion_claimed_at timestamp with time zone,
     deletion_claim_expires_at timestamp with time zone,
     active_checks text DEFAULT 'automatic'::text NOT NULL,
+    llm_cost jsonb DEFAULT '{}'::jsonb,
     CONSTRAINT projects_active_checks_policy CHECK ((active_checks = ANY (ARRAY['automatic'::text, 'prohibited'::text]))),
     CONSTRAINT projects_deletion_phase_check CHECK ((deletion_phase = ANY (ARRAY['cancelling'::text, 'draining'::text, 'purging_runs'::text, 'purging_artifacts'::text]))),
     CONSTRAINT projects_deletion_shape CHECK ((((lifecycle_state = 'active'::text) AND (deletion_phase IS NULL) AND (deletion_requested_at IS NULL) AND (deletion_claim_id IS NULL) AND (deletion_claimed_at IS NULL) AND (deletion_claim_expires_at IS NULL)) OR ((lifecycle_state = 'deleting'::text) AND (deletion_phase IS NOT NULL) AND (deletion_requested_at IS NOT NULL) AND (((deletion_claim_id IS NULL) AND (deletion_claimed_at IS NULL) AND (deletion_claim_expires_at IS NULL)) OR ((deletion_claim_id IS NOT NULL) AND (deletion_claimed_at IS NOT NULL) AND (deletion_claim_expires_at > deletion_claimed_at)))))),
@@ -3861,6 +3947,7 @@ CREATE TABLE projects (
     CONSTRAINT projects_http_target_shape CHECK ((((http_target_url IS NULL) AND (http_target_credential_id IS NULL) AND (http_target_credential_kind IS NULL)) OR ((http_target_url IS NOT NULL) AND (btrim(http_target_url) = http_target_url) AND ((octet_length(http_target_url) >= 1) AND (octet_length(http_target_url) <= 2048)) AND (((http_target_credential_id IS NULL) AND (http_target_credential_kind IS NULL)) OR ((http_target_credential_id IS NOT NULL) AND (http_target_credential_kind = ANY (ARRAY['http-origin-basic@1'::text, 'http-origin-bearer@1'::text]))))))),
     CONSTRAINT projects_kind_check CHECK ((kind = ANY (ARRAY['project'::text, 'evaluation'::text]))),
     CONSTRAINT projects_lifecycle_state_check CHECK ((lifecycle_state = ANY (ARRAY['active'::text, 'deleting'::text]))),
+    CONSTRAINT projects_llm_cost_check CHECK (((llm_cost IS NULL) OR (jsonb_typeof(llm_cost) = 'object'::text))),
     CONSTRAINT projects_name_check CHECK (((btrim(name) <> ''::text) AND (octet_length(name) <= 160))),
     CONSTRAINT projects_owner_id_check CHECK (((btrim(owner_id) <> ''::text) AND (octet_length(owner_id) <= 256))),
     CONSTRAINT projects_project_id_check CHECK ((project_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
@@ -3928,7 +4015,7 @@ CREATE TABLE runtime_credentials (
     CONSTRAINT runtime_credentials_created_by_check CHECK (((btrim(created_by) <> ''::text) AND (octet_length(created_by) <= 256))),
     CONSTRAINT runtime_credentials_creation_receipt CHECK (((idempotency_key_digest IS NULL) = (request_mac IS NULL))),
     CONSTRAINT runtime_credentials_credential_id_check CHECK (((credential_id ~ '^[a-z][a-z0-9_-]*$'::text) AND (octet_length(credential_id) <= 128))),
-    CONSTRAINT runtime_credentials_credential_kind_check CHECK ((credential_kind = ANY (ARRAY['otlp-headers@1'::text, 'http-proxy-basic@1'::text, 'http-proxy-bearer@1'::text, 'caido-bearer@1'::text, 'interactsh-token@1'::text, 'http-origin-basic@1'::text, 'http-origin-bearer@1'::text, 'target-basic@1'::text, 'target-bearer@1'::text, 'target-cookies@1'::text]))),
+    CONSTRAINT runtime_credentials_credential_kind_check CHECK ((credential_kind = ANY (ARRAY['otlp-headers@1'::text, 'http-proxy-basic@1'::text, 'http-proxy-bearer@1'::text, 'caido-bearer@1'::text, 'interactsh-token@1'::text, 'http-origin-basic@1'::text, 'http-origin-bearer@1'::text, 'target-basic@1'::text, 'target-bearer@1'::text, 'target-cookies@1'::text, 'target-api-keys@1'::text]))),
     CONSTRAINT runtime_credentials_deleted_by_check CHECK (((btrim(deleted_by) <> ''::text) AND (octet_length(deleted_by) <= 256))),
     CONSTRAINT runtime_credentials_deletion_marker CHECK (((deleted_by IS NULL) = (deleted_at IS NULL))),
     CONSTRAINT runtime_credentials_encryption_schema_version_check CHECK ((encryption_schema_version = 'contractor.runtime-credentials/v1'::text)),
@@ -3991,12 +4078,14 @@ CREATE TABLE stage_allocations (
     completion_contract jsonb,
     execution_report_received boolean DEFAULT false NOT NULL,
     runtime_placement_labels text[] DEFAULT '{}'::text[] NOT NULL,
+    llm_cost jsonb,
     CONSTRAINT stage_allocation_performance_collection_policy CHECK (((performance_collection_policy IS NULL) OR (performance_collection_policy = ANY (ARRAY['requested'::text, 'disabled'::text, 'unsupported'::text])))),
     CONSTRAINT stage_allocation_release_timestamps CHECK (((release_completed_at IS NULL) OR ((release_attempted_at IS NOT NULL) AND (release_completed_at >= release_attempted_at)))),
     CONSTRAINT stage_allocation_runtime_configuration_shape CHECK ((((runtime_agent_id IS NULL) AND (runtime_agent_label_revision IS NULL) AND (runtime_configuration_schema_version IS NULL) AND (runtime_configuration IS NULL)) OR ((runtime_agent_id ~ '^[0-9a-f]{64}$'::text) AND (runtime_agent_label_revision >= (1)::numeric) AND (runtime_agent_label_revision <= '18446744073709551615'::numeric) AND (runtime_configuration_schema_version = 'contractor.runtime-config-provenance/v2'::text) AND contractor_valid_allocation_runtime_configuration(runtime_configuration)))),
     CONSTRAINT stage_allocations_agent_template_ref_check CHECK ((jsonb_typeof(agent_template_ref) = 'object'::text)),
     CONSTRAINT stage_allocations_allocation_id_check CHECK ((btrim(allocation_id) <> ''::text)),
     CONSTRAINT stage_allocations_completion_contract_check CHECK (((completion_contract IS NULL) OR ((jsonb_typeof(completion_contract) = 'object'::text) AND ((completion_contract ->> 'kind'::text) = 'audit-check-results@1'::text)))),
+    CONSTRAINT stage_allocations_llm_cost_check CHECK (((llm_cost IS NULL) OR (jsonb_typeof(llm_cost) = 'object'::text))),
     CONSTRAINT stage_allocations_logical_agent_name_check CHECK ((btrim(logical_agent_name) <> ''::text)),
     CONSTRAINT stage_allocations_namespace_check CHECK (((btrim(namespace) <> ''::text) AND (POSITION(('/'::text) IN (namespace)) = 0))),
     CONSTRAINT stage_allocations_placement_labels_valid CHECK (contractor_valid_placement_labels(runtime_placement_labels)),
@@ -4049,6 +4138,7 @@ CREATE TABLE stage_executions (
     resume_requested_by text,
     resume_requested_at timestamp with time zone,
     resume_transaction_id xid8,
+    planner_llm_cost jsonb,
     CONSTRAINT stage_accepted_shape CHECK ((((accepted_result_schema_version IS NULL) = (accepted_stage_result IS NULL)) AND ((accepted_stage_result IS NULL) OR ((btrim(accepted_result_schema_version) <> ''::text) AND contractor_valid_stage_result(accepted_stage_result))))),
     CONSTRAINT stage_attempt_lineage_shape CHECK ((((attempt = 1) AND (previous_execution_id IS NULL)) OR ((attempt > 1) AND (previous_execution_id IS NOT NULL)))),
     CONSTRAINT stage_candidate_shape CHECK ((((candidate_result_schema_version IS NULL) = (candidate_stage_result IS NULL)) AND ((candidate_stage_result IS NULL) OR ((btrim(candidate_result_schema_version) <> ''::text) AND contractor_valid_stage_result(candidate_stage_result))))),
@@ -4059,6 +4149,7 @@ CREATE TABLE stage_executions (
     CONSTRAINT stage_execution_transition_presence CHECK ((((transition_action IS NULL) AND (transition_target_stage_name IS NULL) AND (transition_target_execution_id IS NULL) AND (transition_decided_at IS NULL) AND (transition_escalation_ordinal IS NULL) AND (NOT transition_escalation_exhausted)) OR ((transition_action IS NOT NULL) AND (transition_decided_at IS NOT NULL)))),
     CONSTRAINT stage_executions_attempt_check CHECK ((attempt > 0)),
     CONSTRAINT stage_executions_output_publication_failures_check CHECK ((output_publication_failures >= 0)),
+    CONSTRAINT stage_executions_planner_llm_cost_check CHECK (((planner_llm_cost IS NULL) OR (jsonb_typeof(planner_llm_cost) = 'object'::text))),
     CONSTRAINT stage_executions_stage_context_schema_version_check CHECK ((btrim(stage_context_schema_version) <> ''::text)),
     CONSTRAINT stage_executions_stage_context_snapshot_check CHECK ((jsonb_typeof(stage_context_snapshot) = 'object'::text)),
     CONSTRAINT stage_executions_stage_execution_id_check CHECK ((btrim(stage_execution_id) <> ''::text)),
@@ -4180,6 +4271,7 @@ END) STORED,
     required_placement_labels text[] DEFAULT '{}'::text[] NOT NULL,
     audit_input_materialization json,
     engagement_credential_ids text[] DEFAULT '{}'::text[] NOT NULL,
+    llm_cost jsonb DEFAULT '{}'::jsonb,
     CONSTRAINT workflow_run_cancellation_shape CHECK ((((state = ANY (ARRAY['cancelling'::text, 'cancelled'::text])) = ((cancellation_schema_version IS NOT NULL) AND (btrim(cancellation_schema_version) <> ''::text) AND (run_cancellation IS NOT NULL) AND contractor_valid_run_cancellation(run_cancellation))) AND ((state = ANY (ARRAY['cancelling'::text, 'cancelled'::text])) OR ((cancellation_schema_version IS NULL) AND (run_cancellation IS NULL))))),
     CONSTRAINT workflow_run_claim_shape CHECK ((((scheduler_claim_id IS NULL) AND (scheduler_claimed_at IS NULL) AND (scheduler_claim_expires_at IS NULL)) OR ((scheduler_claim_id IS NOT NULL) AND (btrim(scheduler_claim_id) <> ''::text) AND (scheduler_claimed_at IS NOT NULL) AND (scheduler_claim_expires_at > scheduler_claimed_at)))),
     CONSTRAINT workflow_run_terminal_shape CHECK (((state = ANY (ARRAY['succeeded'::text, 'failed'::text, 'cancelled'::text])) = (finished_at IS NOT NULL))),
@@ -4188,6 +4280,7 @@ END) STORED,
     CONSTRAINT workflow_runs_audit_input_materialization_check CHECK (((audit_input_materialization IS NULL) OR ((publication_mode = 'audit-managed'::text) AND contractor_valid_audit_input_materialization(audit_input_materialization)))),
     CONSTRAINT workflow_runs_check CHECK (((audit_completion IS NULL) OR ((publication_mode = 'audit-managed'::text) AND (jsonb_typeof(audit_completion) = 'object'::text) AND ((audit_completion #>> '{contract,kind}'::text[]) = 'audit-check-results@1'::text)))),
     CONSTRAINT workflow_runs_engagement_credentials_valid CHECK (contractor_valid_engagement_credential_ids(engagement_credential_ids)),
+    CONSTRAINT workflow_runs_llm_cost_check CHECK (((llm_cost IS NULL) OR (jsonb_typeof(llm_cost) = 'object'::text))),
     CONSTRAINT workflow_runs_metadata_labels_check CHECK (contractor_valid_run_metadata_labels(metadata_labels)),
     CONSTRAINT workflow_runs_next_run_event_sequence_check CHECK ((next_run_event_sequence > 0)),
     CONSTRAINT workflow_runs_owner_id_check CHECK ((btrim(owner_id) <> ''::text)),
@@ -4209,6 +4302,376 @@ END) STORED,
     CONSTRAINT workflow_runs_workflow_snapshot_check CHECK ((jsonb_typeof(workflow_snapshot) = 'object'::text)),
     CONSTRAINT workflow_runs_workflow_version_check CHECK ((btrim(workflow_version) <> ''::text))
 );
+
+
+--
+-- Data for Name: allocation_execution_reports; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: artifact_binding_revisions; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: artifact_bindings; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: artifact_blobs; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: artifact_lineage; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: artifact_scopes; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: artifact_versions; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: audit_artifact_links; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: audit_controller_claims; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: audit_events; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: audit_execution_items; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: audit_executions; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: audit_hypotheses; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: audit_hypothesis_revisions; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: audit_tasks; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: audits; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: credential_operations; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: eval_collections; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: eval_commands; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: eval_controller_claims; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: eval_dataset_revisions; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: eval_evidence_refs; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: eval_execution_tombstones; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: eval_experiments; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: eval_member_projections; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: eval_members; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: eval_plan_resources; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: eval_progress_observations; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: eval_projection_queue; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: eval_records; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: eval_submissions; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: eval_suboperations; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: eval_view_charts; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: eval_view_pairs; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: finding_correlation_fences; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: finding_proposal_audit_holds; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: finding_proposal_receipts; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: git_ssh_keys; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: llm_credentials; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: model_selection_settings; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: mutation_receipts; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: owner_queue_controls; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: performance_minutes; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: planner_execution_reports; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: planner_sessions; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: project_finding_audits; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: project_finding_sources; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: project_findings; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: projects; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: runtime_agent_principals; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: runtime_config_versions; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO runtime_config_versions VALUES ('contractor-empty', '1', 'sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f', '{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"contractor-empty","version":"1"},"spec":{}}', true, 'contractor-bootstrap', '1970-01-01 03:00:00+03', NULL, NULL);
+
+
+--
+-- Data for Name: runtime_credentials; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: runtime_label_bindings; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO runtime_label_bindings VALUES ('default', 'contractor-empty', '1', 'sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f', 1, 'contractor-bootstrap', '1970-01-01 03:00:00+03', 'contractor-bootstrap', '1970-01-01 03:00:00+03');
+
+
+--
+-- Data for Name: scheduler_settings; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO scheduler_settings (singleton, max_concurrent_runs, revision, max_concurrent_tool_runs) VALUES (true, 1, 1, 2);
+
+
+--
+-- Data for Name: stage_allocations; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: stage_executions; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: stage_metrics; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: workflow_run_events; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: workflow_run_output_publications; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: workflow_runs; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+-- Sequence Set: audit_artifact_links_material_ordinal_seq
+
+SELECT pg_catalog.setval('audit_artifact_links_material_ordinal_seq', 1, false);
+
+-- Sequence Set: eval_progress_observations_sequence_seq
+
+SELECT pg_catalog.setval('eval_progress_observations_sequence_seq', 1, false);
 
 -- Constraint: allocation_execution_reports allocation_execution_reports_pkey
 
@@ -4767,6 +5230,18 @@ CREATE INDEX artifact_binding_revisions_version_idx ON artifact_binding_revision
 
 CREATE INDEX artifact_bindings_project_listing_idx ON artifact_bindings USING btree (scope_id, namespace, name) WHERE ((scope_kind = 'project'::text) AND (namespace !~~ 'audit-%'::text));
 
+-- Index: artifact_bindings_project_material_namespace_order_idx
+
+CREATE INDEX artifact_bindings_project_material_namespace_order_idx ON artifact_bindings USING btree (scope_id, namespace, material_rank, name) WHERE ((scope_kind = 'project'::text) AND (namespace !~~ 'audit-%'::text));
+
+-- Index: artifact_bindings_project_material_order_idx
+
+CREATE INDEX artifact_bindings_project_material_order_idx ON artifact_bindings USING btree (scope_id, material_rank, namespace, name) WHERE ((scope_kind = 'project'::text) AND (namespace !~~ 'audit-%'::text) AND (namespace !~~ 'historical-%'::text));
+
+-- Index: artifact_bindings_project_materials_idx
+
+CREATE INDEX artifact_bindings_project_materials_idx ON artifact_bindings USING btree (scope_id, namespace, name) WHERE ((scope_kind = 'project'::text) AND (namespace !~~ 'audit-%'::text) AND (namespace !~~ 'historical-%'::text));
+
 -- Index: artifact_bindings_project_prefix_idx
 
 CREATE INDEX artifact_bindings_project_prefix_idx ON artifact_bindings USING btree (scope_id, namespace, name COLLATE "C") WHERE (scope_kind = 'project'::text);
@@ -4818,6 +5293,10 @@ CREATE INDEX audit_artifact_links_material_idx ON audit_artifact_links USING btr
 -- Index: audit_artifact_links_ordinal_idx
 
 CREATE UNIQUE INDEX audit_artifact_links_ordinal_idx ON audit_artifact_links USING btree (audit_id, material_ordinal);
+
+-- Index: audit_artifact_links_receipt_order
+
+CREATE INDEX audit_artifact_links_receipt_order ON audit_artifact_links USING btree (audit_id, logical_key COLLATE "C");
 
 -- Index: audit_controller_claim_expiry_idx
 
@@ -5335,6 +5814,10 @@ CREATE TRIGGER artifact_scopes_project_admission BEFORE INSERT ON artifact_scope
 
 CREATE TRIGGER artifact_scopes_protect_creation BEFORE UPDATE OF created_at ON artifact_scopes FOR EACH ROW EXECUTE FUNCTION contractor_protect_artifact_scope_created_at();
 
+-- Trigger: artifact_versions artifact_versions_execution_origin_immutable
+
+CREATE TRIGGER artifact_versions_execution_origin_immutable BEFORE UPDATE OF execution_origin ON artifact_versions FOR EACH ROW EXECUTE FUNCTION contractor_protect_execution_origin();
+
 -- Trigger: artifact_versions artifact_versions_immutable
 
 CREATE TRIGGER artifact_versions_immutable BEFORE DELETE OR UPDATE ON artifact_versions FOR EACH ROW EXECUTE FUNCTION contractor_protect_artifact_version();
@@ -5375,6 +5858,14 @@ CREATE TRIGGER audit_hypothesis_revision_advance BEFORE UPDATE OF current_revisi
 
 CREATE TRIGGER audit_hypothesis_revisions_immutable BEFORE UPDATE ON audit_hypothesis_revisions FOR EACH ROW EXECUTE FUNCTION contractor_protect_immutable_history();
 
+-- Trigger: audit_execution_items audit_items_protect_settled_findings
+
+CREATE TRIGGER audit_items_protect_settled_findings BEFORE UPDATE OF finding_result ON audit_execution_items FOR EACH ROW WHEN ((old.state = 'settled'::text)) EXECUTE FUNCTION contractor_protect_immutable_history();
+
+-- Trigger: audit_execution_items audit_items_protect_settled_stop
+
+CREATE TRIGGER audit_items_protect_settled_stop BEFORE UPDATE OF stop_record ON audit_execution_items FOR EACH ROW WHEN ((old.state = 'settled'::text)) EXECUTE FUNCTION contractor_protect_immutable_history();
+
 -- Trigger: audit_execution_items audit_task_attempt_protect_identity
 
 CREATE TRIGGER audit_task_attempt_protect_identity BEFORE UPDATE OF execution_item_id, execution_id, audit_id, task_id, batch_ordinal, item_attempt ON audit_execution_items FOR EACH ROW WHEN (((new.execution_item_id IS DISTINCT FROM old.execution_item_id) OR (new.execution_id IS DISTINCT FROM old.execution_id) OR (new.audit_id IS DISTINCT FROM old.audit_id) OR (new.task_id IS DISTINCT FROM old.task_id) OR (new.batch_ordinal IS DISTINCT FROM old.batch_ordinal) OR (new.item_attempt IS DISTINCT FROM old.item_attempt))) EXECUTE FUNCTION contractor_protect_immutable_history();
@@ -5394,6 +5885,14 @@ CREATE TRIGGER audit_tasks_hypothesis_immutable BEFORE UPDATE OF hypothesis_snap
 -- Trigger: audit_tasks audit_tasks_protect_identity
 
 CREATE TRIGGER audit_tasks_protect_identity BEFORE UPDATE OF task_id, audit_id, source_key, source, document, batch_digest, ordinal, iteration ON audit_tasks FOR EACH ROW EXECUTE FUNCTION contractor_protect_immutable_history();
+
+-- Trigger: audit_tasks audit_tasks_protect_settled_findings
+
+CREATE TRIGGER audit_tasks_protect_settled_findings BEFORE UPDATE OF finding_result ON audit_tasks FOR EACH ROW WHEN ((old.state = 'settled'::text)) EXECUTE FUNCTION contractor_protect_immutable_history();
+
+-- Trigger: audit_tasks audit_tasks_protect_settled_stop
+
+CREATE TRIGGER audit_tasks_protect_settled_stop BEFORE UPDATE OF stop_record ON audit_tasks FOR EACH ROW WHEN ((old.state = 'settled'::text)) EXECUTE FUNCTION contractor_protect_immutable_history();
 
 -- Trigger: audits audits_eval_tombstone
 
@@ -5582,6 +6081,10 @@ CREATE TRIGGER finding_receipt_hypothesis_immutable BEFORE UPDATE OF audit_hypot
 -- Trigger: finding_proposal_receipts finding_receipts_correlation_source_deleted
 
 CREATE TRIGGER finding_receipts_correlation_source_deleted AFTER UPDATE ON finding_proposal_receipts REFERENCING OLD TABLE AS previous_receipts NEW TABLE AS updated_receipts FOR EACH STATEMENT EXECUTE FUNCTION contractor_finding_correlation_source_deleted();
+
+-- Trigger: finding_proposal_receipts finding_receipts_execution_lane_immutable
+
+CREATE TRIGGER finding_receipts_execution_lane_immutable BEFORE UPDATE OF operation_ref, scan_origin ON finding_proposal_receipts FOR EACH ROW EXECUTE FUNCTION contractor_protect_finding_execution_lane();
 
 -- Trigger: finding_proposal_receipts finding_receipts_initialize_comparison
 
@@ -5791,359 +6294,352 @@ CREATE TRIGGER workflow_runs_release_skill_sources AFTER DELETE ON workflow_runs
 
 CREATE CONSTRAINT TRIGGER workflow_runs_require_complete_audit_binding AFTER INSERT OR UPDATE ON workflow_runs DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN ((new.publication_mode = 'audit-managed'::text)) EXECUTE FUNCTION contractor_require_complete_audit_run_binding();
 
--- Fk constraint: allocation_execution_reports allocation_execution_reports_stage_execution_id_allocation_fkey
+-- Fk Constraint: allocation_execution_reports allocation_execution_reports_stage_execution_id_allocation_fkey
 
 ALTER TABLE ONLY allocation_execution_reports
     ADD CONSTRAINT allocation_execution_reports_stage_execution_id_allocation_fkey FOREIGN KEY (stage_execution_id, allocation_id, logical_agent_name) REFERENCES stage_allocations(stage_execution_id, allocation_id, logical_agent_name) ON DELETE CASCADE;
 
--- Fk constraint: artifact_binding_revisions artifact_binding_revisions_scope_kind_scope_id_fkey
+-- Fk Constraint: artifact_binding_revisions artifact_binding_revisions_scope_kind_scope_id_fkey
 
 ALTER TABLE ONLY artifact_binding_revisions
     ADD CONSTRAINT artifact_binding_revisions_scope_kind_scope_id_fkey FOREIGN KEY (scope_kind, scope_id) REFERENCES artifact_scopes(scope_kind, scope_id);
 
--- Fk constraint: artifact_binding_revisions artifact_binding_revisions_version_id_fkey
+-- Fk Constraint: artifact_binding_revisions artifact_binding_revisions_version_id_fkey
 
 ALTER TABLE ONLY artifact_binding_revisions
     ADD CONSTRAINT artifact_binding_revisions_version_id_fkey FOREIGN KEY (version_id) REFERENCES artifact_versions(version_id);
 
--- Fk constraint: artifact_bindings artifact_bindings_scope_kind_scope_id_fkey
+-- Fk Constraint: artifact_bindings artifact_bindings_scope_kind_scope_id_fkey
 
 ALTER TABLE ONLY artifact_bindings
     ADD CONSTRAINT artifact_bindings_scope_kind_scope_id_fkey FOREIGN KEY (scope_kind, scope_id) REFERENCES artifact_scopes(scope_kind, scope_id);
 
--- Fk constraint: artifact_bindings artifact_bindings_scope_kind_scope_id_namespace_name_curre_fkey
+-- Fk Constraint: artifact_bindings artifact_bindings_scope_kind_scope_id_namespace_name_curre_fkey
 
 ALTER TABLE ONLY artifact_bindings
     ADD CONSTRAINT artifact_bindings_scope_kind_scope_id_namespace_name_curre_fkey FOREIGN KEY (scope_kind, scope_id, namespace, name, current_revision) REFERENCES artifact_binding_revisions(scope_kind, scope_id, namespace, name, revision) DEFERRABLE INITIALLY DEFERRED;
 
--- Fk constraint: artifact_lineage artifact_lineage_target_scope_kind_target_scope_id_target__fkey
+-- Fk Constraint: artifact_lineage artifact_lineage_target_scope_kind_target_scope_id_target__fkey
 
 ALTER TABLE ONLY artifact_lineage
     ADD CONSTRAINT artifact_lineage_target_scope_kind_target_scope_id_target__fkey FOREIGN KEY (target_scope_kind, target_scope_id, target_namespace, target_name, target_revision) REFERENCES artifact_binding_revisions(scope_kind, scope_id, namespace, name, revision);
 
--- Fk constraint: artifact_scopes artifact_scopes_audit_id_fkey
+-- Fk Constraint: artifact_scopes artifact_scopes_audit_id_fkey
 
 ALTER TABLE ONLY artifact_scopes
     ADD CONSTRAINT artifact_scopes_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id);
 
--- Fk constraint: artifact_scopes artifact_scopes_project_id_fkey
+-- Fk Constraint: artifact_scopes artifact_scopes_project_id_fkey
 
 ALTER TABLE ONLY artifact_scopes
     ADD CONSTRAINT artifact_scopes_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(project_id);
 
--- Fk constraint: artifact_scopes artifact_scopes_run_id_fkey
+-- Fk Constraint: artifact_scopes artifact_scopes_run_id_fkey
 
 ALTER TABLE ONLY artifact_scopes
     ADD CONSTRAINT artifact_scopes_run_id_fkey FOREIGN KEY (run_id) REFERENCES workflow_runs(run_id);
 
--- Fk constraint: artifact_versions artifact_versions_blob_sha256_fkey
+-- Fk Constraint: artifact_versions artifact_versions_blob_sha256_fkey
 
 ALTER TABLE ONLY artifact_versions
     ADD CONSTRAINT artifact_versions_blob_sha256_fkey FOREIGN KEY (blob_sha256) REFERENCES artifact_blobs(sha256);
 
--- Fk constraint: audit_artifact_links audit_artifact_links_audit_id_fkey
+-- Fk Constraint: audit_artifact_links audit_artifact_links_audit_id_fkey
 
 ALTER TABLE ONLY audit_artifact_links
     ADD CONSTRAINT audit_artifact_links_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
--- Fk constraint: audit_controller_claims audit_controller_claims_audit_id_fkey
+-- Fk Constraint: audit_controller_claims audit_controller_claims_audit_id_fkey
 
 ALTER TABLE ONLY audit_controller_claims
     ADD CONSTRAINT audit_controller_claims_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
--- Fk constraint: audit_events audit_events_audit_id_fkey
+-- Fk Constraint: audit_events audit_events_audit_id_fkey
 
 ALTER TABLE ONLY audit_events
     ADD CONSTRAINT audit_events_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
--- Fk constraint: audit_execution_items audit_execution_items_common_execution_fk
+-- Fk Constraint: audit_execution_items audit_execution_items_common_execution_fk
 
 ALTER TABLE ONLY audit_execution_items
     ADD CONSTRAINT audit_execution_items_common_execution_fk FOREIGN KEY (execution_id, audit_id) REFERENCES audit_executions(execution_id, audit_id) ON DELETE CASCADE;
 
--- Fk constraint: audit_execution_items audit_execution_items_task_fk
+-- Fk Constraint: audit_execution_items audit_execution_items_task_fk
 
 ALTER TABLE ONLY audit_execution_items
     ADD CONSTRAINT audit_execution_items_task_fk FOREIGN KEY (task_id, audit_id) REFERENCES audit_tasks(task_id, audit_id) ON DELETE CASCADE;
 
--- Fk constraint: audit_executions audit_executions_audit_id_fkey
+-- Fk Constraint: audit_executions audit_executions_audit_id_fkey
 
 ALTER TABLE ONLY audit_executions
     ADD CONSTRAINT audit_executions_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
--- Fk constraint: audit_hypotheses audit_hypotheses_audit_id_fkey
+-- Fk Constraint: audit_hypotheses audit_hypotheses_audit_id_fkey
 
 ALTER TABLE ONLY audit_hypotheses
     ADD CONSTRAINT audit_hypotheses_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
--- Fk constraint: audit_hypothesis_revisions audit_hypothesis_revisions_hypothesis_id_audit_id_fkey
+-- Fk Constraint: audit_hypothesis_revisions audit_hypothesis_revisions_hypothesis_id_audit_id_fkey
 
 ALTER TABLE ONLY audit_hypothesis_revisions
     ADD CONSTRAINT audit_hypothesis_revisions_hypothesis_id_audit_id_fkey FOREIGN KEY (hypothesis_id, audit_id) REFERENCES audit_hypotheses(hypothesis_id, audit_id) ON DELETE CASCADE;
 
--- Fk constraint: audit_tasks audit_tasks_audit_id_fkey
+-- Fk Constraint: audit_tasks audit_tasks_audit_id_fkey
 
 ALTER TABLE ONLY audit_tasks
     ADD CONSTRAINT audit_tasks_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
--- Fk constraint: audit_tasks audit_tasks_last_execution_fk
+-- Fk Constraint: audit_tasks audit_tasks_last_execution_fk
 
 ALTER TABLE ONLY audit_tasks
     ADD CONSTRAINT audit_tasks_last_execution_fk FOREIGN KEY (last_execution_id, audit_id) REFERENCES audit_executions(execution_id, audit_id) DEFERRABLE INITIALLY DEFERRED;
 
--- Fk constraint: audits audits_project_owner_fkey
+-- Fk Constraint: audits audits_project_owner_fkey
 
 ALTER TABLE ONLY audits
     ADD CONSTRAINT audits_project_owner_fkey FOREIGN KEY (project_id, owner_id) REFERENCES projects(project_id, owner_id) ON DELETE RESTRICT;
 
--- Fk constraint: eval_commands eval_commands_experiment_id_fkey
+-- Fk Constraint: eval_commands eval_commands_experiment_id_fkey
 
 ALTER TABLE ONLY eval_commands
     ADD CONSTRAINT eval_commands_experiment_id_fkey FOREIGN KEY (experiment_id) REFERENCES eval_experiments(experiment_id) ON DELETE CASCADE;
 
--- Fk constraint: eval_controller_claims eval_controller_claims_experiment_id_fkey
+-- Fk Constraint: eval_controller_claims eval_controller_claims_experiment_id_fkey
 
 ALTER TABLE ONLY eval_controller_claims
     ADD CONSTRAINT eval_controller_claims_experiment_id_fkey FOREIGN KEY (experiment_id) REFERENCES eval_experiments(experiment_id) ON DELETE CASCADE;
 
--- Fk constraint: eval_dataset_revisions eval_dataset_revisions_owner_id_project_id_fkey
+-- Fk Constraint: eval_dataset_revisions eval_dataset_revisions_owner_id_project_id_fkey
 
 ALTER TABLE ONLY eval_dataset_revisions
     ADD CONSTRAINT eval_dataset_revisions_owner_id_project_id_fkey FOREIGN KEY (owner_id, project_id) REFERENCES projects(owner_id, project_id) ON DELETE RESTRICT;
 
--- Fk constraint: eval_evidence_refs eval_evidence_refs_experiment_id_member_id_fkey
+-- Fk Constraint: eval_evidence_refs eval_evidence_refs_experiment_id_member_id_fkey
 
 ALTER TABLE ONLY eval_evidence_refs
     ADD CONSTRAINT eval_evidence_refs_experiment_id_member_id_fkey FOREIGN KEY (experiment_id, member_id) REFERENCES eval_members(experiment_id, member_id) ON DELETE CASCADE;
 
--- Fk constraint: eval_execution_tombstones eval_execution_tombstones_experiment_id_member_id_fkey
+-- Fk Constraint: eval_execution_tombstones eval_execution_tombstones_experiment_id_member_id_fkey
 
 ALTER TABLE ONLY eval_execution_tombstones
     ADD CONSTRAINT eval_execution_tombstones_experiment_id_member_id_fkey FOREIGN KEY (experiment_id, member_id) REFERENCES eval_members(experiment_id, member_id) ON DELETE CASCADE;
 
--- Fk constraint: eval_experiments eval_experiments_owner_id_project_id_fkey
+-- Fk Constraint: eval_experiments eval_experiments_owner_id_project_id_fkey
 
 ALTER TABLE ONLY eval_experiments
     ADD CONSTRAINT eval_experiments_owner_id_project_id_fkey FOREIGN KEY (owner_id, project_id) REFERENCES projects(owner_id, project_id) ON DELETE RESTRICT;
 
--- Fk constraint: eval_experiments eval_experiments_project_id_dataset_id_dataset_revision_fkey
+-- Fk Constraint: eval_experiments eval_experiments_project_id_dataset_id_dataset_revision_fkey
 
 ALTER TABLE ONLY eval_experiments
     ADD CONSTRAINT eval_experiments_project_id_dataset_id_dataset_revision_fkey FOREIGN KEY (project_id, dataset_id, dataset_revision) REFERENCES eval_dataset_revisions(project_id, dataset_id, revision) ON DELETE RESTRICT;
 
--- Fk constraint: eval_member_projections eval_member_projections_experiment_id_member_id_fkey
+-- Fk Constraint: eval_member_projections eval_member_projections_experiment_id_member_id_fkey
 
 ALTER TABLE ONLY eval_member_projections
     ADD CONSTRAINT eval_member_projections_experiment_id_member_id_fkey FOREIGN KEY (experiment_id, member_id) REFERENCES eval_members(experiment_id, member_id) ON DELETE CASCADE;
 
--- Fk constraint: eval_members eval_members_experiment_id_fkey
+-- Fk Constraint: eval_members eval_members_experiment_id_fkey
 
 ALTER TABLE ONLY eval_members
     ADD CONSTRAINT eval_members_experiment_id_fkey FOREIGN KEY (experiment_id) REFERENCES eval_experiments(experiment_id) ON DELETE CASCADE;
 
--- Fk constraint: eval_members eval_members_selected_assessment_fk
+-- Fk Constraint: eval_members eval_members_selected_assessment_fk
 
 ALTER TABLE ONLY eval_members
     ADD CONSTRAINT eval_members_selected_assessment_fk FOREIGN KEY (experiment_id, member_id, selected_assessment_kind, selected_assessment_sha256) REFERENCES eval_records(experiment_id, member_id, kind, record_sha256);
 
--- Fk constraint: eval_members eval_members_selected_result_fk
+-- Fk Constraint: eval_members eval_members_selected_result_fk
 
 ALTER TABLE ONLY eval_members
     ADD CONSTRAINT eval_members_selected_result_fk FOREIGN KEY (experiment_id, member_id, selected_result_kind, selected_result_sha256) REFERENCES eval_records(experiment_id, member_id, kind, record_sha256);
 
--- Fk constraint: eval_plan_resources eval_plan_resources_experiment_id_fkey
+-- Fk Constraint: eval_plan_resources eval_plan_resources_experiment_id_fkey
 
 ALTER TABLE ONLY eval_plan_resources
     ADD CONSTRAINT eval_plan_resources_experiment_id_fkey FOREIGN KEY (experiment_id) REFERENCES eval_experiments(experiment_id) ON DELETE CASCADE;
 
--- Fk constraint: eval_progress_observations eval_progress_observations_experiment_id_fkey
+-- Fk Constraint: eval_progress_observations eval_progress_observations_experiment_id_fkey
 
 ALTER TABLE ONLY eval_progress_observations
     ADD CONSTRAINT eval_progress_observations_experiment_id_fkey FOREIGN KEY (experiment_id) REFERENCES eval_experiments(experiment_id) ON DELETE CASCADE;
 
--- Fk constraint: eval_projection_queue eval_projection_queue_experiment_id_fkey
+-- Fk Constraint: eval_projection_queue eval_projection_queue_experiment_id_fkey
 
 ALTER TABLE ONLY eval_projection_queue
     ADD CONSTRAINT eval_projection_queue_experiment_id_fkey FOREIGN KEY (experiment_id) REFERENCES eval_experiments(experiment_id) ON DELETE CASCADE;
 
--- Fk constraint: eval_records eval_records_experiment_id_member_id_fkey
+-- Fk Constraint: eval_records eval_records_experiment_id_member_id_fkey
 
 ALTER TABLE ONLY eval_records
     ADD CONSTRAINT eval_records_experiment_id_member_id_fkey FOREIGN KEY (experiment_id, member_id) REFERENCES eval_members(experiment_id, member_id) ON DELETE CASCADE;
 
--- Fk constraint: eval_submissions eval_submissions_experiment_id_member_id_execution_kind_fkey
+-- Fk Constraint: eval_submissions eval_submissions_experiment_id_member_id_execution_kind_fkey
 
 ALTER TABLE ONLY eval_submissions
     ADD CONSTRAINT eval_submissions_experiment_id_member_id_execution_kind_fkey FOREIGN KEY (experiment_id, member_id, execution_kind) REFERENCES eval_members(experiment_id, member_id, execution_kind) ON DELETE CASCADE;
 
--- Fk constraint: eval_suboperations eval_suboperations_experiment_id_member_id_fkey
+-- Fk Constraint: eval_suboperations eval_suboperations_experiment_id_member_id_fkey
 
 ALTER TABLE ONLY eval_suboperations
     ADD CONSTRAINT eval_suboperations_experiment_id_member_id_fkey FOREIGN KEY (experiment_id, member_id) REFERENCES eval_submissions(experiment_id, member_id) ON DELETE CASCADE;
 
--- Fk constraint: eval_view_charts eval_view_charts_experiment_id_fkey
+-- Fk Constraint: eval_view_charts eval_view_charts_experiment_id_fkey
 
 ALTER TABLE ONLY eval_view_charts
     ADD CONSTRAINT eval_view_charts_experiment_id_fkey FOREIGN KEY (experiment_id) REFERENCES eval_projection_queue(experiment_id) ON DELETE CASCADE;
 
--- Fk constraint: eval_view_pairs eval_view_pairs_experiment_id_fkey
+-- Fk Constraint: eval_view_pairs eval_view_pairs_experiment_id_fkey
 
 ALTER TABLE ONLY eval_view_pairs
     ADD CONSTRAINT eval_view_pairs_experiment_id_fkey FOREIGN KEY (experiment_id) REFERENCES eval_projection_queue(experiment_id) ON DELETE CASCADE;
 
--- Fk constraint: finding_correlation_fences finding_correlation_fences_project_id_fkey
+-- Fk Constraint: finding_correlation_fences finding_correlation_fences_project_id_fkey
 
 ALTER TABLE ONLY finding_correlation_fences
     ADD CONSTRAINT finding_correlation_fences_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE;
 
--- Fk constraint: finding_proposal_audit_holds finding_proposal_audit_holds_audit_id_fkey
+-- Fk Constraint: finding_proposal_audit_holds finding_proposal_audit_holds_audit_id_fkey
 
 ALTER TABLE ONLY finding_proposal_audit_holds
     ADD CONSTRAINT finding_proposal_audit_holds_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
--- Fk constraint: finding_proposal_audit_holds finding_proposal_audit_holds_project_id_fkey
+-- Fk Constraint: finding_proposal_audit_holds finding_proposal_audit_holds_project_id_fkey
 
 ALTER TABLE ONLY finding_proposal_audit_holds
     ADD CONSTRAINT finding_proposal_audit_holds_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE;
 
--- Fk constraint: finding_proposal_audit_holds finding_proposal_audit_holds_receipt_id_fkey
+-- Fk Constraint: finding_proposal_audit_holds finding_proposal_audit_holds_receipt_id_fkey
 
 ALTER TABLE ONLY finding_proposal_audit_holds
     ADD CONSTRAINT finding_proposal_audit_holds_receipt_id_fkey FOREIGN KEY (receipt_id) REFERENCES finding_proposal_receipts(receipt_id) ON DELETE CASCADE;
 
--- Fk constraint: mutation_receipts mutation_receipts_audit_id_fkey
+-- Fk Constraint: mutation_receipts mutation_receipts_audit_id_fkey
 
 ALTER TABLE ONLY mutation_receipts
     ADD CONSTRAINT mutation_receipts_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
--- Fk constraint: mutation_receipts mutation_receipts_project_id_fkey
+-- Fk Constraint: mutation_receipts mutation_receipts_project_id_fkey
 
 ALTER TABLE ONLY mutation_receipts
     ADD CONSTRAINT mutation_receipts_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE RESTRICT;
 
--- Fk constraint: planner_execution_reports planner_execution_reports_session_id_fkey
+-- Fk Constraint: planner_execution_reports planner_execution_reports_session_id_fkey
 
 ALTER TABLE ONLY planner_execution_reports
     ADD CONSTRAINT planner_execution_reports_session_id_fkey FOREIGN KEY (session_id) REFERENCES planner_sessions(session_id) ON DELETE CASCADE;
 
--- Fk constraint: planner_execution_reports planner_execution_reports_stage_execution_id_fkey
+-- Fk Constraint: planner_execution_reports planner_execution_reports_stage_execution_id_fkey
 
 ALTER TABLE ONLY planner_execution_reports
     ADD CONSTRAINT planner_execution_reports_stage_execution_id_fkey FOREIGN KEY (stage_execution_id) REFERENCES stage_executions(stage_execution_id) ON DELETE CASCADE;
 
--- Fk constraint: planner_sessions planner_sessions_stage_execution_id_fkey
+-- Fk Constraint: planner_sessions planner_sessions_stage_execution_id_fkey
 
 ALTER TABLE ONLY planner_sessions
     ADD CONSTRAINT planner_sessions_stage_execution_id_fkey FOREIGN KEY (stage_execution_id) REFERENCES stage_executions(stage_execution_id) ON DELETE CASCADE;
 
--- Fk constraint: project_finding_audits project_finding_audits_audit_id_fkey
+-- Fk Constraint: project_finding_audits project_finding_audits_audit_id_fkey
 
 ALTER TABLE ONLY project_finding_audits
     ADD CONSTRAINT project_finding_audits_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
--- Fk constraint: project_finding_audits project_finding_audits_project_id_finding_id_fkey
+-- Fk Constraint: project_finding_audits project_finding_audits_project_id_finding_id_fkey
 
 ALTER TABLE ONLY project_finding_audits
     ADD CONSTRAINT project_finding_audits_project_id_finding_id_fkey FOREIGN KEY (project_id, finding_id) REFERENCES project_findings(project_id, finding_id) ON DELETE CASCADE;
 
--- Fk constraint: project_finding_sources project_finding_sources_project_id_finding_id_fkey
+-- Fk Constraint: project_finding_sources project_finding_sources_project_id_finding_id_fkey
 
 ALTER TABLE ONLY project_finding_sources
     ADD CONSTRAINT project_finding_sources_project_id_finding_id_fkey FOREIGN KEY (project_id, finding_id) REFERENCES project_findings(project_id, finding_id) ON DELETE RESTRICT;
 
--- Fk constraint: project_finding_sources project_finding_sources_receipt_id_fkey
+-- Fk Constraint: project_finding_sources project_finding_sources_receipt_id_fkey
 
 ALTER TABLE ONLY project_finding_sources
     ADD CONSTRAINT project_finding_sources_receipt_id_fkey FOREIGN KEY (receipt_id) REFERENCES finding_proposal_receipts(receipt_id) ON DELETE RESTRICT;
 
--- Fk constraint: project_findings project_findings_first_receipt_id_fkey
+-- Fk Constraint: project_findings project_findings_first_receipt_id_fkey
 
 ALTER TABLE ONLY project_findings
     ADD CONSTRAINT project_findings_first_receipt_id_fkey FOREIGN KEY (first_receipt_id) REFERENCES finding_proposal_receipts(receipt_id) ON DELETE RESTRICT;
 
--- Fk constraint: project_findings project_findings_project_id_duplicate_target_id_fkey
+-- Fk Constraint: project_findings project_findings_project_id_duplicate_target_id_fkey
 
 ALTER TABLE ONLY project_findings
     ADD CONSTRAINT project_findings_project_id_duplicate_target_id_fkey FOREIGN KEY (project_id, duplicate_target_id) REFERENCES project_findings(project_id, finding_id) DEFERRABLE INITIALLY DEFERRED;
 
--- Fk constraint: project_findings project_findings_project_id_fkey
+-- Fk Constraint: project_findings project_findings_project_id_fkey
 
 ALTER TABLE ONLY project_findings
     ADD CONSTRAINT project_findings_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE RESTRICT;
 
--- Fk constraint: projects projects_http_target_credential_fkey
+-- Fk Constraint: projects projects_http_target_credential_fkey
 
 ALTER TABLE ONLY projects
     ADD CONSTRAINT projects_http_target_credential_fkey FOREIGN KEY (http_target_credential_id, http_target_credential_kind) REFERENCES runtime_credentials(credential_id, credential_kind);
 
--- Fk constraint: runtime_label_bindings runtime_label_bindings_config_name_config_version_config_d_fkey
+-- Fk Constraint: runtime_label_bindings runtime_label_bindings_config_name_config_version_config_d_fkey
 
 ALTER TABLE ONLY runtime_label_bindings
     ADD CONSTRAINT runtime_label_bindings_config_name_config_version_config_d_fkey FOREIGN KEY (config_name, config_version, config_digest) REFERENCES runtime_config_versions(name, version, digest);
 
--- Fk constraint: stage_allocations stage_allocations_stage_execution_id_fkey
+-- Fk Constraint: stage_allocations stage_allocations_stage_execution_id_fkey
 
 ALTER TABLE ONLY stage_allocations
     ADD CONSTRAINT stage_allocations_stage_execution_id_fkey FOREIGN KEY (stage_execution_id) REFERENCES stage_executions(stage_execution_id) ON DELETE CASCADE;
 
--- Fk constraint: stage_executions stage_execution_lineage
+-- Fk Constraint: stage_executions stage_execution_lineage
 
 ALTER TABLE ONLY stage_executions
     ADD CONSTRAINT stage_execution_lineage FOREIGN KEY (run_id, stage_name, previous_execution_id) REFERENCES stage_executions(run_id, stage_name, stage_execution_id) DEFERRABLE INITIALLY DEFERRED;
 
--- Fk constraint: stage_executions stage_execution_planner_session
+-- Fk Constraint: stage_executions stage_execution_planner_session
 
 ALTER TABLE ONLY stage_executions
     ADD CONSTRAINT stage_execution_planner_session FOREIGN KEY (stage_execution_id, planner_session_id, planner_invocation_id) REFERENCES planner_sessions(stage_execution_id, session_id, invocation_id) DEFERRABLE INITIALLY DEFERRED;
 
--- Fk constraint: stage_executions stage_executions_run_id_fkey
+-- Fk Constraint: stage_executions stage_executions_run_id_fkey
 
 ALTER TABLE ONLY stage_executions
     ADD CONSTRAINT stage_executions_run_id_fkey FOREIGN KEY (run_id) REFERENCES workflow_runs(run_id) ON DELETE CASCADE;
 
--- Fk constraint: stage_metrics stage_metrics_stage_execution_id_fkey
+-- Fk Constraint: stage_metrics stage_metrics_stage_execution_id_fkey
 
 ALTER TABLE ONLY stage_metrics
     ADD CONSTRAINT stage_metrics_stage_execution_id_fkey FOREIGN KEY (stage_execution_id) REFERENCES stage_executions(stage_execution_id) ON DELETE CASCADE;
 
--- Fk constraint: stage_executions stage_transition_target_run_stage
+-- Fk Constraint: stage_executions stage_transition_target_run_stage
 
 ALTER TABLE ONLY stage_executions
     ADD CONSTRAINT stage_transition_target_run_stage FOREIGN KEY (run_id, transition_target_stage_name, transition_target_execution_id) REFERENCES stage_executions(run_id, stage_name, stage_execution_id) DEFERRABLE INITIALLY DEFERRED;
 
--- Fk constraint: workflow_run_events workflow_run_events_run_id_fkey
+-- Fk Constraint: workflow_run_events workflow_run_events_run_id_fkey
 
 ALTER TABLE ONLY workflow_run_events
     ADD CONSTRAINT workflow_run_events_run_id_fkey FOREIGN KEY (run_id) REFERENCES workflow_runs(run_id) ON DELETE CASCADE;
 
--- Fk constraint: workflow_run_output_publications workflow_run_output_publicati_source_scope_kind_run_id_sou_fkey
+-- Fk Constraint: workflow_run_output_publications workflow_run_output_publicati_source_scope_kind_run_id_sou_fkey
 
 ALTER TABLE ONLY workflow_run_output_publications
     ADD CONSTRAINT workflow_run_output_publicati_source_scope_kind_run_id_sou_fkey FOREIGN KEY (source_scope_kind, run_id, source_namespace, source_name, source_revision) REFERENCES artifact_binding_revisions(scope_kind, scope_id, namespace, name, revision);
 
--- Fk constraint: workflow_run_output_publications workflow_run_output_publicati_target_scope_kind_project_id_fkey
+-- Fk Constraint: workflow_run_output_publications workflow_run_output_publicati_target_scope_kind_project_id_fkey
 
 ALTER TABLE ONLY workflow_run_output_publications
     ADD CONSTRAINT workflow_run_output_publicati_target_scope_kind_project_id_fkey FOREIGN KEY (target_scope_kind, project_id, target_namespace, target_name, target_revision) REFERENCES artifact_binding_revisions(scope_kind, scope_id, namespace, name, revision);
 
--- Fk constraint: workflow_run_output_publications workflow_run_output_publications_run_id_project_id_fkey
+-- Fk Constraint: workflow_run_output_publications workflow_run_output_publications_run_id_project_id_fkey
 
 ALTER TABLE ONLY workflow_run_output_publications
     ADD CONSTRAINT workflow_run_output_publications_run_id_project_id_fkey FOREIGN KEY (run_id, project_id) REFERENCES workflow_runs(run_id, project_id);
 
--- Fk constraint: workflow_runs workflow_runs_audit_submission_fkey
+-- Fk Constraint: workflow_runs workflow_runs_audit_submission_fkey
 
 ALTER TABLE ONLY workflow_runs
     ADD CONSTRAINT workflow_runs_audit_submission_fkey FOREIGN KEY (audit_execution_id, audit_submission_key) REFERENCES audit_executions(execution_id, submission_key) ON DELETE RESTRICT;
 
--- Fk constraint: workflow_runs workflow_runs_project_owner_fkey
+-- Fk Constraint: workflow_runs workflow_runs_project_owner_fkey
 
 ALTER TABLE ONLY workflow_runs
     ADD CONSTRAINT workflow_runs_project_owner_fkey FOREIGN KEY (project_id, owner_id) REFERENCES projects(project_id, owner_id);
-
--- Rows every database starts with.
-INSERT INTO runtime_config_versions (name, version, digest, canonical_document, built_in, actor_id, created_at, idempotency_key_digest, request_digest) VALUES ('contractor-empty', '1', 'sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f', '{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"contractor-empty","version":"1"},"spec":{}}', true, 'contractor-bootstrap', '1970-01-01 03:00:00+03', NULL, NULL);
-INSERT INTO runtime_label_bindings (label, config_name, config_version, config_digest, revision, created_by, created_at, updated_by, updated_at) VALUES ('default', 'contractor-empty', '1', 'sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f', 1, 'contractor-bootstrap', '1970-01-01 03:00:00+03', 'contractor-bootstrap', '1970-01-01 03:00:00+03');
-INSERT INTO scheduler_settings (singleton, max_concurrent_runs, revision, max_concurrent_tool_runs) VALUES (true, 1, 1, 2);
-
-RESET check_function_bodies;

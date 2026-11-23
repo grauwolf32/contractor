@@ -3,7 +3,7 @@ kind: LLMGatewayConfig
 
 metadata:
   name: local-litellm
-  version: "1"
+  version: '1'
 
 spec:
   protocol: openai-compatible@1

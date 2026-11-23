@@ -22,7 +22,7 @@ func TestAuditCommonSourcePreparationAcrossProductionProcesses(t *testing.T) {
 	stages := domainGatewayStages()[:4]
 	// The shipped source program needs no authored OpenAPI. Exercise the ordinary
 	// builder's supported creation tool before its normal edits and validation.
-	stages[2].steps[3] = toolGatewayStep("initialize_openapi", fixedArguments(map[string]any{"title": "Widget Service", "version": "1.0.0", "target_name": "openapi", "expected_revision": nil}))
+	stages[2].steps[3] = toolGatewayStep("initialize_openapi", fixedArguments(map[string]any{"title": "Widget Service", "version": "1.0.0", "target_name": "openapi"}))
 	original := stages[2].steps[5].arguments
 	stages[2].steps[5].arguments = func(request map[string]any) (map[string]any, error) {
 		arguments, err := original(request)
@@ -43,7 +43,7 @@ func TestAuditCommonSourcePreparationAcrossProductionProcesses(t *testing.T) {
 	options := uploadProjectScopeArtifact(t, h.client, h.baseURL, projectID, "fixture", "request-values", "application/json", values)
 	engagement := uploadScanEngagement(t, h.client, h.baseURL, projectID, target.URL, false)
 	parameters := map[string]string{"server": target.URL, "operations": `["#/paths/~1widgets~1{widget_id}/get"]`, "test_parameters": `["search"]`}
-	draft, _ := basicAuditRequest(t, h, http.MethodPost, "/v1/projects/"+projectID+"/audits", map[string]any{"profile": map[string]string{"name": "source-openapi-sqlmap-scan", "version": "3"}, "inputs": map[string]artifactRef{"source": source, "request_values": options, "engagement": engagement}, "parameters": parameters, "scope": map[string]string{"objective": "Generate and validate the contract, then scan its selected concrete operation"}}, "draft", 0, http.StatusCreated)
+	draft, _ := basicAuditRequest(t, h, http.MethodPost, "/v1/projects/"+projectID+"/audits", map[string]any{"profile": map[string]string{"name": "source-openapi-sqlmap-scan", "version": "1"}, "inputs": map[string]artifactRef{"source": source, "request_values": options, "engagement": engagement}, "parameters": parameters, "scope": map[string]string{"objective": "Generate and validate the contract, then scan its selected concrete operation"}}, "draft", 0, http.StatusCreated)
 	id := draft["auditId"].(string)
 	basicAuditRequest(t, h, http.MethodPost, "/v1/audits/"+id+"/start", nil, "start", uint64(draft["revision"].(float64)), http.StatusOK)
 	tasks := waitBasicTask(t, h, id, 2, "settled")

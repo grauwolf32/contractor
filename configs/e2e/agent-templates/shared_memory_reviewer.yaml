@@ -3,7 +3,7 @@ kind: AgentTemplate
 
 metadata:
   name: shared_memory_reviewer
-  version: "1"
+  version: '1'
 
 spec:
   description: Reviews one isolated Run-scoped note without mutation-by-append

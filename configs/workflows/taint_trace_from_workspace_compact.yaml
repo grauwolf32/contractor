@@ -3,7 +3,7 @@ kind: Workflow
 
 metadata:
   name: taint-trace-from-workspace-compact
-  version: "3"
+  version: '1'
 
 spec:
   parameters:
@@ -30,7 +30,7 @@ spec:
       compactorModelPolicy: compactor@1
       llmGateway: local-litellm@1
       credential: development-worker
-      modelPolicy: worker@2
+      modelPolicy: worker@1
 
   entryStage: trace
   stages:
@@ -41,7 +41,7 @@ spec:
       planner: passthrough@1
       agents:
         analyst:
-          template: workspace_taint_analyst@5
+          template: workspace_taint_analyst@1
           namespace: analysis
           # Opt-in compact@1: the Worker compresses old history and continues
           # the same trace instead of stopping with a terminal summary.

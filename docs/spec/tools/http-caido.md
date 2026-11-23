@@ -1068,13 +1068,13 @@ handles (LIFE-HTP-4).
 
 ### Checked-in templates and the Caido Skill
 
-**HTP-R116.** The checked-in `caido_analyst@7` template is a closed assignment.
+**HTP-R116.** The checked-in `caido_analyst@1` template is a closed assignment.
 It selects all ten `caido@1` operations, the bounded `http_request`,
 `http_read_body` and `http_history` operations, text artifact read and write,
-and the versionless `skills/caido-stored-evidence` ref. `security-analysis@8` uses that
+and the versionless `skills/caido-stored-evidence` ref. `security-analysis@1` uses that
 template in one passthrough Stage.
 
-**HTP-R117.** `http_explorer@4` is the reusable HTTP-only template; it selects
+**HTP-R117.** `http_explorer@1` is the reusable HTTP-only template; it selects
 all six `http-tools@1` operations without a Caido Skill or adapter requirement.
 
 **HTP-R118.** The Workflow, these templates, their instructions and the Skill

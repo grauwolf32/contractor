@@ -38,5 +38,5 @@ func TestFactExtractionAuditEvalAcrossProcesses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runFindingEvalNavigation(t, stage, root, source, filepath.Join(repoRoot(t), "tests", "eval", "project_facts", "experiment-template-v5.json"))
+	runFindingEvalNavigation(t, stage, root, source, filepath.Join(repoRoot(t), "tests", "eval", "project_facts", "experiment-template.json"))
 }

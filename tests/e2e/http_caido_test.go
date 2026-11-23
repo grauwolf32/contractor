@@ -73,7 +73,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	)
 	writeHTTPAnalysisE2EWorkflow(t, configRoot)
 	if collection {
-		path := filepath.Join(configRoot, "agent-templates", "http_explorer_v3_memory.yaml")
+		path := filepath.Join(configRoot, "agent-templates", "http_explorer.yaml")
 		data, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
@@ -82,7 +82,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 		if err := os.WriteFile(path, data, 0600); err != nil {
 			t.Fatal(err)
 		}
-		path = filepath.Join(configRoot, "agent-templates", "caido_analyst_v3_memory.yaml")
+		path = filepath.Join(configRoot, "agent-templates", "caido_analyst.yaml")
 		data, err = os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
@@ -300,7 +300,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	assertHTTPInspectionRetainsOnlyReportAndCookies(t, operations, httpInitial.RunID, collection)
 
 	oldRun := createHTTPCaidoRun(
-		operations, "security-analysis@9", "http-caido-old-run", "target.example",
+		operations, "security-analysis@1", "http-caido-old-run", "target.example",
 		[]string{"caido"}, projectID,
 	)
 	select {
@@ -405,7 +405,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	)
 
 	newRun := createHTTPCaidoRun(
-		operations, "security-analysis@9", "http-caido-new-run", "target.example",
+		operations, "security-analysis@1", "http-caido-new-run", "target.example",
 		[]string{"caido"}, projectID,
 	)
 	newStatus := waitForRunAcross(

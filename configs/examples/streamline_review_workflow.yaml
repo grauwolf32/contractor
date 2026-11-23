@@ -5,7 +5,7 @@ kind: Workflow
 
 metadata:
   name: streamline-review
-  version: "3"
+  version: '1'
 
 spec:
   parameters:
@@ -24,7 +24,7 @@ spec:
 
   executionConfig:
     planner:
-      modelPolicy: planner@2
+      modelPolicy: planner@1
       llmGateway: local-litellm@1
       credential: development-planner
       compactorModelPolicy: compactor@1
@@ -32,7 +32,7 @@ spec:
       llmGateway: local-litellm@1
       credential: development-worker
 
-      modelPolicy: worker@2
+      modelPolicy: worker@1
     stages:
       review:
         agents:
@@ -51,7 +51,7 @@ spec:
           ref: instructions/planner-compaction.md
       agents:
         reviewer:
-          template: artifact_builder@3
+          template: artifact_builder@1
           namespace: review
       context:
         artifacts:

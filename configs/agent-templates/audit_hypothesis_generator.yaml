@@ -3,13 +3,13 @@
   "kind": "AgentTemplate",
   "metadata": {
     "name": "audit_hypothesis_generator",
-    "version": "4"
+    "version": "1"
   },
   "spec": {
     "description": "Propose scoped hypotheses and next checks using exact selected context",
     "runtime": "adk@1",
     "instructions": {
-      "ref": "instructions/audit-hypothesis-generator-runtime-versions-selected-materials.md"
+      "ref": "instructions/audit-hypothesis-generator.md"
     },
     "toolsets": [
       {

@@ -3,13 +3,13 @@ kind: AgentTemplate
 
 metadata:
   name: audit_asvs_source_verifier
-  version: "7"
+  version: '1'
 
 spec:
   description: Evaluates one exact ASVS requirement under its immutable evidence contract
   runtime: adk@1
   instructions:
-    ref: instructions/audit-asvs-source-verifier-worker-project-findings-keyed-results-runtime-versions-investigation-sources-thin-results.md
+    ref: instructions/audit-asvs-source-verifier-worker.md
   toolsets:
     - ref: memory-tools@1
       tools:

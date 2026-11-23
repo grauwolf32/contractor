@@ -29,7 +29,6 @@ func TestHTTPCaidoE2EConfigurationClosure(t *testing.T) {
 	root := stageE2EConfiguration(t, filepath.Join(repositoryRoot, "configs"), filepath.Join(t.TempDir(), "configs"), "http://127.0.0.1:1/v1")
 	writeHTTPAnalysisE2EWorkflow(t, root)
 	for _, files := range [][2]string{
-		{"e2e/model-policies/worker.yaml", "model-policies/http_e2e_worker.yaml"},
 		{"model-policies/worker.yaml", "model-policies/worker.yaml"},
 		{"model-policies/summarizer.yaml", "model-policies/summarizer.yaml"},
 	} {
@@ -46,11 +45,7 @@ func TestHTTPCaidoE2EConfigurationClosure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("shared HTTP/Caido process configuration must load: %v", err)
 	}
-	stagedWorker, err := snapshot.ModelPolicy("worker@1")
-	if err != nil || !reflect.DeepEqual(stagedWorker, worker) {
-		t.Fatalf("HTTP fixture changed the original worker@1 policy: %v", err)
-	}
-	for _, selector := range []string{"worker@2", "summarizer@1"} {
+	for _, selector := range []string{"worker@1", "summarizer@1"} {
 		expected, err := production.ModelPolicy(selector)
 		if err != nil {
 			t.Fatal(err)

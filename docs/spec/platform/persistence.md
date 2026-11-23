@@ -639,26 +639,13 @@ or deleted. A later migration that redefines a function with `CREATE OR
 REPLACE` is a successive schema version, not a duplicate to remove: the
 installed schema holds one current definition.
 
-The user-authorized pre-production fold on 2026-11-02 replaces the previous
-baseline and versions 000002–000003 with one current baseline. Its installed
-catalog and initial rows equal those of the repaired retired chain. The stopped
-demo first completes the one-time Project Finding cutover against a verified
-backup, then its ledger alone is rebound offline after installed-schema equality
-and unchanged business-data signatures are proven. The release manifest records
-the backup, old/new ledgers and exact checksums. This is an explicit operational
-transition for that demo, with no runtime ledger repair or old-schema reader.
-Every other stale ledger fails the same strict drift check. This fold does not
-relax immutability for subsequent migrations.
-
-The user-authorized pre-production release fold on 2026-11-07 replaces that
-baseline and versions 000002–000016 with one baseline representing their final
-installed schema and initial rows. Current functions, constraints, indexes,
-triggers and seed values retain the same behavior; retired intermediate
-schemas and upgrade-only fixtures are removed. The migrator and startup
-verification retain the strict ledger/name/checksum checks above. No deployed
-database transition is included in this fold; crossing it with a populated
-database requires a separately authorized data-preserving operational change.
-Subsequent schema changes again use the next free migration version.
+The user-authorized pre-production reset on 2026-11-23 replaces the baseline
+and versions 000002–000010 with their final installed schema and seed values.
+Fresh installations apply this one baseline. The demo is replaced with a fresh
+database after backup restoration is verified; Projects are recreated through
+the public API. Previous business history stays in the backup. The reset adds
+no runtime ledger repair or old-schema reader. Strict stale-ledger rejection
+remains; subsequent schema changes again use the next migration version.
 
 **PER-R31.** The migration budget is the operation budget (PER-R19) of the
 migrator's transaction. The operator chooses it for each run, with
@@ -1063,57 +1050,23 @@ It never reads whole pages to select sparse items. Lost page, root, stage or
 acceptance responses resume the same generation, exact artifacts and counters
 without another debit or accepted event. Checkpoint readers reject removed
 selection/prepared duplicate fields rather than reinterpret historical data;
-the forward transition is defined by [PER-R41](#PER-R41).
+fresh installation uses the current baseline (PER-R30).
 
-**PER-R40.** The incompatible Audit worklist execution-manifest transition
-requires the previous Server to finish or cancel Audits that already have a
-Round before the operator stops it and applies the forward migration. The
-migration rejects an Audit in `active`, `waiting_review`, `paused`,
-`finalizing`, `cancelling` or `deleting` with any Round, using only indexed
-Audit/Round metadata. The check is not limited to typed finding worklists.
-Drafts and preparation without Rounds may remain. Terminal historical
-artifacts and records are preserved without rewriting their frozen content;
-current readers accept only the current execution format. The migration's
-metadata locks keep the preflight stable until commit; they do not provide a
-mixed-version Server protocol or permission to restart the previous writer.
+**PER-R40.** Retired: the pre-production worklist transition and its upgrade
+preflight were folded into the baseline (PER-R30). Fresh databases install the
+current execution manifest directly; current readers accept only that format.
 
-**PER-R41.** The incompatible typed-admission page-chain transition requires
-the previous Server to finish or cancel Audits with admission checkpoints or
-typed prepared membership before it is stopped and the forward migration is
-applied. The migration rejects an Audit in `active`, `waiting_review`, `paused`,
-`finalizing`, `cancelling` or `deleting` when any of its Rounds has a non-NULL
-admission checkpoint, prepared generation or prepared page count. Only parent
-Audit/Round metadata is inspected under transaction-scoped metadata locks;
-no item, checkpoint JSON or artifact payload is parsed or rewritten. Ordinary
-live Rounds with none of these typed markers, and preparation without Rounds,
-may remain. Terminal checkpoints, private projections, frozen page/root bytes,
-exact holds and accounting remain unchanged. The new Server accepts only the
-current checkpoint and page/root format. The previous writer must remain
-stopped after migration commit; the locks are not a mixed-version protocol.
+**PER-R41.** Retired: the pre-production typed-admission page-chain transition
+and its upgrade preflight were folded into the baseline (PER-R30). Fresh
+databases install the current checkpoint and page/root contracts directly.
 
-**PER-R43.** The finding report projection transition requires an explicit
-`preconditions` array in every retained receipt (`source-held` or `audit-held`).
-The operator stops the previous Server before applying migration 000055 and
-keeps that writer stopped after commit. Under a transaction-scoped receipt
-metadata lock, the migration refuses with SQLSTATE `55000` if any retained
-projection lacks the array or has a non-array value. Refusal rolls back the
-whole migration and ledger change, preserving literal projection, proposal,
-evidence, frozen report and hold bytes. Intentional discarded `{}` tombstones
-are exempt; the migration neither restores nor interprets their erased content.
-Successful upgrade enforces the required array for retained receipt writes and
-changes no existing projection, report page, accepted report artifact or hold.
-Migration statement, lock and run budgets bound this one-time preflight
-(PER-R31); no new background scan or reader fallback is added.
-
-A refusal requires explicit operator disposition before retry: preserve the
-old database and its immutable reports, then use a separate fresh
-pre-production database, or obtain separate authorization for a concrete data
-migration/disposition that supplies truthful original conditions. This
-transition performs no deletion, backfill or re-encoding, and does not
-authorize deleting receipts or editing accepted evidence to bypass the guard.
-Current readers strictly require the new projection; old accepted report
-artifacts remain downloadable as their exact historical bytes. The metadata
-lock is not a mixed-version writer protocol.
+**PER-R43.** Every retained finding receipt (`source-held` or `audit-held`)
+requires an explicit `preconditions` array in its report projection. The current
+schema enforces the array for retained writes and current readers require it.
+Intentional discarded `{}` tombstones are exempt. Accepted report artifacts
+remain exact immutable bytes. The one-time upgrade preflight was folded into
+the pre-production baseline (PER-R30); there is no old-projection reader,
+automatic backfill or permission to edit accepted evidence.
 
 ### Stored-size CHECK constraints
 

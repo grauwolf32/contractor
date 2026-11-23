@@ -203,7 +203,7 @@ spec:
       parameters: {checking_workflow: inspect, selection: operations, max_items: "256"}
       outputs: {work: work}
     inspect:
-      ref: audit-openapi-operation-observe@6
+      ref: audit-openapi-operation-observe@1
       inputs: {source: {source: audit-input, name: archive}, openapi: {source: task-input}, operation: {source: task-input}, context: {source: task-context}}
       parameters: {}
       outputs: {result: result}

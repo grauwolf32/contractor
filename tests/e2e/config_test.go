@@ -82,7 +82,7 @@ func stageE2EConfiguration(t *testing.T, source, target, gatewayURL string) stri
 	}
 	// Root-catalog Worker scenarios use this private authored-report Workflow.
 	// The shipped artifact-copy Workflow intentionally executes without a model.
-	if _, err := os.Stat(filepath.Join(source, "memory-catalog.json")); err == nil {
+	if _, err := os.Stat(filepath.Join(source, "model-selection.json")); err == nil {
 		fixture, err := os.ReadFile(filepath.Join(repoRoot(t), "tests/e2e/testdata/production-memory/workflow.yaml"))
 		if err != nil {
 			t.Fatal(err)

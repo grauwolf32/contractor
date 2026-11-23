@@ -15,11 +15,15 @@ import (
 type Cache struct {
 	// DisableCGO preserves the static build required by scratch-container tests.
 	DisableCGO bool
-	once       sync.Once
-	directory  string
-	binary     string
-	err        error
-	build      func(root, output string, disableCGO bool) error
+	// TargetOS and TargetArch select the container engine target; empty uses Go defaults.
+	TargetOS, TargetArch string
+	// Package defaults to the Server; a separate cache can build an owned fixture probe.
+	Package   string
+	once      sync.Once
+	directory string
+	binary    string
+	err       error
+	build     func(root, output string, disableCGO bool) error
 }
 
 // Binary returns the same executable to every caller, including concurrent ones.
@@ -31,11 +35,11 @@ func (c *Cache) Binary(root string) (string, error) {
 			return
 		}
 		c.binary = filepath.Join(c.directory, "contractor-server")
-		build := c.build
-		if build == nil {
-			build = buildServer
+		if c.build != nil {
+			c.err = c.build(root, c.binary, c.DisableCGO)
+		} else {
+			c.err = buildServer(root, c.binary, c.DisableCGO, c.TargetOS, c.TargetArch, c.Package)
 		}
-		c.err = build(root, c.binary, c.DisableCGO)
 	})
 	if c.err != nil {
 		return "", c.err
@@ -51,12 +55,24 @@ func (c *Cache) Close() error {
 	return os.RemoveAll(c.directory)
 }
 
-func buildServer(root, output string, disableCGO bool) error {
+func buildServer(root, output string, disableCGO bool, targetOS, targetArch, packagePath string) error {
 	start := time.Now()
-	cmd := exec.Command("go", "build", "-o", output, "./cmd/contractor-server")
+	if packagePath == "" {
+		packagePath = "./cmd/contractor-server"
+	}
+	cmd := exec.Command("go", "build", "-o", output, packagePath)
 	cmd.Dir = root
-	if disableCGO {
-		cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
+	if disableCGO || targetOS != "" || targetArch != "" {
+		cmd.Env = os.Environ()
+		if disableCGO {
+			cmd.Env = append(cmd.Env, "CGO_ENABLED=0")
+		}
+		if targetOS != "" {
+			cmd.Env = append(cmd.Env, "GOOS="+targetOS)
+		}
+		if targetArch != "" {
+			cmd.Env = append(cmd.Env, "GOARCH="+targetArch)
+		}
 	}
 	data, err := cmd.CombinedOutput()
 	fmt.Fprintf(os.Stderr, "e2e Server build: disableCGO=%t elapsed=%s\n", disableCGO, time.Since(start))

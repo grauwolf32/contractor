@@ -3,14 +3,16 @@
 This frozen six-case corpus covers reported technology, repeated claims,
 speculation, a limited negative probe, prompt injection and sixteen memories with
 distractors. `corpus-v5.lock.json` pins the input bytes, private expectations and
-native experiment template. The original corpus lock and experiment template remain frozen.
-The v5 recipe selects the common-source `fact` interface and the keyed Audit interfaces. Upload only the selected `cases/*.json` snapshots.
+native experiment template. The original corpus lock and experiment template
+remain frozen. Current recipes use `experiment-template.json`, which selects
+the reset catalog at `@1`. The recipe selects the common-source `fact` interface
+and the keyed Audit interfaces. Upload only the selected `cases/*.json` snapshots.
 Keep `corpus.json`, expectations, rubric and authoring files outside the material
 provided to a Worker. The dataset's privateChecks retains the private rubric.
 
 Install the opt-in manifests from `configs/evals/project-facts` in a private
 operator root based on the shipped catalog, then add their new identities with
-`contractor server config lock --root <root>`. They select the existing worker@2
+`contractor server config lock --root <root>`. They select the existing worker@1
 policy and ordinary Audit execution. Each member gets its own execution Project.
 The default catalog does not automatically install or run this Eval.
 

@@ -368,7 +368,7 @@ spec:
   outputs:
     result: {required: true, primary: true, mediaTypes: [application/json]}
   executionConfig:
-    workers: {llmGateway: local-litellm@1, credential: development-worker, modelPolicy: worker@2}
+    workers: {llmGateway: local-litellm@1, credential: development-worker, modelPolicy: worker@1}
   entryStage: check
   stages:
     check:

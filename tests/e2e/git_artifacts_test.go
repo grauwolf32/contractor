@@ -37,8 +37,10 @@ func TestGitArtifactsProductionContainers(t *testing.T) {
 		t.Fatal("CONTRACTOR_TEST_DATABASE_URL is required")
 	}
 	root, build := repoRoot(t), t.TempDir()
-	binary := containerServerBinary(t, build)
-	if err := os.WriteFile(filepath.Join(build, "Containerfile"), []byte("FROM scratch\nCOPY contractor-server /contractor-server\nENTRYPOINT [\"/contractor-server\"]\n"), 0600); err != nil {
+	binary := sharedServerBinary(t)
+	containerServerBinary(t, build)
+	containerStatusBinary(t, build)
+	if err := os.WriteFile(filepath.Join(build, "Containerfile"), []byte("FROM scratch\nCOPY contractor-server /contractor-server\nCOPY process-status /process-status\nENTRYPOINT [\"/contractor-server\"]\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	image := "localhost/contractor-git-gate:" + randomHex(t, 8)
@@ -90,7 +92,7 @@ func TestGitArtifactsProductionContainers(t *testing.T) {
 				finalGatewayStep("Edited the imported Git source", nil),
 			}}}
 			t.Cleanup(gateway.close)
-			configs := stageE2EConfiguration(t, filepath.Join(root, "configs", "e2e"), filepath.Join(work, "configs"), gateway.URL())
+			configs := stageE2EConfiguration(t, filepath.Join(root, "configs", "e2e"), filepath.Join(work, "configs"), containerGateURL(t, gateway.URL(), host))
 			publicAddress, privateAddress := freeAddress(t), freeAddress(t)
 			publicURL, privateURL := "http://"+publicAddress, "https://"+privateAddress
 			httpsURL := https.server.URL + "/repo.git"
@@ -104,7 +106,8 @@ func TestGitArtifactsProductionContainers(t *testing.T) {
 				"CONTRACTOR_GIT_ALLOWED_REMOTES": parsed.Host + "," + sshAddress, "CONTRACTOR_GIT_KNOWN_HOSTS_FILE": known, "CONTRACTOR_CREDENTIAL_MASTER_KEY_FILE": master, "SSL_CERT_FILE": ca.Certificate,
 			}
 			name := "contractor-git-gate-" + randomHex(t, 8)
-			args := []string{"run", "--name", name, "--network=host", "--read-only", "--read-only-tmpfs=false", "--cap-drop=all", "--security-opt=no-new-privileges", "--tmpfs=/managed:rw,nosuid,nodev,noexec,size=64m", "-v", work + ":" + work + ":ro"}
+			args := []string{"run", "--name", name, "--read-only", "--read-only-tmpfs=false", "--cap-drop=all", "--security-opt=no-new-privileges", "--tmpfs=/managed:rw,nosuid,nodev,noexec,size=64m", "-v", work + ":" + work + ":ro"}
+			args = append(args, containerGateNetwork(t, environment, publicAddress, privateAddress, host)...)
 			if backend == "filesystem" {
 				environment["CONTRACTOR_ARTIFACT_BLOB_PATH"] = "/blobs"
 				args = append(args, "--tmpfs=/blobs:rw,nosuid,nodev,noexec,size=256m")
@@ -165,7 +168,7 @@ func TestGitArtifactsProductionContainers(t *testing.T) {
 			gitGateCommand(t, repo, "commit", "-m", "advance")
 			call("DELETE", "/v1/settings/git-key", nil, 204)
 			python := filepath.Join(root, "runtime", ".venv", "bin", "python")
-			runtimeAddress := freeAddress(t)
+			runtimeAddress := containerGateAddress(t, host)
 			runtimeProcess := startCodeAnalysisRuntime(t, "Git Python Runtime", root, python, privateURL, "https://"+runtimeAddress, runtimeAddress, filepath.Join(work, "runtime-work"), "memory", "", ca.Certificate, agent)
 			waitForProcessLog(t, ctx, runtimeProcess, "runtime agent registered")
 			runJSON := call("POST", "/v1/projects/"+project.ProjectID+"/runs", map[string]any{"workflow": "workspace-roundtrip@1", "parameters": map[string]string{}, "artifacts": map[string]any{"source": projectImport.Artifact}}, 202)

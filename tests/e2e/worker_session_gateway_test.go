@@ -532,7 +532,7 @@ func (g *workerSessionGateway) serveADKProbe(w http.ResponseWriter, r *http.Requ
 		case "unknown":
 			name = adkProbeUnknownName
 		case "artifact-pair":
-			name, args = "write_text_artifact", map[string]any{"name": "spine", "text": adkProbeArtifactBody, "media_type": "text/plain", "expected_revision": nil}
+			name, args = "write_text_artifact", map[string]any{"name": "spine", "text": adkProbeArtifactBody, "media_type": "text/plain"}
 		}
 		if name != "" {
 			message, finish = toolCallMessage("probe-"+mode+"-1", name, args), "tool_calls"

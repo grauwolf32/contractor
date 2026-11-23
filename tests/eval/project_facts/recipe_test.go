@@ -59,6 +59,26 @@ func TestFrozenMemoryExtractionRecipeUsesNativeContracts(t *testing.T) {
 		if _, err := evaldomain.Freeze(schema, payload); err != nil {
 			t.Fatalf("%s contract: %v", schema, err)
 		}
+		if kind == "experiment" {
+			var experiment struct {
+				Draft struct {
+					Variants []struct {
+						Selector string `json:"selector"`
+					} `json:"variants"`
+				} `json:"draft"`
+			}
+			if err := json.Unmarshal(payload, &experiment); err != nil {
+				t.Fatal(err)
+			}
+			if len(experiment.Draft.Variants) != 2 {
+				t.Fatal("expected two experiment variants")
+			}
+			for _, variant := range experiment.Draft.Variants {
+				if variant.Selector != "project-facts-eval@1" {
+					t.Fatalf("recipe selects retired catalog: %s", variant.Selector)
+				}
+			}
+		}
 	}
 }
 
@@ -91,14 +111,14 @@ func TestOptionalMemoryEvalConfigurationUsesOrdinaryAuditExecution(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile, err := catalog.AuditProfile("project-facts-eval@5")
+	profile, err := catalog.AuditProfile("project-facts-eval@1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(profile.Program.InitialWork) != 1 {
 		t.Fatal("Eval must use one ordinary Audit task")
 	}
-	workflow, err := catalog.Workflow("fact-extraction-audit-eval@5")
+	workflow, err := catalog.Workflow("fact-extraction-audit-eval@1")
 	if err != nil {
 		t.Fatal(err)
 	}

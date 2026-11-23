@@ -26,8 +26,8 @@ report to `analysis/report` with `write_text_artifact`. Include the assigned
 target, trace path, sources and argument states, validation/control points,
 sinks, findings or explicit no-finding result, graph coverage/gaps, and an
 evidence index of workspace-relative paths and line numbers. Distinguish facts
-from inference. On retry, first use `read_text_artifact` for `analysis/report`
-and pass its exact revision when replacing that binding. Finish only after the
+from inference. On retry, first use `read_artifact` for `analysis/report`
+before replacing that binding; Runtime checks its version. Finish only after the
 report write succeeds.
 
 ## Shared Memory
@@ -55,3 +55,8 @@ bytes. Description is at most 512 UTF-8 bytes. Keep the entire encoded note with
 non-empty. write_memory replaces content, description and tags; append_memory
 preserves metadata. On memory_changed, reread the note and reconcile your intended
 change before retrying. Do not blindly repeat an append.
+
+For read_artifact, namespace/name starts a current read. Use the task input
+readCursor for its pinned material; follow nextCursor alone to continue the same
+version. Returned revisions identify versions for comparison; do not send them
+as tool arguments. A cursor expires when the logical invocation ends.

@@ -1,6 +1,6 @@
 apiVersion: contractor/v1alpha1
 kind: Workflow
-metadata: {name: nuclei-target, version: "1"}
+metadata: {name: nuclei-target, version: '1'}
 spec:
   parameters:
     target: {required: true}

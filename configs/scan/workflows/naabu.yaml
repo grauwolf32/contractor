@@ -1,6 +1,6 @@
 apiVersion: contractor/v1alpha1
 kind: Workflow
-metadata: {name: naabu-host, version: "1"}
+metadata: {name: naabu-host, version: '1'}
 spec:
   parameters:
     target: {required: true}

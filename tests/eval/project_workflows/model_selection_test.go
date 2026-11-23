@@ -42,7 +42,7 @@ func TestProjectWorkflowModelSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fixturePolicy, err := fixtureCatalog.ModelPolicy("worker@2")
+	fixturePolicy, err := fixtureCatalog.ModelPolicy("worker@1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestProjectWorkflowModelSelection(t *testing.T) {
 	settings := liveSettings{
 		model: `offline/custom: "選択"`, gatewayURL: "https://gateway.invalid/isolated/v1",
 		gatewayToken: "never-retain-gateway-credential",
-		workflows:    []string{"openapi-from-workspace@9", "likec4-from-workspace@9"},
+		workflows:    []string{"openapi-from-workspace@1", "likec4-from-workspace@1"},
 	}
 	if _, err := copyLiveConfiguration(t, fixture, filepath.Join(t.TempDir(), "configs"), settings); err == nil {
 		t.Fatal("live configuration accepted source catalog lock drift")
@@ -109,8 +109,8 @@ func TestProjectWorkflowModelSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	beforePolicy, _ := base.ModelPolicy("worker@2")
-	afterPolicy, _ := snapshot.ModelPolicy("worker@2")
+	beforePolicy, _ := base.ModelPolicy("worker@1")
+	afterPolicy, _ := snapshot.ModelPolicy("worker@1")
 	if beforePolicy.Ref.Digest == afterPolicy.Ref.Digest {
 		t.Fatal("changed policy retained its old digest")
 	}
@@ -172,7 +172,7 @@ func TestProjectWorkflowModelSelectionRejectsUnresolvedRoutes(t *testing.T) {
 			}
 			settings := liveSettings{
 				model: "selected-offline-model", gatewayURL: "https://gateway.invalid/v1",
-				workflows: []string{"openapi-from-workspace@9", "likec4-from-workspace@9"},
+				workflows: []string{"openapi-from-workspace@1", "likec4-from-workspace@1"},
 			}
 			if broken == "selected-workflow" {
 				settings.workflows = []string{"unavailable-workflow@1"}

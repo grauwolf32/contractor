@@ -18,7 +18,7 @@ func TestCodeAnalysisE2EConfigurationLoads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generated Code Analysis process configuration must load: %v", err)
 	}
-	production, err := snapshot.ModelPolicy("worker@2")
+	production, err := snapshot.ModelPolicy("worker@1")
 	if err != nil {
 		t.Fatal(err)
 	}

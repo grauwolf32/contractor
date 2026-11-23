@@ -1,6 +1,6 @@
 apiVersion: contractor/v1alpha1
 kind: AgentTemplate
-metadata: {name: sqlmap-scan, version: "1"}
+metadata: {name: sqlmap-scan, version: '1'}
 spec:
   description: Check one prepared HTTP request for SQL injection using sqlmap.
   runtime: tool@1

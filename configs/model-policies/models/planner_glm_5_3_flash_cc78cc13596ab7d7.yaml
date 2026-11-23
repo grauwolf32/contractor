@@ -3,7 +3,7 @@ apiVersion: contractor/v1alpha1
 kind: ModelPolicy
 metadata:
   name: planner_glm_5_3_flash_cc78cc13596ab7d7
-  version: '2'
+  version: '1'
 spec:
   model: openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model
   contextWindowTokens: 1000000

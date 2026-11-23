@@ -131,7 +131,7 @@ The common UI flows have direct commands:
 
 ```shell
 contractor workflow list
-contractor workflow get openapi-from-workspace@9
+contractor workflow get openapi-from-workspace@1
 
 PROJECT_ID="$(contractor --output name project create example --kind project)"
 contractor project get "$PROJECT_ID"
@@ -139,7 +139,7 @@ contractor project get "$PROJECT_ID"
 SOURCE_REF="$(contractor --output name source push ./my-repository \
   --project "$PROJECT_ID" --name source)"
 
-RUN_ID="$(contractor --output name run create openapi-from-workspace@9 \
+RUN_ID="$(contractor --output name run create openapi-from-workspace@1 \
   --project "$PROJECT_ID" \
   --artifact "source=$SOURCE_REF" \
   --param 'objective=Document the implemented public HTTP API' \

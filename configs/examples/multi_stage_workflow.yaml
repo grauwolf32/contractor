@@ -1,11 +1,11 @@
 # Copy this file under configs/workflows/ to load it. It reuses the example
-# artifact_builder@3 AgentTemplate and instruction resources in this repository.
+# artifact_builder@1 AgentTemplate and instruction resources in this repository.
 apiVersion: contractor/v1alpha1
 kind: Workflow
 
 metadata:
   name: artifact-build-review
-  version: "3"
+  version: '1'
 
 spec:
   parameters:
@@ -25,7 +25,7 @@ spec:
       llmGateway: local-litellm@1
       credential: development-worker
 
-      modelPolicy: worker@2
+      modelPolicy: worker@1
     stages:
       build:
         agents:
@@ -44,7 +44,7 @@ spec:
       planner: passthrough@1
       agents:
         builder:
-          template: artifact_builder@3
+          template: artifact_builder@1
       context:
         artifacts:
           source:
@@ -75,7 +75,7 @@ spec:
       planner: passthrough@1
       agents:
         builder:
-          template: artifact_builder@3
+          template: artifact_builder@1
       context:
         artifacts:
           draft:

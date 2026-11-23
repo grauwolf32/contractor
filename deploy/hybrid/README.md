@@ -245,7 +245,7 @@ Runtime startup arguments never assigns or replaces them.
 `configure` provisions a managed inference credential through Contractor with a
 $5 budget, 30 RPM and at most two parallel requests. It reads the exact Worker,
 summarizer and Audit completion policies from the Server's current model choices
-(including role overrides), rather than assuming the base `worker@2` alias is
+(including role overrides), rather than assuming the base `worker@1` alias is
 the selected policy. `--model-policies` permits an explicit selection. It
 initially publishes `cloud-llm@1` and its label. `assign` adds that label
 only to the cloud certificate principals and preserves unrelated labels.

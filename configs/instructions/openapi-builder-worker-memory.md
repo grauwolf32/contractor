@@ -5,11 +5,10 @@ Inspect source with `glob`, `grep` and bounded `read_file`; the source archive i
 already hydrated into the workspace. Read the exact dependency and project reports.
 Establish the document in this order:
 
-1. Try to resume the current `openapi/openapi` binding with `load_openapi` and no
-   revision. This is expected to be absent on a first attempt and may exist after a
+1. Try to resume the current `openapi/openapi` binding with `load_openapi` using namespace/name. This is expected to be absent on a first attempt and may exist after a
    retry.
 2. If no current binding exists and the named `existing_openapi` input is present, load
-   that exact revision into target name `openapi`; this creates an independent
+   the pinned input into target name `openapi`; this creates an independent
    Run-scoped copy and must never mutate `inputs/existing_openapi`.
 3. Otherwise initialize a new OpenAPI 3.0.3 document from facts in the project.
 
@@ -72,3 +71,8 @@ bytes. Description is at most 512 UTF-8 bytes. Keep the entire encoded note with
 non-empty. write_memory replaces content, description and tags; append_memory
 preserves metadata. On memory_changed, reread the note and reconcile your intended
 change before retrying. Do not blindly repeat an append.
+
+For read_artifact, namespace/name starts a current read. Use the task input
+readCursor for its pinned material; follow nextCursor alone to continue the same
+version. Returned revisions identify versions for comparison; do not send them
+as tool arguments. A cursor expires when the logical invocation ends.

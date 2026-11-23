@@ -1,0 +1,37 @@
+{
+  "task": "V480-001",
+  "source_commit_deployed": "5ccd89fe736b7a9591b454d08b0803d4c6f2c952",
+  "baseline_sha256": "00efdcd2e53c24e56db52ee3e4c4ff2136b0e29579ae766629634f98cb4e95af",
+  "backup": {
+    "database_sha256": "f93bc4c929129583c924ef9f3752032975063073f68205abea45eba53a3f6fa7",
+    "files_sha256": "863889c724fd08b4ccb308dad8a77bf50f5238b5a92bb0357188381a037ddafb",
+    "verified_tables": 61,
+    "verified_files": 453
+  },
+  "backup_restored_and_verified": true,
+  "previous_business_database_retained_disabled": true,
+  "applied_migration_versions": [
+    1
+  ],
+  "projects_recreated_via_public_api": 13,
+  "workflows": {
+    "count": 35,
+    "versions": [
+      "1"
+    ]
+  },
+  "audit_profiles": {
+    "count": 16,
+    "versions": [
+      "1"
+    ]
+  },
+  "runtime_agents": {
+    "count": 6,
+    "idle": 6
+  },
+  "model_selection_preserved": true,
+  "old_execution_history_imported": false,
+  "full_private_operational_record": ".local/v480/demo-reset.json (untracked; primary checkout)",
+  "delivery": "Isolated codex/reset-preproduction-delivery branch; not merged to main"
+}
