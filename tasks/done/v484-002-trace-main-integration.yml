@@ -5,7 +5,8 @@ milestone: run-metadata-labels
 epic: quality
 kind: chore
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: e6c149962036662a253de3e9e63695dbc2c94ecd
 depends_on: [V484-001]
 languages: [go, python, json, yaml, markdown]
 goal: >-
@@ -64,3 +65,4 @@ verification:
   - All 40 original primary dirty paths retained exact bytes and modes; its HEAD and staged delta remained unchanged.
   - The owned test database was dropped and its absence verified; the temporary PostgreSQL cluster was stopped and removed. Optional heavy I/O stayed disabled.
   - Evidence is recorded in tasks/evidence/v484-002-main-integration.json.
+  - Local main advanced to the verified two-parent merge; its worktree is clean.

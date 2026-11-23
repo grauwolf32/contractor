@@ -31,6 +31,8 @@
   },
   "delivery": {
     "no_remote_publication": true,
-    "no_deployment": true
+    "no_deployment": true,
+    "merge_commit": "e6c149962036662a253de3e9e63695dbc2c94ecd",
+    "local_main_contains_source": true
   }
 }
