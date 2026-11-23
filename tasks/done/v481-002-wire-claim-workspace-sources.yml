@@ -6,7 +6,7 @@ epic: findings
 kind: defect
 introduced_by: V478-002
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: Common fact, finding and Audit evidence tools can select exact source regions from an available overlay workspace while remaining usable without one.
@@ -50,3 +50,5 @@ tests:
     covers: [A1, A2, A3]
   - command: cd runtime && uv run ruff check src/contractor_runtime/allocation/preparation.py src/contractor_runtime/toolsets/security_findings/facades.py src/contractor_runtime/toolsets/audit_results/v2.py tests/test_claim_workspace_sources.py
     covers: [A1, A2, A3]
+implementation_commit: 911a2254503a5367a79cf477e9a89881e87ec475
+verification: 263 affected Runtime tests and targeted Ruff checks passed, including 13 hydrated overlay/direct/absent source-view regressions.
