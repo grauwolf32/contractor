@@ -5,7 +5,7 @@ milestone: project-facts-2026-11
 epic: workflows
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V481-002]
 languages: [yaml, markdown, go]
 goal: >-
@@ -117,3 +117,24 @@ tests:
     covers: [A2, A3, A4]
   - command: python3 scripts/check_tasks.py && python3 scripts/check_spec.py && make docs-dependencies-check
     covers: [A1, A4]
+  - command: python3 scripts/test-findings-e2e.py
+    covers: [A1, A2, A3, A4]
+  - command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestAuditCommonObservationProfilesAcrossProductionProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses|TestProjectWorkspaceLifecycleAcrossProductionProcesses|TestDomainGatewayFindsNamedInputAfterParameterBlock|TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure)$' -v
+    covers: [A1, A4]
+implementation_commit: 0d694aeedf5b4b3f51f480bfc56b77890b153a20
+verification:
+  passed:
+    - All internal/config and configload packages; shipped locked configuration validation.
+    - New discovery process test, including exact source proof, Project denial and zero facts.
+    - Common Findings gate with 310 Runtime tests and all 26 required process cases.
+    - Six consumer roots, including both Audit operation modes, heterogeneous HTTP/Caido, sitemap collection and full project workspace lifecycle.
+    - 131 focused shared-facade/trace/memory-source tests; prerequisite V481-002 additionally passed 263 affected Runtime tests and Ruff.
+    - Runtime import-linter (four contracts), task/spec/dependency graph checks and release graph coverage.
+    - Offline tests/eval/project_workflows package.
+  environment: Go 1.26.10, canonical TMPDIR (avoiding the existing macOS /var alias assertion), and one owned disposable PostgreSQL 17 cluster. All test processes joined; owned database dropped and cluster removed. Heavy I/O was not enabled.
+  unrelated_failure: >-
+    Additional go test -count=1 ./tests/eval/project_facts fails
+    TestFrozenMemoryExtractionRecipeUsesNativeContracts with corpus drift for
+    experiment-template-v5.json. That corpus and recipe were already modified
+    in the user's working tree before this task; neither is changed by V481.
+  limits: Scripted Gateway verification proves tool exposure, source capture and publication, not measured live-model selection quality. No deployment or full release gate was run. Changes are on the existing codex/reset-preproduction-baseline branch, not merged into main.
