@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: quality
 kind: defect
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - typescript
@@ -45,3 +45,13 @@ tests:
   covers:
   - A1
   - A2
+verification:
+  regression: The original selector failed Playwright strict mode on two headings; selecting only data-selected also exposed
+    two legitimate receipts for identical bytes. The final real continuation resolves a concrete receipt and verifies its
+    exact namespace/name/revision/digest before publication.
+  processes: Both real PostgreSQL/Server/Runtime/Chromium research scenarios passed in 129.452s, including 390/1440px and
+    light/dark/black traversal.
+  lint: The changed production-browser test passed ESLint. Full make lint passed before this test-only selector refinement;
+    no production UI behavior changed.
+  delivery: codex/reset-preproduction-delivery; not merged to main.
+implementation_commit: 2c95faae7c1b43bed3089d02f4a358fab922a69a
