@@ -5,7 +5,7 @@ milestone: hub-audit-structure-2026-10
 epic: quality
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V482-001, V482-002, V482-003]
 languages: [go, python, typescript, markdown]
 goal: Main contains the verified sitemap gate, Runtime diagnostic backoff and single-read Audit evidence collection together with the latest UI and baseline reset.
@@ -46,3 +46,5 @@ verification:
   - VITEST_MAX_WORKERS=1 make ui-verify passed 229 files, 2586 tests plus one expected failure, 17 static-server tests and the production build.
   - make lint passed; its script suite ran 231 tests with one opt-in Podman storage case skipped.
   - The owned database was explicitly dropped, its absence verified and its temporary PostgreSQL cluster stopped and removed.
+  - Local main was advanced to the verified two-parent merge with a clean worktree.
+implementation_commit: d1a62d331cf85f542a12861a852678078921b2e3
