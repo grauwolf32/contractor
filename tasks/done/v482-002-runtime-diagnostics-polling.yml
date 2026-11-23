@@ -6,7 +6,7 @@ epic: ui
 kind: defect
 introduced_by: V417-007
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript]
 goal: Visible active Runtime diagnostics back off consecutive failed reads to thirty seconds and recover after a successful read.
@@ -38,4 +38,6 @@ tests:
 verification:
   - The new mounted-component regression passed with real QueryClient reads and fake timers; the former calculation fails it.
   - The regression verifies six, twelve, twenty-four and thirty-second failed-read delays, three-second recovery, permanent refusal, panel closure and terminal refresh.
-  - make lint passed. The complete UI acceptance is still running with VITEST_MAX_WORKERS=1.
+  - make lint passed. VITEST_MAX_WORKERS=1 make ui-verify passed all 229 UI files, 2585 tests plus one expected failure, 17 static-server tests and the production build.
+  - Two standard-parallel full UI attempts failed in the pre-existing 256-file source preview test by an async assertion or test timeout; its isolated suite and the complete one-worker run pass with unchanged budgets.
+implementation_commit: 2e4faa614fef7489ef3adf61f1ecaf2eaaff7051
