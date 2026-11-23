@@ -11,6 +11,8 @@ spec:
   instructions:
     ref: instructions/audit-wstg-http-verifier-worker.md
   toolsets:
+    - ref: security-findings@1
+      tools: [fact]
     - ref: memory-tools@1
       tools: [list_memories, read_memory, write_memory, append_memory, search_memory, list_memory_tags]
     - ref: http-tools@1

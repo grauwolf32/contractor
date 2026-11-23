@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-66 open tasks: 11 in progress, 42 pending, 13 deferred. 1689 finished: 1671 completed, 18 archived.
+66 open tasks: 11 in progress, 42 pending, 13 deferred. 1691 finished: 1673 completed, 18 archived.
 
 ## In progress
 
@@ -166,10 +166,10 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 26 | 38 | 16 | 39 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 13 | 30 |
-| Findings tools and collections (`findings`) | 0 | 22 | 15 | 13 | 30 |
-| Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |
+| Findings tools and collections (`findings`) | 0 | 22 | 16 | 13 | 30 |
+| Workflow catalog and document workflows (`workflows`) | 6 | 22 | 17 | 16 | 27 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 21 | 78 |
-| Audits (`audits`) | 10 | 77 | 106 | 44 | 183 |
+| Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 21 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
 | Web UI (`ui`) | 1 | 56 | 83 | 34 | 80 |

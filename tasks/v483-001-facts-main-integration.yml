@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 priority: P1
 status: in_progress
-depends_on: []
+depends_on: [V481-001, V481-002]
 languages: [go, python, yaml, markdown]
 goal: Local main contains reusable fact publication from investigating Workers with current baseline and release cleanup, preserving the user's working files.
 context:
@@ -39,3 +39,10 @@ tests:
     covers: [A2]
   - command: make lint
     covers: [A1, A2]
+verification:
+  - All internal/config and configload packages and both offline Eval packages passed; the former Eval corpus drift is absent in current main.
+  - Locked shipped configuration validation passed without identity or version changes.
+  - All 287 affected Runtime cases passed.
+  - Real discovery (Project publication, projectless denial and zero observations) and both Audit observation/tracing modes passed through Server, Runtime and disposable PostgreSQL.
+  - make lint passed, including generated clients/config/dependencies, UI gates, Go checks, task/spec/release/ERD checks, Ruff and all four import contracts.
+  - The script suite ran 231 cases with one declared opt-in Podman storage skip; that skip is not passing coverage. Optional heavy I/O stayed disabled.

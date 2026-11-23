@@ -421,3 +421,13 @@ Planner compaction follows the same split: select its `compactorModelPolicy`
 in Workflow `executionConfig.planner` or the Stage's Planner execution selection.
 `plannerContextManagement` contains the strategy, instructions and thresholds.
 It contains no model selection; summary continuations use the same grammar.
+
+Investigation templates select common `security-findings@1` `fact` alongside their
+source/HTTP/trace finding facade. Discovery and dependency analysis, source review,
+Audit source/operation/WSTG investigation, taint analysis and callback investigation
+can preserve reusable observations while reading primary evidence. Instructions
+select facts useful for later checks, preserve scope and uncertainty, allow zero
+facts, and keep normal reports and Audit evidence/results. Facts require an active
+Project; a publication denial is a reported limitation. Audit publication precedes
+final result submission. Builders, validators, scanners, hypothesis generation and
+existing-Finding review retain their existing roles. See FND-R242.

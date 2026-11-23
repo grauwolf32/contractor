@@ -423,9 +423,11 @@ class AllocationPreparation:
             try:
                 return workspace.source_view()
             except WorkspaceStorageError:
+                if not getattr(factory, "requires_workspace", False):
+                    return None
                 raise AllocationError(
                     "workspace_mode_unsupported",
-                    "Trace findings require overlay workspace mode",
+                    "Source capture requires overlay workspace mode",
                     retryable=False,
                     status_code=422,
                 ) from None

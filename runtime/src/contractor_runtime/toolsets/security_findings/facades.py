@@ -300,6 +300,7 @@ class HTTPFindingTool(_FindingFacade):
 
 
 class GeneralFindingsToolsetFactory:
+    workspace_access = "source"
     ref = "security-findings@1"
     exported_tools = frozenset(
         {

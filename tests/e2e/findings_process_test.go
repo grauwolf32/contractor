@@ -277,7 +277,7 @@ func TestFindingsProducerAndReaderAcrossProcesses(t *testing.T) {
 func findingsProducerStage(name string) domainGatewayStage {
 	tools := append([]string{"list_skills", "load_skill", "load_skill_resource",
 		"read_audit_task", "submit_result", "submit_results", "ls", "glob", "grep", "read_file",
-		"write_text_artifact", "finding", "annotate_trace", "annotate_validate", "annotate_sink",
+		"write_text_artifact", "finding", "fact", "annotate_trace", "annotate_validate", "annotate_sink",
 		"changed_paths", "diff", "rollback_changes", "evidence"}, completeCodeAnalysisTools...)
 	final := finalGatewayStep("All assigned results recorded", nil)
 	final.validate = requireRecordedAuditResults(1)

@@ -2250,3 +2250,22 @@ an explicit interpretation and preserved observation context. A summary or note
 is evidence that its author recorded a claim; it is not automatically primary
 observation of the asserted system property. No recursive source crawler or
 universal observation registry is introduced.
+
+### Facts collected during investigation
+
+**FND-R242.** Shipped source discovery/dependency, source review, operation
+observation/tracing and HTTP/Caido/callback investigation Workers select common
+`fact` alongside their existing tools. They preserve a small optional selection
+of reusable observations affecting later checks, with exact primary sources,
+conditions, uncertainty and scope. Existing reports remain their required
+handoffs. Check outcomes remain ordinary Audit results; reusable observations
+may additionally be published as facts. Fact publication does not replace
+check-specific `evidence`, tested conditions or conclusions. Audit Workers save
+desired facts before final result submission, which may end their invocation.
+
+Known projectless work skips fact publication. Denied/rejected publication is
+reported as a limitation without a false saved claim or loss of the ordinary
+report/conclusion. Existing receipt reconciliation, Worker budgets and common
+intake/source bounds remain authoritative; publication never authorizes extra
+traffic. Source interpretation remains with the investigating Worker and Runtime
+source adapters; Finding intake owns authority, correlation, receipts and retention.

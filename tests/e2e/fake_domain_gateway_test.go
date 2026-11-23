@@ -573,7 +573,7 @@ func withMemoryTools(tools []string) []string {
 
 func domainGatewayStages() []domainGatewayStage {
 	analystTools := append([]string{
-		"glob", "grep", "ls", "read_file", "read_artifact", "write_text_artifact",
+		"fact", "glob", "grep", "ls", "read_file", "read_artifact", "write_text_artifact",
 	}, completeCodeAnalysisTools...)
 	openAPIBuilderTools := []string{
 		"changed_paths", "diff", "get_openapi_component", "get_openapi_info", "get_openapi_path",

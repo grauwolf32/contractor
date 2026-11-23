@@ -9,6 +9,8 @@ spec:
   instructions:
     ref: instructions/interactsh-analyst.md
   toolsets:
+    - ref: security-findings@1
+      tools: [fact]
     - ref: interactsh@1
       tools: [interactsh_register, interactsh_poll]
     - ref: http-tools@1
