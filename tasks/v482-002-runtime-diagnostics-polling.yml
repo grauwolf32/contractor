@@ -1,0 +1,41 @@
+schema_version: '1.0'
+id: V482-002
+title: Back off consecutive Runtime diagnostic read failures with the common polling rule
+milestone: hub-audit-defects-2026-10
+epic: ui
+kind: defect
+introduced_by: V417-007
+priority: P2
+status: in_progress
+depends_on: []
+languages: [typescript]
+goal: Visible active Runtime diagnostics back off consecutive failed reads to thirty seconds and recover after a successful read.
+context:
+  authority: User request 2026-11-23 authorizes cleanup items 1, 2 and 4 from the release review. Audit priority removal is excluded.
+  specification: [docs/spec/ui/ui.md#UI-R241]
+  finding: ui/src/routes/runs/runtime-diagnostics.tsx:51 uses fetchFailureCount, reset at each fetch. Five failed reads with two retries each remain at 24 seconds.
+  siblings: Other state readers already use app/polling.ts. Tool-call diagnostics use explicit refreshes and retain their existing behavior.
+  verification_environment: Standard-parallel full UI runs time out in the existing 256-file evidence preview test. Its isolated suite passes. Verify all UI cases with one worker and unchanged assertions and timeout budgets.
+  boundary: Reuse pollInterval with a three-second base and thirty-second ceiling while the visible attempt is active. Existing request retries and terminal-transition invalidation retain their owners.
+scope:
+  in:
+    - Replace the local delay calculation with the shared poller and bump the UI patch version.
+    - Exercise real QueryClient reads for consecutive failures, recovery, permanent refusal, closure and terminal refresh.
+  out:
+    - API contracts, diagnostic presentation, additional automatic tool-call polling and the Audit priority library.
+acceptance_criteria:
+  - id: A1
+    text: Consecutive failed reads increase the interval to thirty seconds, a successful read restores three seconds and permanent client refusals stop polling.
+  - id: A2
+    text: Closed and terminal diagnostic panels stop polling, terminal transitions refetch once, and loaded facts survive failed refreshes.
+  - id: A3
+    text: The real-query regression fails with the former fetchFailureCount calculation and the complete UI verification passes.
+tests:
+  - command: VITEST_MAX_WORKERS=1 make ui-verify
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2]
+verification:
+  - The new mounted-component regression passed with real QueryClient reads and fake timers; the former calculation fails it.
+  - The regression verifies six, twelve, twenty-four and thirty-second failed-read delays, three-second recovery, permanent refusal, panel closure and terminal refresh.
+  - make lint passed. The complete UI acceptance is still running with VITEST_MAX_WORKERS=1.

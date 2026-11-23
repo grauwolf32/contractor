@@ -6,6 +6,7 @@ import { PublicAPIError } from "../../api/error";
 import { getRuntimeDiagnostics } from "../../api/run-diagnostics";
 import type { StageAttempt } from "../../api/runs";
 import { ErrorNotice } from "../../app/error-notice";
+import { pollInterval } from "../../app/polling";
 import { Button, Facts } from "../../ui";
 
 import { CompactionProgress } from "./compaction-progress";
@@ -20,6 +21,8 @@ const DROP_LABELS = {
   cancelled: "Cancelled",
   shutdown: "Discarded at shutdown",
 } as const;
+
+const diagnosticPoll = pollInterval({ interval: 3000, maxInterval: 30000 });
 
 /** On-demand retained facts; their availability never claims a Run outcome. */
 export function RuntimeDiagnostics({
@@ -51,7 +54,7 @@ export function RuntimeDiagnostics({
     refetchInterval: (query) =>
       open &&
       ["preparing", "running", "finalizing", "aborting"].includes(attempt.state)
-        ? Math.min(3000 * 2 ** query.state.fetchFailureCount, 30000)
+        ? diagnosticPoll(query)
         : false,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
