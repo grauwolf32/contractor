@@ -62,7 +62,7 @@ func checkLocatedProposal(proposal auditdomain.FindingProposal) error {
 
 func locatedFindingProducer() domainGatewayStage {
 	return domainGatewayStage{name: "located/producer", tools: []string{
-		"open_source_archive", "list_source_files", "read_source", "search_source", "finding", "write_text_artifact",
+		"open_source_archive", "list_source_files", "read_source", "search_source", "finding", "fact", "write_text_artifact",
 	}, steps: []domainGatewayStep{
 		toolGatewayStep("open_source_archive", stageSourceArguments("source", nil)),
 		toolGatewayStep("read_source", fixedArguments(map[string]any{"path": "app.py", "start_line": 1, "max_lines": 100})),

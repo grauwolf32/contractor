@@ -32,7 +32,7 @@ func newHTTPCaidoGateway(token, targetURL string) *domainGateway {
 
 func httpCaidoHTTPGatewayStage(name, targetURL string) domainGatewayStage {
 	tools := append(gatewayToolsetTools("http-tools@1"), gatewayToolsetTools("text-artifacts@1")...)
-	tools = append(tools, "read_artifact")
+	tools = append(tools, "read_artifact", "fact")
 	tools = withMemoryTools(tools)
 	sort.Strings(tools)
 	return domainGatewayStage{
@@ -93,7 +93,7 @@ func httpCaidoCaidoGatewayStage(name, scopeName string) domainGatewayStage {
 	// The Caido Worker selects only these three HTTP tools, not the full
 	// http-tools export. Keep that explicit selection independent of additions.
 	tools := []string{
-		"finding", "http_history", "http_read_body",
+		"finding", "fact", "http_history", "http_read_body",
 		"http_request", "list_skills", "load_skill", "load_skill_resource",
 		"read_artifact", "write_text_artifact",
 	}

@@ -27,3 +27,9 @@ The report must contain:
 Write the complete report to `analysis/dependencies` with media type
 `text/markdown`. Finish only after that durable write succeeds, using a concise
 concise semantic completion result rather than the report body.
+
+Save a small useful selection through `fact` when a dependency's confirmed
+runtime role, version or connection/configuration conditions affect future checks.
+Prefer the manifest/lock and actual use site as exact sources. Avoid one fact per
+package or repeating the full inventory. Follow the AgentTemplate's publication
+rules; the dependency report is required even with zero saved facts.

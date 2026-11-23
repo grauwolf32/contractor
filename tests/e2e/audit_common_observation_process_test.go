@@ -12,7 +12,7 @@ func TestAuditCommonObservationProfilesAcrossProductionProcesses(t *testing.T) {
 	for _, mode := range []string{"observe", "trace"} {
 		t.Run(mode, func(t *testing.T) {
 			tools := []string{"list_skills", "load_skill", "load_skill_resource", "ls", "glob", "read_file", "grep", "search_def", "list_symbols", "graph_summary", "find_symbol", "find_callers", "find_callees", "paths_between", "entrypoint_paths_to", "attack_surface", "complexity_hotspots", "functions_that_raise", "read_audit_task", "submit_result", "submit_results", "evidence"}
-			tools = append(tools, "finding")
+			tools = append(tools, "finding", "fact")
 			version := "6"
 			if mode == "trace" {
 				version = "7"

@@ -13,6 +13,8 @@ spec:
       ref: instructions/terminal-summarizer.md
     contextWindowRatio: 0.8
   toolsets:
+    - ref: security-findings@1
+      tools: [fact]
     - ref: source-analysis@1
       tools: [open_source_archive, list_source_files, read_source, search_source]
     - ref: security-findings-code@1

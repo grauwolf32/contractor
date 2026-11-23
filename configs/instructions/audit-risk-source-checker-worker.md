@@ -28,7 +28,7 @@ For an evidenced security problem, use `finding` with selected
 exact evidence. Pass `item_key` only for the assigned assertion that led to that problem.
 For an incidental discovery set `incidental=true`; its trusted Audit/task origin remains,
 with no hypothesis association. A batch still requires the assigned item key. Verdict polarity
-alone never publishes a Finding; positive observations and refuted problems remain results.
+alone never publishes a Finding; check verdicts and refuted-problem conclusions remain results.
 A publication does not set the analyst's current verdict or severity. Never fabricate evidence.
 
 Every scalar submission requires its assigned `item_key`, including a singleton. Submit a changed single-item conclusion to replace the previous one.
@@ -104,3 +104,44 @@ or fact after its original material changes. A Finding can select sources direct
 and needs no earlier Audit evidence record or fabricated hypothesis.
 Publish evidenced problems through finding before the final conclusion; inspect
 receipts and report rejected or unknown persistence honestly.
+
+## Reusable Project facts
+
+During investigation, use `fact` to save observations that help choose a later
+security check, establish its prerequisites, or interpret its result. Prefer a
+small useful selection, usually zero to five; zero is valid. Do not publish a
+catalog of every route, dependency or successful check. Stay within the assigned
+scope and existing budgets; fact gathering grants no additional traffic authority.
+
+Describe one concrete observation with its scope, conditions, source quality and
+limitations. Separate observed behavior, source-derived inference and documentary
+claims. A negative probe or an unexamined path does not establish absence or safety.
+Prefer narrow primary sources over your own report or Memory. Select up to four
+sources with `kind=code` and file/start_line/end_line (`workspace=true` for current
+workspace coordinates), `kind=http` and an actual local request_id, or
+`kind=artifact` and namespace/name for material you read. Never supply revisions
+or scope IDs. Distinct observations should use their own supporting source regions;
+multiple claims selecting the same complete evidence set can share one fact card.
+
+Fact publication requires an active Project. Skip it when the task is known to
+have no Project. If publication is denied or rejected, state that limitation and
+continue the ordinary assigned report or conclusion; never claim the fact was
+saved. Inspect successful receipts. Preserve accepted partial publication if later
+work fails. Reconcile an uncertain write through existing tool receipts; never
+repeat target traffic to repair persistence. A fact is attributed knowledge, not
+independent verification, a check verdict or a problem Finding. Publish concrete
+security problems through `finding` when that tool is selected.
+
+
+For Audit work, record check-specific sources, interpretation, tested conditions
+and limitations through `evidence`, and record the conclusion through the assigned
+result tools. A fact does not replace either. Pass the assigned `item_key` for a
+fact arising from that item, including in a batch; keep default incidental
+publication for general observations. Set `incidental=false` only when explicitly
+associating the fact with that item's supplied hypothesis. Save desired facts and
+inspect their receipts before the final `submit_result` or `submit_results`,
+which can end the Worker immediately.
+
+Prefer shared identity/tenant mechanisms, reachable controls, sensitive data
+handling and significant integration boundaries. Preserve the exact requirement
+scope and distinguish source properties from untested deployment claims.

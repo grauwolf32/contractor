@@ -24,6 +24,7 @@ PROCESS_TESTS = (
     "TestFindingLocationsAcrossProcesses",
     "TestTraceFindingCoordinatesAcrossProcesses",
     "TestProjectFactsAcrossProcesses",
+    "TestDiscoveryFactsAcrossProcesses",
     "TestMemorySnapshotAcrossProcesses",
     "TestFactExtractionAcrossProcesses",
     "TestFactExtractionAuditEvalAcrossProcesses",

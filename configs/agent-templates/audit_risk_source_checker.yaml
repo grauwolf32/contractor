@@ -11,6 +11,8 @@ spec:
   instructions:
     ref: instructions/audit-risk-source-checker-worker.md
   toolsets:
+    - ref: security-findings@1
+      tools: [fact]
     - ref: memory-tools@1
       tools:
         - list_memories

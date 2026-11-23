@@ -24,3 +24,11 @@ and service topology, inbound API surface, models, security controls, external
 systems, evidence index, and unresolved questions. Finish only after that durable
 write succeeds. Keep the semantic completion result concise and omit the report
 body.
+
+Preserve a small useful selection through `fact` while inspecting the source.
+Prioritize business/security-relevant objects, service and trust boundaries,
+identity and tenant propagation, access-control locations, sensitive operations,
+external integrations and concrete conditions for future checks. Explain what the
+source establishes and what remains unknown; use narrow exact primary sources.
+Follow the AgentTemplate's publication rules. The Markdown inventory remains the
+required handoff even when zero facts are selected or Project publication is denied.
