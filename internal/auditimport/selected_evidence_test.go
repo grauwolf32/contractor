@@ -1,31 +1,14 @@
 package auditimport
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
-
-// Script only immutable reads; the common decoder validates the complete data.
-type selectedEvidenceReads struct {
-	Reader
-	ArtifactAccess
-	link auditstore.ArtifactLink
-	data []byte
-}
-
-func (r selectedEvidenceReads) ListExecutionEvidence(context.Context, string, string) ([]auditstore.ArtifactLink, error) {
-	return []auditstore.ArtifactLink{r.link}, nil
-}
-func (r selectedEvidenceReads) ReadAuditExact(context.Context, string, contracts.ExactArtifact) ([]byte, error) {
-	return r.data, nil
-}
 
 func TestResultContextDoesNotCountUncitedAssignedMaterials(t *testing.T) {
 	// Exercise the real common decoder with its largest valid assignment list.
@@ -63,19 +46,25 @@ func TestResultContextDoesNotCountUncitedAssignedMaterials(t *testing.T) {
 	noteRef.Name = "note"
 	noteExact := contracts.ExactContent(noteRef, "application/json", noteData)
 	noteMaterial := auditcontract.Material{ScopeKind: "audit", ScopeID: "audit-1", Ref: noteRef, Digest: noteExact.Digest, MediaType: noteExact.MediaType, SizeBytes: noteExact.SizeBytes}
-	reads := selectedEvidenceReads{link: auditstore.ArtifactLink{Artifact: noteExact}, data: noteData}
-	importer := &Importer{reads: reads, artifacts: reads}
-	runID := "run-1"
-	for _, foreign := range []bool{false, true} {
+	for _, scenario := range []string{"accepted", "foreign-source", "foreign-task", "foreign-hypothesis"} {
+		evidence := selectedTaskEvidence{materials: []auditcontract.Material{retained, noteMaterial}}
+		taskID := "task-1"
+		if scenario == "foreign-task" {
+			taskID = "unassigned"
+		}
+		if scenario == "foreign-hypothesis" {
+			evidence.hypothesis = &auditcontract.HypothesisRef{ID: "unassigned", Revision: 1}
+		}
+		partials := partialTaskResults{evidence: map[string]selectedTaskEvidence{taskID: evidence}}
 		cited := retained
-		if foreign {
+		if scenario == "foreign-source" {
 			cited.Ref.Name = "unassigned"
 		}
 		raw, _ := strictjson.Canonical(map[string]any{"schema": "contractor.audit.conclusions.v1", "items": []auditcontract.Conclusion{{ItemKey: "item-00", Rationale: "Only one source was inspected", TestedConditions: []string{}, Limitations: []string{}, Evidence: []auditcontract.Material{cited, noteMaterial}}}})
-		filtered, _, err := importer.taskSelectedContext(t.Context(), auditstore.Execution{AuditID: "audit-1", ExecutionID: "execution-1", RunID: &runID}, trusted, raw)
-		if foreign {
+		filtered, _, err := partials.taskSelectedContext(trusted, raw)
+		if scenario != "accepted" {
 			if !errors.Is(err, ErrPermanent) {
-				t.Fatalf("foreign source accepted: %v", err)
+				t.Fatalf("%s accepted: %v", scenario, err)
 			}
 			continue
 		}
