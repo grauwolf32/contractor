@@ -16,7 +16,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -38,10 +37,13 @@ func TestArtifactBlobBackendsContainers(t *testing.T) {
 		t.Fatal("podman is required")
 	}
 	repositoryRoot, buildRoot := repoRoot(t), t.TempDir()
-	binary := containerServerBinary(t, buildRoot)
-	if err := os.WriteFile(filepath.Join(buildRoot, "Containerfile"), []byte("FROM scratch\nCOPY contractor-server /contractor-server\nENTRYPOINT [\"/contractor-server\"]\n"), 0600); err != nil {
+	binary := sharedServerBinary(t)
+	containerServerBinary(t, buildRoot)
+	containerStatusBinary(t, buildRoot)
+	if err := os.WriteFile(filepath.Join(buildRoot, "Containerfile"), []byte("FROM scratch\nCOPY contractor-server /contractor-server\nCOPY process-status /process-status\nENTRYPOINT [\"/contractor-server\"]\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
+	host := containerGateHost(t)
 	image := "localhost/contractor-blob-gate:" + randomHex(t, 8)
 	runChecked(t, buildRoot, nil, "podman", "build", "-q", "-t", image, buildRoot)
 	t.Cleanup(func() { _ = exec.Command("podman", "rmi", "-f", image).Run() })
@@ -62,7 +64,7 @@ func TestArtifactBlobBackendsContainers(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			leaf := localpki.LeafOptions{IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}}
+			leaf := localpki.LeafOptions{IPAddresses: []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP(host)}}
 			control, err := generator.IssueControlPlane(filepath.Join(root, "pki"), localpki.ControlPlaneOptions{LeafOptions: leaf, URI: "urn:contractor:control-plane:blob-gate"})
 			if err != nil {
 				t.Fatal(err)
@@ -73,7 +75,7 @@ func TestArtifactBlobBackendsContainers(t *testing.T) {
 			}
 			gateway := newFakeGateway(llmGatewayToken)
 			t.Cleanup(gateway.close)
-			configs := stageE2EConfiguration(t, filepath.Join(repositoryRoot, "configs", "e2e"), filepath.Join(root, "configs"), gateway.URL())
+			configs := stageE2EConfiguration(t, filepath.Join(repositoryRoot, "configs", "e2e"), filepath.Join(root, "configs"), containerGateURL(t, gateway.URL(), host))
 			stageBlobCatalogFixtures(t, repositoryRoot, configs)
 			publicAddress, privateAddress := freeAddress(t), freeAddress(t)
 			publicURL, privateURL := "http://"+publicAddress, "https://"+privateAddress
@@ -95,7 +97,8 @@ func TestArtifactBlobBackendsContainers(t *testing.T) {
 			var server *childProcess
 			start := func() {
 				containerName = "contractor-blob-gate-" + randomHex(t, 8)
-				args := []string{"run", "--name", containerName, "--network=host", "--read-only", "--read-only-tmpfs=false", "--cap-drop=all", "--security-opt=no-new-privileges", "--tmpfs=/managed:rw,nosuid,nodev,noexec,size=64m", "-v", root + ":" + root + ":ro"}
+				args := []string{"run", "--name", containerName, "--read-only", "--read-only-tmpfs=false", "--cap-drop=all", "--security-opt=no-new-privileges", "--tmpfs=/managed:rw,nosuid,nodev,noexec,size=64m", "-v", root + ":" + root + ":ro"}
+				args = append(args, containerGateNetwork(t, environment, publicAddress, privateAddress, host)...)
 				if usesFiles {
 					args = append(args, "--tmpfs=/blobs:rw,nosuid,nodev,noexec,size=1g")
 				}
@@ -118,7 +121,7 @@ func TestArtifactBlobBackendsContainers(t *testing.T) {
 			}
 			// Same authenticated public and allocation-scoped mTLS APIs as normal runs.
 			python := filepath.Join(repositoryRoot, "runtime", ".venv", "bin", "python")
-			runtimeAddress := freeAddress(t)
+			runtimeAddress := containerGateAddress(t, host)
 			runtimeProcess := startRuntimeWithAdapters(t, "blob Python Runtime", repositoryRoot, python, privateURL, runtimeAddress, filepath.Join(root, "runtime-work"), ca.Certificate, agent, nil)
 			waitForProcessLog(t, ctx, runtimeProcess, "runtime agent registered")
 			input := uploadInput(t, client, publicURL)
@@ -362,15 +365,9 @@ func blobGateSaturation(t *testing.T, client *http.Client, address, base, runID 
 
 func blobGatePeak(t *testing.T, name, backend string) {
 	t.Helper()
-	output, err := exec.Command("podman", "inspect", "--format", "{{.State.Pid}}", name).Output()
-	if err != nil {
-		t.Fatal(err)
-	}
-	pid, err := strconv.Atoi(strings.TrimSpace(string(output)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	status, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", pid))
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	status, err := exec.CommandContext(ctx, "podman", "exec", name, "/process-status").Output()
 	if err != nil {
 		t.Fatal(err)
 	}

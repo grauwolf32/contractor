@@ -1,57 +1,68 @@
 schema_version: '1.0'
 id: V480-002
-title: Declare the Linux boundary of the blob-backend container release gate
+title: Build Linux container verification artifacts for the selected Podman engine
 milestone: hub-audit-defects-2026-10
 epic: quality
 kind: defect
 introduced_by: V34-005
-priority: P3
-status: pending
+priority: P2
+status: in_progress
 depends_on: []
-languages: [go, markdown]
-goal: Container verification reports its actual supported host and never confuses a Darwin executable with a Linux release artifact.
+languages:
+- go
+- markdown
+goal: Native process tests retain native executables while both production container gates build and execute Linux artifacts
+  for the selected engine, including macOS Podman.
 context:
-  authority: >-
-    Agent-proposed follow-up discovered during the user-authorized pre-production
-    reset on 2026-11-23. This does not authorize a new portability subsystem or
-    expand that reset's product scope.
-  finding: >-
-    tests/e2e/artifact_blob_backends_test.go:42 and
-    tests/e2e/server_binary_test.go:41 build a static native binary, copy it into
-    a scratch image and run that image with host networking. On macOS the image
-    fails before readiness with Exec format error. The original implementation
-    4edd8d52fd55aaf50e70f40750d9fab127acf813 already used CGO_ENABLED=0 without a
-    Linux target; the later cache retained the behavior. Host-network loopback
-    assumptions also need review before claiming VM-backed Podman portability.
-  siblings: >-
-    Ordinary process binaries must remain native; container static binaries and
-    their Podman networking form the affected boundary. Shared cache lifetime,
-    executable permissions, four backend modes and owned resource cleanup remain
-    required. The reset's native PostgreSQL/schema tests do not require this gate.
-  decision_needed: >-
-    Recommend documenting a Linux-host release gate and reporting a named platform
-    skip before resource creation elsewhere, while requiring actual Linux execution
-    in release verification. The larger alternative cross-compiles for the selected
-    Podman engine and provides explicit VM database, API and mTLS routing. Choose
-    that only when macOS execution of this container gate is a concrete requirement.
+  authority: User request 2026-11-23 explicitly assigns fixing the Darwin-binary/Linux-container mismatch. This supersedes
+    the earlier unassigned platform-boundary proposal; implement and verify the actual container path, including concrete
+    VM routing prerequisites.
+  finding: tests/e2e/artifact_blob_backends_test.go:42 and tests/e2e/server_binary_test.go:41 build a static native binary,
+    copy it into a scratch image and run that image with host networking. On macOS the image fails before readiness with Exec
+    format error. The original implementation 4edd8d52fd55aaf50e70f40750d9fab127acf813 already used CGO_ENABLED=0 without
+    a Linux target; the later cache retained the behavior. Host-network loopback assumptions also need review before claiming
+    VM-backed Podman portability.
+  siblings: Ordinary process binaries must remain native; container static binaries and their Podman networking form the affected
+    boundary. Shared cache lifetime, executable permissions, four backend modes and owned resource cleanup remain required.
+    The reset's native PostgreSQL/schema tests do not require this gate.
+  decision: Set an explicit Linux/engine-architecture target on the existing test build cache; retain native builds for host
+    migration calls. Reuse the two existing container gates with narrowly scoped published loopback API ports and owned relays
+    for host-only fixture dependencies when Podman runs in a macOS VM. No production network abstraction or platform skip.
 scope:
   in:
-    - Settle and enforce the supported host boundary before building images or creating databases.
-    - Preserve actual four-backend release coverage on the supported Linux runner and ordinary native process builds.
-    - Document platform skips separately from passing coverage and keep owned container/image/database cleanup.
+  - Explicit cached target OS/architecture for the concrete container consumers; preserve native cache behavior and executable
+    permissions.
+  - Both blob-backend and Git production container gates, native migrations, actual VM API/database/Gateway/Runtime connectivity
+    and owned resource cleanup.
+  - Real executable-format/cache regressions and actual Podman/PostgreSQL scenarios; document the platform contract.
   out:
-    - Changes to application behavior, migrations, catalog identities or the demo deployment.
+  - Changes to application behavior, migrations, catalog identities or the demo deployment.
 acceptance_criteria:
-  - id: A1
-    text: The selected host policy is explicit; unsupported hosts stop before resource creation with a truthful outcome.
-  - id: A2
-    text: The real container release test executes all four backend modes on its supported Linux runner, with correct executable format and connectivity.
-  - id: A3
-    text: Ordinary process cache behavior and cleanup remain covered; optional or platform skips are not counted as passing release coverage.
+- id: A1
+  text: The container cache produces Linux ELF for the selected Podman architecture, while ordinary process builds remain
+    runnable native executables.
+- id: A2
+  text: Both real container gates pass, including all four blob backends, Git HTTPS/SSH and private Runtime calls, on macOS
+    Podman without format or loopback-routing errors.
+- id: A3
+  text: Ordinary process cache behavior and cleanup remain covered; optional or platform skips are not counted as passing
+    release coverage.
 tests:
-  - command: go test -count=1 ./tests/internal/serverbuildtest
-    covers: [A1, A3]
-  - command: go test -tags=e2e -count=1 -timeout=10m ./tests/e2e -run '^TestArtifactBlobBackendsContainers$'
-    covers: [A1, A2, A3]
-  - command: make lint
-    covers: [A1, A3]
+- command: go test -count=1 ./tests/internal/serverbuildtest
+  covers:
+  - A1
+  - A3
+- command: go test -tags=e2e -count=1 -timeout=10m ./tests/e2e -run '^TestArtifactBlobBackendsContainers$'
+  covers:
+  - A1
+  - A2
+  - A3
+- command: go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^TestGitArtifactsProductionContainers$'
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A3
